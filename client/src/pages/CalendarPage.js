@@ -108,6 +108,7 @@ export default function CalendarPage() {
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
   const adjustedFirst = (firstDayOfWeek + 6) % 7;
+  const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
   const isInDragRange = (day) => {
     if (!dragStart || !dragEnd) return false;
@@ -117,8 +118,9 @@ export default function CalendarPage() {
   };
 
   const handleMouseDown = (day) => {
-    // Allow drag only on non-fully-occupied days
     const dateStr = formatDate(year, month, day);
+    if (dateStr < today) return;
+    // Allow drag only on non-fully-occupied days
     const midOccupied = reservations.some(r => dateStr > r.startDate && dateStr < r.endDate);
     if (midOccupied) return;
     setDragStart(day);
@@ -257,6 +259,7 @@ export default function CalendarPage() {
   // ---------- RENDER A CALENDAR CELL ----------
   const renderDayCell = (day) => {
     const dateStr = formatDate(year, month, day);
+    const isPast = dateStr < today;
     const inDrag = isInDragRange(day);
 
     // Find departure (endDate === this day), arrival (startDate === this day), mid-stay
@@ -292,15 +295,15 @@ export default function CalendarPage() {
     if (!hasVisual) {
       return (
         <Box key={day}
-          onMouseDown={() => handleMouseDown(day)}
+          onMouseDown={() => !isPast && handleMouseDown(day)}
           onMouseEnter={() => handleMouseEnter(day)}
           sx={{
             textAlign: 'center', py: 2, borderRadius: 1, position: 'relative',
-            cursor: 'pointer', fontSize: 14,
-            bgcolor: inDrag ? 'primary.light' : 'grey.100',
-            color: inDrag ? 'white' : 'text.primary',
+            cursor: isPast ? 'default' : 'pointer', fontSize: 14,
+            bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
+            color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
             fontWeight: inDrag ? 600 : 400,
-            '&:hover': { bgcolor: 'primary.light', color: 'white' },
+            ...(!isPast && { '&:hover': { bgcolor: 'primary.light', color: 'white' } }),
             transition: 'background-color 0.15s',
           }}
         >
