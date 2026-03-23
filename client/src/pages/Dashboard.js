@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, Chip, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress
+  TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import PaymentIcon from '@mui/icons-material/Payment';
@@ -29,6 +30,14 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [upcomingByProperty, setUpcomingByProperty] = useState({});
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailRes, setDetailRes] = useState(null);
+
+  const handleOpenDetail = async (resId) => {
+    const res = await api.getReservation(resId);
+    setDetailRes(res);
+    setDetailOpen(true);
+  };
 
   useEffect(() => {
     const today = new Date();
@@ -219,10 +228,7 @@ export default function Dashboard() {
                           key={r.id}
                           hover
                           sx={{ cursor: 'pointer' }}
-                          onClick={() => {
-                            const d = new Date(r.startDate);
-                            navigate(`/calendar?propertyId=${r.propertyId}&year=${d.getFullYear()}&month=${d.getMonth()}`);
-                          }}
+                          onClick={() => handleOpenDetail(r.id)}
                         >
                           <TableCell>{r.firstName} {r.lastName}</TableCell>
                           <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
@@ -326,6 +332,98 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reservation Detail Dialog */}
+      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="sm" fullWidth>
+        {detailRes && (() => {
+          const nights = Math.round((new Date(detailRes.endDate) - new Date(detailRes.startDate)) / 86400000);
+          const todayStr = new Date().toISOString().split('T')[0];
+          const depositOverdue = !detailRes.depositPaid && detailRes.depositDueDate && detailRes.depositDueDate < todayStr;
+          const balanceOverdue = !detailRes.balancePaid && detailRes.balanceDueDate && detailRes.balanceDueDate < todayStr;
+          const totalPersons = (detailRes.adults || 0) + (detailRes.children || 0) + (detailRes.babies || 0);
+          return (
+            <>
+              <DialogTitle>Réservation — {detailRes.propertyName}</DialogTitle>
+              <DialogContent dividers>
+                {/* Client */}
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Client</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
+                  <Typography variant="body2"><b>Nom :</b> {detailRes.firstName} {detailRes.lastName}</Typography>
+                  <Typography variant="body2"><b>Tél :</b> {detailRes.phone || '—'}</Typography>
+                  <Typography variant="body2"><b>Email :</b> {detailRes.email || '—'}</Typography>
+                  <Typography variant="body2"><b>Plateforme :</b> <Chip label={detailRes.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[detailRes.platform], color: 'white', ml: 0.5 }} /></Typography>
+                </Box>
+                <Divider sx={{ my: 1.5 }} />
+
+                {/* Séjour */}
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Séjour</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
+                  <Typography variant="body2"><b>Arrivée :</b> {displayDate(detailRes.startDate)} à {detailRes.checkInTime || '15:00'}</Typography>
+                  <Typography variant="body2"><b>Départ :</b> {displayDate(detailRes.endDate)} à {detailRes.checkOutTime || '10:00'}</Typography>
+                  <Typography variant="body2"><b>Nuits :</b> {nights}</Typography>
+                  <Typography variant="body2"><b>Personnes :</b> {totalPersons} ({detailRes.adults} ad.{detailRes.children > 0 ? `, ${detailRes.children} enf.` : ''}{detailRes.babies > 0 ? `, ${detailRes.babies} bébé${detailRes.babies > 1 ? 's' : ''}` : ''})</Typography>
+                </Box>
+
+                {/* Options */}
+                {detailRes.options && detailRes.options.length > 0 && (
+                  <>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Options</Typography>
+                    <Table size="small" sx={{ mb: 2 }}>
+                      <TableBody>
+                        {detailRes.options.map(opt => (
+                          <TableRow key={opt.optionId}>
+                            <TableCell sx={{ border: 0, pl: 0 }}>{opt.title}</TableCell>
+                            <TableCell sx={{ border: 0 }} align="right">x{opt.quantity}</TableCell>
+                            <TableCell sx={{ border: 0 }} align="right">{opt.totalPrice}€</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </>
+                )}
+
+                <Divider sx={{ my: 1.5 }} />
+
+                {/* Finances */}
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Finances</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                  <Typography variant="body2"><b>Prix total :</b> {detailRes.finalPrice}€{detailRes.discountPercent > 0 ? ` (−${detailRes.discountPercent}%)` : ''}</Typography>
+                  <Box />
+                  <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>
+                    <b>Acompte :</b> {detailRes.depositAmount}€ — {detailRes.depositPaid ? '✅ Payé' : '❌ Non payé'}
+                    {detailRes.depositDueDate && ` (${displayDate(detailRes.depositDueDate)})`}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: balanceOverdue ? 'error.main' : 'inherit', fontWeight: balanceOverdue ? 700 : 400 }}>
+                    <b>Solde :</b> {detailRes.balanceAmount}€ — {detailRes.balancePaid ? '✅ Payé' : '❌ Non payé'}
+                    {detailRes.balanceDueDate && ` (${displayDate(detailRes.balanceDueDate)})`}
+                  </Typography>
+                  {detailRes.cautionAmount > 0 && (
+                    <Typography variant="body2" sx={{ color: detailRes.cautionReceived ? 'success.main' : 'error.main', fontWeight: 700 }}>
+                      <b>Caution :</b> {detailRes.cautionAmount}€ — {detailRes.cautionReceived ? '✅ Reçue' : '❌ Non reçue'}
+                    </Typography>
+                  )}
+                </Box>
+
+                {detailRes.notes && (
+                  <Box sx={{ mt: 1 }}>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Notes</Typography>
+                    <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>{detailRes.notes}</Typography>
+                  </Box>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => {
+                  const d = new Date(detailRes.startDate);
+                  navigate(`/calendar?propertyId=${detailRes.propertyId}&year=${d.getFullYear()}&month=${d.getMonth()}`);
+                }}>Voir dans le calendrier</Button>
+                <Button onClick={() => setDetailOpen(false)}>Fermer</Button>
+              </DialogActions>
+            </>
+          );
+        })()}
+      </Dialog>
     </Box>
   );
 }
