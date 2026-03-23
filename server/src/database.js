@@ -33,6 +33,9 @@ db.exec(`
     depositPercent REAL DEFAULT 30,
     depositDaysBefore INTEGER DEFAULT 30,
     balanceDaysBefore INTEGER DEFAULT 7,
+    defaultCheckIn TEXT DEFAULT '15:00',
+    defaultCheckOut TEXT DEFAULT '10:00',
+    cleaningHours REAL DEFAULT 3,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   )
@@ -100,6 +103,8 @@ db.exec(`
     adults INTEGER DEFAULT 1,
     children INTEGER DEFAULT 0,
     babies INTEGER DEFAULT 0,
+    checkInTime TEXT DEFAULT '15:00',
+    checkOutTime TEXT DEFAULT '10:00',
     platform TEXT DEFAULT 'direct',
     totalPrice REAL NOT NULL DEFAULT 0,
     discountPercent REAL DEFAULT 0,

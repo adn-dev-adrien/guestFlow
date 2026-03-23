@@ -37,24 +37,24 @@ router.get('/:id', (req, res) => {
 
 // Create property
 router.post('/', upload.single('photo'), (req, res) => {
-  const { name, maxAdults, maxChildren, maxBabies, depositPercent, depositDaysBefore, balanceDaysBefore } = req.body;
+  const { name, maxAdults, maxChildren, maxBabies, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours } = req.body;
   const photo = req.file ? `/uploads/${req.file.filename}` : '';
   const result = db.prepare(`
-    INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, depositPercent, depositDaysBefore, balanceDaysBefore)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7);
+    INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(name, photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3);
   res.json({ id: result.lastInsertRowid });
 });
 
 // Update property
 router.put('/:id', upload.single('photo'), (req, res) => {
-  const { name, maxAdults, maxChildren, maxBabies, depositPercent, depositDaysBefore, balanceDaysBefore } = req.body;
+  const { name, maxAdults, maxChildren, maxBabies, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours } = req.body;
   const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
   const photo = req.file ? `/uploads/${req.file.filename}` : (req.body.photo || (existing ? existing.photo : ''));
   db.prepare(`
-    UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, updatedAt=datetime('now')
+    UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, updatedAt=datetime('now')
     WHERE id=?
-  `).run(name, photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, req.params.id);
+  `).run(name, photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, req.params.id);
   res.json({ ok: true });
 });
 

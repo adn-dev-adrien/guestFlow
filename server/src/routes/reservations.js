@@ -86,7 +86,9 @@ router.post('/calculate-price', (req, res) => {
     depositAmount,
     balanceAmount: Math.round((totalPrice - depositAmount) * 100) / 100,
     depositDueDate: depositDueDate.toISOString().split('T')[0],
-    balanceDueDate: balanceDueDate.toISOString().split('T')[0]
+    balanceDueDate: balanceDueDate.toISOString().split('T')[0],
+    defaultCheckIn: property.defaultCheckIn || '15:00',
+    defaultCheckOut: property.defaultCheckOut || '10:00'
   });
 });
 
@@ -94,6 +96,7 @@ router.post('/calculate-price', (req, res) => {
 router.post('/', (req, res) => {
   const {
     propertyId, clientId, startDate, endDate, adults, children, babies,
+    checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     options: reservationOptions
@@ -101,11 +104,13 @@ router.post('/', (req, res) => {
 
   const result = db.prepare(`
     INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, babies,
+      checkInTime, checkOutTime,
       platform, totalPrice, discountPercent, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
+    checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
     depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, notes || ''
   );
@@ -127,6 +132,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const {
     propertyId, clientId, startDate, endDate, adults, children, babies,
+    checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     options: reservationOptions
@@ -134,11 +140,13 @@ router.put('/:id', (req, res) => {
 
   db.prepare(`
     UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, babies=?,
+      checkInTime=?, checkOutTime=?,
       platform=?, totalPrice=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
       depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?, updatedAt=datetime('now')
     WHERE id=?
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
+    checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
     depositAmount || 0, depositDueDate || null, depositPaid ? 1 : 0,
     balanceAmount || 0, balanceDueDate || null, balancePaid ? 1 : 0, notes || '',

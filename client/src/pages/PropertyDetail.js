@@ -31,7 +31,8 @@ export default function PropertyDetail() {
     setAllOptions(opts);
     setForm({
       name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
-      depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore
+      depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
+      defaultCheckIn: p.defaultCheckIn || '15:00', defaultCheckOut: p.defaultCheckOut || '10:00', cleaningHours: p.cleaningHours ?? 3
     });
   }, [id]);
 
@@ -91,6 +92,8 @@ export default function PropertyDetail() {
               <Typography variant="h6" gutterBottom>Informations</Typography>
               {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}
               <Typography>Capacité : {property.maxAdults} adultes, {property.maxChildren} enfants, {property.maxBabies} bébés</Typography>
+              <Typography>Arrivée par défaut : {property.defaultCheckIn || '15:00'} — Départ : {property.defaultCheckOut || '10:00'}</Typography>
+              <Typography>Temps de ménage : {property.cleaningHours ?? 3}h</Typography>
               <Typography>Acompte : {property.depositPercent}% — {property.depositDaysBefore}j avant le séjour</Typography>
               <Typography>Solde : {property.balanceDaysBefore}j avant le séjour</Typography>
             </CardContent>
@@ -224,6 +227,11 @@ export default function PropertyDetail() {
               <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore || 30} onChange={(e) => setForm({ ...form, depositDaysBefore: e.target.value })} fullWidth />
               <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore || 7} onChange={(e) => setForm({ ...form, balanceDaysBefore: e.target.value })} fullWidth />
             </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField label="Heure d'arrivée" type="time" value={form.defaultCheckIn || '15:00'} InputLabelProps={{ shrink: true }} onChange={(e) => setForm({ ...form, defaultCheckIn: e.target.value })} fullWidth />
+              <TextField label="Heure de départ" type="time" value={form.defaultCheckOut || '10:00'} InputLabelProps={{ shrink: true }} onChange={(e) => setForm({ ...form, defaultCheckOut: e.target.value })} fullWidth />
+            </Box>
+            <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => setForm({ ...form, cleaningHours: e.target.value })} fullWidth inputProps={{ min: 0, step: 0.5 }} />
           </Box>
         </DialogContent>
         <DialogActions>
