@@ -10,6 +10,12 @@ import api from '../api';
 
 const PLATFORMS = ['direct', 'airbnb', 'greengo', 'abritel', 'abracadaroom', 'booking'];
 
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0');
+  const m = i % 2 === 0 ? '00' : '30';
+  return `${h}:${m}`;
+});
+
 const PRICE_TYPE_LABELS = {
   per_stay: 'par séjour',
   per_person: 'par personne',
@@ -465,12 +471,20 @@ export default function CalendarPage() {
             {/* Check-in / Check-out times */}
             <Grid container spacing={2}>
               <Grid item xs={6}>
-                <TextField label="Heure d'arrivée" type="time" value={form.checkInTime} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setForm(prev => ({ ...prev, checkInTime: e.target.value }))} fullWidth />
+                <FormControl fullWidth>
+                  <InputLabel>Heure d'arrivée</InputLabel>
+                  <Select value={form.checkInTime} label="Heure d'arrivée" onChange={(e) => setForm(prev => ({ ...prev, checkInTime: e.target.value }))}>
+                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={6}>
-                <TextField label="Heure de départ" type="time" value={form.checkOutTime} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setForm(prev => ({ ...prev, checkOutTime: e.target.value }))} fullWidth />
+                <FormControl fullWidth>
+                  <InputLabel>Heure de départ</InputLabel>
+                  <Select value={form.checkOutTime} label="Heure de départ" onChange={(e) => setForm(prev => ({ ...prev, checkOutTime: e.target.value }))}>
+                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                  </Select>
+                </FormControl>
               </Grid>
             </Grid>
 
