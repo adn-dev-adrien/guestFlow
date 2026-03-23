@@ -5,13 +5,14 @@ import {
   TextField, Autocomplete, Chip, Checkbox, FormControlLabel, Divider, Grid
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import api from '../api';
 
 const PLATFORMS = ['direct', 'airbnb', 'greengo', 'abritel', 'abracadaroom', 'booking'];
 
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, '0');
+const TIME_OPTIONS = Array.from({ length: 29 }, (_, i) => {
+  const h = String(Math.floor(i / 2) + 8).padStart(2, '0');
   const m = i % 2 === 0 ? '00' : '30';
   return `${h}:${m}`;
 });
@@ -80,6 +81,7 @@ export default function CalendarPage() {
     notes: '', selectedOptions: [], checkInTime: '15:00', checkOutTime: '10:00'
   });
   const calRef = useRef(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
@@ -110,6 +112,20 @@ export default function CalendarPage() {
   const adjustedFirst = (firstDayOfWeek + 6) % 7;
   const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
+  // Check if a day is fully blocked (mid-stay or past)
+  const isDayFullyBlocked = (day) => {
+    const dateStr = formatDate(year, month, day);
+    if (dateStr < today) return true;
+    if (reservations.some(r => dateStr > r.startDate && dateStr < r.endDate)) return true;
+    return false;
+  };
+
+  // Check if a day has an existing arrival
+  const hasArrivalOnDay = (day) => {
+    const dateStr = formatDate(year, month, day);
+    return reservations.some(r => r.startDate === dateStr);
+  };
+
   const isInDragRange = (day) => {
     if (!dragStart || !dragEnd) return false;
     const min = Math.min(dragStart, dragEnd);
@@ -118,25 +134,35 @@ export default function CalendarPage() {
   };
 
   const handleMouseDown = (day) => {
-    const dateStr = formatDate(year, month, day);
-    if (dateStr < today) return;
-    // Allow drag only on non-fully-occupied days
-    const midOccupied = reservations.some(r => dateStr > r.startDate && dateStr < r.endDate);
-    if (midOccupied) return;
+    if (isDayFullyBlocked(day) || hasArrivalOnDay(day)) return;
     setDragStart(day);
     setDragEnd(day);
     setIsDragging(true);
   };
 
   const handleMouseEnter = (day) => {
-    if (isDragging) setDragEnd(day);
+    if (!isDragging) return;
+    let clampedDay = day;
+    if (day >= dragStart) {
+      for (let d = dragStart + 1; d <= day; d++) {
+        if (isDayFullyBlocked(d)) { clampedDay = d - 1; break; }
+        if (hasArrivalOnDay(d)) { clampedDay = d; break; }
+      }
+    } else {
+      for (let d = dragStart - 1; d >= day; d--) {
+        if (isDayFullyBlocked(d) || hasArrivalOnDay(d)) { clampedDay = d + 1; break; }
+      }
+    }
+    setDragEnd(clampedDay);
   };
 
   const handleMouseUp = async () => {
     if (!isDragging || !dragStart || !dragEnd) return;
     setIsDragging(false);
     const startDay = Math.min(dragStart, dragEnd);
-    const endDay = Math.max(dragStart, dragEnd) + 1;
+    const lastDay = Math.max(dragStart, dragEnd);
+    // If last dragged day has an arrival, checkout is on that day; otherwise next day
+    const endDay = hasArrivalOnDay(lastDay) ? lastDay : lastDay + 1;
     const startDate = formatDate(year, month, startDay);
     const endDate = formatDate(year, month, Math.min(endDay, daysInMonth + 1));
 
@@ -214,35 +240,70 @@ export default function CalendarPage() {
   };
 
   const handleSaveReservation = async () => {
-    await api.createReservation({
-      propertyId: Number(selectedProp),
-      clientId: form.clientId,
-      startDate: form.startDate,
-      endDate: form.endDate,
-      adults: form.adults,
-      children: form.children,
-      babies: form.babies,
-      checkInTime: form.checkInTime,
-      checkOutTime: form.checkOutTime,
-      platform: form.platform,
-      totalPrice: form.totalPrice,
-      discountPercent: form.discountPercent,
-      finalPrice: form.finalPrice,
-      depositAmount: form.depositAmount,
-      depositDueDate: form.depositDueDate,
-      balanceAmount: form.balanceAmount,
-      balanceDueDate: form.balanceDueDate,
-      notes: form.notes,
-      options: form.selectedOptions.map(so => ({
-        optionId: so.optionId,
-        quantity: so.quantity,
-        totalPrice: so.totalPrice
-      }))
-    });
-    setDialogOpen(false);
-    setDragStart(null);
-    setDragEnd(null);
-    loadReservations();
+    // Validate time constraints with adjacent reservations
+    const cleaning = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
+    const newCheckInHour = timeToHour(form.checkInTime || '15:00');
+    const newCheckOutHour = timeToHour(form.checkOutTime || '10:00');
+
+    // Check turnover at start: existing reservation ending on our start date
+    const prevRes = reservations.find(r => r.endDate === form.startDate);
+    if (prevRes) {
+      const prevCheckOutHour = timeToHour(prevRes.checkOutTime || '10:00');
+      const availableFrom = prevCheckOutHour + cleaning;
+      if (newCheckInHour < availableFrom) {
+        const availH = String(Math.floor(availableFrom)).padStart(2, '0');
+        const availM = availableFrom % 1 >= 0.5 ? '30' : '00';
+        setErrorMsg(`Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.`);
+        return;
+      }
+    }
+
+    // Check turnover at end: existing reservation starting on our end date
+    const nextRes = reservations.find(r => r.startDate === form.endDate);
+    if (nextRes) {
+      const nextCheckInHour = timeToHour(nextRes.checkInTime || '15:00');
+      if (newCheckOutHour + cleaning > nextCheckInHour) {
+        const maxCheckOutHour = nextCheckInHour - cleaning;
+        const maxH = String(Math.floor(maxCheckOutHour)).padStart(2, '0');
+        const maxM = maxCheckOutHour % 1 >= 0.5 ? '30' : '00';
+        setErrorMsg(`Impossible : le départ à ${form.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.`);
+        return;
+      }
+    }
+
+    try {
+      await api.createReservation({
+        propertyId: Number(selectedProp),
+        clientId: form.clientId,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        adults: form.adults,
+        children: form.children,
+        babies: form.babies,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
+        platform: form.platform,
+        totalPrice: form.totalPrice,
+        discountPercent: form.discountPercent,
+        finalPrice: form.finalPrice,
+        depositAmount: form.depositAmount,
+        depositDueDate: form.depositDueDate,
+        balanceAmount: form.balanceAmount,
+        balanceDueDate: form.balanceDueDate,
+        notes: form.notes,
+        options: form.selectedOptions.map(so => ({
+          optionId: so.optionId,
+          quantity: so.quantity,
+          totalPrice: so.totalPrice
+        }))
+      });
+      setDialogOpen(false);
+      setDragStart(null);
+      setDragEnd(null);
+      loadReservations();
+    } catch (err) {
+      setErrorMsg(err.message || 'Erreur lors de la création de la réservation');
+    }
   };
 
   const prevMonth = () => {
@@ -320,33 +381,35 @@ export default function CalendarPage() {
     if (departPct !== null) {
       stops.push(`${departColor} 0%`);
       stops.push(`${departColor} ${departPct}%`);
+      const gapColor = inDrag ? '#42a5f5' : 'transparent';
       // Cleaning block stuck right after checkout
       if (cleanEndPct !== null && cleanEndPct > departPct) {
         stops.push(`${CLEANING_COLOR} ${departPct}%`);
         stops.push(`${CLEANING_COLOR} ${Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100)}%`);
         const cleanStop = Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100);
         if (arrivePct !== null && arrivePct > cleanStop) {
-          stops.push(`transparent ${cleanStop}%`);
-          stops.push(`transparent ${arrivePct}%`);
+          stops.push(`${gapColor} ${cleanStop}%`);
+          stops.push(`${gapColor} ${arrivePct}%`);
         } else if (arrivePct === null) {
-          stops.push(`transparent ${cleanStop}%`);
-          stops.push(`transparent 100%`);
+          stops.push(`${gapColor} ${cleanStop}%`);
+          stops.push(`${gapColor} 100%`);
         }
       } else {
         if (arrivePct !== null && arrivePct > departPct) {
-          stops.push(`transparent ${departPct}%`);
-          stops.push(`transparent ${arrivePct}%`);
+          stops.push(`${gapColor} ${departPct}%`);
+          stops.push(`${gapColor} ${arrivePct}%`);
         } else if (arrivePct === null) {
-          stops.push(`transparent ${departPct}%`);
-          stops.push(`transparent 100%`);
+          stops.push(`${gapColor} ${departPct}%`);
+          stops.push(`${gapColor} 100%`);
         }
       }
     }
 
     if (arrivePct !== null) {
       if (departPct === null) {
-        stops.push(`transparent 0%`);
-        stops.push(`transparent ${arrivePct}%`);
+        const freeColor = inDrag ? '#42a5f5' : 'transparent';
+        stops.push(`${freeColor} 0%`);
+        stops.push(`${freeColor} ${arrivePct}%`);
       }
       stops.push(`${arriveColor} ${arrivePct}%`);
       stops.push(`${arriveColor} 100%`);
@@ -570,6 +633,19 @@ export default function CalendarPage() {
         <DialogActions>
           <Button onClick={() => setCreateClientOpen(false)}>Annuler</Button>
           <Button variant="contained" onClick={handleCreateClient} disabled={!newClient.lastName || !newClient.firstName}>Créer</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Error dialog */}
+      <Dialog open={!!errorMsg} onClose={() => setErrorMsg('')} maxWidth="sm">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" /> Conflit de réservation
+        </DialogTitle>
+        <DialogContent>
+          <Typography>{errorMsg}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setErrorMsg('')}>Compris</Button>
         </DialogActions>
       </Dialog>
     </Box>
