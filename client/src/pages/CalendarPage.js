@@ -298,12 +298,7 @@ export default function CalendarPage() {
     setIsDragging(false);
     const minDate = dragStartDate < dragEndDate ? dragStartDate : dragEndDate;
     const maxDate = dragStartDate < dragEndDate ? dragEndDate : dragStartDate;
-    const lastDate = new Date(maxDate);
-    const ly = lastDate.getFullYear(), lm = lastDate.getMonth(), ld = lastDate.getDate();
-    const endDate = hasArrivalOnDay(ld, ly, lm)
-      ? maxDate
-      : (() => { const d = new Date(maxDate); d.setDate(d.getDate() + 1); return formatDate(d.getFullYear(), d.getMonth(), d.getDate()); })();
-    await openNewReservation(minDate, endDate);
+    await openNewReservation(minDate, maxDate);
   };
 
   const recalcPrice = (updatedForm) => {
