@@ -73,6 +73,16 @@ const api = {
   createSchoolHoliday: (data) => request('/school-holidays', { method: 'POST', body: data }),
   updateSchoolHoliday: (id, data) => request(`/school-holidays/${id}`, { method: 'PUT', body: data }),
   deleteSchoolHoliday: (id) => request(`/school-holidays/${id}`, { method: 'DELETE' }),
+
+  // Calendar notes
+  getCalendarNotes: (propertyId, from, to) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    return request(`/calendar-notes/${propertyId}?${params}`);
+  },
+  upsertCalendarNote: (propertyId, date, note) => request(`/calendar-notes/${propertyId}/${date}`, { method: 'PUT', body: { note } }),
+  deleteCalendarNote: (propertyId, date) => request(`/calendar-notes/${propertyId}/${date}`, { method: 'DELETE' }),
 };
 
 export default api;

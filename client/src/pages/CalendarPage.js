@@ -93,6 +93,10 @@ export default function CalendarPage() {
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
+  const [calendarNotes, setCalendarNotes] = useState({});
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteDialogDate, setNoteDialogDate] = useState('');
+  const [noteDialogText, setNoteDialogText] = useState('');
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
@@ -106,6 +110,10 @@ export default function CalendarPage() {
     const to = formatDate(year, month, getDaysInMonth(year, month));
     const data = await api.getReservations({ propertyId: selectedProp, from, to });
     setReservations(data);
+    const notes = await api.getCalendarNotes(selectedProp, from, to);
+    const notesMap = {};
+    notes.forEach(n => { notesMap[n.date] = n.note; });
+    setCalendarNotes(notesMap);
   }, [selectedProp, year, month]);
 
   useEffect(() => { loadProperties(); loadSchoolHolidays(); }, []);
@@ -476,6 +484,44 @@ export default function CalendarPage() {
     return full.length > 8 ? full.slice(0, 7) + '…' : full;
   };
 
+  // ---------- CALENDAR NOTES ----------
+  const NOTE_MAX_LENGTH = 50;
+
+  const handleOpenNoteDialog = (dateStr) => {
+    setNoteDialogDate(dateStr);
+    setNoteDialogText(calendarNotes[dateStr] || '');
+    setNoteDialogOpen(true);
+  };
+
+  const handleSaveNote = async () => {
+    if (!selectedProp || !noteDialogDate) return;
+    await api.upsertCalendarNote(selectedProp, noteDialogDate, noteDialogText);
+    setCalendarNotes(prev => {
+      const next = { ...prev };
+      if (noteDialogText.trim()) next[noteDialogDate] = noteDialogText.trim();
+      else delete next[noteDialogDate];
+      return next;
+    });
+    setNoteDialogOpen(false);
+  };
+
+  const renderNoteLabel = (dateStr, hasReservation) => {
+    const note = calendarNotes[dateStr];
+    if (!note) return null;
+    const fontSize = hasReservation ? 8 : 10;
+    return (
+      <Typography title={note} sx={{
+        position: 'absolute', bottom: hasReservation ? 14 : 16, left: '50%', transform: 'translateX(-50%)',
+        fontSize, lineHeight: 1.1, color: hasReservation ? 'rgba(255,255,255,0.9)' : '#1a1a1a',
+        zIndex: 2, pointerEvents: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        maxWidth: '90%', fontStyle: 'italic', fontWeight: 600,
+        textShadow: hasReservation ? '0 0 2px rgba(0,0,0,0.5)' : 'none',
+      }}>
+        {note}
+      </Typography>
+    );
+  };
+
   // ---------- RENDER A CALENDAR CELL ----------
   const publicHolidays = getFrenchPublicHolidays(year);
   // Also get holidays for adjacent year if month is Jan or Dec
@@ -522,12 +568,13 @@ export default function CalendarPage() {
       const midDay = Math.round((firstDay + lastDay) / 2);
       const isLabelDay = day === midDay;
       return (
-        <Box key={day} onClick={() => handleReservationClick(midRes.id)} sx={{
+        <Box key={day} onClick={() => handleReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }} sx={{
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
         }}>
           {renderHolidayIndicators(dateStr)}
+          {renderNoteLabel(dateStr, true)}
           {isLabelDay ? (
             <>
               <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
@@ -561,6 +608,7 @@ export default function CalendarPage() {
         <Box key={day}
           onMouseDown={() => !isPast && handleMouseDown(day)}
           onMouseEnter={() => handleMouseEnter(day)}
+          onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }}
           sx={{
             textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
             cursor: isPast ? 'default' : 'pointer', fontSize: 14,
@@ -572,6 +620,7 @@ export default function CalendarPage() {
           }}
         >
           {renderHolidayIndicators(dateStr)}
+          {renderNoteLabel(dateStr, false)}
           {day}
         </Box>
       );
@@ -651,6 +700,7 @@ export default function CalendarPage() {
           }
         }}
         onMouseEnter={() => handleMouseEnter(day)}
+        onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }}
         onClick={async (e) => {
           if (isDragging) return;
           const pct = getClickPct(e);
@@ -680,6 +730,7 @@ export default function CalendarPage() {
           {day}
         </Box>
         {renderHolidayIndicators(dateStr)}
+        {renderNoteLabel(dateStr, !!(departureRes || arrivalRes))}
         {/* Compact label for arrival on short reservations (no mid-day visible) */}
         {arrivalRes && !resHasMidDaysThisMonth(arrivalRes) && (() => {
           const colorPct = 100 - (arrivePct || 0);
@@ -771,6 +822,32 @@ export default function CalendarPage() {
       ) : (
         <Card><CardContent><Typography align="center" color="text.secondary">Sélectionnez un logement pour voir son calendrier</Typography></CardContent></Card>
       )}
+
+      {/* Note Dialog */}
+      <Dialog open={noteDialogOpen} onClose={() => setNoteDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Note — {noteDialogDate}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus fullWidth multiline rows={2} margin="dense"
+            label="Note (50 car. max)"
+            value={noteDialogText}
+            onChange={e => setNoteDialogText(e.target.value.slice(0, NOTE_MAX_LENGTH))}
+            helperText={`${noteDialogText.length}/${NOTE_MAX_LENGTH}`}
+          />
+        </DialogContent>
+        <DialogActions>
+          {calendarNotes[noteDialogDate] && (
+            <Button color="error" onClick={async () => {
+              await api.deleteCalendarNote(selectedProp, noteDialogDate);
+              setCalendarNotes(prev => { const next = { ...prev }; delete next[noteDialogDate]; return next; });
+              setNoteDialogOpen(false);
+            }}>Supprimer</Button>
+          )}
+          <Box sx={{ flex: 1 }} />
+          <Button onClick={() => setNoteDialogOpen(false)}>Annuler</Button>
+          <Button variant="contained" onClick={handleSaveNote}>Enregistrer</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Reservation Dialog */}
       {(() => {

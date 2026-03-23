@@ -151,6 +151,18 @@ if (!propCols.includes('defaultCautionAmount')) {
   db.exec("ALTER TABLE properties ADD COLUMN defaultCautionAmount REAL DEFAULT 500");
 }
 
+// ---------- CALENDAR NOTES ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS calendar_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+    UNIQUE(propertyId, date)
+  )
+`);
+
 // ---------- SCHOOL HOLIDAYS ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS school_holidays (
