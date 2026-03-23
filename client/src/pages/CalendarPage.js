@@ -487,12 +487,12 @@ export default function CalendarPage() {
     return (
       <>
         {isPublicHoliday && (
-          <Box sx={{ position: 'absolute', top: 2, left: 3, width: 6, height: 6, borderRadius: '50%', bgcolor: '#d32f2f', zIndex: 3, pointerEvents: 'none' }} />
+          <Typography sx={{ position: 'absolute', top: 1, left: '50%', transform: 'translateX(-50%)', fontSize: 14, color: '#d32f2f', zIndex: 3, pointerEvents: 'none', lineHeight: 1, opacity: 0.7, whiteSpace: 'nowrap' }}>férié</Typography>
         )}
         {schoolInfo && (
-          <Box sx={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '2px', zIndex: 3, pointerEvents: 'none' }}>
+          <Box sx={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '3px', zIndex: 3, pointerEvents: 'none' }}>
             {schoolInfo.zones.map(z => (
-              <Box key={z} sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS[z] }} />
+              <Box key={z} sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS[z] }} />
             ))}
           </Box>
         )}
@@ -522,22 +522,22 @@ export default function CalendarPage() {
       const isLabelDay = day === midDay;
       return (
         <Box key={day} onClick={() => handleReservationClick(midRes.id)} sx={{
-          textAlign: 'center', py: 2, borderRadius: 1, position: 'relative', cursor: 'pointer',
+          textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 48,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
         }}>
           {renderHolidayIndicators(dateStr)}
           {isLabelDay ? (
             <>
-              <Typography sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
                 {midRes.firstName} {midRes.lastName}
               </Typography>
-              <Typography sx={{ fontSize: 9, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
                 {midRes.platform}
               </Typography>
             </>
           ) : (
-            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{day}</Typography>
+            <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{day}</Typography>
           )}
         </Box>
       );
@@ -561,7 +561,7 @@ export default function CalendarPage() {
           onMouseDown={() => !isPast && handleMouseDown(day)}
           onMouseEnter={() => handleMouseEnter(day)}
           sx={{
-            textAlign: 'center', py: 2, borderRadius: 1, position: 'relative',
+            textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
             cursor: isPast ? 'default' : 'pointer', fontSize: 14,
             bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
             color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
@@ -669,7 +669,7 @@ export default function CalendarPage() {
         }}
         title={tooltipParts.join('\n')}
         sx={{
-          textAlign: 'center', py: 2, borderRadius: 1, position: 'relative',
+          textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
           cursor: 'pointer', fontSize: 14, fontWeight: 600,
           background: gradient || 'grey.100',
           color: 'text.primary', overflow: 'hidden',
@@ -679,11 +679,11 @@ export default function CalendarPage() {
           {day}
         </Box>
         {renderHolidayIndicators(dateStr)}
-        {/* Compact label for arrival on short reservations (no mid-day visible) */}}
+        {/* Compact label for arrival on short reservations (no mid-day visible) */}
         {arrivalRes && !resHasMidDaysThisMonth(arrivalRes) && (() => {
           const colorPct = 100 - (arrivePct || 0);
-          const nameSize = Math.max(8, Math.round(colorPct / 100 * 22));
-          const platSize = Math.max(7, Math.round(colorPct / 100 * 16));
+          const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
+          const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
           return (
             <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
               <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
@@ -698,8 +698,8 @@ export default function CalendarPage() {
         {/* Compact label for departure on short reservations when arrival not in this month */}
         {departureRes && !resHasMidDaysThisMonth(departureRes) && !(departureRes.startDate >= formatDate(year, month, 1) && departureRes.startDate <= formatDate(year, month, daysInMonth)) && (() => {
           const colorPct = departEndPct || departPct || 0;
-          const nameSize = Math.max(8, Math.round(colorPct / 100 * 22));
-          const platSize = Math.max(7, Math.round(colorPct / 100 * 16));
+          const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
+          const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
           return (
             <Box sx={{ position: 'absolute', top: 1, left: 2, zIndex: 2, textAlign: 'left', lineHeight: 1, pointerEvents: 'none' }}>
               <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
@@ -753,19 +753,15 @@ export default function CalendarPage() {
             <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap', alignItems: 'center' }}>
               <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#d32f2f' }} />
-                <Typography variant="caption" color="text.secondary">Jour férié</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS.A }} />
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.A }} />
                 <Typography variant="caption" color="text.secondary">Zone A</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS.B }} />
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.B }} />
                 <Typography variant="caption" color="text.secondary">Zone B</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS.C }} />
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.C }} />
                 <Typography variant="caption" color="text.secondary">Zone C</Typography>
               </Box>
             </Box>
