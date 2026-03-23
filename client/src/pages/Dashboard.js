@@ -268,7 +268,11 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {pendingPayments.map(r => (
+                  {pendingPayments.map(r => {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
+                    const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
+                    return (
                     <TableRow key={r.id} hover>
                       <TableCell>{r.firstName} {r.lastName}</TableCell>
                       <TableCell>{r.propertyName}</TableCell>
@@ -282,7 +286,10 @@ export default function Dashboard() {
                             onChange={() => handleTogglePayment(r, 'depositPaid')}
                             size="small"
                           />
-                          <Typography variant="body2">{r.depositAmount}€</Typography>
+                          <Box>
+                            <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>{r.depositAmount}€</Typography>
+                            {r.depositDueDate && <Typography variant="caption" sx={{ color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
+                          </Box>
                         </Box>
                       </TableCell>
                       <TableCell align="center">
@@ -292,7 +299,10 @@ export default function Dashboard() {
                             onChange={() => handleTogglePayment(r, 'balancePaid')}
                             size="small"
                           />
-                          <Typography variant="body2">{r.balanceAmount}€</Typography>
+                          <Box>
+                            <Typography variant="body2" sx={{ color: balanceOverdue ? 'error.main' : 'inherit', fontWeight: balanceOverdue ? 700 : 400 }}>{r.balanceAmount}€</Typography>
+                            {r.balanceDueDate && <Typography variant="caption" sx={{ color: balanceOverdue ? 'error.main' : 'text.secondary', fontWeight: balanceOverdue ? 700 : 400 }}>{displayDate(r.balanceDueDate)}</Typography>}
+                          </Box>
                         </Box>
                       </TableCell>
                       <TableCell align="center">
@@ -308,7 +318,8 @@ export default function Dashboard() {
                         ) : '—'}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
