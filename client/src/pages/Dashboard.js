@@ -64,13 +64,24 @@ export default function Dashboard() {
     const value = !r[field];
     await api.markPayment(r.id, { [field]: value });
     // Refresh
-    const pending = await api.getPendingPayments();
-    setPendingPayments(pending);
     const today = new Date();
     const from = today.toISOString().split('T')[0];
     const toDate = new Date(today); toDate.setDate(toDate.getDate() + 30);
-    const fin = await api.getFinanceSummary(from, toDate.toISOString().split('T')[0]);
+    const [pending, fin, allUpcoming] = await Promise.all([
+      api.getPendingPayments(),
+      api.getFinanceSummary(from, toDate.toISOString().split('T')[0]),
+      api.getReservations({ from }),
+    ]);
+    setPendingPayments(pending);
     setSummary(fin);
+    const grouped = {};
+    for (const prop of properties) {
+      grouped[prop.id] = allUpcoming
+        .filter(u => u.propertyId === prop.id)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate))
+        .slice(0, 5);
+    }
+    setUpcomingByProperty(grouped);
   };
 
   // Build timeline days (30 days)
@@ -176,7 +187,7 @@ export default function Dashboard() {
       {/* Upcoming reservations per property */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Réservations à venir par logement</Typography>
+          <Typography variant="h6" gutterBottom>Réservations à venir</Typography>
           {properties.map(prop => {
             const upcoming = upcomingByProperty[prop.id] || [];
             if (upcoming.length === 0) return null;
