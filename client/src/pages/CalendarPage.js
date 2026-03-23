@@ -159,16 +159,7 @@ export default function CalendarPage() {
     setDragEnd(clampedDay);
   };
 
-  const handleMouseUp = async () => {
-    if (!isDragging || !dragStart || !dragEnd) return;
-    setIsDragging(false);
-    const startDay = Math.min(dragStart, dragEnd);
-    const lastDay = Math.max(dragStart, dragEnd);
-    // If last dragged day has an arrival, checkout is on that day; otherwise next day
-    const endDay = hasArrivalOnDay(lastDay) ? lastDay : lastDay + 1;
-    const startDate = formatDate(year, month, startDay);
-    const endDate = formatDate(year, month, Math.min(endDay, daysInMonth + 1));
-
+  const openNewReservation = async (startDate, endDate) => {
     const prop = await api.getProperty(selectedProp);
     const opts = await api.getOptions();
     const availableOpts = opts.filter(o => (prop.optionIds || []).includes(o.id));
@@ -185,7 +176,19 @@ export default function CalendarPage() {
       checkInTime: calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
       checkOutTime: calc.defaultCheckOut || prop.defaultCheckOut || '10:00'
     });
+    setEditingReservationId(null);
     setDialogOpen(true);
+  };
+
+  const handleMouseUp = async () => {
+    if (!isDragging || !dragStart || !dragEnd) return;
+    setIsDragging(false);
+    const startDay = Math.min(dragStart, dragEnd);
+    const lastDay = Math.max(dragStart, dragEnd);
+    const endDay = hasArrivalOnDay(lastDay) ? lastDay : lastDay + 1;
+    const startDate = formatDate(year, month, startDay);
+    const endDate = formatDate(year, month, Math.min(endDay, daysInMonth + 1));
+    await openNewReservation(startDate, endDate);
   };
 
   const recalcPrice = (updatedForm) => {
@@ -541,19 +544,51 @@ export default function CalendarPage() {
 
     const gradient = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : undefined;
 
+    // Boundary between departure/cleaning zone and free zone (for click detection)
+    const departEndPct = departPct !== null
+      ? (cleanEndPct !== null && cleanEndPct > departPct
+        ? Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100)
+        : departPct)
+      : 0;
+
     const tooltipParts = [];
     if (departureRes) tooltipParts.push(`Départ: ${departureRes.firstName} ${departureRes.lastName} à ${departureRes.checkOutTime || '10:00'}`);
     if (departureRes) tooltipParts.push(`Ménage: ${cleaningHours}h`);
     if (arrivalRes) tooltipParts.push(`Arrivée: ${arrivalRes.firstName} ${arrivalRes.lastName} à ${arrivalRes.checkInTime || '15:00'}`);
 
+    // Compute click zone from cursor position on the 135deg gradient
+    const getClickPct = (e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      return ((e.clientX - rect.left) + (e.clientY - rect.top)) / (rect.width + rect.height) * 100;
+    };
+
     return (
       <Box key={day}
-        onMouseDown={() => handleMouseDown(day)}
+        onMouseDown={(e) => {
+          if (isPast) return;
+          const pct = getClickPct(e);
+          const onDepartZone = departureRes && pct <= departEndPct;
+          const onArriveZone = arrivalRes && pct >= arrivePct;
+          if (!onDepartZone && !onArriveZone) {
+            handleMouseDown(day);
+          }
+        }}
         onMouseEnter={() => handleMouseEnter(day)}
-        onClick={() => {
-          if (!isDragging) {
-            if (arrivalRes) handleReservationClick(arrivalRes.id);
-            else if (departureRes) handleReservationClick(departureRes.id);
+        onClick={async (e) => {
+          if (isDragging) return;
+          const pct = getClickPct(e);
+          if (departureRes && pct <= departEndPct) {
+            handleReservationClick(departureRes.id);
+          } else if (arrivalRes && pct >= arrivePct) {
+            handleReservationClick(arrivalRes.id);
+          } else if (departureRes && !arrivalRes) {
+            // Free zone on departure-only day: create new reservation
+            const startDate = formatDate(year, month, day);
+            const endDate = formatDate(year, month, Math.min(day + 1, daysInMonth + 1));
+            openNewReservation(startDate, endDate);
+          } else if (!departureRes && arrivalRes) {
+            // Free zone on arrival-only day: show arrival reservation
+            handleReservationClick(arrivalRes.id);
           }
         }}
         title={tooltipParts.join('\n')}
