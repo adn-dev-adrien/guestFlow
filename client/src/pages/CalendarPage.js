@@ -12,7 +12,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
 
-const PLATFORMS = ['direct', 'airbnb', 'greengo', 'abritel', 'abracadaroom', 'booking'];
+const PLATFORMS = ['direct', 'airbnb', 'greengo', 'abritel', 'abracadaroom', 'booking', 'gitedefrance', 'pitchup'];
 
 const TIME_OPTIONS = Array.from({ length: 29 }, (_, i) => {
   const h = String(Math.floor(i / 2) + 8).padStart(2, '0');
@@ -53,8 +53,9 @@ function hourToPercent(hour) {
 
 function getReservationColor(platform) {
   const colors = {
-    direct: '#1565c0', airbnb: '#FF5A5F', greengo: '#4CAF50',
-    abritel: '#f57c00', abracadaroom: '#9c27b0', booking: '#003580'
+    direct: '#c9a227', airbnb: '#FF5A5F', greengo: '#4CAF50',
+    abritel: '#1565c0', abracadaroom: '#00bcd4', booking: '#003580',
+    gitedefrance: '#e6c832', pitchup: '#f57c00'
   };
   return colors[platform] || '#757575';
 }

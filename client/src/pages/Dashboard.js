@@ -16,8 +16,9 @@ function displayDate(d) {
 }
 
 const PLATFORM_COLORS = {
-  direct: '#1565c0', airbnb: '#FF5A5F', greengo: '#4CAF50',
-  abritel: '#f57c00', abracadaroom: '#9c27b0', booking: '#003580'
+  direct: '#c9a227', airbnb: '#FF5A5F', greengo: '#4CAF50',
+  abritel: '#1565c0', abracadaroom: '#00bcd4', booking: '#003580',
+  gitedefrance: '#e6c832', pitchup: '#f57c00'
 };
 
 export default function Dashboard() {
