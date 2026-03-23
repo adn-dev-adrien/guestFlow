@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import api from '../api';
 
@@ -82,6 +83,8 @@ export default function CalendarPage() {
   });
   const calRef = useRef(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [editingReservationId, setEditingReservationId] = useState(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
@@ -240,13 +243,33 @@ export default function CalendarPage() {
   };
 
   const handleSaveReservation = async () => {
-    // Validate time constraints with adjacent reservations
+    // --- Common validation for create and update ---
     const cleaning = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
     const newCheckInHour = timeToHour(form.checkInTime || '15:00');
     const newCheckOutHour = timeToHour(form.checkOutTime || '10:00');
+    const excludeId = editingReservationId;
 
-    // Check turnover at start: existing reservation ending on our start date
-    const prevRes = reservations.find(r => r.endDate === form.startDate);
+    // Filter out the reservation being edited for overlap checks
+    const otherReservations = excludeId
+      ? reservations.filter(r => r.id !== excludeId)
+      : reservations;
+
+    // Reject past start dates
+    const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    if (form.startDate < todayStr) {
+      setErrorMsg('Impossible de réserver dans le passé.');
+      return;
+    }
+
+    // Strict overlap: other reservations whose date range overlaps
+    const hasOverlap = otherReservations.some(r => r.startDate < form.endDate && r.endDate > form.startDate);
+    if (hasOverlap) {
+      setErrorMsg('Ce logement est déjà réservé pour ces dates.');
+      return;
+    }
+
+    // Check turnover at start: other reservation ending on our start date
+    const prevRes = otherReservations.find(r => r.endDate === form.startDate);
     if (prevRes) {
       const prevCheckOutHour = timeToHour(prevRes.checkOutTime || '10:00');
       const availableFrom = prevCheckOutHour + cleaning;
@@ -258,8 +281,8 @@ export default function CalendarPage() {
       }
     }
 
-    // Check turnover at end: existing reservation starting on our end date
-    const nextRes = reservations.find(r => r.startDate === form.endDate);
+    // Check turnover at end: other reservation starting on our end date
+    const nextRes = otherReservations.find(r => r.startDate === form.endDate);
     if (nextRes) {
       const nextCheckInHour = timeToHour(nextRes.checkInTime || '15:00');
       if (newCheckOutHour + cleaning > nextCheckInHour) {
@@ -270,40 +293,122 @@ export default function CalendarPage() {
         return;
       }
     }
+    // --- End common validation ---
 
     try {
-      await api.createReservation({
-        propertyId: Number(selectedProp),
-        clientId: form.clientId,
-        startDate: form.startDate,
-        endDate: form.endDate,
-        adults: form.adults,
-        children: form.children,
-        babies: form.babies,
-        checkInTime: form.checkInTime,
-        checkOutTime: form.checkOutTime,
-        platform: form.platform,
-        totalPrice: form.totalPrice,
-        discountPercent: form.discountPercent,
-        finalPrice: form.finalPrice,
-        depositAmount: form.depositAmount,
-        depositDueDate: form.depositDueDate,
-        balanceAmount: form.balanceAmount,
-        balanceDueDate: form.balanceDueDate,
-        notes: form.notes,
-        options: form.selectedOptions.map(so => ({
-          optionId: so.optionId,
-          quantity: so.quantity,
-          totalPrice: so.totalPrice
-        }))
-      });
+      if (editingReservationId) {
+        await api.updateReservation(editingReservationId, {
+          propertyId: Number(selectedProp),
+          clientId: form.clientId,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          adults: form.adults,
+          children: form.children,
+          babies: form.babies,
+          checkInTime: form.checkInTime,
+          checkOutTime: form.checkOutTime,
+          platform: form.platform,
+          totalPrice: form.totalPrice,
+          discountPercent: form.discountPercent,
+          finalPrice: form.finalPrice,
+          depositAmount: form.depositAmount,
+          depositDueDate: form.depositDueDate,
+          depositPaid: form.depositPaid,
+          balanceAmount: form.balanceAmount,
+          balanceDueDate: form.balanceDueDate,
+          balancePaid: form.balancePaid,
+          notes: form.notes,
+          options: form.selectedOptions.map(so => ({
+            optionId: so.optionId,
+            quantity: so.quantity,
+            totalPrice: so.totalPrice
+          }))
+        });
+      } else {
+        await api.createReservation({
+          propertyId: Number(selectedProp),
+          clientId: form.clientId,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          adults: form.adults,
+          children: form.children,
+          babies: form.babies,
+          checkInTime: form.checkInTime,
+          checkOutTime: form.checkOutTime,
+          platform: form.platform,
+          totalPrice: form.totalPrice,
+          discountPercent: form.discountPercent,
+          finalPrice: form.finalPrice,
+          depositAmount: form.depositAmount,
+          depositDueDate: form.depositDueDate,
+          balanceAmount: form.balanceAmount,
+          balanceDueDate: form.balanceDueDate,
+          notes: form.notes,
+          options: form.selectedOptions.map(so => ({
+            optionId: so.optionId,
+            quantity: so.quantity,
+            totalPrice: so.totalPrice
+          }))
+        });
+      }
       setDialogOpen(false);
+      setEditingReservationId(null);
       setDragStart(null);
       setDragEnd(null);
       loadReservations();
     } catch (err) {
       setErrorMsg(err.message || 'Erreur lors de la création de la réservation');
     }
+  };
+
+  const handleReservationClick = async (resId) => {
+    if (isDragging) return;
+    const res = await api.getReservation(resId);
+    const prop = await api.getProperty(selectedProp);
+    const opts = await api.getOptions();
+    const availableOpts = opts.filter(o => (prop.optionIds || []).includes(o.id));
+    setPropertyOptions(availableOpts);
+
+    const client = await api.getClient(res.clientId);
+    setClients(prev => {
+      if (prev.some(c => c.id === client.id)) return prev;
+      return [...prev, client];
+    });
+
+    setForm({
+      clientId: res.clientId,
+      adults: res.adults || 1,
+      children: res.children || 0,
+      babies: res.babies || 0,
+      platform: res.platform || 'direct',
+      totalPrice: res.totalPrice || 0,
+      discountPercent: res.discountPercent || 0,
+      finalPrice: res.finalPrice || 0,
+      customPrice: '',
+      depositAmount: res.depositAmount || 0,
+      depositDueDate: res.depositDueDate || '',
+      balanceAmount: res.balanceAmount || 0,
+      balanceDueDate: res.balanceDueDate || '',
+      notes: res.notes || '',
+      startDate: res.startDate,
+      endDate: res.endDate,
+      checkInTime: res.checkInTime || '15:00',
+      checkOutTime: res.checkOutTime || '10:00',
+      selectedOptions: (res.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+      depositPaid: !!res.depositPaid,
+      balancePaid: !!res.balancePaid,
+    });
+    setEditingReservationId(resId);
+    setDialogOpen(true);
+  };
+
+  const handleDeleteReservation = async () => {
+    if (!editingReservationId) return;
+    await api.deleteReservation(editingReservationId);
+    setConfirmDeleteOpen(false);
+    setDialogOpen(false);
+    setEditingReservationId(null);
+    loadReservations();
   };
 
   const prevMonth = () => {
@@ -339,8 +444,8 @@ export default function CalendarPage() {
       const midDay = Math.round((firstDay + lastDay) / 2);
       const isLabelDay = day === midDay;
       return (
-        <Box key={day} sx={{
-          textAlign: 'center', py: 2, borderRadius: 1, position: 'relative',
+        <Box key={day} onClick={() => handleReservationClick(midRes.id)} sx={{
+          textAlign: 'center', py: 2, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 48,
         }}>
@@ -445,6 +550,12 @@ export default function CalendarPage() {
       <Box key={day}
         onMouseDown={() => handleMouseDown(day)}
         onMouseEnter={() => handleMouseEnter(day)}
+        onClick={() => {
+          if (!isDragging) {
+            if (arrivalRes) handleReservationClick(arrivalRes.id);
+            else if (departureRes) handleReservationClick(departureRes.id);
+          }
+        }}
         title={tooltipParts.join('\n')}
         sx={{
           textAlign: 'center', py: 2, borderRadius: 1, position: 'relative',
@@ -505,19 +616,30 @@ export default function CalendarPage() {
       )}
 
       {/* Reservation Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Nouvelle réservation</DialogTitle>
+      <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditingReservationId(null); }} maxWidth="md" fullWidth>
+        <DialogTitle>{editingReservationId ? 'Modifier la réservation' : 'Nouvelle réservation'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Du {form.startDate} au {form.endDate}
-            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <TextField label="Date d'arrivée" type="date" value={form.startDate || ''}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))} fullWidth />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField label="Date de départ" type="date" value={form.endDate || ''}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))} fullWidth />
+              </Grid>
+            </Grid>
 
             <Autocomplete
               options={clients}
               getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
-              onInputChange={(_, val) => setClientSearch(val)}
+              value={clients.find(c => c.id === form.clientId) || null}
+              onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
               onChange={(_, val) => val && updateForm({ clientId: val.id })}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
               renderInput={(params) => <TextField {...params} label="Rechercher un client" />}
               noOptionsText={
                 <Button onClick={() => setCreateClientOpen(true)} size="small">Créer un nouveau client</Button>
@@ -628,8 +750,15 @@ export default function CalendarPage() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleSaveReservation} disabled={!form.clientId}>Réserver</Button>
+          {editingReservationId && (
+            <Button color="error" startIcon={<DeleteIcon />} onClick={() => setConfirmDeleteOpen(true)} sx={{ mr: 'auto' }}>
+              Supprimer
+            </Button>
+          )}
+          <Button onClick={() => { setDialogOpen(false); setEditingReservationId(null); }}>Annuler</Button>
+          <Button variant="contained" onClick={handleSaveReservation} disabled={!form.clientId}>
+            {editingReservationId ? 'Enregistrer' : 'Réserver'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -662,6 +791,18 @@ export default function CalendarPage() {
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={() => setErrorMsg('')}>Compris</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)}>
+        <DialogTitle>Confirmer la suppression</DialogTitle>
+        <DialogContent>
+          <Typography>Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteOpen(false)}>Annuler</Button>
+          <Button color="error" variant="contained" onClick={handleDeleteReservation}>Supprimer</Button>
         </DialogActions>
       </Dialog>
     </Box>

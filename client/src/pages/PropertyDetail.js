@@ -12,6 +12,12 @@ import EditIcon from '@mui/icons-material/Edit';
 import UploadIcon from '@mui/icons-material/Upload';
 import api from '../api';
 
+function displayDate(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
 export default function PropertyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -265,8 +271,8 @@ export default function PropertyDetail() {
                       <TableRow key={r.id}>
                         <TableCell>{r.label}</TableCell>
                         <TableCell>{r.pricePerNight}€</TableCell>
-                        <TableCell>{r.startDate || '—'}</TableCell>
-                        <TableCell>{r.endDate || '—'}</TableCell>
+                        <TableCell>{displayDate(r.startDate)}</TableCell>
+                        <TableCell>{displayDate(r.endDate)}</TableCell>
                         <TableCell>{r.minNights}</TableCell>
                         <TableCell>
                           <IconButton size="small" onClick={() => { setPricingForm(r); setEditRuleId(r.id); setPricingOpen(true); }}><EditIcon fontSize="small" /></IconButton>

@@ -99,6 +99,68 @@ function timeToHour(timeStr) {
   return h + (m || 0) / 60;
 }
 
+// Shared validation for create and update
+// excludeId: reservation ID to exclude (for updates)
+function validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, excludeId) {
+  const property = db.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
+  const cleaning = property ? (property.cleaningHours ?? 3) : 3;
+
+  // Reject past start dates
+  const today = new Date().toISOString().split('T')[0];
+  if (startDate < today) {
+    return { error: 'Impossible de réserver dans le passé.' };
+  }
+
+  // Strict overlap: reservations whose date range overlaps (excluding same-day turnover)
+  let overlapSql = 'SELECT id FROM reservations WHERE propertyId = ? AND startDate < ? AND endDate > ?';
+  const overlapParams = [propertyId, endDate, startDate];
+  if (excludeId) {
+    overlapSql += ' AND id != ?';
+    overlapParams.push(excludeId);
+  }
+  const strictOverlaps = db.prepare(overlapSql).all(...overlapParams);
+  if (strictOverlaps.length > 0) {
+    return { error: 'Ce logement est déjà réservé pour ces dates.' };
+  }
+
+  // Turnover at start: existing reservation ending on our start date
+  let prevSql = 'SELECT checkOutTime FROM reservations WHERE propertyId = ? AND endDate = ?';
+  const prevParams = [propertyId, startDate];
+  if (excludeId) { prevSql += ' AND id != ?'; prevParams.push(excludeId); }
+  const prevRes = db.prepare(prevSql).get(...prevParams);
+  if (prevRes) {
+    const prevCheckOut = timeToHour(prevRes.checkOutTime || '10:00');
+    const newCheckIn = timeToHour(checkInTime || '15:00');
+    if (newCheckIn < prevCheckOut + cleaning) {
+      const availH = String(Math.floor(prevCheckOut + cleaning)).padStart(2, '0');
+      const availM = (prevCheckOut + cleaning) % 1 >= 0.5 ? '30' : '00';
+      return {
+        error: `Arrivée impossible à ${checkInTime || '15:00'}. Le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h ménage).`
+      };
+    }
+  }
+
+  // Turnover at end: existing reservation starting on our end date
+  let nextSql = 'SELECT checkInTime FROM reservations WHERE propertyId = ? AND startDate = ?';
+  const nextParams = [propertyId, endDate];
+  if (excludeId) { nextSql += ' AND id != ?'; nextParams.push(excludeId); }
+  const nextRes = db.prepare(nextSql).get(...nextParams);
+  if (nextRes) {
+    const newCheckOut = timeToHour(checkOutTime || '10:00');
+    const nextCheckIn = timeToHour(nextRes.checkInTime || '15:00');
+    if (newCheckOut + cleaning > nextCheckIn) {
+      const maxCheckOut = nextCheckIn - cleaning;
+      const maxH = String(Math.floor(maxCheckOut)).padStart(2, '0');
+      const maxM = maxCheckOut % 1 >= 0.5 ? '30' : '00';
+      return {
+        error: `Départ à ${checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale est ${maxH}:${maxM}.`
+      };
+    }
+  }
+
+  return null; // no error
+}
+
 // Create reservation
 router.post('/', (req, res) => {
   const {
@@ -109,54 +171,10 @@ router.post('/', (req, res) => {
     options: reservationOptions
   } = req.body;
 
-  // --- Overlap validation ---
-  const property = db.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
-  const cleaning = property ? (property.cleaningHours ?? 3) : 3;
-
-  // Strict overlap: reservations whose date range overlaps (excluding same-day turnover)
-  const strictOverlaps = db.prepare(
-    'SELECT id FROM reservations WHERE propertyId = ? AND startDate < ? AND endDate > ?'
-  ).all(propertyId, endDate, startDate);
-
-  if (strictOverlaps.length > 0) {
-    return res.status(409).json({ error: 'Ce logement est déjà réservé pour ces dates.' });
+  const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, null);
+  if (validationError) {
+    return res.status(409).json(validationError);
   }
-
-  // Turnover at start: existing reservation ending on our start date
-  const prevRes = db.prepare(
-    'SELECT checkOutTime FROM reservations WHERE propertyId = ? AND endDate = ?'
-  ).get(propertyId, startDate);
-
-  if (prevRes) {
-    const prevCheckOut = timeToHour(prevRes.checkOutTime || '10:00');
-    const newCheckIn = timeToHour(checkInTime || '15:00');
-    if (newCheckIn < prevCheckOut + cleaning) {
-      const availH = String(Math.floor(prevCheckOut + cleaning)).padStart(2, '0');
-      const availM = (prevCheckOut + cleaning) % 1 >= 0.5 ? '30' : '00';
-      return res.status(409).json({
-        error: `Arrivée impossible à ${checkInTime || '15:00'}. Le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h ménage).`
-      });
-    }
-  }
-
-  // Turnover at end: existing reservation starting on our end date
-  const nextRes = db.prepare(
-    'SELECT checkInTime FROM reservations WHERE propertyId = ? AND startDate = ?'
-  ).get(propertyId, endDate);
-
-  if (nextRes) {
-    const newCheckOut = timeToHour(checkOutTime || '10:00');
-    const nextCheckIn = timeToHour(nextRes.checkInTime || '15:00');
-    if (newCheckOut + cleaning > nextCheckIn) {
-      const maxCheckOut = nextCheckIn - cleaning;
-      const maxH = String(Math.floor(maxCheckOut)).padStart(2, '0');
-      const maxM = maxCheckOut % 1 >= 0.5 ? '30' : '00';
-      return res.status(409).json({
-        error: `Départ à ${checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale est ${maxH}:${maxM}.`
-      });
-    }
-  }
-  // --- End overlap validation ---
 
   const result = db.prepare(`
     INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, babies,
@@ -193,6 +211,11 @@ router.put('/:id', (req, res) => {
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     options: reservationOptions
   } = req.body;
+
+  const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, Number(req.params.id));
+  if (validationError) {
+    return res.status(409).json(validationError);
+  }
 
   db.prepare(`
     UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, babies=?,

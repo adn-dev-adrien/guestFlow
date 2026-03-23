@@ -8,6 +8,12 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import api from '../api';
 
+function displayDate(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
 const PLATFORM_COLORS = {
   direct: '#1565c0', airbnb: '#FF5A5F', greengo: '#4CAF50',
   abritel: '#f57c00', abracadaroom: '#9c27b0', booking: '#003580'
@@ -179,7 +185,7 @@ export default function Dashboard() {
                     <TableRow key={r.id} hover>
                       <TableCell>{r.firstName} {r.lastName}</TableCell>
                       <TableCell>{r.propertyName}</TableCell>
-                      <TableCell>{r.startDate} → {r.endDate}</TableCell>
+                      <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
                       <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
                       <TableCell>{r.finalPrice}€</TableCell>
                       <TableCell align="center">

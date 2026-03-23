@@ -6,6 +6,12 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import api from '../api';
 
+function displayDate(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
 const COLORS = ['#1565c0', '#4CAF50', '#f57c00', '#9c27b0'];
 
 export default function FinancePage() {
@@ -156,17 +162,17 @@ export default function FinancePage() {
                       <TableRow key={i}>
                         <TableCell>{d.clientName}</TableCell>
                         <TableCell>{d.propertyName}</TableCell>
-                        <TableCell>{d.startDate} → {d.endDate}</TableCell>
+                        <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
                         <TableCell>{d.finalPrice}€</TableCell>
                         <TableCell>
                           {d.depositAmount}€
                           {d.depositPaid ? <Chip label="Payé" size="small" color="success" sx={{ ml: 1 }} /> :
-                            <Chip label={`Dû ${d.depositDueDate}`} size="small" color="warning" sx={{ ml: 1 }} />}
+                            <Chip label={`Dû ${displayDate(d.depositDueDate)}`} size="small" color="warning" sx={{ ml: 1 }} />}
                         </TableCell>
                         <TableCell>
                           {d.balanceAmount}€
                           {d.balancePaid ? <Chip label="Payé" size="small" color="success" sx={{ ml: 1 }} /> :
-                            <Chip label={`Dû ${d.balanceDueDate}`} size="small" color="warning" sx={{ ml: 1 }} />}
+                            <Chip label={`Dû ${displayDate(d.balanceDueDate)}`} size="small" color="warning" sx={{ ml: 1 }} />}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -201,7 +207,7 @@ export default function FinancePage() {
                     <TableRow key={r.id}>
                       <TableCell>{r.firstName} {r.lastName}</TableCell>
                       <TableCell>{r.propertyName}</TableCell>
-                      <TableCell>{r.startDate} → {r.endDate}</TableCell>
+                      <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
                       <TableCell><Chip label={r.platform} size="small" /></TableCell>
                       <TableCell>{r.finalPrice}€</TableCell>
                       <TableCell>
