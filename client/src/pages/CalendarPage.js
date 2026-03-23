@@ -425,6 +425,25 @@ export default function CalendarPage() {
 
   const cleaningHours = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
 
+  // Check if a reservation has visible mid-stay days in the current month
+  const resHasMidDaysThisMonth = (res) => {
+    const monthStartStr = formatDate(year, month, 1);
+    const monthEndStr = formatDate(year, month, daysInMonth);
+    const s = new Date(res.startDate); s.setDate(s.getDate() + 1);
+    const firstMid = formatDate(s.getFullYear(), s.getMonth(), s.getDate());
+    const e = new Date(res.endDate); e.setDate(e.getDate() - 1);
+    const lastMid = formatDate(e.getFullYear(), e.getMonth(), e.getDate());
+    if (firstMid > lastMid) return false;
+    return firstMid <= monthEndStr && lastMid >= monthStartStr;
+  };
+
+  const compactName = (firstName, lastName) => {
+    const f = (firstName || '').charAt(0);
+    const l = lastName || '';
+    const full = f ? `${f}. ${l}` : l;
+    return full.length > 8 ? full.slice(0, 7) + '…' : full;
+  };
+
   // ---------- RENDER A CALENDAR CELL ----------
   const renderDayCell = (day) => {
     const dateStr = formatDate(year, month, day);
@@ -602,6 +621,38 @@ export default function CalendarPage() {
         <Box sx={{ position: 'relative', zIndex: 1, textShadow: '0 0 3px rgba(255,255,255,0.8)' }}>
           {day}
         </Box>
+        {/* Compact label for arrival on short reservations (no mid-day visible) */}
+        {arrivalRes && !resHasMidDaysThisMonth(arrivalRes) && (() => {
+          const colorPct = 100 - (arrivePct || 0);
+          const nameSize = Math.max(8, Math.round(colorPct / 100 * 22));
+          const platSize = Math.max(7, Math.round(colorPct / 100 * 16));
+          return (
+            <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
+              <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                {compactName(arrivalRes.firstName, arrivalRes.lastName)}
+              </Typography>
+              <Typography sx={{ fontSize: platSize, fontWeight: 500, color: 'rgba(255,255,255,0.85)', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                {arrivalRes.platform}
+              </Typography>
+            </Box>
+          );
+        })()}
+        {/* Compact label for departure on short reservations when arrival not in this month */}
+        {departureRes && !resHasMidDaysThisMonth(departureRes) && !(departureRes.startDate >= formatDate(year, month, 1) && departureRes.startDate <= formatDate(year, month, daysInMonth)) && (() => {
+          const colorPct = departEndPct || departPct || 0;
+          const nameSize = Math.max(8, Math.round(colorPct / 100 * 22));
+          const platSize = Math.max(7, Math.round(colorPct / 100 * 16));
+          return (
+            <Box sx={{ position: 'absolute', top: 1, left: 2, zIndex: 2, textAlign: 'left', lineHeight: 1, pointerEvents: 'none' }}>
+              <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                {compactName(departureRes.firstName, departureRes.lastName)}
+              </Typography>
+              <Typography sx={{ fontSize: platSize, fontWeight: 500, color: 'rgba(255,255,255,0.85)', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                {departureRes.platform}
+              </Typography>
+            </Box>
+          );
+        })()}
       </Box>
     );
   };
