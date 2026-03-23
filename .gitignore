@@ -143,3 +143,6 @@ vite.config.ts.timestamp-*
 server/uploads/
 client/build/
 .env
+
+# Data bases
+*.db-*
