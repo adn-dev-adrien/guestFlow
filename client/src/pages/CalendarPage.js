@@ -616,6 +616,28 @@ export default function CalendarPage() {
       )}
 
       {/* Reservation Dialog */}
+      {(() => {
+        // Compute min/max date bounds for arrival and departure inputs
+        const otherRes = editingReservationId
+          ? reservations.filter(r => r.id !== editingReservationId).sort((a, b) => a.startDate.localeCompare(b.startDate))
+          : reservations.sort((a, b) => a.startDate.localeCompare(b.startDate));
+        const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+        // Arrival date bounds
+        // min: end date of previous reservation (the one ending just before or on form.startDate), or today
+        const prevResBound = otherRes.filter(r => r.endDate <= (form.startDate || todayStr));
+        const arrivalMin = prevResBound.length > 0 ? prevResBound[prevResBound.length - 1].endDate : todayStr;
+        // max: form.endDate - 1 day (can't arrive on or after departure), capped to end of next reservation's start
+        const arrivalMax = form.endDate || '';
+
+        // Departure date bounds
+        // min: form.startDate + 1 day (at least 1 night)
+        const departureMin = form.startDate || '';
+        // max: start date of next reservation (the one starting on or after form.endDate), or empty (unlimited)
+        const nextResBound = otherRes.filter(r => r.startDate >= (form.endDate || ''));
+        const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
+
+        return (
       <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditingReservationId(null); }} maxWidth="md" fullWidth>
         <DialogTitle>{editingReservationId ? 'Modifier la réservation' : 'Nouvelle réservation'}</DialogTitle>
         <DialogContent>
@@ -624,11 +646,13 @@ export default function CalendarPage() {
               <Grid item xs={6}>
                 <TextField label="Date d'arrivée" type="date" value={form.startDate || ''}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: arrivalMin, max: arrivalMax }}
                   onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))} fullWidth />
               </Grid>
               <Grid item xs={6}>
                 <TextField label="Date de départ" type="date" value={form.endDate || ''}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: departureMin, max: departureMax || undefined }}
                   onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))} fullWidth />
               </Grid>
             </Grid>
@@ -761,6 +785,8 @@ export default function CalendarPage() {
           </Button>
         </DialogActions>
       </Dialog>
+        );
+      })()}
 
       {/* Create client inline dialog */}
       <Dialog open={createClientOpen} onClose={() => setCreateClientOpen(false)} maxWidth="sm" fullWidth>
