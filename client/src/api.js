@@ -67,6 +67,12 @@ const api = {
   },
   getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),
   getPendingPayments: () => request('/finance/pending'),
+
+  // School holidays
+  getSchoolHolidays: () => request('/school-holidays'),
+  createSchoolHoliday: (data) => request('/school-holidays', { method: 'POST', body: data }),
+  updateSchoolHoliday: (id, data) => request(`/school-holidays/${id}`, { method: 'PUT', body: data }),
+  deleteSchoolHoliday: (id) => request(`/school-holidays/${id}`, { method: 'DELETE' }),
 };
 
 export default api;

@@ -10,6 +10,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import api from '../api';
+import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
 
 const PLATFORMS = ['direct', 'airbnb', 'greengo', 'abritel', 'abracadaroom', 'booking'];
 
@@ -60,6 +61,8 @@ function getReservationColor(platform) {
 
 const CLEANING_COLOR = '#e53935';
 
+const ZONE_COLORS = { A: '#1976d2', B: '#388e3c', C: '#f57c00' };
+
 export default function CalendarPage() {
   const [searchParams] = useSearchParams();
   const [properties, setProperties] = useState([]);
@@ -88,8 +91,11 @@ export default function CalendarPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [schoolHolidays, setSchoolHolidays] = useState([]);
 
   const loadProperties = async () => setProperties(await api.getProperties());
+
+  const loadSchoolHolidays = async () => setSchoolHolidays(await api.getSchoolHolidays());
 
   const loadReservations = useCallback(async () => {
     if (!selectedProp) return;
@@ -101,7 +107,7 @@ export default function CalendarPage() {
     setReservations(data);
   }, [selectedProp, year, month]);
 
-  useEffect(() => { loadProperties(); }, []);
+  useEffect(() => { loadProperties(); loadSchoolHolidays(); }, []);
   useEffect(() => { loadReservations(); }, [loadReservations]);
 
   // Read URL params for navigation from dashboard
@@ -470,6 +476,30 @@ export default function CalendarPage() {
   };
 
   // ---------- RENDER A CALENDAR CELL ----------
+  const publicHolidays = getFrenchPublicHolidays(year);
+  // Also get holidays for adjacent year if month is Jan or Dec
+  const publicHolidays2 = month === 0 ? getFrenchPublicHolidays(year - 1) : month === 11 ? getFrenchPublicHolidays(year + 1) : null;
+  const allPublicHolidays = publicHolidays2 ? new Set([...publicHolidays, ...publicHolidays2]) : publicHolidays;
+
+  const renderHolidayIndicators = (dateStr) => {
+    const isPublicHoliday = allPublicHolidays.has(dateStr);
+    const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
+    return (
+      <>
+        {isPublicHoliday && (
+          <Box sx={{ position: 'absolute', top: 2, left: 3, width: 6, height: 6, borderRadius: '50%', bgcolor: '#d32f2f', zIndex: 3, pointerEvents: 'none' }} />
+        )}
+        {schoolInfo && (
+          <Box sx={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '2px', zIndex: 3, pointerEvents: 'none' }}>
+            {schoolInfo.zones.map(z => (
+              <Box key={z} sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS[z] }} />
+            ))}
+          </Box>
+        )}
+      </>
+    );
+  };
+
   const renderDayCell = (day) => {
     const dateStr = formatDate(year, month, day);
     const isPast = dateStr < today;
@@ -496,6 +526,7 @@ export default function CalendarPage() {
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 48,
         }}>
+          {renderHolidayIndicators(dateStr)}
           {isLabelDay ? (
             <>
               <Typography sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
@@ -539,6 +570,7 @@ export default function CalendarPage() {
             transition: 'background-color 0.15s',
           }}
         >
+          {renderHolidayIndicators(dateStr)}
           {day}
         </Box>
       );
@@ -646,7 +678,8 @@ export default function CalendarPage() {
         <Box sx={{ position: 'relative', zIndex: 1, textShadow: '0 0 3px rgba(255,255,255,0.8)' }}>
           {day}
         </Box>
-        {/* Compact label for arrival on short reservations (no mid-day visible) */}
+        {renderHolidayIndicators(dateStr)}
+        {/* Compact label for arrival on short reservations (no mid-day visible) */}}
         {arrivalRes && !resHasMidDaysThisMonth(arrivalRes) && (() => {
           const colorPct = 100 - (arrivePct || 0);
           const nameSize = Math.max(8, Math.round(colorPct / 100 * 22));
@@ -719,6 +752,22 @@ export default function CalendarPage() {
 
             <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap', alignItems: 'center' }}>
               <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#d32f2f' }} />
+                <Typography variant="caption" color="text.secondary">Jour férié</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS.A }} />
+                <Typography variant="caption" color="text.secondary">Zone A</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS.B }} />
+                <Typography variant="caption" color="text.secondary">Zone B</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: ZONE_COLORS.C }} />
+                <Typography variant="caption" color="text.secondary">Zone C</Typography>
+              </Box>
             </Box>
           </CardContent>
         </Card>
