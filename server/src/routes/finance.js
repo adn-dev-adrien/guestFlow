@@ -109,7 +109,7 @@ router.get('/pending', (req, res) => {
     FROM reservations r
     JOIN clients c ON r.clientId = c.id
     JOIN properties p ON r.propertyId = p.id
-    WHERE r.depositPaid = 0 OR r.balancePaid = 0 OR (r.cautionAmount > 0 AND (r.cautionReceived = 0 OR r.cautionReturned = 0))
+    WHERE r.depositPaid = 0 OR r.balancePaid = 0
     ORDER BY r.depositDueDate, r.balanceDueDate
   `).all();
 
