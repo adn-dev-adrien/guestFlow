@@ -331,12 +331,31 @@ export default function CalendarPage() {
     // If mid-stay: full color fill
     if (midRes) {
       const color = getReservationColor(midRes.platform);
+      // Show label on the middle day of the reservation (within this month)
+      const resStart = new Date(midRes.startDate);
+      const resEnd = new Date(midRes.endDate);
+      const firstDay = resStart.getFullYear() === year && resStart.getMonth() === month ? resStart.getDate() : 1;
+      const lastDay = resEnd.getFullYear() === year && resEnd.getMonth() === month ? resEnd.getDate() : daysInMonth;
+      const midDay = Math.round((firstDay + lastDay) / 2);
+      const isLabelDay = day === midDay;
       return (
         <Box key={day} sx={{
           textAlign: 'center', py: 2, borderRadius: 1, position: 'relative',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 48,
         }}>
-          {day}
+          {isLabelDay ? (
+            <>
+              <Typography sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+                {midRes.firstName} {midRes.lastName}
+              </Typography>
+              <Typography sx={{ fontSize: 9, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+                {midRes.platform}
+              </Typography>
+            </>
+          ) : (
+            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{day}</Typography>
+          )}
         </Box>
       );
     }
@@ -477,9 +496,6 @@ export default function CalendarPage() {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-              {PLATFORMS.map(p => (
-                <Chip key={p} label={p} size="small" sx={{ bgcolor: getReservationColor(p), color: 'white' }} />
-              ))}
               <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
             </Box>
           </CardContent>
