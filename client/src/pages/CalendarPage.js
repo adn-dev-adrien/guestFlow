@@ -804,6 +804,7 @@ export default function CalendarPage() {
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
           cursor: 'pointer', fontSize: 14, fontWeight: 600,
           background: gradient || 'grey.100',
+          border: '1px solid #e0e0e0',
           color: 'text.primary', overflow: 'hidden',
         }}
       >
