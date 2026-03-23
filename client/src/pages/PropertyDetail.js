@@ -51,6 +51,7 @@ export default function PropertyDetail() {
     const initial = {
       name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
+      defaultCautionAmount: p.defaultCautionAmount ?? 500,
       defaultCheckIn: p.defaultCheckIn || '15:00', defaultCheckOut: p.defaultCheckOut || '10:00', cleaningHours: p.cleaningHours ?? 3
     };
     setForm(initial);
@@ -239,6 +240,7 @@ export default function PropertyDetail() {
                   <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} fullWidth size="small" />
                   <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} fullWidth size="small" />
                 </Box>
+                <TextField label="Caution par défaut (€)" type="number" inputProps={{ step: 50 }} value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} fullWidth size="small" />
               </Box>
             </CardContent>
           </Card>

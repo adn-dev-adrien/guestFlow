@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, Chip, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress
@@ -20,11 +21,13 @@ const PLATFORM_COLORS = {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [upcomingByProperty, setUpcomingByProperty] = useState({});
 
   useEffect(() => {
     const today = new Date();
@@ -37,12 +40,22 @@ export default function Dashboard() {
       api.getProperties(),
       api.getReservations({ from, to }),
       api.getPendingPayments(),
-      api.getFinanceSummary(from, to)
-    ]).then(([props, resv, pending, fin]) => {
+      api.getFinanceSummary(from, to),
+      api.getReservations({ from }),
+    ]).then(([props, resv, pending, fin, allUpcoming]) => {
       setProperties(props);
       setReservations(resv);
       setPendingPayments(pending);
       setSummary(fin);
+
+      const grouped = {};
+      for (const prop of props) {
+        grouped[prop.id] = allUpcoming
+          .filter(r => r.propertyId === prop.id)
+          .sort((a, b) => a.startDate.localeCompare(b.startDate))
+          .slice(0, 5);
+      }
+      setUpcomingByProperty(grouped);
       setLoading(false);
     });
   }, []);
@@ -160,6 +173,67 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* Upcoming reservations per property */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Réservations à venir par logement</Typography>
+          {properties.map(prop => {
+            const upcoming = upcomingByProperty[prop.id] || [];
+            if (upcoming.length === 0) return null;
+            return (
+              <Box key={prop.id} sx={{ mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>{prop.name}</Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Nuits</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Prix</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Reste à payer</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Créée le</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {upcoming.map(r => {
+                        const nights = Math.round((new Date(r.endDate) - new Date(r.startDate)) / 86400000);
+                        const remaining = (r.finalPrice || 0)
+                          - (r.depositPaid ? (r.depositAmount || 0) : 0)
+                          - (r.balancePaid ? (r.balanceAmount || 0) : 0);
+                        return (
+                        <TableRow
+                          key={r.id}
+                          hover
+                          sx={{ cursor: 'pointer' }}
+                          onClick={() => {
+                            const d = new Date(r.startDate);
+                            navigate(`/calendar?propertyId=${r.propertyId}&year=${d.getFullYear()}&month=${d.getMonth()}`);
+                          }}
+                        >
+                          <TableCell>{r.firstName} {r.lastName}</TableCell>
+                          <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                          <TableCell>{nights}</TableCell>
+                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
+                          <TableCell>{r.finalPrice}€</TableCell>
+                          <TableCell sx={{ color: remaining > 0 ? 'error.main' : 'success.main', fontWeight: 600 }}>{remaining}€</TableCell>
+                          <TableCell>{displayDate(r.createdAt ? r.createdAt.split(/[T ]/)[0] : r.createdAt)}</TableCell>
+                        </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            );
+          })}
+          {properties.every(p => !(upcomingByProperty[p.id] || []).length) && (
+            <Typography color="text.secondary">Aucune réservation à venir</Typography>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Pending payments with checkboxes */}
       <Card>
         <CardContent>
@@ -178,6 +252,7 @@ export default function Dashboard() {
                     <TableCell sx={{ fontWeight: 600 }}>Prix total</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">Acompte</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">Solde</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">Caution</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -207,6 +282,18 @@ export default function Dashboard() {
                           />
                           <Typography variant="body2">{r.balanceAmount}€</Typography>
                         </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        {r.cautionAmount > 0 ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                            <Checkbox
+                              checked={!!r.cautionReceived}
+                              onChange={() => handleTogglePayment(r, 'cautionReceived')}
+                              size="small"
+                            />
+                            <Typography variant="body2">{r.cautionAmount}€</Typography>
+                          </Box>
+                        ) : '—'}
                       </TableCell>
                     </TableRow>
                   ))}

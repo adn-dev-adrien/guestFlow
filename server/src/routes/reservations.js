@@ -168,6 +168,7 @@ router.post('/', (req, res) => {
     checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
+    cautionAmount,
     options: reservationOptions
   } = req.body;
 
@@ -180,13 +181,14 @@ router.post('/', (req, res) => {
     INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, babies,
       checkInTime, checkOutTime,
       platform, totalPrice, discountPercent, finalPrice, depositAmount, depositDueDate,
-      balanceAmount, balanceDueDate, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      balanceAmount, balanceDueDate, notes, cautionAmount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
-    depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, notes || ''
+    depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, notes || '',
+    cautionAmount || 0
   );
 
   const reservationId = result.lastInsertRowid;
@@ -209,6 +211,7 @@ router.put('/:id', (req, res) => {
     checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
+    cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     options: reservationOptions
   } = req.body;
 
@@ -221,7 +224,9 @@ router.put('/:id', (req, res) => {
     UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, babies=?,
       checkInTime=?, checkOutTime=?,
       platform=?, totalPrice=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
-      depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?, updatedAt=datetime('now')
+      depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
+      cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?,
+      updatedAt=datetime('now')
     WHERE id=?
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
@@ -229,6 +234,8 @@ router.put('/:id', (req, res) => {
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
     depositAmount || 0, depositDueDate || null, depositPaid ? 1 : 0,
     balanceAmount || 0, balanceDueDate || null, balancePaid ? 1 : 0, notes || '',
+    cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
+    cautionReturned ? 1 : 0, cautionReturnedDate || null,
     req.params.id
   );
 
@@ -244,14 +251,22 @@ router.put('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// Mark deposit/balance as paid
+// Mark deposit/balance/caution as paid
 router.patch('/:id/payment', (req, res) => {
-  const { depositPaid, balancePaid } = req.body;
+  const { depositPaid, balancePaid, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate } = req.body;
   if (depositPaid !== undefined) {
     db.prepare('UPDATE reservations SET depositPaid = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(depositPaid ? 1 : 0, req.params.id);
   }
   if (balancePaid !== undefined) {
     db.prepare('UPDATE reservations SET balancePaid = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(balancePaid ? 1 : 0, req.params.id);
+  }
+  if (cautionReceived !== undefined) {
+    const date = cautionReceivedDate || (cautionReceived ? new Date().toISOString().split('T')[0] : null);
+    db.prepare('UPDATE reservations SET cautionReceived = ?, cautionReceivedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(cautionReceived ? 1 : 0, date, req.params.id);
+  }
+  if (cautionReturned !== undefined) {
+    const date = cautionReturnedDate || (cautionReturned ? new Date().toISOString().split('T')[0] : null);
+    db.prepare('UPDATE reservations SET cautionReturned = ?, cautionReturnedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(cautionReturned ? 1 : 0, date, req.params.id);
   }
   res.json({ ok: true });
 });

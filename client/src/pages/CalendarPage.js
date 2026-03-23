@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, FormControl, InputLabel, Select,
   MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -60,6 +61,7 @@ function getReservationColor(platform) {
 const CLEANING_COLOR = '#e53935';
 
 export default function CalendarPage() {
+  const [searchParams] = useSearchParams();
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -79,6 +81,7 @@ export default function CalendarPage() {
     clientId: null, adults: 1, children: 0, babies: 0, platform: 'direct',
     totalPrice: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
+    cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], checkInTime: '15:00', checkOutTime: '10:00'
   });
   const calRef = useRef(null);
@@ -100,6 +103,16 @@ export default function CalendarPage() {
 
   useEffect(() => { loadProperties(); }, []);
   useEffect(() => { loadReservations(); }, [loadReservations]);
+
+  // Read URL params for navigation from dashboard
+  useEffect(() => {
+    const propId = searchParams.get('propertyId');
+    const y = searchParams.get('year');
+    const m = searchParams.get('month');
+    if (propId) setSelectedProp(Number(propId));
+    if (y) setYear(Number(y));
+    if (m !== null) setMonth(Number(m));
+  }, [searchParams]);
 
   const loadClientsForSearch = async (q) => {
     const data = await api.getClients(q);
@@ -172,6 +185,7 @@ export default function CalendarPage() {
       totalPrice: calc.totalPrice, discountPercent: 0, finalPrice: calc.totalPrice, customPrice: '',
       depositAmount: calc.depositAmount, depositDueDate: calc.depositDueDate,
       balanceAmount: calc.balanceAmount, balanceDueDate: calc.balanceDueDate,
+      cautionAmount: prop.defaultCautionAmount ?? 500, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
       notes: '', selectedOptions: [], startDate, endDate,
       checkInTime: calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
       checkOutTime: calc.defaultCheckOut || prop.defaultCheckOut || '10:00'
@@ -320,6 +334,11 @@ export default function CalendarPage() {
           balanceAmount: form.balanceAmount,
           balanceDueDate: form.balanceDueDate,
           balancePaid: form.balancePaid,
+          cautionAmount: form.cautionAmount,
+          cautionReceived: form.cautionReceived,
+          cautionReceivedDate: form.cautionReceivedDate,
+          cautionReturned: form.cautionReturned,
+          cautionReturnedDate: form.cautionReturnedDate,
           notes: form.notes,
           options: form.selectedOptions.map(so => ({
             optionId: so.optionId,
@@ -346,6 +365,7 @@ export default function CalendarPage() {
           depositDueDate: form.depositDueDate,
           balanceAmount: form.balanceAmount,
           balanceDueDate: form.balanceDueDate,
+          cautionAmount: form.cautionAmount,
           notes: form.notes,
           options: form.selectedOptions.map(so => ({
             optionId: so.optionId,
@@ -400,6 +420,11 @@ export default function CalendarPage() {
       selectedOptions: (res.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
       depositPaid: !!res.depositPaid,
       balancePaid: !!res.balancePaid,
+      cautionAmount: res.cautionAmount || 0,
+      cautionReceived: !!res.cautionReceived,
+      cautionReceivedDate: res.cautionReceivedDate || '',
+      cautionReturned: !!res.cautionReturned,
+      cautionReturnedDate: res.cautionReturnedDate || '',
     });
     setEditingReservationId(resId);
     setDialogOpen(true);
@@ -854,6 +879,42 @@ export default function CalendarPage() {
                   InputLabelProps={{ shrink: true }}
                   onChange={(e) => setForm(prev => ({ ...prev, balanceDueDate: e.target.value }))} fullWidth />
               </Grid>
+            </Grid>
+
+            <Divider />
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Caution</Typography>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={3}>
+                <TextField label="Montant caution (€)" type="number" value={form.cautionAmount}
+                  onChange={(e) => setForm(prev => ({ ...prev, cautionAmount: Number(e.target.value) }))} fullWidth />
+              </Grid>
+              <Grid item xs={3}>
+                <FormControlLabel control={<Checkbox checked={form.cautionReceived} onChange={(e) => setForm(prev => ({ ...prev, cautionReceived: e.target.checked, cautionReceivedDate: e.target.checked && !prev.cautionReceivedDate ? new Date().toISOString().split('T')[0] : prev.cautionReceivedDate }))} />}
+                  label="Reçue" />
+              </Grid>
+              {form.cautionReceived && (
+                <Grid item xs={3}>
+                  <TextField label="Date réception" type="date" value={form.cautionReceivedDate}
+                    InputLabelProps={{ shrink: true }}
+                    onChange={(e) => setForm(prev => ({ ...prev, cautionReceivedDate: e.target.value }))} fullWidth />
+                </Grid>
+              )}
+              {form.cautionReceived && (
+                <>
+                  <Grid item xs={3}>
+                    <FormControlLabel control={<Checkbox checked={form.cautionReturned} onChange={(e) => setForm(prev => ({ ...prev, cautionReturned: e.target.checked, cautionReturnedDate: e.target.checked && !prev.cautionReturnedDate ? new Date().toISOString().split('T')[0] : prev.cautionReturnedDate }))} />}
+                      label="Restituée" />
+                  </Grid>
+                  {form.cautionReturned && (
+                    <Grid item xs={3}>
+                      <TextField label="Date restitution" type="date" value={form.cautionReturnedDate}
+                        InputLabelProps={{ shrink: true }}
+                        onChange={(e) => setForm(prev => ({ ...prev, cautionReturnedDate: e.target.value }))} fullWidth />
+                    </Grid>
+                  )}
+                </>
+              )}
             </Grid>
 
             <TextField label="Notes" value={form.notes} onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))} multiline rows={2} fullWidth />

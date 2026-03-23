@@ -36,6 +36,7 @@ db.exec(`
     defaultCheckIn TEXT DEFAULT '15:00',
     defaultCheckOut TEXT DEFAULT '10:00',
     cleaningHours REAL DEFAULT 3,
+    defaultCautionAmount REAL DEFAULT 500,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   )
@@ -135,5 +136,19 @@ db.exec(`
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
   )
 `);
+
+// ---------- MIGRATIONS ----------
+const cols = db.prepare("PRAGMA table_info(reservations)").all().map(c => c.name);
+if (!cols.includes('cautionAmount')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN cautionAmount REAL DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN cautionReceived INTEGER DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN cautionReceivedDate TEXT");
+  db.exec("ALTER TABLE reservations ADD COLUMN cautionReturned INTEGER DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN cautionReturnedDate TEXT");
+}
+const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
+if (!propCols.includes('defaultCautionAmount')) {
+  db.exec("ALTER TABLE properties ADD COLUMN defaultCautionAmount REAL DEFAULT 500");
+}
 
 module.exports = db;
