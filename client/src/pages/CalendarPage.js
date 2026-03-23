@@ -1,14 +1,12 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, FormControl, InputLabel, Select,
   MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Autocomplete, Chip, Checkbox, FormControlLabel, Divider, Grid
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
 
@@ -70,10 +68,18 @@ export default function CalendarPage() {
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [reservations, setReservations] = useState([]);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth());
-  const [dragStart, setDragStart] = useState(null);
-  const [dragEnd, setDragEnd] = useState(null);
+
+  const getMonthsRange = (centerY, centerM, range = 3) => {
+    const result = [];
+    for (let i = -range; i <= range; i++) {
+      const d = new Date(centerY, centerM + i, 1);
+      result.push({ year: d.getFullYear(), month: d.getMonth() });
+    }
+    return result;
+  };
+  const [months, setMonths] = useState(() => getMonthsRange(new Date().getFullYear(), new Date().getMonth()));
+  const [dragStartDate, setDragStartDate] = useState(null);
+  const [dragEndDate, setDragEndDate] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clients, setClients] = useState([]);
@@ -88,7 +94,11 @@ export default function CalendarPage() {
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], checkInTime: '15:00', checkOutTime: '10:00'
   });
-  const calRef = useRef(null);
+  const scrollRef = useRef(null);
+  const lastLoadedRange = useRef({ from: '', to: '' });
+  const prevScrollHeight = useRef(0);
+  const shouldAdjustScroll = useRef(false);
+  const initialScrollDone = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -102,22 +112,28 @@ export default function CalendarPage() {
 
   const loadSchoolHolidays = async () => setSchoolHolidays(await api.getSchoolHolidays());
 
-  const loadReservations = useCallback(async () => {
-    if (!selectedProp) return;
+  const loadCalendarData = useCallback(async () => {
+    if (!selectedProp || months.length === 0) return;
+    const first = months[0];
+    const last = months[months.length - 1];
+    const from = formatDate(first.year, first.month, 1);
+    const to = formatDate(last.year, last.month, getDaysInMonth(last.year, last.month));
+    if (from === lastLoadedRange.current.from && to === lastLoadedRange.current.to) return;
+    lastLoadedRange.current = { from, to };
     const prop = await api.getProperty(selectedProp);
     setSelectedProperty(prop);
-    const from = formatDate(year, month, 1);
-    const to = formatDate(year, month, getDaysInMonth(year, month));
-    const data = await api.getReservations({ propertyId: selectedProp, from, to });
+    const [data, notes] = await Promise.all([
+      api.getReservations({ propertyId: selectedProp, from, to }),
+      api.getCalendarNotes(selectedProp, from, to)
+    ]);
     setReservations(data);
-    const notes = await api.getCalendarNotes(selectedProp, from, to);
     const notesMap = {};
     notes.forEach(n => { notesMap[n.date] = n.note; });
     setCalendarNotes(notesMap);
-  }, [selectedProp, year, month]);
+  }, [selectedProp, months]);
 
   useEffect(() => { loadProperties(); loadSchoolHolidays(); }, []);
-  useEffect(() => { loadReservations(); }, [loadReservations]);
+  useEffect(() => { loadCalendarData(); }, [loadCalendarData]);
 
   // Read URL params for navigation from dashboard
   useEffect(() => {
@@ -125,9 +141,55 @@ export default function CalendarPage() {
     const y = searchParams.get('year');
     const m = searchParams.get('month');
     if (propId) setSelectedProp(Number(propId));
-    if (y) setYear(Number(y));
-    if (m !== null) setMonth(Number(m));
+    if (y && m !== null) {
+      setMonths(getMonthsRange(Number(y), Number(m)));
+      initialScrollDone.current = false;
+      lastLoadedRange.current = { from: '', to: '' };
+    }
   }, [searchParams]);
+
+  // Maintain scroll position when prepending months
+  useLayoutEffect(() => {
+    if (shouldAdjustScroll.current && scrollRef.current) {
+      const diff = scrollRef.current.scrollHeight - prevScrollHeight.current;
+      scrollRef.current.scrollTop += diff;
+      shouldAdjustScroll.current = false;
+    }
+  }, [months]);
+
+  // Auto-scroll to current week on initial load
+  useEffect(() => {
+    if (initialScrollDone.current || !selectedProp || !scrollRef.current) return;
+    const el = scrollRef.current;
+    const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    const todayEl = el.querySelector(`[data-date="${todayStr}"]`);
+    if (todayEl) {
+      const rowHeight = todayEl.offsetHeight + 4;
+      el.scrollTop = todayEl.offsetTop - el.offsetTop - rowHeight;
+      initialScrollDone.current = true;
+    }
+  });
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop < 200) {
+      prevScrollHeight.current = el.scrollHeight;
+      shouldAdjustScroll.current = true;
+      setMonths(prev => {
+        const first = prev[0];
+        const d = new Date(first.year, first.month - 1, 1);
+        return [{ year: d.getFullYear(), month: d.getMonth() }, ...prev];
+      });
+    }
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+      setMonths(prev => {
+        const last = prev[prev.length - 1];
+        const d = new Date(last.year, last.month + 1, 1);
+        return [...prev, { year: d.getFullYear(), month: d.getMonth() }];
+      });
+    }
+  };
 
   const loadClientsForSearch = async (q) => {
     const data = await api.getClients(q);
@@ -136,55 +198,77 @@ export default function CalendarPage() {
 
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
 
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDayOfWeek = new Date(year, month, 1).getDay();
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-  const adjustedFirst = (firstDayOfWeek + 6) % 7;
   const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
   // Check if a day is fully blocked (mid-stay or past)
-  const isDayFullyBlocked = (day) => {
-    const dateStr = formatDate(year, month, day);
+  const isDayFullyBlocked = (day, y, m) => {
+    const dateStr = formatDate(y, m, day);
     if (dateStr < today) return true;
     if (reservations.some(r => dateStr > r.startDate && dateStr < r.endDate)) return true;
     return false;
   };
 
   // Check if a day has an existing arrival
-  const hasArrivalOnDay = (day) => {
-    const dateStr = formatDate(year, month, day);
+  const hasArrivalOnDay = (day, y, m) => {
+    const dateStr = formatDate(y, m, day);
     return reservations.some(r => r.startDate === dateStr);
   };
 
-  const isInDragRange = (day) => {
-    if (!dragStart || !dragEnd) return false;
-    const min = Math.min(dragStart, dragEnd);
-    const max = Math.max(dragStart, dragEnd);
-    return day >= min && day <= max;
+  const isInDragRange = (day, y, m) => {
+    if (!dragStartDate || !dragEndDate) return false;
+    const dateStr = formatDate(y, m, day);
+    const min = dragStartDate < dragEndDate ? dragStartDate : dragEndDate;
+    const max = dragStartDate < dragEndDate ? dragEndDate : dragStartDate;
+    return dateStr >= min && dateStr <= max;
   };
 
-  const handleMouseDown = (day) => {
-    if (isDayFullyBlocked(day) || hasArrivalOnDay(day)) return;
-    setDragStart(day);
-    setDragEnd(day);
+  const handleMouseDown = (day, y, m) => {
+    if (isDayFullyBlocked(day, y, m) || hasArrivalOnDay(day, y, m)) return;
+    const dateStr = formatDate(y, m, day);
+    setDragStartDate(dateStr);
+    setDragEndDate(dateStr);
     setIsDragging(true);
   };
 
-  const handleMouseEnter = (day) => {
-    if (!isDragging) return;
-    let clampedDay = day;
-    if (day >= dragStart) {
-      for (let d = dragStart + 1; d <= day; d++) {
-        if (isDayFullyBlocked(d)) { clampedDay = d - 1; break; }
-        if (hasArrivalOnDay(d)) { clampedDay = d; break; }
+  const handleMouseEnter = (day, y, m) => {
+    if (!isDragging || !dragStartDate) return;
+    const dateStr = formatDate(y, m, day);
+    // Walk from dragStartDate to dateStr, clamping at obstacles
+    const start = new Date(dragStartDate);
+    const target = new Date(dateStr);
+    let clamped = dateStr;
+    if (target >= start) {
+      const cursor = new Date(start);
+      cursor.setDate(cursor.getDate() + 1);
+      while (cursor <= target) {
+        const cy = cursor.getFullYear(), cm = cursor.getMonth(), cd = cursor.getDate();
+        if (isDayFullyBlocked(cd, cy, cm)) {
+          cursor.setDate(cursor.getDate() - 1);
+          clamped = formatDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+          break;
+        }
+        if (hasArrivalOnDay(cd, cy, cm)) {
+          clamped = formatDate(cy, cm, cd);
+          break;
+        }
+        cursor.setDate(cursor.getDate() + 1);
       }
     } else {
-      for (let d = dragStart - 1; d >= day; d--) {
-        if (isDayFullyBlocked(d) || hasArrivalOnDay(d)) { clampedDay = d + 1; break; }
+      const cursor = new Date(start);
+      cursor.setDate(cursor.getDate() - 1);
+      while (cursor >= target) {
+        const cy = cursor.getFullYear(), cm = cursor.getMonth(), cd = cursor.getDate();
+        if (isDayFullyBlocked(cd, cy, cm) || hasArrivalOnDay(cd, cy, cm)) {
+          cursor.setDate(cursor.getDate() + 1);
+          clamped = formatDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+          break;
+        }
+        cursor.setDate(cursor.getDate() - 1);
       }
     }
-    setDragEnd(clampedDay);
+    setDragEndDate(clamped);
   };
 
   const openNewReservation = async (startDate, endDate) => {
@@ -210,14 +294,16 @@ export default function CalendarPage() {
   };
 
   const handleMouseUp = async () => {
-    if (!isDragging || !dragStart || !dragEnd) return;
+    if (!isDragging || !dragStartDate || !dragEndDate) return;
     setIsDragging(false);
-    const startDay = Math.min(dragStart, dragEnd);
-    const lastDay = Math.max(dragStart, dragEnd);
-    const endDay = hasArrivalOnDay(lastDay) ? lastDay : lastDay + 1;
-    const startDate = formatDate(year, month, startDay);
-    const endDate = formatDate(year, month, Math.min(endDay, daysInMonth + 1));
-    await openNewReservation(startDate, endDate);
+    const minDate = dragStartDate < dragEndDate ? dragStartDate : dragEndDate;
+    const maxDate = dragStartDate < dragEndDate ? dragEndDate : dragStartDate;
+    const lastDate = new Date(maxDate);
+    const ly = lastDate.getFullYear(), lm = lastDate.getMonth(), ld = lastDate.getDate();
+    const endDate = hasArrivalOnDay(ld, ly, lm)
+      ? maxDate
+      : (() => { const d = new Date(maxDate); d.setDate(d.getDate() + 1); return formatDate(d.getFullYear(), d.getMonth(), d.getDate()); })();
+    await openNewReservation(minDate, endDate);
   };
 
   const recalcPrice = (updatedForm) => {
@@ -391,9 +477,10 @@ export default function CalendarPage() {
       }
       setDialogOpen(false);
       setEditingReservationId(null);
-      setDragStart(null);
-      setDragEnd(null);
-      loadReservations();
+      setDragStartDate(null);
+      setDragEndDate(null);
+      lastLoadedRange.current = { from: '', to: '' };
+      loadCalendarData();
     } catch (err) {
       setErrorMsg(err.message || 'Erreur lors de la création de la réservation');
     }
@@ -451,24 +538,23 @@ export default function CalendarPage() {
     setConfirmDeleteOpen(false);
     setDialogOpen(false);
     setEditingReservationId(null);
-    loadReservations();
+    lastLoadedRange.current = { from: '', to: '' };
+    loadCalendarData();
   };
 
-  const prevMonth = () => {
-    if (month === 0) { setYear(y => y - 1); setMonth(11); }
-    else setMonth(m => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 11) { setYear(y => y + 1); setMonth(0); }
-    else setMonth(m => m + 1);
+  const scrollToToday = () => {
+    const now = new Date();
+    setMonths(getMonthsRange(now.getFullYear(), now.getMonth()));
+    initialScrollDone.current = false;
+    lastLoadedRange.current = { from: '', to: '' };
   };
 
   const cleaningHours = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
 
   // Check if a reservation has visible mid-stay days in the current month
-  const resHasMidDaysThisMonth = (res) => {
-    const monthStartStr = formatDate(year, month, 1);
-    const monthEndStr = formatDate(year, month, daysInMonth);
+  const resHasMidDays = (res, y, m, dim) => {
+    const monthStartStr = formatDate(y, m, 1);
+    const monthEndStr = formatDate(y, m, dim);
     const s = new Date(res.startDate); s.setDate(s.getDate() + 1);
     const firstMid = formatDate(s.getFullYear(), s.getMonth(), s.getDate());
     const e = new Date(res.endDate); e.setDate(e.getDate() - 1);
@@ -523,10 +609,9 @@ export default function CalendarPage() {
   };
 
   // ---------- RENDER A CALENDAR CELL ----------
-  const publicHolidays = getFrenchPublicHolidays(year);
-  // Also get holidays for adjacent year if month is Jan or Dec
-  const publicHolidays2 = month === 0 ? getFrenchPublicHolidays(year - 1) : month === 11 ? getFrenchPublicHolidays(year + 1) : null;
-  const allPublicHolidays = publicHolidays2 ? new Set([...publicHolidays, ...publicHolidays2]) : publicHolidays;
+  const visibleYears = [...new Set(months.map(m => m.year))];
+  const allPublicHolidays = new Set();
+  visibleYears.forEach(y => getFrenchPublicHolidays(y).forEach(d => allPublicHolidays.add(d)));
 
   const renderHolidayIndicators = (dateStr) => {
     const isPublicHoliday = allPublicHolidays.has(dateStr);
@@ -547,10 +632,10 @@ export default function CalendarPage() {
     );
   };
 
-  const renderDayCell = (day) => {
-    const dateStr = formatDate(year, month, day);
+  const renderDayCell = (day, y, m, dim) => {
+    const dateStr = formatDate(y, m, day);
     const isPast = dateStr < today;
-    const inDrag = isInDragRange(day);
+    const inDrag = isInDragRange(day, y, m);
 
     // Find departure (endDate === this day), arrival (startDate === this day), mid-stay
     const departureRes = reservations.find(r => r.endDate === dateStr);
@@ -560,15 +645,16 @@ export default function CalendarPage() {
     // If mid-stay: full color fill
     if (midRes) {
       const color = getReservationColor(midRes.platform);
-      // Show label on the middle day of the reservation (within this month)
+      // Show label on the true middle day of the entire reservation
       const resStart = new Date(midRes.startDate);
       const resEnd = new Date(midRes.endDate);
-      const firstDay = resStart.getFullYear() === year && resStart.getMonth() === month ? resStart.getDate() : 1;
-      const lastDay = resEnd.getFullYear() === year && resEnd.getMonth() === month ? resEnd.getDate() : daysInMonth;
-      const midDay = Math.round((firstDay + lastDay) / 2);
-      const isLabelDay = day === midDay;
+      const totalDays = Math.round((resEnd - resStart) / 86400000);
+      const midDate = new Date(resStart);
+      midDate.setDate(midDate.getDate() + Math.round(totalDays / 2));
+      const midDateStr = formatDate(midDate.getFullYear(), midDate.getMonth(), midDate.getDate());
+      const isLabelDay = dateStr === midDateStr;
       return (
-        <Box key={day} onClick={() => handleReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }} sx={{
+        <Box key={day} data-date={dateStr} onClick={() => handleReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }} sx={{
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
@@ -605,9 +691,9 @@ export default function CalendarPage() {
     // Empty or drag-only day
     if (!hasVisual) {
       return (
-        <Box key={day}
-          onMouseDown={() => !isPast && handleMouseDown(day)}
-          onMouseEnter={() => handleMouseEnter(day)}
+        <Box key={day} data-date={dateStr}
+          onMouseDown={() => !isPast && handleMouseDown(day, y, m)}
+          onMouseEnter={() => handleMouseEnter(day, y, m)}
           onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }}
           sx={{
             textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
@@ -689,17 +775,17 @@ export default function CalendarPage() {
     };
 
     return (
-      <Box key={day}
+      <Box key={day} data-date={dateStr}
         onMouseDown={(e) => {
           if (isPast) return;
           const pct = getClickPct(e);
           const onDepartZone = departureRes && pct <= departEndPct;
           const onArriveZone = arrivalRes && pct >= arrivePct;
           if (!onDepartZone && !onArriveZone) {
-            handleMouseDown(day);
+            handleMouseDown(day, y, m);
           }
         }}
-        onMouseEnter={() => handleMouseEnter(day)}
+        onMouseEnter={() => handleMouseEnter(day, y, m)}
         onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }}
         onClick={async (e) => {
           if (isDragging) return;
@@ -710,8 +796,8 @@ export default function CalendarPage() {
             handleReservationClick(arrivalRes.id);
           } else if (departureRes && !arrivalRes) {
             // Free zone on departure-only day: create new reservation
-            const startDate = formatDate(year, month, day);
-            const endDate = formatDate(year, month, Math.min(day + 1, daysInMonth + 1));
+            const startDate = formatDate(y, m, day);
+            const endDate = formatDate(y, m, Math.min(day + 1, dim + 1));
             openNewReservation(startDate, endDate);
           } else if (!departureRes && arrivalRes) {
             // Free zone on arrival-only day: show arrival reservation
@@ -732,7 +818,7 @@ export default function CalendarPage() {
         {renderHolidayIndicators(dateStr)}
         {renderNoteLabel(dateStr, !!(departureRes || arrivalRes))}
         {/* Compact label for arrival on short reservations (no mid-day visible) */}
-        {arrivalRes && !resHasMidDaysThisMonth(arrivalRes) && (() => {
+        {arrivalRes && !resHasMidDays(arrivalRes, y, m, dim) && (() => {
           const colorPct = 100 - (arrivePct || 0);
           const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
           const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
@@ -748,7 +834,7 @@ export default function CalendarPage() {
           );
         })()}
         {/* Compact label for departure on short reservations when arrival not in this month */}
-        {departureRes && !resHasMidDaysThisMonth(departureRes) && !(departureRes.startDate >= formatDate(year, month, 1) && departureRes.startDate <= formatDate(year, month, daysInMonth)) && (() => {
+        {departureRes && !resHasMidDays(departureRes, y, m, dim) && !(departureRes.startDate >= formatDate(y, m, 1) && departureRes.startDate <= formatDate(y, m, dim)) && (() => {
           const colorPct = departEndPct || departPct || 0;
           const nameSize = Math.max(10, Math.round(colorPct / 100 * 28));
           const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
@@ -771,50 +857,111 @@ export default function CalendarPage() {
     <Box>
       <Typography variant="h4" sx={{ mb: 3 }}>Calendrier des réservations</Typography>
 
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 2 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <FormControl sx={{ minWidth: 250 }}>
             <InputLabel>Logement</InputLabel>
-            <Select value={selectedProp} label="Logement" onChange={(e) => setSelectedProp(e.target.value)}>
+            <Select value={selectedProp} label="Logement" onChange={(e) => { setSelectedProp(e.target.value); initialScrollDone.current = false; lastLoadedRange.current = { from: '', to: '' }; }}>
               {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </Select>
           </FormControl>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Button onClick={prevMonth}><ArrowBackIcon /></Button>
-            <Typography variant="h6" sx={{ minWidth: 180, textAlign: 'center' }}>{monthNames[month]} {year}</Typography>
-            <Button onClick={nextMonth}><ArrowForwardIcon /></Button>
+          <Button variant="outlined" onClick={scrollToToday}>Aujourd'hui</Button>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.A }} />
+              <Typography variant="caption" color="text.secondary">Zone A</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.B }} />
+              <Typography variant="caption" color="text.secondary">Zone B</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.C }} />
+              <Typography variant="caption" color="text.secondary">Zone C</Typography>
+            </Box>
           </Box>
         </CardContent>
       </Card>
 
       {selectedProp ? (
         <Card>
-          <CardContent>
-            <Box ref={calRef}
-              sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, userSelect: 'none' }}
-              onMouseLeave={() => isDragging && setIsDragging(false)}
-              onMouseUp={handleMouseUp}
+          <CardContent sx={{ p: 1 }}>
+            <Box ref={scrollRef} onScroll={handleScroll}
+              sx={{ height: 'calc(100vh - 250px)', overflowY: 'auto', pl: '34px' }}
             >
-              {dayNames.map(d => (
-                <Box key={d} sx={{ textAlign: 'center', fontWeight: 600, py: 1, color: 'text.secondary', fontSize: 14 }}>{d}</Box>
-              ))}
-              {Array.from({ length: adjustedFirst }).map((_, i) => <Box key={`e${i}`} />)}
-              {Array.from({ length: daysInMonth }).map((_, i) => renderDayCell(i + 1))}
-            </Box>
-
-            <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.A }} />
-                <Typography variant="caption" color="text.secondary">Zone A</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.B }} />
-                <Typography variant="caption" color="text.secondary">Zone B</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ZONE_COLORS.C }} />
-                <Typography variant="caption" color="text.secondary">Zone C</Typography>
+              <Box
+                sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, userSelect: 'none' }}
+                onMouseLeave={() => isDragging && setIsDragging(false)}
+                onMouseUp={handleMouseUp}
+              >
+                {/* Sticky day names */}
+                {dayNames.map(d => (
+                  <Box key={d} sx={{ textAlign: 'center', fontWeight: 600, py: 1, color: 'text.secondary', fontSize: 14, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 5 }}>{d}</Box>
+                ))}
+                {/* Continuous day cells */}
+                {(() => {
+                  const cells = [];
+                  let col = 0;
+                  let lastLabeledMonth = '';
+                  const monthLabel = (key, m, y) => (
+                    <Box key={key} sx={{ position: 'absolute', left: -34, top: 0, bottom: 0, width: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                      <Typography sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                        {monthNames[m].substring(0, 3)} {y}
+                      </Typography>
+                    </Box>
+                  );
+                  months.forEach(({ year: y, month: m }, mi) => {
+                    const dim = getDaysInMonth(y, m);
+                    const fow = new Date(y, m, 1).getDay();
+                    const af = (fow + 6) % 7;
+                    if (mi === 0) {
+                      for (let i = 0; i < af; i++) {
+                        if (col === 0 && `${y}-${m}` !== lastLabeledMonth) {
+                          lastLabeledMonth = `${y}-${m}`;
+                          cells.push(<Box key={`pad-${y}-${m}-${i}`} sx={{ position: 'relative' }}>{monthLabel(`mlp-${y}-${m}`, m, y)}</Box>);
+                        } else {
+                          cells.push(<Box key={`pad-${y}-${m}-${i}`} />);
+                        }
+                        col = (col + 1) % 7;
+                      }
+                    }
+                    for (let d = 1; d <= dim; d++) {
+                      const monthKey = `${y}-${m}`;
+                      const needLabel = col === 0 && monthKey !== lastLabeledMonth;
+                      if (needLabel) lastLabeledMonth = monthKey;
+                      const cell = renderDayCell(d, y, m, dim);
+                      if (d === 1) {
+                        const badgeLabel = `${monthNames[m].substring(0, 4)}. ${y}`;
+                        cells.push(
+                          <Box key={`m${y}-${m}-${d}`} sx={{ position: 'relative' }}>
+                            {needLabel && monthLabel(`ml-${y}-${m}-${d}`, m, y)}
+                            <Box sx={{
+                              position: 'absolute', top: 1, left: 1, zIndex: 4, pointerEvents: 'none',
+                              bgcolor: 'primary.main', borderRadius: '4px', px: 0.5, py: '1px', lineHeight: 1,
+                            }}>
+                              <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                                {badgeLabel}
+                              </Typography>
+                            </Box>
+                            {cell}
+                          </Box>
+                        );
+                      } else if (needLabel) {
+                        cells.push(
+                          <Box key={`wl-${y}-${m}-${d}`} sx={{ position: 'relative' }}>
+                            {monthLabel(`ml-${y}-${m}-${d}`, m, y)}
+                            {cell}
+                          </Box>
+                        );
+                      } else {
+                        cells.push(cell);
+                      }
+                      col = (col + 1) % 7;
+                    }
+                  });
+                  return cells;
+                })()}
               </Box>
             </Box>
           </CardContent>
