@@ -3,7 +3,7 @@ import {
   Box, Typography, Card, CardContent, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Button, Dialog,
   DialogTitle, DialogContent, DialogActions, TextField, FormControl,
-  InputLabel, Select, MenuItem
+  InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -18,15 +18,20 @@ const PRICE_TYPES = [
   { value: 'per_hour', label: 'Par heure' },
 ];
 
-const emptyOption = { title: '', description: '', priceType: 'per_stay', price: 0 };
+const emptyOption = { title: '', description: '', priceType: 'per_stay', price: 0, propertyIds: [] };
 
 export default function OptionsPage() {
   const [options, setOptions] = useState([]);
+  const [properties, setProperties] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyOption);
   const [editId, setEditId] = useState(null);
 
-  const load = async () => setOptions(await api.getOptions());
+  const load = async () => {
+    const [opts, props] = await Promise.all([api.getOptions(), api.getProperties()]);
+    setOptions(opts);
+    setProperties(props);
+  };
   useEffect(() => { load(); }, []);
 
   const handleOpen = (opt) => {
@@ -67,24 +72,30 @@ export default function OptionsPage() {
                 <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Type de prix</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Prix (€)</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Logements</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {options.map((o) => (
-                <TableRow key={o.id} hover>
+                <TableRow key={o.id} hover onClick={() => handleOpen(o)} sx={{ cursor: 'pointer' }}>
                   <TableCell>{o.title}</TableCell>
                   <TableCell>{o.description}</TableCell>
                   <TableCell>{PRICE_TYPES.find(t => t.value === o.priceType)?.label || o.priceType}</TableCell>
                   <TableCell>{o.price}€</TableCell>
+                  <TableCell>
+                    {(o.propertyIds || []).length > 0
+                      ? o.propertyIds.map(pid => properties.find(p => p.id === pid)?.name || pid).join(', ')
+                      : 'Aucun logement'}
+                  </TableCell>
                   <TableCell align="right">
-                    <IconButton size="small" onClick={() => handleOpen(o)}><EditIcon fontSize="small" /></IconButton>
-                    <IconButton size="small" color="error" onClick={() => handleDelete(o.id)}><DeleteIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleOpen(o); }}><EditIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); handleDelete(o.id); }}><DeleteIcon fontSize="small" /></IconButton>
                   </TableCell>
                 </TableRow>
               ))}
               {options.length === 0 && (
-                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune option</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune option</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -104,6 +115,28 @@ export default function OptionsPage() {
               </Select>
             </FormControl>
             <TextField label="Prix (€)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} fullWidth />
+            <FormControl fullWidth>
+              <InputLabel>Logements disponibles</InputLabel>
+              <Select
+                multiple
+                value={form.propertyIds || []}
+                label="Logements disponibles"
+                onChange={(e) => setForm({ ...form, propertyIds: e.target.value })}
+                input={<OutlinedInput label="Logements disponibles" />}
+                renderValue={(selected) =>
+                  selected.length === 0
+                    ? 'Aucun logement'
+                    : selected.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ')
+                }
+              >
+                {properties.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    <Checkbox checked={(form.propertyIds || []).includes(p.id)} />
+                    <ListItemText primary={p.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>
