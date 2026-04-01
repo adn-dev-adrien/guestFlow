@@ -12,6 +12,7 @@ import EventIcon from '@mui/icons-material/Event';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import DateRangeIcon from '@mui/icons-material/DateRange';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
 import MenuIcon from '@mui/icons-material/Menu';
 import theme from './theme';
 
@@ -23,6 +24,7 @@ import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import FinancePage from './pages/FinancePage';
 import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
+import ResourcesPage from './pages/ResourcesPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -31,6 +33,7 @@ const navItems = [
   { label: 'Clients', path: '/clients', icon: <PeopleIcon /> },
   { label: 'Logements', path: '/properties', icon: <HomeWorkIcon /> },
   { label: 'Options', path: '/options', icon: <ExtensionIcon /> },
+  { label: 'Ressources', path: '/resources', icon: <Inventory2Icon /> },
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Vacances scolaires', path: '/school-holidays', icon: <DateRangeIcon /> },
@@ -99,6 +102,7 @@ function App() {
               <Route path="/properties" element={<PropertiesPage />} />
               <Route path="/properties/:id" element={<PropertyDetail />} />
               <Route path="/options" element={<OptionsPage />} />
+              <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/finance" element={<FinancePage />} />
               <Route path="/school-holidays" element={<SchoolHolidaysPage />} />

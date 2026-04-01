@@ -105,11 +105,21 @@ router.get('/projection', (req, res) => {
 // Pending payments: clients with outstanding payments
 router.get('/pending', (req, res) => {
   const reservations = db.prepare(`
-    SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
+    SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
+      (r.finalPrice
+        - (CASE WHEN r.depositPaid = 1 THEN COALESCE(r.depositAmount, 0) ELSE 0 END)
+        - (CASE WHEN r.balancePaid = 1 THEN COALESCE(r.balanceAmount, 0) ELSE 0 END)
+      ) as remainingDue
     FROM reservations r
     JOIN clients c ON r.clientId = c.id
     JOIN properties p ON r.propertyId = p.id
-    WHERE r.depositPaid = 0 OR r.balancePaid = 0
+    WHERE r.depositPaid = 0
+       OR r.balancePaid = 0
+       OR (r.depositPaid = 1 AND r.balancePaid = 1 AND (
+            r.finalPrice
+            - COALESCE(r.depositAmount, 0)
+            - COALESCE(r.balanceAmount, 0)
+          ) > 0)
     ORDER BY r.depositDueDate, r.balanceDueDate
   `).all();
 

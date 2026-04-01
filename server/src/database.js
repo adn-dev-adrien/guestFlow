@@ -142,6 +142,34 @@ db.exec(`
   )
 `);
 
+// ---------- RESOURCES ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    price REAL NOT NULL DEFAULT 0,
+    propertyId INTEGER,
+    note TEXT DEFAULT '',
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reservation_resources (
+    reservationId INTEGER NOT NULL,
+    resourceId INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unitPrice REAL NOT NULL DEFAULT 0,
+    totalPrice REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (reservationId, resourceId),
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
+  )
+`);
+
 // ---------- MIGRATIONS ----------
 const cols = db.prepare("PRAGMA table_info(reservations)").all().map(c => c.name);
 if (!cols.includes('cautionAmount')) {
@@ -169,6 +197,11 @@ if (!propCols.includes('singleBeds')) {
 }
 if (!propCols.includes('doubleBeds')) {
   db.exec("ALTER TABLE properties ADD COLUMN doubleBeds INTEGER DEFAULT 0");
+}
+
+const resourceCols = db.prepare("PRAGMA table_info(resources)").all().map(c => c.name);
+if (resourceCols.length > 0 && !resourceCols.includes('updatedAt')) {
+  db.exec("ALTER TABLE resources ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
 }
 
 // ---------- CALENDAR NOTES ----------
@@ -219,6 +252,13 @@ if (holidayCount === 0) {
     ['Été 2027', '2027-07-03', '2027-08-31', '2027-07-03', '2027-08-31', '2027-07-03', '2027-08-31'],
   ];
   for (const row of seed) insert.run(...row);
+}
+
+// Seed default resource: baby bed (global)
+const babyBed = db.prepare("SELECT id FROM resources WHERE lower(name) = lower('Lit bébé') AND propertyId IS NULL").get();
+if (!babyBed) {
+  db.prepare('INSERT INTO resources (name, quantity, price, propertyId, note) VALUES (?, ?, ?, ?, ?)')
+    .run('Lit bébé', 1, 0, null, 'Ressource par défaut');
 }
 
 module.exports = db;

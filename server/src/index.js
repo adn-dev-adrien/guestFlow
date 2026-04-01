@@ -11,6 +11,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/options', require('./routes/options'));
+app.use('/api/resources', require('./routes/resources'));
 app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/school-holidays', require('./routes/schoolHolidays'));

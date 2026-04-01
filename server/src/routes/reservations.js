@@ -38,6 +38,13 @@ router.get('/:id', (req, res) => {
     WHERE ro.reservationId = ?
   `).all(req.params.id);
 
+  reservation.resources = db.prepare(`
+    SELECT rr.*, rs.name, rs.note, rs.propertyId
+    FROM reservation_resources rr
+    JOIN resources rs ON rr.resourceId = rs.id
+    WHERE rr.reservationId = ?
+  `).all(req.params.id);
+
   res.json(reservation);
 });
 
@@ -170,7 +177,8 @@ router.post('/', (req, res) => {
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     cautionAmount,
-    options: reservationOptions
+    options: reservationOptions,
+    resources: reservationResources
   } = req.body;
 
   const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, null);
@@ -186,6 +194,31 @@ router.post('/', (req, res) => {
     if (doubleBeds !== null && doubleBeds !== undefined && doubleBeds !== '' && Number(doubleBeds) > Number(property.doubleBeds || 0)) {
       return res.status(400).json({ error: `Le nombre de lits doubles (${doubleBeds}) dépasse la capacité du logement (${property.doubleBeds || 0}).` });
     }
+  }
+
+  const babiesCount = Number(babies || 0);
+  const babyBedsCount = Number(babyBeds || 0);
+  if (babyBedsCount > babiesCount) {
+    return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre de bébés (${babiesCount}).` });
+  }
+
+  const babyResources = db.prepare(`
+    SELECT * FROM resources
+    WHERE (lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe'))
+      AND (propertyId IS NULL OR propertyId = ?)
+  `).all(propertyId);
+  const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+  const babyHasGlobal = babyResources.some(r => r.propertyId === null);
+  let babyReservedSql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ?';
+  const babyReservedParams = [endDate, startDate];
+  if (!babyHasGlobal) {
+    babyReservedSql += ' AND propertyId = ?';
+    babyReservedParams.push(propertyId);
+  }
+  const babyReserved = db.prepare(babyReservedSql).get(...babyReservedParams).reserved || 0;
+  const babyAvailable = Math.max(0, Number(babyTotal) - Number(babyReserved));
+  if (babyBedsCount > babyAvailable) {
+    return res.status(400).json({ error: `Lits bébé indisponibles: ${babyAvailable} restant(s) pour cette période.` });
   }
 
   const result = db.prepare(`
@@ -214,6 +247,28 @@ router.post('/', (req, res) => {
     }
   }
 
+  // Insert reservation resources with availability check
+  if (reservationResources && reservationResources.length > 0) {
+    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, totalPrice) VALUES (?, ?, ?, ?, ?)');
+    for (const rr of reservationResources) {
+      const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
+      if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
+      const reserved = db.prepare(`
+        SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
+        FROM reservation_resources rr2
+        JOIN reservations r2 ON r2.id = rr2.reservationId
+        WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ?
+      `).get(rr.resourceId, endDate, startDate).reserved || 0;
+      const available = Number(resource.quantity) - Number(reserved);
+      if (Number(rr.quantity || 0) > available) {
+        return res.status(409).json({ error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` });
+      }
+      const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
+      const qty = Number(rr.quantity) || 1;
+      insertRes.run(reservationId, rr.resourceId, qty, unitPrice, unitPrice * qty);
+    }
+  }
+
   res.json({ id: reservationId });
 });
 
@@ -226,7 +281,8 @@ router.put('/:id', (req, res) => {
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
-    options: reservationOptions
+    options: reservationOptions,
+    resources: reservationResources
   } = req.body;
 
   const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, Number(req.params.id));
@@ -242,6 +298,31 @@ router.put('/:id', (req, res) => {
     if (doubleBeds !== null && doubleBeds !== undefined && doubleBeds !== '' && Number(doubleBeds) > Number(property.doubleBeds || 0)) {
       return res.status(400).json({ error: `Le nombre de lits doubles (${doubleBeds}) dépasse la capacité du logement (${property.doubleBeds || 0}).` });
     }
+  }
+
+  const babiesCount = Number(babies || 0);
+  const babyBedsCount = Number(babyBeds || 0);
+  if (babyBedsCount > babiesCount) {
+    return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre de bébés (${babiesCount}).` });
+  }
+
+  const babyResources = db.prepare(`
+    SELECT * FROM resources
+    WHERE (lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe'))
+      AND (propertyId IS NULL OR propertyId = ?)
+  `).all(propertyId);
+  const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+  const babyHasGlobal = babyResources.some(r => r.propertyId === null);
+  let babyReservedSql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ? AND id != ?';
+  const babyReservedParams = [endDate, startDate, req.params.id];
+  if (!babyHasGlobal) {
+    babyReservedSql += ' AND propertyId = ?';
+    babyReservedParams.push(propertyId);
+  }
+  const babyReserved = db.prepare(babyReservedSql).get(...babyReservedParams).reserved || 0;
+  const babyAvailable = Math.max(0, Number(babyTotal) - Number(babyReserved));
+  if (babyBedsCount > babyAvailable) {
+    return res.status(400).json({ error: `Lits bébé indisponibles: ${babyAvailable} restant(s) pour cette période.` });
   }
 
   db.prepare(`
@@ -271,6 +352,29 @@ router.put('/:id', (req, res) => {
     const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (?, ?, ?, ?)');
     for (const opt of reservationOptions) {
       insertOpt.run(req.params.id, opt.optionId, opt.quantity || 1, opt.totalPrice || 0);
+    }
+  }
+
+  // Rebuild reservation resources with availability check
+  if (reservationResources) {
+    db.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(req.params.id);
+    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, totalPrice) VALUES (?, ?, ?, ?, ?)');
+    for (const rr of reservationResources) {
+      const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
+      if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
+      const reserved = db.prepare(`
+        SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
+        FROM reservation_resources rr2
+        JOIN reservations r2 ON r2.id = rr2.reservationId
+        WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ? AND rr2.reservationId != ?
+      `).get(rr.resourceId, endDate, startDate, req.params.id).reserved || 0;
+      const available = Number(resource.quantity) - Number(reserved);
+      if (Number(rr.quantity || 0) > available) {
+        return res.status(409).json({ error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` });
+      }
+      const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
+      const qty = Number(rr.quantity) || 1;
+      insertRes.run(req.params.id, rr.resourceId, qty, unitPrice, unitPrice * qty);
     }
   }
 

@@ -91,19 +91,22 @@ export default function CalendarPage() {
   const [createClientOpen, setCreateClientOpen] = useState(false);
   const [newClient, setNewClient] = useState({ lastName: '', firstName: '', email: '', phone: '', address: '', notes: '' });
   const [propertyOptions, setPropertyOptions] = useState([]);
+  const [availableResources, setAvailableResources] = useState([]);
+  const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, babies: 0, platform: 'direct',
     singleBeds: '', doubleBeds: '', babyBeds: '',
     totalPrice: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
-    notes: '', selectedOptions: [], checkInTime: '15:00', checkOutTime: '10:00'
+    notes: '', selectedOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00'
   });
   const scrollRef = useRef(null);
   const lastLoadedRange = useRef({ from: '', to: '' });
   const prevScrollHeight = useRef(0);
   const shouldAdjustScroll = useRef(false);
   const initialScrollDone = useRef(false);
+  const originalReservationRef = useRef(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -209,6 +212,40 @@ export default function CalendarPage() {
     setClients(data);
   };
 
+  const loadResourcesAvailability = async (startDate, endDate, excludeReservationId = null) => {
+    if (!selectedProp || !startDate || !endDate) {
+      setAvailableResources([]);
+      return;
+    }
+    const resources = await api.getResourcesAvailability({
+      propertyId: selectedProp,
+      startDate,
+      endDate,
+      ...(excludeReservationId ? { excludeReservationId } : {}),
+    });
+    setAvailableResources(resources);
+  };
+
+  const loadBabyBedAvailability = async (startDate, endDate, excludeReservationId = null) => {
+    if (!selectedProp || !startDate || !endDate) {
+      setBabyBedAvailability({ totalQuantity: 0, reserved: 0, available: null });
+      return;
+    }
+    const data = await api.getBabyBedAvailability({
+      propertyId: selectedProp,
+      startDate,
+      endDate,
+      ...(excludeReservationId ? { excludeReservationId } : {}),
+    });
+    setBabyBedAvailability(data || { totalQuantity: 0, reserved: 0, available: 0 });
+  };
+
+  useEffect(() => {
+    if (!dialogOpen || !form.startDate || !form.endDate) return;
+    loadResourcesAvailability(form.startDate, form.endDate, editingReservationId || null);
+    loadBabyBedAvailability(form.startDate, form.endDate, editingReservationId || null);
+  }, [dialogOpen, form.startDate, form.endDate, selectedProp, editingReservationId]);
+
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
 
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -299,10 +336,13 @@ export default function CalendarPage() {
       depositAmount: calc.depositAmount, depositDueDate: calc.depositDueDate,
       balanceAmount: calc.balanceAmount, balanceDueDate: calc.balanceDueDate,
       cautionAmount: prop.defaultCautionAmount ?? 500, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
-      notes: '', selectedOptions: [], startDate, endDate,
+      notes: '', selectedOptions: [], selectedResources: [], startDate, endDate,
       checkInTime: calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
       checkOutTime: calc.defaultCheckOut || prop.defaultCheckOut || '10:00'
     });
+    await loadResourcesAvailability(startDate, endDate);
+    await loadBabyBedAvailability(startDate, endDate);
+    originalReservationRef.current = null;
     setEditingReservationId(null);
     setDialogOpen(true);
   };
@@ -333,7 +373,16 @@ export default function CalendarPage() {
       so.totalPrice = optTotal;
       optionsTotal += optTotal;
     }
-    const subtotal = base + optionsTotal;
+    let resourcesTotal = 0;
+    for (const sr of (updatedForm.selectedResources || [])) {
+      const resource = availableResources.find(r => r.id === sr.resourceId);
+      const unitPrice = sr.unitPrice !== undefined ? Number(sr.unitPrice) : Number(resource?.price || 0);
+      const qty = Math.max(0, Number(sr.quantity) || 0);
+      sr.unitPrice = unitPrice;
+      sr.totalPrice = unitPrice * qty;
+      resourcesTotal += sr.totalPrice;
+    }
+    const subtotal = base + optionsTotal + resourcesTotal;
     let final;
     if (updatedForm.customPrice !== '') {
       final = Number(updatedForm.customPrice);
@@ -358,6 +407,40 @@ export default function CalendarPage() {
         newOpts = [...prev.selectedOptions, { optionId, quantity: 1, totalPrice: 0 }];
       }
       return recalcPrice({ ...prev, selectedOptions: newOpts });
+    });
+  };
+
+  const setResourceQuantity = (resourceId, quantity) => {
+    setForm(prev => {
+      const resource = availableResources.find(r => r.id === resourceId);
+      const maxAvailable = Math.max(0, Number(resource?.available || 0));
+      const parsed = Number(quantity);
+      const normalizedQty = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(maxAvailable, parsed));
+
+      const exists = prev.selectedResources.find(sr => sr.resourceId === resourceId);
+      let newResources = prev.selectedResources;
+
+      if (normalizedQty <= 0) {
+        newResources = prev.selectedResources.filter(sr => sr.resourceId !== resourceId);
+      } else if (exists) {
+        newResources = prev.selectedResources.map(sr =>
+          sr.resourceId === resourceId
+            ? { ...sr, quantity: normalizedQty, unitPrice: Number(resource?.price || sr.unitPrice || 0), totalPrice: Number(resource?.price || sr.unitPrice || 0) * normalizedQty }
+            : sr
+        );
+      } else {
+        newResources = [
+          ...prev.selectedResources,
+          {
+            resourceId,
+            quantity: normalizedQty,
+            unitPrice: Number(resource?.price || 0),
+            totalPrice: Number(resource?.price || 0) * normalizedQty,
+          }
+        ];
+      }
+
+      return recalcPrice({ ...prev, selectedResources: newResources });
     });
   };
 
@@ -427,8 +510,25 @@ export default function CalendarPage() {
       return;
     }
 
+    for (const sr of (form.selectedResources || [])) {
+      const resource = availableResources.find(r => r.id === sr.resourceId);
+      if (!resource) continue;
+      if ((Number(sr.quantity) || 0) > Number(resource.available || 0)) {
+        setErrorMsg(`La ressource '${resource.name}' n'est plus disponible en quantité suffisante.`);
+        return;
+      }
+    }
+
     try {
       if (editingReservationId) {
+        let adjustedBalanceAmount = Number(form.balanceAmount || 0);
+        const original = originalReservationRef.current;
+        if (original && form.depositPaid && !form.balancePaid) {
+          const delta = Number(form.finalPrice || 0) - Number(original.finalPrice || 0);
+          if (delta !== 0) {
+            adjustedBalanceAmount = Math.max(0, adjustedBalanceAmount + delta);
+          }
+        }
         await api.updateReservation(editingReservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -449,7 +549,7 @@ export default function CalendarPage() {
           depositAmount: form.depositAmount,
           depositDueDate: form.depositDueDate,
           depositPaid: form.depositPaid,
-          balanceAmount: form.balanceAmount,
+          balanceAmount: adjustedBalanceAmount,
           balanceDueDate: form.balanceDueDate,
           balancePaid: form.balancePaid,
           cautionAmount: form.cautionAmount,
@@ -462,6 +562,12 @@ export default function CalendarPage() {
             optionId: so.optionId,
             quantity: so.quantity,
             totalPrice: so.totalPrice
+          })),
+          resources: form.selectedResources.map(sr => ({
+            resourceId: sr.resourceId,
+            quantity: sr.quantity,
+            unitPrice: sr.unitPrice,
+            totalPrice: sr.totalPrice,
           }))
         });
       } else {
@@ -492,11 +598,18 @@ export default function CalendarPage() {
             optionId: so.optionId,
             quantity: so.quantity,
             totalPrice: so.totalPrice
+          })),
+          resources: form.selectedResources.map(sr => ({
+            resourceId: sr.resourceId,
+            quantity: sr.quantity,
+            unitPrice: sr.unitPrice,
+            totalPrice: sr.totalPrice,
           }))
         });
       }
       setDialogOpen(false);
       setEditingReservationId(null);
+      originalReservationRef.current = null;
       setDragStartDate(null);
       setDragEndDate(null);
       lastLoadedRange.current = { from: '', to: '' };
@@ -543,6 +656,12 @@ export default function CalendarPage() {
       checkInTime: res.checkInTime || '15:00',
       checkOutTime: res.checkOutTime || '10:00',
       selectedOptions: (res.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+      selectedResources: (res.resources || []).map(rr => ({
+        resourceId: rr.resourceId,
+        quantity: rr.quantity,
+        unitPrice: rr.unitPrice,
+        totalPrice: rr.totalPrice,
+      })),
       depositPaid: !!res.depositPaid,
       balancePaid: !!res.balancePaid,
       cautionAmount: res.cautionAmount || 0,
@@ -551,6 +670,14 @@ export default function CalendarPage() {
       cautionReturned: !!res.cautionReturned,
       cautionReturnedDate: res.cautionReturnedDate || '',
     });
+    originalReservationRef.current = {
+      finalPrice: Number(res.finalPrice || 0),
+      balanceAmount: Number(res.balanceAmount || 0),
+      depositPaid: !!res.depositPaid,
+      balancePaid: !!res.balancePaid,
+    };
+    await loadResourcesAvailability(res.startDate, res.endDate, resId);
+    await loadBabyBedAvailability(res.startDate, res.endDate, resId);
     setEditingReservationId(resId);
     setDialogOpen(true);
   };
@@ -581,6 +708,18 @@ export default function CalendarPage() {
   const bedsCapacityMismatch = bedsEntered && reservationBedCapacity < adultsChildrenCount;
   const exceedsSingleBedsLimit = maxSingleBeds !== null && form.singleBeds !== '' && Number(form.singleBeds) > maxSingleBeds;
   const exceedsDoubleBedsLimit = maxDoubleBeds !== null && form.doubleBeds !== '' && Number(form.doubleBeds) > maxDoubleBeds;
+  const babyAvailableNumber = babyBedAvailability.available === null ? null : Number(babyBedAvailability.available || 0);
+  const maxBabyBedsByRule = babyAvailableNumber === null
+    ? Number(form.babies || 0)
+    : Math.min(Number(form.babies || 0), babyAvailableNumber);
+
+  useEffect(() => {
+    if (babyAvailableNumber === null) return;
+    const current = Number(form.babyBeds || 0);
+    if (current > maxBabyBedsByRule) {
+      setForm(prev => ({ ...prev, babyBeds: maxBabyBedsByRule }));
+    }
+  }, [form.babies, babyBedAvailability.available]);
 
   // Check if a reservation has visible mid-stay days in the current month
   const resHasMidDays = (res, y, m, dim) => {
@@ -1176,9 +1315,18 @@ export default function CalendarPage() {
                   label="Lits bébé"
                   type="number"
                   value={form.babyBeds}
-                  onChange={(e) => updateForm({ babyBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      updateForm({ babyBeds: '' });
+                      return;
+                    }
+                    const n = Math.max(0, Number(val));
+                    updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
+                  }}
                   fullWidth
-                  inputProps={{ min: 0 }}
+                  inputProps={{ min: 0, max: maxBabyBedsByRule }}
+                  helperText={`Dispo: ${babyBedAvailability.available === null ? '...' : babyBedAvailability.available} • Max saisissable: ${maxBabyBedsByRule}`}
                 />
               </Grid>
             </Grid>
@@ -1231,6 +1379,43 @@ export default function CalendarPage() {
                   />
                 ))}
               </Box>
+            )}
+
+            {availableResources.length > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>Ressources</Typography>
+                  {availableResources
+                    .filter(resource => {
+                      const n = (resource.name || '').toLowerCase();
+                      return !(n.includes('lit') && (n.includes('bébé') || n.includes('bebe')));
+                    })
+                    .map(resource => {
+                    const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
+                    const unavailable = Number(resource.available || 0) <= 0;
+                    const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
+                    return (
+                      <Box key={resource.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography sx={{ flex: 1 }}>{`${resource.name} — ${resource.price}€`}</Typography>
+                        <Typography variant="caption" sx={{ minWidth: 130, color: unavailable || requestedTooMuch ? 'error.main' : 'text.secondary', fontWeight: unavailable || requestedTooMuch ? 700 : 400 }}>
+                          {unavailable ? 'Déjà réservée' : `${resource.available} disponible(s)`}
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
+                          label="Qté"
+                          value={selected ? selected.quantity : 0}
+                          onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
+                          inputProps={{ min: 0, max: resource.available || 0 }}
+                          error={requestedTooMuch}
+                          sx={{ width: 90 }}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </>
             )}
 
             <Divider />

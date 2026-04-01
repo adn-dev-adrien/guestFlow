@@ -268,6 +268,7 @@ export default function Dashboard() {
                     <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Prix total</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">Reste à payer</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">Acompte</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">Solde</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">Caution</TableCell>
@@ -278,6 +279,9 @@ export default function Dashboard() {
                     const todayStr = new Date().toISOString().split('T')[0];
                     const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
                     const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
+                    const remainingDue = (r.finalPrice || 0)
+                      - (r.depositPaid ? (r.depositAmount || 0) : 0)
+                      - (r.balancePaid ? (r.balanceAmount || 0) : 0);
                     return (
                     <TableRow key={r.id} hover>
                       <TableCell>{r.firstName} {r.lastName}</TableCell>
@@ -285,6 +289,9 @@ export default function Dashboard() {
                       <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
                       <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
                       <TableCell>{r.finalPrice}€</TableCell>
+                      <TableCell align="center" sx={{ color: remainingDue > 0 ? 'error.main' : 'success.main', fontWeight: 700 }}>
+                        {Math.round(remainingDue * 100) / 100}€
+                      </TableCell>
                       <TableCell align="center">
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                           <Checkbox
@@ -382,6 +389,32 @@ export default function Dashboard() {
                     </Table>
                   </>
                 )}
+
+                {/* Ressources */}
+                {(detailRes.resources && detailRes.resources.length > 0) || (detailRes.babyBeds && detailRes.babyBeds > 0) ? (
+                  <>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Ressources réservées</Typography>
+                    <Table size="small" sx={{ mb: 2 }}>
+                      <TableBody>
+                        {detailRes.babyBeds > 0 && (
+                          <TableRow>
+                            <TableCell sx={{ border: 0, pl: 0 }}>Lit bébé</TableCell>
+                            <TableCell sx={{ border: 0 }} align="right">x{detailRes.babyBeds}</TableCell>
+                            <TableCell sx={{ border: 0 }} align="right">0€</TableCell>
+                          </TableRow>
+                        )}
+                        {detailRes.resources.map(rr => (
+                          <TableRow key={rr.resourceId}>
+                            <TableCell sx={{ border: 0, pl: 0 }}>{rr.name}</TableCell>
+                            <TableCell sx={{ border: 0 }} align="right">x{rr.quantity}</TableCell>
+                            <TableCell sx={{ border: 0 }} align="right">{rr.totalPrice}€</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </>
+                ) : null}
 
                 <Divider sx={{ my: 1.5 }} />
 

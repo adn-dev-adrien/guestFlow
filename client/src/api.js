@@ -46,6 +46,20 @@ const api = {
   updateOption: (id, data) => request(`/options/${id}`, { method: 'PUT', body: data }),
   deleteOption: (id) => request(`/options/${id}`, { method: 'DELETE' }),
 
+  // Resources
+  getResources: (propertyId) => request(`/resources${propertyId ? `?propertyId=${propertyId}` : ''}`),
+  getResourcesAvailability: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/resources/availability${qs ? `?${qs}` : ''}`);
+  },
+  getBabyBedAvailability: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/resources/baby-bed-availability${qs ? `?${qs}` : ''}`);
+  },
+  createResource: (data) => request('/resources', { method: 'POST', body: data }),
+  updateResource: (id, data) => request(`/resources/${id}`, { method: 'PUT', body: data }),
+  deleteResource: (id) => request(`/resources/${id}`, { method: 'DELETE' }),
+
   // Reservations
   getReservations: (params) => {
     const qs = new URLSearchParams(params).toString();
