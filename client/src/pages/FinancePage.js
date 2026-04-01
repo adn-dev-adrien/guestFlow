@@ -125,28 +125,28 @@ export default function FinancePage() {
       {/* Projection */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
             <Typography variant="h6">Projection à une date</Typography>
             <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
           </Box>
           {projection && (
             <>
               <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
                   <Typography variant="h5">{projection.collected.toLocaleString('fr-FR')} €</Typography>
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <Typography variant="subtitle2" color="text.secondary">À encaisser d'ici cette date</Typography>
                   <Typography variant="h5">{projection.expectedByDate.toLocaleString('fr-FR')} €</Typography>
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <Typography variant="subtitle2" color="text.secondary">Total prévu</Typography>
                   <Typography variant="h5">{projection.total.toLocaleString('fr-FR')} €</Typography>
                 </Grid>
               </Grid>
               <TableContainer>
-                <Table size="small">
+                <Table size="small" sx={{ minWidth: 920 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
@@ -190,7 +190,7 @@ export default function FinancePage() {
           <CardContent>
             <Typography variant="h6" gutterBottom>Détails des réservations sur la période</Typography>
             <TableContainer>
-              <Table size="small">
+              <Table size="small" sx={{ minWidth: 920 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>

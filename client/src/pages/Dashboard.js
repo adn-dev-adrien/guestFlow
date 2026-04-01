@@ -182,18 +182,18 @@ export default function Dashboard() {
       </Grid>
 
       {/* Daily arrivals / departures */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
         <Typography variant="h6">Arrivées &amp; Départs</Typography>
         <TextField
           type="date"
           size="small"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          sx={{ width: 165 }}
+          sx={{ width: { xs: '100%', sm: 165 } }}
           inputProps={{ style: { padding: '6px 10px' } }}
         />
         {selectedDate !== todayStr && (
-          <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)}>
+          <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
             Aujourd'hui
           </Button>
         )}
@@ -207,7 +207,7 @@ export default function Dashboard() {
                 <Typography color="text.secondary">Aucune arrivée ce jour</Typography>
               ) : (
                 <TableContainer>
-                  <Table size="small">
+                  <Table size="small" sx={{ minWidth: 1080 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Prêt</TableCell>
@@ -290,7 +290,7 @@ export default function Dashboard() {
                 <Typography color="text.secondary">Aucun départ ce jour</Typography>
               ) : (
                 <TableContainer>
-                  <Table size="small">
+                  <Table size="small" sx={{ minWidth: 560 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Parti</TableCell>
@@ -392,7 +392,7 @@ export default function Dashboard() {
               <Box key={prop.id} sx={{ mb: 2 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>{prop.name}</Typography>
                 <TableContainer>
-                  <Table size="small">
+                  <Table size="small" sx={{ minWidth: 820 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
@@ -448,7 +448,7 @@ export default function Dashboard() {
             <Typography color="text.secondary">Aucun paiement en attente</Typography>
           ) : (
             <TableContainer>
-              <Table size="small">
+              <Table size="small" sx={{ minWidth: 980 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>

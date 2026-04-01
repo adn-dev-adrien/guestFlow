@@ -175,12 +175,12 @@ export default function PropertyDetail() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
         <Typography variant="h4">{property.name}</Typography>
         {dirty && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="outlined" onClick={handleCancel}>Annuler</Button>
-            <Button variant="contained" onClick={handleSaveProperty} disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Button>
+          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>
+            <Button variant="contained" onClick={handleSaveProperty} disabled={saving} sx={{ width: { xs: '100%', sm: 'auto' } }}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Button>
           </Box>
         )}
       </Box>
@@ -194,12 +194,12 @@ export default function PropertyDetail() {
               {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField label="Nom du logement" value={form.name || ''} onChange={(e) => updateField('name', e.target.value)} fullWidth size="small" />
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} fullWidth size="small" />
                   <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} fullWidth size="small" helperText="2 à 18 ans" />
                   <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} fullWidth size="small" helperText="0 à 2 ans" />
                 </Box>
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
                   <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
                 </Box>
@@ -214,7 +214,7 @@ export default function PropertyDetail() {
             <CardContent>
               <Typography variant="h6" gutterBottom>Horaires & Ménage</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Heure d'arrivée</InputLabel>
                     <Select value={form.defaultCheckIn || '15:00'} label="Heure d'arrivée" onChange={(e) => updateField('defaultCheckIn', e.target.value)}>
@@ -241,7 +241,7 @@ export default function PropertyDetail() {
               <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} fullWidth size="small" />
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} fullWidth size="small" />
                   <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} fullWidth size="small" />
                 </Box>
@@ -262,7 +262,7 @@ export default function PropertyDetail() {
                 </Button>
               </Box>
               <TableContainer>
-                <Table size="small">
+                <Table size="small" sx={{ minWidth: 700 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Label</TableCell>
@@ -382,7 +382,7 @@ export default function PropertyDetail() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField label="Label" value={pricingForm.label} onChange={(e) => setPricingForm({ ...pricingForm, label: e.target.value })} fullWidth />
             <TextField label="Prix par nuit (€)" type="number" value={pricingForm.pricePerNight} onChange={(e) => setPricingForm({ ...pricingForm, pricePerNight: e.target.value })} fullWidth />
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField label="Date début" type="date" value={pricingForm.startDate || ''} InputLabelProps={{ shrink: true }} onChange={(e) => setPricingForm({ ...pricingForm, startDate: e.target.value })} fullWidth />
               <TextField label="Date fin" type="date" value={pricingForm.endDate || ''} InputLabelProps={{ shrink: true }} onChange={(e) => setPricingForm({ ...pricingForm, endDate: e.target.value })} fullWidth />
             </Box>

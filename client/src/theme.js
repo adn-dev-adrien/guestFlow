@@ -8,7 +8,7 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: "'Inter', sans-serif",
-    h4: { fontWeight: 600 },
+    h4: { fontWeight: 600, fontSize: '1.6rem' },
     h5: { fontWeight: 600 },
     h6: { fontWeight: 600 },
   },
@@ -17,6 +17,27 @@ const theme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: { textTransform: 'none', fontWeight: 500 },
+      },
+    },
+    MuiTableContainer: {
+      styleOverrides: {
+        root: { width: '100%', overflowX: 'auto' },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          width: 'calc(100% - 16px)',
+          margin: 8,
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          paddingLeft: 16,
+          paddingRight: 16,
+        },
       },
     },
     MuiCard: {
@@ -31,5 +52,12 @@ const theme = createTheme({
     },
   },
 });
+
+theme.typography.h4 = {
+  ...theme.typography.h4,
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1.35rem',
+  },
+};
 
 export default theme;

@@ -115,9 +115,9 @@ export default function ClientsPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
         <Typography variant="h4">Clients</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpen(null)}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpen(null)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
           Nouveau client
         </Button>
       </Box>
@@ -135,7 +135,7 @@ export default function ClientsPage() {
 
       <Card>
         <TableContainer>
-          <Table>
+          <Table size="small" sx={{ minWidth: 860 }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
@@ -177,17 +177,17 @@ export default function ClientsPage() {
         <DialogTitle>{editId ? 'Modifier le client' : 'Nouveau client'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField label="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} fullWidth required />
               <TextField label="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} fullWidth required />
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField
                 label="N°"
                 value={form.streetNumber}
                 onChange={(e) => setForm({ ...form, streetNumber: e.target.value })}
-                sx={{ width: 120 }}
+                sx={{ width: { xs: '100%', sm: 120 } }}
               />
               <TextField
                 label="Rue / voie"
@@ -197,12 +197,12 @@ export default function ClientsPage() {
               />
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField
                 label="Code postal"
                 value={form.postalCode}
                 onChange={(e) => setForm({ ...form, postalCode: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) })}
-                sx={{ width: 170 }}
+                sx={{ width: { xs: '100%', sm: 170 } }}
               />
               <Autocomplete
                 freeSolo

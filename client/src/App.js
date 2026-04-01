@@ -95,7 +95,7 @@ function App() {
             <NavContent />
           </Drawer>
 
-          <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
+          <Box component="main" sx={{ flexGrow: 1, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/clients" element={<ClientsPage />} />

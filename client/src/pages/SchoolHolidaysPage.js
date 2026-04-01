@@ -57,15 +57,15 @@ export default function SchoolHolidaysPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
         <Typography variant="h4">Vacances scolaires</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Ajouter</Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ width: { xs: '100%', sm: 'auto' } }}>Ajouter</Button>
       </Box>
 
       <Card>
         <CardContent>
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ minWidth: 760 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>Période</TableCell>
@@ -105,33 +105,33 @@ export default function SchoolHolidaysPage() {
             <TextField label="Nom de la période" value={form.label} onChange={(e) => setField('label', e.target.value)} fullWidth />
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone A</Typography>
             <Grid container spacing={2}>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Début" type="date" value={form.zoneA_start} InputLabelProps={{ shrink: true }}
                   onChange={(e) => setField('zoneA_start', e.target.value)} fullWidth />
               </Grid>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Fin" type="date" value={form.zoneA_end} InputLabelProps={{ shrink: true }}
                   onChange={(e) => setField('zoneA_end', e.target.value)} fullWidth />
               </Grid>
             </Grid>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone B</Typography>
             <Grid container spacing={2}>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Début" type="date" value={form.zoneB_start} InputLabelProps={{ shrink: true }}
                   onChange={(e) => setField('zoneB_start', e.target.value)} fullWidth />
               </Grid>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Fin" type="date" value={form.zoneB_end} InputLabelProps={{ shrink: true }}
                   onChange={(e) => setField('zoneB_end', e.target.value)} fullWidth />
               </Grid>
             </Grid>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone C</Typography>
             <Grid container spacing={2}>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Début" type="date" value={form.zoneC_start} InputLabelProps={{ shrink: true }}
                   onChange={(e) => setField('zoneC_start', e.target.value)} fullWidth />
               </Grid>
-              <Grid item xs={6}>
+              <Grid item xs={12} sm={6}>
                 <TextField label="Fin" type="date" value={form.zoneC_end} InputLabelProps={{ shrink: true }}
                   onChange={(e) => setField('zoneC_end', e.target.value)} fullWidth />
               </Grid>

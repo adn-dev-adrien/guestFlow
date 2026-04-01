@@ -1053,14 +1053,14 @@ export default function CalendarPage() {
       <Typography variant="h4" sx={{ mb: 3 }}>Calendrier des réservations</Typography>
 
       <Card sx={{ mb: 2 }}>
-        <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl sx={{ minWidth: 250 }}>
+        <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap' }}>
+          <FormControl sx={{ minWidth: { xs: '100%', sm: 250 } }}>
             <InputLabel>Logement</InputLabel>
             <Select value={selectedProp} label="Logement" onChange={(e) => { setSelectedProp(e.target.value); initialScrollDone.current = false; lastLoadedRange.current = { from: '', to: '' }; }}>
               {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </Select>
           </FormControl>
-          <Button variant="outlined" onClick={scrollToToday}>Aujourd'hui</Button>
+          <Button variant="outlined" onClick={scrollToToday} sx={{ width: { xs: '100%', sm: 'auto' } }}>Aujourd'hui</Button>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -1083,10 +1083,10 @@ export default function CalendarPage() {
         <Card>
           <CardContent sx={{ p: 1 }}>
             <Box ref={scrollRef} onScroll={handleScroll}
-              sx={{ height: 'calc(100vh - 250px)', overflowY: 'auto', pl: '50px' }}
+              sx={{ height: { xs: 'calc(100vh - 290px)', md: 'calc(100vh - 250px)' }, overflowY: 'auto', overflowX: 'auto', pl: { xs: '8px', sm: '50px' } }}
             >
               <Box
-                sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, userSelect: 'none' }}
+                sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, userSelect: 'none', minWidth: 680 }}
                 onMouseLeave={() => isDragging && setIsDragging(false)}
                 onMouseUp={handleMouseUp}
               >

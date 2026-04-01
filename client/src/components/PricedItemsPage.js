@@ -74,16 +74,16 @@ export default function PricedItemsPage({
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
         <Typography variant="h4">{pageTitle}</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openDialog(null)}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openDialog(null)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
           {`Nouvelle ${itemLabel}`}
         </Button>
       </Box>
 
       <Card>
         <TableContainer>
-          <Table>
+          <Table size="small" sx={{ minWidth: showQuantity ? 980 : 860 }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
