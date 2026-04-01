@@ -12,8 +12,13 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lastName TEXT NOT NULL,
     firstName TEXT NOT NULL,
+    streetNumber TEXT DEFAULT '',
+    street TEXT DEFAULT '',
+    postalCode TEXT DEFAULT '',
+    city TEXT DEFAULT '',
     address TEXT DEFAULT '',
     phone TEXT DEFAULT '',
+    phoneNumbers TEXT DEFAULT '[]',
     email TEXT DEFAULT '',
     notes TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
@@ -199,6 +204,23 @@ if (!propCols.includes('singleBeds')) {
 }
 if (!propCols.includes('doubleBeds')) {
   db.exec("ALTER TABLE properties ADD COLUMN doubleBeds INTEGER DEFAULT 0");
+}
+
+const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(c => c.name);
+if (!clientCols.includes('streetNumber')) {
+  db.exec("ALTER TABLE clients ADD COLUMN streetNumber TEXT DEFAULT ''");
+}
+if (!clientCols.includes('street')) {
+  db.exec("ALTER TABLE clients ADD COLUMN street TEXT DEFAULT ''");
+}
+if (!clientCols.includes('postalCode')) {
+  db.exec("ALTER TABLE clients ADD COLUMN postalCode TEXT DEFAULT ''");
+}
+if (!clientCols.includes('city')) {
+  db.exec("ALTER TABLE clients ADD COLUMN city TEXT DEFAULT ''");
+}
+if (!clientCols.includes('phoneNumbers')) {
+  db.exec("ALTER TABLE clients ADD COLUMN phoneNumbers TEXT DEFAULT '[]'");
 }
 
 const resourceCols = db.prepare("PRAGMA table_info(resources)").all().map(c => c.name);
