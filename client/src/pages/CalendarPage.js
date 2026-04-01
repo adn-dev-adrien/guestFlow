@@ -619,8 +619,9 @@ export default function CalendarPage() {
     }
   };
 
-  const handleReservationClick = async (resId) => {
+  const handleReservationClick = async (rawResId) => {
     if (isDragging) return;
+    const resId = Number(rawResId);
     const res = await api.getReservation(resId);
     const prop = await api.getProperty(selectedProp);
     const opts = await api.getOptions();
