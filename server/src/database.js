@@ -149,7 +149,9 @@ db.exec(`
     name TEXT NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 0,
     price REAL NOT NULL DEFAULT 0,
+    priceType TEXT NOT NULL DEFAULT 'per_stay',
     propertyId INTEGER,
+    propertyIds TEXT,
     note TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now')),
@@ -205,6 +207,9 @@ if (resourceCols.length > 0 && !resourceCols.includes('updatedAt')) {
 }
 if (resourceCols.length > 0 && !resourceCols.includes('priceType')) {
   db.exec("ALTER TABLE resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
+}
+if (resourceCols.length > 0 && !resourceCols.includes('propertyIds')) {
+  db.exec("ALTER TABLE resources ADD COLUMN propertyIds TEXT");
 }
 
 // ---------- CALENDAR NOTES ----------

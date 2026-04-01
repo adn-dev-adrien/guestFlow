@@ -24,6 +24,7 @@ const PRICE_TYPE_LABELS = {
   per_night: 'par jour',
   per_person_per_night: 'par pers./jour',
   per_hour: 'par heure',
+  free: 'gratuit',
 };
 
 function getDaysInMonth(year, month) {

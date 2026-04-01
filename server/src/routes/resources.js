@@ -5,6 +5,14 @@ function overlapClause() {
   return 'r.startDate < ? AND r.endDate > ?';
 }
 
+function parseResource(resource) {
+  if (!resource) return resource;
+  return {
+    ...resource,
+    propertyIds: resource.propertyIds ? JSON.parse(resource.propertyIds) : [],
+  };
+}
+
 function computeAvailability(resourceId, startDate, endDate, excludeReservationId = null) {
   const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
   if (!resource) return null;
@@ -35,11 +43,12 @@ router.get('/', (req, res) => {
   let sql = 'SELECT * FROM resources';
   const params = [];
   if (propertyId) {
-    sql += ' WHERE propertyId IS NULL OR propertyId = ?';
-    params.push(propertyId);
+    // Show resources with no property restriction OR those that include this property
+    sql += ' WHERE (propertyIds IS NULL OR propertyIds = ? OR propertyIds LIKE ?)';
+    params.push('[]', `%"${propertyId}"%`);
   }
   sql += ' ORDER BY name';
-  const resources = db.prepare(sql).all(...params);
+  const resources = db.prepare(sql).all(...params).map(parseResource);
   res.json(resources);
 });
 
@@ -51,8 +60,8 @@ router.get('/availability', (req, res) => {
   let sql = 'SELECT * FROM resources';
   const params = [];
   if (propertyId) {
-    sql += ' WHERE propertyId IS NULL OR propertyId = ?';
-    params.push(propertyId);
+    sql += ' WHERE (propertyIds IS NULL OR propertyIds = ? OR propertyIds LIKE ?)';
+    params.push('[]', `%"${propertyId}"%`);
   }
   sql += ' ORDER BY name';
   const resources = db.prepare(sql).all(...params);
@@ -61,6 +70,7 @@ router.get('/availability', (req, res) => {
     const info = computeAvailability(resource.id, startDate, endDate, excludeReservationId ? Number(excludeReservationId) : null);
     return {
       ...resource,
+      propertyIds: resource.propertyIds ? JSON.parse(resource.propertyIds) : [],
       reserved: info.reserved,
       available: info.available,
       unavailable: info.available <= 0,
@@ -108,25 +118,25 @@ router.get('/baby-bed-availability', (req, res) => {
 router.get('/:id', (req, res) => {
   const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(req.params.id);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
-  res.json(resource);
+  res.json(parseResource(resource));
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, priceType, propertyId, note } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note } = req.body;
   const result = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, propertyId, note)
+    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyId || null, note || '');
+  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, note || '');
   res.json({ id: result.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, priceType, propertyId, note } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note } = req.body;
   db.prepare(`
     UPDATE resources
-    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyId = ?, note = ?, updatedAt = datetime('now')
+    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, updatedAt = datetime('now')
     WHERE id = ?
-  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyId || null, note || '', req.params.id);
+  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, note || '', req.params.id);
   res.json({ ok: true });
 });
 

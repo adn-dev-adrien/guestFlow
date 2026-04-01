@@ -89,7 +89,7 @@ export default function ClientsPage() {
             </TableHead>
             <TableBody>
               {clients.map((c) => (
-                <TableRow key={c.id} hover>
+                <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpen(c)}>
                   <TableCell>{c.lastName}</TableCell>
                   <TableCell>{c.firstName}</TableCell>
                   <TableCell>{c.email}</TableCell>
@@ -98,8 +98,8 @@ export default function ClientsPage() {
                     {c.notes && <Chip label={c.notes.substring(0, 30)} size="small" variant="outlined" />}
                   </TableCell>
                   <TableCell align="right">
-                    <IconButton size="small" onClick={() => handleOpen(c)}><EditIcon fontSize="small" /></IconButton>
-                    <IconButton size="small" color="error" onClick={() => handleDelete(c.id)}><DeleteIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleOpen(c); }}><EditIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}><DeleteIcon fontSize="small" /></IconButton>
                   </TableCell>
                 </TableRow>
               ))}
