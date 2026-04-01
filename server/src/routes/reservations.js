@@ -381,9 +381,10 @@ router.put('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// Mark deposit/balance/caution as paid
+// Mark deposit/balance/caution as paid, or update check-in/out status
 router.patch('/:id/payment', (req, res) => {
-  const { depositPaid, balancePaid, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate } = req.body;
+  const { depositPaid, balancePaid, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
+    checkInReady, checkInDone, checkOutDone } = req.body;
   if (depositPaid !== undefined) {
     db.prepare('UPDATE reservations SET depositPaid = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(depositPaid ? 1 : 0, req.params.id);
   }
@@ -397,6 +398,15 @@ router.patch('/:id/payment', (req, res) => {
   if (cautionReturned !== undefined) {
     const date = cautionReturnedDate || (cautionReturned ? new Date().toISOString().split('T')[0] : null);
     db.prepare('UPDATE reservations SET cautionReturned = ?, cautionReturnedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(cautionReturned ? 1 : 0, date, req.params.id);
+  }
+  if (checkInReady !== undefined) {
+    db.prepare('UPDATE reservations SET checkInReady = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(checkInReady ? 1 : 0, req.params.id);
+  }
+  if (checkInDone !== undefined) {
+    db.prepare('UPDATE reservations SET checkInDone = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(checkInDone ? 1 : 0, req.params.id);
+  }
+  if (checkOutDone !== undefined) {
+    db.prepare('UPDATE reservations SET checkOutDone = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(checkOutDone ? 1 : 0, req.params.id);
   }
   res.json({ ok: true });
 });

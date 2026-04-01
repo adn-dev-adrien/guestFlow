@@ -234,6 +234,12 @@ if (resourceCols.length > 0 && !resourceCols.includes('propertyIds')) {
   db.exec("ALTER TABLE resources ADD COLUMN propertyIds TEXT");
 }
 
+if (!cols.includes('checkInReady')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN checkInReady INTEGER DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN checkInDone INTEGER DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN checkOutDone INTEGER DEFAULT 0");
+}
+
 // ---------- CALENDAR NOTES ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS calendar_notes (

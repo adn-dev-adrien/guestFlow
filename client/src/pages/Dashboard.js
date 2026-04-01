@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, Chip, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider, TextField, Tooltip
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import PaymentIcon from '@mui/icons-material/Payment';
@@ -26,6 +26,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);
@@ -47,6 +48,31 @@ export default function Dashboard() {
     return Math.max(0, Math.round((Number(r.finalPrice || 0) - paid) * 100) / 100);
   };
 
+  // Shared optimistic toggle for check-in/out status fields
+  const handleToggleStatus = async (r, field, setList) => {
+    const value = !r[field];
+    await api.markPayment(r.id, { [field]: value });
+    setList((prev) => prev.map((item) => item.id === r.id ? { ...item, [field]: value } : item));
+  };
+
+  // Checking "Arrivé" also auto-sets "Prêt" if not already set
+  const handleCheckInDone = async (r) => {
+    const newDone = !r.checkInDone;
+    const updates = { checkInDone: newDone };
+    if (newDone && !r.checkInReady) updates.checkInReady = true;
+    await api.markPayment(r.id, updates);
+    setArrivalsToday((prev) =>
+      prev.map((item) => item.id === r.id ? { ...item, ...updates } : item)
+    );
+  };
+
+  // Row background based on check-in/out status
+  const getStatusRowSx = (done, ready = false) => {
+    if (done) return { bgcolor: 'rgba(120,120,120,0.18)' };
+    if (ready) return { bgcolor: 'rgba(76,175,80,0.1)' };
+    return {};
+  };
+
   const loadDashboardData = async () => {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -54,13 +80,15 @@ export default function Dashboard() {
     const toDate = new Date(today);
     toDate.setDate(toDate.getDate() + 30);
     const to = toDate.toISOString().split('T')[0];
+    // Fetch reservations starting from selectedDate if it's in the past
+    const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
 
     const [props, resv, pending, fin, allUpcoming] = await Promise.all([
       api.getProperties(),
       api.getReservations({ from, to }),
       api.getPendingPayments(),
       api.getFinanceSummary(from, to),
-      api.getReservations({ from }),
+      api.getReservations({ from: fetchFrom }),
     ]);
 
     setProperties(props);
@@ -78,10 +106,10 @@ export default function Dashboard() {
     setUpcomingByProperty(grouped);
 
     const arrivalsBase = allUpcoming
-      .filter((r) => r.startDate === todayStr)
+      .filter((r) => r.startDate === selectedDate)
       .sort((a, b) => (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59'));
     const departuresBase = allUpcoming
-      .filter((r) => r.endDate === todayStr)
+      .filter((r) => r.endDate === selectedDate)
       .sort((a, b) => (a.checkOutTime || '23:59').localeCompare(b.checkOutTime || '23:59'));
 
     const arrivalsDetailed = await Promise.all(arrivalsBase.map((r) => api.getReservation(r.id)));
@@ -92,7 +120,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [selectedDate]); // eslint-disable-line
 
   const handleTogglePayment = async (r, field) => {
     const value = !r[field];
@@ -102,6 +130,7 @@ export default function Dashboard() {
 
   // Build timeline days (30 days)
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   const days = [];
   for (let i = 0; i < 30; i++) {
     const d = new Date(today);
@@ -153,22 +182,40 @@ export default function Dashboard() {
       </Grid>
 
       {/* Daily arrivals / departures */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+        <Typography variant="h6">Arrivées &amp; Départs</Typography>
+        <TextField
+          type="date"
+          size="small"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          sx={{ width: 165 }}
+          inputProps={{ style: { padding: '6px 10px' } }}
+        />
+        {selectedDate !== todayStr && (
+          <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)}>
+            Aujourd'hui
+          </Button>
+        )}
+      </Box>
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={7}>
-          <Card sx={{ height: '100%' }}>
+        <Grid item xs={12}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Arrivees du jour</Typography>
+              <Typography variant="h6" gutterBottom>Arrivées — {displayDate(selectedDate)}</Typography>
               {arrivalsToday.length === 0 ? (
-                <Typography color="text.secondary">Aucune arrivee aujourd'hui</Typography>
+                <Typography color="text.secondary">Aucune arrivée ce jour</Typography>
               ) : (
                 <TableContainer>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
+                        <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Prêt</TableCell>
+                        <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Arrivé</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Heure</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Lits a preparer</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Lits à préparer</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
@@ -186,7 +233,26 @@ export default function Dashboard() {
                           ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
                         ].join(', ');
                         return (
-                          <TableRow key={r.id} hover>
+                          <TableRow key={r.id} hover sx={getStatusRowSx(r.checkInDone, r.checkInReady)}>
+                            <TableCell padding="checkbox">
+                              <Tooltip title="Logement prêt">
+                                <Checkbox
+                                  size="small"
+                                  checked={!!r.checkInReady}
+                                  onChange={() => handleToggleStatus(r, 'checkInReady', setArrivalsToday)}
+                                  sx={{ color: 'success.main', '&.Mui-checked': { color: 'success.main' } }}
+                                />
+                              </Tooltip>
+                            </TableCell>
+                            <TableCell padding="checkbox">
+                              <Tooltip title="Locataires arrivés">
+                                <Checkbox
+                                  size="small"
+                                  checked={!!r.checkInDone}
+                                  onChange={() => handleCheckInDone(r)}
+                                />
+                              </Tooltip>
+                            </TableCell>
                             <TableCell>{r.checkInTime || '15:00'}</TableCell>
                             <TableCell>{r.propertyName}</TableCell>
                             <TableCell>{r.firstName} {r.lastName}</TableCell>
@@ -216,17 +282,18 @@ export default function Dashboard() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={5}>
-          <Card sx={{ height: '100%' }}>
+        <Grid item xs={12}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Departs du jour</Typography>
+              <Typography variant="h6" gutterBottom>Départs — {displayDate(selectedDate)}</Typography>
               {departuresToday.length === 0 ? (
-                <Typography color="text.secondary">Aucun depart aujourd'hui</Typography>
+                <Typography color="text.secondary">Aucun départ ce jour</Typography>
               ) : (
                 <TableContainer>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
+                        <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Parti</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Heure</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
@@ -237,7 +304,16 @@ export default function Dashboard() {
                         const remaining = getRemainingDue(r);
                         const paymentOk = remaining <= 0;
                         return (
-                          <TableRow key={r.id} hover>
+                          <TableRow key={r.id} hover sx={getStatusRowSx(r.checkOutDone)}>
+                            <TableCell padding="checkbox">
+                              <Tooltip title="Départ effectué">
+                                <Checkbox
+                                  size="small"
+                                  checked={!!r.checkOutDone}
+                                  onChange={() => handleToggleStatus(r, 'checkOutDone', setDeparturesToday)}
+                                />
+                              </Tooltip>
+                            </TableCell>
                             <TableCell>{r.checkOutTime || '10:00'}</TableCell>
                             <TableCell>{r.propertyName}</TableCell>
                             <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
@@ -256,9 +332,10 @@ export default function Dashboard() {
       </Grid>
 
       {/* Combined timeline calendar */}
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="h6" sx={{ mb: 1.5 }}>Calendrier cumulé — 30 prochains jours</Typography>
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Calendrier cumulé — 30 prochains jours</Typography>
           <Box sx={{ overflowX: 'auto' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: `180px repeat(${days.length}, minmax(36px, 1fr))`, gap: 0.5, minWidth: days.length * 38 + 180 }}>
               {/* Header row: dates */}
@@ -304,9 +381,10 @@ export default function Dashboard() {
       </Card>
 
       {/* Upcoming reservations per property */}
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="h6" sx={{ mb: 1.5 }}>Réservations à venir</Typography>
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Réservations à venir</Typography>
           {properties.map(prop => {
             const upcoming = upcomingByProperty[prop.id] || [];
             if (upcoming.length === 0) return null;
@@ -362,9 +440,10 @@ export default function Dashboard() {
       </Card>
 
       {/* Pending payments with checkboxes */}
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="h6" sx={{ mb: 1.5 }}>Paiements en attente</Typography>
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Paiements en attente</Typography>
           {pendingPayments.length === 0 ? (
             <Typography color="text.secondary">Aucun paiement en attente</Typography>
           ) : (
