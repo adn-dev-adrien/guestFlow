@@ -639,6 +639,7 @@ export default function CalendarPage() {
     // If mid-stay: full color fill
     if (midRes) {
       const color = getReservationColor(midRes.platform);
+      const isToday = dateStr === today;
       // Show label on the true middle day of the entire reservation
       const resStart = new Date(midRes.startDate);
       const resEnd = new Date(midRes.endDate);
@@ -652,6 +653,9 @@ export default function CalendarPage() {
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
+          opacity: isPast ? 0.5 : 1,
+          border: isToday ? '3px solid #1976d2' : 'none',
+          transition: 'border 0.2s',
         }}>
           {renderHolidayIndicators(dateStr)}
           {renderNoteLabel(dateStr, true)}
@@ -684,6 +688,7 @@ export default function CalendarPage() {
 
     // Empty or drag-only day
     if (!hasVisual) {
+      const isToday = dateStr === today;
       return (
         <Box key={day} data-date={dateStr}
           onMouseDown={() => !isPast && handleMouseDown(day, y, m)}
@@ -695,8 +700,9 @@ export default function CalendarPage() {
             bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
             color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
             fontWeight: inDrag ? 600 : 400,
+            border: isToday ? '3px solid #1976d2' : 'none',
             ...(!isPast && { '&:hover': { bgcolor: 'primary.light', color: 'white' } }),
-            transition: 'background-color 0.15s',
+            transition: 'background-color 0.15s, border 0.2s',
           }}
         >
           {renderHolidayIndicators(dateStr)}
@@ -803,8 +809,10 @@ export default function CalendarPage() {
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
           cursor: 'pointer', fontSize: 14, fontWeight: 600,
           background: gradient || 'grey.100',
-          border: '1px solid #e0e0e0',
+          border: dateStr === today ? '3px solid #1976d2' : '1px solid #e0e0e0',
           color: 'text.primary', overflow: 'hidden',
+          opacity: isPast ? 0.5 : 1,
+          transition: 'border 0.2s',
         }}
       >
         <Box sx={{ position: 'relative', zIndex: 1, textShadow: '0 0 3px rgba(255,255,255,0.8)' }}>
