@@ -724,6 +724,10 @@ export default function CalendarPage() {
   const maxBabyBedsByRule = babyAvailableNumber === null
     ? Number(form.babies || 0)
     : Math.min(Number(form.babies || 0), babyAvailableNumber);
+  const selectedBabyBeds = Number(form.babyBeds || 0);
+  const remainingBabyBeds = babyAvailableNumber === null
+    ? null
+    : Math.max(0, babyAvailableNumber - selectedBabyBeds);
 
   useEffect(() => {
     if (babyAvailableNumber === null) return;
@@ -1290,10 +1294,10 @@ export default function CalendarPage() {
                 <TextField label="Adultes" type="number" value={form.adults} onChange={(e) => updateForm({ adults: Number(e.target.value) })} fullWidth inputProps={{ min: 1 }} />
               </Grid>
               <Grid item xs={4}>
-                <TextField label="Enfants" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} helperText="2 à 18 ans" />
+                <TextField label="Enfants (2 à 18 ans)" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
               </Grid>
               <Grid item xs={4}>
-                <TextField label="Bébés" type="number" value={form.babies} onChange={(e) => updateForm({ babies: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} helperText="0 à 2 ans" />
+                <TextField label="Bébés (0 à 2 ans)" type="number" value={form.babies} onChange={(e) => updateForm({ babies: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
               </Grid>
             </Grid>
 
@@ -1338,7 +1342,7 @@ export default function CalendarPage() {
                   }}
                   fullWidth
                   inputProps={{ min: 0, max: maxBabyBedsByRule }}
-                  helperText={`Dispo: ${babyBedAvailability.available === null ? '...' : babyBedAvailability.available} • Max saisissable: ${maxBabyBedsByRule}`}
+                  helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
                 />
               </Grid>
             </Grid>
