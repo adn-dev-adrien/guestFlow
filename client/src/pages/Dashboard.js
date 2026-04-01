@@ -8,6 +8,7 @@ import {
 import EventIcon from '@mui/icons-material/Event';
 import PaymentIcon from '@mui/icons-material/Payment';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import api from '../api';
 
 function displayDate(d) {
@@ -131,12 +132,11 @@ export default function Dashboard() {
   // Build timeline days (30 days)
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
-  const days = [];
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    days.push(d.toISOString().split('T')[0]);
-  }
+
+  const handleOpenPropertyCalendar = (property) => {
+    const ref = new Date(selectedDate || todayStr);
+    navigate(`/calendar?propertyId=${property.id}&year=${ref.getFullYear()}&month=${ref.getMonth()}`);
+  };
 
   if (loading) return <LinearProgress />;
 
@@ -334,51 +334,12 @@ export default function Dashboard() {
       {/* Combined timeline calendar */}
       <Divider sx={{ my: 3 }} />
       <Typography variant="h6" sx={{ mb: 1.5 }}>Calendrier cumulé — 30 prochains jours</Typography>
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ overflowX: 'auto' }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: `180px repeat(${days.length}, minmax(36px, 1fr))`, gap: 0.5, minWidth: days.length * 38 + 180 }}>
-              {/* Header row: dates */}
-              <Box sx={{ fontWeight: 600, py: 1 }}>Logement</Box>
-              {days.map(d => {
-                const date = new Date(d);
-                return (
-                  <Box key={d} sx={{ textAlign: 'center', fontSize: 10, py: 1, color: 'text.secondary' }}>
-                    <Box>{date.getDate()}</Box>
-                    <Box>{['Di','Lu','Ma','Me','Je','Ve','Sa'][date.getDay()]}</Box>
-                  </Box>
-                );
-              })}
-
-              {/* One row per property */}
-              {properties.map(prop => (
-                <React.Fragment key={prop.id}>
-                  <Box sx={{ py: 1, fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center' }}>
-                    {prop.name}
-                  </Box>
-                  {days.map(d => {
-                    const res = reservations.find(r => r.propertyId === prop.id && d >= r.startDate && d < r.endDate);
-                    return (
-                      <Box
-                        key={d}
-                        sx={{
-                          borderRadius: 0.5,
-                          bgcolor: res ? (PLATFORM_COLORS[res.platform] || '#757575') : 'grey.100',
-                          minHeight: 28,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        title={res ? `${res.firstName} ${res.lastName} (${res.platform})` : ''}
-                      />
-                    );
-                  })}
-                </React.Fragment>
-              ))}
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
+      <PropertyCalendarOverview
+        properties={properties}
+        reservations={reservations}
+        platformColors={PLATFORM_COLORS}
+        onPropertySelect={handleOpenPropertyCalendar}
+      />
 
       {/* Upcoming reservations per property */}
       <Divider sx={{ my: 3 }} />

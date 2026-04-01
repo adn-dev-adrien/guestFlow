@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
 
@@ -51,13 +52,14 @@ function hourToPercent(hour) {
 }
 
 function getReservationColor(platform) {
-  const colors = {
-    direct: '#c9a227', airbnb: '#FF5A5F', greengo: '#4CAF50',
-    abritel: '#1565c0', abracadaroom: '#00bcd4', booking: '#003580',
-    gitedefrance: '#e6c832', pitchup: '#f57c00'
-  };
-  return colors[platform] || '#757575';
+  return PLATFORM_COLORS[platform] || '#757575';
 }
+
+const PLATFORM_COLORS = {
+  direct: '#c9a227', airbnb: '#FF5A5F', greengo: '#4CAF50',
+  abritel: '#1565c0', abracadaroom: '#00bcd4', booking: '#003580',
+  gitedefrance: '#e6c832', pitchup: '#f57c00'
+};
 
 const CLEANING_COLOR = '#e53935';
 
@@ -68,6 +70,7 @@ export default function CalendarPage() {
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
+  const [overviewReservations, setOverviewReservations] = useState([]);
   const [reservations, setReservations] = useState([]);
 
   const getMonthsRange = (centerY, centerM, range = 3) => {
@@ -119,6 +122,20 @@ export default function CalendarPage() {
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
+  const loadOverviewReservations = useCallback(async () => {
+    const from = new Date().toISOString().split('T')[0];
+    const toDate = new Date();
+    toDate.setDate(toDate.getDate() + 30);
+    const to = toDate.toISOString().split('T')[0];
+    setOverviewReservations(await api.getReservations({ from, to }));
+  }, []);
+
+  const handleSelectProperty = (propertyId) => {
+    setSelectedProp(propertyId);
+    initialScrollDone.current = false;
+    lastLoadedRange.current = { from: '', to: '' };
+  };
+
   const loadSchoolHolidays = async () => setSchoolHolidays(await api.getSchoolHolidays());
 
   const loadCalendarData = useCallback(async () => {
@@ -141,7 +158,7 @@ export default function CalendarPage() {
     setCalendarNotes(notesMap);
   }, [selectedProp, months]);
 
-  useEffect(() => { loadProperties(); loadSchoolHolidays(); }, []);
+  useEffect(() => { loadProperties(); loadSchoolHolidays(); loadOverviewReservations(); }, [loadOverviewReservations]);
   useEffect(() => { loadCalendarData(); }, [loadCalendarData]);
 
   // Read URL params for navigation from dashboard
@@ -150,7 +167,7 @@ export default function CalendarPage() {
     const y = searchParams.get('year');
     const m = searchParams.get('month');
     const resId = searchParams.get('reservationId');
-    if (propId) setSelectedProp(Number(propId));
+    if (propId) handleSelectProperty(Number(propId));
     if (y && m !== null) {
       setMonths(getMonthsRange(Number(y), Number(m)));
       initialScrollDone.current = false;
@@ -1056,10 +1073,13 @@ export default function CalendarPage() {
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap' }}>
           <FormControl sx={{ minWidth: { xs: '100%', sm: 250 } }}>
             <InputLabel>Logement</InputLabel>
-            <Select value={selectedProp} label="Logement" onChange={(e) => { setSelectedProp(e.target.value); initialScrollDone.current = false; lastLoadedRange.current = { from: '', to: '' }; }}>
+            <Select value={selectedProp} label="Logement" onChange={(e) => handleSelectProperty(e.target.value)}>
               {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </Select>
           </FormControl>
+          {selectedProp && (
+            <Button variant="text" onClick={() => setSelectedProp('')}>Vue logements</Button>
+          )}
           <Button variant="outlined" onClick={scrollToToday} sx={{ width: { xs: '100%', sm: 'auto' } }}>Aujourd'hui</Button>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'white' }} />
@@ -1200,7 +1220,13 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card><CardContent><Typography align="center" color="text.secondary">Sélectionnez un logement pour voir son calendrier</Typography></CardContent></Card>
+        <PropertyCalendarOverview
+          title="Calendrier simplifié — 30 prochains jours"
+          properties={properties}
+          reservations={overviewReservations}
+          platformColors={PLATFORM_COLORS}
+          onPropertySelect={(property) => handleSelectProperty(property.id)}
+        />
       )}
 
       {/* Note Dialog */}
