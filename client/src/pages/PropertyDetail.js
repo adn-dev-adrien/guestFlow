@@ -50,6 +50,7 @@ export default function PropertyDetail() {
     setAllOptions(opts);
     const initial = {
       name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
+      singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       defaultCheckIn: p.defaultCheckIn || '15:00', defaultCheckOut: p.defaultCheckOut || '10:00', cleaningHours: p.cleaningHours ?? 3
@@ -195,8 +196,12 @@ export default function PropertyDetail() {
                 <TextField label="Nom du logement" value={form.name || ''} onChange={(e) => updateField('name', e.target.value)} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} fullWidth size="small" />
-                  <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} fullWidth size="small" />
-                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} fullWidth size="small" />
+                  <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} fullWidth size="small" helperText="2 à 18 ans" />
+                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} fullWidth size="small" helperText="0 à 2 ans" />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
+                  <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
                 </Box>
               </Box>
             </CardContent>

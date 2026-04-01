@@ -165,6 +165,7 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
 router.post('/', (req, res) => {
   const {
     propertyId, clientId, startDate, endDate, adults, children, babies,
+    singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
@@ -177,14 +178,26 @@ router.post('/', (req, res) => {
     return res.status(409).json(validationError);
   }
 
+  const property = db.prepare('SELECT singleBeds, doubleBeds FROM properties WHERE id = ?').get(propertyId);
+  if (property) {
+    if (singleBeds !== null && singleBeds !== undefined && singleBeds !== '' && Number(singleBeds) > Number(property.singleBeds || 0)) {
+      return res.status(400).json({ error: `Le nombre de lits simples (${singleBeds}) dépasse la capacité du logement (${property.singleBeds || 0}).` });
+    }
+    if (doubleBeds !== null && doubleBeds !== undefined && doubleBeds !== '' && Number(doubleBeds) > Number(property.doubleBeds || 0)) {
+      return res.status(400).json({ error: `Le nombre de lits doubles (${doubleBeds}) dépasse la capacité du logement (${property.doubleBeds || 0}).` });
+    }
+  }
+
   const result = db.prepare(`
     INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, babies,
+      singleBeds, doubleBeds, babyBeds,
       checkInTime, checkOutTime,
       platform, totalPrice, discountPercent, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, notes, cautionAmount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
+    singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
     depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, notes || '',
@@ -208,6 +221,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const {
     propertyId, clientId, startDate, endDate, adults, children, babies,
+    singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
@@ -220,8 +234,19 @@ router.put('/:id', (req, res) => {
     return res.status(409).json(validationError);
   }
 
+  const property = db.prepare('SELECT singleBeds, doubleBeds FROM properties WHERE id = ?').get(propertyId);
+  if (property) {
+    if (singleBeds !== null && singleBeds !== undefined && singleBeds !== '' && Number(singleBeds) > Number(property.singleBeds || 0)) {
+      return res.status(400).json({ error: `Le nombre de lits simples (${singleBeds}) dépasse la capacité du logement (${property.singleBeds || 0}).` });
+    }
+    if (doubleBeds !== null && doubleBeds !== undefined && doubleBeds !== '' && Number(doubleBeds) > Number(property.doubleBeds || 0)) {
+      return res.status(400).json({ error: `Le nombre de lits doubles (${doubleBeds}) dépasse la capacité du logement (${property.doubleBeds || 0}).` });
+    }
+  }
+
   db.prepare(`
     UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, babies=?,
+      singleBeds=?, doubleBeds=?, babyBeds=?,
       checkInTime=?, checkOutTime=?,
       platform=?, totalPrice=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
       depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
@@ -230,6 +255,7 @@ router.put('/:id', (req, res) => {
     WHERE id=?
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
+    singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
     depositAmount || 0, depositDueDate || null, depositPaid ? 1 : 0,

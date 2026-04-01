@@ -73,8 +73,8 @@ export default function PropertiesPage() {
             <TextField label="Nom du logement" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth required />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField label="Max adultes" type="number" value={form.maxAdults} onChange={(e) => setForm({ ...form, maxAdults: e.target.value })} fullWidth />
-              <TextField label="Max enfants" type="number" value={form.maxChildren} onChange={(e) => setForm({ ...form, maxChildren: e.target.value })} fullWidth />
-              <TextField label="Max bébés" type="number" value={form.maxBabies} onChange={(e) => setForm({ ...form, maxBabies: e.target.value })} fullWidth />
+              <TextField label="Max enfants" type="number" value={form.maxChildren} onChange={(e) => setForm({ ...form, maxChildren: e.target.value })} fullWidth helperText="2 à 18 ans" />
+              <TextField label="Max bébés" type="number" value={form.maxBabies} onChange={(e) => setForm({ ...form, maxBabies: e.target.value })} fullWidth helperText="0 à 2 ans" />
             </Box>
             <Button variant="outlined" component="label">
               Ajouter une photo

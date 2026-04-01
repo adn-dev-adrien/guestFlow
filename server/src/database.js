@@ -30,6 +30,8 @@ db.exec(`
     maxAdults INTEGER DEFAULT 2,
     maxChildren INTEGER DEFAULT 0,
     maxBabies INTEGER DEFAULT 0,
+    singleBeds INTEGER DEFAULT 0,
+    doubleBeds INTEGER DEFAULT 0,
     depositPercent REAL DEFAULT 30,
     depositDaysBefore INTEGER DEFAULT 30,
     balanceDaysBefore INTEGER DEFAULT 7,
@@ -104,6 +106,9 @@ db.exec(`
     adults INTEGER DEFAULT 1,
     children INTEGER DEFAULT 0,
     babies INTEGER DEFAULT 0,
+    singleBeds INTEGER,
+    doubleBeds INTEGER,
+    babyBeds INTEGER,
     checkInTime TEXT DEFAULT '15:00',
     checkOutTime TEXT DEFAULT '10:00',
     platform TEXT DEFAULT 'direct',
@@ -146,9 +151,24 @@ if (!cols.includes('cautionAmount')) {
   db.exec("ALTER TABLE reservations ADD COLUMN cautionReturned INTEGER DEFAULT 0");
   db.exec("ALTER TABLE reservations ADD COLUMN cautionReturnedDate TEXT");
 }
+if (!cols.includes('singleBeds')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN singleBeds INTEGER");
+}
+if (!cols.includes('doubleBeds')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN doubleBeds INTEGER");
+}
+if (!cols.includes('babyBeds')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN babyBeds INTEGER");
+}
 const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
 if (!propCols.includes('defaultCautionAmount')) {
   db.exec("ALTER TABLE properties ADD COLUMN defaultCautionAmount REAL DEFAULT 500");
+}
+if (!propCols.includes('singleBeds')) {
+  db.exec("ALTER TABLE properties ADD COLUMN singleBeds INTEGER DEFAULT 0");
+}
+if (!propCols.includes('doubleBeds')) {
+  db.exec("ALTER TABLE properties ADD COLUMN doubleBeds INTEGER DEFAULT 0");
 }
 
 // ---------- CALENDAR NOTES ----------

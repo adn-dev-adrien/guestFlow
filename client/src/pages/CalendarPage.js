@@ -93,6 +93,7 @@ export default function CalendarPage() {
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, babies: 0, platform: 'direct',
+    singleBeds: '', doubleBeds: '', babyBeds: '',
     totalPrice: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
@@ -293,6 +294,7 @@ export default function CalendarPage() {
 
     setForm({
       clientId: null, adults: 1, children: 0, babies: 0, platform: 'direct',
+      singleBeds: '', doubleBeds: '', babyBeds: '',
       totalPrice: calc.totalPrice, discountPercent: 0, finalPrice: calc.totalPrice, customPrice: '',
       depositAmount: calc.depositAmount, depositDueDate: calc.depositDueDate,
       balanceAmount: calc.balanceAmount, balanceDueDate: calc.balanceDueDate,
@@ -420,6 +422,11 @@ export default function CalendarPage() {
     }
     // --- End common validation ---
 
+    if (exceedsSingleBedsLimit || exceedsDoubleBedsLimit) {
+      setErrorMsg('Le nombre de lits saisi dépasse la capacité configurée du logement.');
+      return;
+    }
+
     try {
       if (editingReservationId) {
         await api.updateReservation(editingReservationId, {
@@ -430,6 +437,9 @@ export default function CalendarPage() {
           adults: form.adults,
           children: form.children,
           babies: form.babies,
+          singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
+          doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
+          babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
@@ -463,6 +473,9 @@ export default function CalendarPage() {
           adults: form.adults,
           children: form.children,
           babies: form.babies,
+          singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
+          doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
+          babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
@@ -512,6 +525,9 @@ export default function CalendarPage() {
       adults: res.adults || 1,
       children: res.children || 0,
       babies: res.babies || 0,
+      singleBeds: res.singleBeds ?? '',
+      doubleBeds: res.doubleBeds ?? '',
+      babyBeds: res.babyBeds ?? '',
       platform: res.platform || 'direct',
       totalPrice: res.totalPrice || 0,
       discountPercent: res.discountPercent || 0,
@@ -557,6 +573,14 @@ export default function CalendarPage() {
   };
 
   const cleaningHours = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
+  const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
+  const maxDoubleBeds = selectedProperty ? Number(selectedProperty.doubleBeds ?? 0) : null;
+  const bedsEntered = form.singleBeds !== '' || form.doubleBeds !== '';
+  const adultsChildrenCount = (Number(form.adults) || 0) + (Number(form.children) || 0);
+  const reservationBedCapacity = (Number(form.singleBeds) || 0) + (Number(form.doubleBeds) || 0) * 2;
+  const bedsCapacityMismatch = bedsEntered && reservationBedCapacity < adultsChildrenCount;
+  const exceedsSingleBedsLimit = maxSingleBeds !== null && form.singleBeds !== '' && Number(form.singleBeds) > maxSingleBeds;
+  const exceedsDoubleBedsLimit = maxDoubleBeds !== null && form.doubleBeds !== '' && Number(form.doubleBeds) > maxDoubleBeds;
 
   // Check if a reservation has visible mid-stay days in the current month
   const resHasMidDays = (res, y, m, dim) => {
@@ -1115,12 +1139,55 @@ export default function CalendarPage() {
                 <TextField label="Adultes" type="number" value={form.adults} onChange={(e) => updateForm({ adults: Number(e.target.value) })} fullWidth inputProps={{ min: 1 }} />
               </Grid>
               <Grid item xs={4}>
-                <TextField label="Enfants" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+                <TextField label="Enfants" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} helperText="2 à 18 ans" />
               </Grid>
               <Grid item xs={4}>
-                <TextField label="Bébés" type="number" value={form.babies} onChange={(e) => updateForm({ babies: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+                <TextField label="Bébés" type="number" value={form.babies} onChange={(e) => updateForm({ babies: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} helperText="0 à 2 ans" />
               </Grid>
             </Grid>
+
+            <Grid container spacing={2}>
+              <Grid item xs={4}>
+                <TextField
+                  label="Lits doubles"
+                  type="number"
+                  value={form.doubleBeds}
+                  onChange={(e) => updateForm({ doubleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+                  fullWidth
+                  error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
+                  helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
+                  inputProps={{ min: 0, max: maxDoubleBeds ?? undefined }}
+                />
+              </Grid>
+              <Grid item xs={4}>
+                <TextField
+                  label="Lits simples"
+                  type="number"
+                  value={form.singleBeds}
+                  onChange={(e) => updateForm({ singleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+                  fullWidth
+                  error={bedsCapacityMismatch || exceedsSingleBedsLimit}
+                  helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
+                  inputProps={{ min: 0, max: maxSingleBeds ?? undefined }}
+                />
+              </Grid>
+              <Grid item xs={4}>
+                <TextField
+                  label="Lits bébé"
+                  type="number"
+                  value={form.babyBeds}
+                  onChange={(e) => updateForm({ babyBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+                  fullWidth
+                  inputProps={{ min: 0 }}
+                />
+              </Grid>
+            </Grid>
+
+            {bedsCapacityMismatch && (
+              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
+                Attention: la capacité des lits saisis ({reservationBedCapacity}) est inférieure au total adultes + enfants ({adultsChildrenCount}). Vous pouvez enregistrer, mais la configuration ne couvre pas toutes les personnes.
+              </Typography>
+            )}
 
             <FormControl fullWidth>
               <InputLabel>Plateforme</InputLabel>
