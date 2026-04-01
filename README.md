@@ -152,6 +152,68 @@ rm server/guestflow.db
 Migrations (adding new columns) run automatically on startup in `server/src/database.js`.
 
 ## Production Deployment
+## Release Packaging
+
+### 1. Generate a release (full archive)
+
+A script is provided to create an archive containing everything needed (client build, server, uploads, etc.).
+
+**Prerequisites:**
+- Build the client (`cd client && npm run build`)
+- Install all dependencies (`npm install && npm run install:all`)
+
+**Release generation:**
+
+```bash
+# From the project root
+./release.sh guestflow-1.0.0
+# This creates guestflow-1.0.0.zip
+```
+
+The script includes:
+- The server (without node_modules or temporary files)
+- The client build (client/build)
+- The uploads folder (photos, documents)
+- The root package.json
+
+### 2. Install the release on the target (e.g. Raspberry Pi)
+
+1. **Transfer the archive** vadky9-jabmib-zazZij  vqrdky(6
+
+   ```bash
+   scp guestflow-1.0.0.zip pi@raspberrypi:~/guestflow/
+   ```
+
+2. **Unzip and install dependencies**
+
+   ```bash
+   unzip guestflow-1.0.0.zip
+   cd guestflow-1.0.0/server
+   npm install --production
+   cd ../client/build # (nothing to install here, these are static files)
+   cd ../..
+   ```
+
+3. **Start the server**
+
+   ```bash
+   cd server
+   NODE_ENV=production node src/index.js
+   ```
+
+   Or with PM2 to run as a background service:
+
+   ```bash
+   npm install -g pm2
+   pm2 start src/index.js --name guestflow
+   pm2 save
+   pm2 startup
+   ```
+
+The application will be available on port 4000 by default.
+
+**Note:**
+The SQLite database file (`guestflow.db`) will be created automatically on first launch. If you want to migrate an existing database, copy it into `server/` before starting.
 
 ### 1. Build the React Client
 

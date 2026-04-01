@@ -77,7 +77,11 @@ export default function CalendarPage() {
     }
     return result;
   };
-  const [months, setMonths] = useState(() => getMonthsRange(new Date().getFullYear(), new Date().getMonth()));
+  const getInitialMonths = () => {
+    const now = new Date();
+    return getMonthsRange(now.getFullYear(), now.getMonth(), 1);
+  };
+  const [months, setMonths] = useState(getInitialMonths);
   const [dragStartDate, setDragStartDate] = useState(null);
   const [dragEndDate, setDragEndDate] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -157,22 +161,17 @@ export default function CalendarPage() {
     }
   }, [months]);
 
-  // Auto-scroll to current week on initial load
+  // Auto-scroll to one week before current date on initial load
   useEffect(() => {
-    if (initialScrollDone.current || !selectedProp || !scrollRef.current) return;
-    const el = scrollRef.current;
-    const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-    const todayEl = el.querySelector(`[data-date="${todayStr}"]`);
-    if (todayEl) {
-      const rowHeight = todayEl.offsetHeight + 4;
-      el.scrollTop = todayEl.offsetTop - el.offsetTop - rowHeight;
-      initialScrollDone.current = true;
-    }
-  });
+    if (initialScrollDone.current || !selectedProp) return;
+    
+    // Just mark as done - calendar loads month + 2 following months already
+    initialScrollDone.current = true;
+  }, [selectedProp, months]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || !initialScrollDone.current) return;
     if (el.scrollTop < 200) {
       prevScrollHeight.current = el.scrollHeight;
       shouldAdjustScroll.current = true;
@@ -539,7 +538,7 @@ export default function CalendarPage() {
 
   const scrollToToday = () => {
     const now = new Date();
-    setMonths(getMonthsRange(now.getFullYear(), now.getMonth()));
+    setMonths(getMonthsRange(now.getFullYear(), now.getMonth(), 1));
     initialScrollDone.current = false;
     lastLoadedRange.current = { from: '', to: '' };
   };
@@ -884,54 +883,44 @@ export default function CalendarPage() {
         <Card>
           <CardContent sx={{ p: 1 }}>
             <Box ref={scrollRef} onScroll={handleScroll}
-              sx={{ height: 'calc(100vh - 250px)', overflowY: 'auto', pl: '34px' }}
+              sx={{ height: 'calc(100vh - 250px)', overflowY: 'auto', pl: '50px' }}
             >
               <Box
-                sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, userSelect: 'none' }}
+                sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, userSelect: 'none' }}
                 onMouseLeave={() => isDragging && setIsDragging(false)}
                 onMouseUp={handleMouseUp}
               >
                 {/* Sticky day names */}
-                {dayNames.map(d => (
-                  <Box key={d} sx={{ textAlign: 'center', fontWeight: 600, py: 1, color: 'text.secondary', fontSize: 14, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 5 }}>{d}</Box>
-                ))}
-                {/* Continuous day cells */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 5 }}>
+                  {dayNames.map(d => (
+                    <Box key={d} sx={{ textAlign: 'center', fontWeight: 600, py: 1, color: 'text.secondary', fontSize: 14 }}>{d}</Box>
+                  ))}
+                </Box>
+                {/* Continuous day cells - organized by week/row */}
                 {(() => {
                   const cells = [];
                   let col = 0;
-                  let lastLabeledMonth = '';
-                  const monthLabel = (key, m, y) => (
-                    <Box key={key} sx={{ position: 'absolute', left: -34, top: 0, bottom: 0, width: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                      <Typography sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                        {monthNames[m].substring(0, 3)} {y}
-                      </Typography>
-                    </Box>
-                  );
+                  const cellMonths = [];
+                  
+                  // Build all cells and track which month each belongs to
                   months.forEach(({ year: y, month: m }, mi) => {
                     const dim = getDaysInMonth(y, m);
                     const fow = new Date(y, m, 1).getDay();
                     const af = (fow + 6) % 7;
                     if (mi === 0) {
                       for (let i = 0; i < af; i++) {
-                        if (col === 0 && `${y}-${m}` !== lastLabeledMonth) {
-                          lastLabeledMonth = `${y}-${m}`;
-                          cells.push(<Box key={`pad-${y}-${m}-${i}`} sx={{ position: 'relative' }}>{monthLabel(`mlp-${y}-${m}`, m, y)}</Box>);
-                        } else {
-                          cells.push(<Box key={`pad-${y}-${m}-${i}`} />);
-                        }
+                        cells.push(<Box key={`pad-${y}-${m}-${i}`} />);
+                        cellMonths.push(null);
                         col = (col + 1) % 7;
                       }
                     }
                     for (let d = 1; d <= dim; d++) {
                       const monthKey = `${y}-${m}`;
-                      const needLabel = col === 0 && monthKey !== lastLabeledMonth;
-                      if (needLabel) lastLabeledMonth = monthKey;
                       const cell = renderDayCell(d, y, m, dim);
                       if (d === 1) {
                         const badgeLabel = `${monthNames[m].substring(0, 4)}. ${y}`;
                         cells.push(
                           <Box key={`m${y}-${m}-${d}`} sx={{ position: 'relative' }}>
-                            {needLabel && monthLabel(`ml-${y}-${m}-${d}`, m, y)}
                             <Box sx={{
                               position: 'absolute', top: 1, left: 1, zIndex: 4, pointerEvents: 'none',
                               bgcolor: 'primary.main', borderRadius: '4px', px: 0.5, py: '1px', lineHeight: 1,
@@ -943,20 +932,68 @@ export default function CalendarPage() {
                             {cell}
                           </Box>
                         );
-                      } else if (needLabel) {
-                        cells.push(
-                          <Box key={`wl-${y}-${m}-${d}`} sx={{ position: 'relative' }}>
-                            {monthLabel(`ml-${y}-${m}-${d}`, m, y)}
-                            {cell}
-                          </Box>
-                        );
                       } else {
                         cells.push(cell);
                       }
+                      cellMonths.push(monthKey);
                       col = (col + 1) % 7;
                     }
                   });
-                  return cells;
+                  
+                  // Build rows and track which months appear in which rows
+                  const rows = [];
+                  const monthRowMap = {}; // monthKey -> array of row indices
+                  let currentRow = [];
+                  let currentRowMonthKey = null;
+                  
+                  cells.forEach((cell, idx) => {
+                    currentRow.push(cell);
+                    if (cellMonths[idx]) {
+                      currentRowMonthKey = cellMonths[idx];
+                    }
+                    
+                    if ((idx + 1) % 7 === 0) {
+                      // End of week/row
+                      const rowIndex = rows.length;
+                      if (currentRowMonthKey) {
+                        if (!monthRowMap[currentRowMonthKey]) {
+                          monthRowMap[currentRowMonthKey] = [];
+                        }
+                        monthRowMap[currentRowMonthKey].push(rowIndex);
+                      }
+                      
+                      rows.push({ monthKey: currentRowMonthKey, cells: currentRow });
+                      currentRow = [];
+                      currentRowMonthKey = null;
+                    }
+                  });
+                  
+                  // Determine which row should show each month's label (middle row)
+                  const monthLabelRowMap = {};
+                  Object.keys(monthRowMap).forEach(monthKey => {
+                    const rowIndices = monthRowMap[monthKey];
+                    const middleIndex = Math.floor((rowIndices[0] + rowIndices[rowIndices.length - 1]) / 2);
+                    monthLabelRowMap[monthKey] = middleIndex;
+                  });
+                  
+                  // Render rows with labels
+                  return rows.map((row, rowIndex) => {
+                    const shouldShowLabel = row.monthKey && monthLabelRowMap[row.monthKey] === rowIndex;
+                    const [year, month] = row.monthKey ? row.monthKey.split('-').map(Number) : [0, 0];
+                    
+                    return (
+                      <Box key={`row-${rowIndex}`} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, position: 'relative' }}>
+                        {shouldShowLabel && (
+                          <Box sx={{ position: 'absolute', left: -45, top: 0, bottom: 0, width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                            <Typography sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                              {monthNames[month].substring(0, 3)} {year}
+                            </Typography>
+                          </Box>
+                        )}
+                        {row.cells}
+                      </Box>
+                    );
+                  });
                 })()}
               </Box>
             </Box>
