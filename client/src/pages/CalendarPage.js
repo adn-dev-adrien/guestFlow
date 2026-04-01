@@ -19,10 +19,10 @@ const TIME_OPTIONS = Array.from({ length: 29 }, (_, i) => {
 });
 
 const PRICE_TYPE_LABELS = {
-  per_stay: 'par séjour',
-  per_person: 'par personne',
-  per_night: 'par nuit',
-  per_person_per_night: 'par pers./nuit',
+  per_stay: 'prix fixe',
+  per_person: 'par pers.',
+  per_night: 'par jour',
+  per_person_per_night: 'par pers./jour',
   per_hour: 'par heure',
 };
 
@@ -357,29 +357,33 @@ export default function CalendarPage() {
 
   const recalcPrice = (updatedForm) => {
     const base = updatedForm.totalPrice;
+    const nights = Math.max(1, Math.round((new Date(updatedForm.endDate) - new Date(updatedForm.startDate)) / 86400000));
+    const persons = (Number(updatedForm.adults) || 1) + (Number(updatedForm.children) || 0);
+
+    const typeMultiplier = (priceType) => {
+      if (priceType === 'per_person') return persons;
+      if (priceType === 'per_night') return nights;
+      if (priceType === 'per_person_per_night') return persons * nights;
+      return 1; // per_stay, per_hour, fixed
+    };
+
     let optionsTotal = 0;
     for (const so of updatedForm.selectedOptions) {
       const opt = propertyOptions.find(o => o.id === so.optionId);
       if (!opt) continue;
-      let qty = 1;
-      const nights = Math.round((new Date(updatedForm.endDate) - new Date(updatedForm.startDate)) / 86400000);
-      const persons = (updatedForm.adults || 1) + (updatedForm.children || 0);
-      if (opt.priceType === 'per_person') qty = persons;
-      else if (opt.priceType === 'per_night') qty = nights;
-      else if (opt.priceType === 'per_person_per_night') qty = persons * nights;
-      else if (opt.priceType === 'per_hour') qty = so.quantity || 1;
-      const optTotal = opt.price * qty;
-      so.quantity = qty;
+      const userQty = Math.max(1, Number(so.quantity) || 1);
+      const optTotal = Number(opt.price) * userQty * typeMultiplier(opt.priceType);
+      so.quantity = userQty;
       so.totalPrice = optTotal;
       optionsTotal += optTotal;
     }
     let resourcesTotal = 0;
     for (const sr of (updatedForm.selectedResources || [])) {
       const resource = availableResources.find(r => r.id === sr.resourceId);
-      const unitPrice = sr.unitPrice !== undefined ? Number(sr.unitPrice) : Number(resource?.price || 0);
+      const unitPrice = resource?.price !== undefined ? Number(resource.price) : Number(sr.unitPrice || 0);
       const qty = Math.max(0, Number(sr.quantity) || 0);
       sr.unitPrice = unitPrice;
-      sr.totalPrice = unitPrice * qty;
+      sr.totalPrice = unitPrice * qty * typeMultiplier(resource?.priceType || 'per_stay');
       resourcesTotal += sr.totalPrice;
     }
     const subtotal = base + optionsTotal + resourcesTotal;
@@ -397,14 +401,20 @@ export default function CalendarPage() {
     setForm(prev => recalcPrice({ ...prev, ...changes }));
   };
 
-  const toggleOption = (optionId) => {
+  const setOptionQuantity = (optionId, quantity) => {
     setForm(prev => {
-      const exists = prev.selectedOptions.find(s => s.optionId === optionId);
+      const parsed = Number(quantity);
+      const normalizedQty = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+      const exists = prev.selectedOptions.find(so => so.optionId === optionId);
       let newOpts;
-      if (exists) {
-        newOpts = prev.selectedOptions.filter(s => s.optionId !== optionId);
+      if (normalizedQty <= 0) {
+        newOpts = prev.selectedOptions.filter(so => so.optionId !== optionId);
+      } else if (exists) {
+        newOpts = prev.selectedOptions.map(so =>
+          so.optionId === optionId ? { ...so, quantity: normalizedQty } : so
+        );
       } else {
-        newOpts = [...prev.selectedOptions, { optionId, quantity: 1, totalPrice: 0 }];
+        newOpts = [...prev.selectedOptions, { optionId, quantity: normalizedQty, totalPrice: 0 }];
       }
       return recalcPrice({ ...prev, selectedOptions: newOpts });
     });
@@ -1372,13 +1382,32 @@ export default function CalendarPage() {
             {propertyOptions.length > 0 && (
               <Box>
                 <Typography variant="subtitle2" gutterBottom>Options</Typography>
-                {propertyOptions.map(opt => (
-                  <FormControlLabel
-                    key={opt.id}
-                    control={<Checkbox checked={form.selectedOptions.some(s => s.optionId === opt.id)} onChange={() => toggleOption(opt.id)} />}
-                    label={`${opt.title} — ${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}`}
-                  />
-                ))}
+                {propertyOptions.map(opt => {
+                  const selected = form.selectedOptions.find(so => so.optionId === opt.id);
+                  const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+                  const persons = (Number(form.adults) || 1) + (Number(form.children) || 0);
+                  let factorHint = '';
+                  if (opt.priceType === 'per_person') factorHint = `×${persons} pers.`;
+                  else if (opt.priceType === 'per_night') factorHint = `×${nights} j.`;
+                  else if (opt.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
+                  return (
+                    <Box key={opt.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Typography sx={{ flex: 1 }}>{`${opt.title} — ${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}`}</Typography>
+                      <Typography variant="caption" sx={{ minWidth: 130, color: 'text.secondary' }}>
+                        {factorHint}
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        label="Qté"
+                        value={selected ? selected.quantity : 0}
+                        onChange={(e) => setOptionQuantity(opt.id, e.target.value)}
+                        inputProps={{ min: 0 }}
+                        sx={{ width: 90 }}
+                      />
+                    </Box>
+                  );
+                })}
               </Box>
             )}
 
@@ -1396,11 +1425,17 @@ export default function CalendarPage() {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                     const unavailable = Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
+                    const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+                    const persons = (Number(form.adults) || 1) + (Number(form.children) || 0);
+                    let factorHint = '';
+                    if (resource.priceType === 'per_person') factorHint = `×${persons} pers.`;
+                    else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;
+                    else if (resource.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
                     return (
                       <Box key={resource.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Typography sx={{ flex: 1 }}>{`${resource.name} — ${resource.price}€`}</Typography>
+                        <Typography sx={{ flex: 1 }}>{`${resource.name} — ${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}`}</Typography>
                         <Typography variant="caption" sx={{ minWidth: 130, color: unavailable || requestedTooMuch ? 'error.main' : 'text.secondary', fontWeight: unavailable || requestedTooMuch ? 700 : 400 }}>
-                          {unavailable ? 'Déjà réservée' : `${resource.available} disponible(s)`}
+                          {unavailable ? 'Déjà réservée' : `${resource.available} dispo${factorHint ? ` • ${factorHint}` : ''}`}
                         </Typography>
                         <TextField
                           size="small"

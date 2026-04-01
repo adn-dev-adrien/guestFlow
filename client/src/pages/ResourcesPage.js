@@ -9,7 +9,14 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
 
-const emptyResource = { name: '', quantity: 0, price: 0, propertyId: '', note: '' };
+const PRICE_TYPES = [
+  { value: 'per_stay', label: 'Prix fixe' },
+  { value: 'per_person', label: 'Par personne' },
+  { value: 'per_night', label: 'Par jour' },
+  { value: 'per_person_per_night', label: 'Par personne / jour' },
+];
+
+const emptyResource = { name: '', quantity: 0, price: 0, priceType: 'per_stay', propertyId: '', note: '' };
 
 export default function ResourcesPage() {
   const [resources, setResources] = useState([]);
@@ -45,6 +52,7 @@ export default function ResourcesPage() {
       name: form.name,
       quantity: Number(form.quantity) || 0,
       price: Number(form.price) || 0,
+      priceType: form.priceType || 'per_stay',
       propertyId: form.propertyId || null,
       note: form.note || '',
     };
@@ -76,8 +84,7 @@ export default function ResourcesPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Quantité</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Prix (€)</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Prix (€)</TableCell>                <TableCell sx={{ fontWeight: 600 }}>Type de prix</TableCell>                <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
               </TableRow>
@@ -88,6 +95,7 @@ export default function ResourcesPage() {
                   <TableCell>{r.name}</TableCell>
                   <TableCell>{r.quantity}</TableCell>
                   <TableCell>{r.price}</TableCell>
+                  <TableCell>{PRICE_TYPES.find(t => t.value === r.priceType)?.label || r.priceType || '—'}</TableCell>
                   <TableCell>{r.propertyId ? (properties.find(p => p.id === r.propertyId)?.name || r.propertyId) : 'Tous les logements'}</TableCell>
                   <TableCell>{r.note || '—'}</TableCell>
                   <TableCell align="right">
@@ -97,7 +105,7 @@ export default function ResourcesPage() {
                 </TableRow>
               ))}
               {resources.length === 0 && (
-                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune ressource</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune ressource</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -111,6 +119,12 @@ export default function ResourcesPage() {
             <TextField label="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth required />
             <TextField label="Quantité" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} fullWidth inputProps={{ min: 0 }} />
             <TextField label="Prix (€)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} fullWidth inputProps={{ min: 0, step: '0.01' }} />
+            <FormControl fullWidth>
+              <InputLabel>Type de prix</InputLabel>
+              <Select value={form.priceType || 'per_stay'} label="Type de prix" onChange={(e) => setForm({ ...form, priceType: e.target.value })}>
+                {PRICE_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+              </Select>
+            </FormControl>
             <FormControl fullWidth>
               <InputLabel>Logement</InputLabel>
               <Select

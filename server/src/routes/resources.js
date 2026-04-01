@@ -112,21 +112,21 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, propertyId, note } = req.body;
+  const { name, quantity, price, priceType, propertyId, note } = req.body;
   const result = db.prepare(`
-    INSERT INTO resources (name, quantity, price, propertyId, note)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(name, Number(quantity) || 0, Number(price) || 0, propertyId || null, note || '');
+    INSERT INTO resources (name, quantity, price, priceType, propertyId, note)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyId || null, note || '');
   res.json({ id: result.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, propertyId, note } = req.body;
+  const { name, quantity, price, priceType, propertyId, note } = req.body;
   db.prepare(`
     UPDATE resources
-    SET name = ?, quantity = ?, price = ?, propertyId = ?, note = ?, updatedAt = datetime('now')
+    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyId = ?, note = ?, updatedAt = datetime('now')
     WHERE id = ?
-  `).run(name, Number(quantity) || 0, Number(price) || 0, propertyId || null, note || '', req.params.id);
+  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyId || null, note || '', req.params.id);
   res.json({ ok: true });
 });
 

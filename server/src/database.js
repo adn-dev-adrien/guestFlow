@@ -203,6 +203,9 @@ const resourceCols = db.prepare("PRAGMA table_info(resources)").all().map(c => c
 if (resourceCols.length > 0 && !resourceCols.includes('updatedAt')) {
   db.exec("ALTER TABLE resources ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
 }
+if (resourceCols.length > 0 && !resourceCols.includes('priceType')) {
+  db.exec("ALTER TABLE resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
+}
 
 // ---------- CALENDAR NOTES ----------
 db.exec(`

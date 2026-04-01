@@ -11,11 +11,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
 
 const PRICE_TYPES = [
-  { value: 'per_stay', label: 'Par séjour' },
+  { value: 'per_stay', label: 'Prix fixe' },
   { value: 'per_person', label: 'Par personne' },
-  { value: 'per_night', label: 'Par nuit' },
-  { value: 'per_person_per_night', label: 'Par personne et par nuit' },
-  { value: 'per_hour', label: 'Par heure' },
+  { value: 'per_night', label: 'Par jour' },
+  { value: 'per_person_per_night', label: 'Par personne / jour' },
 ];
 
 const emptyOption = { title: '', description: '', priceType: 'per_stay', price: 0, propertyIds: [] };
