@@ -26,6 +26,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [arrivalsToday, setArrivalsToday] = useState([]);
+  const [departuresToday, setDeparturesToday] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,59 +41,63 @@ export default function Dashboard() {
     setDetailOpen(true);
   };
 
-  useEffect(() => {
+  const getRemainingDue = (r) => {
+    const paid = (r.depositPaid ? Number(r.depositAmount || 0) : 0)
+      + (r.balancePaid ? Number(r.balanceAmount || 0) : 0);
+    return Math.max(0, Math.round((Number(r.finalPrice || 0) - paid) * 100) / 100);
+  };
+
+  const loadDashboardData = async () => {
     const today = new Date();
-    const from = today.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+    const from = todayStr;
     const toDate = new Date(today);
     toDate.setDate(toDate.getDate() + 30);
     const to = toDate.toISOString().split('T')[0];
 
-    Promise.all([
+    const [props, resv, pending, fin, allUpcoming] = await Promise.all([
       api.getProperties(),
       api.getReservations({ from, to }),
       api.getPendingPayments(),
       api.getFinanceSummary(from, to),
       api.getReservations({ from }),
-    ]).then(([props, resv, pending, fin, allUpcoming]) => {
-      setProperties(props);
-      setReservations(resv);
-      setPendingPayments(pending);
-      setSummary(fin);
+    ]);
 
-      const grouped = {};
-      for (const prop of props) {
-        grouped[prop.id] = allUpcoming
-          .filter(r => r.propertyId === prop.id)
-          .sort((a, b) => a.startDate.localeCompare(b.startDate))
-          .slice(0, 5);
-      }
-      setUpcomingByProperty(grouped);
-      setLoading(false);
-    });
+    setProperties(props);
+    setReservations(resv);
+    setPendingPayments(pending);
+    setSummary(fin);
+
+    const grouped = {};
+    for (const prop of props) {
+      grouped[prop.id] = allUpcoming
+        .filter(r => r.propertyId === prop.id)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate))
+        .slice(0, 5);
+    }
+    setUpcomingByProperty(grouped);
+
+    const arrivalsBase = allUpcoming
+      .filter((r) => r.startDate === todayStr)
+      .sort((a, b) => (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59'));
+    const departuresBase = allUpcoming
+      .filter((r) => r.endDate === todayStr)
+      .sort((a, b) => (a.checkOutTime || '23:59').localeCompare(b.checkOutTime || '23:59'));
+
+    const arrivalsDetailed = await Promise.all(arrivalsBase.map((r) => api.getReservation(r.id)));
+    setArrivalsToday(arrivalsDetailed);
+    setDeparturesToday(departuresBase);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadDashboardData();
   }, []);
 
   const handleTogglePayment = async (r, field) => {
     const value = !r[field];
     await api.markPayment(r.id, { [field]: value });
-    // Refresh
-    const today = new Date();
-    const from = today.toISOString().split('T')[0];
-    const toDate = new Date(today); toDate.setDate(toDate.getDate() + 30);
-    const [pending, fin, allUpcoming] = await Promise.all([
-      api.getPendingPayments(),
-      api.getFinanceSummary(from, toDate.toISOString().split('T')[0]),
-      api.getReservations({ from }),
-    ]);
-    setPendingPayments(pending);
-    setSummary(fin);
-    const grouped = {};
-    for (const prop of properties) {
-      grouped[prop.id] = allUpcoming
-        .filter(u => u.propertyId === prop.id)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate))
-        .slice(0, 5);
-    }
-    setUpcomingByProperty(grouped);
+    await loadDashboardData();
   };
 
   // Build timeline days (30 days)
@@ -141,6 +147,109 @@ export default function Dashboard() {
                 <Typography variant="subtitle2" color="text.secondary">Reste à encaisser (30j)</Typography>
                 <Typography variant="h4">{summary ? summary.totalPending.toLocaleString('fr-FR') : 0} €</Typography>
               </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Daily arrivals / departures */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={7}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Arrivees du jour</Typography>
+              {arrivalsToday.length === 0 ? (
+                <Typography color="text.secondary">Aucune arrivee aujourd'hui</Typography>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Heure</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Lits a preparer</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Caution</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {arrivalsToday.map((r) => {
+                        const remaining = getRemainingDue(r);
+                        const paymentOk = remaining <= 0;
+                        const cautionOk = Number(r.cautionAmount || 0) <= 0 || !!r.cautionReceived;
+                        const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
+                        const resourcesText = [
+                          ...(Number(r.babyBeds || 0) > 0 ? [`Lit bebe x${r.babyBeds}`] : []),
+                          ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
+                        ].join(', ');
+                        return (
+                          <TableRow key={r.id} hover>
+                            <TableCell>{r.checkInTime || '15:00'}</TableCell>
+                            <TableCell>{r.propertyName}</TableCell>
+                            <TableCell>{r.firstName} {r.lastName}</TableCell>
+                            <TableCell>
+                              {`D:${Number(r.doubleBeds || 0)} / S:${Number(r.singleBeds || 0)} / B:${Number(r.babyBeds || 0)}`}
+                            </TableCell>
+                            <TableCell>{[optionsText, resourcesText].filter(Boolean).join(' | ') || '—'}</TableCell>
+                            <TableCell>{r.notes || '—'}</TableCell>
+                            <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+                              {paymentOk
+                                ? 'OK'
+                                : `Manquant ${remaining}€ • Acompte ${r.depositPaid ? 'OK' : 'NON'} • Solde ${r.balancePaid ? 'OK' : 'NON'}`}
+                            </TableCell>
+                            <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+                              {Number(r.cautionAmount || 0) > 0
+                                ? (cautionOk ? `OK (${r.cautionAmount}€)` : `NON (${r.cautionAmount}€)`)
+                                : '—'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={5}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Departs du jour</Typography>
+              {departuresToday.length === 0 ? (
+                <Typography color="text.secondary">Aucun depart aujourd'hui</Typography>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Heure</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {departuresToday.map((r) => {
+                        const remaining = getRemainingDue(r);
+                        const paymentOk = remaining <= 0;
+                        return (
+                          <TableRow key={r.id} hover>
+                            <TableCell>{r.checkOutTime || '10:00'}</TableCell>
+                            <TableCell>{r.propertyName}</TableCell>
+                            <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+                              {paymentOk ? 'OK' : `En attente: ${remaining}€`}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </CardContent>
           </Card>
         </Grid>
