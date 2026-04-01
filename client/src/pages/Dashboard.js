@@ -416,8 +416,8 @@ export default function Dashboard() {
               <DialogActions>
                 <Button onClick={() => {
                   const d = new Date(detailRes.startDate);
-                  navigate(`/calendar?propertyId=${detailRes.propertyId}&year=${d.getFullYear()}&month=${d.getMonth()}`);
-                }}>Voir dans le calendrier</Button>
+                  navigate(`/calendar?propertyId=${detailRes.propertyId}&year=${d.getFullYear()}&month=${d.getMonth()}&reservationId=${detailRes.id}`);
+                }}>Éditer la réservation</Button>
                 <Button onClick={() => setDetailOpen(false)}>Fermer</Button>
               </DialogActions>
             </>

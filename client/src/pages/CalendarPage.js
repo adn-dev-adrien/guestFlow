@@ -144,13 +144,26 @@ export default function CalendarPage() {
     const propId = searchParams.get('propertyId');
     const y = searchParams.get('year');
     const m = searchParams.get('month');
+    const resId = searchParams.get('reservationId');
     if (propId) setSelectedProp(Number(propId));
     if (y && m !== null) {
       setMonths(getMonthsRange(Number(y), Number(m)));
       initialScrollDone.current = false;
       lastLoadedRange.current = { from: '', to: '' };
     }
+    // If reservationId param is present, open the edit dialog after property is loaded
+    if (resId) {
+      window.pendingReservationId = resId;
+    }
   }, [searchParams]);
+
+  // Handle opening reservation edit dialog when coming from dashboard
+  useEffect(() => {
+    if (!selectedProp || !window.pendingReservationId) return;
+    const resId = window.pendingReservationId;
+    delete window.pendingReservationId;
+    handleReservationClick(resId);
+  }, [selectedProp]);
 
   // Maintain scroll position when prepending months
   useLayoutEffect(() => {
