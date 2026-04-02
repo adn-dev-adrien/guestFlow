@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
   MenuItem, Typography, CircularProgress, Chip, FormControlLabel, Checkbox,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -882,6 +882,7 @@ export default function ReservationPage() {
       && otherReservations.some((r) => r.startDate < form.endDate && r.endDate > form.startDate)
   );
   const datesUnavailableMessage = 'Ces dates ne sont pas dispo pour ce logement.';
+  const liveTimeConflictMessage = getTimeConflictMessage(form);
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
 
@@ -1119,7 +1120,7 @@ export default function ReservationPage() {
 
           <Grid container spacing={2}>
             <Grid item xs={6}>
-              <FormControl fullWidth>
+              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
                 <InputLabel>Heure d'arrivée</InputLabel>
                 <Select value={form.checkInTime} label="Heure d'arrivée" onChange={(e) => updateForm({ checkInTime: e.target.value })}>
                   {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
@@ -1127,7 +1128,7 @@ export default function ReservationPage() {
               </FormControl>
             </Grid>
             <Grid item xs={6}>
-              <FormControl fullWidth>
+              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
                 <InputLabel>Heure de départ</InputLabel>
                 <Select value={form.checkOutTime} label="Heure de départ" onChange={(e) => updateForm({ checkOutTime: e.target.value })}>
                   {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
@@ -1135,6 +1136,12 @@ export default function ReservationPage() {
               </FormControl>
             </Grid>
           </Grid>
+
+          {liveTimeConflictMessage && (
+            <FormHelperText error sx={{ mt: -1 }}>
+              {liveTimeConflictMessage}
+            </FormHelperText>
+          )}
 
           <Divider />
 
@@ -1184,6 +1191,7 @@ export default function ReservationPage() {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                     const unavailable = Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
+                    const resourceConflict = Boolean(selected) && (unavailable || requestedTooMuch);
                     const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
                     const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
                     let factorHint = '';
@@ -1191,7 +1199,21 @@ export default function ReservationPage() {
                     else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;
                     else if (resource.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
                     return (
-                      <Box key={resource.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Box
+                        key={resource.id}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          mb: 1,
+                          px: 1,
+                          py: 0.75,
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: resourceConflict ? 'error.main' : 'transparent',
+                          bgcolor: resourceConflict ? 'error.lighter' : 'transparent',
+                        }}
+                      >
                         <Typography sx={{ flex: 1 }}>{`${resource.name} — ${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}`}</Typography>
                         <Typography variant="caption" sx={{ minWidth: 130, color: unavailable || requestedTooMuch ? 'error.main' : 'text.secondary', fontWeight: unavailable || requestedTooMuch ? 700 : 400 }}>
                           {unavailable ? 'Déjà réservée' : `${resource.available} dispo${factorHint ? ` • ${factorHint}` : ''}`}
@@ -1203,7 +1225,8 @@ export default function ReservationPage() {
                           value={selected ? selected.quantity : 0}
                           onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
                           inputProps={{ min: 0, max: resource.available || 0 }}
-                          error={requestedTooMuch}
+                          error={resourceConflict}
+                          helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
                           sx={{ width: 90 }}
                         />
                       </Box>
