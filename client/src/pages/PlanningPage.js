@@ -73,6 +73,10 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
 function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   const r = reservation;
   const done = !!r.checkInReady;
+  const adults = Number(r.adults || 0);
+  const children = Number(r.children || 0);
+  const teens = Number(r.teens || 0);
+  const babies = Number(r.babies || 0);
 
   let alertBgColor = 'background.paper';
   if (alertInfo?.type === 'orange') {
@@ -148,7 +152,22 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
               </Box>
             </Box>
 
-            <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                Famille:
+              </Typography>
+              <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                Lits:
+              </Typography>
+              <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
+            </Box>
 
             {optionsText.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
