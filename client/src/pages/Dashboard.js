@@ -106,7 +106,8 @@ export default function Dashboard() {
 
     const arrivalsDetailed = await Promise.all(arrivalsBase.map((r) => api.getReservation(r.id)));
     setArrivalsToday(arrivalsDetailed);
-    setDeparturesToday(departuresBase);
+    const departuresDetailed = await Promise.all(departuresBase.map((r) => api.getReservation(r.id)));
+    setDeparturesToday(departuresDetailed);
     setLoading(false);
   };
 
@@ -281,12 +282,15 @@ export default function Dashboard() {
                 <Typography color="text.secondary">Aucun départ ce jour</Typography>
               ) : (
                 <TableContainer>
-                  <Table size="small" sx={{ minWidth: 560 }}>
+                  <Table size="small" sx={{ minWidth: 860 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Parti</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Heure</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
                       </TableRow>
                     </TableHead>
@@ -294,6 +298,11 @@ export default function Dashboard() {
                       {departuresToday.map((r) => {
                         const remaining = getRemainingDue(r);
                         const paymentOk = remaining <= 0;
+                        const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
+                        const resourcesText = [
+                          ...(Number(r.babyBeds || 0) > 0 ? [`Lit bebe x${r.babyBeds}`] : []),
+                          ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
+                        ].join(', ');
                         return (
                           <TableRow key={r.id} hover sx={getStatusRowSx(r.checkOutDone)}>
                             <TableCell padding="checkbox">
@@ -307,6 +316,9 @@ export default function Dashboard() {
                             </TableCell>
                             <TableCell>{r.checkOutTime || '10:00'}</TableCell>
                             <TableCell>{r.propertyName}</TableCell>
+                            <TableCell>{r.firstName} {r.lastName}</TableCell>
+                            <TableCell>{[optionsText, resourcesText].filter(Boolean).join(' | ') || '—'}</TableCell>
+                            <TableCell>{r.notes || '—'}</TableCell>
                             <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
                               {paymentOk ? 'OK' : `En attente: ${remaining}€`}
                             </TableCell>
