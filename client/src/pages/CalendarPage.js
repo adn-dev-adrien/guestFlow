@@ -32,6 +32,14 @@ function formatDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+function shiftDate(dateStr, daysDelta) {
+  if (!dateStr) return '';
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + daysDelta);
+  return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 // Time window for proportional fill: 8h to 21h (13h range)
 const DAY_START = 8;
 const DAY_END = 21;
@@ -101,7 +109,7 @@ export default function CalendarPage() {
   const prevScrollHeight = useRef(0);
   const shouldAdjustScroll = useRef(false);
   const initialScrollDone = useRef(false);
-  const originalReservationRef = useRef(null);
+  const pricingRequestRef = useRef(0);
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [calendarNotes, setCalendarNotes] = useState({});
@@ -253,6 +261,42 @@ export default function CalendarPage() {
     loadBabyBedAvailability(form.startDate, form.endDate, editingReservationId || null);
   }, [dialogOpen, form.startDate, form.endDate, selectedProp, editingReservationId]);
 
+  useEffect(() => {
+    if (!dialogOpen || !selectedProp || !form.startDate || !form.endDate) return;
+
+    const start = new Date(`${form.startDate}T00:00:00`);
+    const end = new Date(`${form.endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
+
+    const requestId = ++pricingRequestRef.current;
+
+    const refreshBasePrice = async () => {
+      try {
+        const calc = await api.calculatePrice({
+          propertyId: selectedProp,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          adults: form.adults,
+          children: form.children,
+        });
+
+        if (pricingRequestRef.current !== requestId) return;
+
+        setForm(prev => {
+          if (prev.startDate !== form.startDate || prev.endDate !== form.endDate) return prev;
+          return recalcPrice({
+            ...prev,
+            totalPrice: Number(calc.totalPrice || 0),
+          });
+        });
+      } catch (err) {
+        // Keep the current form state if the quote refresh fails.
+      }
+    };
+
+    refreshBasePrice();
+  }, [dialogOpen, selectedProp, form.startDate, form.endDate, form.adults, form.children]);
+
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
 
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -350,7 +394,6 @@ export default function CalendarPage() {
     });
     await loadResourcesAvailability(startDate, endDate);
     await loadBabyBedAvailability(startDate, endDate);
-    originalReservationRef.current = null;
     setEditingReservationId(null);
     setDialogOpen(true);
   };
@@ -367,6 +410,9 @@ export default function CalendarPage() {
     const base = updatedForm.totalPrice;
     const nights = Math.max(1, Math.round((new Date(updatedForm.endDate) - new Date(updatedForm.startDate)) / 86400000));
     const persons = (Number(updatedForm.adults) || 1) + (Number(updatedForm.children) || 0);
+    const depositPercent = Number(selectedProperty?.depositPercent ?? 30);
+    const depositDaysBefore = Number(selectedProperty?.depositDaysBefore ?? 30);
+    const balanceDaysBefore = Number(selectedProperty?.balanceDaysBefore ?? 7);
 
     const typeMultiplier = (priceType) => {
       if (priceType === 'per_person') return persons;
@@ -402,7 +448,29 @@ export default function CalendarPage() {
       final = subtotal * (1 - (updatedForm.discountPercent || 0) / 100);
     }
     final = Math.round(final * 100) / 100;
-    return { ...updatedForm, finalPrice: final };
+
+    const autoDepositAmount = Math.round(final * (depositPercent / 100) * 100) / 100;
+    const autoBalanceAmount = Math.round((final - autoDepositAmount) * 100) / 100;
+
+    let depositAmount = autoDepositAmount;
+    let balanceAmount = autoBalanceAmount;
+
+    if (updatedForm.depositPaid && updatedForm.balancePaid) {
+      depositAmount = Number(updatedForm.depositAmount || 0);
+      balanceAmount = Number(updatedForm.balanceAmount || 0);
+    } else if (updatedForm.depositPaid) {
+      depositAmount = Number(updatedForm.depositAmount || 0);
+      balanceAmount = Math.max(0, Math.round((final - depositAmount) * 100) / 100);
+    }
+
+    return {
+      ...updatedForm,
+      finalPrice: final,
+      depositAmount,
+      depositDueDate: shiftDate(updatedForm.startDate, -depositDaysBefore),
+      balanceAmount,
+      balanceDueDate: shiftDate(updatedForm.startDate, -balanceDaysBefore),
+    };
   };
 
   const updateForm = (changes) => {
@@ -539,14 +607,6 @@ export default function CalendarPage() {
 
     try {
       if (editingReservationId) {
-        let adjustedBalanceAmount = Number(form.balanceAmount || 0);
-        const original = originalReservationRef.current;
-        if (original && form.depositPaid && !form.balancePaid) {
-          const delta = Number(form.finalPrice || 0) - Number(original.finalPrice || 0);
-          if (delta !== 0) {
-            adjustedBalanceAmount = Math.max(0, adjustedBalanceAmount + delta);
-          }
-        }
         await api.updateReservation(editingReservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -567,7 +627,7 @@ export default function CalendarPage() {
           depositAmount: form.depositAmount,
           depositDueDate: form.depositDueDate,
           depositPaid: form.depositPaid,
-          balanceAmount: adjustedBalanceAmount,
+          balanceAmount: form.balanceAmount,
           balanceDueDate: form.balanceDueDate,
           balancePaid: form.balancePaid,
           cautionAmount: form.cautionAmount,
@@ -627,7 +687,6 @@ export default function CalendarPage() {
       }
       setDialogOpen(false);
       setEditingReservationId(null);
-      originalReservationRef.current = null;
       setDragStartDate(null);
       setDragEndDate(null);
       lastLoadedRange.current = { from: '', to: '' };
@@ -689,12 +748,6 @@ export default function CalendarPage() {
       cautionReturned: !!res.cautionReturned,
       cautionReturnedDate: res.cautionReturnedDate || '',
     });
-    originalReservationRef.current = {
-      finalPrice: Number(res.finalPrice || 0),
-      balanceAmount: Number(res.balanceAmount || 0),
-      depositPaid: !!res.depositPaid,
-      balancePaid: !!res.balancePaid,
-    };
     await loadResourcesAvailability(res.startDate, res.endDate, resId);
     await loadBabyBedAvailability(res.startDate, res.endDate, resId);
     setEditingReservationId(resId);
@@ -1283,13 +1336,13 @@ export default function CalendarPage() {
                 <TextField label="Date d'arrivée" type="date" value={form.startDate || ''}
                   InputLabelProps={{ shrink: true }}
                   inputProps={{ min: arrivalMin, max: arrivalMax }}
-                  onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))} fullWidth />
+                  onChange={(e) => updateForm({ startDate: e.target.value })} fullWidth />
               </Grid>
               <Grid item xs={6}>
                 <TextField label="Date de départ" type="date" value={form.endDate || ''}
                   InputLabelProps={{ shrink: true }}
                   inputProps={{ min: departureMin, max: departureMax || undefined }}
-                  onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))} fullWidth />
+                  onChange={(e) => updateForm({ endDate: e.target.value })} fullWidth />
               </Grid>
             </Grid>
 
