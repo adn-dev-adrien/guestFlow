@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
+import ClientFormFields from '../components/ClientFormFields';
 import FormRow from '../components/FormRow';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORMS, getPlatformColor, PLATFORM_COLORS } from '../constants/platforms';
@@ -64,6 +65,20 @@ const CLEANING_COLOR = '#e53935';
 
 const ZONE_COLORS = { A: '#1976d2', B: '#388e3c', C: '#f57c00' };
 
+const EMPTY_CLIENT = {
+  lastName: '',
+  firstName: '',
+  streetNumber: '',
+  street: '',
+  postalCode: '',
+  city: '',
+  address: '',
+  phone: '',
+  phoneNumbers: [''],
+  email: '',
+  notes: ''
+};
+
 export default function CalendarPage() {
   const { confirm, alert } = useAppDialogs();
   const [searchParams] = useSearchParams();
@@ -93,7 +108,8 @@ export default function CalendarPage() {
   const [clients, setClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [createClientOpen, setCreateClientOpen] = useState(false);
-  const [newClient, setNewClient] = useState({ lastName: '', firstName: '', email: '', phone: '', address: '', notes: '' });
+  const [newClient, setNewClient] = useState(EMPTY_CLIENT);
+  const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [availableResources, setAvailableResources] = useState([]);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
@@ -118,7 +134,8 @@ export default function CalendarPage() {
   const [noteDialogDate, setNoteDialogDate] = useState('');
   const [noteDialogText, setNoteDialogText] = useState('');
   const newClientEmailError = !isValidEmail(newClient.email);
-  const newClientPhoneError = !isValidPhone(newClient.phone);
+  const newClientPhoneErrors = (newClient.phoneNumbers || []).map((phone) => !isValidPhone(phone));
+  const newClientPhoneError = newClientPhoneErrors.some(Boolean);
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
@@ -230,13 +247,13 @@ export default function CalendarPage() {
     setClients(data);
   };
 
-  const loadResourcesAvailability = async (startDate, endDate, excludeReservationId = null) => {
-    if (!selectedProp || !startDate || !endDate) {
+  const loadResourcesAvailability = async (startDate, endDate, excludeReservationId = null, propertyId = selectedProp) => {
+    if (!propertyId || !startDate || !endDate) {
       setAvailableResources([]);
       return;
     }
     const resources = await api.getResourcesAvailability({
-      propertyId: selectedProp,
+      propertyId,
       startDate,
       endDate,
       ...(excludeReservationId ? { excludeReservationId } : {}),
@@ -244,13 +261,13 @@ export default function CalendarPage() {
     setAvailableResources(resources);
   };
 
-  const loadBabyBedAvailability = async (startDate, endDate, excludeReservationId = null) => {
-    if (!selectedProp || !startDate || !endDate) {
+  const loadBabyBedAvailability = async (startDate, endDate, excludeReservationId = null, propertyId = selectedProp) => {
+    if (!propertyId || !startDate || !endDate) {
       setBabyBedAvailability({ totalQuantity: 0, reserved: 0, available: null });
       return;
     }
     const data = await api.getBabyBedAvailability({
-      propertyId: selectedProp,
+      propertyId,
       startDate,
       endDate,
       ...(excludeReservationId ? { excludeReservationId } : {}),
@@ -302,6 +319,39 @@ export default function CalendarPage() {
   }, [dialogOpen, selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens]);
 
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
+
+  useEffect(() => {
+    const cp = (newClient.postalCode || '').trim();
+    if (!createClientOpen || cp.length < 2) {
+      setNewClientCityOptions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const cityQuery = (newClient.city || '').trim();
+        const params = new URLSearchParams({
+          codePostal: cp,
+          fields: 'nom,code,codesPostaux',
+          limit: '20',
+        });
+        if (cityQuery) params.set('nom', cityQuery);
+        const res = await fetch(`https://geo.api.gouv.fr/communes?${params.toString()}`, { signal: controller.signal });
+        if (!res.ok) return;
+        const data = await res.json();
+        const options = Array.from(new Set((data || []).map((city) => city.nom).filter(Boolean)));
+        setNewClientCityOptions(options);
+      } catch (err) {
+        if (err.name !== 'AbortError') setNewClientCityOptions([]);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [createClientOpen, newClient.postalCode, newClient.city]);
 
   const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -535,24 +585,118 @@ export default function CalendarPage() {
     });
   };
 
+  const closeCreateClient = () => {
+    setCreateClientOpen(false);
+    setNewClient(EMPTY_CLIENT);
+    setNewClientCityOptions([]);
+  };
+
+  const closeReservationEditor = () => {
+    setDialogOpen(false);
+    setEditingReservationId(null);
+    closeCreateClient();
+  };
+
+  const getTimeConflictMessage = (reservationForm) => {
+    if (!reservationForm.startDate || !reservationForm.endDate) return '';
+
+    const cleaning = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
+    const newCheckInHour = timeToHour(reservationForm.checkInTime || '15:00');
+    const newCheckOutHour = timeToHour(reservationForm.checkOutTime || '10:00');
+    const otherReservations = editingReservationId
+      ? reservations.filter(r => r.id !== editingReservationId)
+      : reservations;
+
+    const prevRes = otherReservations.find(r => r.endDate === reservationForm.startDate);
+    if (prevRes) {
+      const prevCheckOutHour = timeToHour(prevRes.checkOutTime || '10:00');
+      const availableFrom = prevCheckOutHour + cleaning;
+      if (newCheckInHour < availableFrom) {
+        const availH = String(Math.floor(availableFrom)).padStart(2, '0');
+        const availM = availableFrom % 1 >= 0.5 ? '30' : '00';
+        return `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.`;
+      }
+    }
+
+    const nextRes = otherReservations.find(r => r.startDate === reservationForm.endDate);
+    if (nextRes) {
+      const nextCheckInHour = timeToHour(nextRes.checkInTime || '15:00');
+      if (newCheckOutHour + cleaning > nextCheckInHour) {
+        const maxCheckOutHour = nextCheckInHour - cleaning;
+        const maxH = String(Math.floor(maxCheckOutHour)).padStart(2, '0');
+        const maxM = maxCheckOutHour % 1 >= 0.5 ? '30' : '00';
+        return `Impossible : le départ à ${reservationForm.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.`;
+      }
+    }
+
+    return '';
+  };
+
+  const handleReservationPropertyChange = async (propertyId) => {
+    const nextPropertyId = Number(propertyId);
+    if (!nextPropertyId) return;
+
+    const [prop, opts, calc] = await Promise.all([
+      api.getProperty(nextPropertyId),
+      api.getOptions(),
+      api.calculatePrice({
+        propertyId: nextPropertyId,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        adults: form.adults,
+        children: form.children,
+        teens: form.teens,
+      }),
+    ]);
+
+    const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(nextPropertyId));
+
+    setSelectedProp(nextPropertyId);
+    setSelectedProperty(prop);
+    setPropertyOptions(availableOpts);
+    setForm(prev => recalcPrice({
+      ...prev,
+      selectedOptions: [],
+      selectedResources: [],
+      singleBeds: '',
+      doubleBeds: '',
+      babyBeds: '',
+      totalPrice: Number(calc.totalPrice || 0),
+      cautionAmount: prop.defaultCautionAmount ?? 500,
+      checkInTime: prev.checkInTime || calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
+      checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop.defaultCheckOut || '10:00',
+    }));
+
+    await Promise.all([
+      loadResourcesAvailability(form.startDate, form.endDate, editingReservationId || null, nextPropertyId),
+      loadBabyBedAvailability(form.startDate, form.endDate, editingReservationId || null, nextPropertyId),
+    ]);
+  };
+
   const handleCreateClient = async () => {
     if (newClientEmailError || newClientPhoneError) {
       await alert({ title: 'Client invalide', message: 'Veuillez corriger le format du mail ou du téléphone.' });
       return;
     }
 
-    const c = await api.createClient(newClient);
+    const normalizedPhones = (newClient.phoneNumbers || [])
+      .map((phone) => String(phone || '').trim())
+      .filter((phone) => phone !== '');
+    const payload = {
+      ...newClient,
+      address: [newClient.streetNumber, newClient.street].filter(Boolean).join(' ').trim(),
+      phoneNumbers: normalizedPhones,
+      phone: normalizedPhones[0] || '',
+    };
+
+    const c = await api.createClient(payload);
     setForm(prev => ({ ...prev, clientId: c.id }));
-    setClients(prev => [...prev, c]);
-    setCreateClientOpen(false);
-    setNewClient({ lastName: '', firstName: '', email: '', phone: '', address: '', notes: '' });
+    setClients(prev => prev.some(client => client.id === c.id) ? prev : [...prev, c]);
+    closeCreateClient();
   };
 
   const handleSaveReservation = async () => {
     // --- Common validation for create and update ---
-    const cleaning = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
-    const newCheckInHour = timeToHour(form.checkInTime || '15:00');
-    const newCheckOutHour = timeToHour(form.checkOutTime || '10:00');
     const excludeId = editingReservationId;
 
     // Filter out the reservation being edited for overlap checks
@@ -574,30 +718,10 @@ export default function CalendarPage() {
       return;
     }
 
-    // Check turnover at start: other reservation ending on our start date
-    const prevRes = otherReservations.find(r => r.endDate === form.startDate);
-    if (prevRes) {
-      const prevCheckOutHour = timeToHour(prevRes.checkOutTime || '10:00');
-      const availableFrom = prevCheckOutHour + cleaning;
-      if (newCheckInHour < availableFrom) {
-        const availH = String(Math.floor(availableFrom)).padStart(2, '0');
-        const availM = availableFrom % 1 >= 0.5 ? '30' : '00';
-        await alert({ title: 'Conflit de réservation', message: `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.` });
-        return;
-      }
-    }
-
-    // Check turnover at end: other reservation starting on our end date
-    const nextRes = otherReservations.find(r => r.startDate === form.endDate);
-    if (nextRes) {
-      const nextCheckInHour = timeToHour(nextRes.checkInTime || '15:00');
-      if (newCheckOutHour + cleaning > nextCheckInHour) {
-        const maxCheckOutHour = nextCheckInHour - cleaning;
-        const maxH = String(Math.floor(maxCheckOutHour)).padStart(2, '0');
-        const maxM = maxCheckOutHour % 1 >= 0.5 ? '30' : '00';
-        await alert({ title: 'Conflit de réservation', message: `Impossible : le départ à ${form.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.` });
-        return;
-      }
+    const timeConflictMessage = getTimeConflictMessage(form);
+    if (timeConflictMessage) {
+      await alert({ title: 'Conflit de réservation', message: timeConflictMessage });
+      return;
     }
     // --- End common validation ---
 
@@ -710,8 +834,7 @@ export default function CalendarPage() {
           }))
         });
       }
-      setDialogOpen(false);
-      setEditingReservationId(null);
+      closeReservationEditor();
       setDragStartDate(null);
       setDragEndDate(null);
       lastLoadedRange.current = { from: '', to: '' };
@@ -777,6 +900,7 @@ export default function CalendarPage() {
     await loadResourcesAvailability(res.startDate, res.endDate, resId);
     await loadBabyBedAvailability(res.startDate, res.endDate, resId);
     setEditingReservationId(resId);
+    setCreateClientOpen(false);
     setDialogOpen(true);
   };
 
@@ -790,8 +914,7 @@ export default function CalendarPage() {
     });
     if (!ok) return;
     await api.deleteReservation(editingReservationId);
-    setDialogOpen(false);
-    setEditingReservationId(null);
+    closeReservationEditor();
     lastLoadedRange.current = { from: '', to: '' };
     loadCalendarData();
   };

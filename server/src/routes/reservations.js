@@ -2,9 +2,9 @@ const router = require('express').Router();
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 
-// List reservations (optionally filter by propertyId, date range)
+// List reservations (optionally filter by propertyId, clientId, date range)
 router.get('/', (req, res) => {
-  const { propertyId, from, to } = req.query;
+  const { propertyId, clientId, from, to } = req.query;
   let sql = `
     SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
     FROM reservations r
@@ -14,6 +14,7 @@ router.get('/', (req, res) => {
   `;
   const params = [];
   if (propertyId) { sql += ' AND r.propertyId = ?'; params.push(propertyId); }
+  if (clientId) { sql += ' AND r.clientId = ?'; params.push(clientId); }
   if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
   if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
   sql += ' ORDER BY r.startDate';

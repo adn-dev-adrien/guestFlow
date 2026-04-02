@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, TextField, TableRow,
-  TableCell, IconButton, InputAdornment, Chip
+  TableCell, IconButton, InputAdornment, Chip, Typography, Divider, CircularProgress
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HomeIcon from '@mui/icons-material/Home';
 import DataPageScaffold from '../components/DataPageScaffold';
 import FormDialog from '../components/FormDialog';
 import ClientFormFields from '../components/ClientFormFields';
@@ -29,8 +31,35 @@ const emptyClient = {
   notes: ''
 };
 
+function getTodayDateKey() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function sortReservationsByCurrentDate(reservations) {
+  const today = getTodayDateKey();
+
+  return [...(reservations || [])].sort((a, b) => {
+    const aIsPast = a.endDate < today;
+    const bIsPast = b.endDate < today;
+
+    if (aIsPast !== bIsPast) {
+      return aIsPast ? 1 : -1;
+    }
+
+    if (!aIsPast) {
+      const aDistance = Math.abs(new Date(a.startDate) - new Date(today));
+      const bDistance = Math.abs(new Date(b.startDate) - new Date(today));
+      if (aDistance !== bDistance) return aDistance - bDistance;
+      return a.startDate.localeCompare(b.startDate);
+    }
+
+    return b.endDate.localeCompare(a.endDate);
+  });
+}
+
 export default function ClientsPage() {
   const { confirm } = useAppDialogs();
+  const navigate = useNavigate();
   const {
     items: clients,
     reload,
@@ -48,6 +77,8 @@ export default function ClientsPage() {
   const [form, setForm] = useState(emptyClient);
   const [editId, setEditId] = useState(null);
   const [cityOptions, setCityOptions] = useState([]);
+  const [clientReservations, setClientReservations] = useState([]);
+  const [clientReservationsLoading, setClientReservationsLoading] = useState(false);
   const emailError = !isValidEmail(form.email);
   const phoneErrors = (form.phoneNumbers || []).map((phone) => !isValidPhone(phone));
   const hasPhoneError = phoneErrors.some(Boolean);
@@ -61,9 +92,16 @@ export default function ClientsPage() {
         : (client.phone ? [client.phone] : ['']);
       setForm({ ...emptyClient, ...client, phoneNumbers: phones });
       setEditId(client.id);
+      setClientReservations([]);
+      setClientReservationsLoading(true);
+      api.getReservations({ clientId: client.id })
+        .then(data => setClientReservations(sortReservationsByCurrentDate(data || [])))
+        .catch(() => setClientReservations([]))
+        .finally(() => setClientReservationsLoading(false));
     } else {
       setForm({ ...emptyClient });
       setEditId(null);
+      setClientReservations([]);
     }
     setOpen(true);
   };
@@ -129,6 +167,14 @@ export default function ClientsPage() {
     await removeItem(id, search);
   };
 
+  const handleOpenReservation = (reservation) => {
+    const d = new Date(reservation.startDate);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    setOpen(false);
+    navigate(`/calendar?propertyId=${reservation.propertyId}&year=${year}&month=${month}&reservationId=${reservation.id}`);
+  };
+
   return (
     <Box>
       <DataPageScaffold
@@ -189,6 +235,7 @@ export default function ClientsPage() {
         onSubmit={handleSave}
         submitDisabled={!form.lastName || !form.firstName || emailError || hasPhoneError}
         submitLabel="Enregistrer"
+        maxWidth="md"
       >
         <ClientFormFields
           form={form}
@@ -197,6 +244,85 @@ export default function ClientsPage() {
           emailError={emailError}
           phoneErrors={phoneErrors}
         />
+
+        {editId && (
+          <>
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+              Réservations
+            </Typography>
+            {clientReservationsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : clientReservations.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Aucune réservation</Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {clientReservations.map((res, index) => {
+                  const today = getTodayDateKey();
+                  const isPast = res.endDate < today;
+                  const previousReservation = index > 0 ? clientReservations[index - 1] : null;
+                  const startsPastSection = isPast && previousReservation && previousReservation.endDate >= today;
+                  const nights = Math.round((new Date(res.endDate) - new Date(res.startDate)) / 86400000);
+                  const totalGuests = (res.adults || 0) + (res.children || 0) + (res.teens || 0) + (res.babies || 0);
+                  const start = new Date(res.startDate);
+                  const end = new Date(res.endDate);
+                  const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+                  return (
+                    <Box
+                      key={res.id}
+                      onClick={() => handleOpenReservation(res)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        p: 1.5,
+                        mt: startsPastSection ? 1.5 : 0,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        cursor: 'pointer',
+                        opacity: isPast ? 0.45 : 1,
+                        position: 'relative',
+                        transition: 'background-color 0.15s',
+                        '&::before': startsPastSection ? {
+                          content: '"Réservations passées"',
+                          position: 'absolute',
+                          top: -20,
+                          left: 0,
+                          fontSize: '0.75rem',
+                          color: 'text.secondary',
+                          fontWeight: 500,
+                        } : undefined,
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {res.propertyName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {fmt(start)} → {fmt(end)} · {nights} nuit{nights > 1 ? 's' : ''}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                        <Chip label={res.platform} size="small" variant="outlined" />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {res.finalPrice ? `${res.finalPrice} €` : '—'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <HomeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary">{totalGuests} pers.</Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </>
+        )}
       </FormDialog>
     </Box>
   );
