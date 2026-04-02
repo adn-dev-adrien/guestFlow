@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const db = require('../database');
+const { sentenceCase } = require('../utils/textFormatters');
 
 // List all school holiday periods
 router.get('/', (req, res) => {
@@ -12,7 +13,7 @@ router.post('/', (req, res) => {
   const { label, zoneA_start, zoneA_end, zoneB_start, zoneB_end, zoneC_start, zoneC_end } = req.body;
   const result = db.prepare(
     'INSERT INTO school_holidays (label, zoneA_start, zoneA_end, zoneB_start, zoneB_end, zoneC_start, zoneC_end) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(label, zoneA_start || null, zoneA_end || null, zoneB_start || null, zoneB_end || null, zoneC_start || null, zoneC_end || null);
+  ).run(sentenceCase(label), zoneA_start || null, zoneA_end || null, zoneB_start || null, zoneB_end || null, zoneC_start || null, zoneC_end || null);
   res.json({ id: result.lastInsertRowid });
 });
 
@@ -21,7 +22,7 @@ router.put('/:id', (req, res) => {
   const { label, zoneA_start, zoneA_end, zoneB_start, zoneB_end, zoneC_start, zoneC_end } = req.body;
   db.prepare(
     'UPDATE school_holidays SET label=?, zoneA_start=?, zoneA_end=?, zoneB_start=?, zoneB_end=?, zoneC_start=?, zoneC_end=? WHERE id=?'
-  ).run(label, zoneA_start || null, zoneA_end || null, zoneB_start || null, zoneB_end || null, zoneC_start || null, zoneC_end || null, req.params.id);
+  ).run(sentenceCase(label), zoneA_start || null, zoneA_end || null, zoneB_start || null, zoneB_end || null, zoneC_start || null, zoneC_end || null, req.params.id);
   res.json({ ok: true });
 });
 

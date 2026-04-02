@@ -3,6 +3,7 @@ const db = require('../database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { sentenceCase } = require('../utils/textFormatters');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
@@ -42,7 +43,7 @@ router.post('/', upload.single('photo'), (req, res) => {
   const result = db.prepare(`
     INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500);
+  `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500);
   res.json({ id: result.lastInsertRowid });
 });
 
@@ -54,7 +55,7 @@ router.put('/:id', upload.single('photo'), (req, res) => {
   db.prepare(`
     UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, updatedAt=datetime('now')
     WHERE id=?
-  `).run(name, photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, req.params.id);
+  `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, req.params.id);
   res.json({ ok: true });
 });
 
@@ -70,7 +71,7 @@ router.post('/:id/pricing', (req, res) => {
   const result = db.prepare(`
     INSERT INTO pricing_rules (propertyId, label, pricePerNight, startDate, endDate, minNights)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(req.params.id, label || 'Standard', pricePerNight, startDate || null, endDate || null, minNights || 1);
+  `).run(req.params.id, sentenceCase(label || 'Standard'), pricePerNight, startDate || null, endDate || null, minNights || 1);
   res.json({ id: result.lastInsertRowid });
 });
 
@@ -79,7 +80,7 @@ router.put('/:id/pricing/:ruleId', (req, res) => {
   db.prepare(`
     UPDATE pricing_rules SET label=?, pricePerNight=?, startDate=?, endDate=?, minNights=?
     WHERE id=? AND propertyId=?
-  `).run(label, pricePerNight, startDate || null, endDate || null, minNights || 1, req.params.ruleId, req.params.id);
+  `).run(sentenceCase(label), pricePerNight, startDate || null, endDate || null, minNights || 1, req.params.ruleId, req.params.id);
   res.json({ ok: true });
 });
 
@@ -95,7 +96,7 @@ router.post('/:id/documents', upload.single('file'), (req, res) => {
   const filePath = `/uploads/${req.file.filename}`;
   const result = db.prepare(`
     INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
-  `).run(req.params.id, type || 'other', name || req.file.originalname, filePath);
+  `).run(req.params.id, type || 'other', sentenceCase(name || req.file.originalname), filePath);
   res.json({ id: result.lastInsertRowid, filePath });
 });
 

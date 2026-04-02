@@ -4,7 +4,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import FormRow from './FormRow';
 
-export default function ClientFormFields({ form, setForm, cityOptions }) {
+export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneErrors = [] }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
       <FormRow>
@@ -44,7 +44,14 @@ export default function ClientFormFields({ form, setForm, cityOptions }) {
         />
       </FormRow>
 
-      <TextField label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth />
+      <TextField
+        label="Email"
+        value={form.email}
+        onChange={(e) => setForm({ ...form, email: e.target.value })}
+        fullWidth
+        error={emailError}
+        helperText={emailError ? 'Format email invalide' : ''}
+      />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {(form.phoneNumbers || ['']).map((p, idx) => (
@@ -58,6 +65,8 @@ export default function ClientFormFields({ form, setForm, cityOptions }) {
                 setForm({ ...form, phoneNumbers: next });
               }}
               fullWidth
+              error={Boolean(phoneErrors[idx])}
+              helperText={phoneErrors[idx] ? 'Format téléphone invalide' : ''}
             />
             <IconButton
               color="error"

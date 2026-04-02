@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const { sentenceCase } = require('../utils/textFormatters');
 
 const MAX_NOTE_LENGTH = 50;
 
@@ -20,7 +21,7 @@ router.get('/:propertyId', (req, res) => {
 // PUT (upsert) a note for a specific date
 router.put('/:propertyId/:date', (req, res) => {
   const { propertyId, date } = req.params;
-  const note = (req.body.note || '').slice(0, MAX_NOTE_LENGTH);
+  const note = sentenceCase(req.body.note || '').slice(0, MAX_NOTE_LENGTH);
   if (!note.trim()) {
     // Delete note if empty
     db.prepare('DELETE FROM calendar_notes WHERE propertyId = ? AND date = ?').run(propertyId, date);

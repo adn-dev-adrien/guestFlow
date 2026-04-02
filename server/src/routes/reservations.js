@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const db = require('../database');
+const { sentenceCase } = require('../utils/textFormatters');
 
 // List reservations (optionally filter by propertyId, date range)
 router.get('/', (req, res) => {
@@ -257,7 +258,7 @@ router.post('/', (req, res) => {
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
-    depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, notes || '',
+    depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, sentenceCase(notes),
     cautionAmount || 0
   );
 
@@ -388,7 +389,7 @@ router.put('/:id', (req, res) => {
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
     depositAmount || 0, depositDueDate || null, depositPaid ? 1 : 0,
-    balanceAmount || 0, balanceDueDate || null, balancePaid ? 1 : 0, notes || '',
+    balanceAmount || 0, balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
     cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
     cautionReturned ? 1 : 0, cautionReturnedDate || null,
     req.params.id

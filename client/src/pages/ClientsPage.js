@@ -13,6 +13,7 @@ import ClientFormFields from '../components/ClientFormFields';
 import { useAppDialogs } from '../components/DialogProvider';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
+import { isValidEmail, isValidPhone } from '../utils/validation';
 
 const emptyClient = {
   lastName: '',
@@ -47,6 +48,9 @@ export default function ClientsPage() {
   const [form, setForm] = useState(emptyClient);
   const [editId, setEditId] = useState(null);
   const [cityOptions, setCityOptions] = useState([]);
+  const emailError = !isValidEmail(form.email);
+  const phoneErrors = (form.phoneNumbers || []).map((phone) => !isValidPhone(phone));
+  const hasPhoneError = phoneErrors.some(Boolean);
 
   useEffect(() => { reload(search); }, [search, reload]);
 
@@ -65,6 +69,8 @@ export default function ClientsPage() {
   };
 
   const handleSave = async () => {
+    if (emailError || hasPhoneError) return;
+
     const normalizedPhones = (form.phoneNumbers || [])
       .map((p) => String(p || '').trim())
       .filter((p) => p !== '');
@@ -181,10 +187,16 @@ export default function ClientsPage() {
         onClose={() => setOpen(false)}
         title={editId ? 'Modifier le client' : 'Nouveau client'}
         onSubmit={handleSave}
-        submitDisabled={!form.lastName || !form.firstName}
+        submitDisabled={!form.lastName || !form.firstName || emailError || hasPhoneError}
         submitLabel="Enregistrer"
       >
-        <ClientFormFields form={form} setForm={setForm} cityOptions={cityOptions} />
+        <ClientFormFields
+          form={form}
+          setForm={setForm}
+          cityOptions={cityOptions}
+          emailError={emailError}
+          phoneErrors={phoneErrors}
+        />
       </FormDialog>
     </Box>
   );

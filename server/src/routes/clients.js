@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const db = require('../database');
+const { sentenceCase } = require('../utils/textFormatters');
 
 function normalizeClientRow(row) {
   let phoneNumbers = [];
@@ -61,26 +62,43 @@ router.post('/', (req, res) => {
     ? phoneNumbers.filter((p) => String(p || '').trim() !== '')
     : (phone ? [phone] : []);
   const mainPhone = normalizedPhones[0] || '';
-  const computedAddress = (address && String(address).trim() !== '')
-    ? address
-    : [streetNumber, street].filter(Boolean).join(' ').trim();
+  const normalizedLastName = sentenceCase(lastName);
+  const normalizedFirstName = sentenceCase(firstName);
+  const normalizedStreetNumber = String(streetNumber || '').trim();
+  const normalizedStreet = sentenceCase(street);
+  const normalizedCity = sentenceCase(city);
+  const normalizedAddress = sentenceCase(address);
+  const computedAddress = normalizedAddress || sentenceCase([normalizedStreetNumber, normalizedStreet].filter(Boolean).join(' '));
+  const normalizedNotes = sentenceCase(notes);
   const result = db.prepare(`
     INSERT INTO clients (lastName, firstName, streetNumber, street, postalCode, city, address, phone, phoneNumbers, email, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    lastName,
-    firstName,
-    streetNumber || '',
-    street || '',
+    normalizedLastName,
+    normalizedFirstName,
+    normalizedStreetNumber,
+    normalizedStreet,
     postalCode || '',
-    city || '',
+    normalizedCity,
     computedAddress || '',
     mainPhone,
     JSON.stringify(normalizedPhones),
     email || '',
-    notes || ''
+    normalizedNotes
   );
-  res.json({ id: result.lastInsertRowid, ...req.body, phone: mainPhone, phoneNumbers: normalizedPhones });
+  res.json({
+    id: result.lastInsertRowid,
+    ...req.body,
+    lastName: normalizedLastName,
+    firstName: normalizedFirstName,
+    streetNumber: normalizedStreetNumber,
+    street: normalizedStreet,
+    city: normalizedCity,
+    address: computedAddress,
+    phone: mainPhone,
+    phoneNumbers: normalizedPhones,
+    notes: normalizedNotes,
+  });
 });
 
 // Update client
@@ -102,28 +120,45 @@ router.put('/:id', (req, res) => {
     ? phoneNumbers.filter((p) => String(p || '').trim() !== '')
     : (phone ? [phone] : []);
   const mainPhone = normalizedPhones[0] || '';
-  const computedAddress = (address && String(address).trim() !== '')
-    ? address
-    : [streetNumber, street].filter(Boolean).join(' ').trim();
+  const normalizedLastName = sentenceCase(lastName);
+  const normalizedFirstName = sentenceCase(firstName);
+  const normalizedStreetNumber = String(streetNumber || '').trim();
+  const normalizedStreet = sentenceCase(street);
+  const normalizedCity = sentenceCase(city);
+  const normalizedAddress = sentenceCase(address);
+  const computedAddress = normalizedAddress || sentenceCase([normalizedStreetNumber, normalizedStreet].filter(Boolean).join(' '));
+  const normalizedNotes = sentenceCase(notes);
   db.prepare(`
     UPDATE clients
     SET lastName=?, firstName=?, streetNumber=?, street=?, postalCode=?, city=?, address=?, phone=?, phoneNumbers=?, email=?, notes=?, updatedAt=datetime('now')
     WHERE id=?
   `).run(
-    lastName,
-    firstName,
-    streetNumber || '',
-    street || '',
+    normalizedLastName,
+    normalizedFirstName,
+    normalizedStreetNumber,
+    normalizedStreet,
     postalCode || '',
-    city || '',
+    normalizedCity,
     computedAddress || '',
     mainPhone,
     JSON.stringify(normalizedPhones),
     email || '',
-    notes || '',
+    normalizedNotes,
     req.params.id
   );
-  res.json({ id: Number(req.params.id), ...req.body, phone: mainPhone, phoneNumbers: normalizedPhones });
+  res.json({
+    id: Number(req.params.id),
+    ...req.body,
+    lastName: normalizedLastName,
+    firstName: normalizedFirstName,
+    streetNumber: normalizedStreetNumber,
+    street: normalizedStreet,
+    city: normalizedCity,
+    address: computedAddress,
+    phone: mainPhone,
+    phoneNumbers: normalizedPhones,
+    notes: normalizedNotes,
+  });
 });
 
 // Delete client

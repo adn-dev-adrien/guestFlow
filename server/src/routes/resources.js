@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const db = require('../database');
+const { sentenceCase } = require('../utils/textFormatters');
 
 function overlapClause() {
   return 'r.startDate < ? AND r.endDate > ?';
@@ -126,7 +127,7 @@ router.post('/', (req, res) => {
   const result = db.prepare(`
     INSERT INTO resources (name, quantity, price, priceType, propertyIds, note)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, note || '');
+  `).run(sentenceCase(name), Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, sentenceCase(note));
   res.json({ id: result.lastInsertRowid });
 });
 
@@ -136,7 +137,7 @@ router.put('/:id', (req, res) => {
     UPDATE resources
     SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, updatedAt = datetime('now')
     WHERE id = ?
-  `).run(name, Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, note || '', req.params.id);
+  `).run(sentenceCase(name), Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, sentenceCase(note), req.params.id);
   res.json({ ok: true });
 });
 

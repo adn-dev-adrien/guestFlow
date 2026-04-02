@@ -14,6 +14,7 @@ import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
+import { isValidEmail, isValidPhone } from '../utils/validation';
 
 const PRICE_TYPE_LABELS = {
   per_stay: 'prix fixe',
@@ -116,6 +117,8 @@ export default function CalendarPage() {
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteDialogDate, setNoteDialogDate] = useState('');
   const [noteDialogText, setNoteDialogText] = useState('');
+  const newClientEmailError = !isValidEmail(newClient.email);
+  const newClientPhoneError = !isValidPhone(newClient.phone);
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
@@ -533,6 +536,11 @@ export default function CalendarPage() {
   };
 
   const handleCreateClient = async () => {
+    if (newClientEmailError || newClientPhoneError) {
+      await alert({ title: 'Client invalide', message: 'Veuillez corriger le format du mail ou du téléphone.' });
+      return;
+    }
+
     const c = await api.createClient(newClient);
     setForm(prev => ({ ...prev, clientId: c.id }));
     setClients(prev => [...prev, c]);
@@ -1714,13 +1722,27 @@ export default function CalendarPage() {
               <TextField label="Nom" value={newClient.lastName} onChange={(e) => setNewClient({ ...newClient, lastName: e.target.value })} fullWidth />
               <TextField label="Prénom" value={newClient.firstName} onChange={(e) => setNewClient({ ...newClient, firstName: e.target.value })} fullWidth />
             </FormRow>
-            <TextField label="Email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} fullWidth />
-            <TextField label="Téléphone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} fullWidth />
+            <TextField
+              label="Email"
+              value={newClient.email}
+              onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+              fullWidth
+              error={newClientEmailError}
+              helperText={newClientEmailError ? 'Format email invalide' : ''}
+            />
+            <TextField
+              label="Téléphone"
+              value={newClient.phone}
+              onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+              fullWidth
+              error={newClientPhoneError}
+              helperText={newClientPhoneError ? 'Format téléphone invalide' : ''}
+            />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateClientOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleCreateClient} disabled={!newClient.lastName || !newClient.firstName}>Créer</Button>
+          <Button variant="contained" onClick={handleCreateClient} disabled={!newClient.lastName || !newClient.firstName || newClientEmailError || newClientPhoneError}>Créer</Button>
         </DialogActions>
       </Dialog>
 
