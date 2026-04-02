@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Typography, Card, CardContent, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Button, TextField, IconButton, Dialog,
+  Box, Typography, TableBody, TableCell,
+  TableHead, TableRow, Button, TextField, IconButton, Dialog,
   DialogTitle, DialogContent, DialogActions, Grid
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { displayDate } from '../utils/formatters';
+import PageHeader from '../components/PageHeader';
+import TableCard from '../components/TableCard';
 import api from '../api';
 
 const emptyForm = {
@@ -52,15 +54,9 @@ export default function SchoolHolidaysPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Typography variant="h4">Vacances scolaires</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ width: { xs: '100%', sm: 'auto' } }}>Ajouter</Button>
-      </Box>
+      <PageHeader title="Vacances scolaires" actionLabel="Ajouter" actionIcon={<AddIcon />} onAction={openCreate} />
 
-      <Card>
-        <CardContent>
-          <TableContainer>
-            <Table size="small" sx={{ minWidth: 760 }}>
+      <TableCard minWidth={760}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>Période</TableCell>
@@ -87,10 +83,7 @@ export default function SchoolHolidaysPage() {
                   <TableRow><TableCell colSpan={5} align="center"><Typography color="text.secondary">Aucune période configurée</Typography></TableCell></TableRow>
                 )}
               </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
+      </TableCard>
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>

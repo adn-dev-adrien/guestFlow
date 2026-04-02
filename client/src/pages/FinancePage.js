@@ -4,6 +4,7 @@ import {
   TableCell, TableContainer, TableHead, TableRow, Chip
 } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import PageHeader from '../components/PageHeader';
 import { displayDate } from '../utils/formatters';
 import api from '../api';
 
@@ -42,7 +43,7 @@ export default function FinancePage() {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 3 }}>Suivi financier</Typography>
+      <PageHeader title="Suivi financier" />
 
       {/* Period selector */}
       <Card sx={{ mb: 3 }}>

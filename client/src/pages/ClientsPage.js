@@ -10,6 +10,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import PageHeader from '../components/PageHeader';
+import TableCard from '../components/TableCard';
 import api from '../api';
 
 const emptyClient = {
@@ -115,12 +117,7 @@ export default function ClientsPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Typography variant="h4">Clients</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpen(null)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          Nouveau client
-        </Button>
-      </Box>
+      <PageHeader title="Clients" actionLabel="Nouveau client" actionIcon={<AddIcon />} onAction={() => handleOpen(null)} />
 
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ py: 1.5 }}>
@@ -133,9 +130,7 @@ export default function ClientsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <TableContainer>
-          <Table size="small" sx={{ minWidth: 860 }}>
+      <TableCard minWidth={860}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
@@ -168,9 +163,7 @@ export default function ClientsPage() {
                 <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucun client trouvé</TableCell></TableRow>
               )}
             </TableBody>
-          </Table>
-        </TableContainer>
-      </Card>
+      </TableCard>
 
       {/* Dialog */}
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>

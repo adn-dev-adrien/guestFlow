@@ -5,6 +5,7 @@ import {
   Grid, Dialog, DialogTitle, DialogContent, DialogActions, TextField
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import PageHeader from '../components/PageHeader';
 import api from '../api';
 
 export default function PropertiesPage() {
@@ -33,12 +34,7 @@ export default function PropertiesPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Typography variant="h4">Logements</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          Nouveau logement
-        </Button>
-      </Box>
+      <PageHeader title="Logements" actionLabel="Nouveau logement" actionIcon={<AddIcon />} onAction={() => setOpen(true)} />
 
       <Grid container spacing={3}>
         {properties.map((p) => (

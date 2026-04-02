@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Typography, Card, TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Typography, TableHead, TableRow, TableCell, TableBody,
   IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PageHeader from './PageHeader';
+import TableCard from './TableCard';
 
 const PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
@@ -74,16 +76,14 @@ export default function PricedItemsPage({
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Typography variant="h4">{pageTitle}</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => openDialog(null)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          {`Nouvelle ${itemLabel}`}
-        </Button>
-      </Box>
+      <PageHeader
+        title={pageTitle}
+        actionLabel={`Nouvelle ${itemLabel}`}
+        actionIcon={<AddIcon />}
+        onAction={() => openDialog(null)}
+      />
 
-      <Card>
-        <TableContainer>
-          <Table size="small" sx={{ minWidth: showQuantity ? 980 : 860 }}>
+      <TableCard minWidth={showQuantity ? 980 : 860}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
@@ -137,9 +137,7 @@ export default function PricedItemsPage({
                 </TableRow>
               )}
             </TableBody>
-          </Table>
-        </TableContainer>
-      </Card>
+      </TableCard>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editId ? `Modifier ${itemLabel}` : `Nouvelle ${itemLabel}`}</DialogTitle>

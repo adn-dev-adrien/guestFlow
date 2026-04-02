@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PageHeader from '../components/PageHeader';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORMS, getPlatformColor, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
@@ -1055,7 +1056,7 @@ export default function CalendarPage() {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 3 }}>Calendrier des réservations</Typography>
+      <PageHeader title="Calendrier des réservations" />
 
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, flexWrap: 'wrap' }}>

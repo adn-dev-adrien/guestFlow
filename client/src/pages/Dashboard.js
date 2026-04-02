@@ -8,6 +8,7 @@ import {
 import EventIcon from '@mui/icons-material/Event';
 import PaymentIcon from '@mui/icons-material/Payment';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import PageHeader from '../components/PageHeader';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
@@ -132,7 +133,7 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 3 }}>Tableau de bord</Typography>
+      <PageHeader title="Tableau de bord" />
 
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
