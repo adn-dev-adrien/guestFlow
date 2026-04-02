@@ -403,7 +403,8 @@ export default function CalendarPage() {
     setIsDragging(false);
     const minDate = dragStartDate < dragEndDate ? dragStartDate : dragEndDate;
     const maxDate = dragStartDate < dragEndDate ? dragEndDate : dragStartDate;
-    await openNewReservation(minDate, maxDate);
+    const endDate = minDate === maxDate ? shiftDate(maxDate, 1) : maxDate;
+    await openNewReservation(minDate, endDate);
   };
 
   const recalcPrice = (updatedForm) => {
@@ -1055,7 +1056,7 @@ export default function CalendarPage() {
           } else if (departureRes && !arrivalRes) {
             // Free zone on departure-only day: create new reservation
             const startDate = formatDate(y, m, day);
-            const endDate = formatDate(y, m, Math.min(day + 1, dim + 1));
+            const endDate = shiftDate(startDate, 1);
             openNewReservation(startDate, endDate);
           } else if (!departureRes && arrivalRes) {
             // Free zone on arrival-only day: show arrival reservation
