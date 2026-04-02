@@ -10,6 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from './PageHeader';
 import TableCard from './TableCard';
 import FormDialog from './FormDialog';
+import { useAppDialogs } from './DialogProvider';
 
 const PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
@@ -34,6 +35,7 @@ export default function PricedItemsPage({
   showQuantity,
   isDeleteDisabled,
 }) {
+  const { confirm } = useAppDialogs();
   const [items, setItems] = useState([]);
   const [properties, setProperties] = useState([]);
   const [open, setOpen] = useState(false);
@@ -70,7 +72,11 @@ export default function PricedItemsPage({
   };
 
   const handleDelete = async (item) => {
-    if (!window.confirm(`Supprimer cette ${itemLabel} ?`)) return;
+    const ok = await confirm({
+      title: 'Confirmer la suppression',
+      message: `Supprimer cette ${itemLabel} ?`
+    });
+    if (!ok) return;
     await deleteItem(item.id);
     load();
   };

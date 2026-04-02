@@ -13,6 +13,9 @@ import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import PageHeader from '../components/PageHeader';
 import TableCard from '../components/TableCard';
 import FormDialog from '../components/FormDialog';
+import FormRow from '../components/FormRow';
+import { useAppDialogs } from '../components/DialogProvider';
+import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 
 const emptyClient = {
@@ -30,19 +33,26 @@ const emptyClient = {
 };
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState([]);
+  const { confirm } = useAppDialogs();
+  const {
+    items: clients,
+    reload,
+    createItem,
+    updateItem,
+    removeItem,
+  } = useCrudResource({
+    listFn: (q) => api.getClients(q),
+    createFn: (payload) => api.createClient(payload),
+    updateFn: (id, payload) => api.updateClient(id, payload),
+    deleteFn: (id) => api.deleteClient(id),
+  });
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyClient);
   const [editId, setEditId] = useState(null);
   const [cityOptions, setCityOptions] = useState([]);
 
-  const load = async () => {
-    const data = await api.getClients(search);
-    setClients(data);
-  };
-
-  useEffect(() => { load(); }, [search]);
+  useEffect(() => { reload(search); }, [search, reload]);
 
   const handleOpen = (client) => {
     if (client) {
@@ -69,12 +79,11 @@ export default function ClientsPage() {
       phone: normalizedPhones[0] || '',
     };
     if (editId) {
-      await api.updateClient(editId, payload);
+      await updateItem(editId, payload, search);
     } else {
-      await api.createClient(payload);
+      await createItem(payload, search);
     }
     setOpen(false);
-    load();
   };
 
   useEffect(() => {
@@ -110,10 +119,12 @@ export default function ClientsPage() {
   }, [form.postalCode, form.city]);
 
   const handleDelete = async (id) => {
-    if (window.confirm('Supprimer ce client ?')) {
-      await api.deleteClient(id);
-      load();
-    }
+    const ok = await confirm({
+      title: 'Confirmer la suppression',
+      message: 'Supprimer ce client ?'
+    });
+    if (!ok) return;
+    await removeItem(id, search);
   };
 
   return (
@@ -176,12 +187,12 @@ export default function ClientsPage() {
         submitLabel="Enregistrer"
       >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <FormRow>
               <TextField label="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} fullWidth required />
               <TextField label="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} fullWidth required />
-            </Box>
+            </FormRow>
 
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <FormRow>
               <TextField
                 label="N°"
                 value={form.streetNumber}
@@ -194,9 +205,9 @@ export default function ClientsPage() {
                 onChange={(e) => setForm({ ...form, street: e.target.value })}
                 fullWidth
               />
-            </Box>
+            </FormRow>
 
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <FormRow>
               <TextField
                 label="Code postal"
                 value={form.postalCode}
@@ -211,7 +222,7 @@ export default function ClientsPage() {
                 renderInput={(params) => <TextField {...params} label="Ville" fullWidth />}
                 fullWidth
               />
-            </Box>
+            </FormRow>
 
             <TextField label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth />
 

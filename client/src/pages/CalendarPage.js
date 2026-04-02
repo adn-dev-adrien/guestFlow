@@ -5,13 +5,13 @@ import {
   MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Autocomplete, Chip, Checkbox, FormControlLabel, Divider, Grid
 } from '@mui/material';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
-import ConfirmDialog from '../components/ConfirmDialog';
+import FormRow from '../components/FormRow';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORMS, getPlatformColor, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
+import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
 
@@ -56,6 +56,7 @@ const CLEANING_COLOR = '#e53935';
 const ZONE_COLORS = { A: '#1976d2', B: '#388e3c', C: '#f57c00' };
 
 export default function CalendarPage() {
+  const { confirm, alert } = useAppDialogs();
   const [searchParams] = useSearchParams();
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
@@ -101,9 +102,7 @@ export default function CalendarPage() {
   const shouldAdjustScroll = useRef(false);
   const initialScrollDone = useRef(false);
   const originalReservationRef = useRef(null);
-  const [errorMsg, setErrorMsg] = useState('');
   const [editingReservationId, setEditingReservationId] = useState(null);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [calendarNotes, setCalendarNotes] = useState({});
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
@@ -485,14 +484,14 @@ export default function CalendarPage() {
     // Reject past start dates
     const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
     if (form.startDate < todayStr) {
-      setErrorMsg('Impossible de réserver dans le passé.');
+      await alert({ title: 'Conflit de réservation', message: 'Impossible de réserver dans le passé.' });
       return;
     }
 
     // Strict overlap: other reservations whose date range overlaps
     const hasOverlap = otherReservations.some(r => r.startDate < form.endDate && r.endDate > form.startDate);
     if (hasOverlap) {
-      setErrorMsg('Ce logement est déjà réservé pour ces dates.');
+      await alert({ title: 'Conflit de réservation', message: 'Ce logement est déjà réservé pour ces dates.' });
       return;
     }
 
@@ -504,7 +503,7 @@ export default function CalendarPage() {
       if (newCheckInHour < availableFrom) {
         const availH = String(Math.floor(availableFrom)).padStart(2, '0');
         const availM = availableFrom % 1 >= 0.5 ? '30' : '00';
-        setErrorMsg(`Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.`);
+        await alert({ title: 'Conflit de réservation', message: `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.` });
         return;
       }
     }
@@ -517,14 +516,14 @@ export default function CalendarPage() {
         const maxCheckOutHour = nextCheckInHour - cleaning;
         const maxH = String(Math.floor(maxCheckOutHour)).padStart(2, '0');
         const maxM = maxCheckOutHour % 1 >= 0.5 ? '30' : '00';
-        setErrorMsg(`Impossible : le départ à ${form.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.`);
+        await alert({ title: 'Conflit de réservation', message: `Impossible : le départ à ${form.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.` });
         return;
       }
     }
     // --- End common validation ---
 
     if (exceedsSingleBedsLimit || exceedsDoubleBedsLimit) {
-      setErrorMsg('Le nombre de lits saisi dépasse la capacité configurée du logement.');
+      await alert({ title: 'Conflit de réservation', message: 'Le nombre de lits saisi dépasse la capacité configurée du logement.' });
       return;
     }
 
@@ -532,7 +531,7 @@ export default function CalendarPage() {
       const resource = availableResources.find(r => r.id === sr.resourceId);
       if (!resource) continue;
       if ((Number(sr.quantity) || 0) > Number(resource.available || 0)) {
-        setErrorMsg(`La ressource '${resource.name}' n'est plus disponible en quantité suffisante.`);
+        await alert({ title: 'Conflit de réservation', message: `La ressource '${resource.name}' n'est plus disponible en quantité suffisante.` });
         return;
       }
     }
@@ -633,7 +632,7 @@ export default function CalendarPage() {
       lastLoadedRange.current = { from: '', to: '' };
       loadCalendarData();
     } catch (err) {
-      setErrorMsg(err.message || 'Erreur lors de la création de la réservation');
+      await alert({ title: 'Erreur', message: err.message || 'Erreur lors de la création de la réservation' });
     }
   };
 
@@ -703,8 +702,14 @@ export default function CalendarPage() {
 
   const handleDeleteReservation = async () => {
     if (!editingReservationId) return;
+    const ok = await confirm({
+      title: 'Confirmer la suppression',
+      message: 'Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible.',
+      confirmLabel: 'Supprimer',
+      confirmColor: 'error',
+    });
+    if (!ok) return;
     await api.deleteReservation(editingReservationId);
-    setConfirmDeleteOpen(false);
     setDialogOpen(false);
     setEditingReservationId(null);
     lastLoadedRange.current = { from: '', to: '' };
@@ -1555,7 +1560,7 @@ export default function CalendarPage() {
         </DialogContent>
         <DialogActions>
           {editingReservationId && (
-            <Button color="error" startIcon={<DeleteIcon />} onClick={() => setConfirmDeleteOpen(true)} sx={{ mr: 'auto' }}>
+            <Button color="error" startIcon={<DeleteIcon />} onClick={handleDeleteReservation} sx={{ mr: 'auto' }}>
               Supprimer
             </Button>
           )}
@@ -1573,10 +1578,10 @@ export default function CalendarPage() {
         <DialogTitle>Nouveau client</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <FormRow>
               <TextField label="Nom" value={newClient.lastName} onChange={(e) => setNewClient({ ...newClient, lastName: e.target.value })} fullWidth />
               <TextField label="Prénom" value={newClient.firstName} onChange={(e) => setNewClient({ ...newClient, firstName: e.target.value })} fullWidth />
-            </Box>
+            </FormRow>
             <TextField label="Email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} fullWidth />
             <TextField label="Téléphone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} fullWidth />
           </Box>
@@ -1587,29 +1592,6 @@ export default function CalendarPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Error dialog */}
-      <Dialog open={!!errorMsg} onClose={() => setErrorMsg('')} maxWidth="sm">
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningAmberIcon color="warning" /> Conflit de réservation
-        </DialogTitle>
-        <DialogContent>
-          <Typography>{errorMsg}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button variant="contained" onClick={() => setErrorMsg('')}>Compris</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete confirmation dialog */}
-      <ConfirmDialog
-        open={confirmDeleteOpen}
-        onClose={() => setConfirmDeleteOpen(false)}
-        onConfirm={handleDeleteReservation}
-        title="Confirmer la suppression"
-        message="Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible."
-        confirmLabel="Supprimer"
-        confirmColor="error"
-      />
     </Box>
   );
 }

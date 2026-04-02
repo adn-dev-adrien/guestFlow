@@ -15,6 +15,7 @@ import DateRangeIcon from '@mui/icons-material/DateRange';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import MenuIcon from '@mui/icons-material/Menu';
 import theme from './theme';
+import DialogProvider from './components/DialogProvider';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
@@ -67,6 +68,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
+        <DialogProvider>
         <Box sx={{ display: 'flex', minHeight: '100vh' }}>
           <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'white', color: 'text.primary', borderBottom: '1px solid #e0e0e0' }}>
             <Toolbar>
@@ -109,6 +111,7 @@ function App() {
             </Routes>
           </Box>
         </Box>
+        </DialogProvider>
       </BrowserRouter>
     </ThemeProvider>
   );

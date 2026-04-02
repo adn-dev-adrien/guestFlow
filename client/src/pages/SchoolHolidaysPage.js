@@ -11,7 +11,9 @@ import { displayDate } from '../utils/formatters';
 import PageHeader from '../components/PageHeader';
 import TableCard from '../components/TableCard';
 import FormDialog from '../components/FormDialog';
-import ConfirmDialog from '../components/ConfirmDialog';
+import FormRow from '../components/FormRow';
+import { useAppDialogs } from '../components/DialogProvider';
+import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 
 const emptyForm = {
@@ -19,14 +21,24 @@ const emptyForm = {
 };
 
 export default function SchoolHolidaysPage() {
-  const [holidays, setHolidays] = useState([]);
+  const { confirm } = useAppDialogs();
+  const {
+    items: holidays,
+    reload,
+    createItem,
+    updateItem,
+    removeItem,
+  } = useCrudResource({
+    listFn: () => api.getSchoolHolidays(),
+    createFn: (payload) => api.createSchoolHoliday(payload),
+    updateFn: (id, payload) => api.updateSchoolHoliday(id, payload),
+    deleteFn: (id) => api.deleteSchoolHoliday(id),
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const load = async () => setHolidays(await api.getSchoolHolidays());
-  useEffect(() => { load(); }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   const openCreate = () => { setForm(emptyForm); setEditId(null); setDialogOpen(true); };
   const openEdit = (h) => {
@@ -40,16 +52,18 @@ export default function SchoolHolidaysPage() {
   };
 
   const handleSave = async () => {
-    if (editId) await api.updateSchoolHoliday(editId, form);
-    else await api.createSchoolHoliday(form);
+    if (editId) await updateItem(editId, form);
+    else await createItem(form);
     setDialogOpen(false);
-    load();
   };
 
-  const handleDelete = async () => {
-    await api.deleteSchoolHoliday(confirmDeleteId);
-    setConfirmDeleteId(null);
-    load();
+  const handleDelete = async (id) => {
+    const ok = await confirm({
+      title: 'Confirmer la suppression',
+      message: 'Supprimer cette période de vacances ?'
+    });
+    if (!ok) return;
+    await removeItem(id);
   };
 
   const setField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
@@ -77,7 +91,7 @@ export default function SchoolHolidaysPage() {
                     <TableCell align="center">{displayDate(h.zoneC_start)} → {displayDate(h.zoneC_end)}</TableCell>
                     <TableCell align="center">
                       <IconButton size="small" onClick={() => openEdit(h)}><EditIcon fontSize="small" /></IconButton>
-                      <IconButton size="small" color="error" onClick={() => setConfirmDeleteId(h.id)}><DeleteIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDelete(h.id)}><DeleteIcon fontSize="small" /></IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -134,16 +148,6 @@ export default function SchoolHolidaysPage() {
           </Box>
       </FormDialog>
 
-      {/* Confirm delete */}
-      <ConfirmDialog
-        open={!!confirmDeleteId}
-        onClose={() => setConfirmDeleteId(null)}
-        onConfirm={handleDelete}
-        title="Confirmer la suppression"
-        message="Supprimer cette période de vacances ?"
-        confirmLabel="Supprimer"
-        confirmColor="error"
-      />
     </Box>
   );
 }
