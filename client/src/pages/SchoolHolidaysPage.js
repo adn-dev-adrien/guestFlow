@@ -10,6 +10,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { displayDate } from '../utils/formatters';
 import PageHeader from '../components/PageHeader';
 import TableCard from '../components/TableCard';
+import FormDialog from '../components/FormDialog';
+import ConfirmDialog from '../components/ConfirmDialog';
 import api from '../api';
 
 const emptyForm = {
@@ -86,9 +88,14 @@ export default function SchoolHolidaysPage() {
       </TableCard>
 
       {/* Create / Edit Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editId ? 'Modifier la période' : 'Ajouter une période'}</DialogTitle>
-        <DialogContent>
+      <FormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title={editId ? 'Modifier la période' : 'Ajouter une période'}
+        onSubmit={handleSave}
+        submitDisabled={!form.label}
+        submitLabel="Enregistrer"
+      >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <TextField label="Nom de la période" value={form.label} onChange={(e) => setField('label', e.target.value)} fullWidth />
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone A</Typography>
@@ -125,24 +132,18 @@ export default function SchoolHolidaysPage() {
               </Grid>
             </Grid>
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleSave} disabled={!form.label}>Enregistrer</Button>
-        </DialogActions>
-      </Dialog>
+      </FormDialog>
 
       {/* Confirm delete */}
-      <Dialog open={!!confirmDeleteId} onClose={() => setConfirmDeleteId(null)}>
-        <DialogTitle>Confirmer la suppression</DialogTitle>
-        <DialogContent>
-          <Typography>Supprimer cette période de vacances ?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmDeleteId(null)}>Annuler</Button>
-          <Button color="error" variant="contained" onClick={handleDelete}>Supprimer</Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Confirmer la suppression"
+        message="Supprimer cette période de vacances ?"
+        confirmLabel="Supprimer"
+        confirmColor="error"
+      />
     </Box>
   );
 }

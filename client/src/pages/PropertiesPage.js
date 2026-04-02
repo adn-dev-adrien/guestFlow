@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PageHeader from '../components/PageHeader';
+import FormDialog from '../components/FormDialog';
 import api from '../api';
 
 export default function PropertiesPage() {
@@ -62,9 +63,14 @@ export default function PropertiesPage() {
         )}
       </Grid>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Nouveau logement</DialogTitle>
-        <DialogContent>
+      <FormDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Nouveau logement"
+        onSubmit={handleSave}
+        submitDisabled={!form.name}
+        submitLabel="Créer"
+      >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField label="Nom du logement" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth required />
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -78,12 +84,7 @@ export default function PropertiesPage() {
             </Button>
             {photoFile && <Typography variant="body2">{photoFile.name}</Typography>}
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleSave} disabled={!form.name}>Créer</Button>
-        </DialogActions>
-      </Dialog>
+      </FormDialog>
     </Box>
   );
 }

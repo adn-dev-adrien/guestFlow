@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, TableHead, TableRow, TableCell, TableBody,
-  IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+  IconButton, Button, TextField,
   FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -9,6 +9,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from './PageHeader';
 import TableCard from './TableCard';
+import FormDialog from './FormDialog';
 
 const PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
@@ -139,9 +140,14 @@ export default function PricedItemsPage({
             </TableBody>
       </TableCard>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editId ? `Modifier ${itemLabel}` : `Nouvelle ${itemLabel}`}</DialogTitle>
-        <DialogContent>
+      <FormDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editId ? `Modifier ${itemLabel}` : `Nouvelle ${itemLabel}`}
+        onSubmit={handleSave}
+        submitDisabled={!form[formNameKey]}
+        submitLabel="Enregistrer"
+      >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Nom"
@@ -240,14 +246,7 @@ export default function PricedItemsPage({
             </FormControl>
 
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleSave} disabled={!form[formNameKey]}>
-            Enregistrer
-          </Button>
-        </DialogActions>
-      </Dialog>
+      </FormDialog>
     </Box>
   );
 }

@@ -8,6 +8,7 @@ import {
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
+import ConfirmDialog from '../components/ConfirmDialog';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORMS, getPlatformColor, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
@@ -1600,16 +1601,15 @@ export default function CalendarPage() {
       </Dialog>
 
       {/* Delete confirmation dialog */}
-      <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)}>
-        <DialogTitle>Confirmer la suppression</DialogTitle>
-        <DialogContent>
-          <Typography>Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible.</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmDeleteOpen(false)}>Annuler</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteReservation}>Supprimer</Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteReservation}
+        title="Confirmer la suppression"
+        message="Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible."
+        confirmLabel="Supprimer"
+        confirmColor="error"
+      />
     </Box>
   );
 }

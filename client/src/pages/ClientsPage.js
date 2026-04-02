@@ -12,6 +12,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import PageHeader from '../components/PageHeader';
 import TableCard from '../components/TableCard';
+import FormDialog from '../components/FormDialog';
 import api from '../api';
 
 const emptyClient = {
@@ -166,9 +167,14 @@ export default function ClientsPage() {
       </TableCard>
 
       {/* Dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editId ? 'Modifier le client' : 'Nouveau client'}</DialogTitle>
-        <DialogContent>
+      <FormDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editId ? 'Modifier le client' : 'Nouveau client'}
+        onSubmit={handleSave}
+        submitDisabled={!form.lastName || !form.firstName}
+        submitLabel="Enregistrer"
+      >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField label="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} fullWidth required />
@@ -253,12 +259,7 @@ export default function ClientsPage() {
             />
             <TextField label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} fullWidth multiline rows={3} />
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleSave} disabled={!form.lastName || !form.firstName}>Enregistrer</Button>
-        </DialogActions>
-      </Dialog>
+      </FormDialog>
     </Box>
   );
 }
