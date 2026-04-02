@@ -593,6 +593,19 @@ export default function CalendarPage() {
     }
     // --- End common validation ---
 
+    if (exceedsGuestCapacity) {
+      const capacityParts = [];
+      if (exceedsAdultsCapacity) capacityParts.push(`adultes: ${adultsCount}/${maxAdultsAllowed}`);
+      if (exceedsChildrenCapacity) capacityParts.push(`enfants+ados (hors lit bébé): ${childrenTeensCountForCapacity}/${maxChildrenAllowed}`);
+      if (exceedsBabiesCapacity) capacityParts.push(`bébés: ${babiesCount}/${maxBabiesAllowed}`);
+      if (exceedsTotalCapacity) capacityParts.push(`total: ${totalGuestsCount}/${totalGuestsMax}`);
+      await alert({
+        title: 'Capacité du logement dépassée',
+        message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}).`,
+      });
+      return;
+    }
+
     if (exceedsSingleBedsLimit || exceedsDoubleBedsLimit) {
       await alert({ title: 'Conflit de réservation', message: 'Le nombre de lits saisi dépasse la capacité configurée du logement.' });
       return;
@@ -785,11 +798,20 @@ export default function CalendarPage() {
   const cleaningHours = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
   const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
   const maxDoubleBeds = selectedProperty ? Number(selectedProperty.doubleBeds ?? 0) : null;
+  const maxAdultsAllowed = selectedProperty ? Number(selectedProperty.maxAdults ?? 0) : null;
+  const maxChildrenAllowed = selectedProperty ? Number(selectedProperty.maxChildren ?? 0) : null;
+  const maxBabiesAllowed = selectedProperty ? Number(selectedProperty.maxBabies ?? 0) : null;
   const bedsEntered = form.singleBeds !== '' || form.doubleBeds !== '' || form.babyBeds !== '';
   const adultsCount = Number(form.adults) || 0;
   const childrenCount = Number(form.children) || 0;
   const teensCount = Number(form.teens) || 0;
   const babiesCount = Number(form.babies) || 0;
+  const totalGuestsCount = adultsCount + childrenCount + teensCount + babiesCount;
+  const totalGuestsMax = maxAdultsAllowed === null || maxChildrenAllowed === null || maxBabiesAllowed === null
+    ? null
+    : maxAdultsAllowed + maxChildrenAllowed + maxBabiesAllowed;
+  const exceedsAdultsCapacity = maxAdultsAllowed !== null && adultsCount > maxAdultsAllowed;
+  const exceedsBabiesCapacity = maxBabiesAllowed !== null && babiesCount > maxBabiesAllowed;
   const reservationBedCapacity = (Number(form.singleBeds) || 0) + (Number(form.doubleBeds) || 0) * 2;
   const exceedsSingleBedsLimit = maxSingleBeds !== null && form.singleBeds !== '' && Number(form.singleBeds) > maxSingleBeds;
   const exceedsDoubleBedsLimit = maxDoubleBeds !== null && form.doubleBeds !== '' && Number(form.doubleBeds) > maxDoubleBeds;
@@ -800,6 +822,10 @@ export default function CalendarPage() {
   const selectedBabyBeds = Number(form.babyBeds || 0);
   const childrenSleepingInBabyBeds = Math.max(0, selectedBabyBeds - babiesCount);
   const childrenSleepingInRegularBeds = Math.max(0, childrenCount - childrenSleepingInBabyBeds);
+  const childrenTeensCountForCapacity = childrenSleepingInRegularBeds + teensCount;
+  const exceedsChildrenCapacity = maxChildrenAllowed !== null && childrenTeensCountForCapacity > maxChildrenAllowed;
+  const exceedsTotalCapacity = totalGuestsMax !== null && totalGuestsCount > totalGuestsMax;
+  const exceedsGuestCapacity = exceedsAdultsCapacity || exceedsChildrenCapacity || exceedsBabiesCapacity || exceedsTotalCapacity;
   const requiredRegularBeds = adultsCount + teensCount + childrenSleepingInRegularBeds;
   const bedsCapacityMismatch = bedsEntered && reservationBedCapacity < requiredRegularBeds;
   const remainingBabyBeds = babyAvailableNumber === null
@@ -1377,18 +1403,56 @@ export default function CalendarPage() {
 
             <Grid container spacing={2}>
               <Grid item xs={3}>
-                <TextField label="Adultes" type="number" value={form.adults} onChange={(e) => updateForm({ adults: Number(e.target.value) })} fullWidth inputProps={{ min: 1 }} />
+                <TextField
+                  label={`Adultes${maxAdultsAllowed !== null ? ` (max ${maxAdultsAllowed})` : ''}`}
+                  type="number"
+                  value={form.adults}
+                  onChange={(e) => updateForm({ adults: Number(e.target.value) })}
+                  fullWidth
+                  inputProps={{ min: 1, max: maxAdultsAllowed ?? undefined }}
+                  error={exceedsAdultsCapacity}
+                />
               </Grid>
               <Grid item xs={3}>
-                <TextField label="Enfants (2 à 12 ans)" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+                <TextField
+                  label={`Enfants (2 à 12 ans)`}
+                  type="number"
+                  value={form.children}
+                  onChange={(e) => updateForm({ children: Number(e.target.value) })}
+                  fullWidth
+                  inputProps={{ min: 0 }}
+                  error={exceedsChildrenCapacity}
+                />
               </Grid>
               <Grid item xs={3}>
-                <TextField label="Ados (12 à 18 ans)" type="number" value={form.teens} onChange={(e) => updateForm({ teens: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+                <TextField
+                  label={`Ados (12 à 18 ans)`}
+                  type="number"
+                  value={form.teens}
+                  onChange={(e) => updateForm({ teens: Number(e.target.value) })}
+                  fullWidth
+                  inputProps={{ min: 0 }}
+                  error={exceedsChildrenCapacity}
+                />
               </Grid>
               <Grid item xs={3}>
-                <TextField label="Bébés (0 à 2 ans)" type="number" value={form.babies} onChange={(e) => updateForm({ babies: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+                <TextField
+                  label={`Bébés (0 à 2 ans)`}
+                  type="number"
+                  value={form.babies}
+                  onChange={(e) => updateForm({ babies: Number(e.target.value) })}
+                  fullWidth
+                  inputProps={{ min: 0, max: maxBabiesAllowed ?? undefined }}
+                  error={exceedsBabiesCapacity}
+                />
               </Grid>
             </Grid>
+
+            {exceedsTotalCapacity && (
+              <Typography variant="body2" color="error" sx={{ mt: -1 }}>
+                Capacité totale dépassée: {totalGuestsCount}/{totalGuestsMax} personnes.
+              </Typography>
+            )}
 
             <Grid container spacing={2}>
               <Grid item xs={4}>

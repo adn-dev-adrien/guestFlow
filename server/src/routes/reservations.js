@@ -186,8 +186,31 @@ router.post('/', (req, res) => {
     return res.status(409).json(validationError);
   }
 
-  const property = db.prepare('SELECT singleBeds, doubleBeds FROM properties WHERE id = ?').get(propertyId);
+  const property = db.prepare('SELECT singleBeds, doubleBeds, maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(propertyId);
   if (property) {
+    const adultsCount = Number(adults || 1);
+    const childrenCount = Number(children || 0);
+    const teensCount = Number(teens || 0);
+    const babiesCount = Number(babies || 0);
+    const babyBedsCount = Number(babyBeds || 0);
+    const childrenSleepingInBabyBeds = Math.max(0, Math.min(childrenCount, babyBedsCount - babiesCount));
+    const childrenTeensCount = Math.max(0, childrenCount - childrenSleepingInBabyBeds) + teensCount;
+    const totalGuests = adultsCount + childrenCount + teensCount + babiesCount;
+    const totalMax = Number(property.maxAdults || 0) + Number(property.maxChildren || 0) + Number(property.maxBabies || 0);
+
+    if (adultsCount > Number(property.maxAdults || 0)) {
+      return res.status(400).json({ error: `Le nombre d'adultes (${adultsCount}) dépasse la capacité du logement (${property.maxAdults || 0}).` });
+    }
+    if (childrenTeensCount > Number(property.maxChildren || 0)) {
+      return res.status(400).json({ error: `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).` });
+    }
+    if (babiesCount > Number(property.maxBabies || 0)) {
+      return res.status(400).json({ error: `Le nombre de bébés (${babiesCount}) dépasse la capacité du logement (${property.maxBabies || 0}).` });
+    }
+    if (totalGuests > totalMax) {
+      return res.status(400).json({ error: `Le nombre total de personnes (${totalGuests}) dépasse la capacité du logement (${totalMax}).` });
+    }
+
     if (singleBeds !== null && singleBeds !== undefined && singleBeds !== '' && Number(singleBeds) > Number(property.singleBeds || 0)) {
       return res.status(400).json({ error: `Le nombre de lits simples (${singleBeds}) dépasse la capacité du logement (${property.singleBeds || 0}).` });
     }
@@ -291,8 +314,31 @@ router.put('/:id', (req, res) => {
     return res.status(409).json(validationError);
   }
 
-  const property = db.prepare('SELECT singleBeds, doubleBeds FROM properties WHERE id = ?').get(propertyId);
+  const property = db.prepare('SELECT singleBeds, doubleBeds, maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(propertyId);
   if (property) {
+    const adultsCount = Number(adults || 1);
+    const childrenCount = Number(children || 0);
+    const teensCount = Number(teens || 0);
+    const babiesCount = Number(babies || 0);
+    const babyBedsCount = Number(babyBeds || 0);
+    const childrenSleepingInBabyBeds = Math.max(0, Math.min(childrenCount, babyBedsCount - babiesCount));
+    const childrenTeensCount = Math.max(0, childrenCount - childrenSleepingInBabyBeds) + teensCount;
+    const totalGuests = adultsCount + childrenCount + teensCount + babiesCount;
+    const totalMax = Number(property.maxAdults || 0) + Number(property.maxChildren || 0) + Number(property.maxBabies || 0);
+
+    if (adultsCount > Number(property.maxAdults || 0)) {
+      return res.status(400).json({ error: `Le nombre d'adultes (${adultsCount}) dépasse la capacité du logement (${property.maxAdults || 0}).` });
+    }
+    if (childrenTeensCount > Number(property.maxChildren || 0)) {
+      return res.status(400).json({ error: `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).` });
+    }
+    if (babiesCount > Number(property.maxBabies || 0)) {
+      return res.status(400).json({ error: `Le nombre de bébés (${babiesCount}) dépasse la capacité du logement (${property.maxBabies || 0}).` });
+    }
+    if (totalGuests > totalMax) {
+      return res.status(400).json({ error: `Le nombre total de personnes (${totalGuests}) dépasse la capacité du logement (${totalMax}).` });
+    }
+
     if (singleBeds !== null && singleBeds !== undefined && singleBeds !== '' && Number(singleBeds) > Number(property.singleBeds || 0)) {
       return res.status(400).json({ error: `Le nombre de lits simples (${singleBeds}) dépasse la capacité du logement (${property.singleBeds || 0}).` });
     }
