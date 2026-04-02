@@ -2,23 +2,32 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, Card, CardContent, CardMedia, CardActions,
-  Grid, Dialog, DialogTitle, DialogContent, DialogActions, TextField
+  Grid, TextField
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PageHeader from '../components/PageHeader';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
+import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 
 export default function PropertiesPage() {
-  const [properties, setProperties] = useState([]);
+  const {
+    items: properties,
+    reload,
+    createItem,
+  } = useCrudResource({
+    listFn: () => api.getProperties(),
+    createFn: (payload) => api.createProperty(payload),
+    updateFn: (id, payload) => api.updateProperty(id, payload),
+    deleteFn: (id) => api.deleteProperty(id),
+  });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0 });
   const [photoFile, setPhotoFile] = useState(null);
   const navigate = useNavigate();
 
-  const load = async () => setProperties(await api.getProperties());
-  useEffect(() => { load(); }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   const handleSave = async () => {
     const fd = new FormData();
@@ -27,11 +36,10 @@ export default function PropertiesPage() {
     fd.append('maxChildren', form.maxChildren);
     fd.append('maxBabies', form.maxBabies);
     if (photoFile) fd.append('photo', photoFile);
-    await api.createProperty(fd);
+    await createItem(fd);
     setOpen(false);
     setForm({ name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0 });
     setPhotoFile(null);
-    load();
   };
 
   return (

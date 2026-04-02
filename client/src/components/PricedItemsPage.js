@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, Typography, TableHead, TableRow, TableCell, TableBody,
   IconButton, Button, TextField,
@@ -11,6 +11,7 @@ import PageHeader from './PageHeader';
 import TableCard from './TableCard';
 import FormDialog from './FormDialog';
 import { useAppDialogs } from './DialogProvider';
+import useCrudResource from '../hooks/useCrudResource';
 
 const PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
@@ -36,21 +37,33 @@ export default function PricedItemsPage({
   isDeleteDisabled,
 }) {
   const { confirm } = useAppDialogs();
-  const [items, setItems] = useState([]);
   const [properties, setProperties] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
 
-  const load = async () => {
+  const loadWithProperties = useCallback(async () => {
     const { items: data, properties: props } = await loadItems();
-    setItems(data);
     setProperties(props);
-  };
+    return data;
+  }, [loadItems]);
+
+  const {
+    items,
+    reload,
+    createItem: createCrudItem,
+    updateItem: updateCrudItem,
+    removeItem: removeCrudItem,
+  } = useCrudResource({
+    listFn: loadWithProperties,
+    createFn: (payload) => createItem(payload),
+    updateFn: (id, payload) => updateItem(id, payload),
+    deleteFn: (id) => deleteItem(id),
+  });
 
   useEffect(() => {
-    load();
-  }, []);
+    reload();
+  }, [reload]);
 
   const openDialog = (item) => {
     if (item) {
@@ -65,10 +78,9 @@ export default function PricedItemsPage({
 
   const handleSave = async () => {
     const payload = toPayload(form);
-    if (editId) await updateItem(editId, payload);
-    else await createItem(payload);
+    if (editId) await updateCrudItem(editId, payload);
+    else await createCrudItem(payload);
     setOpen(false);
-    load();
   };
 
   const handleDelete = async (item) => {
@@ -77,8 +89,7 @@ export default function PricedItemsPage({
       message: `Supprimer cette ${itemLabel} ?`
     });
     if (!ok) return;
-    await deleteItem(item.id);
-    load();
+    await removeCrudItem(item.id);
   };
 
   return (
