@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography } from '@mui/material';
 import ConfirmDialog from './ConfirmDialog';
+import FormDialog from './FormDialog';
 
 const DialogContext = createContext(null);
 
@@ -13,6 +14,7 @@ export function useAppDialogs() {
 export default function DialogProvider({ children }) {
   const [confirmState, setConfirmState] = useState(null);
   const [alertState, setAlertState] = useState(null);
+  const [formState, setFormState] = useState(null);
 
   const confirm = (options) => new Promise((resolve) => {
     setConfirmState({
@@ -36,6 +38,21 @@ export default function DialogProvider({ children }) {
     });
   });
 
+  const openForm = (options) => new Promise((resolve) => {
+    setFormState({
+      title: 'Formulaire',
+      submitLabel: 'Enregistrer',
+      cancelLabel: 'Annuler',
+      submitDisabled: false,
+      maxWidth: 'sm',
+      fullWidth: true,
+      onSubmit: null,
+      content: null,
+      ...options,
+      resolve,
+    });
+  });
+
   const closeConfirm = () => {
     if (confirmState?.resolve) confirmState.resolve(false);
     setConfirmState(null);
@@ -51,7 +68,21 @@ export default function DialogProvider({ children }) {
     setAlertState(null);
   };
 
-  const value = useMemo(() => ({ confirm, alert }), []);
+  const closeForm = () => {
+    if (formState?.resolve) formState.resolve(false);
+    setFormState(null);
+  };
+
+  const submitForm = async () => {
+    if (!formState) return;
+    if (formState.onSubmit) {
+      await formState.onSubmit();
+    }
+    if (formState.resolve) formState.resolve(true);
+    setFormState(null);
+  };
+
+  const value = useMemo(() => ({ confirm, alert, openForm }), []);
 
   return (
     <DialogContext.Provider value={value}>
@@ -77,6 +108,20 @@ export default function DialogProvider({ children }) {
           <Button variant="contained" onClick={closeAlert}>{alertState?.buttonLabel || 'Compris'}</Button>
         </DialogActions>
       </Dialog>
+
+      <FormDialog
+        open={!!formState}
+        onClose={closeForm}
+        title={formState?.title || 'Formulaire'}
+        onSubmit={submitForm}
+        submitDisabled={!!formState?.submitDisabled}
+        submitLabel={formState?.submitLabel || 'Enregistrer'}
+        cancelLabel={formState?.cancelLabel || 'Annuler'}
+        maxWidth={formState?.maxWidth || 'sm'}
+        fullWidth={formState?.fullWidth !== false}
+      >
+        {formState?.content}
+      </FormDialog>
     </DialogContext.Provider>
   );
 }

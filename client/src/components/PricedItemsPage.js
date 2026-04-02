@@ -1,14 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Typography, TableHead, TableRow, TableCell, TableBody,
+  Box, TableRow, TableCell,
   IconButton, Button, TextField,
   FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PageHeader from './PageHeader';
-import TableCard from './TableCard';
+import DataPageScaffold from './DataPageScaffold';
 import FormDialog from './FormDialog';
 import { useAppDialogs } from './DialogProvider';
 import useCrudResource from '../hooks/useCrudResource';
@@ -94,68 +93,61 @@ export default function PricedItemsPage({
 
   return (
     <Box>
-      <PageHeader
+      <DataPageScaffold
         title={pageTitle}
         actionLabel={`Nouvelle ${itemLabel}`}
         actionIcon={<AddIcon />}
         onAction={() => openDialog(null)}
-      />
-
-      <TableCard minWidth={showQuantity ? 980 : 860}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
-                {showQuantity && <TableCell sx={{ fontWeight: 600 }}>Quantite</TableCell>}
-                <TableCell sx={{ fontWeight: 600 }}>Type de prix</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Prix (EUR)</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Logements</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => {
-                const deleteDisabled = isDeleteDisabled ? isDeleteDisabled(item) : false;
-                const name = item[formNameKey] || '';
-                const description = item[formDescriptionKey] || '';
-                return (
-                  <TableRow key={item.id} hover sx={{ cursor: 'pointer' }} onClick={() => openDialog(item)}>
-                    <TableCell>{name}</TableCell>
-                    <TableCell>{description || '-'}</TableCell>
-                    {showQuantity && <TableCell>{item.quantity}</TableCell>}
-                    <TableCell>{PRICE_TYPES.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
-                    <TableCell>{item.price}</TableCell>
-                    <TableCell>
-                      {!item.propertyIds || item.propertyIds.length === 0
-                        ? 'Tous les logements'
-                        : item.propertyIds.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ')}
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        disabled={deleteDisabled}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!deleteDisabled) handleDelete(item);
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {items.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={showQuantity ? 7 : 6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                    {`Aucune ${itemLabel}`}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-      </TableCard>
+        minWidth={showQuantity ? 980 : 860}
+        head={(
+          <TableRow>
+            <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
+            {showQuantity && <TableCell sx={{ fontWeight: 600 }}>Quantite</TableCell>}
+            <TableCell sx={{ fontWeight: 600 }}>Type de prix</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Prix (EUR)</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Logements</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
+          </TableRow>
+        )}
+        hasItems={items.length > 0}
+        emptyColSpan={showQuantity ? 7 : 6}
+        emptyText={`Aucune ${itemLabel}`}
+      >
+        {items.map((item) => {
+          const deleteDisabled = isDeleteDisabled ? isDeleteDisabled(item) : false;
+          const name = item[formNameKey] || '';
+          const description = item[formDescriptionKey] || '';
+          return (
+            <TableRow key={item.id} hover sx={{ cursor: 'pointer' }} onClick={() => openDialog(item)}>
+              <TableCell>{name}</TableCell>
+              <TableCell>{description || '-'}</TableCell>
+              {showQuantity && <TableCell>{item.quantity}</TableCell>}
+              <TableCell>{PRICE_TYPES.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
+              <TableCell>{item.price}</TableCell>
+              <TableCell>
+                {!item.propertyIds || item.propertyIds.length === 0
+                  ? 'Tous les logements'
+                  : item.propertyIds.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ')}
+              </TableCell>
+              <TableCell align="right">
+                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
+                <IconButton
+                  size="small"
+                  color="error"
+                  disabled={deleteDisabled}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!deleteDisabled) handleDelete(item);
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataPageScaffold>
 
       <FormDialog
         open={open}

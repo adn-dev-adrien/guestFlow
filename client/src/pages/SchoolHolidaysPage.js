@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Typography, TableBody, TableCell,
-  TableHead, TableRow, TextField, IconButton, Grid
+  Box, Typography, TableRow, TableCell,
+  IconButton
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { displayDate } from '../utils/formatters';
-import PageHeader from '../components/PageHeader';
-import TableCard from '../components/TableCard';
+import DataPageScaffold from '../components/DataPageScaffold';
 import FormDialog from '../components/FormDialog';
+import SchoolHolidayFormFields from '../components/SchoolHolidayFormFields';
 import { useAppDialogs } from '../components/DialogProvider';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
@@ -68,36 +68,38 @@ export default function SchoolHolidaysPage() {
 
   return (
     <Box>
-      <PageHeader title="Vacances scolaires" actionLabel="Ajouter" actionIcon={<AddIcon />} onAction={openCreate} />
-
-      <TableCard minWidth={760}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Période</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Zone A</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Zone B</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Zone C</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {holidays.map(h => (
-                  <TableRow key={h.id} hover>
-                    <TableCell>{h.label}</TableCell>
-                    <TableCell align="center">{displayDate(h.zoneA_start)} → {displayDate(h.zoneA_end)}</TableCell>
-                    <TableCell align="center">{displayDate(h.zoneB_start)} → {displayDate(h.zoneB_end)}</TableCell>
-                    <TableCell align="center">{displayDate(h.zoneC_start)} → {displayDate(h.zoneC_end)}</TableCell>
-                    <TableCell align="center">
-                      <IconButton size="small" onClick={() => openEdit(h)}><EditIcon fontSize="small" /></IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(h.id)}><DeleteIcon fontSize="small" /></IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {holidays.length === 0 && (
-                  <TableRow><TableCell colSpan={5} align="center"><Typography color="text.secondary">Aucune période configurée</Typography></TableCell></TableRow>
-                )}
-              </TableBody>
-      </TableCard>
+      <DataPageScaffold
+        title="Vacances scolaires"
+        actionLabel="Ajouter"
+        actionIcon={<AddIcon />}
+        onAction={openCreate}
+        minWidth={760}
+        head={(
+          <TableRow>
+            <TableCell sx={{ fontWeight: 600 }}>Période</TableCell>
+            <TableCell sx={{ fontWeight: 600 }} align="center">Zone A</TableCell>
+            <TableCell sx={{ fontWeight: 600 }} align="center">Zone B</TableCell>
+            <TableCell sx={{ fontWeight: 600 }} align="center">Zone C</TableCell>
+            <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
+          </TableRow>
+        )}
+        hasItems={holidays.length > 0}
+        emptyColSpan={5}
+        emptyText="Aucune période configurée"
+      >
+        {holidays.map(h => (
+          <TableRow key={h.id} hover>
+            <TableCell>{h.label}</TableCell>
+            <TableCell align="center">{displayDate(h.zoneA_start)} → {displayDate(h.zoneA_end)}</TableCell>
+            <TableCell align="center">{displayDate(h.zoneB_start)} → {displayDate(h.zoneB_end)}</TableCell>
+            <TableCell align="center">{displayDate(h.zoneC_start)} → {displayDate(h.zoneC_end)}</TableCell>
+            <TableCell align="center">
+              <IconButton size="small" onClick={() => openEdit(h)}><EditIcon fontSize="small" /></IconButton>
+              <IconButton size="small" color="error" onClick={() => handleDelete(h.id)}><DeleteIcon fontSize="small" /></IconButton>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DataPageScaffold>
 
       {/* Create / Edit Dialog */}
       <FormDialog
@@ -108,42 +110,7 @@ export default function SchoolHolidaysPage() {
         submitDisabled={!form.label}
         submitLabel="Enregistrer"
       >
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField label="Nom de la période" value={form.label} onChange={(e) => setField('label', e.target.value)} fullWidth />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone A</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Début" type="date" value={form.zoneA_start} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setField('zoneA_start', e.target.value)} fullWidth />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Fin" type="date" value={form.zoneA_end} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setField('zoneA_end', e.target.value)} fullWidth />
-              </Grid>
-            </Grid>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone B</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Début" type="date" value={form.zoneB_start} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setField('zoneB_start', e.target.value)} fullWidth />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Fin" type="date" value={form.zoneB_end} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setField('zoneB_end', e.target.value)} fullWidth />
-              </Grid>
-            </Grid>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Zone C</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Début" type="date" value={form.zoneC_start} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setField('zoneC_start', e.target.value)} fullWidth />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Fin" type="date" value={form.zoneC_end} InputLabelProps={{ shrink: true }}
-                  onChange={(e) => setField('zoneC_end', e.target.value)} fullWidth />
-              </Grid>
-            </Grid>
-          </Box>
+        <SchoolHolidayFormFields form={form} setField={setField} />
       </FormDialog>
 
     </Box>
