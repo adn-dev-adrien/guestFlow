@@ -7,17 +7,12 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { displayDate } from '../utils/formatters';
 import api from '../api';
 
 const emptyForm = {
   label: '', zoneA_start: '', zoneA_end: '', zoneB_start: '', zoneB_end: '', zoneC_start: '', zoneC_end: ''
 };
-
-function displayDate(d) {
-  if (!d) return '—';
-  const [y, m, day] = d.split('-');
-  return `${day}/${m}/${y}`;
-}
 
 export default function SchoolHolidaysPage() {
   const [holidays, setHolidays] = useState([]);

@@ -4,13 +4,8 @@ import {
   TableCell, TableContainer, TableHead, TableRow, Chip
 } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { displayDate } from '../utils/formatters';
 import api from '../api';
-
-function displayDate(d) {
-  if (!d) return '—';
-  const [y, m, day] = d.split('-');
-  return `${day}/${m}/${y}`;
-}
 
 const COLORS = ['#1565c0', '#4CAF50', '#f57c00', '#9c27b0'];
 

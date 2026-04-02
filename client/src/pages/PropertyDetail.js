@@ -10,13 +10,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import UploadIcon from '@mui/icons-material/Upload';
+import { TIME_OPTIONS } from '../constants/timeOptions';
+import { displayDate } from '../utils/formatters';
 import api from '../api';
-
-function displayDate(d) {
-  if (!d) return '—';
-  const [y, m, day] = d.split('-');
-  return `${day}/${m}/${y}`;
-}
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -37,12 +33,6 @@ export default function PropertyDetail() {
   const [docType, setDocType] = useState('contract');
   const [docName, setDocName] = useState('');
   const [docFile, setDocFile] = useState(null);
-
-  const TIME_OPTIONS = Array.from({ length: 29 }, (_, i) => {
-    const h = String(Math.floor(i / 2) + 8).padStart(2, '0');
-    const m = i % 2 === 0 ? '00' : '30';
-    return `${h}:${m}`;
-  });
 
   const load = useCallback(async () => {
     const [p, opts] = await Promise.all([api.getProperty(id), api.getOptions()]);
