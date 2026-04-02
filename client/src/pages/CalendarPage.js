@@ -331,7 +331,8 @@ export default function CalendarPage() {
   const openNewReservation = async (startDate, endDate) => {
     const prop = await api.getProperty(selectedProp);
     const opts = await api.getOptions();
-    const availableOpts = opts.filter(o => (prop.optionIds || []).includes(o.id));
+    const propIdNum = parseInt(selectedProp, 10);
+    const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
     setPropertyOptions(availableOpts);
 
     const calc = await api.calculatePrice({ propertyId: selectedProp, startDate, endDate, adults: 1, children: 0 });
@@ -640,9 +641,9 @@ export default function CalendarPage() {
     if (isDragging) return;
     const resId = Number(rawResId);
     const res = await api.getReservation(resId);
-    const prop = await api.getProperty(selectedProp);
     const opts = await api.getOptions();
-    const availableOpts = opts.filter(o => (prop.optionIds || []).includes(o.id));
+    const propIdNum = parseInt(selectedProp, 10);
+    const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
     setPropertyOptions(availableOpts);
 
     const client = await api.getClient(res.clientId);

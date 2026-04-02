@@ -1,17 +1,26 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 export default function useCrudResource({ listFn, createFn, updateFn, deleteFn }) {
+  const listRef = useRef(listFn);
+  const createRef = useRef(createFn);
+  const updateRef = useRef(updateFn);
+  const deleteRef = useRef(deleteFn);
+  listRef.current = listFn;
+  createRef.current = createFn;
+  updateRef.current = updateFn;
+  deleteRef.current = deleteFn;
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [lastArgs, setLastArgs] = useState([]);
+  const lastArgsRef = useRef([]);
 
   const reload = useCallback(async (...args) => {
     setLoading(true);
     setError('');
     try {
-      setLastArgs(args);
-      const data = await listFn(...args);
+      lastArgsRef.current = args;
+      const data = await listRef.current(...args);
       setItems(Array.isArray(data) ? data : []);
       return data;
     } catch (e) {
@@ -20,28 +29,28 @@ export default function useCrudResource({ listFn, createFn, updateFn, deleteFn }
     } finally {
       setLoading(false);
     }
-  }, [listFn]);
+  }, []);
 
   const createItem = useCallback(async (payload, ...reloadArgs) => {
     setError('');
-    const created = await createFn(payload);
-    await reload(...(reloadArgs.length ? reloadArgs : lastArgs));
+    const created = await createRef.current(payload);
+    await reload(...(reloadArgs.length ? reloadArgs : lastArgsRef.current));
     return created;
-  }, [createFn, reload, lastArgs]);
+  }, [reload]);
 
   const updateItem = useCallback(async (id, payload, ...reloadArgs) => {
     setError('');
-    const updated = await updateFn(id, payload);
-    await reload(...(reloadArgs.length ? reloadArgs : lastArgs));
+    const updated = await updateRef.current(id, payload);
+    await reload(...(reloadArgs.length ? reloadArgs : lastArgsRef.current));
     return updated;
-  }, [updateFn, reload, lastArgs]);
+  }, [reload]);
 
   const removeItem = useCallback(async (id, ...reloadArgs) => {
     setError('');
-    const deleted = await deleteFn(id);
-    await reload(...(reloadArgs.length ? reloadArgs : lastArgs));
+    const deleted = await deleteRef.current(id);
+    await reload(...(reloadArgs.length ? reloadArgs : lastArgsRef.current));
     return deleted;
-  }, [deleteFn, reload, lastArgs]);
+  }, [reload]);
 
   return {
     items,
