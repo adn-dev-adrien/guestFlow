@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
-  MenuItem, Typography, CircularProgress, Chip, FormControlLabel, Checkbox
+  MenuItem, Typography, CircularProgress, Chip, FormControlLabel, Checkbox,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
-import PageHeader from '../components/PageHeader';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
@@ -61,6 +61,7 @@ const EMPTY_CLIENT = {
 
 export default function ReservationPage() {
   const { reservationId } = useParams();
+  const editingReservationId = reservationId ? Number(reservationId) : null;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
@@ -79,6 +80,9 @@ export default function ReservationPage() {
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [availableResources, setAvailableResources] = useState([]);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState(null);
+  const pendingLeaveActionRef = useRef(null);
 
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
@@ -93,6 +97,31 @@ export default function ReservationPage() {
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneErrors = (newClient.phoneNumbers || []).map((phone) => !isValidPhone(phone));
   const newClientPhoneError = newClientPhoneErrors.some(Boolean);
+  const formSnapshot = useMemo(() => JSON.stringify({
+    selectedProp: selectedProp ? Number(selectedProp) : null,
+    form,
+  }), [selectedProp, form]);
+  const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
+
+  useEffect(() => {
+    if (!loading && initialSnapshot === null) {
+      setInitialSnapshot(formSnapshot);
+    }
+  }, [loading, initialSnapshot, formSnapshot]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const onPopState = () => {
+      pendingLeaveActionRef.current = () => navigate(-1);
+      setUnsavedDialogOpen(true);
+      // Keep user on the current page until they confirm.
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [isDirty, navigate]);
 
   // ==================== INITIALIZATION & DATA LOADING ====================
   useEffect(() => {
@@ -554,7 +583,7 @@ export default function ReservationPage() {
     const nextPropertyId = Number(propertyId);
     if (!nextPropertyId) return;
 
-    const [prop, opts, calc] = await Promise.all([
+    const [prop, opts, calc, allRes] = await Promise.all([
       api.getProperty(nextPropertyId),
       api.getOptions(),
       api.calculatePrice({
@@ -565,12 +594,14 @@ export default function ReservationPage() {
         children: form.children,
         teens: form.teens,
       }),
+      api.getReservations({ propertyId: nextPropertyId }),
     ]);
 
     const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(nextPropertyId));
 
     setSelectedProp(nextPropertyId);
     setSelectedProperty(prop);
+    setReservations(allRes || []);
     setPropertyOptions(availableOpts);
     setForm(prev => recalcPrice({
       ...prev,
@@ -586,8 +617,8 @@ export default function ReservationPage() {
     }));
 
     await Promise.all([
-      loadResourcesAvailability(form.startDate, form.endDate, nextPropertyId, reservationId || null),
-      loadBabyBedAvailability(form.startDate, form.endDate, nextPropertyId, reservationId || null),
+      loadResourcesAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
+      loadBabyBedAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
     ]);
   };
 
@@ -598,8 +629,8 @@ export default function ReservationPage() {
     const cleaning = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
     const newCheckInHour = timeToHour(reservationForm.checkInTime || '15:00');
     const newCheckOutHour = timeToHour(reservationForm.checkOutTime || '10:00');
-    const otherReservations = reservationId
-      ? reservations.filter(r => r.id !== reservationId)
+    const otherReservations = editingReservationId
+      ? reservations.filter(r => r.id !== editingReservationId)
       : reservations;
 
     const prevRes = otherReservations.find(r => r.endDate === reservationForm.startDate);
@@ -651,8 +682,8 @@ export default function ReservationPage() {
       return;
     }
 
-    const otherReservations = reservationId
-      ? reservations.filter(r => r.id !== reservationId)
+    const otherReservations = editingReservationId
+      ? reservations.filter(r => r.id !== editingReservationId)
       : reservations;
 
     const hasOverlap = otherReservations.some(r => r.startDate < form.endDate && r.endDate > form.startDate);
@@ -738,7 +769,6 @@ export default function ReservationPage() {
             totalPrice: sr.totalPrice,
           }))
         });
-        await alert({ title: 'Succès', message: 'Réservation modifiée.' });
         navigateBackWithFrom(navigate, from);
       } else {
         const res = await api.createReservation({
@@ -777,7 +807,6 @@ export default function ReservationPage() {
             totalPrice: sr.totalPrice,
           }))
         });
-        await alert({ title: 'Succès', message: 'Réservation créée.' });
         navigateBackWithFrom(navigate, from);
       }
     } catch (err) {
@@ -802,6 +831,27 @@ export default function ReservationPage() {
     }
   };
 
+  const requestLeave = (action) => {
+    if (!isDirty) {
+      action();
+      return;
+    }
+    pendingLeaveActionRef.current = action;
+    setUnsavedDialogOpen(true);
+  };
+
+  const handleDiscardChanges = () => {
+    setUnsavedDialogOpen(false);
+    const action = pendingLeaveActionRef.current;
+    pendingLeaveActionRef.current = null;
+    if (action) action();
+  };
+
+  const handleSaveAndLeave = async () => {
+    setUnsavedDialogOpen(false);
+    await handleSaveReservation();
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -811,45 +861,86 @@ export default function ReservationPage() {
   }
 
   const goBackToOrigin = () => {
-    navigateBackWithFrom(navigate, from);
+    requestLeave(() => navigateBackWithFrom(navigate, from));
   };
+
+  // Date bounds to visually block unavailable dates in native date picker.
+  const otherReservations = reservationId
+    ? reservations.filter((r) => r.id !== Number(reservationId)).sort((a, b) => a.startDate.localeCompare(b.startDate))
+    : [...reservations].sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const prevResBound = otherReservations.filter((r) => r.endDate <= (form.startDate || todayStr));
+  const arrivalMin = prevResBound.length > 0 ? prevResBound[prevResBound.length - 1].endDate : todayStr;
+  const arrivalMax = form.endDate || '';
+  const departureMin = form.startDate || '';
+  const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
+  const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
+  const datesUnavailableForProperty = Boolean(
+    selectedProp
+      && form.startDate
+      && form.endDate
+      && otherReservations.some((r) => r.startDate < form.endDate && r.endDate > form.startDate)
+  );
+  const datesUnavailableMessage = 'Ces dates ne sont pas dispo pour ce logement.';
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
 
   return (
     <Box sx={{ pb: 4 }}>
-      <PageHeader
-        title={computedTitle}
-        actionIcon={<ArrowBackIcon />}
-        actionLabel="Retour"
-        onAction={goBackToOrigin}
-      />
+      <Box
+        sx={{
+          position: 'fixed',
+          top: { xs: 56, sm: 64 },
+          left: { xs: 0, md: 240 },
+          width: { xs: '100%', md: 'calc(100% - 240px)' },
+          zIndex: 1200,
+          px: { xs: 1.5, sm: 2, md: 3 },
+          py: 1,
+        }}
+      >
+        <Box
+          sx={{
+            maxWidth: 900,
+            mx: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            px: 1.5,
+            py: 1,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Button startIcon={<ArrowBackIcon />} variant="text" onClick={goBackToOrigin}>
+              Retour
+            </Button>
+            <Typography variant="h6" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 700 }}>
+              {computedTitle}
+            </Typography>
+          </Box>
 
-      <Box sx={{ maxWidth: 900, mx: 'auto', px: 2, py: 3 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>
+              Enregistrer
+            </Button>
+            <Button variant="outlined" onClick={goBackToOrigin}>
+              Annuler
+            </Button>
+            {reservationId && (
+              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteReservation}>
+                Supprimer
+              </Button>
+            )}
+          </Box>
+        </Box>
+      </Box>
+
+      <Box sx={{ maxWidth: 900, mx: 'auto', px: 2, py: 3, mt: { xs: 9, sm: 10 } }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <TextField
-                label="Date d'arrivée"
-                type="date"
-                value={form.startDate || ''}
-                InputLabelProps={{ shrink: true }}
-                onChange={(e) => updateForm({ startDate: e.target.value })}
-                fullWidth
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                label="Date de départ"
-                type="date"
-                value={form.endDate || ''}
-                InputLabelProps={{ shrink: true }}
-                onChange={(e) => updateForm({ endDate: e.target.value })}
-                fullWidth
-              />
-            </Grid>
-          </Grid>
-
           <FormControl fullWidth>
             <InputLabel>Logement</InputLabel>
             <Select
@@ -860,6 +951,39 @@ export default function ReservationPage() {
               {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
             </Select>
           </FormControl>
+
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField
+                label="Date d'arrivée"
+                type="date"
+                value={form.startDate || ''}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
+                onChange={(e) => updateForm({ startDate: e.target.value })}
+                error={datesUnavailableForProperty}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                label="Date de départ"
+                type="date"
+                value={form.endDate || ''}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
+                onChange={(e) => updateForm({ endDate: e.target.value })}
+                error={datesUnavailableForProperty}
+                fullWidth
+              />
+            </Grid>
+          </Grid>
+
+          {datesUnavailableForProperty && (
+            <Typography variant="body2" color="error" sx={{ mt: -1 }}>
+              {datesUnavailableMessage}
+            </Typography>
+          )}
 
           <Autocomplete
             options={clients}
@@ -1172,22 +1296,6 @@ export default function ReservationPage() {
             onChange={(e) => updateForm({ notes: e.target.value })}
             fullWidth
           />
-
-          <Divider />
-
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-            {reservationId && (
-              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteReservation}>
-                Supprimer
-              </Button>
-            )}
-            <Button variant="outlined" onClick={goBackToOrigin}>
-              Annuler
-            </Button>
-            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>
-              Enregistrer
-            </Button>
-          </Box>
         </Box>
       </Box>
 
@@ -1209,6 +1317,20 @@ export default function ReservationPage() {
           phoneErrors={newClientPhoneErrors}
         />
       </FormDialog>
+
+      <Dialog open={unsavedDialogOpen} onClose={() => setUnsavedDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Modifications non enregistrées</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Vous avez des modifications non enregistrées. Voulez-vous enregistrer avant de quitter cette page ?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUnsavedDialogOpen(false)}>Continuer l'édition</Button>
+          <Button color="error" onClick={handleDiscardChanges}>Perdre les modifications</Button>
+          <Button variant="contained" onClick={handleSaveAndLeave}>Enregistrer</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
