@@ -12,12 +12,14 @@ import EditIcon from '@mui/icons-material/Edit';
 import UploadIcon from '@mui/icons-material/Upload';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { displayDate } from '../utils/formatters';
+import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 import api from '../api';
 
 export default function PropertyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const from = getFromParam(location.search);
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
@@ -100,7 +102,7 @@ export default function PropertyDetail() {
     dirtyRef.current = false;
     setDirty(false);
     if (dest) navigate(dest);
-    else navigate(-1);
+    else navigateBackWithFrom(navigate, from);
   };
 
   const handleNavGuardSave = async () => {
@@ -109,7 +111,7 @@ export default function PropertyDetail() {
     const dest = pendingNavRef.current;
     pendingNavRef.current = null;
     if (dest) navigate(dest);
-    else navigate(-1);
+    else navigateBackWithFrom(navigate, from);
   };
 
   const updateField = (field, value) => {

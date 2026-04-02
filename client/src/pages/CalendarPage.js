@@ -16,6 +16,7 @@ import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
 import { isValidEmail, isValidPhone } from '../utils/validation';
+import { withFrom } from '../utils/navigation';
 
 const PRICE_TYPE_LABELS = {
   per_stay: 'prix fixe',
@@ -428,7 +429,14 @@ export default function CalendarPage() {
   };
 
   const openNewReservation = (startDate, endDate) => {
-    navigate(`/reservations/new?propertyId=${selectedProp}&startDate=${startDate}&endDate=${endDate}`);
+    const centerMonth = months[Math.floor(months.length / 2)] || { year: new Date().getFullYear(), month: new Date().getMonth() };
+    const fromParams = new URLSearchParams();
+    if (selectedProp) fromParams.set('propertyId', String(selectedProp));
+    fromParams.set('year', String(centerMonth.year));
+    fromParams.set('month', String(centerMonth.month));
+    const fromUrl = `/calendar?${fromParams.toString()}`;
+
+    navigate(withFrom(`/reservations/new?propertyId=${selectedProp}&startDate=${startDate}&endDate=${endDate}`, fromUrl));
   };
 
   const handleMouseUp = async () => {
@@ -825,7 +833,14 @@ export default function CalendarPage() {
 
   const handleReservationClick = (rawResId) => {
     if (isDragging) return;
-    navigate(`/reservations/${rawResId}`);
+    const centerMonth = months[Math.floor(months.length / 2)] || { year: new Date().getFullYear(), month: new Date().getMonth() };
+    const fromParams = new URLSearchParams();
+    if (selectedProp) fromParams.set('propertyId', String(selectedProp));
+    fromParams.set('year', String(centerMonth.year));
+    fromParams.set('month', String(centerMonth.month));
+    const fromUrl = `/calendar?${fromParams.toString()}`;
+
+    navigate(withFrom(`/reservations/${rawResId}`, fromUrl));
   };
 
   const handleDeleteReservation = async () => {

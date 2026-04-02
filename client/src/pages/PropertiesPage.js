@@ -10,6 +10,7 @@ import FormDialog from '../components/FormDialog';
 import PropertyFormFields from '../components/PropertyFormFields';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
+import { withFrom } from '../utils/navigation';
 
 export default function PropertiesPage() {
   const {
@@ -49,7 +50,10 @@ export default function PropertiesPage() {
       <Grid container spacing={3}>
         {properties.map((p) => (
           <Grid item xs={12} sm={6} md={4} key={p.id}>
-            <Card sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }} onClick={() => navigate(`/properties/${p.id}`)}>
+            <Card
+              sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
+              onClick={() => navigate(withFrom(`/properties/${p.id}`, '/properties'))}
+            >
               {p.photo && <CardMedia component="img" height="180" image={p.photo} alt={p.name} sx={{ objectFit: 'cover' }} />}
               <CardContent>
                 <Typography variant="h6">{p.name}</Typography>
@@ -58,7 +62,7 @@ export default function PropertiesPage() {
                 </Typography>
               </CardContent>
               <CardActions>
-                <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(`/properties/${p.id}`); }}>
+                <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(withFrom(`/properties/${p.id}`, '/properties')); }}>
                   Configurer
                 </Button>
               </CardActions>

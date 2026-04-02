@@ -16,6 +16,7 @@ import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
+import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 
 const PRICE_TYPE_LABELS = {
   per_stay: 'prix fixe',
@@ -63,6 +64,7 @@ export default function ReservationPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
+  const from = getFromParam(searchParams);
   
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
@@ -737,7 +739,7 @@ export default function ReservationPage() {
           }))
         });
         await alert({ title: 'Succès', message: 'Réservation modifiée.' });
-        navigate(getCalendarUrl());
+        navigateBackWithFrom(navigate, from);
       } else {
         const res = await api.createReservation({
           propertyId: Number(selectedProp),
@@ -776,8 +778,8 @@ export default function ReservationPage() {
           }))
         });
         await alert({ title: 'Succès', message: 'Réservation créée.' });
-        navigate(getCalendarUrl());
-        }
+        navigateBackWithFrom(navigate, from);
+      }
     } catch (err) {
       await alert({ title: 'Erreur', message: err.message });
     }
@@ -794,7 +796,7 @@ export default function ReservationPage() {
     if (!ok) return;
     try {
       await api.deleteReservation(reservationId);
-      navigate(getCalendarUrl());
+      navigateBackWithFrom(navigate, from);
     } catch (err) {
       await alert({ title: 'Erreur', message: err.message });
     }
@@ -808,14 +810,8 @@ export default function ReservationPage() {
     );
   }
 
-  const getCalendarUrl = () => {
-    if (!selectedProp || !form.startDate) {
-      return '/calendar';
-    }
-    const d = new Date(form.startDate);
-    const year = d.getFullYear();
-    const month = d.getMonth();
-    return `/calendar?propertyId=${selectedProp}&year=${year}&month=${month}`;
+  const goBackToOrigin = () => {
+    navigateBackWithFrom(navigate, from);
   };
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
@@ -826,7 +822,7 @@ export default function ReservationPage() {
         title={computedTitle}
         actionIcon={<ArrowBackIcon />}
         actionLabel="Retour"
-        onAction={() => navigate(getCalendarUrl())}
+        onAction={goBackToOrigin}
       />
 
       <Box sx={{ maxWidth: 900, mx: 'auto', px: 2, py: 3 }}>
@@ -1185,7 +1181,7 @@ export default function ReservationPage() {
                 Supprimer
               </Button>
             )}
-            <Button variant="outlined" onClick={() => navigate(getCalendarUrl())}>
+            <Button variant="outlined" onClick={goBackToOrigin}>
               Annuler
             </Button>
             <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>

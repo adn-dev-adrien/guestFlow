@@ -12,6 +12,7 @@ import PageHeader from '../components/PageHeader';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
+import { withFrom } from '../utils/navigation';
 import api from '../api';
 
 export default function Dashboard() {
@@ -600,8 +601,7 @@ export default function Dashboard() {
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => {
-                  const d = new Date(detailRes.startDate);
-                  navigate(`/calendar?propertyId=${detailRes.propertyId}&year=${d.getFullYear()}&month=${d.getMonth()}&reservationId=${detailRes.id}`);
+                  navigate(withFrom(`/reservations/${detailRes.id}`, '/'));
                 }}>Éditer la réservation</Button>
                 <Button onClick={() => setDetailOpen(false)}>Fermer</Button>
               </DialogActions>

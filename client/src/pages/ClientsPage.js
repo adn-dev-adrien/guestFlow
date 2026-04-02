@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, TableRow,
   TableCell, IconButton, InputAdornment, Chip, Typography, Divider, CircularProgress
@@ -16,6 +16,7 @@ import { useAppDialogs } from '../components/DialogProvider';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
+import { withFrom } from '../utils/navigation';
 
 const emptyClient = {
   lastName: '',
@@ -60,6 +61,7 @@ function sortReservationsByCurrentDate(reservations) {
 export default function ClientsPage() {
   const { confirm } = useAppDialogs();
   const navigate = useNavigate();
+  const [urlParams, setUrlParams] = useSearchParams();
   const {
     items: clients,
     reload,
@@ -85,6 +87,13 @@ export default function ClientsPage() {
 
   useEffect(() => { reload(search); }, [search, reload]);
 
+  const setClientParam = (clientId) => {
+    const nextParams = new URLSearchParams(urlParams);
+    if (clientId) nextParams.set('clientId', String(clientId));
+    else nextParams.delete('clientId');
+    setUrlParams(nextParams, { replace: true });
+  };
+
   const handleOpen = (client) => {
     if (client) {
       const phones = Array.isArray(client.phoneNumbers) && client.phoneNumbers.length > 0
@@ -92,6 +101,7 @@ export default function ClientsPage() {
         : (client.phone ? [client.phone] : ['']);
       setForm({ ...emptyClient, ...client, phoneNumbers: phones });
       setEditId(client.id);
+      setClientParam(client.id);
       setClientReservations([]);
       setClientReservationsLoading(true);
       api.getReservations({ clientId: client.id })
@@ -102,8 +112,14 @@ export default function ClientsPage() {
       setForm({ ...emptyClient });
       setEditId(null);
       setClientReservations([]);
+      setClientParam(null);
     }
     setOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setOpen(false);
+    setClientParam(null);
   };
 
   const handleSave = async () => {
@@ -123,8 +139,15 @@ export default function ClientsPage() {
     } else {
       await createItem(payload, search);
     }
-    setOpen(false);
+    handleCloseDialog();
   };
+
+  useEffect(() => {
+    const clientIdFromUrl = Number(urlParams.get('clientId') || 0);
+    if (!clientIdFromUrl || open || clients.length === 0) return;
+    const clientToOpen = clients.find((c) => c.id === clientIdFromUrl);
+    if (clientToOpen) handleOpen(clientToOpen);
+  }, [urlParams, clients, open]);
 
   useEffect(() => {
     const cp = (form.postalCode || '').trim();
@@ -169,7 +192,8 @@ export default function ClientsPage() {
 
   const handleOpenReservation = (reservation) => {
     setOpen(false);
-    navigate(`/reservations/${reservation.id}`);
+    const fromUrl = `/clients?clientId=${editId || reservation.clientId}`;
+    navigate(withFrom(`/reservations/${reservation.id}`, fromUrl));
   };
 
   return (
@@ -227,7 +251,7 @@ export default function ClientsPage() {
       {/* Dialog */}
       <FormDialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={handleCloseDialog}
         title={editId ? 'Modifier le client' : 'Nouveau client'}
         onSubmit={handleSave}
         submitDisabled={!form.lastName || !form.firstName || emailError || hasPhoneError}
