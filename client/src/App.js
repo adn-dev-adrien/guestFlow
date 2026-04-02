@@ -24,6 +24,7 @@ import PropertiesPage from './pages/PropertiesPage';
 import PropertyDetail from './pages/PropertyDetail';
 import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
+import ReservationPage from './pages/ReservationPage';
 import FinancePage from './pages/FinancePage';
 import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
 import ResourcesPage from './pages/ResourcesPage';
@@ -109,6 +110,8 @@ function App() {
               <Route path="/options" element={<OptionsPage />} />
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/reservations/new" element={<ReservationPage />} />
+              <Route path="/reservations/:reservationId" element={<ReservationPage />} />
               <Route path="/finance" element={<FinancePage />} />
               <Route path="/planning" element={<PlanningPage />} />
               <Route path="/school-holidays" element={<SchoolHolidaysPage />} />

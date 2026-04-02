@@ -168,11 +168,8 @@ export default function ClientsPage() {
   };
 
   const handleOpenReservation = (reservation) => {
-    const d = new Date(reservation.startDate);
-    const year = d.getFullYear();
-    const month = d.getMonth();
     setOpen(false);
-    navigate(`/calendar?propertyId=${reservation.propertyId}&year=${year}&month=${month}&reservationId=${reservation.id}`);
+    navigate(`/reservations/${reservation.id}`);
   };
 
   return (

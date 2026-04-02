@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, FormControl, InputLabel, Select,
   MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -82,6 +82,7 @@ const EMPTY_CLIENT = {
 export default function CalendarPage() {
   const { confirm, alert } = useAppDialogs();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -426,30 +427,8 @@ export default function CalendarPage() {
     setDragEndDate(clamped);
   };
 
-  const openNewReservation = async (startDate, endDate) => {
-    const prop = await api.getProperty(selectedProp);
-    const opts = await api.getOptions();
-    const propIdNum = parseInt(selectedProp, 10);
-    const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
-    setPropertyOptions(availableOpts);
-
-    const calc = await api.calculatePrice({ propertyId: selectedProp, startDate, endDate, adults: 1, children: 0, teens: 0 });
-
-    setForm({
-      clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
-      singleBeds: '', doubleBeds: '', babyBeds: '',
-      totalPrice: calc.totalPrice, discountPercent: 0, finalPrice: calc.totalPrice, customPrice: '',
-      depositAmount: calc.depositAmount, depositDueDate: calc.depositDueDate,
-      balanceAmount: calc.balanceAmount, balanceDueDate: calc.balanceDueDate,
-      cautionAmount: prop.defaultCautionAmount ?? 500, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
-      notes: '', selectedOptions: [], selectedResources: [], startDate, endDate,
-      checkInTime: calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
-      checkOutTime: calc.defaultCheckOut || prop.defaultCheckOut || '10:00'
-    });
-    await loadResourcesAvailability(startDate, endDate);
-    await loadBabyBedAvailability(startDate, endDate);
-    setEditingReservationId(null);
-    setDialogOpen(true);
+  const openNewReservation = (startDate, endDate) => {
+    navigate(`/reservations/new?propertyId=${selectedProp}&startDate=${startDate}&endDate=${endDate}`);
   };
 
   const handleMouseUp = async () => {
@@ -844,64 +823,9 @@ export default function CalendarPage() {
     }
   };
 
-  const handleReservationClick = async (rawResId) => {
+  const handleReservationClick = (rawResId) => {
     if (isDragging) return;
-    const resId = Number(rawResId);
-    const res = await api.getReservation(resId);
-    const opts = await api.getOptions();
-    const propIdNum = parseInt(selectedProp, 10);
-    const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
-    setPropertyOptions(availableOpts);
-
-    const client = await api.getClient(res.clientId);
-    setClients(prev => {
-      if (prev.some(c => c.id === client.id)) return prev;
-      return [...prev, client];
-    });
-
-    setForm({
-      clientId: res.clientId,
-      adults: res.adults || 1,
-      children: res.children || 0,
-      teens: res.teens || 0,
-      babies: res.babies || 0,
-      singleBeds: res.singleBeds ?? '',
-      doubleBeds: res.doubleBeds ?? '',
-      babyBeds: res.babyBeds ?? '',
-      platform: res.platform || 'direct',
-      totalPrice: res.totalPrice || 0,
-      discountPercent: res.discountPercent || 0,
-      finalPrice: res.finalPrice || 0,
-      customPrice: '',
-      depositAmount: res.depositAmount || 0,
-      depositDueDate: res.depositDueDate || '',
-      balanceAmount: res.balanceAmount || 0,
-      balanceDueDate: res.balanceDueDate || '',
-      notes: res.notes || '',
-      startDate: res.startDate,
-      endDate: res.endDate,
-      checkInTime: res.checkInTime || '15:00',
-      checkOutTime: res.checkOutTime || '10:00',
-      selectedOptions: (res.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
-      selectedResources: (res.resources || []).map(rr => ({
-        resourceId: rr.resourceId,
-        quantity: rr.quantity,
-        unitPrice: rr.unitPrice,
-        totalPrice: rr.totalPrice,
-      })),
-      depositPaid: !!res.depositPaid,
-      balancePaid: !!res.balancePaid,
-      cautionAmount: res.cautionAmount || 0,
-      cautionReceived: !!res.cautionReceived,
-      cautionReceivedDate: res.cautionReceivedDate || '',
-      cautionReturned: !!res.cautionReturned,
-      cautionReturnedDate: res.cautionReturnedDate || '',
-    });
-    await loadResourcesAvailability(res.startDate, res.endDate, resId);
-    await loadBabyBedAvailability(res.startDate, res.endDate, resId);
-    setEditingReservationId(resId);
-    setCreateClientOpen(false);
-    setDialogOpen(true);
+    navigate(`/reservations/${rawResId}`);
   };
 
   const handleDeleteReservation = async () => {
