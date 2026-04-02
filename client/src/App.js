@@ -13,6 +13,7 @@ import ExtensionIcon from '@mui/icons-material/Extension';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import MenuIcon from '@mui/icons-material/Menu';
 import theme from './theme';
 import DialogProvider from './components/DialogProvider';
@@ -26,6 +27,7 @@ import CalendarPage from './pages/CalendarPage';
 import FinancePage from './pages/FinancePage';
 import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
 import ResourcesPage from './pages/ResourcesPage';
+import PlanningPage from './pages/PlanningPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -36,6 +38,7 @@ const navItems = [
   { label: 'Options', path: '/options', icon: <ExtensionIcon /> },
   { label: 'Ressources', path: '/resources', icon: <Inventory2Icon /> },
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
+  { label: 'Planning ménage', path: '/planning', icon: <CleaningServicesIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Vacances scolaires', path: '/school-holidays', icon: <DateRangeIcon /> },
 ];
@@ -107,6 +110,7 @@ function App() {
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/finance" element={<FinancePage />} />
+              <Route path="/planning" element={<PlanningPage />} />
               <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
             </Routes>
           </Box>
