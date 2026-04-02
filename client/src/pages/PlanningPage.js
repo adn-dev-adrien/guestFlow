@@ -70,16 +70,16 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   );
 }
 
-function ReservationCard({ reservation, onToggleReady, alertType }) {
+function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   const r = reservation;
   const done = !!r.checkInReady;
 
   let alertBgColor = 'background.paper';
-  if (alertType === 'orange') {
-    alertBgColor = 'rgba(255, 152, 0, 0.08)';
-  } else if (alertType === 'red') {
-    alertBgColor = 'rgba(244, 67, 54, 0.08)';
-  } else if (alertType === 'blue') {
+  if (alertInfo?.type === 'orange') {
+    alertBgColor = 'rgba(244, 67, 54, 0.10)';
+  } else if (alertInfo?.type === 'red') {
+    alertBgColor = 'rgba(244, 67, 54, 0.14)';
+  } else if (alertInfo?.type === 'blue') {
     alertBgColor = 'rgba(33, 150, 243, 0.08)';
   }
 
@@ -118,6 +118,18 @@ function ReservationCard({ reservation, onToggleReady, alertType }) {
               </Typography>
               {done && (
                 <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />
+              )}
+              {alertInfo?.explanation && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 600,
+                    color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {alertInfo.explanation}
+                </Typography>
               )}
             </Box>
 
@@ -180,49 +192,90 @@ export default function PlanningPage() {
   const [planningDays, setPlanningDays] = useState([]);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [alertMap, setAlertMap] = useState({});
+  const [properties, setProperties] = useState([]);
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // Load properties once
+  useEffect(() => {
+    api.getProperties().then(setProperties);
+  }, []);
+
   // Detect scheduling conflicts
-  const detectAlerts = useCallback((days) => {
+  const detectAlerts = useCallback((days, props = []) => {
     const alerts = {};
+    const propMap = Object.fromEntries(props.map((p) => [p.id, p]));
+
+    // Flatten all reservations for cross-day/cross-day lookups
+    const allRess = days.flatMap((d) => d.reservations);
 
     for (const day of days) {
       const ress = day.reservations;
       for (let i = 0; i < ress.length; i++) {
         const r = ress[i];
 
-        // Type 1: Multiple logements with same checkout time (orange)
+        // Type 1: Multiple logements with same checkout time (orange for simultaneity)
         const firstCheckout = ress[i].endDate === ress[i].startDate ? ress[i].checkOutTime || '11:00' : '11:00';
         const matchingCheckout = ress.filter(
           (rr) => rr.id !== r.id && rr.endDate === r.endDate && (rr.checkOutTime || '11:00') === firstCheckout
         );
         if (matchingCheckout.length > 0) {
-          alerts[r.id] = 'orange';
+          alerts[r.id] = { type: 'orange', explanation: 'Départs simultanés de plusieurs logements' };
         }
 
-        // Type 2: Checkout + 2hr cleaning = next arrival (red)
-        const nextRes = ress.find((rr) => rr.id !== r.id && rr.propertyId === r.propertyId && rr.startDate > r.endDate);
-        if (nextRes) {
-          const checkOutMin = timeToMinutes(firstCheckout);
-          const cleaningEndMin = checkOutMin + 120;
-          const nextArrivalMin = timeToMinutes(nextRes.checkInTime || '15:00');
-          if (cleaningEndMin >= nextArrivalMin) {
-            alerts[r.id] = 'red';
+        // Type 2: previous checkout + cleaning time compared to current arrival
+        const samePropertyPast = allRess.filter((rr) => rr.id !== r.id && rr.propertyId === r.propertyId);
+        const prevRes = samePropertyPast
+          .map((rr) => {
+            const co = rr.checkOutTime || '10:00';
+            return { rr, endStamp: `${rr.endDate}T${co}:00` };
+          })
+          .filter((x) => x.endStamp <= `${r.startDate}T${r.checkInTime || '15:00'}:00`)
+          .sort((a, b) => b.endStamp.localeCompare(a.endStamp))[0]?.rr;
+        if (prevRes) {
+          const prop = propMap[r.propertyId];
+          const cleaningHours = Number(prop?.cleaningHours ?? 3);
+          const cleaningMinutes = Math.round(cleaningHours * 60);
+          const prevCheckOut = prevRes.checkOutTime || '10:00';
+          const prevCheckOutMin = timeToMinutes(prevCheckOut);
+          const cleaningEndMin = prevCheckOutMin + cleaningMinutes;
+          const arrivalMin = timeToMinutes(r.checkInTime || '15:00');
+
+          if (cleaningEndMin === arrivalMin) {
+            const cleaningDisplay = Number.isInteger(cleaningHours)
+              ? `${cleaningHours}h`
+              : `${String(cleaningHours).replace('.', 'h')}`;
+            alerts[r.id] = {
+              type: 'orange',
+              explanation: `${prevRes.firstName} ${prevRes.lastName} part à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
+            };
+          } else if (cleaningEndMin > arrivalMin) {
+            const cleaningDisplay = Number.isInteger(cleaningHours)
+              ? `${cleaningHours}h`
+              : `${String(cleaningHours).replace('.', 'h')}`;
+            alerts[r.id] = {
+              type: 'red',
+              explanation: `${prevRes.firstName} ${prevRes.lastName} part à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
+            };
           }
         }
 
         // Type 3: Arrival during another logement's cleaning (blue)
-        const otherRes = ress.find((rr) => rr.id !== r.id && rr.propertyId !== r.propertyId && rr.endDate <= r.startDate);
-        if (otherRes) {
+        const otherRes = allRess.find((rr) => rr.id !== r.id && rr.propertyId !== r.propertyId && rr.endDate <= r.startDate);
+        if (otherRes && !alerts[r.id]) {
+          const otherProp = propMap[otherRes.propertyId];
+          const otherCleaningMinutes = otherProp?.cleaning || 120;
           const otherCheckOut = otherRes.endDate === otherRes.startDate ? otherRes.checkOutTime || '11:00' : '11:00';
-          const otherCleaningEnd = timeToMinutes(otherCheckOut) + 120;
+          const otherCleaningEnd = timeToMinutes(otherCheckOut) + otherCleaningMinutes;
           const arrivalMin = timeToMinutes(r.checkInTime || '15:00');
           if (arrivalMin < otherCleaningEnd) {
-            alerts[r.id] = 'blue';
+            alerts[r.id] = {
+              type: 'blue',
+              explanation: `Arrivée pendant nettoyage d'un autre logement`,
+            };
           }
         }
       }
@@ -230,6 +283,13 @@ export default function PlanningPage() {
 
     setAlertMap(alerts);
   }, []);
+
+  const getAlertColor = (alertType) => {
+    if (alertType === 'orange') return 'rgba(255, 152, 0, 0.08)';
+    if (alertType === 'red') return 'rgba(244, 67, 54, 0.08)';
+    if (alertType === 'blue') return 'rgba(33, 150, 243, 0.08)';
+    return 'background.paper';
+  };
 
   const loadPlanning = async (from) => {
     setLoading(true);
@@ -254,14 +314,14 @@ export default function PlanningPage() {
       }));
 
     setPlanningDays(days);
-    detectAlerts(days);
+    detectAlerts(days, properties);
     lastLoadedRef.current = to;
     setLoading(false);
   };
 
   useEffect(() => {
     loadPlanning(startDate);
-  }, [startDate]); // eslint-disable-line
+  }, [startDate, properties]); // eslint-disable-line
 
   // Infinite scroll listener
   useEffect(() => {
@@ -293,7 +353,7 @@ export default function PlanningPage() {
                 ),
               }));
             setPlanningDays((prev) => [...prev, ...newDays]);
-            detectAlerts([...planningDays, ...newDays]);
+            detectAlerts([...planningDays, ...newDays], properties);
             lastLoadedRef.current = nextEnd;
           });
         });
@@ -302,7 +362,7 @@ export default function PlanningPage() {
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [loading, planningDays, detectAlerts]); // eslint-disable-line
+  }, [loading, planningDays, detectAlerts, properties]); // eslint-disable-line
 
   const handleToggleReady = async (r) => {
     const newReady = !r.checkInReady;
@@ -316,12 +376,6 @@ export default function PlanningPage() {
       }))
     );
   };
-
-  const totalCount = planningDays.reduce((acc, d) => acc + d.reservations.length, 0);
-  const readyCount = planningDays.reduce(
-    (acc, d) => acc + d.reservations.filter((r) => r.checkInReady).length,
-    0
-  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -354,14 +408,6 @@ export default function PlanningPage() {
               >
                 Aujourd'hui
               </Button>
-            )}
-            {!loading && totalCount > 0 && (
-              <Chip
-                label={`${readyCount} / ${totalCount} prêt${readyCount > 1 ? 's' : ''}`}
-                color={readyCount === totalCount ? 'success' : 'default'}
-                size="small"
-                sx={{ ml: 'auto' }}
-              />
             )}
           </Box>
 
@@ -470,7 +516,7 @@ export default function PlanningPage() {
                   key={r.id}
                   reservation={r}
                   onToggleReady={handleToggleReady}
-                  alertType={alertMap[r.id]}
+                  alertInfo={alertMap[r.id]}
                 />
               ))}
 
