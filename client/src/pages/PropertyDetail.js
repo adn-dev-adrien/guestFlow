@@ -4,7 +4,7 @@ import {
   Box, Typography, Card, CardContent, TextField, Button, Grid,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -24,7 +24,6 @@ export default function PropertyDetail() {
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
   const [property, setProperty] = useState(null);
-  const [allOptions, setAllOptions] = useState([]);
   const [form, setForm] = useState({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,9 +36,8 @@ export default function PropertyDetail() {
   const [docFile, setDocFile] = useState(null);
 
   const load = useCallback(async () => {
-    const [p, opts] = await Promise.all([api.getProperty(id), api.getOptions()]);
+    const p = await api.getProperty(id);
     setProperty(p);
-    setAllOptions(opts);
     const initial = {
       name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
@@ -155,11 +153,6 @@ export default function PropertyDetail() {
     await api.uploadDocument(id, fd);
     setDocFile(null);
     setDocName('');
-    load();
-  };
-
-  const handleOptionToggle = async (optionIds) => {
-    await api.updatePropertyOptions(id, optionIds);
     load();
   };
 
@@ -325,33 +318,6 @@ export default function PropertyDetail() {
           </Card>
         </Grid>
 
-        {/* Options linkage */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Options disponibles</Typography>
-              <FormControl fullWidth>
-                <InputLabel>Options</InputLabel>
-                <Select
-                  multiple
-                  value={property.optionIds || []}
-                  onChange={(e) => handleOptionToggle(e.target.value)}
-                  input={<OutlinedInput label="Options" />}
-                  renderValue={(selected) =>
-                    selected.map((sid) => allOptions.find((o) => o.id === sid)?.title || sid).join(', ')
-                  }
-                >
-                  {allOptions.map((o) => (
-                    <MenuItem key={o.id} value={o.id}>
-                      <Checkbox checked={(property.optionIds || []).includes(o.id)} />
-                      <ListItemText primary={o.title} secondary={`${o.price}€ / ${o.priceType.replace(/_/g, ' ')}`} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
 
       {/* Unsaved changes dialog */}
