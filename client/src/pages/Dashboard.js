@@ -3,17 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, Chip, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider, TextField, Tooltip
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider, TextField, Tooltip, IconButton
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
-import PaymentIcon from '@mui/icons-material/Payment';
+import TodayIcon from '@mui/icons-material/Today';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
 import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
 import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -23,7 +31,6 @@ export default function Dashboard() {
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);
-  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [upcomingByProperty, setUpcomingByProperty] = useState({});
   const [detailOpen, setDetailOpen] = useState(false);
@@ -76,18 +83,16 @@ export default function Dashboard() {
     // Fetch reservations starting from selectedDate if it's in the past
     const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
 
-    const [props, resv, pending, fin, allUpcoming] = await Promise.all([
+    const [props, resv, pending, allUpcoming] = await Promise.all([
       api.getProperties(),
       api.getReservations({ from, to }),
       api.getPendingPayments(),
-      api.getFinanceSummary(from, to),
       api.getReservations({ from: fetchFrom }),
     ]);
 
     setProperties(props);
     setReservations(resv);
     setPendingPayments(pending);
-    setSummary(fin);
 
     const grouped = {};
     for (const prop of props) {
@@ -164,10 +169,10 @@ export default function Dashboard() {
         <Grid item xs={12} sm={4}>
           <Card>
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <PaymentIcon sx={{ fontSize: 40, color: '#f57c00' }} />
+              <TodayIcon sx={{ fontSize: 40, color: '#f57c00' }} />
               <Box>
-                <Typography variant="subtitle2" color="text.secondary">Reste à encaisser (30j)</Typography>
-                <Typography variant="h4">{summary ? summary.totalPending.toLocaleString('fr-FR') : 0} €</Typography>
+                <Typography variant="subtitle2" color="text.secondary">Arrivées (date sélectionnée)</Typography>
+                <Typography variant="h4">{arrivalsToday.length}</Typography>
               </Box>
             </CardContent>
           </Card>
@@ -177,14 +182,22 @@ export default function Dashboard() {
       {/* Daily arrivals / departures */}
       <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
         <Typography variant="h6">Arrivées &amp; Départs</Typography>
-        <TextField
-          type="date"
-          size="small"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          sx={{ width: { xs: '100%', sm: 165 } }}
-          inputProps={{ style: { padding: '6px 10px' } }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, -1))} aria-label="Jour précédent">
+            <NavigateBeforeIcon />
+          </IconButton>
+          <TextField
+            type="date"
+            size="small"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            sx={{ width: { xs: '100%', sm: 165 } }}
+            inputProps={{ style: { padding: '6px 10px' } }}
+          />
+          <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, 1))} aria-label="Jour suivant">
+            <NavigateNextIcon />
+          </IconButton>
+        </Box>
         {selectedDate !== todayStr && (
           <Button size="small" variant="outlined" onClick={() => setSelectedDate(todayStr)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
             Aujourd'hui
