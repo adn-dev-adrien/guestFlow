@@ -499,7 +499,7 @@ export default function Dashboard() {
           const todayStr = new Date().toISOString().split('T')[0];
           const depositOverdue = !detailRes.depositPaid && detailRes.depositDueDate && detailRes.depositDueDate < todayStr;
           const balanceOverdue = !detailRes.balancePaid && detailRes.balanceDueDate && detailRes.balanceDueDate < todayStr;
-          const totalPersons = (detailRes.adults || 0) + (detailRes.children || 0) + (detailRes.babies || 0);
+          const totalPersons = (detailRes.adults || 0) + (detailRes.children || 0) + (detailRes.teens || 0) + (detailRes.babies || 0);
           return (
             <>
               <DialogTitle>Réservation — {detailRes.propertyName}</DialogTitle>
@@ -520,7 +520,7 @@ export default function Dashboard() {
                   <Typography variant="body2"><b>Arrivée :</b> {displayDate(detailRes.startDate)} à {detailRes.checkInTime || '15:00'}</Typography>
                   <Typography variant="body2"><b>Départ :</b> {displayDate(detailRes.endDate)} à {detailRes.checkOutTime || '10:00'}</Typography>
                   <Typography variant="body2"><b>Nuits :</b> {nights}</Typography>
-                  <Typography variant="body2"><b>Personnes :</b> {totalPersons} ({detailRes.adults} ad.{detailRes.children > 0 ? `, ${detailRes.children} enf.` : ''}{detailRes.babies > 0 ? `, ${detailRes.babies} bébé${detailRes.babies > 1 ? 's' : ''}` : ''})</Typography>
+                  <Typography variant="body2"><b>Personnes :</b> {totalPersons} ({detailRes.adults} ad.{detailRes.children > 0 ? `, ${detailRes.children} enf. 2-12` : ''}{detailRes.teens > 0 ? `, ${detailRes.teens} ado${detailRes.teens > 1 ? 's' : ''} 12-18` : ''}{detailRes.babies > 0 ? `, ${detailRes.babies} bébé${detailRes.babies > 1 ? 's' : ''}` : ''})</Typography>
                 </Box>
 
                 {/* Options */}

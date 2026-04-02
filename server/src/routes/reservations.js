@@ -50,7 +50,7 @@ router.get('/:id', (req, res) => {
 
 // Calculate price for a potential reservation
 router.post('/calculate-price', (req, res) => {
-  const { propertyId, startDate, endDate, adults, children } = req.body;
+  const { propertyId, startDate, endDate, adults, children, teens } = req.body;
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
@@ -171,7 +171,7 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
 // Create reservation
 router.post('/', (req, res) => {
   const {
-    propertyId, clientId, startDate, endDate, adults, children, babies,
+    propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
@@ -196,10 +196,11 @@ router.post('/', (req, res) => {
     }
   }
 
+  const childrenCount = Number(children || 0);
   const babiesCount = Number(babies || 0);
   const babyBedsCount = Number(babyBeds || 0);
-  if (babyBedsCount > babiesCount) {
-    return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre de bébés (${babiesCount}).` });
+  if (babyBedsCount > babiesCount + childrenCount) {
+    return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre total de bébés et d'enfants (${babiesCount + childrenCount}).` });
   }
 
   const babyResources = db.prepare(`
@@ -222,14 +223,14 @@ router.post('/', (req, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, babies,
+    INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, teens, babies,
       singleBeds, doubleBeds, babyBeds,
       checkInTime, checkOutTime,
       platform, totalPrice, discountPercent, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, notes, cautionAmount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
+    propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
@@ -275,7 +276,7 @@ router.post('/', (req, res) => {
 // Update reservation
 router.put('/:id', (req, res) => {
   const {
-    propertyId, clientId, startDate, endDate, adults, children, babies,
+    propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
     platform, totalPrice, discountPercent, finalPrice,
@@ -300,10 +301,11 @@ router.put('/:id', (req, res) => {
     }
   }
 
+  const childrenCount = Number(children || 0);
   const babiesCount = Number(babies || 0);
   const babyBedsCount = Number(babyBeds || 0);
-  if (babyBedsCount > babiesCount) {
-    return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre de bébés (${babiesCount}).` });
+  if (babyBedsCount > babiesCount + childrenCount) {
+    return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre total de bébés et d'enfants (${babiesCount + childrenCount}).` });
   }
 
   const babyResources = db.prepare(`
@@ -326,7 +328,7 @@ router.put('/:id', (req, res) => {
   }
 
   db.prepare(`
-    UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, babies=?,
+    UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
       singleBeds=?, doubleBeds=?, babyBeds=?,
       checkInTime=?, checkOutTime=?,
       platform=?, totalPrice=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
@@ -335,7 +337,7 @@ router.put('/:id', (req, res) => {
       updatedAt=datetime('now')
     WHERE id=?
   `).run(
-    propertyId, clientId, startDate, endDate, adults || 1, children || 0, babies || 0,
+    propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', totalPrice, discountPercent || 0, finalPrice,

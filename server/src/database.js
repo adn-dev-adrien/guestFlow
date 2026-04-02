@@ -110,6 +110,7 @@ db.exec(`
     endDate TEXT NOT NULL,
     adults INTEGER DEFAULT 1,
     children INTEGER DEFAULT 0,
+    teens INTEGER DEFAULT 0,
     babies INTEGER DEFAULT 0,
     singleBeds INTEGER,
     doubleBeds INTEGER,
@@ -194,6 +195,9 @@ if (!cols.includes('doubleBeds')) {
 }
 if (!cols.includes('babyBeds')) {
   db.exec("ALTER TABLE reservations ADD COLUMN babyBeds INTEGER");
+}
+if (!cols.includes('teens')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN teens INTEGER DEFAULT 0");
 }
 const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
 if (!propCols.includes('defaultCautionAmount')) {

@@ -38,7 +38,7 @@ const navItems = [
   { label: 'Options', path: '/options', icon: <ExtensionIcon /> },
   { label: 'Ressources', path: '/resources', icon: <Inventory2Icon /> },
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
-  { label: 'Planning ménage', path: '/planning', icon: <CleaningServicesIcon /> },
+  { label: 'Planning', path: '/planning', icon: <CleaningServicesIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Vacances scolaires', path: '/school-holidays', icon: <DateRangeIcon /> },
 ];

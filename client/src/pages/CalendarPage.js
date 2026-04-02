@@ -97,7 +97,7 @@ export default function CalendarPage() {
   const [availableResources, setAvailableResources] = useState([]);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [form, setForm] = useState({
-    clientId: null, adults: 1, children: 0, babies: 0, platform: 'direct',
+    clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
     singleBeds: '', doubleBeds: '', babyBeds: '',
     totalPrice: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
@@ -278,6 +278,7 @@ export default function CalendarPage() {
           endDate: form.endDate,
           adults: form.adults,
           children: form.children,
+          teens: form.teens,
         });
 
         if (pricingRequestRef.current !== requestId) return;
@@ -295,7 +296,7 @@ export default function CalendarPage() {
     };
 
     refreshBasePrice();
-  }, [dialogOpen, selectedProp, form.startDate, form.endDate, form.adults, form.children]);
+  }, [dialogOpen, selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens]);
 
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
 
@@ -379,10 +380,10 @@ export default function CalendarPage() {
     const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
     setPropertyOptions(availableOpts);
 
-    const calc = await api.calculatePrice({ propertyId: selectedProp, startDate, endDate, adults: 1, children: 0 });
+    const calc = await api.calculatePrice({ propertyId: selectedProp, startDate, endDate, adults: 1, children: 0, teens: 0 });
 
     setForm({
-      clientId: null, adults: 1, children: 0, babies: 0, platform: 'direct',
+      clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
       singleBeds: '', doubleBeds: '', babyBeds: '',
       totalPrice: calc.totalPrice, discountPercent: 0, finalPrice: calc.totalPrice, customPrice: '',
       depositAmount: calc.depositAmount, depositDueDate: calc.depositDueDate,
@@ -410,7 +411,7 @@ export default function CalendarPage() {
   const recalcPrice = (updatedForm) => {
     const base = updatedForm.totalPrice;
     const nights = Math.max(1, Math.round((new Date(updatedForm.endDate) - new Date(updatedForm.startDate)) / 86400000));
-    const persons = (Number(updatedForm.adults) || 1) + (Number(updatedForm.children) || 0);
+    const persons = (Number(updatedForm.adults) || 1) + (Number(updatedForm.children) || 0) + (Number(updatedForm.teens) || 0);
     const depositPercent = Number(selectedProperty?.depositPercent ?? 30);
     const depositDaysBefore = Number(selectedProperty?.depositDaysBefore ?? 30);
     const balanceDaysBefore = Number(selectedProperty?.balanceDaysBefore ?? 7);
@@ -615,6 +616,7 @@ export default function CalendarPage() {
           endDate: form.endDate,
           adults: form.adults,
           children: form.children,
+          teens: form.teens,
           babies: form.babies,
           singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
           doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
@@ -657,6 +659,7 @@ export default function CalendarPage() {
           endDate: form.endDate,
           adults: form.adults,
           children: form.children,
+          teens: form.teens,
           babies: form.babies,
           singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
           doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
@@ -716,6 +719,7 @@ export default function CalendarPage() {
       clientId: res.clientId,
       adults: res.adults || 1,
       children: res.children || 0,
+      teens: res.teens || 0,
       babies: res.babies || 0,
       singleBeds: res.singleBeds ?? '',
       doubleBeds: res.doubleBeds ?? '',
@@ -781,17 +785,23 @@ export default function CalendarPage() {
   const cleaningHours = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
   const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
   const maxDoubleBeds = selectedProperty ? Number(selectedProperty.doubleBeds ?? 0) : null;
-  const bedsEntered = form.singleBeds !== '' || form.doubleBeds !== '';
-  const adultsChildrenCount = (Number(form.adults) || 0) + (Number(form.children) || 0);
+  const bedsEntered = form.singleBeds !== '' || form.doubleBeds !== '' || form.babyBeds !== '';
+  const adultsCount = Number(form.adults) || 0;
+  const childrenCount = Number(form.children) || 0;
+  const teensCount = Number(form.teens) || 0;
+  const babiesCount = Number(form.babies) || 0;
   const reservationBedCapacity = (Number(form.singleBeds) || 0) + (Number(form.doubleBeds) || 0) * 2;
-  const bedsCapacityMismatch = bedsEntered && reservationBedCapacity < adultsChildrenCount;
   const exceedsSingleBedsLimit = maxSingleBeds !== null && form.singleBeds !== '' && Number(form.singleBeds) > maxSingleBeds;
   const exceedsDoubleBedsLimit = maxDoubleBeds !== null && form.doubleBeds !== '' && Number(form.doubleBeds) > maxDoubleBeds;
   const babyAvailableNumber = babyBedAvailability.available === null ? null : Number(babyBedAvailability.available || 0);
   const maxBabyBedsByRule = babyAvailableNumber === null
-    ? Number(form.babies || 0)
-    : Math.min(Number(form.babies || 0), babyAvailableNumber);
+    ? babiesCount + childrenCount
+    : Math.min(babiesCount + childrenCount, babyAvailableNumber);
   const selectedBabyBeds = Number(form.babyBeds || 0);
+  const childrenSleepingInBabyBeds = Math.max(0, selectedBabyBeds - babiesCount);
+  const childrenSleepingInRegularBeds = Math.max(0, childrenCount - childrenSleepingInBabyBeds);
+  const requiredRegularBeds = adultsCount + teensCount + childrenSleepingInRegularBeds;
+  const bedsCapacityMismatch = bedsEntered && reservationBedCapacity < requiredRegularBeds;
   const remainingBabyBeds = babyAvailableNumber === null
     ? null
     : Math.max(0, babyAvailableNumber - selectedBabyBeds);
@@ -802,7 +812,7 @@ export default function CalendarPage() {
     if (current > maxBabyBedsByRule) {
       setForm(prev => ({ ...prev, babyBeds: maxBabyBedsByRule }));
     }
-  }, [form.babies, babyBedAvailability.available]);
+  }, [form.babies, form.children, babyBedAvailability.available]);
 
   // Check if a reservation has visible mid-stay days in the current month
   const resHasMidDays = (res, y, m, dim) => {
@@ -1366,13 +1376,16 @@ export default function CalendarPage() {
             <Divider />
 
             <Grid container spacing={2}>
-              <Grid item xs={4}>
+              <Grid item xs={3}>
                 <TextField label="Adultes" type="number" value={form.adults} onChange={(e) => updateForm({ adults: Number(e.target.value) })} fullWidth inputProps={{ min: 1 }} />
               </Grid>
-              <Grid item xs={4}>
-                <TextField label="Enfants (2 à 18 ans)" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+              <Grid item xs={3}>
+                <TextField label="Enfants (2 à 12 ans)" type="number" value={form.children} onChange={(e) => updateForm({ children: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
               </Grid>
-              <Grid item xs={4}>
+              <Grid item xs={3}>
+                <TextField label="Ados (12 à 18 ans)" type="number" value={form.teens} onChange={(e) => updateForm({ teens: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
+              </Grid>
+              <Grid item xs={3}>
                 <TextField label="Bébés (0 à 2 ans)" type="number" value={form.babies} onChange={(e) => updateForm({ babies: Number(e.target.value) })} fullWidth inputProps={{ min: 0 }} />
               </Grid>
             </Grid>
@@ -1425,7 +1438,7 @@ export default function CalendarPage() {
 
             {bedsCapacityMismatch && (
               <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
-                Attention: la capacité des lits saisis ({reservationBedCapacity}) est inférieure au total adultes + enfants ({adultsChildrenCount}). Vous pouvez enregistrer, mais la configuration ne couvre pas toutes les personnes.
+                Attention: la capacité des lits classiques saisis ({reservationBedCapacity}) est inférieure au besoin réel ({requiredRegularBeds}). Les enfants de 2 à 12 ans placés en lit bébé sont déduits automatiquement du calcul.
               </Typography>
             )}
 
@@ -1466,7 +1479,7 @@ export default function CalendarPage() {
                 {propertyOptions.map(opt => {
                   const selected = form.selectedOptions.find(so => so.optionId === opt.id);
                   const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
-                  const persons = (Number(form.adults) || 1) + (Number(form.children) || 0);
+                  const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
                   let factorHint = '';
                   if (opt.priceType === 'per_person') factorHint = `×${persons} pers.`;
                   else if (opt.priceType === 'per_night') factorHint = `×${nights} j.`;
@@ -1507,7 +1520,7 @@ export default function CalendarPage() {
                     const unavailable = Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
                     const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
-                    const persons = (Number(form.adults) || 1) + (Number(form.children) || 0);
+                    const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
                     let factorHint = '';
                     if (resource.priceType === 'per_person') factorHint = `×${persons} pers.`;
                     else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;

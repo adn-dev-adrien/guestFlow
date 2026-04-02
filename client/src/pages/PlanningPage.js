@@ -379,7 +379,7 @@ export default function PlanningPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <PageHeader title="Planning ménage" />
+      <PageHeader title="Planning" />
 
       {/* Controls */}
       <Card sx={{ mb: 2, mx: 2, mt: 2 }}>
