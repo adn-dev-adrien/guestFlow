@@ -4,15 +4,18 @@ import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
   MenuItem, Typography, CircularProgress, Chip, FormControlLabel,
   Switch, Stack, Card, CardContent, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText
+  Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText, useMediaQuery
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
-import { PLATFORMS } from '../constants/platforms';
+import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
@@ -37,6 +40,27 @@ function shiftDate(dateStr, daysDelta) {
   const date = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '';
   date.setDate(date.getDate() + daysDelta);
+  return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function diffDays(startDate, endDate) {
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+  if (!start || !end) return 0;
+  return Math.round((end - start) / 86400000);
+}
+
+function addDays(dateStr, days) {
+  const date = parseDate(dateStr);
+  if (!date) return '';
+  date.setDate(date.getDate() + days);
   return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
@@ -67,7 +91,11 @@ export default function ReservationPage() {
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
   const from = getFromParam(searchParams);
-  
+  const theme = useTheme();
+  const downSm = useMediaQuery(theme.breakpoints.down('sm'));
+  const downMd = useMediaQuery(theme.breakpoints.down('md'));
+  const downLg = useMediaQuery(theme.breakpoints.down('lg'));
+
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
@@ -84,6 +112,9 @@ export default function ReservationPage() {
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
+  const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+  const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
+  const miniCenteredOnceRef = useRef(false);
   const pendingLeaveActionRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -104,6 +135,52 @@ export default function ReservationPage() {
     form,
   }), [selectedProp, form]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
+  const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
+
+  const miniDays = useMemo(() => {
+    return Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
+  }, [miniCalendarStart, miniVisibleDays]);
+
+  const otherReservationsForMini = useMemo(() => {
+    return reservations.filter((r) => !editingReservationId || r.id !== editingReservationId);
+  }, [reservations, editingReservationId]);
+
+  const findMiniReservation = (dateStr) => {
+    if (!dateStr) return null;
+    return otherReservationsForMini.find((r) => dateStr >= r.startDate && dateStr < r.endDate) || null;
+  };
+
+  const isMiniSelectedDay = (dateStr) => {
+    if (!dateStr || !form.startDate || !form.endDate) return false;
+    return dateStr >= form.startDate && dateStr < form.endDate;
+  };
+
+  const centerMiniCalendarOnRange = (startDate, endDate) => {
+    if (!startDate) return;
+    const nights = Math.max(1, diffDays(startDate, endDate || addDays(startDate, 1)));
+    const centerDate = addDays(startDate, Math.floor((nights - 1) / 2));
+    const newStart = addDays(centerDate, -Math.floor(miniVisibleDays / 2));
+    if (newStart) setMiniCalendarStart(newStart);
+  };
+
+  const handleMiniDateClick = (dateStr) => {
+    if (isReservationLocked) return;
+
+    if (!miniSelectionAnchor || miniSelectionAnchor === dateStr) {
+      setMiniSelectionAnchor(dateStr);
+      updateForm({ startDate: dateStr, endDate: addDays(dateStr, 1) });
+      return;
+    }
+
+    if (dateStr < miniSelectionAnchor) {
+      setMiniSelectionAnchor(dateStr);
+      updateForm({ startDate: dateStr, endDate: addDays(dateStr, 1) });
+      return;
+    }
+
+    updateForm({ startDate: miniSelectionAnchor, endDate: dateStr });
+    setMiniSelectionAnchor('');
+  };
 
   useEffect(() => {
     if (!loading && initialSnapshot === null) {
@@ -124,6 +201,33 @@ export default function ReservationPage() {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [isDirty, navigate]);
+
+  useEffect(() => {
+    miniCenteredOnceRef.current = false;
+    setMiniSelectionAnchor('');
+  }, [selectedProp]);
+
+  useEffect(() => {
+    if (!form.startDate) return;
+
+    if (!miniCenteredOnceRef.current) {
+      centerMiniCalendarOnRange(form.startDate, form.endDate);
+      miniCenteredOnceRef.current = true;
+      return;
+    }
+
+    if (!miniDays.length) return;
+    const first = miniDays[0];
+    const last = miniDays[miniDays.length - 1];
+    const endRef = form.endDate || addDays(form.startDate, 1);
+    const outOfView = form.startDate < first || endRef > addDays(last, 1);
+    if (outOfView) centerMiniCalendarOnRange(form.startDate, form.endDate);
+  }, [form.startDate, form.endDate, miniDays]);
+
+  useEffect(() => {
+    if (!miniSelectionAnchor) return;
+    if (form.startDate !== miniSelectionAnchor) setMiniSelectionAnchor('');
+  }, [form.startDate, miniSelectionAnchor]);
 
   // ==================== INITIALIZATION & DATA LOADING ====================
   useEffect(() => {
@@ -1038,6 +1142,73 @@ export default function ReservationPage() {
               {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
             </Select>
           </FormControl>
+
+          <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="subtitle2">Mini planning</Typography>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Button size="small" variant="text" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -7))} disabled={isReservationLocked}>-7j</Button>
+                  <IconButton size="small" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -1))} disabled={isReservationLocked}>
+                    <ChevronLeftIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, 1))} disabled={isReservationLocked}>
+                    <ChevronRightIcon fontSize="small" />
+                  </IconButton>
+                  <Button size="small" variant="text" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, 7))} disabled={isReservationLocked}>+7j</Button>
+                </Stack>
+              </Stack>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length || 1}, minmax(0, 1fr))`, gap: 0.75 }}>
+                {miniDays.map((day) => {
+                  const reservationOnDay = findMiniReservation(day);
+                  const selectedDay = isMiniSelectedDay(day);
+                  const isArrival = form.startDate === day;
+                  const isDeparture = form.endDate === day;
+                  const dateObj = parseDate(day);
+                  const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][dateObj?.getDay() || 0];
+                  const baseColor = reservationOnDay ? (PLATFORM_COLORS[reservationOnDay.platform] || '#757575') : '#f5f5f5';
+                  const textColor = selectedDay || reservationOnDay ? '#fff' : 'text.primary';
+
+                  return (
+                    <Box
+                      key={day}
+                      onClick={() => handleMiniDateClick(day)}
+                      title={reservationOnDay ? `${reservationOnDay.firstName || ''} ${reservationOnDay.lastName || ''} (${reservationOnDay.platform || 'reservation'})` : 'Disponible'}
+                      sx={{
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: isArrival || isDeparture ? 'primary.main' : 'divider',
+                        bgcolor: selectedDay ? 'primary.main' : baseColor,
+                        color: textColor,
+                        minHeight: 56,
+                        px: 0.5,
+                        py: 0.75,
+                        textAlign: 'center',
+                        cursor: isReservationLocked ? 'not-allowed' : 'pointer',
+                        opacity: isReservationLocked ? 0.85 : 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+                        '&:hover': {
+                          transform: isReservationLocked ? 'none' : 'translateY(-1px)',
+                          boxShadow: isReservationLocked ? 'none' : '0 2px 6px rgba(0,0,0,0.14)',
+                        },
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'inherit', lineHeight: 1.1 }}>{weekLabel}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'inherit', lineHeight: 1.15 }}>{dateObj?.getDate()}</Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Cliquez une date d'arrivée puis une date de départ. Les couleurs indiquent les autres réservations.
+              </Typography>
+            </CardContent>
+          </Card>
 
           <Grid container spacing={2}>
             <Grid item xs={6}>
