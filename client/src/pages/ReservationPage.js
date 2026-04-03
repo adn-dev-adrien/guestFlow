@@ -114,6 +114,8 @@ export default function ReservationPage() {
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
   const miniCenteredOnceRef = useRef(false);
+  const manualDateInputChangeRef = useRef(false);
+  const miniStripDateChangeRef = useRef(false);
   const pendingLeaveActionRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -146,6 +148,7 @@ export default function ReservationPage() {
 
   const handleMiniDateClick = (dateStr) => {
     if (isReservationLocked) return;
+    miniStripDateChangeRef.current = true;
 
     if (!miniSelectionAnchor || miniSelectionAnchor === dateStr) {
       setMiniSelectionAnchor(dateStr);
@@ -161,6 +164,11 @@ export default function ReservationPage() {
 
     updateForm({ startDate: miniSelectionAnchor, endDate: addDays(dateStr, 1) });
     setMiniSelectionAnchor('');
+  };
+
+  const handleManualDateInputChange = (changes) => {
+    manualDateInputChangeRef.current = true;
+    updateForm(changes);
   };
 
   useEffect(() => {
@@ -185,6 +193,8 @@ export default function ReservationPage() {
 
   useEffect(() => {
     miniCenteredOnceRef.current = false;
+    manualDateInputChangeRef.current = false;
+    miniStripDateChangeRef.current = false;
     setMiniSelectionAnchor('');
   }, [selectedProp]);
 
@@ -197,15 +207,18 @@ export default function ReservationPage() {
       return;
     }
 
-    // Check if reservation date range is out of view; if so, recenter
-    const currentMiniDays = Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
-    if (currentMiniDays.length === 0) return;
-    const first = currentMiniDays[0];
-    const last = currentMiniDays[currentMiniDays.length - 1];
-    const endRef = form.endDate || addDays(form.startDate, 1);
-    const outOfView = form.startDate < first || endRef > addDays(last, 1);
-    if (outOfView) centerMiniCalendarOnRange(form.startDate, form.endDate);
-  }, [form.startDate, form.endDate, miniCalendarStart, miniVisibleDays]);
+    // Do not recenter when dates come from mini strip clicks.
+    if (miniStripDateChangeRef.current) {
+      miniStripDateChangeRef.current = false;
+      return;
+    }
+
+    // Recenter only when user changed date manually through date inputs.
+    if (manualDateInputChangeRef.current) {
+      manualDateInputChangeRef.current = false;
+      centerMiniCalendarOnRange(form.startDate, form.endDate);
+    }
+  }, [form.startDate, form.endDate, miniVisibleDays]);
 
   useEffect(() => {
     if (!miniSelectionAnchor) return;
@@ -1131,8 +1144,11 @@ export default function ReservationPage() {
             setMiniCalendarStart={setMiniCalendarStart}
             miniVisibleDays={miniVisibleDays}
             reservations={reservations}
+            selectedPropertyId={selectedProp}
             currentReservation={form}
+            currentReservationId={editingReservationId}
             onDateClick={handleMiniDateClick}
+            onRecenter={() => centerMiniCalendarOnRange(form.startDate, form.endDate)}
             isLocked={isReservationLocked}
           />
 
@@ -1144,7 +1160,7 @@ export default function ReservationPage() {
                 value={form.startDate || ''}
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
-                onChange={(e) => updateForm({ startDate: e.target.value })}
+                onChange={(e) => handleManualDateInputChange({ startDate: e.target.value })}
                 error={datesUnavailableForProperty}
                 fullWidth
               />
@@ -1156,7 +1172,7 @@ export default function ReservationPage() {
                 value={form.endDate || ''}
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
-                onChange={(e) => updateForm({ endDate: e.target.value })}
+                onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
                 error={datesUnavailableForProperty}
                 fullWidth
               />
