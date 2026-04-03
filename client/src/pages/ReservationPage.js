@@ -973,11 +973,14 @@ export default function ReservationPage() {
 
       <Box
         sx={{
-          maxWidth: 900,
+          maxWidth: 1300,
           mx: 'auto',
           px: 2,
           py: 3,
           mt: { xs: 9, sm: 10 },
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
+          gap: 3,
           '& .MuiOutlinedInput-root': {
             bgcolor: '#fff',
           },
@@ -989,6 +992,8 @@ export default function ReservationPage() {
           },
         }}
       >
+        {/* Colonne gauche : Formulaire */}
+        <Box>
         {isReservationLocked && (
           <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
             Cette réservation est passée ou en cours et ne peut plus être modifiée. Seules les réservations à venir sont modifiables.
@@ -1438,6 +1443,119 @@ export default function ReservationPage() {
             fullWidth
           />
           </Box>
+        </Box>
+        </Box>
+
+        {/* Panneau latéral droit : Résumé des prix */}
+        <Box
+          sx={{
+            position: { xs: 'static', md: 'sticky' },
+            top: { md: 120 },
+            height: 'fit-content',
+          }}
+        >
+          <Card variant="outlined" sx={{ bgcolor: '#fff', p: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
+              Résumé tarifaire
+            </Typography>
+
+            <Stack spacing={1.5}>
+              {/* Prix calculé */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Prix calculé
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {form.totalPrice.toFixed(2)}€
+                </Typography>
+              </Box>
+
+              <Divider />
+
+              {/* Réduction */}
+              {form.discountPercent > 0 && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Réduction ({form.discountPercent}%)
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                      -{((form.totalPrice * form.discountPercent) / 100).toFixed(2)}€
+                    </Typography>
+                  </Box>
+                  <Divider />
+                </>
+              )}
+
+              {/* Prix final */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Prix final
+                </Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  {(form.customPrice !== '' ? form.customPrice : form.finalPrice).toFixed(2)}€
+                </Typography>
+              </Box>
+
+              <Divider />
+
+              {/* Acompte */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Acompte
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {form.depositAmount.toFixed(2)}€
+                </Typography>
+              </Box>
+              {form.depositDueDate && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  À payer avant : {new Date(form.depositDueDate).toLocaleDateString('fr-FR')}
+                </Typography>
+              )}
+              {form.depositPaid && (
+                <Chip size="small" label="Acompte payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+              )}
+
+              <Divider />
+
+              {/* Solde */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Solde
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {form.balanceAmount.toFixed(2)}€
+                </Typography>
+              </Box>
+              {form.balanceDueDate && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  À payer avant : {new Date(form.balanceDueDate).toLocaleDateString('fr-FR')}
+                </Typography>
+              )}
+              {form.balancePaid && (
+                <Chip size="small" label="Solde payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+              )}
+
+              <Divider />
+
+              {/* Caution */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Caution
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {form.cautionAmount.toFixed(2)}€
+                </Typography>
+              </Box>
+              {form.cautionReceived && (
+                <Chip size="small" label="Caution reçue" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+              )}
+              {form.cautionReturned && (
+                <Chip size="small" label="Caution restituée" color="info" variant="outlined" sx={{ width: 'fit-content' }} />
+              )}
+            </Stack>
+          </Card>
         </Box>
       </Box>
 
