@@ -46,6 +46,7 @@ export default function PropertyDetail() {
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
+      touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       defaultCheckIn: p.defaultCheckIn || '15:00', defaultCheckOut: p.defaultCheckOut || '10:00', cleaningHours: p.cleaningHours ?? 3
     };
     setForm(initial);
@@ -119,6 +120,12 @@ export default function PropertyDetail() {
   const updateField = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     setDirty(true);
+  };
+
+  const handleZeroFocus = (e) => {
+    if (Number(e.target.value) === 0) {
+      requestAnimationFrame(() => e.target.select());
+    }
   };
 
   const handleCancel = () => {
@@ -201,13 +208,13 @@ export default function PropertyDetail() {
                 </Box>
                 <TextField label="Nom du logement" value={form.name || ''} onChange={(e) => updateField('name', e.target.value)} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} fullWidth size="small" />
-                  <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} fullWidth size="small" helperText="2 à 18 ans" />
-                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} fullWidth size="small" helperText="0 à 2 ans" />
+                  <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                  <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="2 à 18 ans" />
+                  <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="0 à 2 ans" />
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
-                  <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} fullWidth size="small" inputProps={{ min: 0 }} />
+                  <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0 }} />
+                  <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0 }} />
                 </Box>
               </Box>
             </CardContent>
@@ -234,7 +241,7 @@ export default function PropertyDetail() {
                     </Select>
                   </FormControl>
                 </Box>
-                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} fullWidth size="small" inputProps={{ min: 0, step: 0.5 }} />
+                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0, step: 0.5 }} />
               </Box>
             </CardContent>
           </Card>
@@ -246,12 +253,12 @@ export default function PropertyDetail() {
             <CardContent>
               <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} fullWidth size="small" />
+                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} fullWidth size="small" />
-                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} fullWidth size="small" />
+                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 </Box>
-                <TextField label="Caution par défaut (€)" type="number" inputProps={{ step: 50 }} value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} fullWidth size="small" />
+                <TextField label="Caution par défaut (€)" type="number" inputProps={{ step: 50 }} value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
               </Box>
             </CardContent>
           </Card>
@@ -267,6 +274,17 @@ export default function PropertyDetail() {
                   Ajouter
                 </Button>
               </Box>
+              <TextField
+                label="Taxe de séjour (€/jour/personne)"
+                type="number"
+                value={form.touristTaxPerDayPerPerson ?? 0}
+                onChange={(e) => updateField('touristTaxPerDayPerPerson', e.target.value)}
+                onFocus={handleZeroFocus}
+                fullWidth
+                size="small"
+                inputProps={{ min: 0, step: 0.1 }}
+                sx={{ mb: 2 }}
+              />
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 700 }}>
                   <TableHead>

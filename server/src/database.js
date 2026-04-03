@@ -44,6 +44,7 @@ db.exec(`
     defaultCheckOut TEXT DEFAULT '10:00',
     cleaningHours REAL DEFAULT 3,
     defaultCautionAmount REAL DEFAULT 500,
+    touristTaxPerDayPerPerson REAL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   )
@@ -208,6 +209,9 @@ if (!propCols.includes('singleBeds')) {
 }
 if (!propCols.includes('doubleBeds')) {
   db.exec("ALTER TABLE properties ADD COLUMN doubleBeds INTEGER DEFAULT 0");
+}
+if (!propCols.includes('touristTaxPerDayPerPerson')) {
+  db.exec("ALTER TABLE properties ADD COLUMN touristTaxPerDayPerPerson REAL DEFAULT 0");
 }
 
 const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(c => c.name);
