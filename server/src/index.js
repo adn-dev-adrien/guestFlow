@@ -1,13 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Serve React client build
-app.use(express.static(path.join(__dirname, '..', '..', 'client', 'build')));
 
 // Serve uploads
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
@@ -22,9 +20,18 @@ app.use('/api/finance', require('./routes/finance'));
 app.use('/api/school-holidays', require('./routes/schoolHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 
-// Serve index.html for all non-API routes (React Router support)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'client', 'build', 'index.html'));
+// In production, serve the built React app for non-API routes.
+const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');
+const clientIndexPath = path.join(clientBuildDir, 'index.html');
+if (process.env.NODE_ENV === 'production' && fs.existsSync(clientIndexPath)) {
+  app.use(express.static(clientBuildDir));
+  app.get(/^\/(?!api|uploads).*/, (req, res) => {
+    res.sendFile(clientIndexPath);
+  });
+}
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API route not found' });
 });
 
 const PORT = process.env.PORT || 4000;

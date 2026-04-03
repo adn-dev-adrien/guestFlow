@@ -5,8 +5,10 @@ import {
   Grid
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
 import FormDialog from '../components/FormDialog';
+import ConfirmDialog from '../components/ConfirmDialog';
 import PropertyFormFields from '../components/PropertyFormFields';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
@@ -26,6 +28,7 @@ export default function PropertiesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0 });
   const [photoFile, setPhotoFile] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => { reload(); }, [reload]);
@@ -41,6 +44,13 @@ export default function PropertiesPage() {
     setOpen(false);
     setForm({ name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0 });
     setPhotoFile(null);
+  };
+
+  const handleDeleteProperty = async () => {
+    if (!deleteTarget) return;
+    await api.deleteProperty(deleteTarget.id);
+    setDeleteTarget(null);
+    reload();
   };
 
   return (
@@ -65,6 +75,17 @@ export default function PropertiesPage() {
                 <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(withFrom(`/properties/${p.id}`, '/properties')); }}>
                   Configurer
                 </Button>
+                <Button
+                  size="small"
+                  color="error"
+                  startIcon={<DeleteIcon fontSize="small" />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteTarget(p);
+                  }}
+                >
+                  Supprimer
+                </Button>
               </CardActions>
             </Card>
           </Grid>
@@ -86,6 +107,15 @@ export default function PropertiesPage() {
       >
         <PropertyFormFields form={form} setForm={setForm} photoFile={photoFile} setPhotoFile={setPhotoFile} />
       </FormDialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteProperty}
+        title="Supprimer le logement"
+        message={deleteTarget ? `Voulez-vous vraiment supprimer "${deleteTarget.name}" ?` : ''}
+        confirmLabel="Supprimer"
+      />
     </Box>
   );
 }

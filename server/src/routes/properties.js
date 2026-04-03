@@ -3,6 +3,7 @@ const db = require('../database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 const { sentenceCase } = require('../utils/textFormatters');
 
 // Ensure uploads directory exists
@@ -18,6 +19,36 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      cb(new Error('Le fichier photo doit être une image'));
+      return;
+    }
+    cb(null, true);
+  }
+});
+
+async function saveOptimizedPhoto(file) {
+  if (!file) return '';
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.webp`;
+  const outputPath = path.join(uploadsDir, filename);
+  await sharp(file.buffer)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 82, effort: 4 })
+    .toFile(outputPath);
+  return `/uploads/${filename}`;
+}
+
+function removeUploadedFile(filePath) {
+  if (!filePath || !filePath.startsWith('/uploads/')) return;
+  const absPath = path.join(uploadsDir, path.basename(filePath));
+  if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
+}
 
 // List all properties
 router.get('/', (req, res) => {
@@ -37,31 +68,48 @@ router.get('/:id', (req, res) => {
 });
 
 // Create property
-router.post('/', upload.single('photo'), (req, res) => {
-  const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount } = req.body;
-  const photo = req.file ? `/uploads/${req.file.filename}` : '';
-  const result = db.prepare(`
-    INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500);
-  res.json({ id: result.lastInsertRowid });
+router.post('/', photoUpload.single('photo'), async (req, res) => {
+  try {
+    const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount } = req.body;
+    const photo = req.file ? await saveOptimizedPhoto(req.file) : '';
+    const result = db.prepare(`
+      INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erreur lors de la création du logement' });
+  }
 });
 
 // Update property
-router.put('/:id', upload.single('photo'), (req, res) => {
-  const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount } = req.body;
-  const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
-  const photo = req.file ? `/uploads/${req.file.filename}` : (req.body.photo || (existing ? existing.photo : ''));
-  db.prepare(`
-    UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, updatedAt=datetime('now')
-    WHERE id=?
-  `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, req.params.id);
-  res.json({ ok: true });
+router.put('/:id', photoUpload.single('photo'), async (req, res) => {
+  try {
+    const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount } = req.body;
+    const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
+    const newPhoto = req.file ? await saveOptimizedPhoto(req.file) : '';
+    const photo = newPhoto || (req.body.photo || (existing ? existing.photo : ''));
+
+    db.prepare(`
+      UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, updatedAt=datetime('now')
+      WHERE id=?
+    `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, req.params.id);
+
+    if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
+      removeUploadedFile(existing.photo);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erreur lors de la mise à jour du logement' });
+  }
 });
 
 // Delete property
 router.delete('/:id', (req, res) => {
+  const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
   db.prepare('DELETE FROM properties WHERE id = ?').run(req.params.id);
+  if (existing && existing.photo) removeUploadedFile(existing.photo);
   res.json({ ok: true });
 });
 
@@ -118,6 +166,19 @@ router.put('/:id/options', (req, res) => {
   });
   transaction();
   res.json({ ok: true });
+});
+
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Photo trop volumineuse (max 5 Mo)' });
+    }
+    return res.status(400).json({ error: err.message || 'Erreur upload' });
+  }
+  if (err && err.message === 'Le fichier photo doit être une image') {
+    return res.status(400).json({ error: err.message });
+  }
+  return next(err);
 });
 
 module.exports = router;

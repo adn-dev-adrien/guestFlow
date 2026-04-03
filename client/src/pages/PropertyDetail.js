@@ -13,6 +13,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
+import ConfirmDialog from '../components/ConfirmDialog';
 import api from '../api';
 
 export default function PropertyDetail() {
@@ -34,6 +35,8 @@ export default function PropertyDetail() {
   const [docType, setDocType] = useState('contract');
   const [docName, setDocName] = useState('');
   const [docFile, setDocFile] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const load = useCallback(async () => {
     const p = await api.getProperty(id);
@@ -48,6 +51,7 @@ export default function PropertyDetail() {
     setForm(initial);
     setOriginalForm(initial);
     setDirty(false);
+    setPhotoFile(null);
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
@@ -126,10 +130,17 @@ export default function PropertyDetail() {
     setSaving(true);
     const fd = new FormData();
     Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+    if (photoFile) fd.append('photo', photoFile);
     await api.updateProperty(id, fd);
     setDirty(false);
     setSaving(false);
+    setPhotoFile(null);
     load();
+  };
+
+  const handleDeleteProperty = async () => {
+    await api.deleteProperty(id);
+    navigateBackWithFrom(navigate, from);
   };
 
   const handleSavePricing = async () => {
@@ -162,12 +173,15 @@ export default function PropertyDetail() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
         <Typography variant="h4">{property.name}</Typography>
-        {dirty && (
-          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>
-            <Button variant="contained" onClick={handleSaveProperty} disabled={saving} sx={{ width: { xs: '100%', sm: 'auto' } }}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Button>
-          </Box>
-        )}
+        <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+          <Button variant="outlined" color="error" onClick={() => setDeleteOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Supprimer le logement</Button>
+          {dirty && (
+            <>
+              <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>
+              <Button variant="contained" onClick={handleSaveProperty} disabled={saving} sx={{ width: { xs: '100%', sm: 'auto' } }}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Button>
+            </>
+          )}
+        </Box>
       </Box>
 
       <Grid container spacing={3}>
@@ -178,6 +192,13 @@ export default function PropertyDetail() {
               <Typography variant="h6" gutterBottom>Informations</Typography>
               {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box>
+                  <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                    {property.photo ? 'Changer la photo' : 'Ajouter une photo'}
+                    <input type="file" hidden accept="image/*" onChange={(e) => { const next = e.target.files?.[0] || null; setPhotoFile(next); if (next) setDirty(true); }} />
+                  </Button>
+                  {photoFile && <Typography variant="body2" sx={{ mt: 1 }}>{photoFile.name}</Typography>}
+                </Box>
                 <TextField label="Nom du logement" value={form.name || ''} onChange={(e) => updateField('name', e.target.value)} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} fullWidth size="small" />
@@ -352,6 +373,15 @@ export default function PropertyDetail() {
           <Button variant="contained" onClick={handleSavePricing}>Enregistrer</Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleDeleteProperty}
+        title="Supprimer le logement"
+        message={`Voulez-vous vraiment supprimer "${property.name}" ?`}
+        confirmLabel="Supprimer"
+      />
     </Box>
   );
 }
