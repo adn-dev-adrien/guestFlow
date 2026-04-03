@@ -8,13 +8,12 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
+import MiniPlanningStrip from '../components/MiniPlanningStrip';
 import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
@@ -137,24 +136,6 @@ export default function ReservationPage() {
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
 
-  const miniDays = useMemo(() => {
-    return Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
-  }, [miniCalendarStart, miniVisibleDays]);
-
-  const otherReservationsForMini = useMemo(() => {
-    return reservations.filter((r) => !editingReservationId || r.id !== editingReservationId);
-  }, [reservations, editingReservationId]);
-
-  const findMiniReservation = (dateStr) => {
-    if (!dateStr) return null;
-    return otherReservationsForMini.find((r) => dateStr >= r.startDate && dateStr < r.endDate) || null;
-  };
-
-  const isMiniSelectedDay = (dateStr) => {
-    if (!dateStr || !form.startDate || !form.endDate) return false;
-    return dateStr >= form.startDate && dateStr < form.endDate;
-  };
-
   const centerMiniCalendarOnRange = (startDate, endDate) => {
     if (!startDate) return;
     const nights = Math.max(1, diffDays(startDate, endDate || addDays(startDate, 1)));
@@ -178,7 +159,7 @@ export default function ReservationPage() {
       return;
     }
 
-    updateForm({ startDate: miniSelectionAnchor, endDate: dateStr });
+    updateForm({ startDate: miniSelectionAnchor, endDate: addDays(dateStr, 1) });
     setMiniSelectionAnchor('');
   };
 
@@ -216,13 +197,15 @@ export default function ReservationPage() {
       return;
     }
 
-    if (!miniDays.length) return;
-    const first = miniDays[0];
-    const last = miniDays[miniDays.length - 1];
+    // Check if reservation date range is out of view; if so, recenter
+    const currentMiniDays = Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
+    if (currentMiniDays.length === 0) return;
+    const first = currentMiniDays[0];
+    const last = currentMiniDays[currentMiniDays.length - 1];
     const endRef = form.endDate || addDays(form.startDate, 1);
     const outOfView = form.startDate < first || endRef > addDays(last, 1);
     if (outOfView) centerMiniCalendarOnRange(form.startDate, form.endDate);
-  }, [form.startDate, form.endDate, miniDays]);
+  }, [form.startDate, form.endDate, miniCalendarStart, miniVisibleDays]);
 
   useEffect(() => {
     if (!miniSelectionAnchor) return;
@@ -1143,72 +1126,16 @@ export default function ReservationPage() {
             </Select>
           </FormControl>
 
-          <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
-            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography variant="subtitle2">Mini planning</Typography>
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <Button size="small" variant="text" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -7))} disabled={isReservationLocked}>-7j</Button>
-                  <IconButton size="small" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -1))} disabled={isReservationLocked}>
-                    <ChevronLeftIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, 1))} disabled={isReservationLocked}>
-                    <ChevronRightIcon fontSize="small" />
-                  </IconButton>
-                  <Button size="small" variant="text" onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, 7))} disabled={isReservationLocked}>+7j</Button>
-                </Stack>
-              </Stack>
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length || 1}, minmax(0, 1fr))`, gap: 0.75 }}>
-                {miniDays.map((day) => {
-                  const reservationOnDay = findMiniReservation(day);
-                  const selectedDay = isMiniSelectedDay(day);
-                  const isArrival = form.startDate === day;
-                  const isDeparture = form.endDate === day;
-                  const dateObj = parseDate(day);
-                  const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][dateObj?.getDay() || 0];
-                  const baseColor = reservationOnDay ? (PLATFORM_COLORS[reservationOnDay.platform] || '#757575') : '#f5f5f5';
-                  const textColor = selectedDay || reservationOnDay ? '#fff' : 'text.primary';
-
-                  return (
-                    <Box
-                      key={day}
-                      onClick={() => handleMiniDateClick(day)}
-                      title={reservationOnDay ? `${reservationOnDay.firstName || ''} ${reservationOnDay.lastName || ''} (${reservationOnDay.platform || 'reservation'})` : 'Disponible'}
-                      sx={{
-                        borderRadius: 1,
-                        border: '1px solid',
-                        borderColor: isArrival || isDeparture ? 'primary.main' : 'divider',
-                        bgcolor: selectedDay ? 'primary.main' : baseColor,
-                        color: textColor,
-                        minHeight: 56,
-                        px: 0.5,
-                        py: 0.75,
-                        textAlign: 'center',
-                        cursor: isReservationLocked ? 'not-allowed' : 'pointer',
-                        opacity: isReservationLocked ? 0.85 : 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'center',
-                        transition: 'transform 0.12s ease, box-shadow 0.12s ease',
-                        '&:hover': {
-                          transform: isReservationLocked ? 'none' : 'translateY(-1px)',
-                          boxShadow: isReservationLocked ? 'none' : '0 2px 6px rgba(0,0,0,0.14)',
-                        },
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'inherit', lineHeight: 1.1 }}>{weekLabel}</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'inherit', lineHeight: 1.15 }}>{dateObj?.getDate()}</Typography>
-                    </Box>
-                  );
-                })}
-              </Box>
-
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Cliquez une date d'arrivée puis une date de départ. Les couleurs indiquent les autres réservations.
-              </Typography>
-            </CardContent>
-          </Card>
+          <MiniPlanningStrip
+            miniCalendarStart={miniCalendarStart}
+            setMiniCalendarStart={setMiniCalendarStart}
+            miniVisibleDays={miniVisibleDays}
+            reservations={reservations}
+            currentReservation={form}
+            onDateClick={handleMiniDateClick}
+            isLocked={isReservationLocked}
+            selectedProperty={selectedProperty}
+          />
 
           <Grid container spacing={2}>
             <Grid item xs={6}>
