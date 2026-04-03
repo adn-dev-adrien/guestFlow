@@ -917,7 +917,7 @@ export default function ReservationPage() {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 1,
-            bgcolor: 'background.paper',
+            bgcolor: '#fff',
             border: '1px solid',
             borderColor: 'divider',
             borderRadius: 1,
@@ -950,7 +950,24 @@ export default function ReservationPage() {
         </Box>
       </Box>
 
-      <Box sx={{ maxWidth: 900, mx: 'auto', px: 2, py: 3, mt: { xs: 9, sm: 10 } }}>
+      <Box
+        sx={{
+          maxWidth: 900,
+          mx: 'auto',
+          px: 2,
+          py: 3,
+          mt: { xs: 9, sm: 10 },
+          '& .MuiOutlinedInput-root': {
+            bgcolor: '#fff',
+          },
+          '& .MuiFilledInput-root': {
+            bgcolor: '#fff',
+          },
+          '& .MuiInputBase-root.Mui-disabled': {
+            bgcolor: '#fff',
+          },
+        }}
+      >
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <FormControl fullWidth>
             <InputLabel>Logement</InputLabel>
@@ -1173,8 +1190,10 @@ export default function ReservationPage() {
                       key={opt.id}
                       variant="outlined"
                       sx={{
-                        borderColor: enabled ? 'primary.main' : 'divider',
-                        bgcolor: enabled ? 'action.hover' : 'background.paper',
+                        borderColor: enabled ? '#2e7d32' : 'divider',
+                        bgcolor: '#fff',
+                        boxShadow: enabled ? '0 0 0 1px rgba(46, 125, 50, 0.12)' : 'none',
+                        transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
                       }}
                     >
                       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -1201,7 +1220,7 @@ export default function ReservationPage() {
                               value={selected ? selected.quantity : 1}
                               onChange={(e) => setOptionQuantity(opt.id, e.target.value)}
                               inputProps={{ min: 1 }}
-                              sx={{ width: { xs: '100%', sm: 110 } }}
+                              sx={{ width: { xs: '100%', sm: 'auto' } }}
                             />
                             <Chip
                               size="small"
@@ -1232,6 +1251,7 @@ export default function ReservationPage() {
                   })
                   .map(resource => {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
+                    const enabled = Boolean(selected && Number(selected.quantity) > 0);
                     const unavailable = Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
                     const resourceConflict = Boolean(selected) && (unavailable || requestedTooMuch);
@@ -1247,8 +1267,16 @@ export default function ReservationPage() {
                         variant="outlined"
                         sx={{
                           mb: 1,
-                          borderColor: resourceConflict ? 'error.main' : 'transparent',
-                          bgcolor: resourceConflict ? 'error.lighter' : 'transparent',
+                          borderColor: resourceConflict
+                            ? 'error.main'
+                            : unavailable
+                              ? 'grey.400'
+                              : enabled
+                                ? '#1565c0'
+                                : 'divider',
+                          bgcolor: '#fff',
+                          opacity: unavailable ? 0.72 : 1,
+                          transition: 'background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease',
                         }}
                       >
                         <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -1266,6 +1294,7 @@ export default function ReservationPage() {
                               label="Qté"
                               value={selected ? selected.quantity : 0}
                               onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
+                              disabled={unavailable}
                               inputProps={{ min: 0, max: resource.available || 0 }}
                               error={resourceConflict}
                               helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
