@@ -1528,8 +1528,16 @@ export default function ReservationPage() {
               };
               const touristTaxRate = Number(selectedProperty?.touristTaxPerDayPerPerson || 0);
               const touristTaxTotal = Math.round(touristTaxRate * nights * persons * 100) / 100;
-              const optionsSelected = form.selectedOptions.filter(so => Number(so.quantity) > 0);
-              const resourcesSelected = form.selectedResources.filter(sr => Number(sr.quantity) > 0);
+              const optionsSelected = propertyOptions
+                .map((opt) => form.selectedOptions.find((so) => so.optionId === opt.id))
+                .filter((so) => so && Number(so.quantity) > 0);
+              const resourcesSelected = availableResources
+                .filter((resource) => {
+                  const n = (resource.name || '').toLowerCase();
+                  return !(n.includes('lit') && (n.includes('bébé') || n.includes('bebe')));
+                })
+                .map((res) => form.selectedResources.find((sr) => sr.resourceId === res.id))
+                .filter((sr) => sr && Number(sr.quantity) > 0);
               const optionLineTotal = (so) => {
                 const opt = propertyOptions.find(o => o.id === so.optionId);
                 const qty = Math.max(1, Number(so.quantity) || 1);
