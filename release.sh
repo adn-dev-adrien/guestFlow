@@ -8,6 +8,9 @@ set -e
 RELEASE_NAME=${1:-guestflow-release}
 RELEASE_DIR="$RELEASE_NAME"
 
+echo "Creating release archive: ${RELEASE_NAME}.zip"
+echo "Release directory: ${RELEASE_DIR}"
+
 # Clean up any previous release
 rm -rf "$RELEASE_DIR" "$RELEASE_NAME.zip"
 

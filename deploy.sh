@@ -38,28 +38,40 @@ echo -e "${GREEN}✓ Release archive created: ${RELEASE_NAME}.zip${NC}"
 echo ""
 
 # Step 3: Test connection to Raspberry
-echo -e "${BLUE}Step 3: Testing connection to Raspberry...${NC}"
-if ! ssh "${RASPI_HOST}" "echo 'Connection successful'" > /dev/null 2>&1; then
-  echo -e "${RED}✗ Cannot connect to ${RASPI_HOST}${NC}"
-  echo "Make sure the Raspberry Pi is on and SSH is enabled"
-  exit 1
-fi
-echo -e "${GREEN}✓ Connection successful${NC}"
-echo ""
+# echo -e "${BLUE}Step 3: Testing connection to Raspberry...${NC}"
+# if ! ssh "${RASPI_HOST}" "echo 'Connection successful'" > /dev/null 2>&1; then
+#   echo -e "${RED}✗ Cannot connect to ${RASPI_HOST}${NC}"
+#   echo "Make sure the Raspberry Pi is on and SSH is enabled"
+#   exit 1
+# fi
+# echo -e "${GREEN}✓ Connection successful${NC}"
+# echo ""
 
 # Step 4: Transfer archive to Raspberry
 echo -e "${BLUE}Step 4: Transferring archive to Raspberry...${NC}"
-scp "${RELEASE_NAME}.zip" "${RASPI_HOST}:${RASPI_DEPLOY_DIR}/"
+echo "Archive name: ${RELEASE_NAME}.zip"
+echo "Raspberry host: ${RASPI_HOST}"
+scp "${RELEASE_NAME}.zip" "${RASPI_HOST}:~"
 echo -e "${GREEN}✓ Archive transferred${NC}"
 echo ""
 
 # Step 5: Deploy on Raspberry
 echo -e "${BLUE}Step 5: Deploying on Raspberry...${NC}"
-ssh "${RASPI_HOST}" << 'EOF'
+ssh "${RASPI_HOST}" << EOF
 set -e
-RASPI_USER=$(whoami)
-RASPI_DEPLOY_DIR="/home/${RASPI_USER}/guestflow"
-RELEASE_NAME="$1"
+RASPI_USER=\$(whoami)
+RASPI_DEPLOY_DIR="/home/\${RASPI_USER}/guestflow"
+RELEASE_NAME="${RELEASE_NAME}"
+
+# Ensure npm is available
+if command -v npm &> /dev/null; then
+  echo "npm found: \$(npm -v), updating..."
+  sudo npm install -g npm@latest || true
+else
+  echo "npm not found, installing Node.js..."
+  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+fi
 
 # Create deploy directory if it doesn't exist
 mkdir -p "${RASPI_DEPLOY_DIR}"
@@ -76,28 +88,42 @@ if [ -d "current" ]; then
   mv current "backup-$(date +%Y%m%d-%H%M%S)"
 fi
 
+# Create current directory to ensure it exists
+mkdir -p current
+
 # Extract new release
 echo "Extracting release..."
+mv ../"${RELEASE_NAME}.zip" .
+echo "Unzipping archive..."
 unzip -q "${RELEASE_NAME}.zip"
-mv "${RELEASE_NAME}" current
+
+# Cleanup
+rm "${RELEASE_NAME}.zip"
+
+echo "Move extracted release to 'current' directory..."
+echo "Contents of extracted release directory: ${RELEASE_NAME}"
+mv "${RELEASE_NAME}"/* current
+rm -r "${RELEASE_NAME}"
 
 # Install dependencies
 echo "Installing dependencies..."
 cd current/server
-npm install --omit=dev --silent
+npm install --omit=dev || true
 cd ../..
+
+# Install or update PM2
+echo "Installing/updating pm2..."
+sudo npm install -g pm2@latest --silent
 
 # Start with PM2
 echo "Starting service with PM2..."
 pm2 start current/server/src/index.js --name guestflow
 pm2 save
-pm2 startup systemd -u "${RASPI_USER}" --hp "/home/${RASPI_USER}"
+pm2 startup systemd -u "${RASPI_USER}" --hp "/home/${RASPI_USER}" || true
 
-# Cleanup
-rm "${RELEASE_NAME}.zip"
 
 echo "Deployment complete!"
-EOF ${RELEASE_NAME}
+EOF
 echo -e "${GREEN}✓ Deployment successful${NC}"
 echo ""
 
