@@ -563,6 +563,15 @@ export default function ReservationPage() {
     });
   };
 
+  const setResourceEnabled = (resourceId, enabled) => {
+    const existing = form.selectedResources.find((sr) => sr.resourceId === resourceId);
+    if (enabled) {
+      setResourceQuantity(resourceId, Math.max(1, Number(existing?.quantity) || 1));
+      return;
+    }
+    setResourceQuantity(resourceId, 0);
+  };
+
   // ==================== CLIENT CREATION ====================
   const closeCreateClient = () => {
     setCreateClientOpen(false);
@@ -1256,7 +1265,6 @@ export default function ReservationPage() {
                             <FormControlLabel
                               sx={{ m: 0 }}
                               control={<Switch checked={enabled} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
-                              label="Activer"
                             />
                           </Stack>
                         </Stack>
@@ -1294,67 +1302,88 @@ export default function ReservationPage() {
               <Divider />
               <Box>
                 <Typography variant="subtitle2" gutterBottom>Ressources</Typography>
-                {availableResources
-                  .filter(resource => {
-                    const n = (resource.name || '').toLowerCase();
-                    return !(n.includes('lit') && (n.includes('bébé') || n.includes('bebe')));
-                  })
-                  .map(resource => {
-                    const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
-                    const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                    const unavailable = Number(resource.available || 0) <= 0;
-                    const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
-                    const resourceConflict = Boolean(selected) && (unavailable || requestedTooMuch);
-                    const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
-                    const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
-                    let factorHint = '';
-                    if (resource.priceType === 'per_person') factorHint = `×${persons} pers.`;
-                    else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;
-                    else if (resource.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
-                    return (
-                      <Card
-                        key={resource.id}
-                        variant="outlined"
-                        sx={{
-                          mb: 1,
-                          borderColor: resourceConflict
-                            ? 'error.main'
-                            : unavailable
-                              ? 'grey.400'
-                              : enabled
-                                ? '#1565c0'
-                                : 'divider',
-                          bgcolor: '#fff',
-                          opacity: unavailable ? 0.72 : 1,
-                          transition: 'background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease',
-                        }}
-                      >
-                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography sx={{ fontWeight: 600 }}>{resource.name}</Typography>
-                              <Typography variant="body2" color="text.secondary">{`${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}`}</Typography>
-                            </Box>
-                            <Typography variant="caption" sx={{ color: unavailable || requestedTooMuch ? 'error.main' : 'text.secondary', fontWeight: unavailable || requestedTooMuch ? 700 : 400 }}>
-                              {unavailable ? 'Déjà réservée' : `${resource.available} dispo${factorHint ? ` • ${factorHint}` : ''}`}
-                            </Typography>
-                            <TextField
-                              size="small"
-                              type="number"
-                              label="Qté"
-                              value={selected ? selected.quantity : 0}
-                              onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
-                              disabled={unavailable}
-                              inputProps={{ min: 0, max: resource.available || 0 }}
-                              error={resourceConflict}
-                              helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
-                              sx={{ width: { xs: '100%', sm: 110 } }}
-                            />
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                <Stack spacing={1.25}>
+                  {availableResources
+                    .filter(resource => {
+                      const n = (resource.name || '').toLowerCase();
+                      return !(n.includes('lit') && (n.includes('bébé') || n.includes('bebe')));
+                    })
+                    .map(resource => {
+                      const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
+                      const enabled = Boolean(selected && Number(selected.quantity) > 0);
+                      const unavailable = Number(resource.available || 0) <= 0;
+                      const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
+                      const resourceConflict = Boolean(selected) && (unavailable || requestedTooMuch);
+                      const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+                      const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
+                      let factorHint = '';
+                      if (resource.priceType === 'per_person') factorHint = `×${persons} pers.`;
+                      else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;
+                      else if (resource.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
+                      return (
+                        <Card
+                          key={resource.id}
+                          variant="outlined"
+                          sx={{
+                            borderColor: resourceConflict
+                              ? 'error.main'
+                              : unavailable
+                                ? 'grey.400'
+                                : enabled
+                                  ? '#1565c0'
+                                  : 'divider',
+                            bgcolor: '#fff',
+                            opacity: unavailable ? 0.72 : 1,
+                            boxShadow: enabled && !resourceConflict ? '0 0 0 1px rgba(21, 101, 192, 0.12)' : 'none',
+                            transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
+                          }}
+                        >
+                          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
+                              <Box flex={1}>
+                                <Typography sx={{ fontWeight: 600 }}>{resource.name}</Typography>
+                                <Typography variant="body2" color={resourceConflict ? 'error.main' : 'text.secondary'}>
+                                  {unavailable
+                                    ? 'Déjà réservée'
+                                    : `${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''} • ${resource.available} dispo`}
+                                </Typography>
+                              </Box>
+                              <Stack alignItems="flex-end" spacing={0.5}>
+                                <FormControlLabel
+                                  sx={{ m: 0 }}
+                                  control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable} />}
+                                  label={unavailable ? 'Indispo' : ''}
+                                />
+                              </Stack>
+                            </Stack>
+
+                            {enabled && (
+                              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  label="Qté"
+                                  value={selected ? selected.quantity : 1}
+                                  onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
+                                  inputProps={{ min: 1, max: resource.available || 0 }}
+                                  error={resourceConflict}
+                                  helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
+                                  sx={{ width: { xs: '100%', sm: 'auto' } }}
+                                />
+                                <Chip
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                  label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                  sx={{ width: { xs: '100%', sm: 'auto' } }}
+                                />
+                              </Stack>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                </Stack>
               </Box>
             </>
           )}
@@ -1516,6 +1545,9 @@ export default function ReservationPage() {
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
               Résumé tarifaire
             </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {selectedProperty?.label || selectedProperty?.name || 'Logement non sélectionné'}
+            </Typography>
 
             {(() => {
               const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
@@ -1561,7 +1593,7 @@ export default function ReservationPage() {
                   {/* Prix hébergement */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.totalPrice.toFixed(2)}€</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${nights} nuit${nights > 1 ? 's' : ''} • ${form.totalPrice.toFixed(2)}€`}</Typography>
                   </Box>
 
                   {/* Options */}
@@ -1590,6 +1622,7 @@ export default function ReservationPage() {
                   {resourcesSelected.length > 0 && (
                     <>
                       {optionsSelected.length === 0 && <Divider />}
+                      <Divider />
                       <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         Ressources
                       </Typography>
