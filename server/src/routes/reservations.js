@@ -170,6 +170,19 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
   return null; // no error
 }
 
+function getArchivedReservationError(reservationId) {
+  const existing = db.prepare('SELECT id, endDate FROM reservations WHERE id = ?').get(reservationId);
+  if (!existing) return { status: 404, body: { error: 'Réservation non trouvée' } };
+  const today = new Date().toISOString().split('T')[0];
+  if (existing.endDate < today) {
+    return {
+      status: 403,
+      body: { error: 'Cette réservation est archivée (terminée) et ne peut plus être modifiée.' },
+    };
+  }
+  return null;
+}
+
 // Create reservation
 router.post('/', (req, res) => {
   const {
@@ -300,6 +313,11 @@ router.post('/', (req, res) => {
 
 // Update reservation
 router.put('/:id', (req, res) => {
+  const archivedError = getArchivedReservationError(Number(req.params.id));
+  if (archivedError) {
+    return res.status(archivedError.status).json(archivedError.body);
+  }
+
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
@@ -433,6 +451,11 @@ router.put('/:id', (req, res) => {
 
 // Mark deposit/balance/caution as paid, or update check-in/out status
 router.patch('/:id/payment', (req, res) => {
+  const archivedError = getArchivedReservationError(Number(req.params.id));
+  if (archivedError) {
+    return res.status(archivedError.status).json(archivedError.body);
+  }
+
   const { depositPaid, balancePaid, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
   if (depositPaid !== undefined) {
@@ -463,6 +486,11 @@ router.patch('/:id/payment', (req, res) => {
 
 // Delete reservation
 router.delete('/:id', (req, res) => {
+  const archivedError = getArchivedReservationError(Number(req.params.id));
+  if (archivedError) {
+    return res.status(archivedError.status).json(archivedError.body);
+  }
+
   db.prepare('DELETE FROM reservations WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });

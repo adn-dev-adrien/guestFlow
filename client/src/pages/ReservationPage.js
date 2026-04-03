@@ -116,6 +116,9 @@ export default function ReservationPage() {
   const miniCenteredOnceRef = useRef(false);
   const manualDateInputChangeRef = useRef(false);
   const miniStripDateChangeRef = useRef(false);
+  const initialPricingContextRef = useRef({ propertyId: null, startDate: '', endDate: '' });
+  const frozenOptionUnitByQuantityRef = useRef({});
+  const frozenResourceUnitByQuantityRef = useRef({});
   const pendingLeaveActionRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -137,6 +140,13 @@ export default function ReservationPage() {
   }), [selectedProp, form]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
+  const isExistingReservationPricingLocked = Boolean(
+    editingReservationId
+      && initialPricingContextRef.current.startDate
+      && Number(selectedProp) === Number(initialPricingContextRef.current.propertyId)
+      && form.startDate === initialPricingContextRef.current.startDate
+      && form.endDate === initialPricingContextRef.current.endDate
+  );
 
   const centerMiniCalendarOnRange = (startDate, endDate) => {
     if (!startDate) return;
@@ -301,6 +311,24 @@ export default function ReservationPage() {
             balancePaid: res.balancePaid || false
           });
 
+          initialPricingContextRef.current = {
+            propertyId: res.propertyId,
+            startDate: res.startDate,
+            endDate: res.endDate,
+          };
+          frozenOptionUnitByQuantityRef.current = Object.fromEntries(
+            (res.options || []).map((o) => [
+              o.optionId,
+              Math.max(0, Number(o.totalPrice || 0)) / Math.max(1, Number(o.quantity || 1)),
+            ])
+          );
+          frozenResourceUnitByQuantityRef.current = Object.fromEntries(
+            (res.resources || []).map((r) => [
+              r.resourceId,
+              Number(r.unitPrice !== undefined ? r.unitPrice : (Math.max(0, Number(r.totalPrice || 0)) / Math.max(1, Number(r.quantity || 1)))),
+            ])
+          );
+
           // Load resources
           await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
@@ -411,6 +439,7 @@ export default function ReservationPage() {
 
   // Auto-refresh base price when reservation parameters change
   useEffect(() => {
+    if (isExistingReservationPricingLocked) return;
     if (!selectedProp || !form.startDate || !form.endDate) return;
 
     const start = new Date(`${form.startDate}T00:00:00`);
@@ -443,7 +472,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens]);
+  }, [selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens, isExistingReservationPricingLocked]);
 
   useEffect(() => {
     const cp = (newClient.postalCode || '').trim();
@@ -545,9 +574,12 @@ export default function ReservationPage() {
     let optionsTotal = 0;
     for (const so of updatedForm.selectedOptions) {
       const opt = propertyOptions.find(o => o.id === so.optionId);
-      if (!opt) continue;
       const userQty = Math.max(1, Number(so.quantity) || 1);
-      const optTotal = Number(opt.price) * userQty * typeMultiplier(opt.priceType);
+      if (!opt && !isExistingReservationPricingLocked) continue;
+      const frozenUnitByQty = Number(frozenOptionUnitByQuantityRef.current[so.optionId]);
+      const optTotal = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty)
+        ? frozenUnitByQty * userQty
+        : Number(opt?.price || 0) * userQty * typeMultiplier(opt?.priceType);
       so.quantity = userQty;
       so.totalPrice = optTotal;
       optionsTotal += optTotal;
@@ -556,10 +588,16 @@ export default function ReservationPage() {
     let resourcesTotal = 0;
     for (const sr of (updatedForm.selectedResources || [])) {
       const resource = availableResources.find(r => r.id === sr.resourceId);
-      const unitPrice = resource?.price !== undefined ? Number(resource.price) : Number(sr.unitPrice || 0);
+      const frozenUnitByQty = Number(frozenResourceUnitByQuantityRef.current[sr.resourceId]);
+      const hasFrozenResourcePrice = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty);
+      const unitPrice = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty)
+        ? frozenUnitByQty
+        : (resource?.price !== undefined ? Number(resource.price) : Number(sr.unitPrice || 0));
       const qty = Math.max(0, Number(sr.quantity) || 0);
       sr.unitPrice = unitPrice;
-      sr.totalPrice = unitPrice * qty * typeMultiplier(resource?.priceType || 'per_stay');
+      sr.totalPrice = hasFrozenResourcePrice
+        ? unitPrice * qty
+        : unitPrice * qty * typeMultiplier(resource?.priceType || 'per_stay');
       resourcesTotal += sr.totalPrice;
     }
 
@@ -1684,12 +1722,14 @@ export default function ReservationPage() {
                 .map((res) => form.selectedResources.find((sr) => sr.resourceId === res.id))
                 .filter((sr) => sr && Number(sr.quantity) > 0);
               const optionLineTotal = (so) => {
+                if (isExistingReservationPricingLocked) return Number(so.totalPrice || 0);
                 const opt = propertyOptions.find(o => o.id === so.optionId);
                 const qty = Math.max(1, Number(so.quantity) || 1);
                 const unitPrice = Number(opt?.price || 0);
                 return unitPrice * qty * typeMultiplier(opt?.priceType || 'per_stay');
               };
               const resourceLineTotal = (sr) => {
+                if (isExistingReservationPricingLocked) return Number(sr.totalPrice || 0);
                 const res = availableResources.find(r => r.id === sr.resourceId);
                 const qty = Math.max(0, Number(sr.quantity) || 0);
                 const unitPrice = Number(res?.price ?? sr.unitPrice ?? 0);
