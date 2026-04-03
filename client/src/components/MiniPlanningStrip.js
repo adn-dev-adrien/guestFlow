@@ -78,21 +78,32 @@ export default function MiniPlanningStrip({
     return currentReservation?.endDate === dateStr;
   };
 
-  const buildDayGradient = ({ departureRes, arrivalRes, middleRes, forcedColor }) => {
+  const buildDayGradient = ({
+    departureRes,
+    arrivalRes,
+    middleRes,
+    departureIsSelected,
+    arrivalIsSelected,
+    middleIsSelected,
+  }) => {
     if (!departureRes && !arrivalRes && !middleRes) {
       return { background: '#f5f5f5', textColor: 'text.primary' };
     }
 
     // Middle-of-stay day: fully filled.
     if (middleRes && !departureRes && !arrivalRes) {
-      const fullColor = forcedColor || PLATFORM_COLORS[middleRes.platform] || '#757575';
+      const fullColor = middleIsSelected ? '#1976d2' : (PLATFORM_COLORS[middleRes.platform] || '#757575');
       return { background: fullColor, textColor: '#fff' };
     }
 
     const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
     const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
-    const departColor = departureRes ? (forcedColor || PLATFORM_COLORS[departureRes.platform] || '#757575') : null;
-    const arriveColor = arrivalRes ? (forcedColor || PLATFORM_COLORS[arrivalRes.platform] || '#757575') : null;
+    const departColor = departureRes
+      ? (departureIsSelected ? '#1976d2' : (PLATFORM_COLORS[departureRes.platform] || '#757575'))
+      : null;
+    const arriveColor = arrivalRes
+      ? (arrivalIsSelected ? '#1976d2' : (PLATFORM_COLORS[arrivalRes.platform] || '#757575'))
+      : null;
 
     const stops = [];
 
@@ -169,18 +180,18 @@ export default function MiniPlanningStrip({
             const otherArrival = findArrivalReservationOnDay(day);
             const otherMiddle = findMiddleReservationOnDay(day);
 
-            const dayStyle = selectedDeparture || selectedArrival || selectedMiddle
-              ? buildDayGradient({
-                  departureRes: selectedDeparture,
-                  arrivalRes: selectedArrival,
-                  middleRes: selectedMiddle,
-                  forcedColor: '#1976d2',
-                })
-              : buildDayGradient({
-                  departureRes: otherDeparture,
-                  arrivalRes: otherArrival,
-                  middleRes: otherMiddle,
-                });
+            const mergedDeparture = selectedDeparture || otherDeparture;
+            const mergedArrival = selectedArrival || otherArrival;
+            const mergedMiddle = selectedMiddle || otherMiddle;
+
+            const dayStyle = buildDayGradient({
+              departureRes: mergedDeparture,
+              arrivalRes: mergedArrival,
+              middleRes: mergedMiddle,
+              departureIsSelected: Boolean(selectedDeparture),
+              arrivalIsSelected: Boolean(selectedArrival),
+              middleIsSelected: Boolean(selectedMiddle),
+            });
 
             const tooltipRes = selectedDeparture || selectedArrival || selectedMiddle || otherDeparture || otherArrival || otherMiddle;
 
