@@ -1437,7 +1437,7 @@ export default function ReservationPage() {
                     const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
                     updateForm({
                       cautionReceived: next,
-                      cautionReceivedDate: next ? today : form.cautionReceivedDate,
+                      cautionReceivedDate: next ? today : '',
                     });
                   }}
                   sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
@@ -1449,7 +1449,13 @@ export default function ReservationPage() {
                   type="date"
                   value={form.cautionReceivedDate}
                   InputLabelProps={{ shrink: true }}
-                  onChange={(e) => updateForm({ cautionReceivedDate: e.target.value })}
+                  onChange={(e) => {
+                    const selectedDate = e.target.value;
+                    updateForm({
+                      cautionReceivedDate: selectedDate,
+                      cautionReceived: selectedDate ? true : form.cautionReceived,
+                    });
+                  }}
                   fullWidth
                   sx={{ mt: 2 }}
                 />
