@@ -1459,102 +1459,148 @@ export default function ReservationPage() {
               Résumé tarifaire
             </Typography>
 
-            <Stack spacing={1.5}>
-              {/* Prix calculé */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Prix calculé
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {form.totalPrice.toFixed(2)}€
-                </Typography>
-              </Box>
+            {(() => {
+              const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+              const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
+              const touristTaxRate = Number(selectedProperty?.touristTaxPerDayPerPerson || 0);
+              const touristTaxTotal = Math.round(touristTaxRate * nights * persons * 100) / 100;
+              const optionsSelected = form.selectedOptions.filter(so => Number(so.quantity) > 0);
+              const resourcesSelected = form.selectedResources.filter(sr => Number(sr.quantity) > 0);
+              const optionsTotal = optionsSelected.reduce((acc, so) => acc + (so.totalPrice || 0), 0);
+              const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + (sr.totalPrice || 0), 0);
+              const subtotal = form.totalPrice + optionsTotal + resourcesTotal;
+              const discountAmount = form.discountPercent > 0 ? Math.round(subtotal * (form.discountPercent / 100) * 100) / 100 : 0;
+              const totalSejour = Math.round((subtotal - discountAmount + touristTaxTotal) * 100) / 100;
 
-              <Divider />
-
-              {/* Réduction */}
-              {form.discountPercent > 0 && (
-                <>
+              return (
+                <Stack spacing={1.5}>
+                  {/* Prix hébergement */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Réduction ({form.discountPercent}%)
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                      -{((form.totalPrice * form.discountPercent) / 100).toFixed(2)}€
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.totalPrice.toFixed(2)}€</Typography>
                   </Box>
+
+                  {/* Options */}
+                  {optionsSelected.length > 0 && (
+                    <>
+                      <Divider />
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Options
+                      </Typography>
+                      {optionsSelected.map(so => {
+                        const opt = propertyOptions.find(o => o.id === so.optionId);
+                        return (
+                          <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">
+                              {opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{(so.totalPrice || 0).toFixed(2)}€</Typography>
+                          </Box>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Ressources */}
+                  {resourcesSelected.length > 0 && (
+                    <>
+                      {optionsSelected.length === 0 && <Divider />}
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Ressources
+                      </Typography>
+                      {resourcesSelected.map(sr => {
+                        const res = availableResources.find(r => r.id === sr.resourceId);
+                        return (
+                          <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">
+                              {res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}` : ''}
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{(sr.totalPrice || 0).toFixed(2)}€</Typography>
+                          </Box>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Taxe de séjour */}
+                  {touristTaxTotal > 0 && (
+                    <>
+                      <Divider />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box>
+                          <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {touristTaxRate.toFixed(2)}€ × {persons} pers. × {nights} nuit{nights > 1 ? 's' : ''}
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{touristTaxTotal.toFixed(2)}€</Typography>
+                      </Box>
+                    </>
+                  )}
+
+                  {/* Réduction */}
+                  {discountAmount > 0 && (
+                    <>
+                      <Divider />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">Réduction ({form.discountPercent}%)</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>-{discountAmount.toFixed(2)}€</Typography>
+                      </Box>
+                    </>
+                  )}
+
+                  {/* Total du séjour */}
                   <Divider />
-                </>
-              )}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
+                  </Box>
 
-              {/* Prix final */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  Prix final
-                </Typography>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  {(form.customPrice !== '' ? form.customPrice : form.finalPrice).toFixed(2)}€
-                </Typography>
-              </Box>
+                  {/* Acompte */}
+                  <Divider />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">Acompte</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.depositAmount.toFixed(2)}€</Typography>
+                  </Box>
+                  {form.depositDueDate && (
+                    <Typography variant="caption" color="text.secondary">
+                      À payer avant : {new Date(form.depositDueDate).toLocaleDateString('fr-FR')}
+                    </Typography>
+                  )}
+                  {form.depositPaid && (
+                    <Chip size="small" label="Acompte payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                  )}
 
-              <Divider />
+                  {/* Solde */}
+                  <Divider />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">Solde</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.balanceAmount.toFixed(2)}€</Typography>
+                  </Box>
+                  {form.balanceDueDate && (
+                    <Typography variant="caption" color="text.secondary">
+                      À payer avant : {new Date(form.balanceDueDate).toLocaleDateString('fr-FR')}
+                    </Typography>
+                  )}
+                  {form.balancePaid && (
+                    <Chip size="small" label="Solde payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                  )}
 
-              {/* Acompte */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Acompte
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {form.depositAmount.toFixed(2)}€
-                </Typography>
-              </Box>
-              {form.depositDueDate && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                  À payer avant : {new Date(form.depositDueDate).toLocaleDateString('fr-FR')}
-                </Typography>
-              )}
-              {form.depositPaid && (
-                <Chip size="small" label="Acompte payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
-              )}
-
-              <Divider />
-
-              {/* Solde */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Solde
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {form.balanceAmount.toFixed(2)}€
-                </Typography>
-              </Box>
-              {form.balanceDueDate && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                  À payer avant : {new Date(form.balanceDueDate).toLocaleDateString('fr-FR')}
-                </Typography>
-              )}
-              {form.balancePaid && (
-                <Chip size="small" label="Solde payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
-              )}
-
-              <Divider />
-
-              {/* Caution */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Caution
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {form.cautionAmount.toFixed(2)}€
-                </Typography>
-              </Box>
-              {form.cautionReceived && (
-                <Chip size="small" label="Caution reçue" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
-              )}
-              {form.cautionReturned && (
-                <Chip size="small" label="Caution restituée" color="info" variant="outlined" sx={{ width: 'fit-content' }} />
-              )}
-            </Stack>
+                  {/* Caution */}
+                  <Divider />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">Caution</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.cautionAmount.toFixed(2)}€</Typography>
+                  </Box>
+                  {form.cautionReceived && (
+                    <Chip size="small" label="Caution reçue" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                  )}
+                  {form.cautionReturned && (
+                    <Chip size="small" label="Caution restituée" color="info" variant="outlined" sx={{ width: 'fit-content' }} />
+                  )}
+                </Stack>
+              );
+            })()}
           </Card>
         </Box>
       </Box>
