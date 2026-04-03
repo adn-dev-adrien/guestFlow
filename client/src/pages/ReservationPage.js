@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
-  MenuItem, Typography, CircularProgress, Chip, FormControlLabel, Checkbox,
+  MenuItem, Typography, CircularProgress, Chip, FormControlLabel,
   Switch, Stack, Card, CardContent, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText
 } from '@mui/material';
@@ -1361,76 +1361,128 @@ export default function ReservationPage() {
 
           <Divider />
 
-          <Grid container spacing={2}>
-            <Grid item xs={4}>
-              <TextField label="Prix calculé (€)" type="number" value={form.totalPrice} InputProps={{ readOnly: true }} fullWidth />
-            </Grid>
-            <Grid item xs={4}>
-              <TextField label="Réduction (%)" type="number" value={form.discountPercent}
-                onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })} fullWidth inputProps={{ min: 0, max: 100 }} />
-            </Grid>
-            <Grid item xs={4}>
-              <TextField label="Prix final (€)" type="number" value={form.customPrice !== '' ? form.customPrice : form.finalPrice}
-                onChange={(e) => updateForm({ customPrice: e.target.value })} fullWidth />
-            </Grid>
-          </Grid>
+          <Box>
+            <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Finance</Typography>
 
-          <Divider />
+            <TextField
+                label="Réduction (%)"
+                type="number"
+                value={form.discountPercent}
+                onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
+                fullWidth
+                inputProps={{ min: 0, max: 100 }}
+            />
+          </Box>
+              
+          <Divider sx={{ my: 1 }} />
+            
+          <Box>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Acompte</Typography>
+                <TextField
+                  label="Échéance acompte"
+                  type="date"
+                  value={form.depositDueDate}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) => updateForm({ depositDueDate: e.target.value })}
+                  fullWidth
+                />
+                <Button
+                  fullWidth
+                  variant={form.depositPaid ? 'contained' : 'outlined'}
+                  color={form.depositPaid ? 'success' : 'inherit'}
+                  onClick={() => updateForm({ depositPaid: !form.depositPaid })}
+                  sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
+                >
+                  {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
+                </Button>
+              </Grid>
 
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <TextField label="Acompte (€)" type="number" value={form.depositAmount}
-                onChange={(e) => updateForm({ depositAmount: Number(e.target.value) })} fullWidth />
-              <TextField label="À payer avant" type="date" value={form.depositDueDate}
-                InputLabelProps={{ shrink: true }}
-                onChange={(e) => updateForm({ depositDueDate: e.target.value })} fullWidth sx={{ mt: 1 }} />
-              <FormControlLabel
-                control={<Checkbox checked={form.depositPaid || false} onChange={(e) => updateForm({ depositPaid: e.target.checked })} />}
-                label="Acompte payé"
-                sx={{ mt: 1 }}
-              />
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Solde</Typography>
+                <TextField
+                  label="Échéance solde"
+                  type="date"
+                  value={form.balanceDueDate}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) => updateForm({ balanceDueDate: e.target.value })}
+                  fullWidth
+                />
+                <Button
+                  fullWidth
+                  variant={form.balancePaid ? 'contained' : 'outlined'}
+                  color={form.balancePaid ? 'success' : 'inherit'}
+                  onClick={() => updateForm({ balancePaid: !form.balancePaid })}
+                  sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
+                >
+                  {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
+                </Button>
+              </Grid>
             </Grid>
-            <Grid item xs={6}>
-              <TextField label="Solde (€)" type="number" value={form.balanceAmount}
-                onChange={(e) => updateForm({ balanceAmount: Number(e.target.value) })} fullWidth />
-              <TextField label="À payer avant" type="date" value={form.balanceDueDate}
-                InputLabelProps={{ shrink: true }}
-                onChange={(e) => updateForm({ balanceDueDate: e.target.value })} fullWidth sx={{ mt: 1 }} />
-              <FormControlLabel
-                control={<Checkbox checked={form.balancePaid || false} onChange={(e) => updateForm({ balancePaid: e.target.checked })} />}
-                label="Solde payé"
-                sx={{ mt: 1 }}
-              />
-            </Grid>
-          </Grid>
+          </Box>
 
-          <Divider />
+          <Divider sx={{ my: 1 }} />
 
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <TextField label="Caution (€)" type="number" value={form.cautionAmount}
-                onChange={(e) => updateForm({ cautionAmount: Number(e.target.value) })} fullWidth />
-              <FormControlLabel
-                control={<Checkbox checked={form.cautionReceived || false} onChange={(e) => updateForm({ cautionReceived: e.target.checked })} />}
-                label="Caution reçue"
-                sx={{ mt: 1 }}
-              />
-              <TextField label="Date réception" type="date" value={form.cautionReceivedDate}
-                InputLabelProps={{ shrink: true }}
-                onChange={(e) => updateForm({ cautionReceivedDate: e.target.value })} fullWidth sx={{ mt: 1 }} />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Caution</Typography>
+            <Grid container spacing={1.5}>
+              <Grid item xs={12} md={6}>
+                <Button
+                  fullWidth
+                  variant={form.cautionReceived ? 'contained' : 'outlined'}
+                  color={form.cautionReceived ? 'info' : 'inherit'}
+                  onClick={() => {
+                    const next = !form.cautionReceived;
+                    const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                    updateForm({
+                      cautionReceived: next,
+                      cautionReceivedDate: next ? today : form.cautionReceivedDate,
+                    });
+                  }}
+                  sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                >
+                  {form.cautionReceived ? 'Caution reçue' : 'Marquer caution reçue'}
+                </Button>
+                <TextField
+                  label="Date réception"
+                  type="date"
+                  value={form.cautionReceivedDate}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) => updateForm({ cautionReceivedDate: e.target.value })}
+                  fullWidth
+                  sx={{ mt: 2 }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Button
+                  fullWidth
+                  variant={form.cautionReturned ? 'contained' : 'outlined'}
+                  color={form.cautionReturned ? 'secondary' : 'inherit'}
+                  onClick={() => {
+                    const next = !form.cautionReturned;
+                    const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                    updateForm({
+                      cautionReturned: next,
+                      cautionReturnedDate: next ? today : form.cautionReturnedDate,
+                    });
+                  }}
+                  sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                >
+                  {form.cautionReturned ? 'Caution restituée' : 'Marquer caution restituée'}
+                </Button>
+                <TextField
+                  label="Date restitution"
+                  type="date"
+                  value={form.cautionReturnedDate}
+                  InputLabelProps={{ shrink: true }}
+                  onChange={(e) => updateForm({ cautionReturnedDate: e.target.value })}
+                  fullWidth
+                  sx={{ mt: 2 }}
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={6}>
-              <Box />
-              <FormControlLabel
-                control={<Checkbox checked={form.cautionReturned || false} onChange={(e) => updateForm({ cautionReturned: e.target.checked })} />}
-                label="Caution restituée"
-                sx={{ mt: 5 }}
-              />
-              <TextField label="Date restitution" type="date" value={form.cautionReturnedDate}
-                InputLabelProps={{ shrink: true }}
-                onChange={(e) => updateForm({ cautionReturnedDate: e.target.value })} fullWidth sx={{ mt: 1 }} />
-            </Grid>
-          </Grid>
+          </Box>
 
           <Divider />
 
