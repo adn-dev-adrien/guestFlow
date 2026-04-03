@@ -81,6 +81,7 @@ export default function ReservationPage() {
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [availableResources, setAvailableResources] = useState([]);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
+  const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const pendingLeaveActionRef = useRef(null);
@@ -137,6 +138,7 @@ export default function ReservationPage() {
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
         const initialPropId = reservationId ? null : (urlPropId ? Number(urlPropId) : (props.length > 0 ? props[0].id : ''));
+        setExistingReservationLocked(false);
         
         if (initialPropId) {
           setSelectedProp(initialPropId);
@@ -150,6 +152,8 @@ export default function ReservationPage() {
         // Load reservation details if editing
         if (reservationId) {
           const res = await api.getReservation(reservationId);
+          const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+          setExistingReservationLocked(Boolean(res.startDate && res.startDate <= todayStr));
           const prop = props.find(p => p.id === res.propertyId);
           setSelectedProp(res.propertyId);
           setSelectedProperty(prop);
@@ -670,7 +674,15 @@ export default function ReservationPage() {
 
   // ==================== SAVE & DELETE ====================
   const handleSaveReservation = async () => {
-    const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    const isLockedReservation = Boolean(reservationId && existingReservationLocked);
+
+    if (isLockedReservation) {
+      await alert({
+        title: 'Modification impossible',
+        message: 'Cette réservation n\'est plus modifiable. Seules les réservations à venir peuvent être modifiées.',
+      });
+      return;
+    }
     
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Veuillez sélectionner un logement.' });
@@ -826,6 +838,14 @@ export default function ReservationPage() {
 
   const handleDeleteReservation = async () => {
     if (!reservationId) return;
+    const isLockedReservation = Boolean(existingReservationLocked);
+    if (isLockedReservation) {
+      await alert({
+        title: 'Suppression impossible',
+        message: 'Cette réservation n\'est plus modifiable. Seules les réservations à venir peuvent être modifiées.',
+      });
+      return;
+    }
     const ok = await confirm({
       title: 'Confirmer la suppression',
       message: 'Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible.',
@@ -885,6 +905,7 @@ export default function ReservationPage() {
   const departureMin = form.startDate || '';
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
+  const isReservationLocked = Boolean(reservationId && existingReservationLocked);
   const datesUnavailableForProperty = Boolean(
     selectedProp
       && form.startDate
@@ -935,14 +956,14 @@ export default function ReservationPage() {
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>
+            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation} disabled={isReservationLocked}>
               Enregistrer
             </Button>
             <Button variant="outlined" onClick={goBackToOrigin}>
               Annuler
             </Button>
             {reservationId && (
-              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteReservation}>
+              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteReservation} disabled={isReservationLocked}>
                 Supprimer
               </Button>
             )}
@@ -968,6 +989,30 @@ export default function ReservationPage() {
           },
         }}
       >
+        {isReservationLocked && (
+          <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
+            Cette réservation est passée ou en cours et ne peut plus être modifiée. Seules les réservations à venir sont modifiables.
+          </Typography>
+        )}
+
+        <Box
+          sx={{
+            position: 'relative',
+          }}
+        >
+          {isReservationLocked && (
+            <Box
+              aria-hidden
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 5,
+                cursor: 'not-allowed',
+                bgcolor: 'transparent',
+              }}
+            />
+          )}
+
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <FormControl fullWidth>
             <InputLabel>Logement</InputLabel>
@@ -1392,6 +1437,7 @@ export default function ReservationPage() {
             onChange={(e) => updateForm({ notes: e.target.value })}
             fullWidth
           />
+          </Box>
         </Box>
       </Box>
 
