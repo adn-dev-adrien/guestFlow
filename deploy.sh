@@ -106,9 +106,31 @@ mv "${RELEASE_NAME}"/* current
 rm -r "${RELEASE_NAME}"
 
 # Install dependencies
-echo "Installing dependencies..."
+echo "Checking server dependencies..."
+DEPS_HASH_FILE="${RASPI_DEPLOY_DIR}/.server-deps.sha256"
+
 cd current/server
-npm install --omit=dev || true
+DEPS_HASH_INPUT="package.json"
+if [ -f package-lock.json ]; then
+  DEPS_HASH_INPUT="${DEPS_HASH_INPUT} package-lock.json"
+fi
+NEW_DEPS_HASH=$(cat ${DEPS_HASH_INPUT} | sha256sum | awk '{print $1}')
+OLD_DEPS_HASH=""
+if [ -f "${DEPS_HASH_FILE}" ]; then
+  OLD_DEPS_HASH=$(cat "${DEPS_HASH_FILE}")
+fi
+
+if [ ! -d node_modules ] || [ "${NEW_DEPS_HASH}" != "${OLD_DEPS_HASH}" ]; then
+  echo "Dependencies changed (or missing). Installing..."
+  if [ -f package-lock.json ]; then
+    npm ci --omit=dev || npm install --omit=dev
+  else
+    npm install --omit=dev
+  fi
+  echo "${NEW_DEPS_HASH}" > "${DEPS_HASH_FILE}"
+else
+  echo "Dependencies unchanged. Skipping install."
+fi
 cd ../..
 
 # Install or update PM2
@@ -117,7 +139,7 @@ sudo npm install -g pm2@latest --silent
 
 # Start with PM2
 echo "Starting service with PM2..."
-pm2 start current/server/src/index.js --name guestflow
+NODE_ENV=production pm2 start current/server/src/index.js --name guestflow --update-env
 pm2 save
 pm2 startup systemd -u "${RASPI_USER}" --hp "/home/${RASPI_USER}" || true
 

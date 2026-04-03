@@ -23,7 +23,7 @@ app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 // In production, serve the built React app for non-API routes.
 const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');
 const clientIndexPath = path.join(clientBuildDir, 'index.html');
-if (process.env.NODE_ENV === 'production' && fs.existsSync(clientIndexPath)) {
+if (fs.existsSync(clientIndexPath)) {
   app.use(express.static(clientBuildDir));
   app.get(/^\/(?!api|uploads).*/, (req, res) => {
     res.sendFile(clientIndexPath);
