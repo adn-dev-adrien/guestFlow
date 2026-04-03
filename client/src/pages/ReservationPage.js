@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
   MenuItem, Typography, CircularProgress, Chip, FormControlLabel, Checkbox,
+  Switch, Stack, Card, CardContent, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -513,6 +514,15 @@ export default function ReservationPage() {
       }
       return recalcPrice({ ...prev, selectedOptions: newOpts });
     });
+  };
+
+  const setOptionEnabled = (optionId, enabled) => {
+    const existing = form.selectedOptions.find((so) => so.optionId === optionId);
+    if (enabled) {
+      setOptionQuantity(optionId, Math.max(1, Number(existing?.quantity) || 1));
+      return;
+    }
+    setOptionQuantity(optionId, 0);
   };
 
   const setResourceQuantity = (resourceId, quantity) => {
@@ -1147,33 +1157,66 @@ export default function ReservationPage() {
 
           {propertyOptions.length > 0 && (
             <Box>
-              <Typography variant="subtitle2" gutterBottom>Options</Typography>
-              {propertyOptions.map(opt => {
-                const selected = form.selectedOptions.find(so => so.optionId === opt.id);
-                const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
-                const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
-                let factorHint = '';
-                if (opt.priceType === 'per_person') factorHint = `×${persons} pers.`;
-                else if (opt.priceType === 'per_night') factorHint = `×${nights} j.`;
-                else if (opt.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
-                return (
-                  <Box key={opt.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography sx={{ flex: 1 }}>{`${opt.title} — ${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}`}</Typography>
-                    <Typography variant="caption" sx={{ minWidth: 130, color: 'text.secondary' }}>
-                      {factorHint}
-                    </Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      label="Qté"
-                      value={selected ? selected.quantity : 0}
-                      onChange={(e) => setOptionQuantity(opt.id, e.target.value)}
-                      inputProps={{ min: 0 }}
-                      sx={{ width: 90 }}
-                    />
-                  </Box>
-                );
-              })}
+              <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Options</Typography>
+              <Stack spacing={1.25}>
+                {propertyOptions.map((opt) => {
+                  const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
+                  const enabled = Boolean(selected && Number(selected.quantity) > 0);
+                  const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+                  const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
+                  let factorHint = '';
+                  if (opt.priceType === 'per_person') factorHint = `×${persons} pers.`;
+                  else if (opt.priceType === 'per_night') factorHint = `×${nights} j.`;
+                  else if (opt.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
+                  return (
+                    <Card
+                      key={opt.id}
+                      variant="outlined"
+                      sx={{
+                        borderColor: enabled ? 'primary.main' : 'divider',
+                        bgcolor: enabled ? 'action.hover' : 'background.paper',
+                      }}
+                    >
+                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
+                          <Box flex={1}>
+                            <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
+                            <Typography variant="body2" color="text.secondary">{`${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}</Typography>
+                          </Box>
+                          <Stack alignItems="flex-end" spacing={0.5}>
+                            <FormControlLabel
+                              sx={{ m: 0 }}
+                              control={<Switch checked={enabled} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
+                              label="Activer"
+                            />
+                          </Stack>
+                        </Stack>
+
+                        {enabled && (
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
+                            <TextField
+                              size="small"
+                              type="number"
+                              label="Qté"
+                              value={selected ? selected.quantity : 1}
+                              onChange={(e) => setOptionQuantity(opt.id, e.target.value)}
+                              inputProps={{ min: 1 }}
+                              sx={{ width: { xs: '100%', sm: 110 } }}
+                            />
+                            <Chip
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                              label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                              sx={{ width: { xs: '100%', sm: 'auto' } }}
+                            />
+                          </Stack>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Stack>
             </Box>
           )}
 
@@ -1199,37 +1242,38 @@ export default function ReservationPage() {
                     else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;
                     else if (resource.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
                     return (
-                      <Box
+                      <Card
                         key={resource.id}
+                        variant="outlined"
                         sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
                           mb: 1,
-                          px: 1,
-                          py: 0.75,
-                          borderRadius: 1,
-                          border: '1px solid',
                           borderColor: resourceConflict ? 'error.main' : 'transparent',
                           bgcolor: resourceConflict ? 'error.lighter' : 'transparent',
                         }}
                       >
-                        <Typography sx={{ flex: 1 }}>{`${resource.name} — ${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}`}</Typography>
-                        <Typography variant="caption" sx={{ minWidth: 130, color: unavailable || requestedTooMuch ? 'error.main' : 'text.secondary', fontWeight: unavailable || requestedTooMuch ? 700 : 400 }}>
-                          {unavailable ? 'Déjà réservée' : `${resource.available} dispo${factorHint ? ` • ${factorHint}` : ''}`}
-                        </Typography>
-                        <TextField
-                          size="small"
-                          type="number"
-                          label="Qté"
-                          value={selected ? selected.quantity : 0}
-                          onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
-                          inputProps={{ min: 0, max: resource.available || 0 }}
-                          error={resourceConflict}
-                          helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
-                          sx={{ width: 90 }}
-                        />
-                      </Box>
+                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography sx={{ fontWeight: 600 }}>{resource.name}</Typography>
+                              <Typography variant="body2" color="text.secondary">{`${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}`}</Typography>
+                            </Box>
+                            <Typography variant="caption" sx={{ color: unavailable || requestedTooMuch ? 'error.main' : 'text.secondary', fontWeight: unavailable || requestedTooMuch ? 700 : 400 }}>
+                              {unavailable ? 'Déjà réservée' : `${resource.available} dispo${factorHint ? ` • ${factorHint}` : ''}`}
+                            </Typography>
+                            <TextField
+                              size="small"
+                              type="number"
+                              label="Qté"
+                              value={selected ? selected.quantity : 0}
+                              onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
+                              inputProps={{ min: 0, max: resource.available || 0 }}
+                              error={resourceConflict}
+                              helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
+                              sx={{ width: { xs: '100%', sm: 110 } }}
+                            />
+                          </Stack>
+                        </CardContent>
+                      </Card>
                     );
                   })}
               </Box>
