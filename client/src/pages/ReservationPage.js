@@ -1134,7 +1134,6 @@ export default function ReservationPage() {
             currentReservation={form}
             onDateClick={handleMiniDateClick}
             isLocked={isReservationLocked}
-            selectedProperty={selectedProperty}
           />
 
           <Grid container spacing={2}>

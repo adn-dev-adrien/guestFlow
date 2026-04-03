@@ -27,13 +27,6 @@ function addDays(dateStr, days) {
   return `${y}-${m}-${d}`;
 }
 
-function diffDays(startDate, endDate) {
-  const start = parseDate(startDate);
-  const end = parseDate(endDate);
-  if (!start || !end) return 0;
-  return Math.round((end - start) / 86400000);
-}
-
 function timeToHour(timeStr) {
   if (!timeStr) return 0;
   const [h, m] = timeStr.split(':').map(Number);
@@ -52,7 +45,6 @@ export default function MiniPlanningStrip({
   currentReservation,
   onDateClick,
   isLocked,
-  selectedProperty,
 }) {
   const miniDays = useMemo(() => {
     return Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
@@ -63,14 +55,19 @@ export default function MiniPlanningStrip({
     return reservations.filter((r) => r.id !== currentReservation.id);
   }, [reservations, currentReservation?.id]);
 
-  const findReservationOnDay = (dateStr) => {
+  const findDepartureReservationOnDay = (dateStr) => {
     if (!dateStr) return null;
-    return otherReservationsForMini.find((r) => dateStr >= r.startDate && dateStr < r.endDate) || null;
+    return otherReservationsForMini.find((r) => r.endDate === dateStr) || null;
   };
 
-  const isSelectedDay = (dateStr) => {
-    if (!dateStr || !currentReservation?.startDate || !currentReservation?.endDate) return false;
-    return dateStr >= currentReservation.startDate && dateStr < currentReservation.endDate;
+  const findArrivalReservationOnDay = (dateStr) => {
+    if (!dateStr) return null;
+    return otherReservationsForMini.find((r) => r.startDate === dateStr) || null;
+  };
+
+  const findMiddleReservationOnDay = (dateStr) => {
+    if (!dateStr) return null;
+    return otherReservationsForMini.find((r) => dateStr > r.startDate && dateStr < r.endDate) || null;
   };
 
   const isArrivalDay = (dateStr) => {
@@ -81,30 +78,47 @@ export default function MiniPlanningStrip({
     return currentReservation?.endDate === dateStr;
   };
 
-  const getReservationBar = (reservation, dateStr) => {
-    if (!reservation) return null;
-    const isFirst = dateStr === reservation.startDate;
-    const isLast = dateStr === addDays(reservation.endDate, -1);
-
-    let startPct = 0;
-    let endPct = 100;
-
-    if (isFirst) {
-      const checkInHour = timeToHour(reservation.checkInTime || '15:00');
-      startPct = hourToPercent(checkInHour);
+  const buildDayGradient = ({ departureRes, arrivalRes, middleRes, forcedColor }) => {
+    if (!departureRes && !arrivalRes && !middleRes) {
+      return { background: '#f5f5f5', textColor: 'text.primary' };
     }
 
-    if (isLast) {
-      const checkOutHour = timeToHour(reservation.checkOutTime || '10:00');
-      endPct = hourToPercent(checkOutHour);
+    // Middle-of-stay day: fully filled.
+    if (middleRes && !departureRes && !arrivalRes) {
+      const fullColor = forcedColor || PLATFORM_COLORS[middleRes.platform] || '#757575';
+      return { background: fullColor, textColor: '#fff' };
     }
 
-    return {
-      startPct,
-      endPct,
-      isFirst,
-      isLast,
-    };
+    const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
+    const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
+    const departColor = departureRes ? (forcedColor || PLATFORM_COLORS[departureRes.platform] || '#757575') : null;
+    const arriveColor = arrivalRes ? (forcedColor || PLATFORM_COLORS[arrivalRes.platform] || '#757575') : null;
+
+    const stops = [];
+
+    if (departPct !== null) {
+      stops.push(`${departColor} 0%`);
+      stops.push(`${departColor} ${departPct}%`);
+      if (arrivePct !== null && arrivePct > departPct) {
+        stops.push(`transparent ${departPct}%`);
+        stops.push(`transparent ${arrivePct}%`);
+      } else if (arrivePct === null) {
+        stops.push(`transparent ${departPct}%`);
+        stops.push('transparent 100%');
+      }
+    }
+
+    if (arrivePct !== null) {
+      if (departPct === null) {
+        stops.push('transparent 0%');
+        stops.push(`transparent ${arrivePct}%`);
+      }
+      stops.push(`${arriveColor} ${arrivePct}%`);
+      stops.push(`${arriveColor} 100%`);
+    }
+
+    const background = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : '#f5f5f5';
+    return { background, textColor: '#fff' };
   };
 
   return (
@@ -138,94 +152,48 @@ export default function MiniPlanningStrip({
 
         <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length || 1}, minmax(0, 1fr))`, gap: 0.75 }}>
           {miniDays.map((day) => {
-            const reservationOnDay = findReservationOnDay(day);
-            const selectedDay = isSelectedDay(day);
             const isArrival = isArrivalDay(day);
             const isDeparture = isDepartureDay(day);
             const dateObj = parseDate(day);
             const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][dateObj?.getDay() || 0];
 
-            let bgGradient = '#f5f5f5';
-            let textColor = 'text.primary';
+            const selectedDeparture = currentReservation?.endDate === day ? currentReservation : null;
+            const selectedArrival = currentReservation?.startDate === day ? currentReservation : null;
+            const selectedMiddle = currentReservation?.startDate && currentReservation?.endDate
+              && day > currentReservation.startDate
+              && day < currentReservation.endDate
+              ? currentReservation
+              : null;
 
-            if (selectedDay) {
-              const barInfo = getReservationBar(currentReservation, day);
-              const barColor = '#1976d2';
-              const stops = [];
+            const otherDeparture = findDepartureReservationOnDay(day);
+            const otherArrival = findArrivalReservationOnDay(day);
+            const otherMiddle = findMiddleReservationOnDay(day);
 
-              if (barInfo.isFirst && barInfo.isLast) {
-                // Single day with partial start and end
-                stops.push(`transparent 0%`);
-                stops.push(`transparent ${barInfo.startPct}%`);
-                stops.push(`${barColor} ${barInfo.startPct}%`);
-                stops.push(`${barColor} ${barInfo.endPct}%`);
-                stops.push(`transparent ${barInfo.endPct}%`);
-                stops.push(`transparent 100%`);
-              } else if (barInfo.isFirst) {
-                // First day: partial start
-                stops.push(`transparent 0%`);
-                stops.push(`transparent ${barInfo.startPct}%`);
-                stops.push(`${barColor} ${barInfo.startPct}%`);
-                stops.push(`${barColor} 100%`);
-              } else if (barInfo.isLast) {
-                // Last day: partial end
-                stops.push(`${barColor} 0%`);
-                stops.push(`${barColor} ${barInfo.endPct}%`);
-                stops.push(`transparent ${barInfo.endPct}%`);
-                stops.push(`transparent 100%`);
-              } else {
-                // Full day: 100%
-                stops.push(`${barColor} 0%`);
-                stops.push(`${barColor} 100%`);
-              }
+            const dayStyle = selectedDeparture || selectedArrival || selectedMiddle
+              ? buildDayGradient({
+                  departureRes: selectedDeparture,
+                  arrivalRes: selectedArrival,
+                  middleRes: selectedMiddle,
+                  forcedColor: '#1976d2',
+                })
+              : buildDayGradient({
+                  departureRes: otherDeparture,
+                  arrivalRes: otherArrival,
+                  middleRes: otherMiddle,
+                });
 
-              bgGradient = `linear-gradient(135deg, ${stops.join(', ')})`;
-              textColor = '#fff';
-            } else if (reservationOnDay) {
-              const barInfo = getReservationBar(reservationOnDay, day);
-              const barColor = PLATFORM_COLORS[reservationOnDay.platform] || '#757575';
-              const stops = [];
-
-              if (barInfo.isFirst && barInfo.isLast) {
-                // Single day with partial start and end
-                stops.push(`transparent 0%`);
-                stops.push(`transparent ${barInfo.startPct}%`);
-                stops.push(`${barColor} ${barInfo.startPct}%`);
-                stops.push(`${barColor} ${barInfo.endPct}%`);
-                stops.push(`transparent ${barInfo.endPct}%`);
-                stops.push(`transparent 100%`);
-              } else if (barInfo.isFirst) {
-                // First day: partial start
-                stops.push(`transparent 0%`);
-                stops.push(`transparent ${barInfo.startPct}%`);
-                stops.push(`${barColor} ${barInfo.startPct}%`);
-                stops.push(`${barColor} 100%`);
-              } else if (barInfo.isLast) {
-                // Last day: partial end
-                stops.push(`${barColor} 0%`);
-                stops.push(`${barColor} ${barInfo.endPct}%`);
-                stops.push(`transparent ${barInfo.endPct}%`);
-                stops.push(`transparent 100%`);
-              } else {
-                // Full day: 100%
-                stops.push(`${barColor} 0%`);
-                stops.push(`${barColor} 100%`);
-              }
-
-              bgGradient = `linear-gradient(135deg, ${stops.join(', ')})`;
-              textColor = '#fff';
-            }
+            const tooltipRes = selectedDeparture || selectedArrival || selectedMiddle || otherDeparture || otherArrival || otherMiddle;
 
             return (
               <Box
                 key={day}
                 onClick={() => onDateClick(day)}
-                title={reservationOnDay ? `${reservationOnDay.firstName || ''} ${reservationOnDay.lastName || ''} (${reservationOnDay.platform || 'reservation'})` : 'Disponible'}
+                title={tooltipRes ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${tooltipRes.platform || 'reservation'})` : 'Disponible'}
                 sx={{
                   borderRadius: 1,
                   border: '1px solid',
                   borderColor: isArrival || isDeparture ? 'primary.main' : 'divider',
-                  background: bgGradient,
+                  background: dayStyle.background,
                   minHeight: 56,
                   px: 0.5,
                   py: 0.75,
@@ -244,8 +212,8 @@ export default function MiniPlanningStrip({
                   },
                 }}
               >
-                <Typography variant="caption" sx={{ fontWeight: 700, color: textColor, lineHeight: 1.1, position: 'relative', zIndex: 1 }}>{weekLabel}</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: textColor, lineHeight: 1.15, position: 'relative', zIndex: 1 }}>{dateObj?.getDate()}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1.1, position: 'relative', zIndex: 1 }}>{weekLabel}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1.15, position: 'relative', zIndex: 1 }}>{dateObj?.getDate()}</Typography>
               </Box>
             );
           })}
