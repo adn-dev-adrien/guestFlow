@@ -574,7 +574,7 @@ export default function ReservationPage() {
     let optionsTotal = 0;
     for (const so of updatedForm.selectedOptions) {
       const opt = propertyOptions.find(o => o.id === so.optionId);
-      const userQty = Math.max(1, Number(so.quantity) || 1);
+      const userQty = Math.max(0, Number(so.quantity) || 0);
       if (!opt && !isExistingReservationPricingLocked) continue;
       const frozenUnitByQty = Number(frozenOptionUnitByQuantityRef.current[so.optionId]);
       const optTotal = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty)
@@ -1061,6 +1061,27 @@ export default function ReservationPage() {
   );
   const datesUnavailableMessage = 'Ces dates ne sont pas dispo pour ce logement.';
   const liveTimeConflictMessage = getTimeConflictMessage(form);
+  const quantityPersons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
+  const quantityNights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
+  const getQuantityMultiplier = (priceType) => {
+    if (priceType === 'per_person') return quantityPersons;
+    if (priceType === 'per_night') return quantityNights;
+    if (priceType === 'per_person_per_night') return quantityPersons * quantityNights;
+    return 1;
+  };
+  const toDisplayedQuantity = (baseQuantity, priceType) => {
+    const multiplier = getQuantityMultiplier(priceType);
+    const value = (Number(baseQuantity) || 0) * multiplier;
+    return Number.isInteger(value) ? value : Number(value.toFixed(2));
+  };
+  const toBaseQuantity = (displayedQuantity, priceType) => {
+    const parsed = Number(displayedQuantity);
+    if (Number.isNaN(parsed)) return 0;
+    const multiplier = getQuantityMultiplier(priceType);
+    if (!multiplier) return parsed;
+    const value = parsed / multiplier;
+    return Number.isInteger(value) ? value : Number(value.toFixed(4));
+  };
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
 
@@ -1389,12 +1410,10 @@ export default function ReservationPage() {
                 {propertyOptions.map((opt) => {
                   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
                   const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                  const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
-                  const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
                   let factorHint = '';
-                  if (opt.priceType === 'per_person') factorHint = `×${persons} pers.`;
-                  else if (opt.priceType === 'per_night') factorHint = `×${nights} j.`;
-                  else if (opt.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
+                  if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
+                  else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
+                  else if (opt.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
                   return (
                     <Card
                       key={opt.id}
@@ -1426,8 +1445,8 @@ export default function ReservationPage() {
                               size="small"
                               type="number"
                               label="Qté"
-                              value={selected ? selected.quantity : 1}
-                              onChange={(e) => setOptionQuantity(opt.id, e.target.value)}
+                              value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
+                              onChange={(e) => setOptionQuantity(opt.id, toBaseQuantity(e.target.value, opt.priceType))}
                               inputProps={{ min: 1 }}
                               sx={{ width: { xs: '100%', sm: 'auto' } }}
                             />
@@ -1465,12 +1484,10 @@ export default function ReservationPage() {
                       const unavailable = Number(resource.available || 0) <= 0;
                       const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
                       const resourceConflict = Boolean(selected) && (unavailable || requestedTooMuch);
-                      const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
-                      const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
                       let factorHint = '';
-                      if (resource.priceType === 'per_person') factorHint = `×${persons} pers.`;
-                      else if (resource.priceType === 'per_night') factorHint = `×${nights} j.`;
-                      else if (resource.priceType === 'per_person_per_night') factorHint = `×${persons} pers. ×${nights} j.`;
+                      if (resource.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
+                      else if (resource.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
+                      else if (resource.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
                       return (
                         <Card
                           key={resource.id}
@@ -1514,9 +1531,9 @@ export default function ReservationPage() {
                                   size="small"
                                   type="number"
                                   label="Qté"
-                                  value={selected ? selected.quantity : 1}
-                                  onChange={(e) => setResourceQuantity(resource.id, e.target.value)}
-                                  inputProps={{ min: 1, max: resource.available || 0 }}
+                                  value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
+                                  onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
+                                  inputProps={{ min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }}
                                   error={resourceConflict}
                                   helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
                                   sx={{ width: { xs: '100%', sm: 'auto' } }}

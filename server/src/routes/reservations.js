@@ -41,7 +41,7 @@ router.get('/:id', (req, res) => {
   `).all(req.params.id);
 
   reservation.resources = db.prepare(`
-    SELECT rr.*, rs.name, rs.note, rs.propertyId
+    SELECT rr.*, rs.name, rs.note, rs.propertyId, rs.priceType
     FROM reservation_resources rr
     JOIN resources rs ON rr.resourceId = rs.id
     WHERE rr.reservationId = ?

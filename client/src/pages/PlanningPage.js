@@ -77,6 +77,22 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   const children = Number(r.children || 0);
   const teens = Number(r.teens || 0);
   const babies = Number(r.babies || 0);
+  const persons = adults + children + teens;
+  const nights = Math.max(1, Math.round((new Date(r.endDate) - new Date(r.startDate)) / 86400000));
+
+  const getMultiplier = (priceType) => {
+    if (priceType === 'per_person') return persons;
+    if (priceType === 'per_night') return nights;
+    if (priceType === 'per_person_per_night') return persons * nights;
+    return 1;
+  };
+
+  const getEffectiveQty = (item) => {
+    const baseQty = Number(item.quantity || 0);
+    const multiplier = getMultiplier(item.priceType);
+    const value = baseQty * multiplier;
+    return Number.isInteger(value) ? value : Number(value.toFixed(2));
+  };
 
   let alertBgColor = 'background.paper';
   if (alertInfo?.type === 'orange') {
@@ -87,8 +103,8 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
     alertBgColor = 'rgba(33, 150, 243, 0.08)';
   }
 
-  const optionsText = (r.options || []).map((o) => `${o.title}${o.quantity > 1 ? ` ×${o.quantity}` : ''}`);
-  const resourcesText = (r.resources || []).map((rr) => `${rr.name}${rr.quantity > 1 ? ` ×${rr.quantity}` : ''}`);
+  const optionsText = (r.options || []).map((o) => `${o.title} ×${getEffectiveQty(o)}`);
+  const resourcesText = (r.resources || []).map((rr) => `${rr.name} ×${getEffectiveQty(rr)}`);
 
   return (
     <Card
