@@ -1520,12 +1520,30 @@ export default function ReservationPage() {
             {(() => {
               const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
               const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
+              const typeMultiplier = (priceType) => {
+                if (priceType === 'per_person') return persons;
+                if (priceType === 'per_night') return nights;
+                if (priceType === 'per_person_per_night') return persons * nights;
+                return 1;
+              };
               const touristTaxRate = Number(selectedProperty?.touristTaxPerDayPerPerson || 0);
               const touristTaxTotal = Math.round(touristTaxRate * nights * persons * 100) / 100;
               const optionsSelected = form.selectedOptions.filter(so => Number(so.quantity) > 0);
               const resourcesSelected = form.selectedResources.filter(sr => Number(sr.quantity) > 0);
-              const optionsTotal = optionsSelected.reduce((acc, so) => acc + (so.totalPrice || 0), 0);
-              const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + (sr.totalPrice || 0), 0);
+              const optionLineTotal = (so) => {
+                const opt = propertyOptions.find(o => o.id === so.optionId);
+                const qty = Math.max(1, Number(so.quantity) || 1);
+                const unitPrice = Number(opt?.price || 0);
+                return unitPrice * qty * typeMultiplier(opt?.priceType || 'per_stay');
+              };
+              const resourceLineTotal = (sr) => {
+                const res = availableResources.find(r => r.id === sr.resourceId);
+                const qty = Math.max(0, Number(sr.quantity) || 0);
+                const unitPrice = Number(res?.price ?? sr.unitPrice ?? 0);
+                return unitPrice * qty * typeMultiplier(res?.priceType || 'per_stay');
+              };
+              const optionsTotal = optionsSelected.reduce((acc, so) => acc + optionLineTotal(so), 0);
+              const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + resourceLineTotal(sr), 0);
               const subtotal = form.totalPrice + optionsTotal + resourcesTotal;
               const discountAmount = form.discountPercent > 0 ? Math.round(subtotal * (form.discountPercent / 100) * 100) / 100 : 0;
               const totalSejour = Math.round((subtotal - discountAmount + touristTaxTotal) * 100) / 100;
@@ -1547,12 +1565,13 @@ export default function ReservationPage() {
                       </Typography>
                       {optionsSelected.map(so => {
                         const opt = propertyOptions.find(o => o.id === so.optionId);
+                        const total = optionLineTotal(so);
                         return (
                           <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
                               {opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
                             </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{(so.totalPrice || 0).toFixed(2)}€</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{total.toFixed(2)}€</Typography>
                           </Box>
                         );
                       })}
@@ -1568,12 +1587,13 @@ export default function ReservationPage() {
                       </Typography>
                       {resourcesSelected.map(sr => {
                         const res = availableResources.find(r => r.id === sr.resourceId);
+                        const total = resourceLineTotal(sr);
                         return (
                           <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
                               {res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}` : ''}
                             </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{(sr.totalPrice || 0).toFixed(2)}€</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{total.toFixed(2)}€</Typography>
                           </Box>
                         );
                       })}
