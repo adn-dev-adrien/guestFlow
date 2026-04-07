@@ -57,6 +57,10 @@ db.exec(`
     propertyId INTEGER NOT NULL,
     label TEXT DEFAULT 'Standard',
     pricePerNight REAL NOT NULL DEFAULT 100,
+    pricingMode TEXT NOT NULL DEFAULT 'fixed',
+    progressiveTiers TEXT NOT NULL DEFAULT '[]',
+    dateRanges TEXT NOT NULL DEFAULT '[]',
+    color TEXT NOT NULL DEFAULT '#1976d2',
     startDate TEXT,
     endDate TEXT,
     minNights INTEGER DEFAULT 1,
@@ -212,6 +216,20 @@ if (!propCols.includes('doubleBeds')) {
 }
 if (!propCols.includes('touristTaxPerDayPerPerson')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxPerDayPerPerson REAL DEFAULT 0");
+}
+
+const pricingRuleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map(c => c.name);
+if (!pricingRuleCols.includes('pricingMode')) {
+  db.exec("ALTER TABLE pricing_rules ADD COLUMN pricingMode TEXT NOT NULL DEFAULT 'fixed'");
+}
+if (!pricingRuleCols.includes('progressiveTiers')) {
+  db.exec("ALTER TABLE pricing_rules ADD COLUMN progressiveTiers TEXT NOT NULL DEFAULT '[]'");
+}
+if (!pricingRuleCols.includes('dateRanges')) {
+  db.exec("ALTER TABLE pricing_rules ADD COLUMN dateRanges TEXT NOT NULL DEFAULT '[]'");
+}
+if (!pricingRuleCols.includes('color')) {
+  db.exec("ALTER TABLE pricing_rules ADD COLUMN color TEXT NOT NULL DEFAULT '#1976d2'");
 }
 
 const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(c => c.name);

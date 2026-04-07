@@ -63,22 +63,65 @@ router.post('/calculate-price', (req, res) => {
   if (nights <= 0) return res.json({ totalPrice: 0, nights: 0 });
 
   let totalPrice = 0;
+
+  const getProgressiveExtraNightPrice = (rule, nightNumber, fallbackBasePrice) => {
+    let tiers = [];
+    try {
+      tiers = JSON.parse(rule.progressiveTiers || '[]');
+    } catch {
+      tiers = [];
+    }
+    const currentTier = (Array.isArray(tiers) ? tiers : []).find((t) => Number(t.nightNumber) === Number(nightNumber));
+    if (!currentTier) return fallbackBasePrice;
+    const direct = Number(currentTier.extraNightPrice);
+    if (Number.isFinite(direct)) return direct;
+    const pct = Number(currentTier.extraNightDiscountPct);
+    if (Number.isFinite(pct)) return Math.max(0, fallbackBasePrice * (1 - pct / 100));
+    return fallbackBasePrice;
+  };
+
+  const getRuleDateRanges = (rule) => {
+    try {
+      const parsed = JSON.parse(rule.dateRanges || '[]');
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {
+      // ignore invalid JSON and fallback to legacy fields
+    }
+    if (rule.startDate && rule.endDate) {
+      return [{ startDate: rule.startDate, endDate: rule.endDate }];
+    }
+    return [];
+  };
+
   const current = new Date(start);
   for (let i = 0; i < nights; i++) {
     const dateStr = current.toISOString().split('T')[0];
     // Find matching seasonal rule
     let priceForNight = 100; // fallback
+    let matchedRule = null;
     for (const rule of rules) {
-      if (rule.startDate && rule.endDate) {
-        if (dateStr >= rule.startDate && dateStr <= rule.endDate) {
+      const ruleDateRanges = getRuleDateRanges(rule);
+      if (ruleDateRanges.length > 0) {
+        if (ruleDateRanges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
           priceForNight = rule.pricePerNight;
+          matchedRule = rule;
           break;
         }
       } else {
         priceForNight = rule.pricePerNight; // default rule (no date range)
+        matchedRule = rule;
       }
     }
-    totalPrice += priceForNight;
+    if ((matchedRule?.pricingMode || 'fixed') === 'progressive') {
+      const nightNumber = i + 1;
+      if (nightNumber === 1) {
+        totalPrice += Number(priceForNight || 0);
+      } else {
+        totalPrice += getProgressiveExtraNightPrice(matchedRule, nightNumber, Number(priceForNight || 0));
+      }
+    } else {
+      totalPrice += Number(priceForNight || 0);
+    }
     current.setDate(current.getDate() + 1);
   }
 

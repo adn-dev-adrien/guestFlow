@@ -25,6 +25,7 @@ import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
 import PropertiesPage from './pages/PropertiesPage';
 import PropertyDetail from './pages/PropertyDetail';
+import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
 import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationPage from './pages/ReservationPage';
@@ -278,6 +279,7 @@ function AppShell() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/properties" element={<PropertiesPage />} />
           <Route path="/properties/:id" element={<PropertyDetail />} />
+          <Route path="/properties/:id/pricing-seasons" element={<PropertyPricingSeasonsPage />} />
           <Route path="/options" element={<OptionsPage />} />
           <Route path="/resources" element={<ResourcesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />

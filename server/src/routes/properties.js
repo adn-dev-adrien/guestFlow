@@ -50,6 +50,71 @@ function removeUploadedFile(filePath) {
   if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
 }
 
+function normalizeDateRanges(dateRanges, startDate, endDate) {
+  const source = Array.isArray(dateRanges) && dateRanges.length > 0
+    ? dateRanges
+    : [{ startDate, endDate }];
+
+  return source
+    .map((range) => ({
+      startDate: range?.startDate || '',
+      endDate: range?.endDate || '',
+    }))
+    .filter((range) => range.startDate && range.endDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+function getBoundsFromDateRanges(dateRanges) {
+  if (!dateRanges.length) return { startDate: null, endDate: null };
+  return {
+    startDate: dateRanges[0].startDate,
+    endDate: dateRanges[dateRanges.length - 1].endDate,
+  };
+}
+
+function parseRuleDateRanges(rule) {
+  try {
+    const parsed = JSON.parse(rule.dateRanges || '[]');
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return normalizeDateRanges(parsed);
+    }
+  } catch {
+    // ignore invalid stored JSON and fallback to legacy fields
+  }
+  return normalizeDateRanges([], rule.startDate, rule.endDate);
+}
+
+function findPricingRuleOverlap(propertyId, dateRanges, excludeRuleId = null) {
+  if (!dateRanges.length) return null;
+  let sql = 'SELECT id, label, startDate, endDate, dateRanges FROM pricing_rules WHERE propertyId = ?';
+  const params = [propertyId];
+  if (excludeRuleId) {
+    sql += ' AND id != ?';
+    params.push(excludeRuleId);
+  }
+  sql += ' ORDER BY startDate';
+  const rules = db.prepare(sql).all(...params);
+
+  for (const rule of rules) {
+    const existingRanges = parseRuleDateRanges(rule);
+    for (const incomingRange of dateRanges) {
+      const conflictingRange = existingRanges.find((existingRange) => (
+        incomingRange.startDate <= existingRange.endDate && incomingRange.endDate >= existingRange.startDate
+      ));
+      if (conflictingRange) {
+        return {
+          id: rule.id,
+          label: rule.label,
+          startDate: conflictingRange.startDate,
+          endDate: conflictingRange.endDate,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 // List all properties
 router.get('/', (req, res) => {
   const properties = db.prepare('SELECT * FROM properties ORDER BY name').all();
@@ -61,7 +126,22 @@ router.get('/:id', (req, res) => {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
 
-  property.pricingRules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(req.params.id);
+  property.pricingRules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(req.params.id)
+    .map((rule) => {
+      let tiers = [];
+      try {
+        tiers = JSON.parse(rule.progressiveTiers || '[]');
+      } catch {
+        tiers = [];
+      }
+      return {
+        ...rule,
+        pricingMode: rule.pricingMode || 'fixed',
+        color: rule.color || '#1976d2',
+        dateRanges: parseRuleDateRanges(rule),
+        progressiveTiers: Array.isArray(tiers) ? tiers : [],
+      };
+    });
   property.documents = db.prepare('SELECT * FROM documents WHERE propertyId = ?').all(req.params.id);
   property.optionIds = db.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(req.params.id).map(r => r.optionId);
   res.json(property);
@@ -76,7 +156,25 @@ router.post('/', photoUpload.single('photo'), async (req, res) => {
       INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, touristTaxPerDayPerPerson ?? 0);
-    res.json({ id: result.lastInsertRowid });
+
+    const propertyId = result.lastInsertRowid;
+    const currentYear = new Date().getFullYear();
+    db.prepare(`
+      INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      propertyId,
+      'Tarif annuel',
+      100,
+      'fixed',
+      '[]',
+      JSON.stringify([{ startDate: `${currentYear}-01-01`, endDate: `${currentYear}-12-31` }]),
+      '#1976d2',
+      `${currentYear}-01-01`,
+      `${currentYear}-12-31`,
+      1
+    );
+    res.json({ id: propertyId });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erreur lors de la création du logement' });
   }
@@ -115,20 +213,61 @@ router.delete('/:id', (req, res) => {
 
 // --- Pricing Rules ---
 router.post('/:id/pricing', (req, res) => {
-  const { label, pricePerNight, startDate, endDate, minNights } = req.body;
+  const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = req.body;
+  const normalizedDateRanges = normalizeDateRanges(dateRanges, startDate, endDate);
+  const conflictingRule = findPricingRuleOverlap(req.params.id, normalizedDateRanges);
+  if (conflictingRule) {
+    return res.status(400).json({
+      error: `Chevauchement avec la saison "${conflictingRule.label}" (${conflictingRule.startDate} au ${conflictingRule.endDate}).`,
+      conflictingRule,
+    });
+  }
+  const bounds = getBoundsFromDateRanges(normalizedDateRanges);
   const result = db.prepare(`
-    INSERT INTO pricing_rules (propertyId, label, pricePerNight, startDate, endDate, minNights)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(req.params.id, sentenceCase(label || 'Standard'), pricePerNight, startDate || null, endDate || null, minNights || 1);
+    INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    req.params.id,
+    sentenceCase(label || 'Standard'),
+    Number(pricePerNight || 0),
+    pricingMode || 'fixed',
+    JSON.stringify(Array.isArray(progressiveTiers) ? progressiveTiers : []),
+    JSON.stringify(normalizedDateRanges),
+    color || '#1976d2',
+    bounds.startDate,
+    bounds.endDate,
+    minNights || 1
+  );
   res.json({ id: result.lastInsertRowid });
 });
 
 router.put('/:id/pricing/:ruleId', (req, res) => {
-  const { label, pricePerNight, startDate, endDate, minNights } = req.body;
+  const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = req.body;
+  const normalizedDateRanges = normalizeDateRanges(dateRanges, startDate, endDate);
+  const conflictingRule = findPricingRuleOverlap(req.params.id, normalizedDateRanges, req.params.ruleId);
+  if (conflictingRule) {
+    return res.status(400).json({
+      error: `Chevauchement avec la saison "${conflictingRule.label}" (${conflictingRule.startDate} au ${conflictingRule.endDate}).`,
+      conflictingRule,
+    });
+  }
+  const bounds = getBoundsFromDateRanges(normalizedDateRanges);
   db.prepare(`
-    UPDATE pricing_rules SET label=?, pricePerNight=?, startDate=?, endDate=?, minNights=?
+    UPDATE pricing_rules SET label=?, pricePerNight=?, pricingMode=?, progressiveTiers=?, dateRanges=?, color=?, startDate=?, endDate=?, minNights=?
     WHERE id=? AND propertyId=?
-  `).run(sentenceCase(label), pricePerNight, startDate || null, endDate || null, minNights || 1, req.params.ruleId, req.params.id);
+  `).run(
+    sentenceCase(label || 'Standard'),
+    Number(pricePerNight || 0),
+    pricingMode || 'fixed',
+    JSON.stringify(Array.isArray(progressiveTiers) ? progressiveTiers : []),
+    JSON.stringify(normalizedDateRanges),
+    color || '#1976d2',
+    bounds.startDate,
+    bounds.endDate,
+    minNights || 1,
+    req.params.ruleId,
+    req.params.id
+  );
   res.json({ ok: true });
 });
 

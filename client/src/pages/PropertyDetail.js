@@ -7,13 +7,12 @@ import {
   FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import UploadIcon from '@mui/icons-material/Upload';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { displayDate } from '../utils/formatters';
-import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
+import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
 import api from '../api';
 
@@ -25,6 +24,16 @@ const NEW_DEFAULTS = {
   touristTaxPerDayPerPerson: 0,
   defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
 };
+
+function getSortedSeasonRanges(rule) {
+  const ranges = Array.isArray(rule?.dateRanges) ? rule.dateRanges : [];
+  if (ranges.length > 0) {
+    return ranges
+      .filter((range) => range.startDate && range.endDate)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }
+  return [{ startDate: rule?.startDate, endDate: rule?.endDate }].filter((range) => range.startDate && range.endDate);
+}
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -42,9 +51,6 @@ export default function PropertyDetail() {
   const [isNameEditing, setIsNameEditing] = useState(isNew);
   const [saving, setSaving] = useState(false);
   const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
-  const [pricingForm, setPricingForm] = useState({ label: '', pricePerNight: 100, startDate: '', endDate: '', minNights: 1 });
-  const [pricingOpen, setPricingOpen] = useState(false);
-  const [editRuleId, setEditRuleId] = useState(null);
   const [docType, setDocType] = useState('contract');
   const [docName, setDocName] = useState('');
   const [docFile, setDocFile] = useState(null);
@@ -169,19 +175,6 @@ export default function PropertyDetail() {
   const handleDeleteProperty = async () => {
     await api.deleteProperty(id);
     navigateBackWithFrom(navigate, from);
-  };
-
-  const handleSavePricing = async () => {
-    if (!canManageExtras) return;
-    if (editRuleId) {
-      await api.updatePricingRule(id, editRuleId, pricingForm);
-    } else {
-      await api.addPricingRule(id, pricingForm);
-    }
-    setPricingOpen(false);
-    setEditRuleId(null);
-    setPricingForm({ label: '', pricePerNight: 100, startDate: '', endDate: '', minNights: 1 });
-    load();
   };
 
   const handleUploadDoc = async () => {
@@ -315,11 +308,11 @@ export default function PropertyDetail() {
                 <Typography variant="h6">Tarification</Typography>
                 <Button
                   size="small"
-                  startIcon={<AddIcon />}
+                  variant="contained"
                   disabled={!canManageExtras}
-                  onClick={() => { setPricingForm({ label: '', pricePerNight: 100, startDate: '', endDate: '', minNights: 1 }); setEditRuleId(null); setPricingOpen(true); }}
+                  onClick={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}`))}
                 >
-                  Ajouter
+                  Gérer les saisons
                 </Button>
               </Box>
               <TextField
@@ -337,30 +330,45 @@ export default function PropertyDetail() {
                 <Table size="small" sx={{ minWidth: 700 }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Label</TableCell>
-                      <TableCell>Prix/nuit</TableCell>
-                      <TableCell>Début</TableCell>
-                      <TableCell>Fin</TableCell>
+                      <TableCell>Saison</TableCell>
+                      <TableCell>Dates</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Tarif base</TableCell>
                       <TableCell>Min nuits</TableCell>
+                      <TableCell>Couleur</TableCell>
                       <TableCell></TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(property.pricingRules || []).map((r) => (
+                    {[...(property.pricingRules || [])]
+                      .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
+                      .map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>{r.label}</TableCell>
-                        <TableCell>{r.pricePerNight}€</TableCell>
-                        <TableCell>{displayDate(r.startDate)}</TableCell>
-                        <TableCell>{displayDate(r.endDate)}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                            {getSortedSeasonRanges(r).map((range, index) => (
+                              <Typography key={`${r.id}-range-${index}`} variant="body2" sx={{ lineHeight: 1.25 }}>
+                                {displayDate(range.startDate)} → {displayDate(range.endDate)}
+                              </Typography>
+                            ))}
+                          </Box>
+                        </TableCell>
+                        <TableCell>{(r.pricingMode || 'fixed') === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
+                        <TableCell>{Number(r.pricePerNight || 0).toFixed(2)}€</TableCell>
                         <TableCell>{r.minNights}</TableCell>
                         <TableCell>
-                          <IconButton size="small" onClick={() => { setPricingForm(r); setEditRuleId(r.id); setPricingOpen(true); }}><EditIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="error" disabled={!canManageExtras} onClick={async () => { await api.deletePricingRule(id, r.id); load(); }}><DeleteIcon fontSize="small" /></IconButton>
+                          <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: r.color || '#1976d2' }} />
+                        </TableCell>
+                        <TableCell>
+                          <Button size="small" onClick={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}`))}>
+                            Modifier
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
                     {(!property.pricingRules || property.pricingRules.length === 0) && (
-                      <TableRow><TableCell colSpan={6} align="center">Aucune règle de tarification</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} align="center">Aucune saison tarifaire</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -417,26 +425,6 @@ export default function PropertyDetail() {
           <Button onClick={handleNavGuardLeave} color="error">Quitter sans sauvegarder</Button>
           <Button onClick={() => setNavGuardOpen(false)}>Rester sur la page</Button>
           <Button variant="contained" onClick={handleNavGuardSave}>Sauvegarder et quitter</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Pricing rule dialog */}
-      <Dialog open={pricingOpen} onClose={() => setPricingOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editRuleId ? 'Modifier la règle' : 'Nouvelle règle de tarification'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField label="Label" value={pricingForm.label} onChange={(e) => setPricingForm({ ...pricingForm, label: e.target.value })} fullWidth />
-            <TextField label="Prix par nuit (€)" type="number" value={pricingForm.pricePerNight} onChange={(e) => setPricingForm({ ...pricingForm, pricePerNight: e.target.value })} fullWidth />
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-              <TextField label="Date début" type="date" value={pricingForm.startDate || ''} InputLabelProps={{ shrink: true }} onChange={(e) => setPricingForm({ ...pricingForm, startDate: e.target.value })} fullWidth />
-              <TextField label="Date fin" type="date" value={pricingForm.endDate || ''} InputLabelProps={{ shrink: true }} onChange={(e) => setPricingForm({ ...pricingForm, endDate: e.target.value })} fullWidth />
-            </Box>
-            <TextField label="Min nuits" type="number" value={pricingForm.minNights} onChange={(e) => setPricingForm({ ...pricingForm, minNights: e.target.value })} fullWidth />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPricingOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleSavePricing}>Enregistrer</Button>
         </DialogActions>
       </Dialog>
 
