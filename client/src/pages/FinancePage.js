@@ -45,12 +45,34 @@ export default function FinancePage() {
 
   return (
     <Box>
-      <PageHeader
-        title="Suivi financier"
-        actionLabel="Extraction taxe de séjour"
-        actionIcon={null}
-        onAction={() => navigate('/finance/tourist-tax')}
-      />
+      <PageHeader title="Suivi financier" />
+
+      <Card
+        sx={{
+          mb: 3,
+          cursor: 'pointer',
+          border: '1px solid',
+          borderColor: 'divider',
+          transition: 'transform 0.2s, box-shadow 0.2s',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
+          },
+        }}
+        onClick={() => navigate('/finance/tourist-tax')}
+      >
+        <CardContent>
+          <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 700 }}>
+            Extraction
+          </Typography>
+          <Typography variant="h6" sx={{ mb: 0.5 }}>
+            Taxe de séjour
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Accéder au calcul mensuel par logement avec total à reverser à la collectivité.
+          </Typography>
+        </CardContent>
+      </Card>
 
       {/* Period selector */}
       <Card sx={{ mb: 3 }}>

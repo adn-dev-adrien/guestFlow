@@ -53,6 +53,7 @@ function NavContent({ onItemClick }) {
   const [properties, setProperties] = useState([]);
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false);
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
+  const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
   const selectedCalendarPropertyId = new URLSearchParams(location.search).get('propertyId');
 
   useEffect(() => {
@@ -73,10 +74,17 @@ function NavContent({ onItemClick }) {
     if (location.pathname.startsWith('/properties')) {
       setPropertiesMenuOpen(true);
       setCalendarMenuOpen(false);
+      setFinanceMenuOpen(false);
     }
     if (location.pathname.startsWith('/calendar')) {
       setCalendarMenuOpen(true);
       setPropertiesMenuOpen(false);
+      setFinanceMenuOpen(false);
+    }
+    if (location.pathname.startsWith('/finance')) {
+      setFinanceMenuOpen(true);
+      setPropertiesMenuOpen(false);
+      setCalendarMenuOpen(false);
     }
   }, [location.pathname]);
 
@@ -91,22 +99,36 @@ function NavContent({ onItemClick }) {
               if (item.path === '/properties') {
                 setPropertiesMenuOpen((prev) => !prev);
                 setCalendarMenuOpen(false);
+                setFinanceMenuOpen(false);
               } else if (item.path === '/calendar') {
                 setCalendarMenuOpen((prev) => !prev);
                 setPropertiesMenuOpen(false);
+                setFinanceMenuOpen(false);
+              } else if (item.path === '/finance') {
+                setFinanceMenuOpen((prev) => !prev);
+                setPropertiesMenuOpen(false);
+                setCalendarMenuOpen(false);
               } else {
                 setPropertiesMenuOpen(false);
                 setCalendarMenuOpen(false);
+                setFinanceMenuOpen(false);
               }
               if (onItemClick) onItemClick(e, item.path);
             }}
-            selected={item.path === '/properties' ? location.pathname.startsWith('/properties') : location.pathname === item.path}
+            selected={
+              item.path === '/properties'
+                ? location.pathname.startsWith('/properties')
+                : item.path === '/finance'
+                  ? location.pathname.startsWith('/finance')
+                  : location.pathname === item.path
+            }
             sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
           >
             <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
             <ListItemText primary={item.label} />
             {item.path === '/properties' && (propertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
             {item.path === '/calendar' && (calendarMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
+            {item.path === '/finance' && (financeMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
           </ListItemButton>
 
           {item.path === '/properties' && (
@@ -155,6 +177,31 @@ function NavContent({ onItemClick }) {
                     />
                   </ListItemButton>
                 ))}
+              </List>
+            </Collapse>
+          )}
+
+          {item.path === '/finance' && (
+            <Collapse in={financeMenuOpen} timeout="auto" unmountOnExit>
+              <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                <ListItemButton
+                  component={Link}
+                  to="/finance"
+                  onClick={(e) => onItemClick && onItemClick(e, '/finance')}
+                  selected={location.pathname === '/finance'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemText primary="Vue générale" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
+                <ListItemButton
+                  component={Link}
+                  to="/finance/tourist-tax"
+                  onClick={(e) => onItemClick && onItemClick(e, '/finance/tourist-tax')}
+                  selected={location.pathname === '/finance/tourist-tax'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemText primary="Taxe de séjour" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
               </List>
             </Collapse>
           )}
