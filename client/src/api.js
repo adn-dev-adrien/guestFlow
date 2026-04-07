@@ -81,6 +81,7 @@ const api = {
   },
   getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),
   getPendingPayments: () => request('/finance/pending'),
+  getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
 
   // School holidays
   getSchoolHolidays: () => request('/school-holidays'),

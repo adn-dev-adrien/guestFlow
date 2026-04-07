@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,
-  ListItemText, Box, IconButton, useMediaQuery
+  ListItemText, Box, IconButton, useMediaQuery, Collapse
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
@@ -15,8 +15,11 @@ import DateRangeIcon from '@mui/icons-material/DateRange';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import MenuIcon from '@mui/icons-material/Menu';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import theme from './theme';
 import DialogProvider from './components/DialogProvider';
+import api from './api';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
@@ -26,6 +29,7 @@ import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationPage from './pages/ReservationPage';
 import FinancePage from './pages/FinancePage';
+import TouristTaxPage from './pages/TouristTaxPage';
 import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
 import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
@@ -46,20 +50,115 @@ const navItems = [
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
+  const [properties, setProperties] = useState([]);
+  const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false);
+  const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
+  const selectedCalendarPropertyId = new URLSearchParams(location.search).get('propertyId');
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getProperties()
+      .then((items) => {
+        if (isMounted) setProperties(items || []);
+      })
+      .catch(() => {
+        if (isMounted) setProperties([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/properties')) {
+      setPropertiesMenuOpen(true);
+      setCalendarMenuOpen(false);
+    }
+    if (location.pathname.startsWith('/calendar')) {
+      setCalendarMenuOpen(true);
+      setPropertiesMenuOpen(false);
+    }
+  }, [location.pathname]);
+
   return (
     <List sx={{ pt: 2 }}>
       {navItems.map((item) => (
-        <ListItemButton
-          key={item.path}
-          component={Link}
-          to={item.path}
-          onClick={(e) => onItemClick && onItemClick(e, item.path)}
-          selected={location.pathname === item.path}
-          sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
-        >
-          <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-          <ListItemText primary={item.label} />
-        </ListItemButton>
+        <Box key={item.path}>
+          <ListItemButton
+            component={Link}
+            to={item.path}
+            onClick={(e) => {
+              if (item.path === '/properties') {
+                setPropertiesMenuOpen((prev) => !prev);
+                setCalendarMenuOpen(false);
+              } else if (item.path === '/calendar') {
+                setCalendarMenuOpen((prev) => !prev);
+                setPropertiesMenuOpen(false);
+              } else {
+                setPropertiesMenuOpen(false);
+                setCalendarMenuOpen(false);
+              }
+              if (onItemClick) onItemClick(e, item.path);
+            }}
+            selected={item.path === '/properties' ? location.pathname.startsWith('/properties') : location.pathname === item.path}
+            sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
+          >
+            <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.label} />
+            {item.path === '/properties' && (propertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
+            {item.path === '/calendar' && (calendarMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />)}
+          </ListItemButton>
+
+          {item.path === '/properties' && (
+            <Collapse in={propertiesMenuOpen} timeout="auto" unmountOnExit>
+              <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                {properties.map((p) => (
+                  <ListItemButton
+                    key={p.id}
+                    component={Link}
+                    to={`/properties/${p.id}`}
+                    onClick={(e) => onItemClick && onItemClick(e, `/properties/${p.id}`)}
+                    selected={location.pathname === `/properties/${p.id}`}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText
+                      primary={p.name}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        noWrap: true,
+                      }}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Collapse>
+          )}
+
+          {item.path === '/calendar' && (
+            <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
+              <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                {properties.map((p) => (
+                  <ListItemButton
+                    key={`calendar-${p.id}`}
+                    component={Link}
+                    to={`/calendar?propertyId=${p.id}`}
+                    onClick={(e) => onItemClick && onItemClick(e, `/calendar?propertyId=${p.id}`)}
+                    selected={location.pathname === '/calendar' && String(selectedCalendarPropertyId) === String(p.id)}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText
+                      primary={p.name}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        noWrap: true,
+                      }}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            </Collapse>
+          )}
+        </Box>
       ))}
     </List>
   );
@@ -138,6 +237,7 @@ function AppShell() {
           <Route path="/reservations/new" element={<ReservationPage />} />
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />
           <Route path="/finance" element={<FinancePage />} />
+          <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
         </Routes>

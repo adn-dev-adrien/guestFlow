@@ -1,6 +1,16 @@
 const router = require('express').Router();
 const db = require('../database');
 
+function getMonthBounds(monthStr) {
+  if (!/^\d{4}-\d{2}$/.test(monthStr || '')) return null;
+  const [y, m] = monthStr.split('-').map(Number);
+  if (!y || !m || m < 1 || m > 12) return null;
+  const start = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-01`;
+  const nextMonthDate = new Date(Date.UTC(y, m, 1));
+  const endExclusive = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  return { start, endExclusive };
+}
+
 // Financial summary for a date range
 router.get('/summary', (req, res) => {
   const { from, to } = req.query;
@@ -124,6 +134,88 @@ router.get('/pending', (req, res) => {
   `).all();
 
   res.json(reservations);
+});
+
+// Tourist tax extraction by month (past months only)
+router.get('/tourist-tax', (req, res) => {
+  const { month } = req.query;
+  const bounds = getMonthBounds(month);
+  if (!bounds) {
+    return res.status(400).json({ error: 'Mois invalide. Format attendu: YYYY-MM.' });
+  }
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (month >= currentMonth) {
+    return res.status(400).json({ error: 'Seuls les mois déjà passés sont autorisés.' });
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      p.id as propertyId,
+      p.name as propertyName,
+      p.touristTaxPerDayPerPerson as taxRate,
+      SUM(
+        MAX(0,
+          CAST(
+            JULIANDAY(MIN(r.endDate, ?)) - JULIANDAY(MAX(r.startDate, ?))
+            AS INTEGER
+          )
+        )
+      ) as rentedNights,
+      SUM(
+        MAX(0,
+          CAST(
+            JULIANDAY(MIN(r.endDate, ?)) - JULIANDAY(MAX(r.startDate, ?))
+            AS INTEGER
+          )
+        ) * COALESCE(r.adults, 0)
+      ) as adultNights
+    FROM reservations r
+    JOIN properties p ON p.id = r.propertyId
+    WHERE r.startDate < ?
+      AND r.endDate > ?
+    GROUP BY p.id, p.name, p.touristTaxPerDayPerPerson
+    ORDER BY p.name
+  `).all(
+    bounds.endExclusive,
+    bounds.start,
+    bounds.endExclusive,
+    bounds.start,
+    bounds.endExclusive,
+    bounds.start
+  );
+
+  const byProperty = rows.map((row) => {
+    const rentedNights = Number(row.rentedNights || 0);
+    const adultNights = Number(row.adultNights || 0);
+    const taxRate = Number(row.taxRate || 0);
+    const taxAmount = Math.round(adultNights * taxRate * 100) / 100;
+    return {
+      propertyId: row.propertyId,
+      propertyName: row.propertyName,
+      rentedNights,
+      adultNights,
+      taxRate,
+      taxAmount,
+    };
+  });
+
+  const totalTaxAmount = Math.round(byProperty.reduce((sum, p) => sum + p.taxAmount, 0) * 100) / 100;
+  const totalRentedNights = byProperty.reduce((sum, p) => sum + p.rentedNights, 0);
+  const totalAdultNights = byProperty.reduce((sum, p) => sum + p.adultNights, 0);
+
+  return res.json({
+    month,
+    from: bounds.start,
+    toExclusive: bounds.endExclusive,
+    byProperty,
+    totals: {
+      rentedNights: totalRentedNights,
+      adultNights: totalAdultNights,
+      taxAmount: totalTaxAmount,
+    },
+  });
 });
 
 module.exports = router;

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Chip
@@ -11,6 +12,7 @@ import api from '../api';
 const COLORS = ['#1565c0', '#4CAF50', '#f57c00', '#9c27b0'];
 
 export default function FinancePage() {
+  const navigate = useNavigate();
   const [from, setFrom] = useState(() => {
     const d = new Date(); d.setDate(1);
     return d.toISOString().split('T')[0];
@@ -43,7 +45,12 @@ export default function FinancePage() {
 
   return (
     <Box>
-      <PageHeader title="Suivi financier" />
+      <PageHeader
+        title="Suivi financier"
+        actionLabel="Extraction taxe de séjour"
+        actionIcon={null}
+        onAction={() => navigate('/finance/tourist-tax')}
+      />
 
       {/* Period selector */}
       <Card sx={{ mb: 3 }}>
