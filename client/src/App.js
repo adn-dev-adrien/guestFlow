@@ -44,7 +44,7 @@ const navItems = [
   { label: 'Vacances scolaires', path: '/school-holidays', icon: <DateRangeIcon /> },
 ];
 
-function NavContent() {
+function NavContent({ onItemClick }) {
   const location = useLocation();
   return (
     <List sx={{ pt: 2 }}>
@@ -53,6 +53,7 @@ function NavContent() {
           key={item.path}
           component={Link}
           to={item.path}
+          onClick={onItemClick}
           selected={location.pathname === item.path}
           sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
         >
@@ -98,7 +99,7 @@ function App() {
             }}
           >
             <Toolbar />
-            <NavContent />
+            <NavContent onItemClick={isMobile ? () => setMobileOpen(false) : undefined} />
           </Drawer>
 
           <Box component="main" sx={{ flexGrow: 1, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
