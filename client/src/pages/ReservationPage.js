@@ -202,6 +202,23 @@ export default function ReservationPage() {
   }, [isDirty, navigate]);
 
   useEffect(() => {
+    const guardHandler = (targetPath) => {
+      if (!isDirty) return false;
+      if (!targetPath || targetPath === window.location.pathname) return false;
+      pendingLeaveActionRef.current = () => navigate(targetPath);
+      setUnsavedDialogOpen(true);
+      return true;
+    };
+
+    window.__guestflowBeforeNavigate = guardHandler;
+    return () => {
+      if (window.__guestflowBeforeNavigate === guardHandler) {
+        delete window.__guestflowBeforeNavigate;
+      }
+    };
+  }, [isDirty, navigate]);
+
+  useEffect(() => {
     miniCenteredOnceRef.current = false;
     manualDateInputChangeRef.current = false;
     miniStripDateChangeRef.current = false;
@@ -820,7 +837,8 @@ export default function ReservationPage() {
   };
 
   // ==================== SAVE & DELETE ====================
-  const handleSaveReservation = async () => {
+  const handleSaveReservation = async (afterSaveAction = null) => {
+    const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     const isLockedReservation = Boolean(reservationId && existingReservationLocked);
 
     if (isLockedReservation) {
@@ -938,9 +956,13 @@ export default function ReservationPage() {
             totalPrice: sr.totalPrice,
           }))
         });
-        navigateBackWithFrom(navigate, from);
+        if (safeAfterSaveAction) {
+          safeAfterSaveAction();
+        } else {
+          navigateBackWithFrom(navigate, from);
+        }
       } else {
-        const res = await api.createReservation({
+        await api.createReservation({
           propertyId: Number(selectedProp),
           clientId: form.clientId,
           startDate: form.startDate,
@@ -976,7 +998,11 @@ export default function ReservationPage() {
             totalPrice: sr.totalPrice,
           }))
         });
-        navigateBackWithFrom(navigate, from);
+        if (safeAfterSaveAction) {
+          safeAfterSaveAction();
+        } else {
+          navigateBackWithFrom(navigate, from);
+        }
       }
     } catch (err) {
       await alert({ title: 'Erreur', message: err.message });
@@ -1026,7 +1052,9 @@ export default function ReservationPage() {
 
   const handleSaveAndLeave = async () => {
     setUnsavedDialogOpen(false);
-    await handleSaveReservation();
+    const action = pendingLeaveActionRef.current;
+    pendingLeaveActionRef.current = null;
+    await handleSaveReservation(action);
   };
 
   if (loading) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,
@@ -53,7 +53,7 @@ function NavContent({ onItemClick }) {
           key={item.path}
           component={Link}
           to={item.path}
-          onClick={onItemClick}
+          onClick={(e) => onItemClick && onItemClick(e, item.path)}
           selected={location.pathname === item.path}
           sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
         >
@@ -65,60 +65,94 @@ function NavContent({ onItemClick }) {
   );
 }
 
-function App() {
+function AppShell() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const handleNavItemClick = (event, targetPath) => {
+    if (targetPath === location.pathname) {
+      if (isMobile) setMobileOpen(false);
+      event.preventDefault();
+      return;
+    }
+
+    const beforeNavigate = window.__guestflowBeforeNavigate;
+    if (typeof beforeNavigate === 'function') {
+      const blocked = beforeNavigate(targetPath);
+      if (blocked) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (isMobile) setMobileOpen(false);
+    navigate(targetPath);
+    event.preventDefault();
+  };
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'white', color: 'text.primary', borderBottom: '1px solid #e0e0e0' }}>
+        <Toolbar>
+          {isMobile && (
+            <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 1 }}>
+              <MenuIcon />
+            </IconButton>
+          )}
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+            GuestFlow
+          </Typography>
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        variant={isMobile ? 'temporary' : 'permanent'}
+        open={isMobile ? mobileOpen : true}
+        onClose={() => setMobileOpen(false)}
+        sx={{
+          width: DRAWER_WIDTH,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: DRAWER_WIDTH,
+            boxSizing: 'border-box',
+            border: 'none',
+            bgcolor: 'background.default',
+          },
+        }}
+      >
+        <Toolbar />
+        <NavContent onItemClick={handleNavItemClick} />
+      </Drawer>
+
+      <Box component="main" sx={{ flexGrow: 1, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/properties" element={<PropertiesPage />} />
+          <Route path="/properties/:id" element={<PropertyDetail />} />
+          <Route path="/options" element={<OptionsPage />} />
+          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/reservations/new" element={<ReservationPage />} />
+          <Route path="/reservations/:reservationId" element={<ReservationPage />} />
+          <Route path="/finance" element={<FinancePage />} />
+          <Route path="/planning" element={<PlanningPage />} />
+          <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
+        </Routes>
+      </Box>
+    </Box>
+  );
+}
+
+function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
         <DialogProvider>
-        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-          <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'white', color: 'text.primary', borderBottom: '1px solid #e0e0e0' }}>
-            <Toolbar>
-              {isMobile && (
-                <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 1 }}>
-                  <MenuIcon />
-                </IconButton>
-              )}
-              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                GuestFlow
-              </Typography>
-            </Toolbar>
-          </AppBar>
-
-          <Drawer
-            variant={isMobile ? 'temporary' : 'permanent'}
-            open={isMobile ? mobileOpen : true}
-            onClose={() => setMobileOpen(false)}
-            sx={{
-              width: DRAWER_WIDTH,
-              flexShrink: 0,
-              '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', border: 'none', bgcolor: 'background.default' },
-            }}
-          >
-            <Toolbar />
-            <NavContent onItemClick={isMobile ? () => setMobileOpen(false) : undefined} />
-          </Drawer>
-
-          <Box component="main" sx={{ flexGrow: 1, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/properties" element={<PropertiesPage />} />
-              <Route path="/properties/:id" element={<PropertyDetail />} />
-              <Route path="/options" element={<OptionsPage />} />
-              <Route path="/resources" element={<ResourcesPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/reservations/new" element={<ReservationPage />} />
-              <Route path="/reservations/:reservationId" element={<ReservationPage />} />
-              <Route path="/finance" element={<FinancePage />} />
-              <Route path="/planning" element={<PlanningPage />} />
-              <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
-            </Routes>
-          </Box>
-        </Box>
+          <AppShell />
         </DialogProvider>
       </BrowserRouter>
     </ThemeProvider>
