@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import dayjs from 'dayjs';
 import {
   Box, Typography, Card, CardContent, Button, Grid, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
   MenuItem, Chip, Alert
 } from '@mui/material';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -102,6 +106,14 @@ function getTierValue(tiers, nightNumber) {
   return tiers.find((t) => Number(t.nightNumber) === Number(nightNumber));
 }
 
+function isoToDayjs(value) {
+  return value ? dayjs(value) : null;
+}
+
+function dayjsToIso(value) {
+  return value && value.isValid() ? value.format('YYYY-MM-DD') : '';
+}
+
 export default function PropertyPricingSeasonsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -151,6 +163,27 @@ export default function PropertyPricingSeasonsPage() {
   }, [loadData]);
 
   const seasons = property?.pricingRules || [];
+
+  const localDateValidationError = useMemo(() => {
+    const currentRanges = getSortedDateRanges(seasonForm.dateRanges || []);
+    if (currentRanges.some((range) => range.startDate > range.endDate)) {
+      return 'Une plage de dates est invalide (début après fin).';
+    }
+
+    const otherSeasons = seasons.filter((season) => Number(season.id) !== Number(editingSeasonId));
+    for (const currentRange of currentRanges) {
+      for (const season of otherSeasons) {
+        const seasonRanges = getSortedDateRanges(season.dateRanges || []);
+        const conflict = seasonRanges.find((seasonRange) => (
+          currentRange.startDate <= seasonRange.endDate && currentRange.endDate >= seasonRange.startDate
+        ));
+        if (conflict) {
+          return `Chevauchement avec la saison "${season.label}" (${displayDate(conflict.startDate)} → ${displayDate(conflict.endDate)}).`;
+        }
+      }
+    }
+    return '';
+  }, [seasonForm.dateRanges, seasons, editingSeasonId]);
 
   const minYear = useMemo(() => {
     const years = seasons
@@ -226,6 +259,7 @@ export default function PropertyPricingSeasonsPage() {
   };
 
   const updateDateRange = (index, field, value) => {
+    setSeasonSaveError('');
     setSeasonForm((prev) => ({
       ...prev,
       dateRanges: (prev.dateRanges || []).map((range, rangeIndex) => (
@@ -235,6 +269,7 @@ export default function PropertyPricingSeasonsPage() {
   };
 
   const addDateRange = () => {
+    setSeasonSaveError('');
     setSeasonForm((prev) => ({
       ...prev,
       dateRanges: [...(prev.dateRanges || []), { startDate: '', endDate: '' }],
@@ -242,6 +277,7 @@ export default function PropertyPricingSeasonsPage() {
   };
 
   const removeDateRange = (index) => {
+    setSeasonSaveError('');
     setSeasonForm((prev) => ({
       ...prev,
       dateRanges: (prev.dateRanges || []).filter((_, rangeIndex) => rangeIndex !== index),
@@ -310,7 +346,7 @@ export default function PropertyPricingSeasonsPage() {
 
   const handleSaveSeason = async () => {
     const validDateRanges = (seasonForm.dateRanges || []).filter((range) => range.startDate && range.endDate);
-    if (validDateRanges.length === 0 || validDateRanges.some((range) => range.startDate > range.endDate)) return;
+    if (validDateRanges.length === 0 || localDateValidationError) return;
     const payload = {
       label: seasonForm.label,
       dateRanges: validDateRanges,
@@ -485,25 +521,34 @@ export default function PropertyPricingSeasonsPage() {
                             {cells.map((c, idx) => (
                               <Box
                                 key={`${c.dateStr}-${idx}`}
+                                onClick={() => {
+                                  if (c.inMonth && c.season) {
+                                    openEditSeason(c.season);
+                                  }
+                                }}
                                 sx={{
                                   height: 20,
                                   borderRadius: 0.8,
-                                  borderTop: c.season ? `3px solid ${c.season.color || '#1976d2'}` : '3px solid transparent',
-                                  bgcolor: c.inMonth ? (c.season ? `${c.season.color || '#1976d2'}22` : 'background.paper') : 'action.hover',
-                                  color: c.inMonth ? 'text.primary' : 'text.disabled',
+                                  borderTop: c.inMonth && c.season ? `3px solid ${c.season.color || '#1976d2'}` : '3px solid transparent',
+                                  bgcolor: c.inMonth ? (c.season ? `${c.season.color || '#1976d2'}22` : 'background.paper') : 'transparent',
+                                  color: c.inMonth ? 'text.primary' : 'transparent',
                                   fontSize: 10,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   position: 'relative',
+                                  cursor: c.inMonth && c.season ? 'pointer' : 'default',
+                                  '&:hover': c.inMonth && c.season ? {
+                                    outline: `1px solid ${c.season.color || '#1976d2'}`,
+                                  } : undefined,
                                 }}
                                 title={c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : ''}
                               >
-                                {c.day}
-                                {c.isPublicHoliday && (
+                                {c.inMonth ? c.day : ''}
+                                {c.inMonth && c.isPublicHoliday && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'error.main', position: 'absolute', bottom: 1, left: 1 }} />
                                 )}
-                                {c.schoolInfo && (
+                                {c.inMonth && c.schoolInfo && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'info.main', position: 'absolute', bottom: 1, right: 1 }} />
                                 )}
                               </Box>
@@ -523,8 +568,10 @@ export default function PropertyPricingSeasonsPage() {
       <Dialog open={seasonDialogOpen} onClose={() => { setSeasonDialogOpen(false); setSeasonSaveError(''); }} maxWidth="md" fullWidth>
         <DialogTitle>{editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr">
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             {seasonSaveError && <Alert severity="error">{seasonSaveError}</Alert>}
+            {localDateValidationError && <Alert severity="error">{localDateValidationError}</Alert>}
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField label="Nom de la saison" value={seasonForm.label} onChange={(e) => handleSeasonFormField('label', e.target.value)} fullWidth />
               <TextField label="Couleur" type="color" value={seasonForm.color} onChange={(e) => handleSeasonFormField('color', e.target.value)} sx={{ width: 140 }} />
@@ -537,8 +584,22 @@ export default function PropertyPricingSeasonsPage() {
               </Box>
               {(seasonForm.dateRanges || []).map((range, index) => (
                 <Box key={index} sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' } }}>
-                  <TextField label="Date début" type="date" value={range.startDate} InputLabelProps={{ shrink: true }} onChange={(e) => updateDateRange(index, 'startDate', e.target.value)} fullWidth />
-                  <TextField label="Date fin" type="date" value={range.endDate} InputLabelProps={{ shrink: true }} onChange={(e) => updateDateRange(index, 'endDate', e.target.value)} fullWidth />
+                  <DatePicker
+                    label="Date début"
+                    value={isoToDayjs(range.startDate)}
+                    onChange={(value) => updateDateRange(index, 'startDate', dayjsToIso(value))}
+                    referenceDate={isoToDayjs(range.startDate || range.endDate) || dayjs()}
+                    format="DD/MM/YYYY"
+                    slotProps={{ textField: { fullWidth: true } }}
+                  />
+                  <DatePicker
+                    label="Date fin"
+                    value={isoToDayjs(range.endDate)}
+                    onChange={(value) => updateDateRange(index, 'endDate', dayjsToIso(value))}
+                    referenceDate={isoToDayjs(range.endDate || range.startDate) || dayjs()}
+                    format="DD/MM/YYYY"
+                    slotProps={{ textField: { fullWidth: true } }}
+                  />
                   <Button color="error" disabled={(seasonForm.dateRanges || []).length === 1} onClick={() => removeDateRange(index)}>
                     Supprimer
                   </Button>
@@ -619,14 +680,15 @@ export default function PropertyPricingSeasonsPage() {
                 </TableContainer>
               </>
             )}
-          </Box>
+            </Box>
+          </LocalizationProvider>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { setSeasonDialogOpen(false); setSeasonSaveError(''); }}>Annuler</Button>
           <Button
             variant="contained"
             onClick={handleSaveSeason}
-            disabled={!(seasonForm.dateRanges || []).some((range) => range.startDate && range.endDate) || (seasonForm.dateRanges || []).some((range) => range.startDate && range.endDate && range.startDate > range.endDate) || !seasonForm.label}
+            disabled={!(seasonForm.dateRanges || []).some((range) => range.startDate && range.endDate) || !seasonForm.label || Boolean(localDateValidationError)}
           >
             Enregistrer
           </Button>
