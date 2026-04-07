@@ -279,22 +279,21 @@ export default function PlanningPage() {
           const cleaningEndMin = prevCheckOutMin + cleaningMinutes;
           const arrivalMin = timeToMinutes(r.checkInTime || '15:00');
 
-          if (cleaningEndMin === arrivalMin) {
+          if (cleaningEndMin > arrivalMin) {
             const cleaningDisplay = Number.isInteger(cleaningHours)
               ? `${cleaningHours}h`
               : `${String(cleaningHours).replace('.', 'h')}`;
-            alerts[r.id] = {
-              type: 'orange',
-              explanation: `${prevRes.firstName} ${prevRes.lastName} part à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
-            };
-          } else if (cleaningEndMin > arrivalMin) {
-            const cleaningDisplay = Number.isInteger(cleaningHours)
-              ? `${cleaningHours}h`
-              : `${String(cleaningHours).replace('.', 'h')}`;
+            const departureDate = displayDate(prevRes.endDate);
             alerts[r.id] = {
               type: 'red',
-              explanation: `${prevRes.firstName} ${prevRes.lastName} part à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
+              explanation: `${prevRes.firstName} ${prevRes.lastName} part le ${departureDate} à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
             };
+            if (!alerts[prevRes.id]) {
+              alerts[prevRes.id] = {
+                type: 'red',
+                explanation: `Départ le ${departureDate} trop proche de l'arrivée de ${r.firstName} ${r.lastName}`,
+              };
+            }
           }
         }
 
