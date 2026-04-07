@@ -9,6 +9,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
 import UploadIcon from '@mui/icons-material/Upload';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { displayDate } from '../utils/formatters';
@@ -16,19 +17,31 @@ import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
 import api from '../api';
 
+const NEW_DEFAULTS = {
+  name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0,
+  singleBeds: 0, doubleBeds: 0,
+  depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
+  defaultCautionAmount: 500,
+  touristTaxPerDayPerPerson: 0,
+  defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
+};
+
 export default function PropertyDetail() {
   const { id } = useParams();
+  const isNew = id === 'new';
+  const canManageExtras = !isNew;
   const navigate = useNavigate();
   const location = useLocation();
   const from = getFromParam(location.search);
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
-  const [property, setProperty] = useState(null);
-  const [form, setForm] = useState({});
-  const [dirty, setDirty] = useState(false);
+  const [property, setProperty] = useState(isNew ? { name: 'Nouveau logement', pricingRules: [], documents: [] } : null);
+  const [form, setForm] = useState(isNew ? NEW_DEFAULTS : {});
+  const [dirty, setDirty] = useState(isNew);
+  const [isNameEditing, setIsNameEditing] = useState(isNew);
   const [saving, setSaving] = useState(false);
-  const [originalForm, setOriginalForm] = useState({});
+  const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [pricingForm, setPricingForm] = useState({ label: '', pricePerNight: 100, startDate: '', endDate: '', minNights: 1 });
   const [pricingOpen, setPricingOpen] = useState(false);
   const [editRuleId, setEditRuleId] = useState(null);
@@ -39,6 +52,7 @@ export default function PropertyDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const load = useCallback(async () => {
+    if (isNew) return;
     const p = await api.getProperty(id);
     setProperty(p);
     const initial = {
@@ -53,7 +67,7 @@ export default function PropertyDetail() {
     setOriginalForm(initial);
     setDirty(false);
     setPhotoFile(null);
-  }, [id]);
+  }, [id, isNew]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -134,15 +148,22 @@ export default function PropertyDetail() {
   };
 
   const handleSaveProperty = async () => {
+    if (!form.name?.trim()) return;
     setSaving(true);
     const fd = new FormData();
     Object.entries(form).forEach(([k, v]) => fd.append(k, v));
     if (photoFile) fd.append('photo', photoFile);
-    await api.updateProperty(id, fd);
-    setDirty(false);
-    setSaving(false);
-    setPhotoFile(null);
-    load();
+    if (isNew) {
+      const result = await api.createProperty(fd);
+      setSaving(false);
+      navigate(`/properties/${result.id}`, { replace: true });
+    } else {
+      await api.updateProperty(id, fd);
+      setDirty(false);
+      setSaving(false);
+      setPhotoFile(null);
+      load();
+    }
   };
 
   const handleDeleteProperty = async () => {
@@ -151,6 +172,7 @@ export default function PropertyDetail() {
   };
 
   const handleSavePricing = async () => {
+    if (!canManageExtras) return;
     if (editRuleId) {
       await api.updatePricingRule(id, editRuleId, pricingForm);
     } else {
@@ -163,6 +185,7 @@ export default function PropertyDetail() {
   };
 
   const handleUploadDoc = async () => {
+    if (!canManageExtras) return;
     if (!docFile) return;
     const fd = new FormData();
     fd.append('file', docFile);
@@ -179,13 +202,34 @@ export default function PropertyDetail() {
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Typography variant="h4">{property.name}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          {isNameEditing ? (
+            <TextField
+              label="Nom du logement"
+              value={form.name || ''}
+              onChange={(e) => updateField('name', e.target.value)}
+              size="small"
+              autoFocus
+              sx={{ minWidth: { xs: '100%', sm: 320 } }}
+            />
+          ) : (
+            <Typography variant="h4">{form.name?.trim() || 'Nouveau logement'}</Typography>
+          )}
+          <IconButton
+            size="small"
+            onClick={() => setIsNameEditing((prev) => !prev)}
+            aria-label={isNameEditing ? 'Valider le nom' : 'Modifier le nom'}
+          >
+            {isNameEditing ? <CheckIcon fontSize="small" /> : <EditIcon fontSize="small" />}
+          </IconButton>
+        </Box>
         <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-          <Button variant="outlined" color="error" onClick={() => setDeleteOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Supprimer le logement</Button>
-          {dirty && (
+          {!isNew && <Button variant="outlined" color="error" onClick={() => setDeleteOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Supprimer le logement</Button>}
+          {(isNew || dirty) && (
             <>
-              <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>
-              <Button variant="contained" onClick={handleSaveProperty} disabled={saving} sx={{ width: { xs: '100%', sm: 'auto' } }}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Button>
+              {!isNew && <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
+              {isNew && <Button variant="outlined" onClick={() => navigateBackWithFrom(navigate, from)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
+              <Button variant="contained" onClick={handleSaveProperty} disabled={saving || !form.name?.trim()} sx={{ width: { xs: '100%', sm: 'auto' } }}>{saving ? 'Enregistrement…' : isNew ? 'Créer le logement' : 'Enregistrer'}</Button>
             </>
           )}
         </Box>
@@ -206,7 +250,6 @@ export default function PropertyDetail() {
                   </Button>
                   {photoFile && <Typography variant="body2" sx={{ mt: 1 }}>{photoFile.name}</Typography>}
                 </Box>
-                <TextField label="Nom du logement" value={form.name || ''} onChange={(e) => updateField('name', e.target.value)} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="2 à 18 ans" />
@@ -270,7 +313,12 @@ export default function PropertyDetail() {
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">Tarification</Typography>
-                <Button size="small" startIcon={<AddIcon />} onClick={() => { setPricingForm({ label: '', pricePerNight: 100, startDate: '', endDate: '', minNights: 1 }); setEditRuleId(null); setPricingOpen(true); }}>
+                <Button
+                  size="small"
+                  startIcon={<AddIcon />}
+                  disabled={!canManageExtras}
+                  onClick={() => { setPricingForm({ label: '', pricePerNight: 100, startDate: '', endDate: '', minNights: 1 }); setEditRuleId(null); setPricingOpen(true); }}
+                >
                   Ajouter
                 </Button>
               </Box>
@@ -307,7 +355,7 @@ export default function PropertyDetail() {
                         <TableCell>{r.minNights}</TableCell>
                         <TableCell>
                           <IconButton size="small" onClick={() => { setPricingForm(r); setEditRuleId(r.id); setPricingOpen(true); }}><EditIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="error" onClick={async () => { await api.deletePricingRule(id, r.id); load(); }}><DeleteIcon fontSize="small" /></IconButton>
+                          <IconButton size="small" color="error" disabled={!canManageExtras} onClick={async () => { await api.deletePricingRule(id, r.id); load(); }}><DeleteIcon fontSize="small" /></IconButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -331,7 +379,7 @@ export default function PropertyDetail() {
                   <Chip
                     key={d.id}
                     label={`${d.name} (${d.type})`}
-                    onDelete={async () => { await api.deleteDocument(id, d.id); load(); }}
+                    onDelete={canManageExtras ? async () => { await api.deleteDocument(id, d.id); load(); } : undefined}
                     component="a" href={d.filePath} target="_blank" clickable
                   />
                 ))}
@@ -345,13 +393,13 @@ export default function PropertyDetail() {
                     <MenuItem value="other">Autre</MenuItem>
                   </Select>
                 </FormControl>
-                <TextField size="small" label="Nom" value={docName} onChange={(e) => setDocName(e.target.value)} />
-                <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+                <TextField size="small" label="Nom" value={docName} onChange={(e) => setDocName(e.target.value)} disabled={!canManageExtras} />
+                <Button variant="outlined" component="label" startIcon={<UploadIcon />} disabled={!canManageExtras}>
                   Fichier
                   <input type="file" hidden onChange={(e) => setDocFile(e.target.files[0])} />
                 </Button>
                 {docFile && <Typography variant="body2">{docFile.name}</Typography>}
-                <Button variant="contained" size="small" onClick={handleUploadDoc} disabled={!docFile}>Envoyer</Button>
+                <Button variant="contained" size="small" onClick={handleUploadDoc} disabled={!canManageExtras || !docFile}>Envoyer</Button>
               </Box>
             </CardContent>
           </Card>
@@ -392,14 +440,14 @@ export default function PropertyDetail() {
         </DialogActions>
       </Dialog>
 
-      <ConfirmDialog
+      {!isNew && <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={handleDeleteProperty}
         title="Supprimer le logement"
         message={`Voulez-vous vraiment supprimer "${property.name}" ?`}
         confirmLabel="Supprimer"
-      />
+      />}
     </Box>
   );
 }

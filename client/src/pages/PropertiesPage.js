@@ -7,9 +7,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
-import FormDialog from '../components/FormDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
-import PropertyFormFields from '../components/PropertyFormFields';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
@@ -18,33 +16,16 @@ export default function PropertiesPage() {
   const {
     items: properties,
     reload,
-    createItem,
   } = useCrudResource({
     listFn: () => api.getProperties(),
     createFn: (payload) => api.createProperty(payload),
     updateFn: (id, payload) => api.updateProperty(id, payload),
     deleteFn: (id) => api.deleteProperty(id),
   });
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0 });
-  const [photoFile, setPhotoFile] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => { reload(); }, [reload]);
-
-  const handleSave = async () => {
-    const fd = new FormData();
-    fd.append('name', form.name);
-    fd.append('maxAdults', form.maxAdults);
-    fd.append('maxChildren', form.maxChildren);
-    fd.append('maxBabies', form.maxBabies);
-    if (photoFile) fd.append('photo', photoFile);
-    await createItem(fd);
-    setOpen(false);
-    setForm({ name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0 });
-    setPhotoFile(null);
-  };
 
   const handleDeleteProperty = async () => {
     if (!deleteTarget) return;
@@ -55,7 +36,7 @@ export default function PropertiesPage() {
 
   return (
     <Box>
-      <PageHeader title="Logements" actionLabel="Nouveau logement" actionIcon={<AddIcon />} onAction={() => setOpen(true)} />
+      <PageHeader title="Logements" actionLabel="Nouveau logement" actionIcon={<AddIcon />} onAction={() => navigate(withFrom('/properties/new', '/properties'))} />
 
       <Grid container spacing={3}>
         {properties.map((p) => (
@@ -96,17 +77,6 @@ export default function PropertiesPage() {
           </Grid>
         )}
       </Grid>
-
-      <FormDialog
-        open={open}
-        onClose={() => setOpen(false)}
-        title="Nouveau logement"
-        onSubmit={handleSave}
-        submitDisabled={!form.name}
-        submitLabel="Créer"
-      >
-        <PropertyFormFields form={form} setForm={setForm} photoFile={photoFile} setPhotoFile={setPhotoFile} />
-      </FormDialog>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
