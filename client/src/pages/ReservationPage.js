@@ -172,7 +172,7 @@ export default function ReservationPage() {
       return;
     }
 
-    updateForm({ startDate: miniSelectionAnchor, endDate: addDays(dateStr, 1) });
+    updateForm({ startDate: miniSelectionAnchor, endDate: dateStr });
     setMiniSelectionAnchor('');
   };
 
