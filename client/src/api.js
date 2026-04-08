@@ -71,6 +71,7 @@ const api = {
     return request(`/reservations${qs ? `?${qs}` : ''}`);
   },
   getReservation: (id) => request(`/reservations/${id}`),
+  getReservationHistory: (id) => request(`/reservations/${id}/history`),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),

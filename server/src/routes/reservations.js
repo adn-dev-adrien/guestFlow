@@ -3,6 +3,163 @@ const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { calculateReservationQuote } = require('../utils/pricing');
 
+const HISTORY_FIELD_LABELS = {
+  propertyId: 'Logement',
+  clientId: 'Client',
+  startDate: 'Date arrivée',
+  endDate: 'Date départ',
+  adults: 'Adultes',
+  children: 'Enfants',
+  teens: 'Ados',
+  babies: 'Bébés',
+  singleBeds: 'Lits simples',
+  doubleBeds: 'Lits doubles',
+  babyBeds: 'Lits bébé',
+  checkInTime: 'Heure arrivée',
+  checkOutTime: 'Heure départ',
+  platform: 'Plateforme',
+  totalPrice: 'Prix hébergement',
+  discountPercent: 'Réduction (%)',
+  finalPrice: 'Prix final',
+  depositAmount: 'Acompte',
+  depositDueDate: 'Date acompte',
+  balanceAmount: 'Solde',
+  balanceDueDate: 'Date solde',
+  notes: 'Notes',
+  cautionAmount: 'Caution',
+  cautionReceived: 'Caution reçue',
+  cautionReceivedDate: 'Date réception caution',
+  cautionReturned: 'Caution restituée',
+  cautionReturnedDate: 'Date restitution caution',
+  optionsSignature: 'Options',
+  resourcesSignature: 'Ressources',
+};
+
+function normalizeHistoryValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Math.round(value * 100) / 100;
+  return value;
+}
+
+function getOptionsSignature(lines) {
+  return (lines || [])
+    .map((line) => ({
+      optionId: Number(line.optionId),
+      quantity: Number(line.quantity || 0),
+      totalPrice: Number(line.totalPrice || 0),
+    }))
+    .sort((a, b) => a.optionId - b.optionId)
+    .map((line) => `${line.optionId}:${line.quantity}:${line.totalPrice.toFixed(2)}`)
+    .join('|');
+}
+
+function getResourcesSignature(lines) {
+  return (lines || [])
+    .map((line) => ({
+      resourceId: Number(line.resourceId),
+      quantity: Number(line.quantity || 0),
+      totalPrice: Number(line.totalPrice || 0),
+    }))
+    .sort((a, b) => a.resourceId - b.resourceId)
+    .map((line) => `${line.resourceId}:${line.quantity}:${line.totalPrice.toFixed(2)}`)
+    .join('|');
+}
+
+function getReservationAuditSnapshotFromDb(reservationId) {
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
+  if (!row) return null;
+  const options = db.prepare('SELECT optionId, quantity, totalPrice FROM reservation_options WHERE reservationId = ?').all(reservationId);
+  const resources = db.prepare('SELECT resourceId, quantity, totalPrice FROM reservation_resources WHERE reservationId = ?').all(reservationId);
+  return {
+    propertyId: Number(row.propertyId),
+    clientId: Number(row.clientId),
+    startDate: row.startDate || null,
+    endDate: row.endDate || null,
+    adults: Number(row.adults || 0),
+    children: Number(row.children || 0),
+    teens: Number(row.teens || 0),
+    babies: Number(row.babies || 0),
+    singleBeds: row.singleBeds === null ? null : Number(row.singleBeds),
+    doubleBeds: row.doubleBeds === null ? null : Number(row.doubleBeds),
+    babyBeds: row.babyBeds === null ? null : Number(row.babyBeds),
+    checkInTime: row.checkInTime || null,
+    checkOutTime: row.checkOutTime || null,
+    platform: row.platform || null,
+    totalPrice: Number(row.totalPrice || 0),
+    discountPercent: Number(row.discountPercent || 0),
+    finalPrice: Number(row.finalPrice || 0),
+    depositAmount: Number(row.depositAmount || 0),
+    depositDueDate: row.depositDueDate || null,
+    balanceAmount: Number(row.balanceAmount || 0),
+    balanceDueDate: row.balanceDueDate || null,
+    notes: row.notes || null,
+    cautionAmount: Number(row.cautionAmount || 0),
+    cautionReceived: Number(row.cautionReceived || 0),
+    cautionReceivedDate: row.cautionReceivedDate || null,
+    cautionReturned: Number(row.cautionReturned || 0),
+    cautionReturnedDate: row.cautionReturnedDate || null,
+    optionsSignature: getOptionsSignature(options),
+    resourcesSignature: getResourcesSignature(resources),
+  };
+}
+
+function getReservationAuditSnapshotFromPayload(payload, quote) {
+  return {
+    propertyId: Number(payload.propertyId),
+    clientId: Number(payload.clientId),
+    startDate: payload.startDate || null,
+    endDate: payload.endDate || null,
+    adults: Number(payload.adults || 0),
+    children: Number(payload.children || 0),
+    teens: Number(payload.teens || 0),
+    babies: Number(payload.babies || 0),
+    singleBeds: payload.singleBeds === null || payload.singleBeds === undefined || payload.singleBeds === '' ? null : Number(payload.singleBeds),
+    doubleBeds: payload.doubleBeds === null || payload.doubleBeds === undefined || payload.doubleBeds === '' ? null : Number(payload.doubleBeds),
+    babyBeds: payload.babyBeds === null || payload.babyBeds === undefined || payload.babyBeds === '' ? null : Number(payload.babyBeds),
+    checkInTime: payload.checkInTime || null,
+    checkOutTime: payload.checkOutTime || null,
+    platform: payload.platform || null,
+    totalPrice: Number(quote.totalPrice || 0),
+    discountPercent: Number(payload.discountPercent || 0),
+    finalPrice: Number(quote.finalPrice || 0),
+    depositAmount: Number(quote.depositAmount || 0),
+    depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
+    balanceAmount: Number(quote.balanceAmount || 0),
+    balanceDueDate: quote.balanceDueDate || payload.balanceDueDate || null,
+    notes: sentenceCase(payload.notes) || null,
+    cautionAmount: Number(payload.cautionAmount || 0),
+    cautionReceived: payload.cautionReceived ? 1 : 0,
+    cautionReceivedDate: payload.cautionReceivedDate || null,
+    cautionReturned: payload.cautionReturned ? 1 : 0,
+    cautionReturnedDate: payload.cautionReturnedDate || null,
+    optionsSignature: getOptionsSignature(quote.optionLines || []),
+    resourcesSignature: getResourcesSignature(quote.resourceLines || []),
+  };
+}
+
+function computeAuditChanges(beforeSnapshot, afterSnapshot) {
+  const keys = Object.keys(HISTORY_FIELD_LABELS);
+  const changes = [];
+  keys.forEach((key) => {
+    const beforeValue = normalizeHistoryValue(beforeSnapshot?.[key]);
+    const afterValue = normalizeHistoryValue(afterSnapshot?.[key]);
+    if (JSON.stringify(beforeValue) !== JSON.stringify(afterValue)) {
+      changes.push({
+        field: key,
+        label: HISTORY_FIELD_LABELS[key] || key,
+        from: beforeValue,
+        to: afterValue,
+      });
+    }
+  });
+  return changes;
+}
+
+function addReservationHistoryEntry(reservationId, eventType, changes) {
+  db.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, ?, ?)')
+    .run(reservationId, eventType, JSON.stringify(changes || []));
+}
+
 // List reservations (optionally filter by propertyId, clientId, date range)
 router.get('/', (req, res) => {
   const { propertyId, clientId, from, to } = req.query;
@@ -58,6 +215,35 @@ router.get('/:id', (req, res) => {
   res.json(reservation);
 });
 
+router.get('/:id/history', (req, res) => {
+  const reservation = db.prepare('SELECT id, createdAt FROM reservations WHERE id = ?').get(req.params.id);
+  if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
+
+  const rows = db.prepare(`
+    SELECT id, eventType, changedFields, createdAt
+    FROM reservation_history
+    WHERE reservationId = ?
+    ORDER BY datetime(createdAt) DESC, id DESC
+  `).all(req.params.id);
+
+  const history = rows.map((row) => {
+    let changedFields = [];
+    try {
+      changedFields = JSON.parse(row.changedFields || '[]');
+    } catch {
+      changedFields = [];
+    }
+    return {
+      id: row.id,
+      eventType: row.eventType,
+      createdAt: row.createdAt,
+      changedFields,
+    };
+  });
+
+  res.json(history);
+});
+
 function getReservationPricingSnapshot(reservationId) {
   const lockedNightlyBreakdown = db.prepare(`
     SELECT date, seasonLabel, pricingMode, price
@@ -88,13 +274,14 @@ function getReservationPricingSnapshot(reservationId) {
 // Calculate price for a potential reservation
 router.post('/calculate-price', (req, res) => {
   const reservationId = Number(req.body.reservationId || 0);
+  const forceCurrentPricing = Boolean(req.body.forceCurrentPricing);
   let lockedPricing = {
     lockedNightlyBreakdown: req.body.lockedNightlyBreakdown,
     lockedOptionLines: req.body.lockedOptionLines,
     lockedResourceLines: req.body.lockedResourceLines,
   };
 
-  if (reservationId > 0) {
+  if (reservationId > 0 && !forceCurrentPricing) {
     const existingReservation = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
     if (existingReservation && Number(existingReservation.propertyId) === Number(req.body.propertyId)) {
       lockedPricing = getReservationPricingSnapshot(reservationId);
@@ -333,6 +520,10 @@ router.post('/', (req, res) => {
 
   const reservationId = result.lastInsertRowid;
 
+  addReservationHistoryEntry(reservationId, 'create', [
+    { field: 'createdAt', label: 'Création', from: null, to: 'Réservation créée' },
+  ]);
+
   // Insert reservation options
   if (reservationOptions && reservationOptions.length > 0) {
     const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -408,14 +599,19 @@ router.put('/:id', (req, res) => {
     checkInTime, checkOutTime,
     platform, discountPercent, customPrice,
     forceMinNights,
+    refreshPricingToCurrent,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     options: reservationOptions,
     resources: reservationResources
   } = req.body;
 
+  const beforeAuditSnapshot = getReservationAuditSnapshotFromDb(Number(req.params.id));
+
   const existingReservation = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(Number(req.params.id));
-  const canReuseLockedPricing = existingReservation && Number(existingReservation.propertyId) === Number(propertyId);
+  const canReuseLockedPricing = !refreshPricingToCurrent
+    && existingReservation
+    && Number(existingReservation.propertyId) === Number(propertyId);
   const lockedPricing = canReuseLockedPricing
     ? getReservationPricingSnapshot(Number(req.params.id))
     : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] };
@@ -598,6 +794,12 @@ router.put('/:id', (req, res) => {
         rr.totalPrice || unitPrice * qty,
       );
     }
+  }
+
+  const afterAuditSnapshot = getReservationAuditSnapshotFromPayload(req.body, quote);
+  const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
+  if (changes.length > 0) {
+    addReservationHistoryEntry(Number(req.params.id), 'update', changes);
   }
 
   res.json({ ok: true });

@@ -109,10 +109,14 @@ export default function ReservationPage() {
   const [availableResources, setAvailableResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
+  const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState([]);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
@@ -171,6 +175,7 @@ export default function ReservationPage() {
       && form.startDate === initialPricingContextRef.current.startDate
       && form.endDate === initialPricingContextRef.current.endDate
   );
+  const shouldLockExistingPricing = isExistingReservationPricingLocked && !useCurrentPricing;
 
   const centerMiniCalendarOnRange = (startDate, endDate) => {
     if (!startDate) return;
@@ -395,6 +400,7 @@ export default function ReservationPage() {
             startDate: res.startDate,
             endDate: res.endDate,
           };
+          setUseCurrentPricing(false);
           frozenOptionUnitByQuantityRef.current = Object.fromEntries(
             (res.options || []).map((o) => [
               o.optionId,
@@ -549,8 +555,9 @@ export default function ReservationPage() {
           balanceAmount: form.balanceAmount,
           selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
           selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
-          lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
-          lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
+          lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
+          lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
+          forceCurrentPricing: useCurrentPricing,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         });
 
@@ -570,7 +577,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, pricingQuoteSignature, isExistingReservationPricingLocked, applyQuoteToForm, applyQuoteMinNights]);
+  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing]);
 
   useEffect(() => {
     const cp = (newClient.postalCode || '').trim();
@@ -673,9 +680,9 @@ export default function ReservationPage() {
     for (const so of updatedForm.selectedOptions) {
       const opt = propertyOptions.find(o => o.id === so.optionId);
       const userQty = Math.max(0, Number(so.quantity) || 0);
-      if (!opt && !isExistingReservationPricingLocked) continue;
+      if (!opt && !shouldLockExistingPricing) continue;
       const frozenUnitByQty = Number(frozenOptionUnitByQuantityRef.current[so.optionId]);
-      const optTotal = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty)
+      const optTotal = shouldLockExistingPricing && Number.isFinite(frozenUnitByQty)
         ? frozenUnitByQty * userQty
         : Number(opt?.price || 0) * userQty * typeMultiplier(opt?.priceType);
       so.quantity = userQty;
@@ -687,8 +694,8 @@ export default function ReservationPage() {
     for (const sr of (updatedForm.selectedResources || [])) {
       const resource = availableResources.find(r => r.id === sr.resourceId);
       const frozenUnitByQty = Number(frozenResourceUnitByQuantityRef.current[sr.resourceId]);
-      const hasFrozenResourcePrice = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty);
-      const unitPrice = isExistingReservationPricingLocked && Number.isFinite(frozenUnitByQty)
+      const hasFrozenResourcePrice = shouldLockExistingPricing && Number.isFinite(frozenUnitByQty);
+      const unitPrice = shouldLockExistingPricing && Number.isFinite(frozenUnitByQty)
         ? frozenUnitByQty
         : (resource?.price !== undefined ? Number(resource.price) : Number(sr.unitPrice || 0));
       const qty = Math.max(0, Number(sr.quantity) || 0);
@@ -864,6 +871,7 @@ export default function ReservationPage() {
     setReservations(allRes || []);
     setPropertyOptions(availableOpts);
     applyQuoteMinNights(calc);
+    setUseCurrentPricing(false);
     setForm(prev => recalcPrice({
       ...prev,
       selectedOptions: [],
@@ -920,6 +928,45 @@ export default function ReservationPage() {
   };
 
   // ==================== SAVE & DELETE ====================
+  const refreshToCurrentPricing = async () => {
+    if (!editingReservationId || isReservationLocked) return;
+    const proceed = await confirm({
+      title: 'Actualiser les tarifs',
+      message: 'Voulez-vous recalculer cette réservation avec les derniers tarifs en vigueur ? Tant que vous n\'enregistrez pas, les anciens prix restent conservés.',
+      confirmLabel: 'Actualiser',
+      cancelLabel: 'Annuler',
+      confirmColor: 'warning',
+    });
+    if (!proceed) return;
+
+    try {
+      const calc = await api.calculatePrice({
+        propertyId: Number(selectedProp),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        adults: form.adults,
+        children: form.children,
+        teens: form.teens,
+        discountPercent: form.discountPercent,
+        customPrice: form.customPrice,
+        depositPaid: form.depositPaid,
+        balancePaid: form.balancePaid,
+        depositAmount: form.depositAmount,
+        balanceAmount: form.balanceAmount,
+        selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+        reservationId: editingReservationId,
+        forceCurrentPricing: true,
+      });
+      applyQuoteMinNights(calc);
+      setNightlyBreakdown(calc.nightlyBreakdown || []);
+      setUseCurrentPricing(true);
+      setForm((prev) => applyQuoteToForm(prev, calc));
+    } catch (err) {
+      await alert({ title: 'Erreur', message: err.message || 'Impossible d\'actualiser les tarifs.' });
+    }
+  };
+
   const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     const isLockedReservation = Boolean(reservationId && existingReservationLocked);
@@ -1011,8 +1058,9 @@ export default function ReservationPage() {
         balanceAmount: form.balanceAmount,
         selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
-        lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
-        lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
+        lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
+        lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
+        forceCurrentPricing: useCurrentPricing,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       });
       applyQuoteMinNights(quote);
@@ -1062,6 +1110,7 @@ export default function ReservationPage() {
           cautionReturned: form.cautionReturned,
           cautionReturnedDate: form.cautionReturnedDate,
           notes: form.notes,
+          refreshPricingToCurrent: useCurrentPricing,
           forceMinNights,
           options: quote.optionLines,
           resources: quote.resourceLines,
@@ -1173,6 +1222,42 @@ export default function ReservationPage() {
     await handleSaveReservation(action);
   };
 
+  const loadHistory = useCallback(async () => {
+    if (!editingReservationId) return;
+    try {
+      setHistoryLoading(true);
+      const rows = await api.getReservationHistory(editingReservationId);
+      setHistoryEntries(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      await alert({ title: 'Erreur', message: err.message || 'Impossible de charger l\'historique.' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [editingReservationId, alert]);
+
+  const toggleHistory = async () => {
+    if (!historyOpen && historyEntries.length === 0) {
+      await loadHistory();
+    }
+    setHistoryOpen((prev) => !prev);
+  };
+
+  const formatHistoryDate = (value) => {
+    if (!value) return '';
+    const raw = String(value);
+    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+    const utcIso = /Z$|[+-]\d{2}:?\d{2}$/.test(normalized) ? normalized : `${normalized}Z`;
+    const date = new Date(utcIso);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('fr-FR');
+  };
+
+  const formatHistoryValue = (value) => {
+    if (value === null || value === undefined || value === '') return 'vide';
+    if (typeof value === 'number') return Number(value).toFixed(2).replace(/\.00$/, '');
+    return String(value);
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -1268,9 +1353,17 @@ export default function ReservationPage() {
             <Typography variant="h6" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 700 }}>
               {computedTitle}
             </Typography>
+            {useCurrentPricing && (
+              <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />
+            )}
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {reservationId && (
+              <Button variant="outlined" color="warning" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
+                Actualiser tarifs
+              </Button>
+            )}
             <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation} disabled={isReservationLocked}>
               Enregistrer
             </Button>
@@ -2073,6 +2166,62 @@ export default function ReservationPage() {
           </Card>
         </Box>
       </Box>
+
+      {editingReservationId && (
+        <Box sx={{ maxWidth: 1300, mx: 'auto', px: 2, pb: 1 }}>
+          <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
+            <CardContent sx={{ py: 1.25 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography variant="subtitle2">Historique des modifications</Typography>
+                <Button size="small" variant="outlined" onClick={toggleHistory}>
+                  {historyOpen ? 'Masquer historique' : 'Voir historique'}
+                </Button>
+              </Box>
+
+              {historyOpen && (
+                <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {historyLoading && <Typography variant="body2" color="text.secondary">Chargement...</Typography>}
+
+                  {!historyLoading && historyEntries.length === 0 && (
+                    <Typography variant="body2" color="text.secondary">Aucun historique disponible.</Typography>
+                  )}
+
+                  {!historyLoading && historyEntries.map((entry) => {
+                    const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
+                    return (
+                      <Box
+                        key={entry.id}
+                        sx={{
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          px: 1,
+                          py: 0.75,
+                          bgcolor: '#fafafa',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                            {entry.eventType === 'create' ? 'Création' : 'Modification'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatHistoryDate(entry.createdAt)}
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                          {entry.eventType === 'create'
+                            ? 'Réservation créée'
+                            : (changes.map((change) => `${change.label}: ${formatHistoryValue(change.from)} -> ${formatHistoryValue(change.to)}`).join(' | ') || 'Mise à jour sans changement détecté')}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      )}
 
       {/* Client Creation Dialog */}
       <FormDialog

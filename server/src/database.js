@@ -200,6 +200,17 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reservation_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    eventType TEXT NOT NULL DEFAULT 'update',
+    changedFields TEXT NOT NULL DEFAULT '[]',
+    createdAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
+  )
+`);
+
 // ---------- MIGRATIONS ----------
 const cols = db.prepare("PRAGMA table_info(reservations)").all().map(c => c.name);
 if (!cols.includes('cautionAmount')) {
