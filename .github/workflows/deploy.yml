@@ -46,6 +46,17 @@ jobs:
           mkdir -p "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
           
+          # Preserve database and uploads from current version
+          if [ -d "current" ]; then
+            mkdir -p _backup_data
+            if [ -f "current/server/guestflow.db" ]; then
+              cp "current/server/guestflow.db" "_backup_data/" || true
+            fi
+            if [ -d "current/server/uploads" ]; then
+              cp -r "current/server/uploads" "_backup_data/" || true
+            fi
+          fi
+          
           # Backup current version if exists
           if [ -d "current" ]; then
             mv current "backup-$(date +%Y%m%d-%H%M%S)"
@@ -57,6 +68,17 @@ jobs:
           unzip -q "$OLDPWD/${RELEASE_NAME}.zip"
           mv "${RELEASE_NAME}"/* current
           rm -r "${RELEASE_NAME}"
+          
+          # Restore database and uploads
+          if [ -f "_backup_data/guestflow.db" ]; then
+            cp "_backup_data/guestflow.db" "current/server/" || true
+            echo "✓ Base de données restaurée"
+          fi
+          if [ -d "_backup_data/uploads" ]; then
+            cp -r "_backup_data/uploads" "current/server/" || true
+            echo "✓ Dossier uploads restauré"
+          fi
+          rm -rf _backup_data
 
       - name: Install server dependencies
         run: |
