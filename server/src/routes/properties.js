@@ -892,3 +892,12 @@ router.use((err, req, res, next) => {
 });
 
 module.exports = router;
+module.exports.__test = {
+  normalizePlatformKey,
+  parseIcalDate,
+  unfoldIcsLines,
+  parseAdultsFromText,
+  parseGuestName,
+  parseIcsEvents,
+  buildEventHash,
+};

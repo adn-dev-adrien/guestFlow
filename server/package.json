@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test \"src/tests/**/*.test.js\""
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",

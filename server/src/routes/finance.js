@@ -1,6 +1,10 @@
 const router = require('express').Router();
 const db = require('../database');
 
+function round2(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
 function getMonthBounds(monthStr) {
   if (!/^\d{4}-\d{2}$/.test(monthStr || '')) return null;
   const [y, m] = monthStr.split('-').map(Number);
@@ -9,6 +13,49 @@ function getMonthBounds(monthStr) {
   const nextMonthDate = new Date(Date.UTC(y, m, 1));
   const endExclusive = `${nextMonthDate.getUTCFullYear()}-${String(nextMonthDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
   return { start, endExclusive };
+}
+
+function getLastNightDate(endDate) {
+  const end = new Date(`${String(endDate || '').slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(end.getTime())) return '';
+  end.setUTCDate(end.getUTCDate() - 1);
+  return `${end.getUTCFullYear()}-${String(end.getUTCMonth() + 1).padStart(2, '0')}-${String(end.getUTCDate()).padStart(2, '0')}`;
+}
+
+function isReservationAssignedToMonth({ endDate, monthBounds }) {
+  if (!monthBounds?.start || !monthBounds?.endExclusive) return false;
+  const lastNightDate = getLastNightDate(endDate);
+  if (!lastNightDate) return false;
+  return lastNightDate >= monthBounds.start && lastNightDate < monthBounds.endExclusive;
+}
+
+function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optionsTotal, resourcesTotal, finalPrice }) {
+  const raw = Math.max(0, Number(accommodationRawAmount || 0));
+  const options = Math.max(0, Number(optionsTotal || 0));
+  const resources = Math.max(0, Number(resourcesTotal || 0));
+  const subtotal = raw + options + resources;
+  const final = Math.max(0, Number(finalPrice || 0));
+  const reductionAmount = Math.max(0, subtotal - final);
+  const accommodationReduction = subtotal > 0
+    ? reductionAmount * (raw / subtotal)
+    : 0;
+  const net = round2(Math.max(0, raw - accommodationReduction));
+  return {
+    accommodationRawAmount: round2(raw),
+    reductionAmount: round2(reductionAmount),
+    accommodationAmount: net,
+  };
+}
+
+function computeTouristTaxAmount({ nightsCount, adults, taxRate }) {
+  const nights = Math.max(0, Number(nightsCount || 0));
+  const adultsCount = Math.max(0, Number(adults || 0));
+  const rate = Math.max(0, Number(taxRate || 0));
+  const adultNights = nights * adultsCount;
+  return {
+    adultNights,
+    taxAmount: round2(adultNights * rate),
+  };
 }
 
 // Financial summary for a date range
@@ -196,19 +243,14 @@ router.get('/tourist-tax', (req, res) => {
     .map((row) => {
       const nightsCount = Number(row.nightsCount || 0);
       const adults = Number(row.adults || 0);
-      const adultNights = nightsCount * adults;
       const taxRate = Math.max(0, Number(row.taxRate || 0));
-      const taxAmount = Math.round(adultNights * taxRate * 100) / 100;
-      const accommodationRawAmount = Math.max(0, Number(row.accommodationRawAmount || 0));
-      const optionsTotal = Math.max(0, Number(row.optionsTotal || 0));
-      const resourcesTotal = Math.max(0, Number(row.resourcesTotal || 0));
-      const subtotal = accommodationRawAmount + optionsTotal + resourcesTotal;
-      const finalPrice = Math.max(0, Number(row.finalPrice || 0));
-      const reductionAmount = Math.max(0, subtotal - finalPrice);
-      const accommodationReduction = subtotal > 0
-        ? reductionAmount * (accommodationRawAmount / subtotal)
-        : 0;
-      const accommodationAmount = Math.round(Math.max(0, accommodationRawAmount - accommodationReduction) * 100) / 100;
+      const taxMeta = computeTouristTaxAmount({ nightsCount, adults, taxRate });
+      const accommodationMeta = computeAccommodationAmountAfterDiscount({
+        accommodationRawAmount: row.accommodationRawAmount,
+        optionsTotal: row.optionsTotal,
+        resourcesTotal: row.resourcesTotal,
+        finalPrice: row.finalPrice,
+      });
       const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
       return {
         reservationId: row.reservationId,
@@ -220,12 +262,12 @@ router.get('/tourist-tax', (req, res) => {
         lastNightDate: row.lastNightDate,
         adults,
         nightsCount,
-        adultNights,
+        adultNights: taxMeta.adultNights,
         taxRate,
-        taxAmount,
-        accommodationRawAmount: Math.round(accommodationRawAmount * 100) / 100,
-        reductionAmount: Math.round(reductionAmount * 100) / 100,
-        accommodationAmount,
+        taxAmount: taxMeta.taxAmount,
+        accommodationRawAmount: accommodationMeta.accommodationRawAmount,
+        reductionAmount: accommodationMeta.reductionAmount,
+        accommodationAmount: accommodationMeta.accommodationAmount,
       };
     })
     .filter((row) => row.nightsCount > 0);
@@ -276,3 +318,10 @@ router.get('/tourist-tax', (req, res) => {
 });
 
 module.exports = router;
+module.exports.__test = {
+  getMonthBounds,
+  getLastNightDate,
+  isReservationAssignedToMonth,
+  computeAccommodationAmountAfterDiscount,
+  computeTouristTaxAmount,
+};
