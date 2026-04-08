@@ -152,68 +152,125 @@ router.get('/tourist-tax', (req, res) => {
 
   const rows = db.prepare(`
     SELECT
-      p.id as propertyId,
+      r.id as reservationId,
+      r.propertyId,
       p.name as propertyName,
-      p.touristTaxPerDayPerPerson as taxRate,
-      SUM(
-        MAX(0,
-          CAST(
-            JULIANDAY(MIN(r.endDate, ?)) - JULIANDAY(MAX(r.startDate, ?))
-            AS INTEGER
-          )
+      c.firstName,
+      c.lastName,
+      r.startDate,
+      r.endDate,
+      r.adults,
+      COALESCE(p.touristTaxPerDayPerPerson, 0) as taxRate,
+      MAX(0,
+        CAST(
+          JULIANDAY(r.endDate) - JULIANDAY(r.startDate)
+          AS INTEGER
         )
-      ) as rentedNights,
-      SUM(
-        MAX(0,
-          CAST(
-            JULIANDAY(MIN(r.endDate, ?)) - JULIANDAY(MAX(r.startDate, ?))
-            AS INTEGER
-          )
-        ) * COALESCE(r.adults, 0)
-      ) as adultNights
+      ) as nightsCount,
+      COALESCE(
+        (
+        SELECT ROUND(SUM(rn.price), 2)
+        FROM reservation_nights rn
+        WHERE rn.reservationId = r.id
+        ),
+        COALESCE(r.totalPrice, 0),
+        0
+      ) as accommodationRawAmount,
+      COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0) as optionsTotal,
+      COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal,
+      COALESCE(r.finalPrice, 0) as finalPrice,
+      DATE(r.endDate, '-1 day') as lastNightDate
     FROM reservations r
     JOIN properties p ON p.id = r.propertyId
-    WHERE r.startDate < ?
-      AND r.endDate > ?
-    GROUP BY p.id, p.name, p.touristTaxPerDayPerPerson
-    ORDER BY p.name
+    JOIN clients c ON c.id = r.clientId
+    WHERE DATE(r.endDate, '-1 day') >= ?
+      AND DATE(r.endDate, '-1 day') < ?
+      AND r.platform = 'direct'
+    ORDER BY p.name, r.startDate, c.lastName, c.firstName
   `).all(
-    bounds.endExclusive,
     bounds.start,
-    bounds.endExclusive,
-    bounds.start,
-    bounds.endExclusive,
-    bounds.start
+    bounds.endExclusive
   );
 
-  const byProperty = rows.map((row) => {
-    const rentedNights = Number(row.rentedNights || 0);
-    const adultNights = Number(row.adultNights || 0);
-    const taxRate = Number(row.taxRate || 0);
-    const taxAmount = Math.round(adultNights * taxRate * 100) / 100;
-    return {
-      propertyId: row.propertyId,
-      propertyName: row.propertyName,
-      rentedNights,
-      adultNights,
-      taxRate,
-      taxAmount,
-    };
-  });
+  const reservations = rows
+    .map((row) => {
+      const nightsCount = Number(row.nightsCount || 0);
+      const adults = Number(row.adults || 0);
+      const adultNights = nightsCount * adults;
+      const taxRate = Math.max(0, Number(row.taxRate || 0));
+      const taxAmount = Math.round(adultNights * taxRate * 100) / 100;
+      const accommodationRawAmount = Math.max(0, Number(row.accommodationRawAmount || 0));
+      const optionsTotal = Math.max(0, Number(row.optionsTotal || 0));
+      const resourcesTotal = Math.max(0, Number(row.resourcesTotal || 0));
+      const subtotal = accommodationRawAmount + optionsTotal + resourcesTotal;
+      const finalPrice = Math.max(0, Number(row.finalPrice || 0));
+      const reductionAmount = Math.max(0, subtotal - finalPrice);
+      const accommodationReduction = subtotal > 0
+        ? reductionAmount * (accommodationRawAmount / subtotal)
+        : 0;
+      const accommodationAmount = Math.round(Math.max(0, accommodationRawAmount - accommodationReduction) * 100) / 100;
+      const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+      return {
+        reservationId: row.reservationId,
+        propertyId: row.propertyId,
+        propertyName: row.propertyName,
+        reservationName,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        lastNightDate: row.lastNightDate,
+        adults,
+        nightsCount,
+        adultNights,
+        taxRate,
+        taxAmount,
+        accommodationRawAmount: Math.round(accommodationRawAmount * 100) / 100,
+        reductionAmount: Math.round(reductionAmount * 100) / 100,
+        accommodationAmount,
+      };
+    })
+    .filter((row) => row.nightsCount > 0);
 
-  const totalTaxAmount = Math.round(byProperty.reduce((sum, p) => sum + p.taxAmount, 0) * 100) / 100;
-  const totalRentedNights = byProperty.reduce((sum, p) => sum + p.rentedNights, 0);
-  const totalAdultNights = byProperty.reduce((sum, p) => sum + p.adultNights, 0);
+  const byPropertyMap = new Map();
+  for (const row of reservations) {
+    if (!byPropertyMap.has(row.propertyId)) {
+      byPropertyMap.set(row.propertyId, {
+        propertyId: row.propertyId,
+        propertyName: row.propertyName,
+        reservationsCount: 0,
+        nightsCount: 0,
+        adultNights: 0,
+        taxAmount: 0,
+        accommodationAmount: 0,
+      });
+    }
+    const aggregate = byPropertyMap.get(row.propertyId);
+    aggregate.reservationsCount += 1;
+    aggregate.nightsCount += row.nightsCount;
+    aggregate.adultNights += row.adultNights;
+    aggregate.taxAmount = Math.round((aggregate.taxAmount + row.taxAmount) * 100) / 100;
+    aggregate.accommodationAmount = Math.round((aggregate.accommodationAmount + row.accommodationAmount) * 100) / 100;
+  }
+
+  const byProperty = Array.from(byPropertyMap.values()).sort((a, b) => a.propertyName.localeCompare(b.propertyName, 'fr'));
+
+  const totalAccommodationAmount = Math.round(reservations.reduce((sum, row) => sum + row.accommodationAmount, 0) * 100) / 100;
+  const totalRentedNights = reservations.reduce((sum, row) => sum + row.nightsCount, 0);
+  const totalAdultNights = reservations.reduce((sum, row) => sum + row.adultNights, 0);
+  const totalTaxAmount = Math.round(reservations.reduce((sum, row) => sum + row.taxAmount, 0) * 100) / 100;
+  const totalReservations = reservations.length;
 
   return res.json({
     month,
     from: bounds.start,
     toExclusive: bounds.endExclusive,
+    reservations,
     byProperty,
     totals: {
+      reservationsCount: totalReservations,
       rentedNights: totalRentedNights,
       adultNights: totalAdultNights,
       taxAmount: totalTaxAmount,
+      accommodationAmount: totalAccommodationAmount,
     },
   });
 });
