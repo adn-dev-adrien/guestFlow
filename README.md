@@ -139,6 +139,36 @@ npm run dev:server
 npm run dev:client
 ```
 
+### Running Unit Tests
+
+Unit tests are currently implemented on the server side using Node's built-in test runner.
+
+Run all unit tests:
+
+```bash
+# From project root
+cd server
+npm test
+```
+
+Equivalent one-liner from the root folder:
+
+```bash
+npm --prefix server test
+```
+
+Run a specific test file:
+
+```bash
+cd server
+node --test src/tests/finance.unit.test.js
+node --test src/tests/properties-ical.unit.test.js
+```
+
+Notes:
+- Test files are located in `server/src/tests/`.
+- The `npm test` script in `server/package.json` runs `node --test "src/tests/**/*.test.js"`.
+
 ### Database
 
 The `server/guestflow.db` file is created automatically on first launch. It is ignored by Git.
