@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
@@ -120,6 +120,7 @@ export default function ReservationPage() {
   const frozenOptionUnitByQuantityRef = useRef({});
   const frozenResourceUnitByQuantityRef = useRef({});
   const pendingLeaveActionRef = useRef(null);
+  const pricingQuoteRequestRef = useRef(0);
 
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
@@ -138,6 +139,26 @@ export default function ReservationPage() {
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
   }), [selectedProp, form]);
+  const pricingQuoteSignature = useMemo(() => JSON.stringify({
+    propertyId: selectedProp ? Number(selectedProp) : null,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    adults: Number(form.adults || 0),
+    children: Number(form.children || 0),
+    teens: Number(form.teens || 0),
+    discountPercent: Number(form.discountPercent || 0),
+    customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
+    depositPaid: Boolean(form.depositPaid),
+    balancePaid: Boolean(form.balancePaid),
+    depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
+    balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
+    selectedOptions: (form.selectedOptions || [])
+      .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) }))
+      .sort((a, b) => a.optionId - b.optionId),
+    selectedResources: (form.selectedResources || [])
+      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0) }))
+      .sort((a, b) => a.resourceId - b.resourceId),
+  }), [selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.selectedResources]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -251,6 +272,36 @@ export default function ReservationPage() {
     if (!miniSelectionAnchor) return;
     if (form.startDate !== miniSelectionAnchor) setMiniSelectionAnchor('');
   }, [form.startDate, miniSelectionAnchor]);
+
+  const applyQuoteToForm = useCallback((prev, quote) => {
+    const optionLinesById = new Map((quote.optionLines || []).map((line) => [Number(line.optionId), line]));
+    const resourceLinesById = new Map((quote.resourceLines || []).map((line) => [Number(line.resourceId), line]));
+
+    return {
+      ...prev,
+      totalPrice: Number(quote.totalPrice || 0),
+      finalPrice: Number(quote.finalPrice || 0),
+      depositAmount: Number(quote.depositAmount || 0),
+      depositDueDate: quote.depositDueDate || '',
+      balanceAmount: Number(quote.balanceAmount || 0),
+      balanceDueDate: quote.balanceDueDate || '',
+      selectedOptions: (prev.selectedOptions || []).map((item) => {
+        const line = optionLinesById.get(Number(item.optionId));
+        return {
+          ...item,
+          totalPrice: Number(line?.totalPrice || 0),
+        };
+      }),
+      selectedResources: (prev.selectedResources || []).map((item) => {
+        const line = resourceLinesById.get(Number(item.resourceId));
+        return {
+          ...item,
+          unitPrice: Number(line?.unitPrice ?? item.unitPrice ?? 0),
+          totalPrice: Number(line?.totalPrice || 0),
+        };
+      }),
+    };
+  }, []);
 
   // ==================== INITIALIZATION & DATA LOADING ====================
   useEffect(() => {
@@ -456,12 +507,13 @@ export default function ReservationPage() {
 
   // Auto-refresh base price when reservation parameters change
   useEffect(() => {
-    if (isExistingReservationPricingLocked) return;
     if (!selectedProp || !form.startDate || !form.endDate) return;
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
+
+    const requestId = ++pricingQuoteRequestRef.current;
 
     const refreshBasePrice = async () => {
       try {
@@ -472,16 +524,25 @@ export default function ReservationPage() {
           adults: form.adults,
           children: form.children,
           teens: form.teens,
+          discountPercent: form.discountPercent,
+          customPrice: form.customPrice,
+          depositPaid: form.depositPaid,
+          balancePaid: form.balancePaid,
+          depositAmount: form.depositAmount,
+          balanceAmount: form.balanceAmount,
+          selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+          selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+          lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
+          lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
         });
+
+        if (requestId !== pricingQuoteRequestRef.current) return;
 
         setForm(prev => {
           if (prev.startDate !== form.startDate || prev.endDate !== form.endDate || prev.adults !== form.adults || prev.children !== form.children || prev.teens !== form.teens) {
             return prev;
           }
-          return recalcPrice({
-            ...prev,
-            totalPrice: Number(calc.totalPrice || 0),
-          });
+          return applyQuoteToForm(prev, calc);
         });
       } catch (err) {
         // Keep current form state if quote refresh fails
@@ -489,7 +550,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens, isExistingReservationPricingLocked]);
+  }, [selectedProp, pricingQuoteSignature, isExistingReservationPricingLocked, applyQuoteToForm]);
 
   useEffect(() => {
     const cp = (newClient.postalCode || '').trim();
@@ -913,6 +974,25 @@ export default function ReservationPage() {
     }
 
     try {
+      const quote = await api.calculatePrice({
+        propertyId: Number(selectedProp),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        adults: form.adults,
+        children: form.children,
+        teens: form.teens,
+        discountPercent: form.discountPercent,
+        customPrice: form.customPrice,
+        depositPaid: form.depositPaid,
+        balancePaid: form.balancePaid,
+        depositAmount: form.depositAmount,
+        balanceAmount: form.balanceAmount,
+        selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+        lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
+        lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
+      });
+
       if (reservationId) {
         await api.updateReservation(reservationId, {
           propertyId: Number(selectedProp),
@@ -929,14 +1009,15 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
-          totalPrice: form.totalPrice,
+          totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
-          finalPrice: form.finalPrice,
-          depositAmount: form.depositAmount,
-          depositDueDate: form.depositDueDate,
+          finalPrice: quote.finalPrice,
+          customPrice: form.customPrice,
+          depositAmount: quote.depositAmount,
+          depositDueDate: quote.depositDueDate,
           depositPaid: form.depositPaid,
-          balanceAmount: form.balanceAmount,
-          balanceDueDate: form.balanceDueDate,
+          balanceAmount: quote.balanceAmount,
+          balanceDueDate: quote.balanceDueDate,
           balancePaid: form.balancePaid,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
@@ -944,17 +1025,8 @@ export default function ReservationPage() {
           cautionReturned: form.cautionReturned,
           cautionReturnedDate: form.cautionReturnedDate,
           notes: form.notes,
-          options: form.selectedOptions.map(so => ({
-            optionId: so.optionId,
-            quantity: so.quantity,
-            totalPrice: so.totalPrice
-          })),
-          resources: form.selectedResources.map(sr => ({
-            resourceId: sr.resourceId,
-            quantity: sr.quantity,
-            unitPrice: sr.unitPrice,
-            totalPrice: sr.totalPrice,
-          }))
+          options: quote.optionLines,
+          resources: quote.resourceLines,
         });
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
@@ -977,26 +1049,18 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
-          totalPrice: form.totalPrice,
+          totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
-          finalPrice: form.finalPrice,
-          depositAmount: form.depositAmount,
-          depositDueDate: form.depositDueDate,
-          balanceAmount: form.balanceAmount,
-          balanceDueDate: form.balanceDueDate,
+          finalPrice: quote.finalPrice,
+          customPrice: form.customPrice,
+          depositAmount: quote.depositAmount,
+          depositDueDate: quote.depositDueDate,
+          balanceAmount: quote.balanceAmount,
+          balanceDueDate: quote.balanceDueDate,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
-          options: form.selectedOptions.map(so => ({
-            optionId: so.optionId,
-            quantity: so.quantity,
-            totalPrice: so.totalPrice
-          })),
-          resources: form.selectedResources.map(sr => ({
-            resourceId: sr.resourceId,
-            quantity: sr.quantity,
-            unitPrice: sr.unitPrice,
-            totalPrice: sr.totalPrice,
-          }))
+          options: quote.optionLines,
+          resources: quote.resourceLines,
         });
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
@@ -1748,12 +1812,6 @@ export default function ReservationPage() {
             {(() => {
               const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
               const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
-              const typeMultiplier = (priceType) => {
-                if (priceType === 'per_person') return persons;
-                if (priceType === 'per_night') return nights;
-                if (priceType === 'per_person_per_night') return persons * nights;
-                return 1;
-              };
               const touristTaxRate = Number(selectedProperty?.touristTaxPerDayPerPerson || 0);
               const touristTaxTotal = Math.round(touristTaxRate * nights * persons * 100) / 100;
               const optionsSelected = propertyOptions
@@ -1766,24 +1824,12 @@ export default function ReservationPage() {
                 })
                 .map((res) => form.selectedResources.find((sr) => sr.resourceId === res.id))
                 .filter((sr) => sr && Number(sr.quantity) > 0);
-              const optionLineTotal = (so) => {
-                if (isExistingReservationPricingLocked) return Number(so.totalPrice || 0);
-                const opt = propertyOptions.find(o => o.id === so.optionId);
-                const qty = Math.max(1, Number(so.quantity) || 1);
-                const unitPrice = Number(opt?.price || 0);
-                return unitPrice * qty * typeMultiplier(opt?.priceType || 'per_stay');
-              };
-              const resourceLineTotal = (sr) => {
-                if (isExistingReservationPricingLocked) return Number(sr.totalPrice || 0);
-                const res = availableResources.find(r => r.id === sr.resourceId);
-                const qty = Math.max(0, Number(sr.quantity) || 0);
-                const unitPrice = Number(res?.price ?? sr.unitPrice ?? 0);
-                return unitPrice * qty * typeMultiplier(res?.priceType || 'per_stay');
-              };
+              const optionLineTotal = (so) => Number(so.totalPrice || 0);
+              const resourceLineTotal = (sr) => Number(sr.totalPrice || 0);
               const optionsTotal = optionsSelected.reduce((acc, so) => acc + optionLineTotal(so), 0);
               const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + resourceLineTotal(sr), 0);
               const subtotal = form.totalPrice + optionsTotal + resourcesTotal;
-              const discountAmount = form.discountPercent > 0 ? Math.round(subtotal * (form.discountPercent / 100) * 100) / 100 : 0;
+              const discountAmount = Math.max(0, Math.round((subtotal - Number(form.finalPrice || 0)) * 100) / 100);
               const totalSejour = Math.round((subtotal - discountAmount + touristTaxTotal) * 100) / 100;
 
               return (

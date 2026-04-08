@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, FormControl, InputLabel, Select,
@@ -138,6 +138,49 @@ export default function CalendarPage() {
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneErrors = (newClient.phoneNumbers || []).map((phone) => !isValidPhone(phone));
   const newClientPhoneError = newClientPhoneErrors.some(Boolean);
+  const pricingQuoteSignature = useMemo(() => JSON.stringify({
+    propertyId: selectedProp ? Number(selectedProp) : null,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    adults: Number(form.adults || 0),
+    children: Number(form.children || 0),
+    teens: Number(form.teens || 0),
+    discountPercent: Number(form.discountPercent || 0),
+    customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
+    depositPaid: Boolean(form.depositPaid),
+    balancePaid: Boolean(form.balancePaid),
+    depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
+    balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
+    selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) })).sort((a, b) => a.optionId - b.optionId),
+    selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0) })).sort((a, b) => a.resourceId - b.resourceId),
+  }), [selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.selectedResources]);
+
+  const applyQuoteToForm = useCallback((prev, quote) => {
+    const optionLinesById = new Map((quote.optionLines || []).map((line) => [Number(line.optionId), line]));
+    const resourceLinesById = new Map((quote.resourceLines || []).map((line) => [Number(line.resourceId), line]));
+
+    return {
+      ...prev,
+      totalPrice: Number(quote.totalPrice || 0),
+      finalPrice: Number(quote.finalPrice || 0),
+      depositAmount: Number(quote.depositAmount || 0),
+      depositDueDate: quote.depositDueDate || '',
+      balanceAmount: Number(quote.balanceAmount || 0),
+      balanceDueDate: quote.balanceDueDate || '',
+      selectedOptions: (prev.selectedOptions || []).map((item) => ({
+        ...item,
+        totalPrice: Number(optionLinesById.get(Number(item.optionId))?.totalPrice || 0),
+      })),
+      selectedResources: (prev.selectedResources || []).map((item) => {
+        const line = resourceLinesById.get(Number(item.resourceId));
+        return {
+          ...item,
+          unitPrice: Number(line?.unitPrice ?? item.unitPrice ?? 0),
+          totalPrice: Number(line?.totalPrice || 0),
+        };
+      }),
+    };
+  }, []);
 
   const loadProperties = async () => setProperties(await api.getProperties());
 
@@ -301,16 +344,21 @@ export default function CalendarPage() {
           adults: form.adults,
           children: form.children,
           teens: form.teens,
+          discountPercent: form.discountPercent,
+          customPrice: form.customPrice,
+          depositPaid: form.depositPaid,
+          balancePaid: form.balancePaid,
+          depositAmount: form.depositAmount,
+          balanceAmount: form.balanceAmount,
+          selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+          selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
         });
 
         if (pricingRequestRef.current !== requestId) return;
 
         setForm(prev => {
           if (prev.startDate !== form.startDate || prev.endDate !== form.endDate) return prev;
-          return recalcPrice({
-            ...prev,
-            totalPrice: Number(calc.totalPrice || 0),
-          });
+          return applyQuoteToForm(prev, calc);
         });
       } catch (err) {
         // Keep the current form state if the quote refresh fails.
@@ -318,7 +366,7 @@ export default function CalendarPage() {
     };
 
     refreshBasePrice();
-  }, [dialogOpen, selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens]);
+  }, [dialogOpen, selectedProp, pricingQuoteSignature, applyQuoteToForm]);
 
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
 
@@ -740,6 +788,23 @@ export default function CalendarPage() {
     }
 
     try {
+      const quote = await api.calculatePrice({
+        propertyId: Number(selectedProp),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        adults: form.adults,
+        children: form.children,
+        teens: form.teens,
+        discountPercent: form.discountPercent,
+        customPrice: form.customPrice,
+        depositPaid: form.depositPaid,
+        balancePaid: form.balancePaid,
+        depositAmount: form.depositAmount,
+        balanceAmount: form.balanceAmount,
+        selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+      });
+
       if (editingReservationId) {
         await api.updateReservation(editingReservationId, {
           propertyId: Number(selectedProp),
@@ -756,14 +821,15 @@ export default function CalendarPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
-          totalPrice: form.totalPrice,
+          totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
-          finalPrice: form.finalPrice,
-          depositAmount: form.depositAmount,
-          depositDueDate: form.depositDueDate,
+          finalPrice: quote.finalPrice,
+          customPrice: form.customPrice,
+          depositAmount: quote.depositAmount,
+          depositDueDate: quote.depositDueDate,
           depositPaid: form.depositPaid,
-          balanceAmount: form.balanceAmount,
-          balanceDueDate: form.balanceDueDate,
+          balanceAmount: quote.balanceAmount,
+          balanceDueDate: quote.balanceDueDate,
           balancePaid: form.balancePaid,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
@@ -771,17 +837,8 @@ export default function CalendarPage() {
           cautionReturned: form.cautionReturned,
           cautionReturnedDate: form.cautionReturnedDate,
           notes: form.notes,
-          options: form.selectedOptions.map(so => ({
-            optionId: so.optionId,
-            quantity: so.quantity,
-            totalPrice: so.totalPrice
-          })),
-          resources: form.selectedResources.map(sr => ({
-            resourceId: sr.resourceId,
-            quantity: sr.quantity,
-            unitPrice: sr.unitPrice,
-            totalPrice: sr.totalPrice,
-          }))
+          options: quote.optionLines,
+          resources: quote.resourceLines,
         });
       } else {
         await api.createReservation({
@@ -799,26 +856,18 @@ export default function CalendarPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
-          totalPrice: form.totalPrice,
+          totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
-          finalPrice: form.finalPrice,
-          depositAmount: form.depositAmount,
-          depositDueDate: form.depositDueDate,
-          balanceAmount: form.balanceAmount,
-          balanceDueDate: form.balanceDueDate,
+          finalPrice: quote.finalPrice,
+          customPrice: form.customPrice,
+          depositAmount: quote.depositAmount,
+          depositDueDate: quote.depositDueDate,
+          balanceAmount: quote.balanceAmount,
+          balanceDueDate: quote.balanceDueDate,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
-          options: form.selectedOptions.map(so => ({
-            optionId: so.optionId,
-            quantity: so.quantity,
-            totalPrice: so.totalPrice
-          })),
-          resources: form.selectedResources.map(sr => ({
-            resourceId: sr.resourceId,
-            quantity: sr.quantity,
-            unitPrice: sr.unitPrice,
-            totalPrice: sr.totalPrice,
-          }))
+          options: quote.optionLines,
+          resources: quote.resourceLines,
         });
       }
       closeReservationEditor();

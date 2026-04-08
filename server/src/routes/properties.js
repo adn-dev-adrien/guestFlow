@@ -5,6 +5,13 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { sentenceCase } = require('../utils/textFormatters');
+const {
+  normalizeDateRanges,
+  getBoundsFromDateRanges,
+  parseRuleDateRanges,
+  normalizeProgressiveTiers,
+  buildProgressivePreview,
+} = require('../utils/pricing');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
@@ -48,40 +55,6 @@ function removeUploadedFile(filePath) {
   if (!filePath || !filePath.startsWith('/uploads/')) return;
   const absPath = path.join(uploadsDir, path.basename(filePath));
   if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
-}
-
-function normalizeDateRanges(dateRanges, startDate, endDate) {
-  const source = Array.isArray(dateRanges) && dateRanges.length > 0
-    ? dateRanges
-    : [{ startDate, endDate }];
-
-  return source
-    .map((range) => ({
-      startDate: range?.startDate || '',
-      endDate: range?.endDate || '',
-    }))
-    .filter((range) => range.startDate && range.endDate)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-}
-
-function getBoundsFromDateRanges(dateRanges) {
-  if (!dateRanges.length) return { startDate: null, endDate: null };
-  return {
-    startDate: dateRanges[0].startDate,
-    endDate: dateRanges[dateRanges.length - 1].endDate,
-  };
-}
-
-function parseRuleDateRanges(rule) {
-  try {
-    const parsed = JSON.parse(rule.dateRanges || '[]');
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return normalizeDateRanges(parsed);
-    }
-  } catch {
-    // ignore invalid stored JSON and fallback to legacy fields
-  }
-  return normalizeDateRanges([], rule.startDate, rule.endDate);
 }
 
 function findPricingRuleOverlap(propertyId, dateRanges, excludeRuleId = null) {
@@ -145,6 +118,12 @@ router.get('/:id', (req, res) => {
   property.documents = db.prepare('SELECT * FROM documents WHERE propertyId = ?').all(req.params.id);
   property.optionIds = db.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(req.params.id).map(r => r.optionId);
   res.json(property);
+});
+
+router.post('/:id/pricing/progressive-preview', (req, res) => {
+  const { pricePerNight, progressiveTiers, maxNights } = req.body;
+  const preview = buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14));
+  res.json(preview);
 });
 
 // Create property
@@ -215,6 +194,9 @@ router.delete('/:id', (req, res) => {
 router.post('/:id/pricing', (req, res) => {
   const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = req.body;
   const normalizedDateRanges = normalizeDateRanges(dateRanges, startDate, endDate);
+  const normalizedProgressiveTiers = pricingMode === 'progressive'
+    ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
+    : [];
   const conflictingRule = findPricingRuleOverlap(req.params.id, normalizedDateRanges);
   if (conflictingRule) {
     return res.status(400).json({
@@ -231,7 +213,7 @@ router.post('/:id/pricing', (req, res) => {
     sentenceCase(label || 'Standard'),
     Number(pricePerNight || 0),
     pricingMode || 'fixed',
-    JSON.stringify(Array.isArray(progressiveTiers) ? progressiveTiers : []),
+    JSON.stringify(normalizedProgressiveTiers),
     JSON.stringify(normalizedDateRanges),
     color || '#1976d2',
     bounds.startDate,
@@ -244,6 +226,9 @@ router.post('/:id/pricing', (req, res) => {
 router.put('/:id/pricing/:ruleId', (req, res) => {
   const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = req.body;
   const normalizedDateRanges = normalizeDateRanges(dateRanges, startDate, endDate);
+  const normalizedProgressiveTiers = pricingMode === 'progressive'
+    ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
+    : [];
   const conflictingRule = findPricingRuleOverlap(req.params.id, normalizedDateRanges, req.params.ruleId);
   if (conflictingRule) {
     return res.status(400).json({
@@ -259,7 +244,7 @@ router.put('/:id/pricing/:ruleId', (req, res) => {
     sentenceCase(label || 'Standard'),
     Number(pricePerNight || 0),
     pricingMode || 'fixed',
-    JSON.stringify(Array.isArray(progressiveTiers) ? progressiveTiers : []),
+    JSON.stringify(normalizedProgressiveTiers),
     JSON.stringify(normalizedDateRanges),
     color || '#1976d2',
     bounds.startDate,

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
+const { calculateReservationQuote } = require('../utils/pricing');
 
 // List reservations (optionally filter by propertyId, clientId, date range)
 router.get('/', (req, res) => {
@@ -52,96 +53,27 @@ router.get('/:id', (req, res) => {
 
 // Calculate price for a potential reservation
 router.post('/calculate-price', (req, res) => {
-  const { propertyId, startDate, endDate, adults, children, teens } = req.body;
-  const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
-  const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
-  if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const nights = Math.round((end - start) / (1000 * 60 * 60 * 24));
-  if (nights <= 0) return res.json({ totalPrice: 0, nights: 0 });
-
-  let totalPrice = 0;
-
-  const getProgressiveExtraNightPrice = (rule, nightNumber, fallbackBasePrice) => {
-    let tiers = [];
-    try {
-      tiers = JSON.parse(rule.progressiveTiers || '[]');
-    } catch {
-      tiers = [];
-    }
-    const currentTier = (Array.isArray(tiers) ? tiers : []).find((t) => Number(t.nightNumber) === Number(nightNumber));
-    if (!currentTier) return fallbackBasePrice;
-    const direct = Number(currentTier.extraNightPrice);
-    if (Number.isFinite(direct)) return direct;
-    const pct = Number(currentTier.extraNightDiscountPct);
-    if (Number.isFinite(pct)) return Math.max(0, fallbackBasePrice * (1 - pct / 100));
-    return fallbackBasePrice;
-  };
-
-  const getRuleDateRanges = (rule) => {
-    try {
-      const parsed = JSON.parse(rule.dateRanges || '[]');
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch {
-      // ignore invalid JSON and fallback to legacy fields
-    }
-    if (rule.startDate && rule.endDate) {
-      return [{ startDate: rule.startDate, endDate: rule.endDate }];
-    }
-    return [];
-  };
-
-  const current = new Date(start);
-  for (let i = 0; i < nights; i++) {
-    const dateStr = current.toISOString().split('T')[0];
-    // Find matching seasonal rule
-    let priceForNight = 100; // fallback
-    let matchedRule = null;
-    for (const rule of rules) {
-      const ruleDateRanges = getRuleDateRanges(rule);
-      if (ruleDateRanges.length > 0) {
-        if (ruleDateRanges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
-          priceForNight = rule.pricePerNight;
-          matchedRule = rule;
-          break;
-        }
-      } else {
-        priceForNight = rule.pricePerNight; // default rule (no date range)
-        matchedRule = rule;
-      }
-    }
-    if ((matchedRule?.pricingMode || 'fixed') === 'progressive') {
-      const nightNumber = i + 1;
-      if (nightNumber === 1) {
-        totalPrice += Number(priceForNight || 0);
-      } else {
-        totalPrice += getProgressiveExtraNightPrice(matchedRule, nightNumber, Number(priceForNight || 0));
-      }
-    } else {
-      totalPrice += Number(priceForNight || 0);
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  // Deposit calculation
-  const depositAmount = Math.round(totalPrice * (property.depositPercent / 100) * 100) / 100;
-  const depositDueDate = new Date(start);
-  depositDueDate.setDate(depositDueDate.getDate() - property.depositDaysBefore);
-  const balanceDueDate = new Date(start);
-  balanceDueDate.setDate(balanceDueDate.getDate() - property.balanceDaysBefore);
-
-  res.json({
-    nights,
-    totalPrice,
-    depositAmount,
-    balanceAmount: Math.round((totalPrice - depositAmount) * 100) / 100,
-    depositDueDate: depositDueDate.toISOString().split('T')[0],
-    balanceDueDate: balanceDueDate.toISOString().split('T')[0],
-    defaultCheckIn: property.defaultCheckIn || '15:00',
-    defaultCheckOut: property.defaultCheckOut || '10:00'
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: Number(req.body.propertyId),
+    startDate: req.body.startDate,
+    endDate: req.body.endDate,
+    adults: req.body.adults,
+    children: req.body.children,
+    teens: req.body.teens,
+    discountPercent: req.body.discountPercent,
+    customPrice: req.body.customPrice,
+    selectedOptions: req.body.selectedOptions,
+    selectedResources: req.body.selectedResources,
+    depositPaid: req.body.depositPaid,
+    balancePaid: req.body.balancePaid,
+    depositAmount: req.body.depositAmount,
+    balanceAmount: req.body.balanceAmount,
+    lockedOptionUnits: req.body.lockedOptionUnits,
+    lockedResourceUnits: req.body.lockedResourceUnits,
   });
+  if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  res.json(quote);
 });
 
 // Helper to parse time string to decimal hours
@@ -232,12 +164,31 @@ router.post('/', (req, res) => {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
-    platform, totalPrice, discountPercent, finalPrice,
+    platform, discountPercent, customPrice,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     cautionAmount,
     options: reservationOptions,
     resources: reservationResources
   } = req.body;
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: Number(propertyId),
+    startDate,
+    endDate,
+    adults,
+    children,
+    teens,
+    discountPercent,
+    customPrice,
+    selectedOptions: reservationOptions,
+    selectedResources: reservationResources,
+    depositAmount,
+    balanceAmount,
+  });
+  if (quote.error) {
+    return res.status(quote.status || 400).json({ error: quote.error });
+  }
 
   const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, null);
   if (validationError) {
@@ -314,8 +265,8 @@ router.post('/', (req, res) => {
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
-    platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
-    depositAmount || 0, depositDueDate || null, balanceAmount || 0, balanceDueDate || null, sentenceCase(notes),
+    platform || 'direct', quote.totalPrice, quote.discountPercent || 0, quote.finalPrice,
+    quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, sentenceCase(notes),
     cautionAmount || 0
   );
 
@@ -324,7 +275,7 @@ router.post('/', (req, res) => {
   // Insert reservation options
   if (reservationOptions && reservationOptions.length > 0) {
     const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (?, ?, ?, ?)');
-    for (const opt of reservationOptions) {
+    for (const opt of quote.optionLines || []) {
       insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, opt.totalPrice || 0);
     }
   }
@@ -332,7 +283,7 @@ router.post('/', (req, res) => {
   // Insert reservation resources with availability check
   if (reservationResources && reservationResources.length > 0) {
     const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, totalPrice) VALUES (?, ?, ?, ?, ?)');
-    for (const rr of reservationResources) {
+    for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
       const reserved = db.prepare(`
@@ -347,7 +298,7 @@ router.post('/', (req, res) => {
       }
       const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
       const qty = Number(rr.quantity) || 1;
-      insertRes.run(reservationId, rr.resourceId, qty, unitPrice, unitPrice * qty);
+      insertRes.run(reservationId, rr.resourceId, qty, unitPrice, rr.totalPrice || unitPrice * qty);
     }
   }
 
@@ -365,12 +316,33 @@ router.put('/:id', (req, res) => {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
-    platform, totalPrice, discountPercent, finalPrice,
+    platform, discountPercent, customPrice,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     options: reservationOptions,
     resources: reservationResources
   } = req.body;
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: Number(propertyId),
+    startDate,
+    endDate,
+    adults,
+    children,
+    teens,
+    discountPercent,
+    customPrice,
+    selectedOptions: reservationOptions,
+    selectedResources: reservationResources,
+    depositPaid,
+    balancePaid,
+    depositAmount,
+    balanceAmount,
+  });
+  if (quote.error) {
+    return res.status(quote.status || 400).json({ error: quote.error });
+  }
 
   const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, Number(req.params.id));
   if (validationError) {
@@ -449,9 +421,9 @@ router.put('/:id', (req, res) => {
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
-    platform || 'direct', totalPrice, discountPercent || 0, finalPrice,
-    depositAmount || 0, depositDueDate || null, depositPaid ? 1 : 0,
-    balanceAmount || 0, balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
+    platform || 'direct', quote.totalPrice, quote.discountPercent || 0, quote.finalPrice,
+    quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, depositPaid ? 1 : 0,
+    quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
     cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
     cautionReturned ? 1 : 0, cautionReturnedDate || null,
     req.params.id
@@ -461,7 +433,7 @@ router.put('/:id', (req, res) => {
   if (reservationOptions) {
     db.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(req.params.id);
     const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (?, ?, ?, ?)');
-    for (const opt of reservationOptions) {
+    for (const opt of quote.optionLines || []) {
       insertOpt.run(req.params.id, opt.optionId, opt.quantity || 1, opt.totalPrice || 0);
     }
   }
@@ -470,7 +442,7 @@ router.put('/:id', (req, res) => {
   if (reservationResources) {
     db.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(req.params.id);
     const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, totalPrice) VALUES (?, ?, ?, ?, ?)');
-    for (const rr of reservationResources) {
+    for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
       const reserved = db.prepare(`
@@ -485,7 +457,7 @@ router.put('/:id', (req, res) => {
       }
       const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
       const qty = Number(rr.quantity) || 1;
-      insertRes.run(req.params.id, rr.resourceId, qty, unitPrice, unitPrice * qty);
+      insertRes.run(req.params.id, rr.resourceId, qty, unitPrice, rr.totalPrice || unitPrice * qty);
     }
   }
 

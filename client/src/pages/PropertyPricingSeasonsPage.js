@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
@@ -37,44 +37,6 @@ function getMondayStart(date) {
   return d;
 }
 
-function getWeekPriceEquivalent(baseNightPrice) {
-  return Number(baseNightPrice || 0) * 2 / 50 * 100;
-}
-
-function getTotalFromWeeklyModel(baseNightPrice, nights) {
-  const weekPrice = getWeekPriceEquivalent(baseNightPrice);
-  let discountedPrice = 0;
-  if (nights === 1) discountedPrice = baseNightPrice;
-  else if (nights === 2) discountedPrice = baseNightPrice * 2;
-  else if (nights === 3) discountedPrice = weekPrice * 0.6;
-  else if (nights === 4) discountedPrice = weekPrice * 0.7;
-  else if (nights === 5) discountedPrice = weekPrice * 0.8;
-  else if (nights === 6) discountedPrice = weekPrice * 0.9;
-  else if (nights === 7) discountedPrice = weekPrice;
-  else discountedPrice = weekPrice * (1 + (nights - 7) * 0.171626984);
-    
-  return Number(discountedPrice || 0);
-}
-
-function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 14) {
-  const tiers = [];
-  const base = Number(baseNightPrice || 0);
-  if (!base || base <= 0) return tiers;
-  for (let night = 2; night <= maxNights; night++) {
-    let extraNightPrice = 0;
-    const totalPrev = getTotalFromWeeklyModel(base, night - 1);
-    const totalCurrent = getTotalFromWeeklyModel(base, night);
-    extraNightPrice = Math.max(0, totalCurrent - totalPrev);
-    const extraNightDiscountPct = Math.max(0, 100 - (extraNightPrice / base) * 100);
-    tiers.push({
-      nightNumber: night,
-      extraNightPrice: Number(extraNightPrice.toFixed(2)),
-      extraNightDiscountPct: Number(extraNightDiscountPct.toFixed(2)),
-    });
-  }
-  return tiers;
-}
-
 function parseTiers(value) {
   if (Array.isArray(value)) return value;
   if (!value) return [];
@@ -106,10 +68,6 @@ function getSortedDateRanges(ranges) {
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
-function getTierValue(tiers, nightNumber) {
-  return tiers.find((t) => Number(t.nightNumber) === Number(nightNumber));
-}
-
 function isoToDayjs(value) {
   return value ? dayjs(value) : null;
 }
@@ -133,6 +91,8 @@ export default function PropertyPricingSeasonsPage() {
   const [seasonSaveError, setSeasonSaveError] = useState('');
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [confirmDialogAction, setConfirmDialogAction] = useState(null); // 'close' | 'prefill' | null
+  const [progressivePreview, setProgressivePreview] = useState({ weekPriceEquivalent: 0, rows: [], progressiveTiers: [] });
+  const progressivePreviewRequestRef = useRef(0);
 
   const [seasonForm, setSeasonForm] = useState({
     label: '',
@@ -179,6 +139,18 @@ export default function PropertyPricingSeasonsPage() {
   }, [loadData]);
 
   const seasons = property?.pricingRules || [];
+
+  const refreshProgressivePreview = useCallback(async (pricePerNight, progressiveTiers) => {
+    const requestId = ++progressivePreviewRequestRef.current;
+    const preview = await api.previewProgressivePricing(id, {
+      pricePerNight: Number(pricePerNight || 0),
+      progressiveTiers: Array.isArray(progressiveTiers) ? progressiveTiers : [],
+      maxNights: 14,
+    });
+    if (requestId !== progressivePreviewRequestRef.current) return null;
+    setProgressivePreview(preview);
+    return preview;
+  }, [id]);
 
   const localDateValidationError = useMemo(() => {
     const currentRanges = getSortedDateRanges(seasonForm.dateRanges || []);
@@ -307,7 +279,7 @@ export default function PropertyPricingSeasonsPage() {
   const handlePrefillProgressive = () => {
     setSeasonForm((prev) => ({
       ...prev,
-      progressiveTiers: buildDefaultProgressiveTiers(Number(prev.pricePerNight || 0)),
+      progressiveTiers: [],
     }));
   };
 
@@ -358,7 +330,7 @@ export default function PropertyPricingSeasonsPage() {
       if ((prev.progressiveTiers || []).length > 0) return prev;
       return {
         ...prev,
-        progressiveTiers: buildDefaultProgressiveTiers(Number(prev.pricePerNight || 0)),
+        progressiveTiers: [],
       };
     });
   };
@@ -366,57 +338,45 @@ export default function PropertyPricingSeasonsPage() {
   const handleBasePriceChange = (value) => {
     const numericValue = Number(value || 0);
     setSeasonForm((prev) => {
-      const updated = { ...prev, pricePerNight: numericValue };
-      if (prev.pricingMode === 'progressive') {
-        const baselineTiers = (prev.progressiveTiers || []).length > 0
-          ? prev.progressiveTiers
-          : buildDefaultProgressiveTiers(numericValue);
-        updated.progressiveTiers = baselineTiers.map((tier) => {
-          const pct = Number(tier.extraNightDiscountPct || 0);
-          const extra = Math.max(0, numericValue * (1 - pct / 100));
-          return {
-            ...tier,
-            extraNightPrice: Number(extra.toFixed(2)),
-          };
-        });
-      }
-      return updated;
+      return { ...prev, pricePerNight: numericValue };
     });
   };
 
   const updateTierByPrice = (nightNumber, value) => {
-    const base = Number(seasonForm.pricePerNight || 0);
-    const extra = Math.max(0, Number(value || 0));
-    // Calculate discount percentage based on the new price
-    const pct = base > 0 ? Math.max(0, 100 - (extra / base) * 100) : 0;
-    
-    console.log(`updateTierByPrice - Night ${nightNumber}: basePrice=${base}, newPrice=${extra}, calculatedDiscount=${pct.toFixed(2)}%`);
-    
     setSeasonForm((prev) => ({
       ...prev,
-      progressiveTiers: (prev.progressiveTiers || []).map((t) => (
-        Number(t.nightNumber) === Number(nightNumber)
-          ? { ...t, extraNightPrice: Number(extra.toFixed(2)), extraNightDiscountPct: Number(pct.toFixed(2)) }
-          : t
-      )),
+      progressiveTiers: (() => {
+        const currentTiers = Array.isArray(prev.progressiveTiers) ? [...prev.progressiveTiers] : [];
+        const tierIndex = currentTiers.findIndex((tier) => Number(tier.nightNumber) === Number(nightNumber));
+        const nextTier = {
+          ...(tierIndex >= 0 ? currentTiers[tierIndex] : { nightNumber }),
+          nightNumber,
+          extraNightPrice: Math.max(0, Number(value || 0)),
+        };
+        delete nextTier.extraNightDiscountPct;
+        if (tierIndex >= 0) currentTiers[tierIndex] = nextTier;
+        else currentTiers.push(nextTier);
+        return currentTiers;
+      })(),
     }));
   };
 
   const updateTierByPct = (nightNumber, value) => {
-    const base = Number(seasonForm.pricePerNight || 0);
-    const pct = Math.max(0, Math.min(100, Number(value || 0))); // Clamp between 0-100
-    // Calculate price based on the discount percentage
-    const extra = Math.max(0, base * (1 - pct / 100));
-    
-    console.log(`updateTierByPct - Night ${nightNumber}: basePrice=${base}, newDiscount=${pct.toFixed(2)}%, calculatedPrice=${extra.toFixed(2)}`);
-    
     setSeasonForm((prev) => ({
       ...prev,
-      progressiveTiers: (prev.progressiveTiers || []).map((t) => (
-        Number(t.nightNumber) === Number(nightNumber)
-          ? { ...t, extraNightDiscountPct: Number(pct.toFixed(2)), extraNightPrice: Number(extra.toFixed(2)) }
-          : t
-      )),
+      progressiveTiers: (() => {
+        const currentTiers = Array.isArray(prev.progressiveTiers) ? [...prev.progressiveTiers] : [];
+        const tierIndex = currentTiers.findIndex((tier) => Number(tier.nightNumber) === Number(nightNumber));
+        const nextTier = {
+          ...(tierIndex >= 0 ? currentTiers[tierIndex] : { nightNumber }),
+          nightNumber,
+          extraNightDiscountPct: Math.max(0, Math.min(100, Number(value || 0))),
+        };
+        delete nextTier.extraNightPrice;
+        if (tierIndex >= 0) currentTiers[tierIndex] = nextTier;
+        else currentTiers.push(nextTier);
+        return currentTiers;
+      })(),
     }));
   };
 
@@ -454,35 +414,33 @@ export default function PropertyPricingSeasonsPage() {
     await loadData();
   };
 
-  const progressiveRows = useMemo(() => {
-    const basePrice = Number(seasonForm.pricePerNight || 0);
-    const tiers = (seasonForm.progressiveTiers || [])
-      .filter((tier) => Number(tier.nightNumber) > 1)
-      .sort((a, b) => Number(a.nightNumber) - Number(b.nightNumber));
-    return [
-      {
-        nightNumber: 1,
-        extraNightPrice: Number(basePrice.toFixed(2)),
-        extraNightDiscountPct: 0,
-        readOnly: true,
-      },
-      ...tiers.map((tier) => ({ ...tier, readOnly: false })),
-    ];
-  }, [seasonForm.pricePerNight, seasonForm.progressiveTiers]);
+  useEffect(() => {
+    if (!seasonDialogOpen || seasonForm.pricingMode !== 'progressive') {
+      setProgressivePreview({ weekPriceEquivalent: 0, rows: [], progressiveTiers: [] });
+      return;
+    }
 
-  const progressiveRowsWithCumulative = useMemo(() => {
-    let runningTotal = 0;
-    return progressiveRows.map((row) => {
-      const nightPrice = row.readOnly
-        ? Number(row.extraNightPrice || 0)
-        : Number(getTierValue(seasonForm.progressiveTiers, row.nightNumber)?.extraNightPrice ?? 0);
-      runningTotal += nightPrice;
-      return {
-        ...row,
-        cumulativePrice: Number(runningTotal.toFixed(2)),
-      };
-    });
-  }, [progressiveRows, seasonForm.progressiveTiers]);
+    let cancelled = false;
+    refreshProgressivePreview(seasonForm.pricePerNight, seasonForm.progressiveTiers)
+      .then((preview) => {
+        if (!preview || cancelled) return;
+        const nextSerialized = JSON.stringify(preview.progressiveTiers || []);
+        const currentSerialized = JSON.stringify(seasonForm.progressiveTiers || []);
+        if (nextSerialized !== currentSerialized) {
+          setSeasonForm((prev) => ({
+            ...prev,
+            progressiveTiers: preview.progressiveTiers || [],
+          }));
+        }
+      })
+      .catch(() => {
+        // Keep current values if preview refresh fails.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seasonDialogOpen, seasonForm.pricingMode, seasonForm.pricePerNight, seasonForm.progressiveTiers, refreshProgressivePreview]);
 
   if (!property) {
     return <Typography>Chargement…</Typography>;
@@ -731,14 +689,14 @@ export default function PropertyPricingSeasonsPage() {
                   <MenuItem value="progressive">Dégressif</MenuItem>
                 </Select>
               </FormControl>
-              <TextField label="Tarif base (1 nuit)" type="number" value={seasonForm.pricePerNight} onChange={(e) => handleBasePriceChange(e.target.value)} fullWidth inputProps={{ min: 0, step: 0.01 }} />
+              <TextField label="Tarif base (1 nuit)" type="number" value={seasonForm.pricePerNight} onChange={(e) => handleBasePriceChange(e.target.value)} fullWidth inputProps={{ min: 0, step: 1 }} />
               <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth inputProps={{ min: 1 }} />
             </Box>
 
             {seasonForm.pricingMode === 'progressive' && (
               <>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip label={`Tarif semaine équivalent: ${getWeekPriceEquivalent(seasonForm.pricePerNight).toFixed(2)} €`} color="primary" variant="outlined" />
+                  <Chip label={`Tarif semaine équivalent: ${Number(progressivePreview.weekPriceEquivalent || 0).toFixed(2)} €`} color="primary" variant="outlined" />
                   <Button size="small" variant="outlined" onClick={handlePrefillWithConfirm}>
                     Pré-remplir modèle dégressif standard
                   </Button>
@@ -754,8 +712,7 @@ export default function PropertyPricingSeasonsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {progressiveRowsWithCumulative.map((t, idx) => {
-                        const tierValue = getTierValue(seasonForm.progressiveTiers, t.nightNumber);
+                      {progressivePreview.rows.map((t, idx) => {
                         return (
                           <TableRow 
                             key={`tier-${t.nightNumber}`}
@@ -769,7 +726,7 @@ export default function PropertyPricingSeasonsPage() {
                               <TextField
                                 size="small"
                                 type="number"
-                                value={t.readOnly ? t.extraNightPrice.toFixed(0) : (tierValue?.extraNightPrice.toFixed(0) ?? '')}
+                                value={Number(t.extraNightPrice || 0).toFixed(2)}
                                 onChange={(e) => updateTierByPrice(t.nightNumber, e.target.value)}
                                 inputProps={{ min: 0, step: 1 }}
                                 InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>€</InputAdornment> }}
@@ -781,7 +738,7 @@ export default function PropertyPricingSeasonsPage() {
                               <TextField
                                 size="small"
                                 type="number"
-                                value={t.readOnly ? t.extraNightDiscountPct.toFixed(0) : (tierValue?.extraNightDiscountPct.toFixed(0) ?? '')}
+                                value={Number(t.extraNightDiscountPct || 0).toFixed(2)}
                                 onChange={(e) => updateTierByPct(t.nightNumber, e.target.value)}
                                 inputProps={{ min: 0, max: 100, step: 1 }}
                                 InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>%</InputAdornment> }}
@@ -791,13 +748,13 @@ export default function PropertyPricingSeasonsPage() {
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                {t.cumulativePrice.toFixed(0)} €
+                                {Number(t.cumulativePrice || 0).toFixed(2)} €
                               </Box>
                             </TableCell>
                           </TableRow>
                         );
                       })}
-                      {progressiveRowsWithCumulative.length <= 1 && (
+                      {progressivePreview.rows.length <= 1 && (
                         <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Aucun palier. Utilisez le bouton de pré-remplissage.</TableCell></TableRow>
                       )}
                     </TableBody>

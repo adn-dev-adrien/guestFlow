@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
+const { validateClientPayload } = require('../utils/clientValidation');
 
 function normalizeClientRow(row) {
   let phoneNumbers = [];
@@ -61,6 +62,10 @@ router.post('/', (req, res) => {
   const normalizedPhones = Array.isArray(phoneNumbers)
     ? phoneNumbers.filter((p) => String(p || '').trim() !== '')
     : (phone ? [phone] : []);
+  const validationError = validateClientPayload({ ...req.body, phoneNumbers: normalizedPhones });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
   const mainPhone = normalizedPhones[0] || '';
   const normalizedLastName = sentenceCase(lastName);
   const normalizedFirstName = sentenceCase(firstName);
@@ -119,6 +124,10 @@ router.put('/:id', (req, res) => {
   const normalizedPhones = Array.isArray(phoneNumbers)
     ? phoneNumbers.filter((p) => String(p || '').trim() !== '')
     : (phone ? [phone] : []);
+  const validationError = validateClientPayload({ ...req.body, phoneNumbers: normalizedPhones });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
   const mainPhone = normalizedPhones[0] || '';
   const normalizedLastName = sentenceCase(lastName);
   const normalizedFirstName = sentenceCase(firstName);
