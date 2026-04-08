@@ -9,7 +9,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
 import ClientFormFields from '../components/ClientFormFields';
 import FormRow from '../components/FormRow';
-import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
+import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
 import { PLATFORMS, getPlatformColor, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
@@ -1471,12 +1471,17 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
       ) : (
-        <PropertyCalendarOverview
-          title="Calendrier simplifié — 30 prochains jours"
+        <SyncedPropertyMiniCalendars
           properties={properties}
           reservations={overviewReservations}
           platformColors={PLATFORM_COLORS}
-          onPropertySelect={(property) => handleSelectProperty(property.id)}
+          title="Calendrier simplifié"
+          helperText="Cliquez une date de début puis une date de fin sur un logement pour créer une réservation, ou ouvrez son calendrier complet."
+          openPropertyLabel="Ouvrir"
+          onOpenProperty={(property) => handleSelectProperty(property.id)}
+          onCreateReservation={({ propertyId, startDate, endDate }) => {
+            navigate(withFrom(`/reservations/new?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`, '/calendar'));
+          }}
         />
       )}
 

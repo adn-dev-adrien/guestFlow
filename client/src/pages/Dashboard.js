@@ -11,7 +11,7 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
-import PropertyCalendarOverview from '../components/PropertyCalendarOverview';
+import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
 import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
@@ -130,7 +130,6 @@ export default function Dashboard() {
   // Build timeline days (30 days)
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
-
   const handleOpenPropertyCalendar = (property) => {
     const ref = new Date(selectedDate || todayStr);
     navigate(`/calendar?propertyId=${property.id}&year=${ref.getFullYear()}&month=${ref.getMonth()}`);
@@ -350,12 +349,14 @@ export default function Dashboard() {
 
       {/* Combined timeline calendar */}
       <Divider sx={{ my: 3 }} />
-      <Typography variant="h6" sx={{ mb: 1.5 }}>Calendrier cumulé — 30 prochains jours</Typography>
-      <PropertyCalendarOverview
+      <SyncedPropertyMiniCalendars
         properties={properties}
         reservations={reservations}
         platformColors={PLATFORM_COLORS}
-        onPropertySelect={handleOpenPropertyCalendar}
+        onOpenProperty={handleOpenPropertyCalendar}
+        onCreateReservation={({ propertyId, startDate, endDate }) => {
+          navigate(withFrom(`/reservations/new?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`, '/'));
+        }}
       />
 
       {/* Upcoming reservations per property */}
