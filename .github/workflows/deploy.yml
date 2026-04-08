@@ -1,0 +1,87 @@
+name: Deploy to Raspberry Pi
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  deploy:
+    runs-on: self-hosted  # Runner self-hosted sur le Raspberry Pi 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build React client
+        run: |
+          cd client
+          npm install
+          npm run build
+          cd ..
+
+      - name: Create release archive
+        run: |
+          chmod +x ./release.sh
+          ./release.sh "guestflow-release"
+
+      - name: Stop existing service
+        run: |
+          pm2 stop guestflow 2>/dev/null || true
+          pm2 delete guestflow 2>/dev/null || true
+
+      - name: Extract and deploy release
+        run: |
+          RELEASE_NAME="guestflow-release"
+          DEPLOY_DIR="$HOME/guestflow"
+          mkdir -p "$DEPLOY_DIR"
+          cd "$DEPLOY_DIR"
+          
+          # Backup current version if exists
+          if [ -d "current" ]; then
+            mv current "backup-$(date +%Y%m%d-%H%M%S)"
+          fi
+          
+          mkdir -p current
+          
+          # Extract release
+          unzip -q "$OLDPWD/${RELEASE_NAME}.zip"
+          mv "${RELEASE_NAME}"/* current
+          rm -r "${RELEASE_NAME}"
+
+      - name: Install server dependencies
+        run: |
+          DEPLOY_DIR="$HOME/guestflow"
+          cd "$DEPLOY_DIR/current/server"
+          
+          if [ -f package-lock.json ]; then
+            npm ci --omit=dev || npm install --omit=dev
+          else
+            npm install --omit=dev
+          fi
+
+      - name: Start service with PM2
+        run: |
+          NODE_ENV=production pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
+          pm2 save
+          pm2 startup systemd -u "$USER" --hp "$HOME" || true
+
+      - name: Check service status
+        if: success()
+        run: |
+          echo "===== Service Status ====="
+          pm2 status
+          echo ""
+          echo "===== Service Logs ====="
+          pm2 logs guestflow --lines 20 --nostream
+
+
