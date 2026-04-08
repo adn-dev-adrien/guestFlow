@@ -323,6 +323,8 @@ function syncIcalSource(source) {
       createdCount,
       updatedCount,
       unchangedCount,
+      rawIcal: icsText,
+      parsedEvents: events,
     };
   })();
 }

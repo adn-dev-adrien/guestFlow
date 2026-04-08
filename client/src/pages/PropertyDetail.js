@@ -273,7 +273,15 @@ export default function PropertyDetail() {
     if (!canManageExtras) return;
     setSyncingSourceId(sourceId);
     try {
-      await api.syncPropertyIcalSource(id, sourceId);
+      const result = await api.syncPropertyIcalSource(id, sourceId);
+      console.log('📥 Contenu iCal brut reçu:', result.rawIcal);
+      console.log('✅ Événements parsés:', result.parsedEvents);
+      console.log('📊 Résumé de la synchronisation:', {
+        scannedEvents: result.scannedEvents,
+        createdCount: result.createdCount,
+        updatedCount: result.updatedCount,
+        unchangedCount: result.unchangedCount,
+      });
       await load();
     } finally {
       setSyncingSourceId(null);
