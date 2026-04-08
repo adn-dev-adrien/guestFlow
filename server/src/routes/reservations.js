@@ -165,6 +165,7 @@ router.post('/', (req, res) => {
     singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
     platform, discountPercent, customPrice,
+    forceMinNights,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     cautionAmount,
     options: reservationOptions,
@@ -188,6 +189,15 @@ router.post('/', (req, res) => {
   });
   if (quote.error) {
     return res.status(quote.status || 400).json({ error: quote.error });
+  }
+  if (quote.minNightsBreached && !forceMinNights) {
+    return res.status(409).json({
+      error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
+      code: 'MIN_NIGHTS',
+      requiredMinNights: quote.requiredMinNights,
+      nights: quote.nights,
+      minNightsRules: quote.minNightsRules,
+    });
   }
 
   const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, null);
@@ -317,6 +327,7 @@ router.put('/:id', (req, res) => {
     singleBeds, doubleBeds, babyBeds,
     checkInTime, checkOutTime,
     platform, discountPercent, customPrice,
+    forceMinNights,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     options: reservationOptions,
@@ -342,6 +353,15 @@ router.put('/:id', (req, res) => {
   });
   if (quote.error) {
     return res.status(quote.status || 400).json({ error: quote.error });
+  }
+  if (quote.minNightsBreached && !forceMinNights) {
+    return res.status(409).json({
+      error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
+      code: 'MIN_NIGHTS',
+      requiredMinNights: quote.requiredMinNights,
+      nights: quote.nights,
+      minNightsRules: quote.minNightsRules,
+    });
   }
 
   const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, Number(req.params.id));

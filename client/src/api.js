@@ -8,7 +8,10 @@ async function request(path, options = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
+    const message = err.error || res.statusText;
+    const apiError = new Error(message);
+    Object.assign(apiError, err, { status: res.status });
+    throw apiError;
   }
   return res.json();
 }

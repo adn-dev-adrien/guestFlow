@@ -225,11 +225,19 @@ function getProgressiveExtraNightPrice(rule, nightNumber, fallbackBasePrice) {
 function calculateBaseStayPrice(rules, startDate, endDate) {
   const nights = diffIsoDatesInDays(startDate, endDate);
   if (nights <= 0) {
-    return { nights: 0, totalPrice: 0, nightlyBreakdown: [] };
+    return {
+      nights: 0,
+      totalPrice: 0,
+      nightlyBreakdown: [],
+      requiredMinNights: 1,
+      minNightsRules: [],
+      minNightsBreached: false,
+    };
   }
 
   let totalPrice = 0;
   const nightlyBreakdown = [];
+  const minNightsByRule = new Map();
   let currentDateStr = startDate;
 
   for (let nightIndex = 0; nightIndex < nights; nightIndex += 1) {
@@ -242,11 +250,13 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
       if (!ranges.length) {
         matchedRule = rule;
         nightlyBase = Number(rule.pricePerNight || 0);
+        minNightsByRule.set(String(rule.label || 'Standard'), Number(rule.minNights || 1));
         break;
       }
       if (ranges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
         matchedRule = rule;
         nightlyBase = Number(rule.pricePerNight || 0);
+        minNightsByRule.set(String(rule.label || 'Standard'), Number(rule.minNights || 1));
         break;
       }
     }
@@ -282,6 +292,12 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
     nights,
     totalPrice: roundMoney(totalPrice),
     nightlyBreakdown,
+    requiredMinNights: Math.max(1, ...Array.from(minNightsByRule.values()).map((v) => Number(v || 1))),
+    minNightsRules: Array.from(minNightsByRule.entries()).map(([label, minNights]) => ({
+      label,
+      minNights: Number(minNights || 1),
+    })),
+    minNightsBreached: nights < Math.max(1, ...Array.from(minNightsByRule.values()).map((v) => Number(v || 1))),
   };
 }
 
@@ -310,12 +326,22 @@ function calculateReservationQuote({
   }
 
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
-  const { nights, totalPrice, nightlyBreakdown } = calculateBaseStayPrice(rules, startDate, endDate);
+  const {
+    nights,
+    totalPrice,
+    nightlyBreakdown,
+    requiredMinNights,
+    minNightsRules,
+    minNightsBreached,
+  } = calculateBaseStayPrice(rules, startDate, endDate);
   if (nights <= 0) {
     return {
       property,
       nights: 0,
       nightlyBreakdown: [],
+      requiredMinNights: 1,
+      minNightsRules: [],
+      minNightsBreached: false,
       persons: 0,
       totalPrice: 0,
       optionsTotal: 0,
@@ -425,6 +451,9 @@ function calculateReservationQuote({
     property,
     nights,
     nightlyBreakdown,
+    requiredMinNights,
+    minNightsRules,
+    minNightsBreached,
     persons,
     totalPrice: roundMoney(totalPrice),
     optionsTotal,

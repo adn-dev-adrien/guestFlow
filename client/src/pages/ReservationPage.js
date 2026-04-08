@@ -108,6 +108,7 @@ export default function ReservationPage() {
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [availableResources, setAvailableResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
+  const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -305,6 +306,14 @@ export default function ReservationPage() {
     };
   }, []);
 
+  const applyQuoteMinNights = useCallback((quote) => {
+    setMinNightsState({
+      breached: Boolean(quote?.minNightsBreached),
+      required: Number(quote?.requiredMinNights || 0),
+      nights: Number(quote?.nights || 0),
+    });
+  }, []);
+
   // ==================== INITIALIZATION & DATA LOADING ====================
   useEffect(() => {
     const initPage = async () => {
@@ -419,6 +428,7 @@ export default function ReservationPage() {
             teens: 0,
           });
           setNightlyBreakdown(calc.nightlyBreakdown || []);
+          applyQuoteMinNights(calc);
 
           const allRes = await api.getReservations({ propertyId: initialPropId });
           setReservations(allRes);
@@ -514,7 +524,10 @@ export default function ReservationPage() {
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T00:00:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setMinNightsState({ breached: false, required: 0, nights: 0 });
+      return;
+    }
 
     const requestId = ++pricingQuoteRequestRef.current;
 
@@ -541,6 +554,7 @@ export default function ReservationPage() {
 
         if (requestId !== pricingQuoteRequestRef.current) return;
         setNightlyBreakdown(calc.nightlyBreakdown || []);
+        applyQuoteMinNights(calc);
 
         setForm(prev => {
           if (prev.startDate !== form.startDate || prev.endDate !== form.endDate || prev.adults !== form.adults || prev.children !== form.children || prev.teens !== form.teens) {
@@ -554,7 +568,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, pricingQuoteSignature, isExistingReservationPricingLocked, applyQuoteToForm]);
+  }, [selectedProp, pricingQuoteSignature, isExistingReservationPricingLocked, applyQuoteToForm, applyQuoteMinNights]);
 
   useEffect(() => {
     const cp = (newClient.postalCode || '').trim();
@@ -846,6 +860,7 @@ export default function ReservationPage() {
     setSelectedProperty(prop);
     setReservations(allRes || []);
     setPropertyOptions(availableOpts);
+    applyQuoteMinNights(calc);
     setForm(prev => recalcPrice({
       ...prev,
       selectedOptions: [],
@@ -902,7 +917,7 @@ export default function ReservationPage() {
   };
 
   // ==================== SAVE & DELETE ====================
-  const handleSaveReservation = async (afterSaveAction = null) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     const isLockedReservation = Boolean(reservationId && existingReservationLocked);
 
@@ -996,6 +1011,20 @@ export default function ReservationPage() {
         lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
         lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
       });
+      applyQuoteMinNights(quote);
+
+      if (quote.minNightsBreached && !forceMinNights) {
+        const proceed = await confirm({
+          title: 'Durée minimale non respectée',
+          message: `Cette réservation contient ${quote.nights} nuit(s), inférieur au minimum requis de ${quote.requiredMinNights} nuit(s). Voulez-vous forcer l'enregistrement ?`,
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return;
+        await handleSaveReservation(safeAfterSaveAction, true);
+        return;
+      }
 
       if (reservationId) {
         await api.updateReservation(reservationId, {
@@ -1029,6 +1058,7 @@ export default function ReservationPage() {
           cautionReturned: form.cautionReturned,
           cautionReturnedDate: form.cautionReturnedDate,
           notes: form.notes,
+          forceMinNights,
           options: quote.optionLines,
           resources: quote.resourceLines,
         });
@@ -1063,6 +1093,7 @@ export default function ReservationPage() {
           balanceDueDate: quote.balanceDueDate,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
+          forceMinNights,
           options: quote.optionLines,
           resources: quote.resourceLines,
         });
@@ -1073,6 +1104,19 @@ export default function ReservationPage() {
         }
       }
     } catch (err) {
+      if (err?.code === 'MIN_NIGHTS' && !forceMinNights) {
+        const proceed = await confirm({
+          title: 'Durée minimale non respectée',
+          message: err.message || 'La durée minimale configurée pour cette saison n\'est pas respectée. Voulez-vous forcer l\'enregistrement ?',
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (proceed) {
+          await handleSaveReservation(safeAfterSaveAction, true);
+        }
+        return;
+      }
       await alert({ title: 'Erreur', message: err.message });
     }
   };
@@ -1156,6 +1200,9 @@ export default function ReservationPage() {
       && otherReservations.some((r) => r.startDate < form.endDate && r.endDate > form.startDate)
   );
   const datesUnavailableMessage = 'Ces dates ne sont pas dispo pour ce logement.';
+  const minNightsWarning = minNightsState.breached
+    ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
+    : '';
   const liveTimeConflictMessage = getTimeConflictMessage(form);
   const quantityPersons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
   const quantityNights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
@@ -1316,7 +1363,7 @@ export default function ReservationPage() {
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
                 onChange={(e) => handleManualDateInputChange({ startDate: e.target.value })}
-                error={datesUnavailableForProperty}
+                error={datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
               />
             </Grid>
@@ -1328,7 +1375,7 @@ export default function ReservationPage() {
                 InputLabelProps={{ shrink: true }}
                 inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
                 onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
-                error={datesUnavailableForProperty}
+                error={datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
               />
             </Grid>
@@ -1337,6 +1384,12 @@ export default function ReservationPage() {
           {datesUnavailableForProperty && (
             <Typography variant="body2" color="error" sx={{ mt: -1 }}>
               {datesUnavailableMessage}
+            </Typography>
+          )}
+
+          {minNightsState.breached && (
+            <Typography variant="body2" color="error" sx={{ mt: datesUnavailableForProperty ? 0 : -1 }}>
+              {minNightsWarning}
             </Typography>
           )}
 
