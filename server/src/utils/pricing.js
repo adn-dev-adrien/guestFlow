@@ -13,6 +13,51 @@ function parseJsonArray(value) {
   }
 }
 
+function parseIsoDateParts(isoDate) {
+  const match = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+  };
+}
+
+function isoToUtcDate(isoDate) {
+  const parts = parseIsoDateParts(isoDate);
+  if (!parts) return null;
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  if (
+    date.getUTCFullYear() !== parts.year
+    || date.getUTCMonth() !== parts.month - 1
+    || date.getUTCDate() !== parts.day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function utcDateToIso(date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysToIsoDate(isoDate, daysDelta) {
+  const date = isoToUtcDate(isoDate);
+  if (!date) return '';
+  date.setUTCDate(date.getUTCDate() + Number(daysDelta || 0));
+  return utcDateToIso(date);
+}
+
+function diffIsoDatesInDays(startIsoDate, endIsoDate) {
+  const start = isoToUtcDate(startIsoDate);
+  const end = isoToUtcDate(endIsoDate);
+  if (!start || !end) return 0;
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
 function normalizeDateRanges(dateRanges, startDate, endDate) {
   const source = Array.isArray(dateRanges) && dateRanges.length > 0
     ? dateRanges
@@ -178,19 +223,17 @@ function getProgressiveExtraNightPrice(rule, nightNumber, fallbackBasePrice) {
 }
 
 function calculateBaseStayPrice(rules, startDate, endDate) {
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  const nights = Math.round((end - start) / 86400000);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || nights <= 0) {
+  const nights = diffIsoDatesInDays(startDate, endDate);
+  if (nights <= 0) {
     return { nights: 0, totalPrice: 0, nightlyBreakdown: [] };
   }
 
   let totalPrice = 0;
   const nightlyBreakdown = [];
-  const current = new Date(start);
+  let currentDateStr = startDate;
 
   for (let nightIndex = 0; nightIndex < nights; nightIndex += 1) {
-    const dateStr = current.toISOString().slice(0, 10);
+    const dateStr = currentDateStr;
     let matchedRule = null;
     let nightlyBase = 100;
 
@@ -232,7 +275,7 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
       });
     }
 
-    current.setDate(current.getDate() + 1);
+    currentDateStr = addDaysToIsoDate(currentDateStr, 1);
   }
 
   return {
@@ -372,10 +415,8 @@ function calculateReservationQuote({
     resolvedBalanceAmount = roundMoney(Math.max(0, finalPrice - resolvedDepositAmount));
   }
 
-  const depositDueDate = new Date(`${startDate}T00:00:00`);
-  depositDueDate.setDate(depositDueDate.getDate() - Number(property.depositDaysBefore || 0));
-  const balanceDueDate = new Date(`${startDate}T00:00:00`);
-  balanceDueDate.setDate(balanceDueDate.getDate() - Number(property.balanceDaysBefore || 0));
+  const depositDueDate = addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
+  const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
   const touristTaxRate = Number(property.touristTaxPerDayPerPerson || 0);
   const touristTaxTotal = roundMoney(touristTaxRate * nights * persons);
@@ -394,8 +435,8 @@ function calculateReservationQuote({
     finalPrice,
     depositAmount: resolvedDepositAmount,
     balanceAmount: resolvedBalanceAmount,
-    depositDueDate: depositDueDate.toISOString().slice(0, 10),
-    balanceDueDate: balanceDueDate.toISOString().slice(0, 10),
+    depositDueDate,
+    balanceDueDate,
     touristTaxRate,
     touristTaxTotal,
     totalStayPrice: roundMoney(finalPrice + touristTaxTotal),
