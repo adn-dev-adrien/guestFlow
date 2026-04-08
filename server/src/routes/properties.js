@@ -194,7 +194,7 @@ function parseIcsEvents(icsText) {
         status,
       };
     })
-    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED');
+    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && !/blocked/i.test(event.summary));
 }
 
 function getOrCreateIcalClient(guestName) {
