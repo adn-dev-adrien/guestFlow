@@ -52,7 +52,6 @@ function getTotalFromWeeklyModel(baseNightPrice, nights) {
   else if (nights === 6) discountedPrice = weekPrice * 0.9;
   else if (nights === 7) discountedPrice = weekPrice;
   else discountedPrice = weekPrice * (1 + (nights - 7) * 0.171626984);
-  console.log('weekPrice:', weekPrice, 'baseNightPrice:', baseNightPrice, 'nights:', nights, 'discountedPrice:', discountedPrice);
     
   return Number(discountedPrice || 0);
 }
@@ -67,7 +66,6 @@ function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 14) {
     const totalCurrent = getTotalFromWeeklyModel(base, night);
     extraNightPrice = Math.max(0, totalCurrent - totalPrev);
     const extraNightDiscountPct = Math.max(0, 100 - (extraNightPrice / base) * 100);
-    console.log('totalPrev:', totalPrev, 'totalCurrent:', totalCurrent, 'nights:', night, 'extraNightPrice:', extraNightPrice, 'extraNightDiscountPct:', extraNightDiscountPct);
     tiers.push({
       nightNumber: night,
       extraNightPrice: Number(extraNightPrice.toFixed(2)),
@@ -325,7 +323,11 @@ export default function PropertyPricingSeasonsPage() {
   const updateTierByPrice = (nightNumber, value) => {
     const base = Number(seasonForm.pricePerNight || 0);
     const extra = Math.max(0, Number(value || 0));
+    // Calculate discount percentage based on the new price
     const pct = base > 0 ? Math.max(0, 100 - (extra / base) * 100) : 0;
+    
+    console.log(`updateTierByPrice - Night ${nightNumber}: basePrice=${base}, newPrice=${extra}, calculatedDiscount=${pct.toFixed(2)}%`);
+    
     setSeasonForm((prev) => ({
       ...prev,
       progressiveTiers: (prev.progressiveTiers || []).map((t) => (
@@ -338,8 +340,12 @@ export default function PropertyPricingSeasonsPage() {
 
   const updateTierByPct = (nightNumber, value) => {
     const base = Number(seasonForm.pricePerNight || 0);
-    const pct = Math.max(0, Number(value || 0));
+    const pct = Math.max(0, Math.min(100, Number(value || 0))); // Clamp between 0-100
+    // Calculate price based on the discount percentage
     const extra = Math.max(0, base * (1 - pct / 100));
+    
+    console.log(`updateTierByPct - Night ${nightNumber}: basePrice=${base}, newDiscount=${pct.toFixed(2)}%, calculatedPrice=${extra.toFixed(2)}`);
+    
     setSeasonForm((prev) => ({
       ...prev,
       progressiveTiers: (prev.progressiveTiers || []).map((t) => (
@@ -673,58 +679,62 @@ export default function PropertyPricingSeasonsPage() {
                     Pré-remplir modèle dégressif standard
                   </Button>
                 </Box>
-                <TableContainer>
-                  <Table size="small" sx={{ minWidth: 860 }}>
+                <TableContainer sx={{ overflowX: 'auto' }}>
+                  <Table size="small" sx={{ width: '100%', tableLayout: 'auto' }}>
                     <TableHead>
-                      <TableRow>
-                        <TableCell>Nuit</TableCell>
-                        <TableCell align="right">Prix nuit</TableCell>
-                        <TableCell align="right">Réduction nuit</TableCell>
-                        <TableCell align="right">Prix cumulé</TableCell>
+                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                        <TableCell sx={{ fontWeight: 600, minWidth: { xs: 40, sm: 50 } }}>Nuit</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, minWidth: { xs: 100, sm: 130 } }}>Prix nuit €</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, minWidth: { xs: 100, sm: 130 } }}>Réduction %</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600, minWidth: { xs: 100, sm: 130 } }}>Total cumulé €</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {progressiveRowsWithCumulative.map((t) => (
-                        <TableRow key={`tier-${t.nightNumber}`}>
-                          <TableCell>{t.nightNumber}</TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={t.readOnly ? t.extraNightPrice : (getTierValue(seasonForm.progressiveTiers, t.nightNumber)?.extraNightPrice.toFixed(0) ?? '')}
-                              onChange={(e) => updateTierByPrice(t.nightNumber, e.target.value)}
-                              inputProps={{ min: 0, step: 0.01 }}
-                              InputProps={{ endAdornment: <InputAdornment position="end">€</InputAdornment> }}
-                              sx={{ width: 180 }}
-                              disabled={t.readOnly}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={t.readOnly ? t.extraNightDiscountPct : (getTierValue(seasonForm.progressiveTiers, t.nightNumber)?.extraNightDiscountPct.toFixed(0) ?? '')}
-                              onChange={(e) => updateTierByPct(t.nightNumber, e.target.value)}
-                              inputProps={{ min: 0, step: 0.01 }}
-                              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                              sx={{ width: 180 }}
-                              disabled={t.readOnly}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={t.cumulativePrice.toFixed(0)}
-                              InputProps={{ endAdornment: <InputAdornment position="end">€</InputAdornment> }}
-                              sx={{ width: 180 }}
-                              disabled
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {progressiveRowsWithCumulative.map((t, idx) => {
+                        const tierValue = getTierValue(seasonForm.progressiveTiers, t.nightNumber);
+                        return (
+                          <TableRow 
+                            key={`tier-${t.nightNumber}`}
+                            sx={{ 
+                              bgcolor: idx % 2 === 0 ? '#fafafa' : 'white',
+                              '&:hover': { bgcolor: '#f0f0f0' }
+                            }}
+                          >
+                            <TableCell sx={{ fontWeight: 500, py: { xs: 0.75, sm: 1 } }}>{t.nightNumber}</TableCell>
+                            <TableCell align="right" sx={{ py: { xs: 0.75, sm: 1 } }}>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={t.readOnly ? t.extraNightPrice.toFixed(0) : (tierValue?.extraNightPrice.toFixed(0) ?? '')}
+                                onChange={(e) => updateTierByPrice(t.nightNumber, e.target.value)}
+                                inputProps={{ min: 0, step: 1 }}
+                                InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>€</InputAdornment> }}
+                                sx={{ width: { xs: 100, sm: 120 } }}
+                                disabled={t.readOnly}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: { xs: 0.75, sm: 1 } }}>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={t.readOnly ? t.extraNightDiscountPct.toFixed(0) : (tierValue?.extraNightDiscountPct.toFixed(0) ?? '')}
+                                onChange={(e) => updateTierByPct(t.nightNumber, e.target.value)}
+                                inputProps={{ min: 0, max: 100, step: 1 }}
+                                InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>%</InputAdornment> }}
+                                sx={{ width: { xs: 100, sm: 120 } }}
+                                disabled={t.readOnly}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                {t.cumulativePrice.toFixed(0)} €
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                       {progressiveRowsWithCumulative.length <= 1 && (
-                        <TableRow><TableCell colSpan={4} align="center">Aucun palier. Utilisez le bouton de pré-remplissage.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Aucun palier. Utilisez le bouton de pré-remplissage.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
