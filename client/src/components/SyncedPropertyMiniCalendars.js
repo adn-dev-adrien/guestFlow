@@ -71,10 +71,27 @@ function buildDayGradient({ departureRes, arrivalRes, middleRes, platformColors 
   return { background, textColor: hasDeparturePartial || hasArrivalPartial ? 'text.primary' : '#fff' };
 }
 
+function parseDateKey(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function formatDateKey(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayDateKey() {
+  const now = new Date();
+  return formatDateKey(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
+}
+
 function addDays(dateStr, count) {
-  const date = new Date(`${dateStr}T00:00:00`);
-  date.setDate(date.getDate() + count);
-  return date.toISOString().split('T')[0];
+  const date = parseDateKey(dateStr);
+  date.setUTCDate(date.getUTCDate() + count);
+  return formatDateKey(date);
 }
 
 export default function SyncedPropertyMiniCalendars({
@@ -89,7 +106,7 @@ export default function SyncedPropertyMiniCalendars({
   helperText = 'Cliquez une date de debut puis une date de fin sur un logement pour creer une reservation.',
   openPropertyLabel = 'Calendrier complet',
 }) {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateKey();
   const [miniCalendarStart, setMiniCalendarStart] = useState(initialStartDate || todayStr);
   const [anchors, setAnchors] = useState({});
 
@@ -151,8 +168,8 @@ export default function SyncedPropertyMiniCalendars({
 
                 <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length}, minmax(42px, 1fr))`, gap: 0.5 }}>
                   {miniDays.map((day) => {
-                    const date = new Date(`${day}T00:00:00`);
-                    const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][date.getDay()];
+                    const date = parseDateKey(day);
+                    const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][date.getUTCDay()];
                     const departureRes = propertyReservations.find((item) => item.endDate === day) || null;
                     const arrivalRes = propertyReservations.find((item) => item.startDate === day) || null;
                     const middleRes = propertyReservations.find((item) => day > item.startDate && day < item.endDate) || null;
@@ -195,7 +212,7 @@ export default function SyncedPropertyMiniCalendars({
                         }}
                       >
                         <Typography variant="caption" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1, position: 'relative', zIndex: 1 }}>{weekLabel}</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1.1, position: 'relative', zIndex: 1 }}>{date.getDate()}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1.1, position: 'relative', zIndex: 1 }}>{date.getUTCDate()}</Typography>
                       </Box>
                     );
                   })}
