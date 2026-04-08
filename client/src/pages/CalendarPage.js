@@ -129,6 +129,8 @@ export default function CalendarPage() {
   const prevScrollHeight = useRef(0);
   const shouldAdjustScroll = useRef(false);
   const initialScrollDone = useRef(false);
+  const prependMonthLock = useRef(false);
+  const appendMonthLock = useRef(false);
   const pricingRequestRef = useRef(0);
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
@@ -205,6 +207,8 @@ export default function CalendarPage() {
     setSelectedProp(propertyId);
     initialScrollDone.current = false;
     lastLoadedRange.current = { from: '', to: '' };
+    prependMonthLock.current = false;
+    appendMonthLock.current = false;
   };
 
   const loadSchoolHolidays = async () => setSchoolHolidays(await api.getSchoolHolidays());
@@ -278,20 +282,44 @@ export default function CalendarPage() {
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el || !initialScrollDone.current) return;
-    if (el.scrollTop < 200) {
+
+    const topThreshold = 200;
+    const bottomThreshold = 200;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+
+    if (el.scrollTop >= topThreshold) {
+      prependMonthLock.current = false;
+    }
+
+    if (distanceFromBottom >= bottomThreshold) {
+      appendMonthLock.current = false;
+    }
+
+    if (el.scrollTop < topThreshold && !prependMonthLock.current) {
+      prependMonthLock.current = true;
       prevScrollHeight.current = el.scrollHeight;
       shouldAdjustScroll.current = true;
       setMonths(prev => {
         const first = prev[0];
         const d = new Date(first.year, first.month - 1, 1);
-        return [{ year: d.getFullYear(), month: d.getMonth() }, ...prev];
+        const nextMonth = { year: d.getFullYear(), month: d.getMonth() };
+        if (prev[0]?.year === nextMonth.year && prev[0]?.month === nextMonth.month) {
+          return prev;
+        }
+        return [nextMonth, ...prev];
       });
     }
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+
+    if (distanceFromBottom < bottomThreshold && !appendMonthLock.current) {
+      appendMonthLock.current = true;
       setMonths(prev => {
         const last = prev[prev.length - 1];
         const d = new Date(last.year, last.month + 1, 1);
-        return [...prev, { year: d.getFullYear(), month: d.getMonth() }];
+        const nextMonth = { year: d.getFullYear(), month: d.getMonth() };
+        if (prev[prev.length - 1]?.year === nextMonth.year && prev[prev.length - 1]?.month === nextMonth.month) {
+          return prev;
+        }
+        return [...prev, nextMonth];
       });
     }
   };
@@ -957,6 +985,8 @@ export default function CalendarPage() {
     const now = new Date();
     setMonths(getMonthsRange(now.getFullYear(), now.getMonth(), 1));
     initialScrollDone.current = false;
+    prependMonthLock.current = false;
+    appendMonthLock.current = false;
     lastLoadedRange.current = { from: '', to: '' };
   };
 
@@ -1109,7 +1139,7 @@ export default function CalendarPage() {
       const midDateStr = formatDate(midDate.getFullYear(), midDate.getMonth(), midDate.getDate());
       const isLabelDay = dateStr === midDateStr;
       return (
-        <Box key={day} data-date={dateStr} onClick={() => handleReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }} sx={{
+        <Box key={dateStr} data-date={dateStr} onClick={() => handleReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }} sx={{
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
@@ -1150,7 +1180,7 @@ export default function CalendarPage() {
     if (!hasVisual) {
       const isToday = dateStr === today;
       return (
-        <Box key={day} data-date={dateStr}
+        <Box key={dateStr} data-date={dateStr}
           onMouseDown={() => !isPast && handleMouseDown(day, y, m)}
           onMouseEnter={() => handleMouseEnter(day, y, m)}
           onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }}
@@ -1235,7 +1265,7 @@ export default function CalendarPage() {
     };
 
     return (
-      <Box key={day} data-date={dateStr}
+      <Box key={dateStr} data-date={dateStr}
         onMouseDown={(e) => {
           if (isPast) return;
           const pct = getClickPct(e);
