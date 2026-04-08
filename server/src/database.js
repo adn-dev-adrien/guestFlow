@@ -146,6 +146,9 @@ db.exec(`
     reservationId INTEGER NOT NULL,
     optionId INTEGER NOT NULL,
     quantity REAL DEFAULT 1,
+    unitPrice REAL NOT NULL DEFAULT 0,
+    billedUnits REAL NOT NULL DEFAULT 0,
+    priceType TEXT NOT NULL DEFAULT 'per_stay',
     totalPrice REAL DEFAULT 0,
     PRIMARY KEY (reservationId, optionId),
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
@@ -176,10 +179,24 @@ db.exec(`
     resourceId INTEGER NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
     unitPrice REAL NOT NULL DEFAULT 0,
+    billedUnits REAL NOT NULL DEFAULT 0,
+    priceType TEXT NOT NULL DEFAULT 'per_stay',
     totalPrice REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (reservationId, resourceId),
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reservation_nights (
+    reservationId INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    seasonLabel TEXT DEFAULT 'Standard',
+    pricingMode TEXT DEFAULT 'fixed',
+    price REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (reservationId, date),
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
   )
 `);
 
@@ -264,6 +281,25 @@ if (!cols.includes('checkInReady')) {
   db.exec("ALTER TABLE reservations ADD COLUMN checkInReady INTEGER DEFAULT 0");
   db.exec("ALTER TABLE reservations ADD COLUMN checkInDone INTEGER DEFAULT 0");
   db.exec("ALTER TABLE reservations ADD COLUMN checkOutDone INTEGER DEFAULT 0");
+}
+
+const reservationOptionCols = db.prepare("PRAGMA table_info(reservation_options)").all().map(c => c.name);
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('unitPrice')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN unitPrice REAL NOT NULL DEFAULT 0");
+}
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('billedUnits')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN billedUnits REAL NOT NULL DEFAULT 0");
+}
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('priceType')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
+}
+
+const reservationResourceCols = db.prepare("PRAGMA table_info(reservation_resources)").all().map(c => c.name);
+if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('billedUnits')) {
+  db.exec("ALTER TABLE reservation_resources ADD COLUMN billedUnits REAL NOT NULL DEFAULT 0");
+}
+if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('priceType')) {
+  db.exec("ALTER TABLE reservation_resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
 }
 
 // ---------- CALENDAR NOTES ----------

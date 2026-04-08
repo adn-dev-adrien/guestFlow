@@ -35,7 +35,7 @@ router.get('/:id', (req, res) => {
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
 
   reservation.options = db.prepare(`
-    SELECT ro.*, o.title, o.description, o.priceType, o.price as unitPrice
+    SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice
     FROM reservation_options ro
     JOIN options o ON ro.optionId = o.id
     WHERE ro.reservationId = ?
@@ -48,11 +48,59 @@ router.get('/:id', (req, res) => {
     WHERE rr.reservationId = ?
   `).all(req.params.id);
 
+  reservation.nights = db.prepare(`
+    SELECT date, seasonLabel, pricingMode, price
+    FROM reservation_nights
+    WHERE reservationId = ?
+    ORDER BY date
+  `).all(req.params.id);
+
   res.json(reservation);
 });
 
+function getReservationPricingSnapshot(reservationId) {
+  const lockedNightlyBreakdown = db.prepare(`
+    SELECT date, seasonLabel, pricingMode, price
+    FROM reservation_nights
+    WHERE reservationId = ?
+    ORDER BY date
+  `).all(reservationId);
+
+  const lockedOptionLines = db.prepare(`
+    SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice
+    FROM reservation_options
+    WHERE reservationId = ?
+  `).all(reservationId);
+
+  const lockedResourceLines = db.prepare(`
+    SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice
+    FROM reservation_resources
+    WHERE reservationId = ?
+  `).all(reservationId);
+
+  return {
+    lockedNightlyBreakdown,
+    lockedOptionLines,
+    lockedResourceLines,
+  };
+}
+
 // Calculate price for a potential reservation
 router.post('/calculate-price', (req, res) => {
+  const reservationId = Number(req.body.reservationId || 0);
+  let lockedPricing = {
+    lockedNightlyBreakdown: req.body.lockedNightlyBreakdown,
+    lockedOptionLines: req.body.lockedOptionLines,
+    lockedResourceLines: req.body.lockedResourceLines,
+  };
+
+  if (reservationId > 0) {
+    const existingReservation = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
+    if (existingReservation && Number(existingReservation.propertyId) === Number(req.body.propertyId)) {
+      lockedPricing = getReservationPricingSnapshot(reservationId);
+    }
+  }
+
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(req.body.propertyId),
@@ -71,6 +119,9 @@ router.post('/calculate-price', (req, res) => {
     balanceAmount: req.body.balanceAmount,
     lockedOptionUnits: req.body.lockedOptionUnits,
     lockedResourceUnits: req.body.lockedResourceUnits,
+    lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
+    lockedOptionLines: lockedPricing.lockedOptionLines,
+    lockedResourceLines: lockedPricing.lockedResourceLines,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -284,15 +335,36 @@ router.post('/', (req, res) => {
 
   // Insert reservation options
   if (reservationOptions && reservationOptions.length > 0) {
-    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (?, ?, ?, ?)');
+    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const opt of quote.optionLines || []) {
-      insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, opt.totalPrice || 0);
+      insertOpt.run(
+        reservationId,
+        opt.optionId,
+        opt.quantity || 1,
+        Number(opt.unitPrice || 0),
+        Number(opt.billedUnits || 0),
+        opt.priceType || 'per_stay',
+        opt.totalPrice || 0,
+      );
+    }
+  }
+
+  if (quote.nightlyBreakdown && quote.nightlyBreakdown.length > 0) {
+    const insertNight = db.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
+    for (const night of quote.nightlyBreakdown) {
+      insertNight.run(
+        reservationId,
+        night.date,
+        night.seasonLabel || 'Standard',
+        night.pricingMode || 'fixed',
+        Number(night.price || 0),
+      );
     }
   }
 
   // Insert reservation resources with availability check
   if (reservationResources && reservationResources.length > 0) {
-    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, totalPrice) VALUES (?, ?, ?, ?, ?)');
+    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
@@ -308,7 +380,15 @@ router.post('/', (req, res) => {
       }
       const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
       const qty = Number(rr.quantity) || 1;
-      insertRes.run(reservationId, rr.resourceId, qty, unitPrice, rr.totalPrice || unitPrice * qty);
+      insertRes.run(
+        reservationId,
+        rr.resourceId,
+        qty,
+        unitPrice,
+        Number(rr.billedUnits || qty),
+        rr.priceType || resource.priceType || 'per_stay',
+        rr.totalPrice || unitPrice * qty,
+      );
     }
   }
 
@@ -334,6 +414,12 @@ router.put('/:id', (req, res) => {
     resources: reservationResources
   } = req.body;
 
+  const existingReservation = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(Number(req.params.id));
+  const canReuseLockedPricing = existingReservation && Number(existingReservation.propertyId) === Number(propertyId);
+  const lockedPricing = canReuseLockedPricing
+    ? getReservationPricingSnapshot(Number(req.params.id))
+    : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] };
+
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(propertyId),
@@ -350,6 +436,9 @@ router.put('/:id', (req, res) => {
     balancePaid,
     depositAmount,
     balanceAmount,
+    lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
+    lockedOptionLines: lockedPricing.lockedOptionLines,
+    lockedResourceLines: lockedPricing.lockedResourceLines,
   });
   if (quote.error) {
     return res.status(quote.status || 400).json({ error: quote.error });
@@ -452,16 +541,38 @@ router.put('/:id', (req, res) => {
   // Rebuild reservation options
   if (reservationOptions) {
     db.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(req.params.id);
-    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, totalPrice) VALUES (?, ?, ?, ?)');
+    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const opt of quote.optionLines || []) {
-      insertOpt.run(req.params.id, opt.optionId, opt.quantity || 1, opt.totalPrice || 0);
+      insertOpt.run(
+        req.params.id,
+        opt.optionId,
+        opt.quantity || 1,
+        Number(opt.unitPrice || 0),
+        Number(opt.billedUnits || 0),
+        opt.priceType || 'per_stay',
+        opt.totalPrice || 0,
+      );
+    }
+  }
+
+  db.prepare('DELETE FROM reservation_nights WHERE reservationId = ?').run(req.params.id);
+  if (quote.nightlyBreakdown && quote.nightlyBreakdown.length > 0) {
+    const insertNight = db.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
+    for (const night of quote.nightlyBreakdown) {
+      insertNight.run(
+        req.params.id,
+        night.date,
+        night.seasonLabel || 'Standard',
+        night.pricingMode || 'fixed',
+        Number(night.price || 0),
+      );
     }
   }
 
   // Rebuild reservation resources with availability check
   if (reservationResources) {
     db.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(req.params.id);
-    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, totalPrice) VALUES (?, ?, ?, ?, ?)');
+    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
@@ -477,7 +588,15 @@ router.put('/:id', (req, res) => {
       }
       const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
       const qty = Number(rr.quantity) || 1;
-      insertRes.run(req.params.id, rr.resourceId, qty, unitPrice, rr.totalPrice || unitPrice * qty);
+      insertRes.run(
+        req.params.id,
+        rr.resourceId,
+        qty,
+        unitPrice,
+        Number(rr.billedUnits || qty),
+        rr.priceType || resource.priceType || 'per_stay',
+        rr.totalPrice || unitPrice * qty,
+      );
     }
   }
 

@@ -426,6 +426,7 @@ export default function ReservationPage() {
             adults: 1,
             children: 0,
             teens: 0,
+            ...(editingReservationId ? { reservationId: editingReservationId } : {}),
           });
           setNightlyBreakdown(calc.nightlyBreakdown || []);
           applyQuoteMinNights(calc);
@@ -550,6 +551,7 @@ export default function ReservationPage() {
           selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
           lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
           lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
+          ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         });
 
         if (requestId !== pricingQuoteRequestRef.current) return;
@@ -850,6 +852,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       }),
       api.getReservations({ propertyId: nextPropertyId }),
     ]);
@@ -1010,6 +1013,7 @@ export default function ReservationPage() {
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
         lockedOptionUnits: isExistingReservationPricingLocked ? frozenOptionUnitByQuantityRef.current : {},
         lockedResourceUnits: isExistingReservationPricingLocked ? frozenResourceUnitByQuantityRef.current : {},
+        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       });
       applyQuoteMinNights(quote);
 

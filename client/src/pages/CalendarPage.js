@@ -364,6 +364,7 @@ export default function CalendarPage() {
           balanceAmount: form.balanceAmount,
           selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
           selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+          ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         });
 
         if (pricingRequestRef.current !== requestId) return;
@@ -694,6 +695,7 @@ export default function CalendarPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       }),
     ]);
 
@@ -817,6 +819,7 @@ export default function CalendarPage() {
         balanceAmount: form.balanceAmount,
         selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       });
       applyQuoteMinNights(quote);
 

@@ -195,6 +195,93 @@ function getTypeMultiplier(priceType, persons, nights) {
   return 1;
 }
 
+function normalizeBilledUnits(value) {
+  const units = Number(value);
+  if (!Number.isFinite(units)) return 0;
+  return Math.max(0, units);
+}
+
+function mergeNightlyBreakdownWithLocked(lockedNightlyBreakdown, freshNightlyBreakdown) {
+  const lockedByDate = new Map(
+    (Array.isArray(lockedNightlyBreakdown) ? lockedNightlyBreakdown : [])
+      .filter((line) => line?.date)
+      .map((line) => [String(line.date), line])
+  );
+
+  let total = 0;
+  const merged = (Array.isArray(freshNightlyBreakdown) ? freshNightlyBreakdown : [])
+    .map((line, index) => {
+      const locked = lockedByDate.get(String(line.date));
+      const price = roundMoney(locked?.price !== undefined ? locked.price : line.price);
+      total += price;
+      return {
+        date: String(line.date),
+        nightNumber: index + 1,
+        pricingMode: locked?.pricingMode || line.pricingMode || 'fixed',
+        seasonLabel: locked?.seasonLabel || line.seasonLabel || 'Standard',
+        price,
+      };
+    });
+
+  return {
+    nightlyBreakdown: merged,
+    totalPrice: roundMoney(total),
+  };
+}
+
+function mergeLineWithLockedSnapshot({
+  lockedLine,
+  targetBilledUnits,
+  currentUnitPrice,
+}) {
+  const resolvedTargetUnits = normalizeBilledUnits(targetBilledUnits);
+  const normalizedCurrentUnitPrice = roundMoney(currentUnitPrice);
+
+  if (!lockedLine) {
+    return {
+      billedUnits: resolvedTargetUnits,
+      totalPrice: roundMoney(resolvedTargetUnits * normalizedCurrentUnitPrice),
+      unitPrice: normalizedCurrentUnitPrice,
+    };
+  }
+
+  const lockedTotal = roundMoney(lockedLine.totalPrice);
+  const lockedUnits = normalizeBilledUnits(
+    lockedLine.billedUnits !== undefined
+      ? lockedLine.billedUnits
+      : lockedLine.quantity
+  );
+  const lockedUnitPrice = lockedUnits > 0
+    ? roundMoney(lockedTotal / lockedUnits)
+    : roundMoney(lockedLine.unitPrice || normalizedCurrentUnitPrice);
+
+  if (resolvedTargetUnits === lockedUnits) {
+    return {
+      billedUnits: lockedUnits,
+      totalPrice: lockedTotal,
+      unitPrice: lockedUnitPrice,
+    };
+  }
+
+  if (resolvedTargetUnits > lockedUnits) {
+    const deltaUnits = resolvedTargetUnits - lockedUnits;
+    const mergedTotal = roundMoney(lockedTotal + deltaUnits * normalizedCurrentUnitPrice);
+    return {
+      billedUnits: resolvedTargetUnits,
+      totalPrice: mergedTotal,
+      unitPrice: resolvedTargetUnits > 0 ? roundMoney(mergedTotal / resolvedTargetUnits) : normalizedCurrentUnitPrice,
+    };
+  }
+
+  const removedUnits = lockedUnits - resolvedTargetUnits;
+  const reducedTotal = roundMoney(Math.max(0, lockedTotal - removedUnits * lockedUnitPrice));
+  return {
+    billedUnits: resolvedTargetUnits,
+    totalPrice: reducedTotal,
+    unitPrice: resolvedTargetUnits > 0 ? roundMoney(reducedTotal / resolvedTargetUnits) : lockedUnitPrice,
+  };
+}
+
 function getApplicableOptions(db, propertyId) {
   const options = db.prepare('SELECT * FROM options ORDER BY title').all();
   const propStmt = db.prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId');
@@ -319,6 +406,9 @@ function calculateReservationQuote({
   balanceAmount,
   lockedOptionUnits,
   lockedResourceUnits,
+  lockedNightlyBreakdown,
+  lockedOptionLines,
+  lockedResourceLines,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -326,14 +416,14 @@ function calculateReservationQuote({
   }
 
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
+  const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
   const {
     nights,
-    totalPrice,
-    nightlyBreakdown,
+    nightlyBreakdown: freshNightlyBreakdown,
     requiredMinNights,
     minNightsRules,
     minNightsBreached,
-  } = calculateBaseStayPrice(rules, startDate, endDate);
+  } = calculatedBase;
   if (nights <= 0) {
     return {
       property,
@@ -368,6 +458,18 @@ function calculateReservationQuote({
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};
   const resourceUnitOverrides = lockedResourceUnits || {};
+  const lockedOptionsById = new Map(
+    (Array.isArray(lockedOptionLines) ? lockedOptionLines : [])
+      .map((line) => [Number(line.optionId), line])
+  );
+  const lockedResourcesById = new Map(
+    (Array.isArray(lockedResourceLines) ? lockedResourceLines : [])
+      .map((line) => [Number(line.resourceId), line])
+  );
+
+  const mergedNightly = mergeNightlyBreakdownWithLocked(lockedNightlyBreakdown, freshNightlyBreakdown);
+  const nightlyBreakdown = mergedNightly.nightlyBreakdown;
+  const totalPrice = mergedNightly.totalPrice;
 
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
@@ -379,14 +481,22 @@ function calculateReservationQuote({
       const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
         ? Number(optionUnitOverrides[optionId])
         : Number(option.price || 0);
-      const total = roundMoney(unitBase * quantity * getTypeMultiplier(option.priceType, persons, nights));
+      const priceType = option.priceType || 'per_stay';
+      const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+      const lockedLine = lockedOptionsById.get(optionId);
+      const merged = mergeLineWithLockedSnapshot({
+        lockedLine,
+        targetBilledUnits,
+        currentUnitPrice: unitBase,
+      });
       return {
         optionId,
         title: option.title,
         quantity,
-        unitPrice: roundMoney(unitBase),
-        priceType: option.priceType || 'per_stay',
-        totalPrice: total,
+        unitPrice: merged.unitPrice,
+        billedUnits: merged.billedUnits,
+        priceType,
+        totalPrice: merged.totalPrice,
       };
     })
     .filter(Boolean);
@@ -402,14 +512,22 @@ function calculateReservationQuote({
       const unitPrice = Number.isFinite(lockedUnit)
         ? lockedUnit
         : Number(selected?.unitPrice !== undefined ? selected.unitPrice : resource.price || 0);
-      const total = roundMoney(unitPrice * quantity * getTypeMultiplier(resource.priceType, persons, nights));
+      const priceType = resource.priceType || 'per_stay';
+      const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+      const lockedLine = lockedResourcesById.get(resourceId);
+      const merged = mergeLineWithLockedSnapshot({
+        lockedLine,
+        targetBilledUnits,
+        currentUnitPrice: unitPrice,
+      });
       return {
         resourceId,
         name: resource.name,
         quantity,
-        unitPrice: roundMoney(unitPrice),
-        priceType: resource.priceType || 'per_stay',
-        totalPrice: total,
+        unitPrice: merged.unitPrice,
+        billedUnits: merged.billedUnits,
+        priceType,
+        totalPrice: merged.totalPrice,
       };
     })
     .filter(Boolean);
