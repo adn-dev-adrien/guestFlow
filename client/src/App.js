@@ -20,6 +20,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import theme from './theme';
 import DialogProvider from './components/DialogProvider';
 import api from './api';
+import { PLATFORM_COLORS } from './constants/platforms';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
@@ -217,6 +218,22 @@ function AppShell() {
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getPlatformColors()
+      .then((data) => {
+        if (!isMounted) return;
+        const customColors = data?.customColors || {};
+        Object.assign(PLATFORM_COLORS, customColors);
+      })
+      .catch(() => {
+        // Keep static colors when custom colors cannot be loaded.
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleNavItemClick = (event, targetPath) => {
     if (targetPath === location.pathname) {

@@ -211,6 +211,39 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ical_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    platformKey TEXT NOT NULL,
+    platformLabel TEXT NOT NULL,
+    platformColor TEXT NOT NULL DEFAULT '#757575',
+    isActive INTEGER NOT NULL DEFAULT 1,
+    lastSyncAt TEXT,
+    lastSyncStatus TEXT,
+    lastSyncMessage TEXT,
+    lastImportedCount INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ical_import_events (
+    sourceId INTEGER NOT NULL,
+    eventUid TEXT NOT NULL,
+    reservationId INTEGER NOT NULL,
+    eventHash TEXT NOT NULL,
+    lastSeenAt TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (sourceId, eventUid),
+    FOREIGN KEY (sourceId) REFERENCES ical_sources(id) ON DELETE CASCADE,
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
+  )
+`);
+
 // ---------- MIGRATIONS ----------
 const cols = db.prepare("PRAGMA table_info(reservations)").all().map(c => c.name);
 if (!cols.includes('cautionAmount')) {
@@ -311,6 +344,29 @@ if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('bil
 }
 if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('priceType')) {
   db.exec("ALTER TABLE reservation_resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
+}
+
+const icalSourceCols = db.prepare("PRAGMA table_info(ical_sources)").all().map(c => c.name);
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('platformColor')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN platformColor TEXT NOT NULL DEFAULT '#757575'");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('isActive')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastSyncAt')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN lastSyncAt TEXT");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastSyncStatus')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN lastSyncStatus TEXT");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastSyncMessage')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN lastSyncMessage TEXT");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastImportedCount')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN lastImportedCount INTEGER NOT NULL DEFAULT 0");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('updatedAt')) {
+  db.exec("ALTER TABLE ical_sources ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
 }
 
 // ---------- CALENDAR NOTES ----------

@@ -27,9 +27,16 @@ const api = {
   // Properties
   getProperties: () => request('/properties'),
   getProperty: (id) => request(`/properties/${id}`),
+  getPlatformColors: () => request('/properties/platform-colors'),
   createProperty: (formData) => request('/properties', { method: 'POST', body: formData }),
   updateProperty: (id, formData) => request(`/properties/${id}`, { method: 'PUT', body: formData }),
   deleteProperty: (id) => request(`/properties/${id}`, { method: 'DELETE' }),
+  getPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources`),
+  createPropertyIcalSource: (propId, data) => request(`/properties/${propId}/ical-sources`, { method: 'POST', body: data }),
+  updatePropertyIcalSource: (propId, sourceId, data) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'PUT', body: data }),
+  deletePropertyIcalSource: (propId, sourceId) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'DELETE' }),
+  syncPropertyIcalSource: (propId, sourceId) => request(`/properties/${propId}/ical-sources/${sourceId}/sync`, { method: 'POST' }),
+  syncAllPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources/sync-all`, { method: 'POST' }),
 
   // Pricing
   addPricingRule: (propId, data) => request(`/properties/${propId}/pricing`, { method: 'POST', body: data }),

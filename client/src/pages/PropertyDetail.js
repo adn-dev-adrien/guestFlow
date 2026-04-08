@@ -10,7 +10,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import UploadIcon from '@mui/icons-material/Upload';
+import SyncIcon from '@mui/icons-material/Sync';
+import AddIcon from '@mui/icons-material/Add';
 import { TIME_OPTIONS } from '../constants/timeOptions';
+import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -23,6 +26,23 @@ const NEW_DEFAULTS = {
   defaultCautionAmount: 500,
   touristTaxPerDayPerPerson: 0,
   defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
+};
+
+const DEFAULT_ICAL_COLOR = '#757575';
+
+const ICAL_PLATFORM_OPTIONS = [
+  ...PLATFORMS.map((platform) => ({ value: platform, label: platform, known: true })),
+  { value: 'other', label: 'autre', known: false },
+];
+
+const EMPTY_ICAL_FORM = {
+  id: null,
+  url: '',
+  platformOption: 'airbnb',
+  platformKey: '',
+  platformLabel: '',
+  platformColor: PLATFORM_COLORS.airbnb || DEFAULT_ICAL_COLOR,
+  isActive: true,
 };
 
 function getSortedSeasonRanges(rule) {
@@ -56,6 +76,10 @@ export default function PropertyDetail() {
   const [docFile, setDocFile] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [icalForm, setIcalForm] = useState(EMPTY_ICAL_FORM);
+  const [icalSaving, setIcalSaving] = useState(false);
+  const [syncingSourceId, setSyncingSourceId] = useState(null);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   const load = useCallback(async () => {
     if (isNew) return;
@@ -188,6 +212,83 @@ export default function PropertyDetail() {
     setDocFile(null);
     setDocName('');
     load();
+  };
+
+  const setIcalField = (field, value) => {
+    setIcalForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const resetIcalForm = () => {
+    setIcalForm(EMPTY_ICAL_FORM);
+  };
+
+  const startEditIcalSource = (source) => {
+    const isKnown = Boolean(PLATFORM_COLORS[source.platformKey]);
+    setIcalForm({
+      id: source.id,
+      url: source.url || '',
+      platformOption: isKnown ? source.platformKey : 'other',
+      platformKey: isKnown ? '' : (source.platformKey || ''),
+      platformLabel: source.platformLabel || source.platformKey || '',
+      platformColor: source.platformColor || PLATFORM_COLORS[source.platformKey] || DEFAULT_ICAL_COLOR,
+      isActive: source.isActive !== 0,
+    });
+  };
+
+  const handleSaveIcalSource = async () => {
+    if (!canManageExtras) return;
+    if (!icalForm.url.trim()) return;
+    const isOther = icalForm.platformOption === 'other';
+    const payload = {
+      url: icalForm.url.trim(),
+      platformKey: isOther ? icalForm.platformKey.trim() : icalForm.platformOption,
+      platformLabel: isOther ? (icalForm.platformLabel.trim() || icalForm.platformKey.trim()) : icalForm.platformOption,
+      platformColor: isOther ? (icalForm.platformColor || DEFAULT_ICAL_COLOR) : (PLATFORM_COLORS[icalForm.platformOption] || DEFAULT_ICAL_COLOR),
+      isActive: Boolean(icalForm.isActive),
+    };
+    if (!payload.platformKey) return;
+
+    setIcalSaving(true);
+    try {
+      if (icalForm.id) {
+        await api.updatePropertyIcalSource(id, icalForm.id, payload);
+      } else {
+        await api.createPropertyIcalSource(id, payload);
+      }
+      resetIcalForm();
+      await load();
+    } finally {
+      setIcalSaving(false);
+    }
+  };
+
+  const handleDeleteIcalSource = async (sourceId) => {
+    if (!canManageExtras) return;
+    await api.deletePropertyIcalSource(id, sourceId);
+    if (icalForm.id === sourceId) resetIcalForm();
+    await load();
+  };
+
+  const handleSyncIcalSource = async (sourceId) => {
+    if (!canManageExtras) return;
+    setSyncingSourceId(sourceId);
+    try {
+      await api.syncPropertyIcalSource(id, sourceId);
+      await load();
+    } finally {
+      setSyncingSourceId(null);
+    }
+  };
+
+  const handleSyncAllIcalSources = async () => {
+    if (!canManageExtras) return;
+    setSyncingAll(true);
+    try {
+      await api.syncAllPropertyIcalSources(id);
+      await load();
+    } finally {
+      setSyncingAll(false);
+    }
   };
 
   if (!property) return <Typography>Chargement…</Typography>;
@@ -409,6 +510,148 @@ export default function PropertyDetail() {
                 {docFile && <Typography variant="body2">{docFile.name}</Typography>}
                 <Button variant="contained" size="small" onClick={handleUploadDoc} disabled={!canManageExtras || !docFile}>Envoyer</Button>
               </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* iCal Sync */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                <Typography variant="h6">Connexions iCal</Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<SyncIcon />}
+                  onClick={handleSyncAllIcalSources}
+                  disabled={!canManageExtras || syncingAll || !(property.icalSources || []).length}
+                >
+                  {syncingAll ? 'Synchronisation…' : 'Synchroniser tout'}
+                </Button>
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 0.7fr 1.8fr auto' }, gap: 1, mb: 1.5 }}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Plateforme</InputLabel>
+                  <Select
+                    value={icalForm.platformOption}
+                    label="Plateforme"
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setIcalField('platformOption', next);
+                      if (next !== 'other') {
+                        setIcalField('platformColor', PLATFORM_COLORS[next] || DEFAULT_ICAL_COLOR);
+                        setIcalField('platformLabel', next);
+                      }
+                    }}
+                    disabled={!canManageExtras}
+                  >
+                    {ICAL_PLATFORM_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {icalForm.platformOption === 'other' ? (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      size="small"
+                      label="Code plateforme"
+                      value={icalForm.platformKey}
+                      onChange={(e) => setIcalField('platformKey', e.target.value)}
+                      disabled={!canManageExtras}
+                      placeholder="ex: vrbo-fr"
+                      fullWidth
+                    />
+                    <TextField
+                      type="color"
+                      size="small"
+                      value={icalForm.platformColor || DEFAULT_ICAL_COLOR}
+                      onChange={(e) => setIcalField('platformColor', e.target.value)}
+                      disabled={!canManageExtras}
+                      sx={{ width: 58 }}
+                    />
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                    <Typography variant="body2" color="text.secondary">Couleur auto</Typography>
+                  </Box>
+                )}
+                <TextField
+                  size="small"
+                  label="URL iCal"
+                  value={icalForm.url}
+                  onChange={(e) => setIcalField('url', e.target.value)}
+                  disabled={!canManageExtras}
+                  placeholder="https://.../calendar.ics"
+                />
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleSaveIcalSource}
+                    disabled={!canManageExtras || icalSaving || !icalForm.url.trim()}
+                  >
+                    {icalSaving ? 'Enregistrement…' : (icalForm.id ? 'Mettre à jour' : 'Ajouter')}
+                  </Button>
+                  {icalForm.id && (
+                    <Button variant="text" onClick={resetIcalForm} disabled={!canManageExtras}>Annuler</Button>
+                  )}
+                </Box>
+              </Box>
+
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 900 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Plateforme</TableCell>
+                      <TableCell>URL</TableCell>
+                      <TableCell>Dernière synchro</TableCell>
+                      <TableCell>État</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(property.icalSources || []).map((source) => {
+                      const sourceColor = source.platformColor || PLATFORM_COLORS[source.platformKey] || DEFAULT_ICAL_COLOR;
+                      return (
+                        <TableRow key={source.id}>
+                          <TableCell>
+                            <Chip label={source.platformLabel || source.platformKey} size="small" sx={{ bgcolor: sourceColor, color: 'white' }} />
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={source.url}>{source.url}</TableCell>
+                          <TableCell>{source.lastSyncAt ? displayDate(source.lastSyncAt.slice(0, 10)) : '-'}</TableCell>
+                          <TableCell>
+                            <Typography variant="caption" color={source.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
+                              {source.lastSyncStatus === 'error' ? (source.lastSyncMessage || 'Erreur') : (source.lastSyncMessage || 'Jamais synchronisé')}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              startIcon={<SyncIcon />}
+                              onClick={() => handleSyncIcalSource(source.id)}
+                              disabled={!canManageExtras || syncingSourceId === source.id}
+                            >
+                              {syncingSourceId === source.id ? 'Sync…' : 'Sync'}
+                            </Button>
+                            <IconButton size="small" onClick={() => startEditIcalSource(source)} disabled={!canManageExtras}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={() => handleDeleteIcalSource(source.id)} disabled={!canManageExtras}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {(!property.icalSources || property.icalSources.length === 0) && (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">Aucune connexion iCal configurée.</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </CardContent>
           </Card>
         </Grid>
