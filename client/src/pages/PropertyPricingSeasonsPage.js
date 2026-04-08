@@ -131,8 +131,20 @@ export default function PropertyPricingSeasonsPage() {
   const [editingSeasonId, setEditingSeasonId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [seasonSaveError, setSeasonSaveError] = useState('');
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmDialogAction, setConfirmDialogAction] = useState(null); // 'close' | 'prefill' | null
 
   const [seasonForm, setSeasonForm] = useState({
+    label: '',
+    dateRanges: [{ startDate: '', endDate: '' }],
+    color: DEFAULT_COLORS[0],
+    pricePerNight: 100,
+    pricingMode: 'fixed',
+    minNights: 1,
+    progressiveTiers: [],
+  });
+
+  const [initialSeasonForm, setInitialSeasonForm] = useState({
     label: '',
     dateRanges: [{ startDate: '', endDate: '' }],
     color: DEFAULT_COLORS[0],
@@ -229,8 +241,7 @@ export default function PropertyPricingSeasonsPage() {
 
   const openCreateSeason = () => {
     const nextColor = DEFAULT_COLORS[seasons.length % DEFAULT_COLORS.length];
-    setEditingSeasonId(null);
-    setSeasonForm({
+    const newForm = {
       label: `Saison ${seasons.length + 1}`,
       dateRanges: [{ startDate: '', endDate: '' }],
       color: nextColor,
@@ -238,14 +249,16 @@ export default function PropertyPricingSeasonsPage() {
       pricingMode: 'fixed',
       minNights: 1,
       progressiveTiers: [],
-    });
+    };
+    setEditingSeasonId(null);
+    setSeasonForm(newForm);
+    setInitialSeasonForm(JSON.parse(JSON.stringify(newForm)));
     setSeasonSaveError('');
     setSeasonDialogOpen(true);
   };
 
   const openEditSeason = (season) => {
-    setEditingSeasonId(season.id);
-    setSeasonForm({
+    const newForm = {
       label: season.label || '',
       dateRanges: parseDateRanges(season.dateRanges, season.startDate, season.endDate),
       color: season.color || DEFAULT_COLORS[0],
@@ -253,9 +266,60 @@ export default function PropertyPricingSeasonsPage() {
       pricingMode: season.pricingMode || 'fixed',
       minNights: Number(season.minNights || 1),
       progressiveTiers: parseTiers(season.progressiveTiers),
-    });
+    };
+    setEditingSeasonId(season.id);
+    setSeasonForm(newForm);
+    setInitialSeasonForm(JSON.parse(JSON.stringify(newForm)));
     setSeasonSaveError('');
     setSeasonDialogOpen(true);
+  };
+
+  const hasModifications = () => {
+    return JSON.stringify(seasonForm) !== JSON.stringify(initialSeasonForm);
+  };
+
+  const handleCloseDialog = () => {
+    if (hasModifications()) {
+      setConfirmDialogAction('close');
+      setConfirmDialogOpen(true);
+    } else {
+      setSeasonDialogOpen(false);
+      setSeasonSaveError('');
+    }
+  };
+
+  const handleConfirmDialogClose = () => {
+    setConfirmDialogOpen(false);
+    setConfirmDialogAction(null);
+  };
+
+  const handleConfirmDialogConfirm = () => {
+    if (confirmDialogAction === 'close') {
+      setSeasonDialogOpen(false);
+      setSeasonSaveError('');
+      handleConfirmDialogClose();
+    } else if (confirmDialogAction === 'prefill') {
+      handleConfirmDialogClose();
+      handlePrefillProgressive();
+    }
+  };
+
+  const handlePrefillProgressive = () => {
+    setSeasonForm((prev) => ({
+      ...prev,
+      progressiveTiers: buildDefaultProgressiveTiers(Number(prev.pricePerNight || 0)),
+    }));
+  };
+
+  const handlePrefillWithConfirm = () => {
+    // Si des tarifs existent déjà, demander confirmation avant de les remplacer
+    if (seasonForm.progressiveTiers && seasonForm.progressiveTiers.length > 0) {
+      setConfirmDialogAction('prefill');
+      setConfirmDialogOpen(true);
+    } else {
+      // Sinon, pré-remplir immédiatement
+      handlePrefillProgressive();
+    }
   };
 
   const handleSeasonFormField = (field, value) => {
@@ -607,7 +671,7 @@ export default function PropertyPricingSeasonsPage() {
         ))}
       </Grid>
 
-      <Dialog open={seasonDialogOpen} onClose={() => { setSeasonDialogOpen(false); setSeasonSaveError(''); }} maxWidth="md" fullWidth>
+      <Dialog open={seasonDialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}</DialogTitle>
         <DialogContent>
           <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr">
@@ -675,7 +739,7 @@ export default function PropertyPricingSeasonsPage() {
               <>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip label={`Tarif semaine équivalent: ${getWeekPriceEquivalent(seasonForm.pricePerNight).toFixed(2)} €`} color="primary" variant="outlined" />
-                  <Button size="small" variant="outlined" onClick={() => handleSeasonFormField('progressiveTiers', buildDefaultProgressiveTiers(Number(seasonForm.pricePerNight || 0)))}>
+                  <Button size="small" variant="outlined" onClick={handlePrefillWithConfirm}>
                     Pré-remplir modèle dégressif standard
                   </Button>
                 </Box>
@@ -745,7 +809,7 @@ export default function PropertyPricingSeasonsPage() {
           </LocalizationProvider>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setSeasonDialogOpen(false); setSeasonSaveError(''); }}>Annuler</Button>
+          <Button onClick={handleCloseDialog}>Annuler</Button>
           <Button
             variant="contained"
             onClick={handleSaveSeason}
@@ -763,6 +827,24 @@ export default function PropertyPricingSeasonsPage() {
         title="Supprimer la saison"
         message={deleteTarget ? `Supprimer la saison ${deleteTarget.label} ?` : ''}
         confirmLabel="Supprimer"
+      />
+
+      <ConfirmDialog
+        open={confirmDialogOpen}
+        onClose={handleConfirmDialogClose}
+        onConfirm={handleConfirmDialogConfirm}
+        title={
+          confirmDialogAction === 'prefill'
+            ? 'Pré-remplir le modèle dégressif'
+            : 'Vous avez des modifications non enregistrées'
+        }
+        message={
+          confirmDialogAction === 'prefill'
+            ? 'Êtes-vous sûr ? Cela remplacera tous les tarifs actuels par le modèle de pricing dégressif standard et vous perdrez vos modifications.'
+            : 'Vous avez des modifications dans cette saison qui ne seront pas enregistrées. Êtes-vous sûr de vouloir continuer ?'
+        }
+        confirmLabel={confirmDialogAction === 'prefill' ? 'Pré-remplir' : 'Abandonner les modifications'}
+        confirmColor={confirmDialogAction === 'prefill' ? 'warning' : 'error'}
       />
     </Box>
   );
