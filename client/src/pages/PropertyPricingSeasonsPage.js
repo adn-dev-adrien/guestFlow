@@ -5,7 +5,7 @@ import {
   Box, Typography, Card, CardContent, Button, Grid, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
-  MenuItem, Chip, Alert, InputAdornment
+  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -81,6 +81,7 @@ export default function PropertyPricingSeasonsPage() {
   const navigate = useNavigate();
 
   const [property, setProperty] = useState(null);
+  const [allProperties, setAllProperties] = useState([]);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [displayStartYear, setDisplayStartYear] = useState(new Date().getFullYear());
   const [displayYears, setDisplayYears] = useState(1);
@@ -93,6 +94,10 @@ export default function PropertyPricingSeasonsPage() {
   const [confirmDialogAction, setConfirmDialogAction] = useState(null); // 'close' | 'prefill' | null
   const [progressivePreview, setProgressivePreview] = useState({ weekPriceEquivalent: 0, rows: [], progressiveTiers: [] });
   const progressivePreviewRequestRef = useRef(0);
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
+  const [applyTargetPropertyId, setApplyTargetPropertyId] = useState('');
+  const [applyReplaceExisting, setApplyReplaceExisting] = useState(true);
+  const [applyFeedback, setApplyFeedback] = useState({ type: '', message: '' });
 
   const [seasonForm, setSeasonForm] = useState({
     label: '',
@@ -115,9 +120,10 @@ export default function PropertyPricingSeasonsPage() {
   });
 
   const loadData = useCallback(async () => {
-    const [p, holidays] = await Promise.all([
+    const [p, holidays, props] = await Promise.all([
       api.getProperty(id),
       api.getSchoolHolidays(),
+      api.getProperties(),
     ]);
     setProperty({
       ...p,
@@ -132,6 +138,7 @@ export default function PropertyPricingSeasonsPage() {
         .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))),
     });
     setSchoolHolidays(holidays || []);
+    setAllProperties(props || []);
   }, [id]);
 
   useEffect(() => {
@@ -139,6 +146,10 @@ export default function PropertyPricingSeasonsPage() {
   }, [loadData]);
 
   const seasons = property?.pricingRules || [];
+  const otherProperties = useMemo(
+    () => (allProperties || []).filter((p) => Number(p.id) !== Number(id)),
+    [allProperties, id]
+  );
 
   const refreshProgressivePreview = useCallback(async (pricePerNight, progressiveTiers) => {
     const requestId = ++progressivePreviewRequestRef.current;
@@ -414,6 +425,31 @@ export default function PropertyPricingSeasonsPage() {
     await loadData();
   };
 
+  const openApplyDialog = () => {
+    setApplyFeedback({ type: '', message: '' });
+    setApplyTargetPropertyId(otherProperties[0]?.id || '');
+    setApplyReplaceExisting(true);
+    setApplyDialogOpen(true);
+  };
+
+  const handleApplyToProperty = async () => {
+    if (!applyTargetPropertyId) return;
+    try {
+      const result = await api.applyPricingRulesToProperty(id, {
+        targetPropertyId: Number(applyTargetPropertyId),
+        replaceExisting: applyReplaceExisting,
+      });
+      setApplyDialogOpen(false);
+      const targetName = otherProperties.find((p) => Number(p.id) === Number(applyTargetPropertyId))?.name || 'logement cible';
+      setApplyFeedback({
+        type: 'success',
+        message: `${result.copiedRules || 0} saison(s) appliquée(s) vers "${targetName}".`,
+      });
+    } catch (error) {
+      setApplyFeedback({ type: 'error', message: error.message || 'Impossible d\'appliquer les saisons.' });
+    }
+  };
+
   useEffect(() => {
     if (!seasonDialogOpen || seasonForm.pricingMode !== 'progressive') {
       setProgressivePreview({ weekPriceEquivalent: 0, rows: [], progressiveTiers: [] });
@@ -454,10 +490,20 @@ export default function PropertyPricingSeasonsPage() {
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
             <Typography variant="h6">Saisons</Typography>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateSeason}>
-              Nouvelle saison
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Button variant="outlined" onClick={openApplyDialog} disabled={otherProperties.length === 0}>
+                Appliquer à un autre logement
+              </Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateSeason}>
+                Nouvelle saison
+              </Button>
+            </Box>
           </Box>
+          {applyFeedback.message && (
+            <Alert severity={applyFeedback.type || 'info'} sx={{ mb: 2 }} onClose={() => setApplyFeedback({ type: '', message: '' })}>
+              {applyFeedback.message}
+            </Alert>
+          )}
           <TableContainer>
             <Table size="small" sx={{ minWidth: 980 }}>
               <TableHead>
@@ -773,6 +819,43 @@ export default function PropertyPricingSeasonsPage() {
             disabled={!(seasonForm.dateRanges || []).some((range) => range.startDate && range.endDate) || !seasonForm.label || Boolean(localDateValidationError)}
           >
             Enregistrer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={applyDialogOpen} onClose={() => setApplyDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Appliquer les saisons à un autre logement</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Logement cible</InputLabel>
+              <Select
+                value={applyTargetPropertyId}
+                label="Logement cible"
+                onChange={(e) => setApplyTargetPropertyId(e.target.value)}
+              >
+                {otherProperties.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControlLabel
+              control={<Switch checked={applyReplaceExisting} onChange={(e) => setApplyReplaceExisting(e.target.checked)} />}
+              label="Remplacer toutes les saisons existantes du logement cible"
+            />
+
+            {!applyReplaceExisting && (
+              <Alert severity="info">
+                En mode ajout, l'application est refusée si une saison existante du logement cible chevauche une plage copiée.
+              </Alert>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setApplyDialogOpen(false)}>Annuler</Button>
+          <Button variant="contained" onClick={handleApplyToProperty} disabled={!applyTargetPropertyId}>
+            Appliquer
           </Button>
         </DialogActions>
       </Dialog>

@@ -261,6 +261,91 @@ router.delete('/:id/pricing/:ruleId', (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/:id/pricing/apply-to', (req, res) => {
+  const sourcePropertyId = Number(req.params.id);
+  const targetPropertyId = Number(req.body.targetPropertyId);
+  const replaceExisting = Boolean(req.body.replaceExisting);
+
+  if (!targetPropertyId) {
+    return res.status(400).json({ error: 'Le logement cible est requis.' });
+  }
+  if (sourcePropertyId === targetPropertyId) {
+    return res.status(400).json({ error: 'Le logement source et le logement cible doivent être différents.' });
+  }
+
+  const sourceProperty = db.prepare('SELECT id, name FROM properties WHERE id = ?').get(sourcePropertyId);
+  if (!sourceProperty) {
+    return res.status(404).json({ error: 'Logement source introuvable.' });
+  }
+  const targetProperty = db.prepare('SELECT id, name FROM properties WHERE id = ?').get(targetPropertyId);
+  if (!targetProperty) {
+    return res.status(404).json({ error: 'Logement cible introuvable.' });
+  }
+
+  const sourceRules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(sourcePropertyId);
+  if (!sourceRules.length) {
+    return res.status(400).json({ error: 'Aucune saison à appliquer pour le logement source.' });
+  }
+
+  const normalizedSourceRules = sourceRules.map((rule) => {
+    const normalizedDateRanges = normalizeDateRanges(parseRuleDateRanges(rule), rule.startDate, rule.endDate);
+    const bounds = getBoundsFromDateRanges(normalizedDateRanges);
+    return {
+      label: sentenceCase(rule.label || 'Standard'),
+      pricePerNight: Number(rule.pricePerNight || 0),
+      pricingMode: rule.pricingMode || 'fixed',
+      progressiveTiers: rule.progressiveTiers || '[]',
+      dateRanges: JSON.stringify(normalizedDateRanges),
+      color: rule.color || '#1976d2',
+      startDate: bounds.startDate,
+      endDate: bounds.endDate,
+      minNights: Number(rule.minNights || 1),
+      normalizedDateRanges,
+    };
+  });
+
+  if (!replaceExisting) {
+    for (const sourceRule of normalizedSourceRules) {
+      const conflict = findPricingRuleOverlap(targetPropertyId, sourceRule.normalizedDateRanges);
+      if (conflict) {
+        return res.status(409).json({
+          error: `Impossible d'appliquer: chevauchement avec la saison "${conflict.label}" du logement cible (${conflict.startDate} au ${conflict.endDate}).`,
+          code: 'PRICING_OVERLAP',
+          conflictingRule: conflict,
+        });
+      }
+    }
+  }
+
+  const insertRule = db.prepare(`
+    INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const applyTransaction = db.transaction(() => {
+    if (replaceExisting) {
+      db.prepare('DELETE FROM pricing_rules WHERE propertyId = ?').run(targetPropertyId);
+    }
+    for (const rule of normalizedSourceRules) {
+      insertRule.run(
+        targetPropertyId,
+        rule.label,
+        rule.pricePerNight,
+        rule.pricingMode,
+        rule.progressiveTiers,
+        rule.dateRanges,
+        rule.color,
+        rule.startDate,
+        rule.endDate,
+        rule.minNights,
+      );
+    }
+  });
+
+  applyTransaction();
+  return res.json({ ok: true, copiedRules: normalizedSourceRules.length, replaceExisting });
+});
+
 // --- Documents ---
 router.post('/:id/documents', upload.single('file'), (req, res) => {
   const { type, name } = req.body;
