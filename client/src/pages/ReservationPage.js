@@ -107,6 +107,8 @@ export default function ReservationPage() {
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
   const [availableResources, setAvailableResources] = useState([]);
+  const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
+  const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -416,6 +418,7 @@ export default function ReservationPage() {
             children: 0,
             teens: 0,
           });
+          setNightlyBreakdown(calc.nightlyBreakdown || []);
 
           const allRes = await api.getReservations({ propertyId: initialPropId });
           setReservations(allRes);
@@ -537,6 +540,7 @@ export default function ReservationPage() {
         });
 
         if (requestId !== pricingQuoteRequestRef.current) return;
+        setNightlyBreakdown(calc.nightlyBreakdown || []);
 
         setForm(prev => {
           if (prev.startDate !== form.startDate || prev.endDate !== form.endDate || prev.adults !== form.adults || prev.children !== form.children || prev.teens !== form.teens) {
@@ -1839,6 +1843,51 @@ export default function ReservationPage() {
                     <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${nights} nuit${nights > 1 ? 's' : ''} • ${form.totalPrice.toFixed(2)}€`}</Typography>
                   </Box>
+
+                  {nightlyBreakdown.length > 0 && (
+                    <Box sx={{ mt: -0.75 }}>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setShowNightlyBreakdown((prev) => !prev)}
+                        sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                      >
+                        {showNightlyBreakdown ? 'Masquer détail' : 'Détail'}
+                      </Button>
+                    </Box>
+                  )}
+
+                  {nightlyBreakdown.length > 0 && showNightlyBreakdown && (
+                    <Box
+                      sx={{
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        px: 1,
+                        py: 0.75,
+                        bgcolor: '#fafafa',
+                        maxHeight: 160,
+                        overflowY: 'auto',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
+                        Détail prix par nuit
+                      </Typography>
+                      {nightlyBreakdown.map((night) => (
+                        <Box
+                          key={`${night.date}-${night.nightNumber}`}
+                          sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.25 }}
+                        >
+                          <Typography variant="caption" color="text.secondary">
+                            Nuit {night.nightNumber} • {new Date(`${night.date}T00:00:00`).toLocaleDateString('fr-FR')}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                            {Number(night.price || 0).toFixed(2)}€
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
 
                   {/* Options */}
                   {optionsSelected.length > 0 && (

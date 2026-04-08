@@ -182,10 +182,11 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
   const end = new Date(`${endDate}T00:00:00`);
   const nights = Math.round((end - start) / 86400000);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || nights <= 0) {
-    return { nights: 0, totalPrice: 0 };
+    return { nights: 0, totalPrice: 0, nightlyBreakdown: [] };
   }
 
   let totalPrice = 0;
+  const nightlyBreakdown = [];
   const current = new Date(start);
 
   for (let nightIndex = 0; nightIndex < nights; nightIndex += 1) {
@@ -209,11 +210,26 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
 
     if ((matchedRule?.pricingMode || 'fixed') === 'progressive') {
       const stayNightNumber = nightIndex + 1;
-      totalPrice += stayNightNumber === 1
+      const nightPrice = stayNightNumber === 1
         ? nightlyBase
         : getProgressiveExtraNightPrice(matchedRule, stayNightNumber, nightlyBase);
+      totalPrice += nightPrice;
+      nightlyBreakdown.push({
+        date: dateStr,
+        nightNumber: stayNightNumber,
+        pricingMode: 'progressive',
+        seasonLabel: matchedRule?.label || 'Standard',
+        price: roundMoney(nightPrice),
+      });
     } else {
       totalPrice += nightlyBase;
+      nightlyBreakdown.push({
+        date: dateStr,
+        nightNumber: nightIndex + 1,
+        pricingMode: 'fixed',
+        seasonLabel: matchedRule?.label || 'Standard',
+        price: roundMoney(nightlyBase),
+      });
     }
 
     current.setDate(current.getDate() + 1);
@@ -222,6 +238,7 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
   return {
     nights,
     totalPrice: roundMoney(totalPrice),
+    nightlyBreakdown,
   };
 }
 
@@ -250,11 +267,12 @@ function calculateReservationQuote({
   }
 
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
-  const { nights, totalPrice } = calculateBaseStayPrice(rules, startDate, endDate);
+  const { nights, totalPrice, nightlyBreakdown } = calculateBaseStayPrice(rules, startDate, endDate);
   if (nights <= 0) {
     return {
       property,
       nights: 0,
+      nightlyBreakdown: [],
       persons: 0,
       totalPrice: 0,
       optionsTotal: 0,
@@ -365,6 +383,7 @@ function calculateReservationQuote({
   return {
     property,
     nights,
+    nightlyBreakdown,
     persons,
     totalPrice: roundMoney(totalPrice),
     optionsTotal,
