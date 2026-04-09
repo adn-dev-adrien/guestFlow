@@ -8,6 +8,8 @@ const {
   parseIcalDate,
   parseAdultsFromText,
   parseGuestName,
+  resolveIcalClientIdentity,
+  isUnavailableIcalEvent,
   parseIcsEvents,
   buildEventHash,
 } = propertiesRoute.__test;
@@ -32,10 +34,30 @@ test('parseGuestName returns a sane fallback and strips platform words', () => {
   const a = parseGuestName('Airbnb - Jean Dupont', '');
   assert.equal(a.firstName, 'Jean');
   assert.equal(a.lastName, 'Dupont');
+  assert.equal(a.isFallback, false);
 
   const b = parseGuestName('', '');
-  assert.equal(b.firstName, 'Client');
-  assert.equal(b.lastName, 'iCal');
+  assert.equal(b.firstName, '');
+  assert.equal(b.lastName, '');
+  assert.equal(b.isFallback, true);
+});
+
+test('resolveIcalClientIdentity uses platform label for fallback iCal clients', () => {
+  const identity = resolveIcalClientIdentity({ firstName: '', lastName: '', isFallback: true }, 'Booking');
+  assert.equal(identity.firstName, 'Ical');
+  assert.equal(identity.lastName, 'Booking');
+
+  const namedIdentity = resolveIcalClientIdentity({ firstName: 'Jean', lastName: 'Dupont', isFallback: false }, 'Booking');
+  assert.equal(namedIdentity.firstName, 'Jean');
+  assert.equal(namedIdentity.lastName, 'Dupont');
+});
+
+test('isUnavailableIcalEvent detects common unavailable markers', () => {
+  assert.equal(isUnavailableIcalEvent('Not available', ''), true);
+  assert.equal(isUnavailableIcalEvent('Unavailable', ''), true);
+  assert.equal(isUnavailableIcalEvent('Indisponible', ''), true);
+  assert.equal(isUnavailableIcalEvent('Réservation confirmée', ''), false);
+  assert.equal(isUnavailableIcalEvent('Airbnb (Not available)', ''), true);
 });
 
 test('parseIcsEvents parses VEVENT and ignores CANCELLED events', () => {
@@ -55,6 +77,12 @@ test('parseIcsEvents parses VEVENT and ignores CANCELLED events', () => {
     'DTEND;VALUE=DATE:20260422',
     'SUMMARY:Blocked',
     'STATUS:CANCELLED',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:event-3',
+    'DTSTART;VALUE=DATE:20260423',
+    'DTEND;VALUE=DATE:20260425',
+    'SUMMARY:Not available',
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');

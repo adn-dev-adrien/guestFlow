@@ -132,10 +132,33 @@ function parseGuestName(summary, description) {
     .replace(/[()\[\]{}:_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!cleaned) return { firstName: 'Client', lastName: 'iCal' };
+  if (!cleaned) return { firstName: '', lastName: '', isFallback: true };
   const parts = cleaned.split(' ').filter(Boolean);
-  if (parts.length === 1) return { firstName: parts[0], lastName: 'iCal' };
-  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+  if (parts.length === 1) return { firstName: parts[0], lastName: 'iCal', isFallback: false };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' '), isFallback: false };
+}
+
+function resolveIcalClientIdentity(guestName, platformLabel) {
+  const fallbackPlatformLabel = String(platformLabel || '').trim() || 'Plateforme';
+
+  if (guestName?.isFallback) {
+    return {
+      firstName: 'Ical',
+      lastName: fallbackPlatformLabel,
+    };
+  }
+
+  return {
+    firstName: sentenceCase(guestName?.firstName || 'Ical'),
+    lastName: sentenceCase(guestName?.lastName || 'iCal'),
+  };
+}
+
+function isUnavailableIcalEvent(summary, description) {
+  const text = `${String(summary || '')}\n${String(description || '')}`
+    .replace(/\u00a0/g, ' ')
+    .toLowerCase();
+  return /(blocked|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i.test(text);
 }
 
 function parseIcsEvents(icsText) {
@@ -194,12 +217,11 @@ function parseIcsEvents(icsText) {
         status,
       };
     })
-    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && !/blocked/i.test(event.summary));
+    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && !isUnavailableIcalEvent(event.summary, event.description));
 }
 
-function getOrCreateIcalClient(guestName) {
-  const firstName = sentenceCase(guestName.firstName || 'Client');
-  const lastName = sentenceCase(guestName.lastName || 'iCal');
+function getOrCreateIcalClient(guestName, platformLabel) {
+  const { firstName, lastName } = resolveIcalClientIdentity(guestName, platformLabel);
   const existing = db.prepare(`
     SELECT id FROM clients
     WHERE lower(firstName) = lower(?) AND lower(lastName) = lower(?)
@@ -211,7 +233,7 @@ function getOrCreateIcalClient(guestName) {
   const result = db.prepare(`
     INSERT INTO clients (lastName, firstName, notes)
     VALUES (?, ?, ?)
-  `).run(lastName, firstName, 'Client créé automatiquement via import iCal');
+  `).run(lastName, firstName, `iCal {${platformLabel}}: créé automatiquement lors de l'import`);
   return Number(result.lastInsertRowid);
 }
 
@@ -244,12 +266,14 @@ function syncIcalSource(source) {
     const events = parseIcsEvents(icsText);
 
     const getMapping = db.prepare('SELECT reservationId, eventHash FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
+    const listMappings = db.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
     const upsertMapping = db.prepare(`
       INSERT INTO ical_import_events (sourceId, eventUid, reservationId, eventHash, lastSeenAt)
       VALUES (?, ?, ?, ?, datetime('now'))
       ON CONFLICT(sourceId, eventUid)
       DO UPDATE SET reservationId=excluded.reservationId, eventHash=excluded.eventHash, lastSeenAt=datetime('now')
     `);
+    const deleteReservation = db.prepare('DELETE FROM reservations WHERE id = ?');
     const insertReservation = db.prepare(`
       INSERT INTO reservations (
         propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -269,13 +293,16 @@ function syncIcalSource(source) {
     let createdCount = 0;
     let updatedCount = 0;
     let unchangedCount = 0;
+    let removedCount = 0;
 
     const syncTx = db.transaction((eventList) => {
+      const seenUids = new Set(eventList.map((event) => event.uid));
+
       for (const event of eventList) {
         const eventHash = buildEventHash(event);
         const mapping = getMapping.get(source.id, event.uid);
         const guestName = parseGuestName(event.summary, event.description);
-        const clientId = getOrCreateIcalClient(guestName);
+        const clientId = getOrCreateIcalClient(guestName, source.platformLabel || source.name);
         const notes = `Import iCal (${source.name})\nUID: ${event.uid}${event.summary ? `\nRésumé: ${event.summary}` : ''}`;
 
         if (!mapping) {
@@ -315,6 +342,23 @@ function syncIcalSource(source) {
         upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash);
         updatedCount += 1;
       }
+
+      // Remove reservations that were previously imported from this source
+      // but are no longer present in the incoming iCal feed (or now filtered out).
+      const staleMappings = listMappings
+        .all(source.id)
+        .filter((row) => !seenUids.has(row.eventUid));
+      staleMappings.forEach((row) => {
+        deleteReservation.run(row.reservationId);
+        removedCount += 1;
+      });
+
+      // Cleanup orphan clients created by iCal imports.
+      db.prepare(`
+        DELETE FROM clients
+        WHERE NOT EXISTS (SELECT 1 FROM reservations WHERE reservations.clientId = clients.id)
+          AND notes LIKE 'iCal {%'
+      `).run();
     });
 
     syncTx(events);
@@ -324,6 +368,7 @@ function syncIcalSource(source) {
       createdCount,
       updatedCount,
       unchangedCount,
+      removedCount,
       rawIcal: icsText,
       parsedEvents: events,
     };
@@ -534,8 +579,35 @@ router.put('/:id', photoUpload.single('photo'), async (req, res) => {
 // Delete property
 router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
-  db.prepare('DELETE FROM properties WHERE id = ?').run(req.params.id);
-  if (existing && existing.photo) removeUploadedFile(existing.photo);
+  if (!existing) return res.json({ ok: true });
+
+  // Capture client IDs linked to this property's reservations BEFORE deletion,
+  // so we can clean up orphan clients afterwards.
+  const affectedClientIds = db
+    .prepare('SELECT DISTINCT clientId FROM reservations WHERE propertyId = ?')
+    .all(req.params.id)
+    .map((r) => r.clientId);
+
+  db.transaction(() => {
+    // Deleting the property cascades to: reservations, reservation_options,
+    // reservation_resources, reservation_nights, reservation_history,
+    // pricing_rules, documents, property_options, ical_sources,
+    // ical_import_events, calendar_notes.
+    db.prepare('DELETE FROM properties WHERE id = ?').run(req.params.id);
+
+    // Remove clients that now have no reservations on any property.
+    // Clients still linked to reservations on other properties are preserved.
+    if (affectedClientIds.length > 0) {
+      const placeholders = affectedClientIds.map(() => '?').join(',');
+      db.prepare(`
+        DELETE FROM clients
+        WHERE id IN (${placeholders})
+          AND NOT EXISTS (SELECT 1 FROM reservations WHERE clientId = clients.id)
+      `).run(...affectedClientIds);
+    }
+  })();
+
+  if (existing.photo) removeUploadedFile(existing.photo);
   res.json({ ok: true });
 });
 
@@ -824,7 +896,7 @@ router.post('/:id/ical-sources/:sourceId/sync', async (req, res) => {
           updatedAt = datetime('now')
       WHERE id = ?
     `).run(
-      `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.unchangedCount} inchangé(s)`,
+      `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
       result.createdCount + result.updatedCount,
       sourceId,
     );
@@ -860,7 +932,7 @@ router.post('/:id/ical-sources/sync-all', async (req, res) => {
             updatedAt = datetime('now')
         WHERE id = ?
       `).run(
-        `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.unchangedCount} inchangé(s)`,
+        `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
         result.createdCount + result.updatedCount,
         source.id,
       );
@@ -901,6 +973,8 @@ module.exports.__test = {
   unfoldIcsLines,
   parseAdultsFromText,
   parseGuestName,
+  resolveIcalClientIdentity,
+  isUnavailableIcalEvent,
   parseIcsEvents,
   buildEventHash,
 };
