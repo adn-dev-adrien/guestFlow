@@ -482,33 +482,85 @@ function migrateOptionsColumns() {
     const columns = db.prepare('PRAGMA table_info(options)').all();
     const columnNames = columns.map(col => col.name);
     
+    console.log('[Migration] Options table columns:', columnNames);
+    
     const needed = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
     const missing = needed.filter(col => !columnNames.includes(col));
     
     if (missing.length > 0) {
-      // Add missing columns
+      console.log('[Migration] Adding missing columns to options table:', missing);
+      
+      // Add missing columns one by one with individual error handling
       if (!columnNames.includes('autoOptionType')) {
-        db.exec('ALTER TABLE options ADD COLUMN autoOptionType TEXT');
+        try {
+          db.exec('ALTER TABLE options ADD COLUMN autoOptionType TEXT');
+          console.log('[Migration] ✅ Added autoOptionType column');
+        } catch (e) {
+          console.log('[Migration] Column autoOptionType might already exist:', e.message);
+        }
       }
+      
       if (!columnNames.includes('autoEnabled')) {
-        db.exec('ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0');
+        try {
+          db.exec('ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0');
+          console.log('[Migration] ✅ Added autoEnabled column');
+        } catch (e) {
+          console.log('[Migration] Column autoEnabled might already exist:', e.message);
+        }
       }
+      
       if (!columnNames.includes('autoPricingMode')) {
-        db.exec('ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT \'fixed\'');
+        try {
+          db.exec('ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT \'fixed\'');
+          console.log('[Migration] ✅ Added autoPricingMode column');
+        } catch (e) {
+          console.log('[Migration] Column autoPricingMode might already exist:', e.message);
+        }
       }
+      
       if (!columnNames.includes('autoFullNightThreshold')) {
-        db.exec('ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT');
+        try {
+          db.exec('ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT');
+          console.log('[Migration] ✅ Added autoFullNightThreshold column');
+        } catch (e) {
+          console.log('[Migration] Column autoFullNightThreshold might already exist:', e.message);
+        }
       }
+      
+      // Verify migration
+      const columnsAfter = db.prepare('PRAGMA table_info(options)').all();
+      const columnNamesAfter = columnsAfter.map(col => col.name);
+      console.log('[Migration] Options table columns after migration:', columnNamesAfter);
+    } else {
+      console.log('[Migration] All required columns already exist in options table');
     }
   } catch (err) {
-    console.error('Migration error:', err.message);
+    console.error('[Migration] Error during migration:', err.message);
     throw err;
   }
 }
 
+console.log('[Migration] Running options table migration...');
 migrateOptionsColumns();
+console.log('[Migration] Options table migration completed');
 
 function ensureDefaultTimedOptionsForProperty(propertyId) {
+  // Safety check: ensure required columns exist before proceeding
+  try {
+    const columns = db.prepare('PRAGMA table_info(options)').all();
+    const columnNames = columns.map(col => col.name);
+    const required = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
+    const allExist = required.every(col => columnNames.includes(col));
+    
+    if (!allExist) {
+      console.warn('[ensureDefaultTimedOptionsForProperty] Required columns missing, skipping initialization');
+      return;
+    }
+  } catch (err) {
+    console.warn('[ensureDefaultTimedOptionsForProperty] Could not verify columns:', err.message, ', skipping initialization');
+    return;
+  }
+  
   const upsertTimedOption = (config) => {
     const existing = db.prepare(`
       SELECT o.id
@@ -554,8 +606,20 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
   });
 }
 
-const allProperties = db.prepare('SELECT id FROM properties').all();
-allProperties.forEach((property) => ensureDefaultTimedOptionsForProperty(property.id));
+// Safely ensure default timed options for existing properties
+try {
+  const allProperties = db.prepare('SELECT id FROM properties').all();
+  allProperties.forEach((property) => {
+    try {
+      ensureDefaultTimedOptionsForProperty(property.id);
+    } catch (err) {
+      console.error(`[Warning] Failed to ensure default timed options for property ${property.id}:`, err.message);
+    }
+  });
+  console.log('[Database] Default timed options ensured for all properties');
+} catch (err) {
+  console.error('[Warning] Failed to ensure default timed options:', err.message);
+}
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 
