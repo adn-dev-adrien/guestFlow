@@ -1,7 +1,10 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, '..', 'guestflow.db'));
+// DB_PATH env var lets CI/CD point to a persistent location outside the deployment folder.
+// Falls back to the traditional location so existing dev setups are unaffected.
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'guestflow.db');
+const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -245,6 +248,10 @@ db.exec(`
 `);
 
 // ---------- MIGRATIONS ----------
+// ALTER TABLE migrations are skipped when SKIP_MIGRATIONS=true.
+// CREATE TABLE IF NOT EXISTS statements above always run — they are safe and idempotent.
+// To apply schema changes: set SKIP_MIGRATIONS=false (or omit it) and restart the server once.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
 const cols = db.prepare("PRAGMA table_info(reservations)").all().map(c => c.name);
 if (!cols.includes('cautionAmount')) {
   db.exec("ALTER TABLE reservations ADD COLUMN cautionAmount REAL DEFAULT 0");
@@ -368,6 +375,7 @@ if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastImportedCount')) 
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('updatedAt')) {
   db.exec("ALTER TABLE ical_sources ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
 }
+} // end SKIP_MIGRATIONS guard
 
 // ---------- CALENDAR NOTES ----------
 db.exec(`

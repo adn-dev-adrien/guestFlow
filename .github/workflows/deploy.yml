@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - release
+  workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: 'Run database migrations (ALTER TABLE additions). Safe but optional — never deletes data.'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   deploy:
@@ -39,46 +49,61 @@ jobs:
           pm2 stop guestflow 2>/dev/null || true
           pm2 delete guestflow 2>/dev/null || true
 
+      - name: Setup persistent data directory
+        run: |
+          # The database lives here permanently — outside current/ so it is NEVER touched by deploys.
+          PERSISTENT_DB_DIR="$HOME/guestflow/data"
+          PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
+          mkdir -p "$PERSISTENT_DB_DIR"
+
+          # One-time migration: if DB exists at the old location (inside current/), move it here.
+          LEGACY_DB="$HOME/guestflow/current/server/guestflow.db"
+          if [ ! -f "$PERSISTENT_DB" ] && [ -f "$LEGACY_DB" ]; then
+            cp "$LEGACY_DB" "$PERSISTENT_DB"
+            echo "✓ Database migrated from legacy location to $PERSISTENT_DB"
+          fi
+
+          # Safety backup before every deploy (keeps the last 5).
+          if [ -f "$PERSISTENT_DB" ]; then
+            BACKUP="$PERSISTENT_DB_DIR/backup-$(date +%Y%m%d-%H%M%S).db"
+            cp "$PERSISTENT_DB" "$BACKUP"
+            echo "✓ Pre-deploy backup saved to $BACKUP"
+            ls -1t "$PERSISTENT_DB_DIR"/backup-*.db 2>/dev/null | tail -n +6 | xargs rm -f || true
+          else
+            echo "ℹ No existing database found — a fresh one will be created on first start."
+          fi
+
       - name: Extract and deploy release
         run: |
           RELEASE_NAME="guestflow-release"
           DEPLOY_DIR="$HOME/guestflow"
           mkdir -p "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
-          
-          # Preserve database and uploads from current version
-          if [ -d "current" ]; then
-            mkdir -p _backup_data
-            if [ -f "current/server/guestflow.db" ]; then
-              cp "current/server/guestflow.db" "_backup_data/" || true
-            fi
-            if [ -d "current/server/uploads" ]; then
-              cp -r "current/server/uploads" "_backup_data/" || true
-            fi
+
+          # Preserve uploads from the running version.
+          if [ -d "current/server/uploads" ]; then
+            cp -r "current/server/uploads" /tmp/_guestflow_uploads_backup || true
           fi
-          
-          # Backup current version if exists
+
+          # Archive the previous version (keep last 3 for emergency rollback).
           if [ -d "current" ]; then
             mv current "backup-$(date +%Y%m%d-%H%M%S)"
+            ls -1dt backup-* 2>/dev/null | tail -n +4 | xargs rm -rf || true
           fi
-          
+
           mkdir -p current
-          
-          # Extract release
+
+          # Extract new release (guestflow.db is excluded by release.sh — database is safe).
           unzip -q "$OLDPWD/${RELEASE_NAME}.zip"
           mv "${RELEASE_NAME}"/* current
           rm -r "${RELEASE_NAME}"
-          
-          # Restore database and uploads
-          if [ -f "_backup_data/guestflow.db" ]; then
-            cp "_backup_data/guestflow.db" "current/server/" || true
-            echo "✓ Base de données restaurée"
+
+          # Restore uploads.
+          if [ -d /tmp/_guestflow_uploads_backup ]; then
+            cp -r /tmp/_guestflow_uploads_backup "current/server/uploads" || true
+            rm -rf /tmp/_guestflow_uploads_backup
+            echo "✓ Uploads restored"
           fi
-          if [ -d "_backup_data/uploads" ]; then
-            cp -r "_backup_data/uploads" "current/server/" || true
-            echo "✓ Dossier uploads restauré"
-          fi
-          rm -rf _backup_data
 
       - name: Install server dependencies
         run: |
@@ -91,9 +116,30 @@ jobs:
             npm install --omit=dev
           fi
 
+      - name: Run database migrations
+        run: |
+          # Migrations are ALTER TABLE additions — they are safe and never delete data.
+          # They only run when this workflow is triggered manually with run_migrations=true.
+          # On regular push deploys they are skipped to keep startup fast and predictable.
+          if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then
+            echo "Running database migrations..."
+            cd "$HOME/guestflow/current/server"
+            DB_PATH="$HOME/guestflow/data/guestflow.db" node -e "
+              require('./src/database.js');
+              console.log('✓ Migrations complete');
+            "
+          else
+            echo "ℹ Migrations skipped. Trigger this workflow manually with run_migrations=true to apply schema changes."
+          fi
+
       - name: Start service with PM2
         run: |
-          NODE_ENV=production pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
+          # DB_PATH points to the persistent location outside current/.
+          # SKIP_MIGRATIONS=true because migrations were already handled in the step above.
+          NODE_ENV=production \
+          DB_PATH="$HOME/guestflow/data/guestflow.db" \
+          SKIP_MIGRATIONS=true \
+          pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
           pm2 save
           pm2 startup systemd -u "$USER" --hp "$HOME" || true
 
