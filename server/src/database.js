@@ -478,21 +478,31 @@ if (!babyBed) {
 // Migration: Add missing columns to options table if they don't exist
 function migrateOptionsColumns() {
   try {
-    // Test if autoOptionType column exists
-    db.prepare('SELECT autoOptionType FROM options LIMIT 1').all();
-  } catch (err) {
-    // Column doesn't exist, add all missing columns
-    try {
-      db.exec(`
-        ALTER TABLE options ADD COLUMN autoOptionType TEXT;
-        ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0;
-        ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed';
-        ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT;
-      `);
-    } catch (alterErr) {
-      // Columns might already exist in some databases, ignore error
-      console.log('Migration note: autoOptionType columns may already exist or migration skipped');
+    // Get existing columns using PRAGMA
+    const columns = db.prepare('PRAGMA table_info(options)').all();
+    const columnNames = columns.map(col => col.name);
+    
+    const needed = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
+    const missing = needed.filter(col => !columnNames.includes(col));
+    
+    if (missing.length > 0) {
+      // Add missing columns
+      if (!columnNames.includes('autoOptionType')) {
+        db.exec('ALTER TABLE options ADD COLUMN autoOptionType TEXT');
+      }
+      if (!columnNames.includes('autoEnabled')) {
+        db.exec('ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0');
+      }
+      if (!columnNames.includes('autoPricingMode')) {
+        db.exec('ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT \'fixed\'');
+      }
+      if (!columnNames.includes('autoFullNightThreshold')) {
+        db.exec('ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT');
+      }
     }
+  } catch (err) {
+    console.error('Migration error:', err.message);
+    throw err;
   }
 }
 
