@@ -2,8 +2,9 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 // DB_PATH env var lets CI/CD point to a persistent location outside the deployment folder.
-// Falls back to the traditional location so existing dev setups are unaffected.
-const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'guestflow.db');
+// PERSISTENT_DB is used by deployment scripts. Falls back to the traditional location so existing dev setups are unaffected.
+const dbPath = process.env.DB_PATH || process.env.PERSISTENT_DB || path.join(__dirname, '..', 'guestflow.db');
+console.log('[Database] Using database path:', dbPath);
 const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
