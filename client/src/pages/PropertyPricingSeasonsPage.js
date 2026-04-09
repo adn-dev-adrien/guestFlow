@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
+import 'dayjs/locale/fr';
 import {
   Box, Typography, Card, CardContent, Button, Grid, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Table, TableHead, TableRow,
@@ -10,6 +11,7 @@ import {
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { frFR } from '@mui/x-date-pickers/locales';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -678,7 +680,7 @@ export default function PropertyPricingSeasonsPage() {
       <Dialog open={seasonDialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}</DialogTitle>
         <DialogContent>
-          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr">
+          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr" localeText={frFR.components.MuiLocalizationProvider.defaultProps.localeText}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             {seasonSaveError && <Alert severity="error">{seasonSaveError}</Alert>}
             {localDateValidationError && <Alert severity="error">{localDateValidationError}</Alert>}

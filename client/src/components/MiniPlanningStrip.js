@@ -188,7 +188,7 @@ export default function MiniPlanningStrip({
             const isArrival = isArrivalDay(day);
             const isDeparture = isDepartureDay(day);
             const dateObj = parseDate(day);
-            const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][dateObj?.getDay() || 0];
+            const weekLabel = ['D', 'L', 'M', 'M', 'J', 'V', 'S'][dateObj?.getDay() || 0];
 
             const selectedDeparture = currentReservation?.endDate === day ? currentReservation : null;
             const selectedArrival = currentReservation?.startDate === day ? currentReservation : null;

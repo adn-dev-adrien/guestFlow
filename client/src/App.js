@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
+import 'dayjs/locale/fr';
+
+// Set dayjs locale globally to French
+dayjs.locale('fr');
+
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,

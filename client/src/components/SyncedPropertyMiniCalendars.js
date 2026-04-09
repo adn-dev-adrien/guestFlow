@@ -169,7 +169,7 @@ export default function SyncedPropertyMiniCalendars({
                 <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length}, minmax(42px, 1fr))`, gap: 0.5 }}>
                   {miniDays.map((day) => {
                     const date = parseDateKey(day);
-                    const weekLabel = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][date.getUTCDay()];
+                    const weekLabel = ['D', 'L', 'M', 'M', 'J', 'V', 'S'][date.getUTCDay()];
                     const departureRes = propertyReservations.find((item) => item.endDate === day) || null;
                     const arrivalRes = propertyReservations.find((item) => item.startDate === day) || null;
                     const middleRes = propertyReservations.find((item) => day > item.startDate && day < item.endDate) || null;

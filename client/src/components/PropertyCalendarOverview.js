@@ -46,7 +46,7 @@ export default function PropertyCalendarOverview({
               return (
                 <Box key={d} sx={{ textAlign: 'center', fontSize: 10, py: 1, color: 'text.secondary' }}>
                   <Box>{date.getDate()}</Box>
-                  <Box>{['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'][date.getDay()]}</Box>
+                  <Box>{['D', 'L', 'M', 'M', 'J', 'V', 'S'][date.getDay()]}</Box>
                 </Box>
               );
             })}
