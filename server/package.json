@@ -2,9 +2,14 @@
   "name": "guestflow-server",
   "version": "1.0.0",
   "scripts": {
-    "dev": "node --watch src/index.js",
+    "dev:clean": "fuser -k 4000/tcp 2>/dev/null || true",
+    "dev:watch": "nodemon --watch src --ext js,json --signal SIGTERM src/index.js",
+    "dev": "npm run dev:clean && npm run dev:watch",
     "start": "node src/index.js",
     "test": "node --test \"src/tests/**/*.test.js\""
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
