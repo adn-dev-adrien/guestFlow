@@ -2033,8 +2033,9 @@ export default function ReservationPage() {
             {(() => {
               const nights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
               const persons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
+              const adultsCount = Number(form.adults) || 1;
               const touristTaxRate = Number(selectedProperty?.touristTaxPerDayPerPerson || 0);
-              const touristTaxTotal = Math.round(touristTaxRate * nights * persons * 100) / 100;
+              const touristTaxTotal = Math.round(touristTaxRate * nights * adultsCount * 100) / 100;
               const optionsSelected = propertyOptions
                 .map((opt) => form.selectedOptions.find((so) => so.optionId === opt.id))
                 .filter((so) => so && Number(so.quantity) > 0);
@@ -2172,7 +2173,7 @@ export default function ReservationPage() {
                         <Box>
                           <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {touristTaxRate.toFixed(2)}€ × {persons} pers. × {nights} nuit{nights > 1 ? 's' : ''}
+                            {touristTaxRate.toFixed(2)}€ × {adultsCount} adulte{adultsCount > 1 ? 's' : ''} × {nights} nuit{nights > 1 ? 's' : ''}
                           </Typography>
                         </Box>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{touristTaxTotal.toFixed(2)}€</Typography>

@@ -662,7 +662,8 @@ function calculateReservationQuote({
   const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
   const touristTaxRate = Number(property.touristTaxPerDayPerPerson || 0);
-  const touristTaxTotal = roundMoney(touristTaxRate * nights * persons);
+  const adultsCount = Number(adults || 1);
+  const touristTaxTotal = roundMoney(touristTaxRate * nights * adultsCount);
 
   return {
     property,
