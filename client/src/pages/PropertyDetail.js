@@ -281,6 +281,7 @@ export default function PropertyDetail() {
         createdCount: result.createdCount,
         updatedCount: result.updatedCount,
         unchangedCount: result.unchangedCount,
+        removedCount: result.removedCount,
       });
       await load();
     } finally {

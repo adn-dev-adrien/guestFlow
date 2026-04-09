@@ -95,6 +95,24 @@ test('parseIcsEvents parses VEVENT and ignores CANCELLED events', () => {
   assert.equal(events[0].adults, 2);
 });
 
+test('parseIcsEvents ignores Airbnb (Not available) placeholder event', () => {
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'DTSTAMP:20260409T080006Z',
+    'DTSTART;VALUE=DATE:20270409',
+    'DTEND;VALUE=DATE:20270410',
+    'SUMMARY:Airbnb (Not available)',
+    'UID:7f662ec65913-11698f2428a90dbb5cfd91ee9cb65c80@airbnb.com',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const events = parseIcsEvents(ics);
+  assert.equal(events.length, 0);
+});
+
 test('buildEventHash is stable for same payload and changes when event changes', () => {
   const base = {
     uid: 'abc',

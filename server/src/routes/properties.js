@@ -233,7 +233,7 @@ function getOrCreateIcalClient(guestName, platformLabel) {
   const result = db.prepare(`
     INSERT INTO clients (lastName, firstName, notes)
     VALUES (?, ?, ?)
-  `).run(lastName, firstName, `iCal {${platformLabel}}: créé automatiquement lors de l'import`);
+  `).run(lastName, firstName, `${platformLabel}: créé automatiquement lors de l'import iCal`);
   return Number(result.lastInsertRowid);
 }
 
@@ -282,7 +282,7 @@ function syncIcalSource(source) {
         depositAmount, depositDueDate, depositPaid,
         balanceAmount, balanceDueDate, balancePaid,
         notes, cautionAmount
-      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, ?, ?)
     `);
     const updateReservation = db.prepare(`
       UPDATE reservations
