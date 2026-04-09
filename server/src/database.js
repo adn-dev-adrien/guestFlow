@@ -486,11 +486,11 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     `).get(propertyId, config.autoOptionType);
 
     if (existing) {
+      // Update existing option, but only non-empty fields
       db.prepare(`
         UPDATE options
         SET title = COALESCE(NULLIF(title, ''), ?),
             description = COALESCE(NULLIF(description, ''), ?),
-            priceType = COALESCE(NULLIF(priceType, ''), 'per_stay'),
             autoPricingMode = COALESCE(NULLIF(autoPricingMode, ''), 'fixed'),
             autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
         WHERE id = ?

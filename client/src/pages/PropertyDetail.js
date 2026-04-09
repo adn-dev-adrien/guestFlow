@@ -102,8 +102,8 @@ export default function PropertyDetail() {
 
     const propId = Number(id);
     const scopedOptions = (allOptions || []).filter((option) => Array.isArray(option.propertyIds) && option.propertyIds.includes(propId));
-    const early = scopedOptions.find((option) => option.autoOptionType === 'early_check_in') || null;
-    const late = scopedOptions.find((option) => option.autoOptionType === 'late_check_out') || null;
+    const early = scopedOptions.find((option) => option.autoOptionType === 'early_check_in');
+    const late = scopedOptions.find((option) => option.autoOptionType === 'late_check_out');
     setTimedOptions({
       early: early ? {
         ...early,
@@ -111,14 +111,34 @@ export default function PropertyDetail() {
         autoPricingMode: early.autoPricingMode || 'fixed',
         autoFullNightThreshold: early.autoFullNightThreshold || '10:00',
         price: Number(early.price || 0),
-      } : null,
+      } : {
+        autoOptionType: 'early_check_in',
+        title: 'Arrivée anticipée',
+        description: 'Option automatique si arrivée avant l\'heure par défaut',
+        autoEnabled: false,
+        autoPricingMode: 'fixed',
+        autoFullNightThreshold: '10:00',
+        price: 0,
+        propertyIds: [propId],
+        priceType: 'per_stay',
+      },
       late: late ? {
         ...late,
         autoEnabled: Number(late.autoEnabled || 0) === 1,
         autoPricingMode: late.autoPricingMode || 'fixed',
         autoFullNightThreshold: late.autoFullNightThreshold || '17:00',
         price: Number(late.price || 0),
-      } : null,
+      } : {
+        autoOptionType: 'late_check_out',
+        title: 'Départ tardif',
+        description: 'Option automatique si départ après l\'heure par défaut',
+        autoEnabled: false,
+        autoPricingMode: 'fixed',
+        autoFullNightThreshold: '17:00',
+        price: 0,
+        propertyIds: [propId],
+        priceType: 'per_stay',
+      },
     });
   }, [id, isNew]);
 
@@ -143,17 +163,26 @@ export default function PropertyDetail() {
 
     setTimedOptionsSaving(true);
     try {
-      await Promise.all(payloads.map((option) => api.updateOption(option.id, {
-        title: option.title,
-        description: option.description,
-        priceType: 'per_stay',
-        price: Number(option.price || 0),
-        propertyIds: option.propertyIds || [Number(id)],
-        autoOptionType: option.autoOptionType,
-        autoEnabled: Boolean(option.autoEnabled),
-        autoPricingMode: option.autoPricingMode || 'fixed',
-        autoFullNightThreshold: option.autoFullNightThreshold,
-      })));
+      await Promise.all(payloads.map((option) => {
+        const payload = {
+          title: option.title,
+          description: option.description,
+          priceType: 'per_stay',
+          price: Number(option.price || 0),
+          propertyIds: option.propertyIds || [Number(id)],
+          autoOptionType: option.autoOptionType,
+          autoEnabled: Boolean(option.autoEnabled),
+          autoPricingMode: option.autoPricingMode || 'fixed',
+          autoFullNightThreshold: option.autoFullNightThreshold,
+        };
+        // Si l'option a un ID, elle existe déjà : UPDATE
+        // Sinon, elle est nouvelle : CREATE
+        if (option.id) {
+          return api.updateOption(option.id, payload);
+        } else {
+          return api.createOption(payload);
+        }
+      }));
       await load();
     } finally {
       setTimedOptionsSaving(false);
