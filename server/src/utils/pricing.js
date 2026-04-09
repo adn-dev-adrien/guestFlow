@@ -195,6 +195,73 @@ function getTypeMultiplier(priceType, persons, nights) {
   return 1;
 }
 
+function timeToDecimalHour(timeStr, fallback = 0) {
+  const value = String(timeStr || '').trim();
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number(fallback || 0);
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number(fallback || 0);
+  return hours + minutes / 60;
+}
+
+function computeAutoTimedOptionContext({
+  option,
+  checkInTime,
+  checkOutTime,
+  defaultCheckIn,
+  defaultCheckOut,
+  nightlyBreakdown,
+}) {
+  if (!option || !option.autoOptionType || Number(option.autoEnabled || 0) !== 1) return null;
+
+  const isEarly = option.autoOptionType === 'early_check_in';
+  const isLate = option.autoOptionType === 'late_check_out';
+  if (!isEarly && !isLate) return null;
+
+  const defaultHour = isEarly
+    ? timeToDecimalHour(defaultCheckIn, 15)
+    : timeToDecimalHour(defaultCheckOut, 10);
+  const requestedHour = isEarly
+    ? timeToDecimalHour(checkInTime || defaultCheckIn, defaultHour)
+    : timeToDecimalHour(checkOutTime || defaultCheckOut, defaultHour);
+
+  const needsOption = isEarly ? requestedHour < defaultHour : requestedHour > defaultHour;
+  if (!needsOption) return null;
+
+  const thresholdDefault = isEarly ? '10:00' : '17:00';
+  const thresholdHour = timeToDecimalHour(option.autoFullNightThreshold || thresholdDefault, isEarly ? 10 : 17);
+  const concernedNightPrice = isEarly
+    ? Number(nightlyBreakdown?.[0]?.price || 0)
+    : Number(nightlyBreakdown?.[Math.max(0, (nightlyBreakdown?.length || 1) - 1)]?.price || 0);
+
+  const isFullNight = isEarly ? requestedHour <= thresholdHour : requestedHour >= thresholdHour;
+  const extraHours = isEarly
+    ? Math.max(0, defaultHour - requestedHour)
+    : Math.max(0, requestedHour - defaultHour);
+
+  let totalPrice = Number(option.price || 0);
+  if (String(option.autoPricingMode || 'fixed') === 'proportional') {
+    totalPrice = isFullNight
+      ? concernedNightPrice
+      : (concernedNightPrice / 12) * extraHours;
+  }
+
+  return {
+    optionId: Number(option.id),
+    title: option.title,
+    quantity: 1,
+    unitPrice: roundMoney(totalPrice),
+    billedUnits: 1,
+    priceType: 'per_stay',
+    totalPrice: roundMoney(totalPrice),
+    autoOptionType: option.autoOptionType,
+    autoPricingMode: option.autoPricingMode || 'fixed',
+    autoExtraHours: roundMoney(extraHours),
+    autoFullNightApplied: Boolean(isFullNight),
+  };
+}
+
 function normalizeBilledUnits(value) {
   const units = Number(value);
   if (!Number.isFinite(units)) return 0;
@@ -393,6 +460,8 @@ function calculateReservationQuote({
   propertyId,
   startDate,
   endDate,
+  checkInTime,
+  checkOutTime,
   adults,
   children,
   teens,
@@ -501,6 +570,36 @@ function calculateReservationQuote({
     })
     .filter(Boolean);
 
+  const selectedOptionIds = new Set(optionLines.map((line) => Number(line.optionId)));
+  const autoOptionLines = Array.from(optionsById.values())
+    .filter((option) => Number(option.autoEnabled || 0) === 1)
+    .map((option) => computeAutoTimedOptionContext({
+      option,
+      checkInTime,
+      checkOutTime,
+      defaultCheckIn: property.defaultCheckIn || '15:00',
+      defaultCheckOut: property.defaultCheckOut || '10:00',
+      nightlyBreakdown,
+    }))
+    .filter(Boolean)
+    .map((line) => {
+      const lockedLine = lockedOptionsById.get(Number(line.optionId));
+      const merged = mergeLineWithLockedSnapshot({
+        lockedLine,
+        targetBilledUnits: 1,
+        currentUnitPrice: line.unitPrice,
+      });
+      return {
+        ...line,
+        unitPrice: merged.unitPrice,
+        billedUnits: merged.billedUnits,
+        totalPrice: merged.totalPrice,
+      };
+    })
+    .filter((line) => !selectedOptionIds.has(Number(line.optionId)));
+
+  const finalOptionLines = [...optionLines, ...autoOptionLines];
+
   const resourceLines = (Array.isArray(selectedResources) ? selectedResources : [])
     .map((selected) => {
       const quantity = Math.max(0, Number(selected?.quantity || 0));
@@ -532,7 +631,7 @@ function calculateReservationQuote({
     })
     .filter(Boolean);
 
-  const optionsTotal = roundMoney(optionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
+  const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const subtotal = roundMoney(Number(totalPrice || 0) + optionsTotal + resourcesTotal);
   const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
@@ -589,7 +688,7 @@ function calculateReservationQuote({
     totalStayPrice: roundMoney(finalPrice + touristTaxTotal),
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
-    optionLines,
+    optionLines: finalOptionLines,
     resourceLines,
   };
 }
@@ -603,5 +702,11 @@ module.exports = {
   buildDefaultProgressiveTiers,
   normalizeProgressiveTiers,
   buildProgressivePreview,
+  calculateReservationQuote,
+};
+
+module.exports.__test = {
+  timeToDecimalHour,
+  computeAutoTimedOptionContext,
   calculateReservationQuote,
 };

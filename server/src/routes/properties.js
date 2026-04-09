@@ -602,6 +602,11 @@ router.post('/', photoUpload.single('photo'), async (req, res) => {
       `${currentYear}-12-31`,
       1
     );
+
+    if (typeof db.ensureDefaultTimedOptionsForProperty === 'function') {
+      db.ensureDefaultTimedOptionsForProperty(Number(propertyId));
+    }
+
     res.json({ id: propertyId });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erreur lors de la création du logement' });

@@ -150,6 +150,8 @@ export default function ReservationPage() {
     propertyId: selectedProp ? Number(selectedProp) : null,
     startDate: form.startDate,
     endDate: form.endDate,
+    checkInTime: form.checkInTime,
+    checkOutTime: form.checkOutTime,
     adults: Number(form.adults || 0),
     children: Number(form.children || 0),
     teens: Number(form.teens || 0),
@@ -160,12 +162,13 @@ export default function ReservationPage() {
     depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
     balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
     selectedOptions: (form.selectedOptions || [])
+      .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
       .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) }))
       .sort((a, b) => a.optionId - b.optionId),
     selectedResources: (form.selectedResources || [])
       .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0) }))
       .sort((a, b) => a.resourceId - b.resourceId),
-  }), [selectedProp, form.startDate, form.endDate, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.selectedResources]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.selectedResources, propertyOptions]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -282,7 +285,6 @@ export default function ReservationPage() {
   }, [form.startDate, miniSelectionAnchor]);
 
   const applyQuoteToForm = useCallback((prev, quote) => {
-    const optionLinesById = new Map((quote.optionLines || []).map((line) => [Number(line.optionId), line]));
     const resourceLinesById = new Map((quote.resourceLines || []).map((line) => [Number(line.resourceId), line]));
 
     return {
@@ -293,13 +295,13 @@ export default function ReservationPage() {
       depositDueDate: quote.depositDueDate || '',
       balanceAmount: Number(quote.balanceAmount || 0),
       balanceDueDate: quote.balanceDueDate || '',
-      selectedOptions: (prev.selectedOptions || []).map((item) => {
-        const line = optionLinesById.get(Number(item.optionId));
-        return {
-          ...item,
-          totalPrice: Number(line?.totalPrice || 0),
-        };
-      }),
+      selectedOptions: (quote.optionLines || []).map((line) => ({
+        optionId: Number(line.optionId),
+        quantity: Number(line.quantity || 0),
+        totalPrice: Number(line.totalPrice || 0),
+        ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
+        ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
+      })),
       selectedResources: (prev.selectedResources || []).map((item) => {
         const line = resourceLinesById.get(Number(item.resourceId));
         return {
@@ -429,6 +431,8 @@ export default function ReservationPage() {
             propertyId: initialPropId,
             startDate,
             endDate,
+            checkInTime: prop.defaultCheckIn || '15:00',
+            checkOutTime: prop.defaultCheckOut || '10:00',
             adults: 1,
             children: 0,
             teens: 0,
@@ -544,6 +548,8 @@ export default function ReservationPage() {
           propertyId: selectedProp,
           startDate: form.startDate,
           endDate: form.endDate,
+          checkInTime: form.checkInTime,
+          checkOutTime: form.checkOutTime,
           adults: form.adults,
           children: form.children,
           teens: form.teens,
@@ -553,7 +559,7 @@ export default function ReservationPage() {
           balancePaid: form.balancePaid,
           depositAmount: form.depositAmount,
           balanceAmount: form.balanceAmount,
-          selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+          selectedOptions: (form.selectedOptions || []).filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
           selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
           lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
           lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
@@ -856,6 +862,8 @@ export default function ReservationPage() {
         propertyId: nextPropertyId,
         startDate: form.startDate,
         endDate: form.endDate,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
         adults: form.adults,
         children: form.children,
         teens: form.teens,
@@ -944,6 +952,8 @@ export default function ReservationPage() {
         propertyId: Number(selectedProp),
         startDate: form.startDate,
         endDate: form.endDate,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
         adults: form.adults,
         children: form.children,
         teens: form.teens,
@@ -953,7 +963,7 @@ export default function ReservationPage() {
         balancePaid: form.balancePaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
-        selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedOptions: (form.selectedOptions || []).filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
         reservationId: editingReservationId,
         forceCurrentPricing: true,
@@ -1047,6 +1057,8 @@ export default function ReservationPage() {
         propertyId: Number(selectedProp),
         startDate: form.startDate,
         endDate: form.endDate,
+        checkInTime: form.checkInTime,
+        checkOutTime: form.checkOutTime,
         adults: form.adults,
         children: form.children,
         teens: form.teens,
@@ -1056,7 +1068,7 @@ export default function ReservationPage() {
         balancePaid: form.balancePaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
-        selectedOptions: (form.selectedOptions || []).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedOptions: (form.selectedOptions || []).filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
         lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
         lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
@@ -1656,6 +1668,7 @@ export default function ReservationPage() {
                 {propertyOptions.map((opt) => {
                   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
                   const enabled = Boolean(selected && Number(selected.quantity) > 0);
+                  const isAutoTimedOption = Boolean(opt.autoOptionType);
                   let factorHint = '';
                   if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
                   else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
@@ -1675,17 +1688,24 @@ export default function ReservationPage() {
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
                           <Box flex={1}>
                             <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
-                            <Typography variant="body2" color="text.secondary">{`${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {isAutoTimedOption
+                                ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${opt.price}€ fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
+                                : `${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
+                            </Typography>
                           </Box>
                           <Stack alignItems="flex-end" spacing={0.5}>
                             <FormControlLabel
                               sx={{ m: 0 }}
-                              control={<Switch checked={enabled} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
+                              control={<Switch checked={enabled} disabled={isAutoTimedOption} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
                             />
+                            {isAutoTimedOption && (
+                              <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
+                            )}
                           </Stack>
                         </Stack>
 
-                        {enabled && (
+                        {enabled && !isAutoTimedOption && (
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
                             <TextField
                               size="small"
@@ -1701,6 +1721,23 @@ export default function ReservationPage() {
                               color="primary"
                               variant="outlined"
                               label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                              sx={{ width: { xs: '100%', sm: 'auto' } }}
+                            />
+                          </Stack>
+                        )}
+
+                        {enabled && isAutoTimedOption && (
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
+                            {selected?.autoFullNightApplied
+                              ? <Chip size="small" variant="outlined" label="Nuit complète appliquée" />
+                              : selected?.autoExtraHours > 0
+                                ? <Chip size="small" variant="outlined" label={`${Number(selected.autoExtraHours).toFixed(1).replace('.0', '')}h supplémentaire${selected.autoExtraHours >= 2 ? 's' : ''}`} />
+                                : null}
+                            <Chip
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                              label={`Total auto: ${(selected?.totalPrice || 0).toFixed(2)}€`}
                               sx={{ width: { xs: '100%', sm: 'auto' } }}
                             />
                           </Stack>
@@ -2049,12 +2086,25 @@ export default function ReservationPage() {
                       {optionsSelected.map(so => {
                         const opt = propertyOptions.find(o => o.id === so.optionId);
                         const total = optionLineTotal(so);
+                        const isAuto = Boolean(opt?.autoOptionType);
+                        let autoHint = '';
+                        if (isAuto) {
+                          if (so.autoFullNightApplied) autoHint = 'nuit complète';
+                          else if (so.autoExtraHours > 0) autoHint = `${Number(so.autoExtraHours).toFixed(1).replace('.0', '')}h suppl.`;
+                        }
                         return (
-                          <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="body2" color="text.secondary">
-                              {opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{total.toFixed(2)}€</Typography>
+                          <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
+                              </Typography>
+                              {autoHint && (
+                                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  {autoHint}
+                                </Typography>
+                              )}
+                            </Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600, ml: 1, whiteSpace: 'nowrap' }}>{total.toFixed(2)}€</Typography>
                           </Box>
                         );
                       })}

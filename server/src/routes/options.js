@@ -22,11 +22,33 @@ router.get('/:id', (req, res) => {
 
 // Create option
 router.post('/', (req, res) => {
-  const { title, description, priceType, price, propertyIds } = req.body;
-  const insertOption = db.prepare('INSERT INTO options (title, description, priceType, price) VALUES (?, ?, ?, ?)');
+  const {
+    title,
+    description,
+    priceType,
+    price,
+    propertyIds,
+    autoOptionType,
+    autoEnabled,
+    autoPricingMode,
+    autoFullNightThreshold,
+  } = req.body;
+  const insertOption = db.prepare(`
+    INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
   const insertLink = db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
   const transaction = db.transaction(() => {
-    const result = insertOption.run(sentenceCase(title), sentenceCase(description), priceType || 'per_stay', price || 0);
+    const result = insertOption.run(
+      sentenceCase(title),
+      sentenceCase(description),
+      priceType || 'per_stay',
+      Number(price || 0),
+      autoOptionType || null,
+      autoEnabled ? 1 : 0,
+      autoPricingMode || 'fixed',
+      autoFullNightThreshold || null,
+    );
     const optionId = result.lastInsertRowid;
     for (const pid of (propertyIds || [])) {
       insertLink.run(pid, optionId);
@@ -39,12 +61,36 @@ router.post('/', (req, res) => {
 
 // Update option
 router.put('/:id', (req, res) => {
-  const { title, description, priceType, price, propertyIds } = req.body;
-  const updateOption = db.prepare('UPDATE options SET title=?, description=?, priceType=?, price=? WHERE id=?');
+  const {
+    title,
+    description,
+    priceType,
+    price,
+    propertyIds,
+    autoOptionType,
+    autoEnabled,
+    autoPricingMode,
+    autoFullNightThreshold,
+  } = req.body;
+  const updateOption = db.prepare(`
+    UPDATE options
+    SET title=?, description=?, priceType=?, price=?, autoOptionType=?, autoEnabled=?, autoPricingMode=?, autoFullNightThreshold=?
+    WHERE id=?
+  `);
   const deleteLinks = db.prepare('DELETE FROM property_options WHERE optionId = ?');
   const insertLink = db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
   const transaction = db.transaction(() => {
-    updateOption.run(sentenceCase(title), sentenceCase(description), priceType || 'per_stay', price || 0, req.params.id);
+    updateOption.run(
+      sentenceCase(title),
+      sentenceCase(description),
+      priceType || 'per_stay',
+      Number(price || 0),
+      autoOptionType || null,
+      autoEnabled ? 1 : 0,
+      autoPricingMode || 'fixed',
+      autoFullNightThreshold || null,
+      req.params.id,
+    );
     deleteLinks.run(req.params.id);
     for (const pid of (propertyIds || [])) {
       insertLink.run(pid, req.params.id);

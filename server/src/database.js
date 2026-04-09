@@ -92,6 +92,10 @@ db.exec(`
     description TEXT DEFAULT '',
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     price REAL NOT NULL DEFAULT 0,
+    autoOptionType TEXT,
+    autoEnabled INTEGER NOT NULL DEFAULT 0,
+    autoPricingMode TEXT NOT NULL DEFAULT 'fixed',
+    autoFullNightThreshold TEXT,
     createdAt TEXT DEFAULT (datetime('now'))
   )
 `);
@@ -373,6 +377,23 @@ if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('pri
   db.exec("ALTER TABLE reservation_resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
 }
 
+const optionCols = db.prepare("PRAGMA table_info(options)").all().map(c => c.name);
+const tryAddOptionColumn = (columnName, sql) => {
+  if (optionCols.length > 0 && !optionCols.includes(columnName)) {
+    try {
+      db.exec(sql);
+    } catch (error) {
+      if (!String(error?.message || '').includes('duplicate column name')) {
+        throw error;
+      }
+    }
+  }
+};
+tryAddOptionColumn('autoOptionType', "ALTER TABLE options ADD COLUMN autoOptionType TEXT");
+tryAddOptionColumn('autoEnabled', "ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0");
+tryAddOptionColumn('autoPricingMode', "ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed'");
+tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
+
 const icalSourceCols = db.prepare("PRAGMA table_info(ical_sources)").all().map(c => c.name);
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('platformColor')) {
   db.exec("ALTER TABLE ical_sources ADD COLUMN platformColor TEXT NOT NULL DEFAULT '#757575'");
@@ -453,5 +474,56 @@ if (!babyBed) {
   db.prepare('INSERT INTO resources (name, quantity, price, propertyId, note) VALUES (?, ?, ?, ?, ?)')
     .run('Lit bébé', 1, 0, null, 'Ressource par défaut');
 }
+
+function ensureDefaultTimedOptionsForProperty(propertyId) {
+  const upsertTimedOption = (config) => {
+    const existing = db.prepare(`
+      SELECT o.id
+      FROM options o
+      JOIN property_options po ON po.optionId = o.id
+      WHERE po.propertyId = ? AND o.autoOptionType = ?
+      LIMIT 1
+    `).get(propertyId, config.autoOptionType);
+
+    if (existing) {
+      db.prepare(`
+        UPDATE options
+        SET title = COALESCE(NULLIF(title, ''), ?),
+            description = COALESCE(NULLIF(description, ''), ?),
+            priceType = COALESCE(NULLIF(priceType, ''), 'per_stay'),
+            autoPricingMode = COALESCE(NULLIF(autoPricingMode, ''), 'fixed'),
+            autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
+        WHERE id = ?
+      `).run(config.title, config.description, config.autoFullNightThreshold, existing.id);
+      return;
+    }
+
+    const result = db.prepare(`
+      INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+      VALUES (?, ?, 'per_stay', 0, ?, 0, 'fixed', ?)
+    `).run(config.title, config.description, config.autoOptionType, config.autoFullNightThreshold);
+
+    db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, result.lastInsertRowid);
+  };
+
+  upsertTimedOption({
+    autoOptionType: 'early_check_in',
+    title: 'Arrivée anticipée',
+    description: 'Option automatique si arrivée avant l\'heure par défaut',
+    autoFullNightThreshold: '10:00',
+  });
+
+  upsertTimedOption({
+    autoOptionType: 'late_check_out',
+    title: 'Départ tardif',
+    description: 'Option automatique si départ après l\'heure par défaut',
+    autoFullNightThreshold: '17:00',
+  });
+}
+
+const allProperties = db.prepare('SELECT id FROM properties').all();
+allProperties.forEach((property) => ensureDefaultTimedOptionsForProperty(property.id));
+
+db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 
 module.exports = db;

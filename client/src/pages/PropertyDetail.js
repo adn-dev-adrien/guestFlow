@@ -4,7 +4,7 @@ import {
   Box, Typography, Card, CardContent, TextField, Button, Grid,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, InputLabel, Select, MenuItem
+  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -80,10 +80,12 @@ export default function PropertyDetail() {
   const [icalSaving, setIcalSaving] = useState(false);
   const [syncingSourceId, setSyncingSourceId] = useState(null);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [timedOptions, setTimedOptions] = useState({ early: null, late: null });
+  const [timedOptionsSaving, setTimedOptionsSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (isNew) return;
-    const p = await api.getProperty(id);
+    const [p, allOptions] = await Promise.all([api.getProperty(id), api.getOptions()]);
     setProperty(p);
     const initial = {
       name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
@@ -97,7 +99,66 @@ export default function PropertyDetail() {
     setOriginalForm(initial);
     setDirty(false);
     setPhotoFile(null);
+
+    const propId = Number(id);
+    const scopedOptions = (allOptions || []).filter((option) => Array.isArray(option.propertyIds) && option.propertyIds.includes(propId));
+    const early = scopedOptions.find((option) => option.autoOptionType === 'early_check_in') || null;
+    const late = scopedOptions.find((option) => option.autoOptionType === 'late_check_out') || null;
+    setTimedOptions({
+      early: early ? {
+        ...early,
+        autoEnabled: Number(early.autoEnabled || 0) === 1,
+        autoPricingMode: early.autoPricingMode || 'fixed',
+        autoFullNightThreshold: early.autoFullNightThreshold || '10:00',
+        price: Number(early.price || 0),
+      } : null,
+      late: late ? {
+        ...late,
+        autoEnabled: Number(late.autoEnabled || 0) === 1,
+        autoPricingMode: late.autoPricingMode || 'fixed',
+        autoFullNightThreshold: late.autoFullNightThreshold || '17:00',
+        price: Number(late.price || 0),
+      } : null,
+    });
   }, [id, isNew]);
+
+  const updateTimedOptionField = (kind, field, value) => {
+    setTimedOptions((prev) => {
+      const option = prev[kind];
+      if (!option) return prev;
+      return {
+        ...prev,
+        [kind]: {
+          ...option,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const saveTimedOptions = async () => {
+    if (!canManageExtras) return;
+    const payloads = [timedOptions.early, timedOptions.late].filter(Boolean);
+    if (payloads.length === 0) return;
+
+    setTimedOptionsSaving(true);
+    try {
+      await Promise.all(payloads.map((option) => api.updateOption(option.id, {
+        title: option.title,
+        description: option.description,
+        priceType: 'per_stay',
+        price: Number(option.price || 0),
+        propertyIds: option.propertyIds || [Number(id)],
+        autoOptionType: option.autoOptionType,
+        autoEnabled: Boolean(option.autoEnabled),
+        autoPricingMode: option.autoPricingMode || 'fixed',
+        autoFullNightThreshold: option.autoFullNightThreshold,
+      })));
+      await load();
+    } finally {
+      setTimedOptionsSaving(false);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -389,6 +450,79 @@ export default function PropertyDetail() {
                 </Box>
                 <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0, step: 0.5 }} />
               </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Options horaires automatiques</Typography>
+              {[
+                { key: 'early', title: 'Arrivée anticipée', hint: 'Ajoutée automatiquement si arrivée avant l\'heure par défaut.' },
+                { key: 'late', title: 'Départ tardif', hint: 'Ajoutée automatiquement si départ après l\'heure par défaut.' },
+              ].map((entry) => {
+                const option = timedOptions[entry.key];
+                if (!option) return null;
+                return (
+                  <Box key={entry.key} sx={{ mb: 2.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.title}</Typography>
+                        <Typography variant="caption" color="text.secondary">{entry.hint}</Typography>
+                      </Box>
+                      <FormControlLabel
+                        control={<Switch checked={Boolean(option.autoEnabled)} onChange={(e) => updateTimedOptionField(entry.key, 'autoEnabled', e.target.checked)} />}
+                        label={option.autoEnabled ? 'Actif' : 'Inactif'}
+                      />
+                    </Box>
+
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5, mt: 1 }}>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Tarification</InputLabel>
+                        <Select
+                          value={option.autoPricingMode || 'fixed'}
+                          label="Tarification"
+                          onChange={(e) => updateTimedOptionField(entry.key, 'autoPricingMode', e.target.value)}
+                        >
+                          <MenuItem value="fixed">Prix fixe</MenuItem>
+                          <MenuItem value="proportional">Proportionnel au prix de nuit</MenuItem>
+                        </Select>
+                      </FormControl>
+
+                      <TextField
+                        size="small"
+                        type="number"
+                        label="Prix fixe (€)"
+                        value={option.price ?? 0}
+                        onChange={(e) => updateTimedOptionField(entry.key, 'price', e.target.value)}
+                        disabled={(option.autoPricingMode || 'fixed') !== 'fixed'}
+                        inputProps={{ min: 0, step: 1 }}
+                        fullWidth
+                      />
+
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Seuil nuit complète</InputLabel>
+                        <Select
+                          value={option.autoFullNightThreshold || (entry.key === 'early' ? '10:00' : '17:00')}
+                          label="Seuil nuit complète"
+                          onChange={(e) => updateTimedOptionField(entry.key, 'autoFullNightThreshold', e.target.value)}
+                        >
+                          {TIME_OPTIONS.map((time) => <MenuItem key={`${entry.key}-${time}`} value={time}>{time}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Box>
+                );
+              })}
+
+              <Button
+                variant="contained"
+                onClick={saveTimedOptions}
+                disabled={!canManageExtras || timedOptionsSaving || (!timedOptions.early && !timedOptions.late)}
+              >
+                {timedOptionsSaving ? 'Enregistrement…' : 'Enregistrer les options horaires'}
+              </Button>
             </CardContent>
           </Card>
         </Grid>
