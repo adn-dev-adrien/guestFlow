@@ -114,6 +114,7 @@ export default function ReservationPage() {
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
+  const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -427,6 +428,14 @@ export default function ReservationPage() {
             startDate: res.startDate,
             endDate: res.endDate,
           };
+          
+          // Charger les options offertes (totalPrice === 0)
+          const offeredOpts = new Set((res.options || [])
+            .filter(o => Number(o.totalPrice || 0) === 0)
+            .map(o => o.optionId)
+          );
+          setOfferedOptionIds(offeredOpts);
+          
           setUseCurrentPricing(false);
           frozenOptionUnitByQuantityRef.current = Object.fromEntries(
             (res.options || []).map((o) => [
@@ -1116,6 +1125,14 @@ export default function ReservationPage() {
       }
 
       if (reservationId) {
+        const optionsToSave = quote.optionLines.map(opt => {
+          // Si l'option est offerte, mettre le totalPrice à 0
+          if (offeredOptionIds.has(opt.optionId)) {
+            return { ...opt, totalPrice: 0 };
+          }
+          return opt;
+        });
+
         await api.updateReservation(reservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -1149,7 +1166,7 @@ export default function ReservationPage() {
           notes: form.notes,
           refreshPricingToCurrent: useCurrentPricing,
           forceMinNights,
-          options: quote.optionLines,
+          options: optionsToSave,
           resources: quote.resourceLines,
         });
         if (safeAfterSaveAction) {
@@ -1158,6 +1175,14 @@ export default function ReservationPage() {
           navigateBackWithFrom(navigate, from);
         }
       } else {
+        const optionsToSave = quote.optionLines.map(opt => {
+          // Si l'option est offerte, mettre le totalPrice à 0
+          if (offeredOptionIds.has(opt.optionId)) {
+            return { ...opt, totalPrice: 0 };
+          }
+          return opt;
+        });
+
         await api.createReservation({
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -1184,7 +1209,7 @@ export default function ReservationPage() {
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,
-          options: quote.optionLines,
+          options: optionsToSave,
           resources: quote.resourceLines,
         });
         if (safeAfterSaveAction) {
@@ -2051,7 +2076,11 @@ export default function ReservationPage() {
                 .filter((sr) => sr && Number(sr.quantity) > 0);
               const optionLineTotal = (so) => Number(so.totalPrice || 0);
               const resourceLineTotal = (sr) => Number(sr.totalPrice || 0);
-              const optionsTotal = optionsSelected.reduce((acc, so) => acc + optionLineTotal(so), 0);
+              const optionsTotal = optionsSelected.reduce((acc, so) => {
+                // Exclure les options offertes du total
+                if (offeredOptionIds.has(so.optionId)) return acc;
+                return acc + optionLineTotal(so);
+              }, 0);
               const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + resourceLineTotal(sr), 0);
               const subtotal = form.totalPrice + optionsTotal + resourcesTotal;
               const discountAmount = Math.max(0, Math.round((subtotal - Number(form.finalPrice || 0)) * 100) / 100);
@@ -2143,14 +2172,15 @@ export default function ReservationPage() {
                         const opt = propertyOptions.find(o => o.id === so.optionId);
                         const total = optionLineTotal(so);
                         const isAuto = Boolean(opt?.autoOptionType);
+                        const isOffered = offeredOptionIds.has(so.optionId);
                         let autoHint = '';
                         if (isAuto) {
                           if (so.autoFullNightApplied) autoHint = 'nuit complète';
                           else if (so.autoExtraHours > 0) autoHint = `${Number(so.autoExtraHours).toFixed(1).replace('.0', '')}h suppl.`;
                         }
                         return (
-                          <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <Box>
+                          <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                            <Box sx={{ flex: 1 }}>
                               <Typography variant="body2" color="text.secondary">
                                 {opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
                               </Typography>
@@ -2160,7 +2190,34 @@ export default function ReservationPage() {
                                 </Typography>
                               )}
                             </Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600, ml: 1, whiteSpace: 'nowrap' }}>{total.toFixed(2)}€</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 600, 
+                                  whiteSpace: 'nowrap',
+                                  textDecoration: isOffered ? 'line-through' : 'none',
+                                  opacity: isOffered ? 0.6 : 1,
+                                  color: isOffered ? 'text.secondary' : 'inherit'
+                                }}
+                              >
+                                {total.toFixed(2)}€
+                              </Typography>
+                              <Button
+                                size="small"
+                                variant={isOffered ? 'contained' : 'outlined'}
+                                color={isOffered ? 'success' : 'inherit'}
+                                onClick={() => {
+                                  const next = new Set(offeredOptionIds);
+                                  if (isOffered) next.delete(so.optionId);
+                                  else next.add(so.optionId);
+                                  setOfferedOptionIds(next);
+                                }}
+                                sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                              >
+                                {isOffered ? '✓ Offert' : 'Offrir'}
+                              </Button>
+                            </Box>
                           </Box>
                         );
                       })}
