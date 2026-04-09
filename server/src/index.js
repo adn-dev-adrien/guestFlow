@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { startScheduledTasks } = require('./scheduledTasks');
 
 const app = express();
 app.use(cors());
@@ -35,7 +36,12 @@ app.use('/api', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const server = app.listen(PORT, () => console.log(`GuestFlow API running on http://localhost:${PORT}`));
+const server = app.listen(PORT, () => {
+  console.log(`GuestFlow API running on http://localhost:${PORT}`);
+  
+  // Start scheduled tasks (like iCal auto-sync)
+  startScheduledTasks();
+});
 
 function shutdown(signal) {
   console.log(`Received ${signal}, shutting down GuestFlow API...`);
