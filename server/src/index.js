@@ -40,7 +40,8 @@ const server = app.listen(PORT, () => {
   console.log(`GuestFlow API running on http://localhost:${PORT}`);
   
   // Start scheduled tasks (like iCal auto-sync)
-  startScheduledTasks();
+  // TEMPORARY: Disabled during startup due to database schema issues
+  // startScheduledTasks();
 });
 
 function shutdown(signal) {

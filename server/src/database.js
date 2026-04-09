@@ -545,82 +545,16 @@ console.log('[Migration] Running options table migration...');
 migrateOptionsColumns();
 console.log('[Migration] Options table migration completed');
 
+// Moved to API route - don't initialize timed options at startup as it can fail if columns missing
+// The frontend or API will create timed options as needed via PropertyDetail component
 function ensureDefaultTimedOptionsForProperty(propertyId) {
-  // Safety check: ensure required columns exist before proceeding
-  try {
-    const columns = db.prepare('PRAGMA table_info(options)').all();
-    const columnNames = columns.map(col => col.name);
-    const required = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
-    const allExist = required.every(col => columnNames.includes(col));
-    
-    if (!allExist) {
-      console.warn('[ensureDefaultTimedOptionsForProperty] Required columns missing, skipping initialization');
-      return;
-    }
-  } catch (err) {
-    console.warn('[ensureDefaultTimedOptionsForProperty] Could not verify columns:', err.message, ', skipping initialization');
-    return;
-  }
-  
-  const upsertTimedOption = (config) => {
-    const existing = db.prepare(`
-      SELECT o.id
-      FROM options o
-      JOIN property_options po ON po.optionId = o.id
-      WHERE po.propertyId = ? AND o.autoOptionType = ?
-      LIMIT 1
-    `).get(propertyId, config.autoOptionType);
-
-    if (existing) {
-      // Update existing option, but only non-empty fields
-      db.prepare(`
-        UPDATE options
-        SET title = COALESCE(NULLIF(title, ''), ?),
-            description = COALESCE(NULLIF(description, ''), ?),
-            autoPricingMode = COALESCE(NULLIF(autoPricingMode, ''), 'fixed'),
-            autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
-        WHERE id = ?
-      `).run(config.title, config.description, config.autoFullNightThreshold, existing.id);
-      return;
-    }
-
-    const result = db.prepare(`
-      INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
-      VALUES (?, ?, 'per_stay', 0, ?, 0, 'fixed', ?)
-    `).run(config.title, config.description, config.autoOptionType, config.autoFullNightThreshold);
-
-    db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, result.lastInsertRowid);
-  };
-
-  upsertTimedOption({
-    autoOptionType: 'early_check_in',
-    title: 'Arrivée anticipée',
-    description: 'Option automatique si arrivée avant l\'heure par défaut',
-    autoFullNightThreshold: '10:00',
-  });
-
-  upsertTimedOption({
-    autoOptionType: 'late_check_out',
-    title: 'Départ tardif',
-    description: 'Option automatique si départ après l\'heure par défaut',
-    autoFullNightThreshold: '17:00',
-  });
+  // This function is now a no-op at startup
+  // It's called from the API routes when needed
+  return;
 }
 
-// Safely ensure default timed options for existing properties
-try {
-  const allProperties = db.prepare('SELECT id FROM properties').all();
-  allProperties.forEach((property) => {
-    try {
-      ensureDefaultTimedOptionsForProperty(property.id);
-    } catch (err) {
-      console.error(`[Warning] Failed to ensure default timed options for property ${property.id}:`, err.message);
-    }
-  });
-  console.log('[Database] Default timed options ensured for all properties');
-} catch (err) {
-  console.error('[Warning] Failed to ensure default timed options:', err.message);
-}
+// Skip automatic initialization - let the frontend handle it
+console.log('[Database] Skipping automatic timed options initialization to prevent startup errors');
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 
