@@ -352,6 +352,21 @@ if (resourceCols.length > 0 && !resourceCols.includes('propertyIds')) {
   db.exec("ALTER TABLE resources ADD COLUMN propertyIds TEXT");
 }
 
+// ---------- OPTIONS AUTO COLUMNS ----------
+const optionCols = db.prepare("PRAGMA table_info(options)").all().map(c => c.name);
+if (optionCols.length > 0 && !optionCols.includes('autoOptionType')) {
+  db.exec("ALTER TABLE options ADD COLUMN autoOptionType TEXT");
+}
+if (optionCols.length > 0 && !optionCols.includes('autoEnabled')) {
+  db.exec("ALTER TABLE options ADD COLUMN autoEnabled INTEGER DEFAULT 0");
+}
+if (optionCols.length > 0 && !optionCols.includes('autoPricingMode')) {
+  db.exec("ALTER TABLE options ADD COLUMN autoPricingMode TEXT DEFAULT 'fixed'");
+}
+if (optionCols.length > 0 && !optionCols.includes('autoFullNightThreshold')) {
+  db.exec("ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
+}
+
 if (!cols.includes('checkInReady')) {
   db.exec("ALTER TABLE reservations ADD COLUMN checkInReady INTEGER DEFAULT 0");
   db.exec("ALTER TABLE reservations ADD COLUMN checkInDone INTEGER DEFAULT 0");

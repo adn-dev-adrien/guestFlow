@@ -200,27 +200,24 @@ jobs:
         run: |
           PERSISTENT_DB="$HOME/guestflow/data/guestflow.db"
           
-          if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then
-            echo "Running database migrations..."
-            cd "$HOME/guestflow/current/server"
-            
-            # Run migrations with explicit DB_PATH
-            DB_PATH="$PERSISTENT_DB" \
-            SKIP_MIGRATIONS=false \
-            node -e "
-              const dbPath = process.env.DB_PATH;
-              console.log('Initializing database at:', dbPath);
-              require('./src/database.js');
-              console.log('✓ Migrations complete');
-            "
-            
-            if [ $? -eq 0 ]; then
-              echo "✓ Migrations completed successfully"
-            else
-              echo "⚠️ Migration failed - but continuing (may be non-critical)"
-            fi
+          echo "Running database migrations to ensure schema is up-to-date..."
+          cd "$HOME/guestflow/current/server"
+          
+          # Run migrations with explicit DB_PATH (ALWAYS run migrations to keep schema in sync)
+          DB_PATH="$PERSISTENT_DB" \
+          SKIP_MIGRATIONS=false \
+          node -e "
+            const dbPath = process.env.DB_PATH;
+            console.log('Initializing database at:', dbPath);
+            require('./src/database.js');
+            console.log('✓ Migrations complete');
+          "
+          
+          if [ $? -eq 0 ]; then
+            echo "✓ Migrations completed successfully"
           else
-            echo "ℹ Migrations skipped (set run_migrations=true to apply)"
+            echo "❌ Migrations failed - this is critical"
+            exit 1
           fi
 
       - name: 🚀 Start service with PM2
