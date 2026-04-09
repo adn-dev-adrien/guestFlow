@@ -20,92 +20,138 @@ jobs:
     runs-on: self-hosted  # Runner self-hosted sur le Raspberry Pi 5
     
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install root dependencies
+      - name: 📚 Install root dependencies
         run: npm install
 
-      - name: Build React client
+      - name: ⚛️ Build React client
         run: |
           cd client
           npm install
           npm run build
           cd ..
 
-      - name: Create release archive
+      - name: 📦 Create release archive
         run: |
           chmod +x ./release.sh
           ./release.sh "guestflow-release"
+          echo "✓ Release archive created: guestflow-release.zip"
 
-      - name: Stop existing service
+      - name: ⏹️ Stop existing PM2 service
         run: |
           pm2 stop guestflow 2>/dev/null || true
           pm2 delete guestflow 2>/dev/null || true
+          echo "✓ Previous service stopped"
 
-      - name: Setup persistent data directory
+      - name: 💾 Create persistent data directory
         run: |
-          # The database lives here permanently — outside current/ so it is NEVER touched by deploys.
           PERSISTENT_DB_DIR="$HOME/guestflow/data"
           PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
           mkdir -p "$PERSISTENT_DB_DIR"
+          echo "✓ Persistent data directory created: $PERSISTENT_DB_DIR"
 
-          # One-time migration: if DB exists at the old location (inside current/), move it here.
+      - name: 🔄 Migrate legacy database location
+        run: |
+          PERSISTENT_DB_DIR="$HOME/guestflow/data"
+          PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
           LEGACY_DB="$HOME/guestflow/current/server/guestflow.db"
+          
           if [ ! -f "$PERSISTENT_DB" ] && [ -f "$LEGACY_DB" ]; then
             cp "$LEGACY_DB" "$PERSISTENT_DB"
-            echo "✓ Database migrated from legacy location to $PERSISTENT_DB"
+            echo "✓ Database migrated from legacy location"
+          else
+            echo "ℹ Database already at persistent location or doesn't exist yet"
           fi
 
-          # Safety backup before every deploy (keeps the last 5).
+      - name: 💾 Backup database before deploy
+        run: |
+          PERSISTENT_DB_DIR="$HOME/guestflow/data"
+          PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
+          
           if [ -f "$PERSISTENT_DB" ]; then
             BACKUP="$PERSISTENT_DB_DIR/backup-$(date +%Y%m%d-%H%M%S).db"
             cp "$PERSISTENT_DB" "$BACKUP"
-            echo "✓ Pre-deploy backup saved to $BACKUP"
+            echo "✓ Pre-deploy backup saved"
+            # Keep only last 5 backups
             ls -1t "$PERSISTENT_DB_DIR"/backup-*.db 2>/dev/null | tail -n +6 | xargs rm -f || true
+            echo "✓ Old backups cleaned (kept last 5)"
           else
-            echo "ℹ No existing database found — a fresh one will be created on first start."
+            echo "ℹ No existing database to backup"
           fi
 
-      - name: Extract and deploy release
+      - name: 📥 Backup existing uploads
         run: |
-          RELEASE_NAME="guestflow-release"
+          DEPLOY_DIR="$HOME/guestflow"
+          if [ -d "$DEPLOY_DIR/current/server/uploads" ]; then
+            cp -r "$DEPLOY_DIR/current/server/uploads" /tmp/_guestflow_uploads_backup || true
+            echo "✓ Uploads backed up to /tmp/_guestflow_uploads_backup"
+          else
+            echo "ℹ No existing uploads to backup"
+          fi
+
+      - name: 🗜️ Archive previous version
+        run: |
           DEPLOY_DIR="$HOME/guestflow"
           mkdir -p "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
-
-          # Preserve uploads from the running version.
-          if [ -d "current/server/uploads" ]; then
-            cp -r "current/server/uploads" /tmp/_guestflow_uploads_backup || true
-          fi
-
-          # Archive the previous version (keep last 3 for emergency rollback).
+          
           if [ -d "current" ]; then
             mv current "backup-$(date +%Y%m%d-%H%M%S)"
+            echo "✓ Previous version archived"
+            # Keep only last 3 backups
             ls -1dt backup-* 2>/dev/null | tail -n +4 | xargs rm -rf || true
+            echo "✓ Old version backups cleaned (kept last 3)"
+          else
+            echo "ℹ No previous version to archive"
           fi
 
+      - name: 📂 Extract new release
+        run: |
+          RELEASE_NAME="guestflow-release"
+          DEPLOY_DIR="$HOME/guestflow"
+          
+          mkdir -p "$DEPLOY_DIR"
+          cd "$DEPLOY_DIR"
+          
+          if [ ! -f "$(pwd)/$RELEASE_NAME.zip" ]; then
+            # Find the zip in the workspace path
+            ZIP_PATH=$(find /home -maxdepth 4 -name "$RELEASE_NAME.zip" 2>/dev/null | head -1)
+            if [ -z "$ZIP_PATH" ]; then
+              echo "❌ Could not find $RELEASE_NAME.zip"
+              exit 1
+            fi
+          else
+            ZIP_PATH="$(pwd)/$RELEASE_NAME.zip"
+          fi
+          
           mkdir -p current
-
-          # Extract new release (guestflow.db is excluded by release.sh — database is safe).
-          unzip -q "$OLDPWD/${RELEASE_NAME}.zip"
+          unzip -q "$ZIP_PATH"
           mv "${RELEASE_NAME}"/* current
-          rm -r "${RELEASE_NAME}"
+          rm -r "${RELEASE_NAME}" 2>/dev/null || true
+          echo "✓ Release extracted to current/"
 
-          # Restore uploads.
+      - name: 📥 Restore uploads
+        run: |
+          DEPLOY_DIR="$HOME/guestflow"
+          
           if [ -d /tmp/_guestflow_uploads_backup ]; then
-            cp -r /tmp/_guestflow_uploads_backup "current/server/uploads" || true
+            mkdir -p "$DEPLOY_DIR/current/server"
+            cp -r /tmp/_guestflow_uploads_backup "$DEPLOY_DIR/current/server/uploads" || true
             rm -rf /tmp/_guestflow_uploads_backup
             echo "✓ Uploads restored"
+          else
+            echo "ℹ No uploads to restore"
           fi
 
-      - name: Install server dependencies
+      - name: 📦 Install server dependencies
         run: |
           DEPLOY_DIR="$HOME/guestflow"
           cd "$DEPLOY_DIR/current/server"
@@ -115,12 +161,10 @@ jobs:
           else
             npm install --omit=dev
           fi
+          echo "✓ Server dependencies installed"
 
-      - name: Run database migrations
+      - name: 🗄️ Run database migrations
         run: |
-          # Migrations are ALTER TABLE additions — they are safe and never delete data.
-          # They only run when this workflow is triggered manually with run_migrations=true.
-          # On regular push deploys they are skipped to keep startup fast and predictable.
           if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then
             echo "Running database migrations..."
             cd "$HOME/guestflow/current/server"
@@ -129,27 +173,40 @@ jobs:
               console.log('✓ Migrations complete');
             "
           else
-            echo "ℹ Migrations skipped. Trigger this workflow manually with run_migrations=true to apply schema changes."
+            echo "ℹ Migrations skipped (set run_migrations=true to apply)"
           fi
 
-      - name: Start service with PM2
+      - name: 🚀 Start service with PM2
         run: |
-          # DB_PATH points to the persistent location outside current/.
-          # SKIP_MIGRATIONS=true because migrations were already handled in the step above.
           NODE_ENV=production \
           DB_PATH="$HOME/guestflow/data/guestflow.db" \
           SKIP_MIGRATIONS=true \
           pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
           pm2 save
           pm2 startup systemd -u "$USER" --hp "$HOME" || true
+          echo "✓ Service started with PM2"
 
-      - name: Check service status
+      - name: ✅ Check service status
         if: success()
         run: |
+          sleep 2
           echo "===== Service Status ====="
-          pm2 status
+          pm2 status || echo "PM2 status unavailable"
           echo ""
-          echo "===== Service Logs ====="
-          pm2 logs guestflow --lines 20 --nostream
+          echo "===== Application Logs (last 30 lines) ====="
+          pm2 logs guestflow --lines 30 --nostream || echo "Logs unavailable"
+
+      - name: ❌ Deployment failed - Check logs
+        if: failure()
+        run: |
+          echo "===== Deployment failed ====="
+          pm2 logs guestflow --lines 50 --nostream || echo "PM2 logs unavailable"
+          echo ""
+          echo "===== Debug Info ====="
+          echo "Database location:"
+          ls -la "$HOME/guestflow/data/" || echo "Data directory not found"
+          echo ""
+          echo "Deployment directory:"
+          ls -la "$HOME/guestflow/current/server/" || echo "Deployment directory not found"
 
 
