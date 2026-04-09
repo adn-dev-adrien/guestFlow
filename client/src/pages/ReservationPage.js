@@ -9,6 +9,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
 import SaveIcon from '@mui/icons-material/Save';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
@@ -111,6 +113,7 @@ export default function ReservationPage() {
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -2058,8 +2061,30 @@ export default function ReservationPage() {
                 <Stack spacing={1.5}>
                   {/* Prix hébergement */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${nights} nuit${nights > 1 ? 's' : ''} • ${form.totalPrice.toFixed(2)}€`}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => setEditingPrice(!editingPrice)}
+                        sx={{ p: 0.25, ml: 0.5 }}
+                        title={editingPrice ? 'Confirmer' : 'Modifier le prix'}
+                      >
+                        {editingPrice ? <CheckIcon sx={{ fontSize: 16 }} /> : <EditIcon sx={{ fontSize: 16 }} />}
+                      </IconButton>
+                    </Box>
+                    {editingPrice ? (
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={form.totalPrice}
+                        onChange={(e) => updateForm({ totalPrice: Math.max(0, Number(e.target.value) || 0) })}
+                        inputProps={{ min: 0, step: 0.01 }}
+                        sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600 } }}
+                        onBlur={() => setEditingPrice(false)}
+                      />
+                    ) : (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${nights} nuit${nights > 1 ? 's' : ''} • ${form.totalPrice.toFixed(2)}€`}</Typography>
+                    )}
                   </Box>
 
                   {nightlyBreakdown.length > 0 && (
