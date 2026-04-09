@@ -718,6 +718,7 @@ export default function PropertyPricingSeasonsPage() {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <TextField label="Tarif base (1 nuit)" type="number" value={seasonForm.pricePerNight} onChange={(e) => handleBasePriceChange(e.target.value)} fullWidth inputProps={{ min: 0, step: 1 }} />
               <FormControl fullWidth>
                 <InputLabel>Type de tarification</InputLabel>
                 <Select
@@ -735,7 +736,6 @@ export default function PropertyPricingSeasonsPage() {
                   <MenuItem value="progressive">Dégressif</MenuItem>
                 </Select>
               </FormControl>
-              <TextField label="Tarif base (1 nuit)" type="number" value={seasonForm.pricePerNight} onChange={(e) => handleBasePriceChange(e.target.value)} fullWidth inputProps={{ min: 0, step: 1 }} />
               <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth inputProps={{ min: 1 }} />
             </Box>
 
@@ -772,7 +772,7 @@ export default function PropertyPricingSeasonsPage() {
                               <TextField
                                 size="small"
                                 type="number"
-                                value={Number(t.extraNightPrice || 0).toFixed(2)}
+                                value={Number(t.extraNightPrice || 0).toFixed(0)}
                                 onChange={(e) => updateTierByPrice(t.nightNumber, e.target.value)}
                                 inputProps={{ min: 0, step: 1 }}
                                 InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>€</InputAdornment> }}
@@ -784,7 +784,7 @@ export default function PropertyPricingSeasonsPage() {
                               <TextField
                                 size="small"
                                 type="number"
-                                value={Number(t.extraNightDiscountPct || 0).toFixed(2)}
+                                value={Number(t.extraNightDiscountPct || 0).toFixed(0)}
                                 onChange={(e) => updateTierByPct(t.nightNumber, e.target.value)}
                                 inputProps={{ min: 0, max: 100, step: 1 }}
                                 InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>%</InputAdornment> }}
@@ -794,7 +794,7 @@ export default function PropertyPricingSeasonsPage() {
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                {Number(t.cumulativePrice || 0).toFixed(2)} €
+                                {Number(t.cumulativePrice || 0).toFixed(0)} €
                               </Box>
                             </TableCell>
                           </TableRow>

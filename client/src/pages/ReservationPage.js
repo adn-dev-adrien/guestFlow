@@ -192,25 +192,47 @@ export default function ReservationPage() {
     if (isReservationLocked) return;
     miniStripDateChangeRef.current = true;
 
+    const defaultCheckIn = selectedProperty?.defaultCheckIn || '15:00';
+    const defaultCheckOut = selectedProperty?.defaultCheckOut || '10:00';
+
     if (!miniSelectionAnchor || miniSelectionAnchor === dateStr) {
       setMiniSelectionAnchor(dateStr);
-      updateForm({ startDate: dateStr, endDate: addDays(dateStr, 1) });
+      updateForm({
+        startDate: dateStr,
+        endDate: addDays(dateStr, 1),
+        checkInTime: defaultCheckIn,
+        checkOutTime: defaultCheckOut,
+      });
       return;
     }
 
     if (dateStr < miniSelectionAnchor) {
       setMiniSelectionAnchor(dateStr);
-      updateForm({ startDate: dateStr, endDate: addDays(dateStr, 1) });
+      updateForm({
+        startDate: dateStr,
+        endDate: addDays(dateStr, 1),
+        checkInTime: defaultCheckIn,
+        checkOutTime: defaultCheckOut,
+      });
       return;
     }
 
-    updateForm({ startDate: miniSelectionAnchor, endDate: dateStr });
+    updateForm({
+      startDate: miniSelectionAnchor,
+      endDate: dateStr,
+      checkInTime: defaultCheckIn,
+      checkOutTime: defaultCheckOut,
+    });
     setMiniSelectionAnchor('');
   };
 
   const handleManualDateInputChange = (changes) => {
     manualDateInputChangeRef.current = true;
-    updateForm(changes);
+    updateForm({
+      ...changes,
+      checkInTime: selectedProperty?.defaultCheckIn || '15:00',
+      checkOutTime: selectedProperty?.defaultCheckOut || '10:00',
+    });
   };
 
   useEffect(() => {
@@ -1305,6 +1327,8 @@ export default function ReservationPage() {
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';
   const liveTimeConflictMessage = getTimeConflictMessage(form);
+  const defaultCheckInTime = selectedProperty?.defaultCheckIn || '15:00';
+  const defaultCheckOutTime = selectedProperty?.defaultCheckOut || '10:00';
   const quantityPersons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
   const quantityNights = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000));
   const getQuantityMultiplier = (priceType) => {
@@ -1490,6 +1514,39 @@ export default function ReservationPage() {
             </Grid>
           </Grid>
 
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
+                <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
+                <Select
+                  value={form.checkInTime}
+                  label={`Heure d'arrivée (défaut ${defaultCheckInTime})`}
+                  onChange={(e) => updateForm({ checkInTime: e.target.value })}
+                >
+                  {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
+                <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
+                <Select
+                  value={form.checkOutTime}
+                  label={`Heure de départ (défaut ${defaultCheckOutTime})`}
+                  onChange={(e) => updateForm({ checkOutTime: e.target.value })}
+                >
+                  {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          {liveTimeConflictMessage && (
+            <FormHelperText error sx={{ mt: -1 }}>
+              {liveTimeConflictMessage}
+            </FormHelperText>
+          )}
+
           {datesUnavailableForProperty && (
             <Typography variant="body2" color="error" sx={{ mt: -1 }}>
               {datesUnavailableMessage}
@@ -1631,33 +1688,6 @@ export default function ReservationPage() {
               {PLATFORMS.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
             </Select>
           </FormControl>
-
-          <Divider />
-
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
-                <InputLabel>Heure d'arrivée</InputLabel>
-                <Select value={form.checkInTime} label="Heure d'arrivée" onChange={(e) => updateForm({ checkInTime: e.target.value })}>
-                  {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={6}>
-              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
-                <InputLabel>Heure de départ</InputLabel>
-                <Select value={form.checkOutTime} label="Heure de départ" onChange={(e) => updateForm({ checkOutTime: e.target.value })}>
-                  {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-
-          {liveTimeConflictMessage && (
-            <FormHelperText error sx={{ mt: -1 }}>
-              {liveTimeConflictMessage}
-            </FormHelperText>
-          )}
 
           <Divider />
 
