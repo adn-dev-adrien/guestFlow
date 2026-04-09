@@ -44,6 +44,28 @@ router.get('/:id', (req, res) => {
   res.json(normalizeClientRow(client));
 });
 
+// Get deletion impact for a client
+router.get('/:id/delete-impact', (req, res) => {
+  const clientId = Number(req.params.id);
+  const client = db.prepare('SELECT id, firstName, lastName FROM clients WHERE id = ?').get(clientId);
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  const reservations = db.prepare(`
+    SELECT r.id, r.propertyId, p.name AS propertyName, r.startDate, r.endDate, r.platform, r.finalPrice,
+      r.adults, r.children, r.teens, r.babies
+    FROM reservations r
+    LEFT JOIN properties p ON p.id = r.propertyId
+    WHERE r.clientId = ?
+    ORDER BY r.startDate DESC, r.id DESC
+  `).all(clientId);
+
+  res.json({
+    client,
+    reservationsCount: reservations.length,
+    reservations,
+  });
+});
+
 // Create client
 router.post('/', (req, res) => {
   const {
@@ -172,7 +194,43 @@ router.put('/:id', (req, res) => {
 
 // Delete client
 router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM clients WHERE id = ?').run(req.params.id);
+  const clientId = Number(req.params.id);
+  const forceDelete = String(req.query.force || '').toLowerCase() === 'true';
+
+  const client = db.prepare('SELECT id, firstName, lastName FROM clients WHERE id = ?').get(clientId);
+  if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+  const reservations = db.prepare(`
+    SELECT r.id, r.propertyId, p.name AS propertyName, r.startDate, r.endDate, r.platform, r.finalPrice,
+      r.adults, r.children, r.teens, r.babies
+    FROM reservations r
+    LEFT JOIN properties p ON p.id = r.propertyId
+    WHERE r.clientId = ?
+    ORDER BY r.startDate DESC, r.id DESC
+  `).all(clientId);
+
+  if (reservations.length > 0 && !forceDelete) {
+    return res.status(409).json({
+      error: 'Ce client est lié à des réservations. Utilisez la suppression forcée pour supprimer aussi ses réservations.',
+      code: 'CLIENT_IN_USE',
+      client: {
+        id: client.id,
+        firstName: client.firstName,
+        lastName: client.lastName,
+      },
+      reservationsCount: reservations.length,
+      reservations,
+    });
+  }
+
+  const tx = db.transaction(() => {
+    if (forceDelete && reservations.length > 0) {
+      db.prepare('DELETE FROM reservations WHERE clientId = ?').run(clientId);
+    }
+    db.prepare('DELETE FROM clients WHERE id = ?').run(clientId);
+  });
+
+  tx();
   res.json({ ok: true });
 });
 

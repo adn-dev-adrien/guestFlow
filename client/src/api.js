@@ -20,9 +20,15 @@ const api = {
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getClient: (id) => request(`/clients/${id}`),
+  getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
-  deleteClient: (id) => request(`/clients/${id}`, { method: 'DELETE' }),
+  deleteClient: (id, options = {}) => {
+    const params = new URLSearchParams();
+    if (options.force) params.set('force', 'true');
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return request(`/clients/${id}${suffix}`, { method: 'DELETE' });
+  },
 
   // Properties
   getProperties: () => request('/properties'),

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, TableRow,
-  TableCell, IconButton, InputAdornment, Chip, Typography, Divider, CircularProgress
+  TableCell, IconButton, InputAdornment, Chip, Typography, Divider, CircularProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,7 +13,6 @@ import HomeIcon from '@mui/icons-material/Home';
 import DataPageScaffold from '../components/DataPageScaffold';
 import FormDialog from '../components/FormDialog';
 import ClientFormFields from '../components/ClientFormFields';
-import { useAppDialogs } from '../components/DialogProvider';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
@@ -59,7 +59,6 @@ function sortReservationsByCurrentDate(reservations) {
 }
 
 export default function ClientsPage() {
-  const { confirm } = useAppDialogs();
   const navigate = useNavigate();
   const [urlParams, setUrlParams] = useSearchParams();
   const {
@@ -81,6 +80,14 @@ export default function ClientsPage() {
   const [cityOptions, setCityOptions] = useState([]);
   const [clientReservations, setClientReservations] = useState([]);
   const [clientReservationsLoading, setClientReservationsLoading] = useState(false);
+  const [deleteImpact, setDeleteImpact] = useState({
+    open: false,
+    clientId: null,
+    clientName: '',
+    reservations: [],
+    loading: false,
+    error: '',
+  });
   const emailError = !isValidEmail(form.email);
   const phoneErrors = (form.phoneNumbers || []).map((phone) => !isValidPhone(phone));
   const hasPhoneError = phoneErrors.some(Boolean);
@@ -89,8 +96,17 @@ export default function ClientsPage() {
 
   const setClientParam = (clientId) => {
     const nextParams = new URLSearchParams(urlParams);
+    nextParams.delete('deleteClientId');
     if (clientId) nextParams.set('clientId', String(clientId));
     else nextParams.delete('clientId');
+    setUrlParams(nextParams, { replace: true });
+  };
+
+  const setDeleteClientParam = (clientId) => {
+    const nextParams = new URLSearchParams(urlParams);
+    nextParams.delete('clientId');
+    if (clientId) nextParams.set('deleteClientId', String(clientId));
+    else nextParams.delete('deleteClientId');
     setUrlParams(nextParams, { replace: true });
   };
 
@@ -144,10 +160,18 @@ export default function ClientsPage() {
 
   useEffect(() => {
     const clientIdFromUrl = Number(urlParams.get('clientId') || 0);
+    const deleteClientIdFromUrl = Number(urlParams.get('deleteClientId') || 0);
+    if (deleteClientIdFromUrl) return;
     if (!clientIdFromUrl || open || clients.length === 0) return;
     const clientToOpen = clients.find((c) => c.id === clientIdFromUrl);
     if (clientToOpen) handleOpen(clientToOpen);
   }, [urlParams, clients, open]);
+
+  useEffect(() => {
+    const deleteClientIdFromUrl = Number(urlParams.get('deleteClientId') || 0);
+    if (!deleteClientIdFromUrl || deleteImpact.open) return;
+    handleDelete(deleteClientIdFromUrl);
+  }, [urlParams, deleteImpact.open, clients]);
 
   useEffect(() => {
     const cp = (form.postalCode || '').trim();
@@ -182,18 +206,142 @@ export default function ClientsPage() {
   }, [form.postalCode, form.city]);
 
   const handleDelete = async (id) => {
-    const ok = await confirm({
-      title: 'Confirmer la suppression',
-      message: 'Supprimer ce client ?'
+    const client = clients.find((c) => c.id === id);
+    setDeleteClientParam(id);
+    setDeleteImpact({
+      open: true,
+      clientId: id,
+      clientName: client ? `${client.firstName} ${client.lastName}`.trim() : `Client #${id}`,
+      reservations: [],
+      loading: true,
+      error: '',
     });
-    if (!ok) return;
-    await removeItem(id, search);
+
+    try {
+      const impact = await api.getClientDeleteImpact(id);
+      const impactClient = impact?.client;
+      setDeleteImpact((prev) => ({
+        ...prev,
+        clientName: impactClient ? `${impactClient.firstName} ${impactClient.lastName}`.trim() : prev.clientName,
+        reservations: impact?.reservations || [],
+        loading: false,
+      }));
+    } catch (error) {
+      setDeleteImpact((prev) => ({
+        ...prev,
+        loading: false,
+        error: error?.message || 'Impossible de charger les réservations associées.',
+      }));
+    }
+  };
+
+  const closeDeleteImpact = () => {
+    setDeleteClientParam(null);
+    setDeleteImpact({ open: false, clientId: null, clientName: '', reservations: [], loading: false, error: '' });
+  };
+
+  const handleForceDeleteClient = async () => {
+    if (!deleteImpact.clientId || deleteImpact.loading || deleteImpact.error) return;
+    setDeleteImpact((prev) => ({ ...prev, loading: true }));
+    try {
+      await api.deleteClient(deleteImpact.clientId, { force: true });
+      closeDeleteImpact();
+      await reload(search);
+    } catch (error) {
+      setDeleteImpact((prev) => ({
+        ...prev,
+        loading: false,
+        error: error?.message || 'Une erreur est survenue pendant la suppression.',
+      }));
+    }
+  };
+
+  const formatShortDate = (value) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const openReservationFromClients = (reservationId, clientIdFromReservation = null, source = 'client') => {
+    const targetClientId = editId || clientIdFromReservation || deleteImpact.clientId;
+    const fromUrl = source === 'delete'
+      ? (targetClientId ? `/clients?deleteClientId=${targetClientId}` : '/clients')
+      : (targetClientId ? `/clients?clientId=${targetClientId}` : '/clients');
+    if (source === 'client') {
+      setOpen(false);
+    }
+    navigate(withFrom(`/reservations/${reservationId}`, fromUrl));
+  };
+
+  const renderReservationRows = (reservations, onOpenReservation = null) => {
+    const sorted = sortReservationsByCurrentDate(reservations || []);
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {sorted.map((res, index) => {
+          const today = getTodayDateKey();
+          const isPast = res.endDate < today;
+          const previousReservation = index > 0 ? sorted[index - 1] : null;
+          const startsPastSection = isPast && previousReservation && previousReservation.endDate >= today;
+          const nights = Math.round((new Date(res.endDate) - new Date(res.startDate)) / 86400000);
+          const totalGuests = (res.adults || 0) + (res.children || 0) + (res.teens || 0) + (res.babies || 0);
+          const start = new Date(res.startDate);
+          const end = new Date(res.endDate);
+          const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+          return (
+            <Box
+              key={res.id}
+              onClick={onOpenReservation ? () => onOpenReservation(res) : undefined}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                p: 1.5,
+                mt: startsPastSection ? 1.5 : 0,
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                cursor: onOpenReservation ? 'pointer' : 'default',
+                opacity: isPast ? 0.45 : 1,
+                position: 'relative',
+                transition: 'background-color 0.15s',
+                '&::before': startsPastSection ? {
+                  content: '"Réservations passées"',
+                  position: 'absolute',
+                  top: -20,
+                  left: 0,
+                  fontSize: '0.75rem',
+                  color: 'text.secondary',
+                  fontWeight: 500,
+                } : undefined,
+                '&:hover': onOpenReservation ? { bgcolor: 'action.hover' } : undefined,
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {res.propertyName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {fmt(start)} {'->'} {fmt(end)} · {nights} nuit{nights > 1 ? 's' : ''}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                <Chip label={res.platform} size="small" variant="outlined" />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {res.finalPrice ? `${res.finalPrice} €` : '—'}
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <HomeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  <Typography variant="caption" color="text.secondary">{totalGuests} pers.</Typography>
+                </Box>
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+    );
   };
 
   const handleOpenReservation = (reservation) => {
-    setOpen(false);
-    const fromUrl = `/clients?clientId=${editId || reservation.clientId}`;
-    navigate(withFrom(`/reservations/${reservation.id}`, fromUrl));
+    openReservationFromClients(reservation.id, reservation.clientId, 'client');
   };
 
   return (
@@ -279,72 +427,42 @@ export default function ClientsPage() {
             ) : clientReservations.length === 0 ? (
               <Typography variant="body2" color="text.secondary">Aucune réservation</Typography>
             ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {clientReservations.map((res, index) => {
-                  const today = getTodayDateKey();
-                  const isPast = res.endDate < today;
-                  const previousReservation = index > 0 ? clientReservations[index - 1] : null;
-                  const startsPastSection = isPast && previousReservation && previousReservation.endDate >= today;
-                  const nights = Math.round((new Date(res.endDate) - new Date(res.startDate)) / 86400000);
-                  const totalGuests = (res.adults || 0) + (res.children || 0) + (res.teens || 0) + (res.babies || 0);
-                  const start = new Date(res.startDate);
-                  const end = new Date(res.endDate);
-                  const fmt = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-                  return (
-                    <Box
-                      key={res.id}
-                      onClick={() => handleOpenReservation(res)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        p: 1.5,
-                        mt: startsPastSection ? 1.5 : 0,
-                        borderRadius: 1,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        cursor: 'pointer',
-                        opacity: isPast ? 0.45 : 1,
-                        position: 'relative',
-                        transition: 'background-color 0.15s',
-                        '&::before': startsPastSection ? {
-                          content: '"Réservations passées"',
-                          position: 'absolute',
-                          top: -20,
-                          left: 0,
-                          fontSize: '0.75rem',
-                          color: 'text.secondary',
-                          fontWeight: 500,
-                        } : undefined,
-                        '&:hover': { bgcolor: 'action.hover' },
-                      }}
-                    >
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {res.propertyName}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {fmt(start)} → {fmt(end)} · {nights} nuit{nights > 1 ? 's' : ''}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-                        <Chip label={res.platform} size="small" variant="outlined" />
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {res.finalPrice ? `${res.finalPrice} €` : '—'}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <HomeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary">{totalGuests} pers.</Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
+              renderReservationRows(clientReservations, handleOpenReservation)
             )}
           </>
         )}
       </FormDialog>
+
+      <Dialog open={deleteImpact.open} onClose={closeDeleteImpact} maxWidth="md" fullWidth>
+        <DialogTitle>Confirmer la suppression du client</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 1.5 }}>
+            Attention: la suppression du client <strong>{deleteImpact.clientName}</strong> supprimera aussi toutes les réservations associées.
+          </Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Réservations qui seront supprimées ({deleteImpact.reservations.length})
+          </Typography>
+          <Box sx={{ maxHeight: 360, overflowY: 'auto', pr: 0.5 }}>
+            {deleteImpact.loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : deleteImpact.error ? (
+              <Typography variant="body2" color="error.main">{deleteImpact.error}</Typography>
+            ) : deleteImpact.reservations.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Aucune réservation associée</Typography>
+            ) : (
+              renderReservationRows(deleteImpact.reservations, (reservation) => openReservationFromClients(reservation.id, reservation.clientId, 'delete'))
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteImpact}>Annuler</Button>
+          <Button color="error" variant="contained" onClick={handleForceDeleteClient} disabled={deleteImpact.loading || !!deleteImpact.error}>
+            Confirmer la suppression
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
