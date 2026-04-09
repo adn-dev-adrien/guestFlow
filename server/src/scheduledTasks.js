@@ -210,8 +210,8 @@ async function performIcalSync(source) {
       depositAmount, depositDueDate, depositPaid,
       balanceAmount, balanceDueDate, balancePaid,
       sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-      notes, cautionAmount
-    ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?, ?)
+      notes
+    ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?)
   `);
 
   const updateReservation = db.prepare(`
@@ -248,7 +248,6 @@ async function performIcalSync(source) {
           source.id,
           event.uid,
           notes,
-          property.defaultCautionAmount || 0,
         );
         const reservationId = Number(result.lastInsertRowid);
         upsertMapping.run(source.id, event.uid, reservationId, eventHash);
