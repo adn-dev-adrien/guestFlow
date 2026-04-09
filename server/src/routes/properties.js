@@ -251,6 +251,23 @@ function buildEventHash(event) {
     .digest('hex');
 }
 
+function shouldSkipIcalReservationUpdate(mappedReservation) {
+  return String(mappedReservation?.sourceType || '') === 'ical'
+    && Number(mappedReservation?.icalSyncLocked || 0) === 1;
+}
+
+function buildIcalCreationHistoryChanges(source, eventUid) {
+  return [
+    { field: 'sourceType', label: 'Origine', from: null, to: `Import iCal (${source?.platformLabel || source?.name || 'Source inconnue'})` },
+    { field: 'sourceIcalEventUid', label: 'UID iCal', from: null, to: eventUid || '' },
+  ];
+}
+
+function addReservationHistoryEntry(reservationId, eventType, changes) {
+  db.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, ?, ?)')
+    .run(reservationId, eventType, JSON.stringify(changes || []));
+}
+
 function syncIcalSource(source) {
   return (async () => {
     const property = db.prepare('SELECT id, defaultCheckIn, defaultCheckOut, defaultCautionAmount FROM properties WHERE id = ?').get(source.propertyId);
@@ -273,6 +290,7 @@ function syncIcalSource(source) {
       ON CONFLICT(sourceId, eventUid)
       DO UPDATE SET reservationId=excluded.reservationId, eventHash=excluded.eventHash, lastSeenAt=datetime('now')
     `);
+    const getReservationById = db.prepare('SELECT id, sourceType, icalSyncLocked FROM reservations WHERE id = ?');
     const deleteReservation = db.prepare('DELETE FROM reservations WHERE id = ?');
     const insertReservation = db.prepare(`
       INSERT INTO reservations (
@@ -281,8 +299,9 @@ function syncIcalSource(source) {
         platform, totalPrice, discountPercent, finalPrice,
         depositAmount, depositDueDate, depositPaid,
         balanceAmount, balanceDueDate, balancePaid,
+        sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
         notes, cautionAmount
-      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?, ?)
     `);
     const updateReservation = db.prepare(`
       UPDATE reservations
@@ -293,6 +312,7 @@ function syncIcalSource(source) {
     let createdCount = 0;
     let updatedCount = 0;
     let unchangedCount = 0;
+    let lockedCount = 0;
     let removedCount = 0;
 
     const syncTx = db.transaction((eventList) => {
@@ -315,17 +335,51 @@ function syncIcalSource(source) {
             property.defaultCheckIn || '15:00',
             property.defaultCheckOut || '10:00',
             source.platformKey,
+            source.platformKey,
+            source.id,
+            event.uid,
             notes,
             property.defaultCautionAmount || 0,
           );
           const reservationId = Number(result.lastInsertRowid);
           upsertMapping.run(source.id, event.uid, reservationId, eventHash);
+          addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
+          createdCount += 1;
+          continue;
+        }
+
+        const mappedReservation = getReservationById.get(mapping.reservationId);
+        if (!mappedReservation) {
+          const result = insertReservation.run(
+            source.propertyId,
+            clientId,
+            event.startDate,
+            event.endDate,
+            event.adults,
+            property.defaultCheckIn || '15:00',
+            property.defaultCheckOut || '10:00',
+            source.platformKey,
+            source.platformKey,
+            source.id,
+            event.uid,
+            notes,
+            property.defaultCautionAmount || 0,
+          );
+          const reservationId = Number(result.lastInsertRowid);
+          upsertMapping.run(source.id, event.uid, reservationId, eventHash);
+          addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
           createdCount += 1;
           continue;
         }
 
         if (mapping.eventHash === eventHash) {
           unchangedCount += 1;
+          continue;
+        }
+
+        if (shouldSkipIcalReservationUpdate(mappedReservation)) {
+          upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash);
+          lockedCount += 1;
           continue;
         }
 
@@ -368,6 +422,7 @@ function syncIcalSource(source) {
       createdCount,
       updatedCount,
       unchangedCount,
+      lockedCount,
       removedCount,
       rawIcal: icsText,
       parsedEvents: events,
@@ -896,7 +951,7 @@ router.post('/:id/ical-sources/:sourceId/sync', async (req, res) => {
           updatedAt = datetime('now')
       WHERE id = ?
     `).run(
-      `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
+      `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
       result.createdCount + result.updatedCount,
       sourceId,
     );
@@ -932,7 +987,7 @@ router.post('/:id/ical-sources/sync-all', async (req, res) => {
             updatedAt = datetime('now')
         WHERE id = ?
       `).run(
-        `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
+        `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
         result.createdCount + result.updatedCount,
         source.id,
       );
@@ -977,4 +1032,6 @@ module.exports.__test = {
   isUnavailableIcalEvent,
   parseIcsEvents,
   buildEventHash,
+  shouldSkipIcalReservationUpdate,
+  buildIcalCreationHistoryChanges,
 };

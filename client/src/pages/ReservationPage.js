@@ -2188,6 +2188,7 @@ export default function ReservationPage() {
 
                   {!historyLoading && historyEntries.map((entry) => {
                     const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
+                    const historyDetails = changes.map((change) => `${change.label}: ${formatHistoryValue(change.from)} -> ${formatHistoryValue(change.to)}`).join(' | ');
                     return (
                       <Box
                         key={entry.id}
@@ -2210,8 +2211,8 @@ export default function ReservationPage() {
                         </Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
                           {entry.eventType === 'create'
-                            ? 'Réservation créée'
-                            : (changes.map((change) => `${change.label}: ${formatHistoryValue(change.from)} -> ${formatHistoryValue(change.to)}`).join(' | ') || 'Mise à jour sans changement détecté')}
+                            ? (historyDetails || 'Réservation créée')
+                            : (historyDetails || 'Mise à jour sans changement détecté')}
                         </Typography>
                       </Box>
                     );

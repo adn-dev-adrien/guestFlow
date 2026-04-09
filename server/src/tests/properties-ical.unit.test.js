@@ -12,6 +12,8 @@ const {
   isUnavailableIcalEvent,
   parseIcsEvents,
   buildEventHash,
+  shouldSkipIcalReservationUpdate,
+  buildIcalCreationHistoryChanges,
 } = propertiesRoute.__test;
 
 test('normalizePlatformKey sanitizes labels', () => {
@@ -128,4 +130,21 @@ test('buildEventHash is stable for same payload and changes when event changes',
 
   assert.equal(hashA, hashB);
   assert.notEqual(hashA, hashC);
+});
+
+test('shouldSkipIcalReservationUpdate blocks updates for locked iCal reservations only', () => {
+  assert.equal(shouldSkipIcalReservationUpdate({ sourceType: 'ical', icalSyncLocked: 1 }), true);
+  assert.equal(shouldSkipIcalReservationUpdate({ sourceType: 'ical', icalSyncLocked: 0 }), false);
+  assert.equal(shouldSkipIcalReservationUpdate({ sourceType: 'manual', icalSyncLocked: 1 }), false);
+  assert.equal(shouldSkipIcalReservationUpdate(null), false);
+});
+
+test('buildIcalCreationHistoryChanges includes platform and event uid', () => {
+  const changes = buildIcalCreationHistoryChanges({ platformLabel: 'Airbnb', name: 'Mon flux Airbnb' }, 'uid-123');
+  assert.equal(Array.isArray(changes), true);
+  assert.equal(changes.length, 2);
+  assert.equal(changes[0].label, 'Origine');
+  assert.equal(changes[0].to, 'Import iCal (Airbnb)');
+  assert.equal(changes[1].label, 'UID iCal');
+  assert.equal(changes[1].to, 'uid-123');
 });

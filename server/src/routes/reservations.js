@@ -160,6 +160,12 @@ function addReservationHistoryEntry(reservationId, eventType, changes) {
     .run(reservationId, eventType, JSON.stringify(changes || []));
 }
 
+function computeNextIcalSyncLocked(existingReservation) {
+  if (!existingReservation) return 0;
+  if (String(existingReservation.sourceType || '') === 'ical') return 1;
+  return Number(existingReservation.icalSyncLocked || 0);
+}
+
 // List reservations (optionally filter by propertyId, clientId, date range)
 router.get('/', (req, res) => {
   const { propertyId, clientId, from, to } = req.query;
@@ -507,8 +513,9 @@ router.post('/', (req, res) => {
       singleBeds, doubleBeds, babyBeds,
       checkInTime, checkOutTime,
       platform, totalPrice, discountPercent, finalPrice, depositAmount, depositDueDate,
-      balanceAmount, balanceDueDate, notes, cautionAmount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
+      notes, cautionAmount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -521,7 +528,7 @@ router.post('/', (req, res) => {
   const reservationId = result.lastInsertRowid;
 
   addReservationHistoryEntry(reservationId, 'create', [
-    { field: 'createdAt', label: 'Création', from: null, to: 'Réservation créée' },
+    { field: 'sourceType', label: 'Origine', from: null, to: 'Création manuelle' },
   ]);
 
   // Insert reservation options
@@ -608,7 +615,7 @@ router.put('/:id', (req, res) => {
 
   const beforeAuditSnapshot = getReservationAuditSnapshotFromDb(Number(req.params.id));
 
-  const existingReservation = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(Number(req.params.id));
+  const existingReservation = db.prepare('SELECT propertyId, sourceType, icalSyncLocked FROM reservations WHERE id = ?').get(Number(req.params.id));
   const canReuseLockedPricing = !refreshPricingToCurrent
     && existingReservation
     && Number(existingReservation.propertyId) === Number(propertyId);
@@ -713,13 +720,15 @@ router.put('/:id', (req, res) => {
     return res.status(400).json({ error: `Lits bébé indisponibles: ${babyAvailable} restant(s) pour cette période.` });
   }
 
+  const nextIcalSyncLocked = computeNextIcalSyncLocked(existingReservation);
+
   db.prepare(`
     UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
       singleBeds=?, doubleBeds=?, babyBeds=?,
       checkInTime=?, checkOutTime=?,
       platform=?, totalPrice=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
       depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
-      cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?,
+      cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, icalSyncLocked=?,
       updatedAt=datetime('now')
     WHERE id=?
   `).run(
@@ -730,7 +739,7 @@ router.put('/:id', (req, res) => {
     quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, depositPaid ? 1 : 0,
     quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
     cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
-    cautionReturned ? 1 : 0, cautionReturnedDate || null,
+    cautionReturned ? 1 : 0, cautionReturnedDate || null, nextIcalSyncLocked,
     req.params.id
   );
 
@@ -798,6 +807,14 @@ router.put('/:id', (req, res) => {
 
   const afterAuditSnapshot = getReservationAuditSnapshotFromPayload(req.body, quote);
   const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
+  if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {
+    changes.push({
+      field: 'icalSyncLocked',
+      label: 'Synchronisation iCal',
+      from: 'Active',
+      to: 'Verrouillée après modification manuelle',
+    });
+  }
   if (changes.length > 0) {
     addReservationHistoryEntry(Number(req.params.id), 'update', changes);
   }
@@ -852,3 +869,6 @@ router.delete('/:id', (req, res) => {
 });
 
 module.exports = router;
+module.exports.__test = {
+  computeNextIcalSyncLocked,
+};

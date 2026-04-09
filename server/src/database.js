@@ -135,6 +135,11 @@ db.exec(`
     balanceAmount REAL DEFAULT 0,
     balanceDueDate TEXT,
     balancePaid INTEGER DEFAULT 0,
+    sourceType TEXT NOT NULL DEFAULT 'manual',
+    sourcePlatformKey TEXT,
+    sourceIcalSourceId INTEGER,
+    sourceIcalEventUid TEXT,
+    icalSyncLocked INTEGER NOT NULL DEFAULT 0,
     notes TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now')),
@@ -271,6 +276,21 @@ if (!cols.includes('babyBeds')) {
 }
 if (!cols.includes('teens')) {
   db.exec("ALTER TABLE reservations ADD COLUMN teens INTEGER DEFAULT 0");
+}
+if (!cols.includes('sourceType')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'manual'");
+}
+if (!cols.includes('sourcePlatformKey')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN sourcePlatformKey TEXT");
+}
+if (!cols.includes('sourceIcalSourceId')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN sourceIcalSourceId INTEGER");
+}
+if (!cols.includes('sourceIcalEventUid')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN sourceIcalEventUid TEXT");
+}
+if (!cols.includes('icalSyncLocked')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN icalSyncLocked INTEGER NOT NULL DEFAULT 0");
 }
 const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
 if (!propCols.includes('defaultCautionAmount')) {
