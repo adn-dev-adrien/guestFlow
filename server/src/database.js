@@ -475,6 +475,29 @@ if (!babyBed) {
     .run('Lit bébé', 1, 0, null, 'Ressource par défaut');
 }
 
+// Migration: Add missing columns to options table if they don't exist
+function migrateOptionsColumns() {
+  try {
+    // Test if autoOptionType column exists
+    db.prepare('SELECT autoOptionType FROM options LIMIT 1').all();
+  } catch (err) {
+    // Column doesn't exist, add all missing columns
+    try {
+      db.exec(`
+        ALTER TABLE options ADD COLUMN autoOptionType TEXT;
+        ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed';
+        ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT;
+      `);
+    } catch (alterErr) {
+      // Columns might already exist in some databases, ignore error
+      console.log('Migration note: autoOptionType columns may already exist or migration skipped');
+    }
+  }
+}
+
+migrateOptionsColumns();
+
 function ensureDefaultTimedOptionsForProperty(propertyId) {
   const upsertTimedOption = (config) => {
     const existing = db.prepare(`
