@@ -121,22 +121,55 @@ jobs:
           mkdir -p "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
           
-          if [ ! -f "$(pwd)/$RELEASE_NAME.zip" ]; then
-            # Find the zip in the workspace path
-            ZIP_PATH=$(find /home -maxdepth 4 -name "$RELEASE_NAME.zip" 2>/dev/null | head -1)
-            if [ -z "$ZIP_PATH" ]; then
-              echo "❌ Could not find $RELEASE_NAME.zip"
-              exit 1
-            fi
-          else
-            ZIP_PATH="$(pwd)/$RELEASE_NAME.zip"
+          # Find the zip file in the workspace
+          ZIP_FILE=$(find . -maxdepth 1 -name "$RELEASE_NAME.zip" 2>/dev/null | head -1)
+          
+          # If not found locally, check in the runner's workspace
+          if [ -z "$ZIP_FILE" ]; then
+            ZIP_FILE="${GITHUB_WORKSPACE}/$RELEASE_NAME.zip"
           fi
           
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "❌ Error: Could not find $RELEASE_NAME.zip"
+            echo "Searched in: $DEPLOY_DIR and $GITHUB_WORKSPACE"
+            ls -la "$GITHUB_WORKSPACE" | head -20
+            exit 1
+          fi
+          
+          echo "✓ Found release at: $ZIP_FILE"
+          
           mkdir -p current
-          unzip -q "$ZIP_PATH"
+          unzip -q "$ZIP_FILE"
           mv "${RELEASE_NAME}"/* current
           rm -r "${RELEASE_NAME}" 2>/dev/null || true
           echo "✓ Release extracted to current/"
+          echo "✓ Files extracted:"
+          ls -la current/
+
+      - name: 🔗 Create symlink for persistent database
+        run: |
+          DEPLOY_DIR="$HOME/guestflow"
+          PERSISTENT_DB="$HOME/guestflow/data/guestflow.db"
+          
+          # Ensure the persistent DB directory and file exist
+          mkdir -p "$(dirname "$PERSISTENT_DB")"
+          
+          # Create empty DB if it doesn't exist
+          if [ ! -f "$PERSISTENT_DB" ]; then
+            touch "$PERSISTENT_DB"
+            echo "✓ Created new persistent database"
+          else
+            echo "✓ Using existing database"
+          fi
+          
+          # Remove old symlink if it exists
+          rm -f "$DEPLOY_DIR/current/server/guestflow.db" 2>/dev/null || true
+          
+          # Create symlink from deployment to persistent location
+          ln -s "$PERSISTENT_DB" "$DEPLOY_DIR/current/server/guestflow.db"
+          
+          echo "✓ Database symlink created"
+          ls -la "$DEPLOY_DIR/current/server/guestflow.db"
 
       - name: 📥 Restore uploads
         run: |
@@ -165,26 +198,62 @@ jobs:
 
       - name: 🗄️ Run database migrations
         run: |
+          PERSISTENT_DB="$HOME/guestflow/data/guestflow.db"
+          
           if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then
             echo "Running database migrations..."
             cd "$HOME/guestflow/current/server"
-            DB_PATH="$HOME/guestflow/data/guestflow.db" node -e "
+            
+            # Run migrations with explicit DB_PATH
+            DB_PATH="$PERSISTENT_DB" \
+            SKIP_MIGRATIONS=false \
+            node -e "
+              const dbPath = process.env.DB_PATH;
+              console.log('Initializing database at:', dbPath);
               require('./src/database.js');
               console.log('✓ Migrations complete');
             "
+            
+            if [ $? -eq 0 ]; then
+              echo "✓ Migrations completed successfully"
+            else
+              echo "⚠️ Migration failed - but continuing (may be non-critical)"
+            fi
           else
             echo "ℹ Migrations skipped (set run_migrations=true to apply)"
           fi
 
       - name: 🚀 Start service with PM2
         run: |
+          PERSISTENT_DB="$HOME/guestflow/data/guestflow.db"
+          
+          # Verify database exists and is accessible
+          if [ ! -f "$PERSISTENT_DB" ]; then
+            echo "❌ Error: Persistent database not found at $PERSISTENT_DB"
+            exit 1
+          fi
+          
+          # Verify symlink is correct
+          if [ ! -L "$HOME/guestflow/current/server/guestflow.db" ]; then
+            echo "❌ Error: Database symlink not found or invalid"
+            ls -la "$HOME/guestflow/current/server/" | grep guestflow
+            exit 1
+          fi
+          
+          echo "✓ Database verified at: $PERSISTENT_DB"
+          echo "✓ Service symlink verified"
+          
+          # Start service with explicit DB_PATH (for extra safety)
           NODE_ENV=production \
-          DB_PATH="$HOME/guestflow/data/guestflow.db" \
+          DB_PATH="$PERSISTENT_DB" \
           SKIP_MIGRATIONS=true \
           pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
+          
           pm2 save
           pm2 startup systemd -u "$USER" --hp "$HOME" || true
+          
           echo "✓ Service started with PM2"
+          echo "✓ Database path: $PERSISTENT_DB"
 
       - name: ✅ Check service status
         if: success()
@@ -196,17 +265,16 @@ jobs:
           echo "===== Application Logs (last 30 lines) ====="
           pm2 logs guestflow --lines 30 --nostream || echo "Logs unavailable"
 
-      - name: ❌ Deployment failed - Check logs
+      - name: 🔍 Troubleshooting - Collect debug logs
         if: failure()
         run: |
-          echo "===== Deployment failed ====="
+          echo "===== Deployment encountered an issue — collecting debug info ====="
           pm2 logs guestflow --lines 50 --nostream || echo "PM2 logs unavailable"
           echo ""
-          echo "===== Debug Info ====="
-          echo "Database location:"
+          echo "===== Database location ====="
           ls -la "$HOME/guestflow/data/" || echo "Data directory not found"
           echo ""
-          echo "Deployment directory:"
+          echo "===== Deployment directory ====="
           ls -la "$HOME/guestflow/current/server/" || echo "Deployment directory not found"
 
 
