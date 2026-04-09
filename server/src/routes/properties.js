@@ -231,7 +231,7 @@ function buildEventHash(event) {
 
 function syncIcalSource(source) {
   return (async () => {
-    const property = db.prepare('SELECT id, defaultCheckIn, defaultCheckOut FROM properties WHERE id = ?').get(source.propertyId);
+    const property = db.prepare('SELECT id, defaultCheckIn, defaultCheckOut, defaultCautionAmount FROM properties WHERE id = ?').get(source.propertyId);
     if (!property) {
       throw new Error('Logement introuvable pour cette source iCal.');
     }
@@ -258,7 +258,7 @@ function syncIcalSource(source) {
         depositAmount, depositDueDate, depositPaid,
         balanceAmount, balanceDueDate, balancePaid,
         notes, cautionAmount
-      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, ?, 0)
+      ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, ?, ?)
     `);
     const updateReservation = db.prepare(`
       UPDATE reservations
@@ -289,6 +289,7 @@ function syncIcalSource(source) {
             property.defaultCheckOut || '10:00',
             source.platformKey,
             notes,
+            property.defaultCautionAmount || 0,
           );
           const reservationId = Number(result.lastInsertRowid);
           upsertMapping.run(source.id, event.uid, reservationId, eventHash);
