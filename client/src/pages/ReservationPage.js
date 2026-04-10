@@ -1013,7 +1013,7 @@ export default function ReservationPage() {
     }
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     const isLockedReservation = Boolean(reservationId && existingReservationLocked);
 
@@ -1061,16 +1061,22 @@ export default function ReservationPage() {
       return;
     }
 
-    if (exceedsGuestCapacity) {
+    if (exceedsGuestCapacity && !forceCapacity) {
       const capacityParts = [];
       if (exceedsAdultsCapacity) capacityParts.push(`adultes: ${adultsCount}/${maxAdultsAllowed}`);
       if (exceedsChildrenCapacity) capacityParts.push(`enfants+ados (hors lit bébé): ${childrenTeensCountForCapacity}/${maxChildrenAllowed}`);
       if (exceedsBabiesCapacity) capacityParts.push(`bébés: ${babiesCount}/${maxBabiesAllowed}`);
       if (exceedsTotalCapacity) capacityParts.push(`total: ${totalGuestsCount}/${totalGuestsMax}`);
-      await alert({
+      const proceed = await confirm({
         title: 'Capacité du logement dépassée',
-        message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}).`,
+        message: `Le nombre de personnes dépasse la capacité configurée (${capacityParts.join(' • ')}). Voulez-vous forcer l'enregistrement ?`,
+        confirmLabel: 'Forcer l\'enregistrement',
+        cancelLabel: 'Annuler',
+        confirmColor: 'warning',
       });
+      if (proceed) {
+        await handleSaveReservation(safeAfterSaveAction, forceMinNights, true);
+      }
       return;
     }
 
@@ -1122,7 +1128,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return;
-        await handleSaveReservation(safeAfterSaveAction, true);
+        await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
         return;
       }
 
@@ -1168,6 +1174,7 @@ export default function ReservationPage() {
           notes: form.notes,
           refreshPricingToCurrent: useCurrentPricing,
           forceMinNights,
+          forceCapacity,
           options: optionsToSave,
           resources: quote.resourceLines,
         });
@@ -1211,6 +1218,7 @@ export default function ReservationPage() {
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,
+          forceCapacity,
           options: optionsToSave,
           resources: quote.resourceLines,
         });
@@ -1230,7 +1238,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          await handleSaveReservation(safeAfterSaveAction, true);
+          await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
         }
         return;
       }

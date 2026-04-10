@@ -412,6 +412,7 @@ router.post('/', (req, res) => {
     checkInTime, checkOutTime,
     platform, discountPercent, customPrice,
     forceMinNights,
+    forceCapacity,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     cautionAmount,
     options: reservationOptions,
@@ -465,16 +466,16 @@ router.post('/', (req, res) => {
     const totalGuests = adultsCount + childrenCount + teensCount + babiesCount;
     const totalMax = Number(property.maxAdults || 0) + Number(property.maxChildren || 0) + Number(property.maxBabies || 0);
 
-    if (adultsCount > Number(property.maxAdults || 0)) {
+    if (!forceCapacity && adultsCount > Number(property.maxAdults || 0)) {
       return res.status(400).json({ error: `Le nombre d'adultes (${adultsCount}) dépasse la capacité du logement (${property.maxAdults || 0}).` });
     }
-    if (childrenTeensCount > Number(property.maxChildren || 0)) {
+    if (!forceCapacity && childrenTeensCount > Number(property.maxChildren || 0)) {
       return res.status(400).json({ error: `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).` });
     }
-    if (babiesCount > Number(property.maxBabies || 0)) {
+    if (!forceCapacity && babiesCount > Number(property.maxBabies || 0)) {
       return res.status(400).json({ error: `Le nombre de bébés (${babiesCount}) dépasse la capacité du logement (${property.maxBabies || 0}).` });
     }
-    if (totalGuests > totalMax) {
+    if (!forceCapacity && totalGuests > totalMax) {
       return res.status(400).json({ error: `Le nombre total de personnes (${totalGuests}) dépasse la capacité du logement (${totalMax}).` });
     }
 
@@ -610,6 +611,7 @@ router.put('/:id', (req, res) => {
     checkInTime, checkOutTime,
     platform, discountPercent, customPrice,
     forceMinNights,
+    forceCapacity,
     refreshPricingToCurrent,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
@@ -679,16 +681,16 @@ router.put('/:id', (req, res) => {
     const totalGuests = adultsCount + childrenCount + teensCount + babiesCount;
     const totalMax = Number(property.maxAdults || 0) + Number(property.maxChildren || 0) + Number(property.maxBabies || 0);
 
-    if (adultsCount > Number(property.maxAdults || 0)) {
+    if (!forceCapacity && adultsCount > Number(property.maxAdults || 0)) {
       return res.status(400).json({ error: `Le nombre d'adultes (${adultsCount}) dépasse la capacité du logement (${property.maxAdults || 0}).` });
     }
-    if (childrenTeensCount > Number(property.maxChildren || 0)) {
+    if (!forceCapacity && childrenTeensCount > Number(property.maxChildren || 0)) {
       return res.status(400).json({ error: `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).` });
     }
-    if (babiesCount > Number(property.maxBabies || 0)) {
+    if (!forceCapacity && babiesCount > Number(property.maxBabies || 0)) {
       return res.status(400).json({ error: `Le nombre de bébés (${babiesCount}) dépasse la capacité du logement (${property.maxBabies || 0}).` });
     }
-    if (totalGuests > totalMax) {
+    if (!forceCapacity && totalGuests > totalMax) {
       return res.status(400).json({ error: `Le nombre total de personnes (${totalGuests}) dépasse la capacité du logement (${totalMax}).` });
     }
 
