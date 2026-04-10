@@ -747,13 +747,18 @@ export default function ReservationPage() {
     }
 
     const subtotal = base + optionsTotal + resourcesTotal;
-    let final;
+    
+    // Appliquer la remise UNIQUEMENT au prix de l'hébergement
+    let accommodationPrice = base;
     if (updatedForm.customPrice !== '') {
-      final = Number(updatedForm.customPrice);
+      accommodationPrice = Number(updatedForm.customPrice);
     } else {
-      final = subtotal * (1 - (updatedForm.discountPercent || 0) / 100);
+      accommodationPrice = base * (1 - (updatedForm.discountPercent || 0) / 100);
     }
-    final = Math.round(final * 100) / 100;
+    accommodationPrice = Math.round(accommodationPrice * 100) / 100;
+    
+    // Le final price = prix accomodation remisé + options + ressources
+    const final = Math.round((accommodationPrice + optionsTotal + resourcesTotal) * 100) / 100;
 
     const autoDepositAmount = Math.round(final * (depositPercent / 100) * 100) / 100;
     const autoBalanceAmount = Math.round((final - autoDepositAmount) * 100) / 100;
@@ -1586,6 +1591,8 @@ export default function ReservationPage() {
               {minNightsWarning}
             </Typography>
           )}
+          
+          <Divider />
 
           <Autocomplete
             options={clients}
@@ -1902,14 +1909,32 @@ export default function ReservationPage() {
           <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Finance</Typography>
 
-            <TextField
-                label="Réduction (%)"
-                type="number"
-                value={form.discountPercent}
-                onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
-                fullWidth
-                inputProps={{ min: 0, max: 100 }}
-            />
+            <Grid container spacing={1.5}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                    label="Réduction (%)"
+                    type="number"
+                    value={form.discountPercent}
+                    onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
+                    fullWidth
+                    inputProps={{ min: 0, max: 100 }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                    label="Prix remisé (laisser vide pour auto)"
+                    type="number"
+                    value={form.customPrice}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
+                    }}
+                    fullWidth
+                    inputProps={{ min: 0, step: 0.01 }}
+                    helperText={form.customPrice !== '' ? `Économie: ${Math.max(0, (Number(form.totalPrice) + (form.selectedOptions || []).reduce((acc, so) => acc + Number(so.totalPrice || 0), 0) + (form.selectedResources || []).reduce((acc, sr) => acc + Number(sr.totalPrice || 0), 0) - Number(form.customPrice)).toFixed(2))}€` : undefined}
+                />
+              </Grid>
+            </Grid>
           </Box>
               
           <Divider sx={{ my: 1 }} />
@@ -2038,6 +2063,53 @@ export default function ReservationPage() {
             onChange={(e) => updateForm({ notes: e.target.value })}
             fullWidth
           />
+          
+          {/* Affichage du prix de l'hébergement */}
+          {form.totalPrice > 0 && (
+            <Card variant="outlined" sx={{ bgcolor: form.discountPercent > 0 || form.customPrice !== '' ? '#fffde7' : 'transparent', p: 2, mt: 2 }}>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Prix de l'hébergement</Typography>
+                
+                {(form.discountPercent > 0 || form.customPrice !== '') ? (
+                  <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">Prix original</Typography>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          fontWeight: 600,
+                          textDecoration: 'line-through',
+                          color: 'text.secondary'
+                        }}
+                      >
+                        {form.totalPrice.toFixed(2)}€
+                      </Typography>
+                    </Box>
+                    
+                    {form.discountPercent > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">Remise ({form.discountPercent}%)</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                          -{(form.totalPrice * form.discountPercent / 100).toFixed(2)}€
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    <Divider />
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Prix remisé</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                        {(form.customPrice !== '' ? Number(form.customPrice) : form.totalPrice * (1 - form.discountPercent / 100)).toFixed(2)}€
+                      </Typography>
+                    </Box>
+                  </>
+                ) : (
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.totalPrice.toFixed(2)}€</Typography>
+                )}
+              </Stack>
+            </Card>
+          )}
           </Box>
         </Box>
         </Box>
@@ -2083,13 +2155,24 @@ export default function ReservationPage() {
               }, 0);
               const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + resourceLineTotal(sr), 0);
               const subtotal = form.totalPrice + optionsTotal + resourcesTotal;
-              const discountAmount = Math.max(0, Math.round((subtotal - Number(form.finalPrice || 0)) * 100) / 100);
-              const totalSejour = Math.round((subtotal - discountAmount + touristTaxTotal) * 100) / 100;
+              
+              // La remise s'applique UNIQUEMENT au prix de l'hébergement
+              let accommodationPriceAfterDiscount = form.totalPrice;
+              let discountAmount = 0;
+              if (form.customPrice !== '') {
+                accommodationPriceAfterDiscount = Number(form.customPrice);
+                discountAmount = Math.max(0, form.totalPrice - accommodationPriceAfterDiscount);
+              } else if (form.discountPercent > 0) {
+                discountAmount = Math.round(form.totalPrice * form.discountPercent / 100 * 100) / 100;
+                accommodationPriceAfterDiscount = Math.round((form.totalPrice - discountAmount) * 100) / 100;
+              }
+              
+              const totalSejour = Math.round((accommodationPriceAfterDiscount + optionsTotal + resourcesTotal + touristTaxTotal) * 100) / 100;
 
               return (
                 <Stack spacing={1.5}>
                   {/* Prix hébergement */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
                       <IconButton
@@ -2101,19 +2184,38 @@ export default function ReservationPage() {
                         {editingPrice ? <CheckIcon sx={{ fontSize: 16 }} /> : <EditIcon sx={{ fontSize: 16 }} />}
                       </IconButton>
                     </Box>
-                    {editingPrice ? (
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={form.totalPrice}
-                        onChange={(e) => updateForm({ totalPrice: Math.max(0, Number(e.target.value) || 0) })}
-                        inputProps={{ min: 0, step: 0.01 }}
-                        sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600 } }}
-                        onBlur={() => setEditingPrice(false)}
-                      />
-                    ) : (
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{`${nights} nuit${nights > 1 ? 's' : ''} • ${form.totalPrice.toFixed(2)}€`}</Typography>
-                    )}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25 }}>
+                      {editingPrice ? (
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={form.totalPrice}
+                          onChange={(e) => updateForm({ totalPrice: Math.max(0, Number(e.target.value) || 0) })}
+                          inputProps={{ min: 0, step: 0.01 }}
+                          sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600 } }}
+                          onBlur={() => setEditingPrice(false)}
+                        />
+                      ) : (
+                        <>
+                          {(form.discountPercent > 0 || form.customPrice !== '') && (
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                fontWeight: 600,
+                                textDecoration: 'line-through',
+                                color: 'text.secondary'
+                              }}
+                            >
+                              {form.totalPrice.toFixed(2)}€
+                            </Typography>
+                          )}
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: (form.discountPercent > 0 || form.customPrice !== '') ? 'success.main' : 'inherit' }}>
+                            {accommodationPriceAfterDiscount.toFixed(2)}€
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
+                        </>
+                      )}
+                    </Box>
                   </Box>
 
                   {nightlyBreakdown.length > 0 && (
@@ -2190,33 +2292,33 @@ export default function ReservationPage() {
                                 </Typography>
                               )}
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontWeight: 600, 
-                                  whiteSpace: 'nowrap',
-                                  textDecoration: isOffered ? 'line-through' : 'none',
-                                  opacity: isOffered ? 0.6 : 1,
-                                  color: isOffered ? 'text.secondary' : 'inherit'
-                                }}
-                              >
-                                {total.toFixed(2)}€
-                              </Typography>
-                              <Button
-                                size="small"
-                                variant={isOffered ? 'contained' : 'outlined'}
-                                color={isOffered ? 'success' : 'inherit'}
-                                onClick={() => {
-                                  const next = new Set(offeredOptionIds);
-                                  if (isOffered) next.delete(so.optionId);
-                                  else next.add(so.optionId);
-                                  setOfferedOptionIds(next);
-                                }}
-                                sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
-                              >
-                                {isOffered ? '✓ Offert' : 'Offrir'}
-                              </Button>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Button
+                                  size="small"
+                                  variant={isOffered ? 'contained' : 'outlined'}
+                                  color={isOffered ? 'success' : 'inherit'}
+                                  onClick={() => {
+                                    const next = new Set(offeredOptionIds);
+                                    if (isOffered) next.delete(so.optionId);
+                                    else next.add(so.optionId);
+                                    setOfferedOptionIds(next);
+                                  }}
+                                  sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                                >
+                                  {isOffered ? '✓ Offert' : 'Offrir'}
+                                </Button>
+                                <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                    fontWeight: 600, 
+                                    whiteSpace: 'nowrap',
+                                    textDecoration: isOffered ? 'line-through' : 'none',
+                                    opacity: isOffered ? 0.6 : 1,
+                                    color: isOffered ? 'text.secondary' : 'inherit'
+                                    }}
+                                >
+                                    {total.toFixed(2)}€
+                                </Typography>
                             </Box>
                           </Box>
                         );
@@ -2263,13 +2365,20 @@ export default function ReservationPage() {
                     </>
                   )}
 
-                  {/* Réduction */}
+                  {/* Réduction sur l'hébergement */}
                   {discountAmount > 0 && (
                     <>
                       <Divider />
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Remise sur hébergement
+                      </Typography>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="body2" color="text.secondary">Réduction ({form.discountPercent}%)</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>-{discountAmount.toFixed(2)}€</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {form.customPrice !== '' ? 'Prix personnalisé' : `Remise ${form.discountPercent}%`}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                          -{discountAmount.toFixed(2)}€
+                        </Typography>
                       </Box>
                     </>
                   )}

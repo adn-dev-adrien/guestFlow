@@ -7,7 +7,6 @@ let syncInProgress = false;
 
 async function performAutoSync() {
   if (syncInProgress) {
-    console.log('[iCal Sync] Une synchronisation est déjà en cours, ignorée.');
     return;
   }
 
@@ -15,8 +14,6 @@ async function performAutoSync() {
   const startTime = new Date();
 
   try {
-    console.log(`[iCal Sync] Début de la synchronisation automatique à ${startTime.toLocaleString('fr-FR')}`);
-
     // Get all active iCal sources
     const sources = db.prepare(`
       SELECT * FROM ical_sources 
@@ -25,7 +22,6 @@ async function performAutoSync() {
     `).all();
 
     if (!sources.length) {
-      console.log('[iCal Sync] Aucune source iCal active à synchroniser.');
       syncInProgress = false;
       return;
     }
@@ -38,8 +34,6 @@ async function performAutoSync() {
     // Sync each source
     for (const source of sources) {
       try {
-        console.log(`[iCal Sync] Synchronisation de "${source.name}" (source ${source.id})...`);
-
         // Import the syncIcalSource function from routes/properties.js
         // We'll call it via a workaround
         const result = await performIcalSync(source);
@@ -63,7 +57,6 @@ async function performAutoSync() {
         totalUpdated += result.updatedCount;
         totalRemoved += result.removedCount;
 
-        console.log(`[iCal Sync] ✅ Source "${source.name}": ${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.removedCount} supprimé(s)`);
       } catch (error) {
         totalErrors += 1;
         console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${source.name}":`, error.message);
@@ -81,9 +74,6 @@ async function performAutoSync() {
 
     const endTime = new Date();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
-
-    console.log(`[iCal Sync] Synchronisation automatique terminée en ${duration}s`);
-    console.log(`[iCal Sync] Résumé: ${totalCreated} créé(s), ${totalUpdated} mis à jour, ${totalRemoved} supprimé(s), ${totalErrors} erreur(s)`);
   } catch (error) {
     console.error('[iCal Sync] Erreur critique:', error);
   } finally {
@@ -311,9 +301,6 @@ async function performIcalSync(source) {
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
-
-  console.log('[ScheduledTasks] Démarrage des tâches programmées...');
-  console.log(`[ScheduledTasks] Synchronisation automatique des iCal toutes les 5 minutes`);
 
   setInterval(() => {
     performAutoSync().catch(err => console.error('[iCal Sync] Erreur non gérée:', err));
