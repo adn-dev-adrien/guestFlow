@@ -302,6 +302,18 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
             />
           </Tooltip>
 
+          <Chip
+            label="DÉPART"
+            size="small"
+            sx={{
+              height: 18,
+              fontSize: 10,
+              fontWeight: 800,
+              color: done ? 'success.dark' : 'warning.dark',
+              bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
+            }}
+          />
+
           <AccessTimeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
           <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 42 }}>
             {checkOutTime}
