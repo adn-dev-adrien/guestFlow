@@ -58,10 +58,25 @@ A web application for managing tourist accommodations: property booking and fina
 
 ## Prerequisites
 
-- **Node.js** ≥ 18 (tested with v22)
-- **npm** ≥ 9
+- **Node.js LTS** ≥ 20.x or 22.x (recommended: v22.22.2)
+  - ⚠️ Not compatible with Node.js v25+ (incompatibility with better-sqlite3 C++ compilation)
+- **npm** ≥ 10.x
 
 No external database required: SQLite is embedded and the `.db` file is created automatically on first launch.
+
+### Installing Node.js
+
+On macOS with Homebrew:
+
+```bash
+# Install Node.js 22 LTS
+brew install node@22
+brew link node@22
+
+# Verify installation
+node --version  # Should output v22.x.x
+npm --version   # Should output 10.x.x
+```
 
 ## Project Structure
 
