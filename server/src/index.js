@@ -35,6 +35,7 @@ app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/school-holidays', require('./routes/schoolHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
+app.use('/api/ical', require('./routes/ical'));
 
 app.get('/api/version', (req, res) => {
   res.json({

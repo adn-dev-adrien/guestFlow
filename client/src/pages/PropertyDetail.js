@@ -17,6 +17,7 @@ import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
+import IcalExportCard from '../components/IcalExportCard';
 import api from '../api';
 
 const NEW_DEFAULTS = {
@@ -738,6 +739,13 @@ export default function PropertyDetail() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* iCal Export */}
+        {!isNew && (
+          <Grid item xs={12}>
+            <IcalExportCard propertyId={property.id} propertyName={property.name} />
+          </Grid>
+        )}
 
         {/* iCal Sync */}
         <Grid item xs={12}>

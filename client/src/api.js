@@ -120,6 +120,10 @@ const api = {
   },
   upsertCalendarNote: (propertyId, date, note) => request(`/calendar-notes/${propertyId}/${date}`, { method: 'PUT', body: { note } }),
   deleteCalendarNote: (propertyId, date) => request(`/calendar-notes/${propertyId}/${date}`, { method: 'DELETE' }),
+
+  // iCal Export
+  getIcalToken: (propertyId) => request(`/ical/token/${propertyId}`),
+  regenerateIcalToken: (propertyId) => request(`/ical/regenerate-token/${propertyId}`, { method: 'POST' }),
 };
 
 export default api;

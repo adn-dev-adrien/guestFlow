@@ -553,6 +553,107 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
   return;
 }
 
+// ---------- ICAL EXPORT TOKENS ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ical_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER NOT NULL UNIQUE,
+    token TEXT NOT NULL UNIQUE,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+  )
+`);
+
+// Verify ical_tokens columns
+const icalTokenCols = db.prepare("PRAGMA table_info(ical_tokens)").all().map(c => c.name);
+if (icalTokenCols.length > 0 && !icalTokenCols.includes('updatedAt')) {
+  db.exec("ALTER TABLE ical_tokens ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
+}
+
+// Function to get or create iCal token for a property
+function getOrCreateIcalToken(propertyId) {
+  const existing = db.prepare('SELECT token FROM ical_tokens WHERE propertyId = ?').get(propertyId);
+  if (existing) {
+    return existing.token;
+  }
+  
+  // Generate unique token
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(32).toString('hex');
+  
+  try {
+    db.prepare('INSERT INTO ical_tokens (propertyId, token) VALUES (?, ?)').run(propertyId, token);
+    return token;
+  } catch (err) {
+    // Token might already exist (race condition), try to fetch it
+    const retry = db.prepare('SELECT token FROM ical_tokens WHERE propertyId = ?').get(propertyId);
+    return retry ? retry.token : null;
+  }
+}
+
+// Function to export reservations as iCal format
+function exportPropertyAsIcal(propertyId) {
+  const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
+  if (!property) return null;
+  
+  const reservations = db.prepare(`
+    SELECT r.*, c.firstName, c.lastName, c.email
+    FROM reservations r
+    LEFT JOIN clients c ON r.clientId = c.id
+    WHERE r.propertyId = ?
+    ORDER BY r.startDate
+  `).all(propertyId);
+  
+  // Generate iCal format
+  const crypto = require('crypto');
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//GuestFlow//EN',
+    `CALSCALE:GREGORIAN`,
+    `X-WR-CALNAME:${escapeIcalText(property.name)}`,
+    `X-WR-TIMEZONE:Europe/Paris`,
+  ];
+  
+  reservations.forEach(r => {
+    const clientName = r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : 'Réservation';
+    const eventUid = `reservation-${r.id}@guestflow.local`;
+    
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${eventUid}`);
+    lines.push(`DTSTAMP:${formatIcalDate(new Date())}`);
+    lines.push(`DTSTART:${formatIcalDate(new Date(r.startDate))}`);
+    lines.push(`DTEND:${formatIcalDate(new Date(r.endDate))}`);
+    lines.push(`SUMMARY:${escapeIcalText(clientName)}`);
+    lines.push(`DESCRIPTION:${escapeIcalText(`Plateforme: ${r.platform}\nAdultes: ${r.adults}, Enfants: ${r.children}`)}`);
+    if (r.email) {
+      lines.push(`ATTENDEE:mailto:${r.email}`);
+    }
+    lines.push('TRANSP:OPAQUE');
+    lines.push('END:VEVENT');
+  });
+  
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+// Helper functions for iCal format
+function formatIcalDate(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+}
+
+function escapeIcalText(text) {
+  if (!text) return '';
+  return text.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+}
+
+db.getOrCreateIcalToken = getOrCreateIcalToken;
+db.exportPropertyAsIcal = exportPropertyAsIcal;
+
 // Skip automatic initialization - let the frontend handle it
 console.log('[Database] Skipping automatic timed options initialization to prevent startup errors');
 
