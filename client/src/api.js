@@ -17,6 +17,9 @@ async function request(path, options = {}) {
 }
 
 const api = {
+  // Version / deployment metadata
+  getVersion: () => request('/version'),
+
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getClient: (id) => request(`/clients/${id}`),

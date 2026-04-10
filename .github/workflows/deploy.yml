@@ -244,6 +244,7 @@ jobs:
           NODE_ENV=production \
           DB_PATH="$PERSISTENT_DB" \
           SKIP_MIGRATIONS=false \
+          APP_COMMIT_SHA="${GITHUB_SHA}" \
           pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
           
           pm2 save

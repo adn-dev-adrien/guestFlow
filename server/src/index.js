@@ -11,6 +11,14 @@ function logErrorMarker(message) {
 
 logErrorMarker('=== SERVER BOOT START ===');
 
+const commitSha = String(
+  process.env.APP_COMMIT_SHA
+    || process.env.COMMIT_SHA
+    || process.env.GITHUB_SHA
+    || ''
+).trim();
+const commitShaShort = commitSha ? commitSha.slice(0, 7) : null;
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -27,6 +35,15 @@ app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/school-holidays', require('./routes/schoolHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
+
+app.get('/api/version', (req, res) => {
+  res.json({
+    env: process.env.NODE_ENV || 'development',
+    commitSha: commitSha || null,
+    commitShaShort,
+    startedAt: new Date().toISOString(),
+  });
+});
 
 // In production, serve the built React app for non-API routes.
 const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');

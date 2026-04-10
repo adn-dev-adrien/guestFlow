@@ -224,6 +224,7 @@ function AppShell() {
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [versionInfo, setVersionInfo] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -235,6 +236,23 @@ function AppShell() {
       })
       .catch(() => {
         // Keep static colors when custom colors cannot be loaded.
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') return undefined;
+    let isMounted = true;
+    api.getVersion()
+      .then((data) => {
+        if (!isMounted) return;
+        setVersionInfo(data || null);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setVersionInfo(null);
       });
     return () => {
       isMounted = false;
@@ -274,6 +292,12 @@ function AppShell() {
           <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
             GuestFlow
           </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          {process.env.NODE_ENV === 'production' && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+              {versionInfo?.commitShaShort ? `prod ${versionInfo.commitShaShort}` : 'prod'}
+            </Typography>
+          )}
         </Toolbar>
       </AppBar>
 
