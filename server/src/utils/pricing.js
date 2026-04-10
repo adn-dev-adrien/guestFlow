@@ -100,7 +100,7 @@ function getTotalFromWeeklyModel(baseNightPrice, nights) {
   if (nights === 5) return weekPrice * 0.8;
   if (nights === 6) return weekPrice * 0.9;
   if (nights === 7) return weekPrice;
-  return weekPrice * (1 + (nights - 7) * 0.171626984);
+  return weekPrice * (1 + (nights - 7) * 0.14285714); 
 }
 
 function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 14) {

@@ -131,6 +131,21 @@ Or in a single command:
 npm install && npm run install:all
 ```
 
+### Stopping Running Instances
+
+If you have a GuestFlow instance running in the background, stop it first:
+
+```bash
+# macOS: Kill processes on both ports 3000 and 4000
+kill -9 $(lsof -t -i :3000) $(lsof -t -i :4000) 2>/dev/null || true
+
+# Linux: Kill processes on both ports 3000 and 4000
+fuser -k 3000/tcp 4000/tcp 2>/dev/null || true
+
+# Or kill all Node.js processes running GuestFlow
+pkill -f "node src/index.js" || true
+```
+
 ### Running in Development Mode
 
 ```bash
