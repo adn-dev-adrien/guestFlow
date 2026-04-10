@@ -206,7 +206,14 @@ export default function CalendarPage() {
   }, []);
 
   const handleSelectProperty = (propertyId) => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
     setSelectedProp(propertyId);
+    setMonths(getMonthsRange(currentYear, currentMonth, 1));
+    focusMonthKeyRef.current = `${currentYear}-${currentMonth}`;
+    pendingFocusScrollRef.current = true;
     initialScrollDone.current = false;
     lastLoadedRange.current = { from: '', to: '' };
     prependMonthLock.current = false;
