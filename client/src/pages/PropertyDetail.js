@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, TextField, Button, Grid,
@@ -55,6 +55,24 @@ function getSortedSeasonRanges(rule) {
   return [{ startDate: rule?.startDate, endDate: rule?.endDate }].filter((range) => range.startDate && range.endDate);
 }
 
+function normalizeTimedOptionForSnapshot(option) {
+  if (!option) return null;
+  return {
+    id: Number(option.id || 0) || null,
+    autoEnabled: Boolean(option.autoEnabled),
+    autoPricingMode: option.autoPricingMode || 'fixed',
+    autoFullNightThreshold: option.autoFullNightThreshold || null,
+    price: Number(option.price || 0),
+  };
+}
+
+function buildTimedOptionsSnapshot(options) {
+  return JSON.stringify({
+    early: normalizeTimedOptionForSnapshot(options?.early),
+    late: normalizeTimedOptionForSnapshot(options?.late),
+  });
+}
+
 export default function PropertyDetail() {
   const { id } = useParams();
   const isNew = id === 'new';
@@ -81,7 +99,13 @@ export default function PropertyDetail() {
   const [syncingSourceId, setSyncingSourceId] = useState(null);
   const [syncingAll, setSyncingAll] = useState(false);
   const [timedOptions, setTimedOptions] = useState({ early: null, late: null });
+  const [initialTimedOptions, setInitialTimedOptions] = useState({ early: null, late: null });
   const [timedOptionsSaving, setTimedOptionsSaving] = useState(false);
+  const timedOptionsDirty = useMemo(
+    () => buildTimedOptionsSnapshot(timedOptions) !== buildTimedOptionsSnapshot(initialTimedOptions),
+    [timedOptions, initialTimedOptions]
+  );
+  const pageDirty = dirty || timedOptionsDirty;
 
   const load = useCallback(async () => {
     if (isNew) return;
@@ -104,7 +128,7 @@ export default function PropertyDetail() {
     const scopedOptions = (allOptions || []).filter((option) => Array.isArray(option.propertyIds) && option.propertyIds.includes(propId));
     const early = scopedOptions.find((option) => option.autoOptionType === 'early_check_in');
     const late = scopedOptions.find((option) => option.autoOptionType === 'late_check_out');
-    setTimedOptions({
+    const loadedTimedOptions = {
       early: early ? {
         ...early,
         autoEnabled: Number(early.autoEnabled || 0) === 1,
@@ -139,7 +163,9 @@ export default function PropertyDetail() {
         propertyIds: [propId],
         priceType: 'per_stay',
       },
-    });
+    };
+    setTimedOptions(loadedTimedOptions);
+    setInitialTimedOptions(loadedTimedOptions);
   }, [id, isNew]);
 
   const updateTimedOptionField = (kind, field, value) => {
@@ -156,7 +182,7 @@ export default function PropertyDetail() {
     });
   };
 
-  const saveTimedOptions = async () => {
+  const persistTimedOptions = useCallback(async ({ reloadAfter = true } = {}) => {
     if (!canManageExtras) return;
     const payloads = [timedOptions.early, timedOptions.late].filter(Boolean);
     if (payloads.length === 0) return;
@@ -183,24 +209,44 @@ export default function PropertyDetail() {
           return api.createOption(payload);
         }
       }));
-      await load();
+      if (reloadAfter) {
+        await load();
+      }
     } finally {
       setTimedOptionsSaving(false);
     }
-  };
+  }, [canManageExtras, timedOptions, id, load]);
 
   useEffect(() => { load(); }, [load]);
 
   // Warn on browser close/refresh
   useEffect(() => {
-    if (!dirty) return;
+    if (!pageDirty) return;
     const handler = (e) => { e.preventDefault(); };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
+  }, [pageDirty]);
 
   // Keep dirtyRef in sync
-  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => { dirtyRef.current = pageDirty; }, [pageDirty]);
+
+  // Intercept app-level route changes (same pattern as ReservationPage)
+  useEffect(() => {
+    const guardHandler = (targetPath) => {
+      if (!dirtyRef.current) return false;
+      if (!targetPath || targetPath === window.location.pathname) return false;
+      pendingNavRef.current = targetPath;
+      setNavGuardOpen(true);
+      return true;
+    };
+
+    window.__guestflowBeforeNavigate = guardHandler;
+    return () => {
+      if (window.__guestflowBeforeNavigate === guardHandler) {
+        delete window.__guestflowBeforeNavigate;
+      }
+    };
+  }, []);
 
   // Intercept clicks on <a> links to block navigation when dirty
   useEffect(() => {
@@ -221,7 +267,7 @@ export default function PropertyDetail() {
 
   // Intercept browser back/forward
   useEffect(() => {
-    if (!dirty) return;
+    if (!pageDirty) return;
     const handler = () => {
       pendingNavRef.current = null;
       setNavGuardOpen(true);
@@ -230,7 +276,7 @@ export default function PropertyDetail() {
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
-  }, [dirty, location]);
+  }, [pageDirty, location]);
 
   const handleNavGuardLeave = () => {
     setNavGuardOpen(false);
@@ -265,24 +311,38 @@ export default function PropertyDetail() {
   const handleCancel = () => {
     setForm({ ...originalForm });
     setDirty(false);
+    setTimedOptions({ ...initialTimedOptions });
   };
 
   const handleSaveProperty = async () => {
     if (!form.name?.trim()) return;
     setSaving(true);
-    const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => fd.append(k, v));
-    if (photoFile) fd.append('photo', photoFile);
-    if (isNew) {
-      const result = await api.createProperty(fd);
-      setSaving(false);
-      navigate(`/properties/${result.id}`, { replace: true });
-    } else {
-      await api.updateProperty(id, fd);
+    try {
+      if (isNew) {
+        const fd = new FormData();
+        Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+        if (photoFile) fd.append('photo', photoFile);
+        const result = await api.createProperty(fd);
+        navigate(`/properties/${result.id}`, { replace: true });
+        return;
+      }
+
+      if (dirty || photoFile) {
+        const fd = new FormData();
+        Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+        if (photoFile) fd.append('photo', photoFile);
+        await api.updateProperty(id, fd);
+      }
+
+      if (canManageExtras && timedOptionsDirty) {
+        await persistTimedOptions({ reloadAfter: false });
+      }
+
       setDirty(false);
-      setSaving(false);
       setPhotoFile(null);
-      load();
+      await load();
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -418,7 +478,7 @@ export default function PropertyDetail() {
         </Box>
         <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' } }}>
           {!isNew && <Button variant="outlined" color="error" onClick={() => setDeleteOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Supprimer le logement</Button>}
-          {(isNew || dirty) && (
+          {(isNew || pageDirty) && (
             <>
               {!isNew && <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
               {isNew && <Button variant="outlined" onClick={() => navigateBackWithFrom(navigate, from)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
@@ -545,13 +605,6 @@ export default function PropertyDetail() {
                 );
               })}
 
-              <Button
-                variant="contained"
-                onClick={saveTimedOptions}
-                disabled={!canManageExtras || timedOptionsSaving || (!timedOptions.early && !timedOptions.late)}
-              >
-                {timedOptionsSaving ? 'Enregistrement…' : 'Enregistrer les options horaires'}
-              </Button>
             </CardContent>
           </Card>
         </Grid>
