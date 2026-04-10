@@ -9,8 +9,6 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import CheckIcon from '@mui/icons-material/Check';
 import SaveIcon from '@mui/icons-material/Save';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
@@ -113,7 +111,6 @@ export default function ReservationPage() {
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
-  const [editingPrice, setEditingPrice] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -1383,6 +1380,11 @@ export default function ReservationPage() {
     const value = parsed / multiplier;
     return Number.isInteger(value) ? value : Number(value.toFixed(4));
   };
+  const accommodationBasePrice = Number(form.totalPrice || 0);
+  const accommodationDiscountedPrice = form.customPrice !== ''
+    ? Math.max(0, Number(form.customPrice || 0))
+    : Math.round(accommodationBasePrice * (1 - (Number(form.discountPercent || 0) / 100)) * 100) / 100;
+  const accommodationDiscountAmount = Math.max(0, Math.round((accommodationBasePrice - accommodationDiscountedPrice) * 100) / 100);
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
 
@@ -1909,30 +1911,66 @@ export default function ReservationPage() {
           <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Finance</Typography>
 
-            <Grid container spacing={1.5}>
+            <Grid container spacing={1.5} alignItems="stretch">
               <Grid item xs={12} md={6}>
-                <TextField
-                    label="Réduction (%)"
-                    type="number"
-                    value={form.discountPercent}
-                    onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
-                    fullWidth
-                    inputProps={{ min: 0, max: 100 }}
-                />
+                <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Prix hébergement
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
+                      {accommodationBasePrice.toFixed(2)}€
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Tarif brut avant remise
+                    </Typography>
+                  </CardContent>
+                </Card>
               </Grid>
               <Grid item xs={12} md={6}>
-                <TextField
-                    label="Prix remisé (laisser vide pour auto)"
-                    type="number"
-                    value={form.customPrice}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
-                    }}
-                    fullWidth
-                    inputProps={{ min: 0, step: 0.01 }}
-                    helperText={form.customPrice !== '' ? `Économie: ${Math.max(0, (Number(form.totalPrice) + (form.selectedOptions || []).reduce((acc, so) => acc + Number(so.totalPrice || 0), 0) + (form.selectedResources || []).reduce((acc, sr) => acc + Number(sr.totalPrice || 0), 0) - Number(form.customPrice)).toFixed(2))}€` : undefined}
-                />
+                <Card
+                  variant="outlined"
+                  sx={{
+                    height: '100%',
+                    borderColor: accommodationDiscountAmount > 0 ? 'success.main' : 'divider',
+                    bgcolor: accommodationDiscountAmount > 0 ? 'rgba(76, 175, 80, 0.08)' : '#fff',
+                  }}
+                >
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Prix remisé
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5, color: accommodationDiscountAmount > 0 ? 'success.main' : 'text.primary' }}>
+                      {accommodationDiscountedPrice.toFixed(2)}€
+                    </Typography>
+                    {accommodationDiscountAmount > 0 && (
+                      <Typography variant="caption" sx={{ display: 'block', color: 'success.dark' }}>
+                        Économie: {accommodationDiscountAmount.toFixed(2)}€
+                      </Typography>
+                    )}
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+                      <TextField
+                        label="Réduction (%)"
+                        type="number"
+                        value={form.discountPercent}
+                        onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
+                        fullWidth
+                        inputProps={{ min: 0, max: 100 }}
+                      />
+                      <TextField
+                        label="Prix remisé manuel"
+                        type="number"
+                        value={form.customPrice}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
+                        }}
+                        fullWidth
+                        inputProps={{ min: 0, step: 0.01 }}
+                      />
+                    </Stack>
+                  </CardContent>
+                </Card>
               </Grid>
             </Grid>
           </Box>
@@ -2063,53 +2101,6 @@ export default function ReservationPage() {
             onChange={(e) => updateForm({ notes: e.target.value })}
             fullWidth
           />
-          
-          {/* Affichage du prix de l'hébergement */}
-          {form.totalPrice > 0 && (
-            <Card variant="outlined" sx={{ bgcolor: form.discountPercent > 0 || form.customPrice !== '' ? '#fffde7' : 'transparent', p: 2, mt: 2 }}>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Prix de l'hébergement</Typography>
-                
-                {(form.discountPercent > 0 || form.customPrice !== '') ? (
-                  <>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="body2" color="text.secondary">Prix original</Typography>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          fontWeight: 600,
-                          textDecoration: 'line-through',
-                          color: 'text.secondary'
-                        }}
-                      >
-                        {form.totalPrice.toFixed(2)}€
-                      </Typography>
-                    </Box>
-                    
-                    {form.discountPercent > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="body2" color="text.secondary">Remise ({form.discountPercent}%)</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                          -{(form.totalPrice * form.discountPercent / 100).toFixed(2)}€
-                        </Typography>
-                      </Box>
-                    )}
-                    
-                    <Divider />
-                    
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Prix remisé</Typography>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'success.main' }}>
-                        {(form.customPrice !== '' ? Number(form.customPrice) : form.totalPrice * (1 - form.discountPercent / 100)).toFixed(2)}€
-                      </Typography>
-                    </Box>
-                  </>
-                ) : (
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.totalPrice.toFixed(2)}€</Typography>
-                )}
-              </Stack>
-            </Card>
-          )}
           </Box>
         </Box>
         </Box>
@@ -2173,63 +2164,40 @@ export default function ReservationPage() {
                 <Stack spacing={1.5}>
                   {/* Prix hébergement */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
-                      <IconButton
-                        size="small"
-                        onClick={() => setEditingPrice(!editingPrice)}
-                        sx={{ p: 0.25, ml: 0.5 }}
-                        title={editingPrice ? 'Confirmer' : 'Modifier le prix'}
-                      >
-                        {editingPrice ? <CheckIcon sx={{ fontSize: 16 }} /> : <EditIcon sx={{ fontSize: 16 }} />}
-                      </IconButton>
-                    </Box>
+                    <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25 }}>
-                      {editingPrice ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={form.totalPrice}
-                          onChange={(e) => updateForm({ totalPrice: Math.max(0, Number(e.target.value) || 0) })}
-                          inputProps={{ min: 0, step: 0.01 }}
-                          sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 600 } }}
-                          onBlur={() => setEditingPrice(false)}
-                        />
-                      ) : (
-                        <>
-                          {(form.discountPercent > 0 || form.customPrice !== '') && (
-                            <Typography 
-                              variant="caption" 
-                              sx={{ 
-                                fontWeight: 600,
-                                textDecoration: 'line-through',
-                                color: 'text.secondary'
-                              }}
-                            >
-                              {form.totalPrice.toFixed(2)}€
-                            </Typography>
-                          )}
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: (form.discountPercent > 0 || form.customPrice !== '') ? 'success.main' : 'inherit' }}>
-                            {accommodationPriceAfterDiscount.toFixed(2)}€
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
-                        </>
+                      {(form.discountPercent > 0 || form.customPrice !== '') && (
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            fontWeight: 600,
+                            textDecoration: 'line-through',
+                            color: 'text.secondary'
+                          }}
+                        >
+                          {form.totalPrice.toFixed(2)}€
+                        </Typography>
                       )}
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: (form.discountPercent > 0 || form.customPrice !== '') ? 'success.main' : 'inherit' }}>
+                        {accommodationPriceAfterDiscount.toFixed(2)}€
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+                        {nightlyBreakdown.length > 0 ? (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => setShowNightlyBreakdown((prev) => !prev)}
+                            sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                          >
+                            {showNightlyBreakdown ? 'Masquer détail' : 'Détail'}
+                          </Button>
+                        ) : (
+                          <Box />
+                        )}
+                        <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
+                      </Box>
                     </Box>
                   </Box>
-
-                  {nightlyBreakdown.length > 0 && (
-                    <Box sx={{ mt: -0.75 }}>
-                      <Button
-                        size="small"
-                        variant="text"
-                        onClick={() => setShowNightlyBreakdown((prev) => !prev)}
-                        sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
-                      >
-                        {showNightlyBreakdown ? 'Masquer détail' : 'Détail'}
-                      </Button>
-                    </Box>
-                  )}
 
                   {nightlyBreakdown.length > 0 && showNightlyBreakdown && (
                     <Box
