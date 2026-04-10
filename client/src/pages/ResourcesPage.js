@@ -27,7 +27,7 @@ const DAY_OPTIONS = [
 
 const emptyResource = {
   name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
-  isComplex: false, slotDuration: 5, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
+  isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
 };
 
 function ComplexResourceFields({ form, setForm }) {
@@ -38,8 +38,22 @@ function ComplexResourceFields({ form, setForm }) {
       : [...openDays, dayNum];
     setForm({ ...form, openDays: next });
   };
+  const showMinimumUsage = form.priceType === 'per_hour';
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+      {showMinimumUsage && (
+        <FormControl fullWidth size="small">
+          <InputLabel>Temps minimum d'utilisation</InputLabel>
+          <Select
+            value={form.minimumUsageMinutes || 60}
+            label="Temps minimum d'utilisation"
+            onChange={(e) => setForm({ ...form, minimumUsageMinutes: Number(e.target.value) || 0 })}
+          >
+            {SLOT_DURATION_OPTIONS.map((o) => <MenuItem key={`min-${o.value}`} value={o.value}>{o.label}</MenuItem>)}
+          </Select>
+        </FormControl>
+      )}
+
       <FormControlLabel
         control={<Switch checked={Boolean(form.isComplex)} onChange={(e) => setForm({ ...form, isComplex: e.target.checked })} />}
         label={<Typography variant="body2" fontWeight={600}>Ressource à créneaux (bain nordique, salle…)</Typography>}
@@ -124,6 +138,7 @@ export default function ResourcesPage() {
         description: item.note || item.description || '',
         isComplex: Boolean(item.isComplex),
         slotDuration: item.slotDuration || 5,
+        minimumUsageMinutes: Number(item.minimumUsageMinutes || 0),
         openTime: item.openTime || '08:00',
         closeTime: item.closeTime || '22:00',
         openDays: (() => {
@@ -146,6 +161,7 @@ export default function ResourcesPage() {
         note: form.description || '',
         isComplex: form.isComplex ? 1 : 0,
         slotDuration: form.isComplex ? (Number(form.slotDuration) || 5) : 5,
+        minimumUsageMinutes: form.priceType === 'per_hour' ? (Number(form.minimumUsageMinutes) || 60) : 0,
         openTime: form.isComplex ? (form.openTime || '08:00') : '08:00',
         closeTime: form.isComplex ? (form.closeTime || '22:00') : '22:00',
         openDays: JSON.stringify(form.isComplex ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),

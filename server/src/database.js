@@ -180,6 +180,7 @@ db.exec(`
     propertyId INTEGER,
     propertyIds TEXT,
     note TEXT DEFAULT '',
+    minimumUsageMinutes INTEGER NOT NULL DEFAULT 0,
     openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
     turnoverMinutes INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
@@ -437,6 +438,7 @@ tryAddResourceColumn('closeTime', "ALTER TABLE resources ADD COLUMN closeTime TE
 tryAddResourceColumn('closedDays', "ALTER TABLE resources ADD COLUMN closedDays TEXT NOT NULL DEFAULT '[]'");
 tryAddResourceColumn('openDays', "ALTER TABLE resources ADD COLUMN openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]'");
 tryAddResourceColumn('turnoverMinutes', 'ALTER TABLE resources ADD COLUMN turnoverMinutes INTEGER NOT NULL DEFAULT 0');
+tryAddResourceColumn('minimumUsageMinutes', 'ALTER TABLE resources ADD COLUMN minimumUsageMinutes INTEGER NOT NULL DEFAULT 0');
 
 const icalSourceCols = db.prepare("PRAGMA table_info(ical_sources)").all().map(c => c.name);
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('platformColor')) {

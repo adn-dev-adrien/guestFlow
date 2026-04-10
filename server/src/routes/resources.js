@@ -25,6 +25,7 @@ function parseResource(resource) {
     propertyIds: resource.propertyIds ? JSON.parse(resource.propertyIds) : [],
     isComplex: Boolean(resource.isComplex),
     slotDuration: Number(resource.slotDuration || 60),
+    minimumUsageMinutes: Number(resource.minimumUsageMinutes || 0),
     openTime: resource.openTime || '08:00',
     closeTime: resource.closeTime || '22:00',
     openDays,
@@ -141,10 +142,10 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, openDays, turnoverMinutes } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
   const result = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, openDays, turnoverMinutes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sentenceCase(name),
     Number(quantity) || 0,
@@ -154,6 +155,7 @@ router.post('/', (req, res) => {
     sentenceCase(note),
     isComplex ? 1 : 0,
     Number(slotDuration) || 60,
+    Number(minimumUsageMinutes) || 0,
     openTime || '08:00',
     closeTime || '22:00',
     typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
@@ -163,10 +165,10 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, openDays, turnoverMinutes } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
   db.prepare(`
     UPDATE resources
-    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, openTime = ?, closeTime = ?, openDays = ?, turnoverMinutes = ?, updatedAt = datetime('now')
+    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, minimumUsageMinutes = ?, openTime = ?, closeTime = ?, openDays = ?, turnoverMinutes = ?, updatedAt = datetime('now')
     WHERE id = ?
   `).run(
     sentenceCase(name),
@@ -177,6 +179,7 @@ router.put('/:id', (req, res) => {
     sentenceCase(note),
     isComplex ? 1 : 0,
     Number(slotDuration) || 60,
+    Number(minimumUsageMinutes) || 0,
     openTime || '08:00',
     closeTime || '22:00',
     typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),

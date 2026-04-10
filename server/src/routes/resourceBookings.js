@@ -7,6 +7,12 @@ function addDays(dateStr, n) {
   return d.toISOString().split('T')[0];
 }
 
+function toMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return (hours * 60) + (minutes || 0);
+}
+
 function enrichBooking(b) {
   b.displayName = (b.firstName || b.lastName)
     ? [b.firstName, b.lastName].filter(Boolean).join(' ')
@@ -95,8 +101,16 @@ router.post('/', (req, res) => {
   if (!resourceId || !date || !startTime || !endTime) {
     return res.status(400).json({ error: 'resourceId, date, startTime, endTime sont requis' });
   }
-  const resource = db.prepare('SELECT quantity, turnoverMinutes FROM resources WHERE id = ?').get(resourceId);
+  const resource = db.prepare('SELECT quantity, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?').get(resourceId);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
+
+  const bookingDuration = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
+  const minimumUsageMinutes = resource.priceType === 'per_hour'
+    ? Math.max(Number(resource.minimumUsageMinutes || 0), resource.isComplex ? Number(resource.slotDuration || 0) : 0)
+    : (resource.isComplex ? Number(resource.slotDuration || 0) : 0);
+  if (minimumUsageMinutes > 0 && bookingDuration < minimumUsageMinutes) {
+    return res.status(400).json({ error: `Durée minimale ${minimumUsageMinutes} min requise` });
+  }
 
   const turnover = Number(resource.turnoverMinutes || 0);
   const { cnt } = db.prepare(`
@@ -126,8 +140,16 @@ router.put('/:id', (req, res) => {
   const newStart = startTime !== undefined ? startTime : existing.startTime;
   const newEnd = endTime !== undefined ? endTime : existing.endTime;
 
-  const resource = db.prepare('SELECT quantity, turnoverMinutes FROM resources WHERE id = ?').get(existing.resourceId);
+  const resource = db.prepare('SELECT quantity, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?').get(existing.resourceId);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
+
+  const bookingDuration = Math.max(0, toMinutes(newEnd) - toMinutes(newStart));
+  const minimumUsageMinutes = resource.priceType === 'per_hour'
+    ? Math.max(Number(resource.minimumUsageMinutes || 0), resource.isComplex ? Number(resource.slotDuration || 0) : 0)
+    : (resource.isComplex ? Number(resource.slotDuration || 0) : 0);
+  if (minimumUsageMinutes > 0 && bookingDuration < minimumUsageMinutes) {
+    return res.status(400).json({ error: `Durée minimale ${minimumUsageMinutes} min requise` });
+  }
 
   const turnover = Number(resource.turnoverMinutes || 0);
   const { cnt } = db.prepare(`

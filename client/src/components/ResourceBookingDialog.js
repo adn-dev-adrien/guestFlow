@@ -51,8 +51,14 @@ export default function ResourceBookingDialog({
 }) {
   const slotDuration = resource?.slotDuration || 5;
   const turnoverMinutes = Number(resource?.turnoverMinutes || 0);
+  const minimumUsageMinutes = Number(resource?.minimumUsageMinutes || 0);
   const openTime = resource?.openTime || '08:00';
   const closeTime = resource?.closeTime || '22:00';
+  const minimumDurationMinutes = Math.max(
+    resource?.isComplex ? slotDuration : 0,
+    resource?.priceType === 'per_hour' ? minimumUsageMinutes : 0,
+    BOOKING_STEP_MINUTES,
+  );
 
   const [date, setDate] = useState('');
   const [selectedStart, setSelectedStart] = useState('');
@@ -95,21 +101,23 @@ export default function ResourceBookingDialog({
   const isChronological = selectedStart && selectedEnd
     ? timeToMinutes(selectedEnd) > timeToMinutes(selectedStart)
     : true;
+  const meetsMinimumDuration = selectedStart && selectedEnd
+    ? durationMinutes >= minimumDurationMinutes
+    : true;
 
   function isStartOptionDisabled(time) {
     const mins = timeToMinutes(time);
     if (selectedEnd && mins >= timeToMinutes(selectedEnd)) return true;
     if (selectedEnd) return !isSlotAvailable(time, selectedEnd, occupiedSlots);
-    return occupiedSlots.some((occupied) => {
-      const occupiedStart = timeToMinutes(occupied.startTime);
-      const occupiedEnd = timeToMinutes(occupied.endTime) + (occupied.turnover || 0);
-      return mins >= occupiedStart && mins < occupiedEnd;
-    });
+    const candidateEnd = minutesToTime(Math.min(closeMinutes, mins + minimumDurationMinutes));
+    if ((mins + minimumDurationMinutes) > closeMinutes) return true;
+    return !isSlotAvailable(time, candidateEnd, occupiedSlots);
   }
 
   function isEndOptionDisabled(time) {
     const mins = timeToMinutes(time);
     if (selectedStart && mins <= timeToMinutes(selectedStart)) return true;
+    if (selectedStart && (mins - timeToMinutes(selectedStart)) < minimumDurationMinutes) return true;
     if (selectedStart) return !isSlotAvailable(selectedStart, time, occupiedSlots);
     return occupiedSlots.some((occupied) => {
       const occupiedStart = timeToMinutes(occupied.startTime);
@@ -126,8 +134,8 @@ export default function ResourceBookingDialog({
   // Check if current selection has conflicts
   const slotAvailable = useMemo(() => {
     if (!date || !selectedStart || !selectedEnd) return true;
-    return isSlotAvailable(selectedStart, selectedEnd, occupiedSlots);
-  }, [date, selectedStart, selectedEnd, occupiedSlots]);
+    return meetsMinimumDuration && isSlotAvailable(selectedStart, selectedEnd, occupiedSlots);
+  }, [date, selectedStart, selectedEnd, occupiedSlots, meetsMinimumDuration]);
 
   // Load occupied slots when date changes
   useEffect(() => {
@@ -191,7 +199,7 @@ export default function ResourceBookingDialog({
   };
 
   async function handleSave() {
-    if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological) return; // Block save if invalid
+    if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
     setSaving(true);
     try {
       const data = {
@@ -217,6 +225,7 @@ export default function ResourceBookingDialog({
     && selectedStart
     && selectedEnd
     && isChronological
+    && meetsMinimumDuration
     && (externalMode ? clientName.trim() : selectedClient)
     && slotAvailable
   );
@@ -227,7 +236,7 @@ export default function ResourceBookingDialog({
       <DialogTitle>
         {booking ? 'Modifier la réservation' : 'Nouvelle réservation'}
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.25 }}>
-          {resource?.name} · {openTime}–{closeTime}{turnoverMinutes > 0 ? ` · Remise en état ${turnoverMinutes} min` : ''}
+          {resource?.name} · {openTime}–{closeTime}{minimumDurationMinutes > 0 ? ` · Min ${minimumDurationMinutes} min` : ''}{turnoverMinutes > 0 ? ` · Remise en état ${turnoverMinutes} min` : ''}
         </Typography>
       </DialogTitle>
       <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
@@ -254,6 +263,7 @@ export default function ResourceBookingDialog({
               openTime={openTime}
               closeTime={closeTime}
               slotDuration={BOOKING_STEP_MINUTES}
+              minimumDuration={minimumDurationMinutes}
               disabled={false}
             />
           </Box>
@@ -269,6 +279,9 @@ export default function ResourceBookingDialog({
                 </Typography>
                 {!slotAvailable && (
                   <Typography variant="caption" color="error.main">Chevauche une réservation ou une remise en état</Typography>
+                )}
+                {!meetsMinimumDuration && (
+                  <Typography variant="caption" color="error.main">Durée minimale {minimumDurationMinutes} min requise</Typography>
                 )}
               </Box>
             )}
