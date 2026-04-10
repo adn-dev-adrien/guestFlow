@@ -78,6 +78,24 @@ function dayjsToIso(value) {
   return value && value.isValid() ? value.format('YYYY-MM-DD') : '';
 }
 
+function parseDecimalInput(value) {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).replace(',', '.').trim();
+  if (!normalized || normalized === '.' || normalized === '-.' || normalized === '-') return null;
+  if (normalized.endsWith('.')) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatDecimalForInput(value) {
+  return Number(value || 0).toFixed(2).replace('.', ',');
+}
+
+function sanitizeDecimalInput(raw) {
+  // Accept , or . as decimal separator; strip everything else except digits and minus
+  return String(raw || '').replace(/\./g, ',').replace(/[^0-9,\-]/g, '');
+}
+
 export default function PropertyPricingSeasonsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -100,6 +118,8 @@ export default function PropertyPricingSeasonsPage() {
   const [applyTargetPropertyId, setApplyTargetPropertyId] = useState('');
   const [applyReplaceExisting, setApplyReplaceExisting] = useState(true);
   const [applyFeedback, setApplyFeedback] = useState({ type: '', message: '' });
+  const [basePriceInput, setBasePriceInput] = useState('');
+  const [tierPriceInputs, setTierPriceInputs] = useState({});
 
   const [seasonForm, setSeasonForm] = useState({
     label: '',
@@ -239,6 +259,8 @@ export default function PropertyPricingSeasonsPage() {
     setSeasonForm(newForm);
     setInitialSeasonForm(JSON.parse(JSON.stringify(newForm)));
     setSeasonSaveError('');
+    setBasePriceInput('');
+    setTierPriceInputs({});
     setSeasonDialogOpen(true);
   };
 
@@ -256,6 +278,8 @@ export default function PropertyPricingSeasonsPage() {
     setSeasonForm(newForm);
     setInitialSeasonForm(JSON.parse(JSON.stringify(newForm)));
     setSeasonSaveError('');
+    setBasePriceInput('');
+    setTierPriceInputs({});
     setSeasonDialogOpen(true);
   };
 
@@ -270,6 +294,8 @@ export default function PropertyPricingSeasonsPage() {
     } else {
       setSeasonDialogOpen(false);
       setSeasonSaveError('');
+      setBasePriceInput('');
+      setTierPriceInputs({});
     }
   };
 
@@ -349,13 +375,17 @@ export default function PropertyPricingSeasonsPage() {
   };
 
   const handleBasePriceChange = (value) => {
-    const numericValue = Number(value || 0);
+    const parsedValue = parseDecimalInput(value);
+    if (parsedValue === null) return;
+    const numericValue = Number.isFinite(parsedValue) ? Math.round(Math.max(0, parsedValue) * 100) / 100 : 0;
     setSeasonForm((prev) => {
       return { ...prev, pricePerNight: numericValue };
     });
   };
 
   const updateTierByPrice = (nightNumber, value) => {
+    const parsedValue = parseDecimalInput(value);
+    if (parsedValue === null) return;
     setSeasonForm((prev) => ({
       ...prev,
       progressiveTiers: (() => {
@@ -364,7 +394,7 @@ export default function PropertyPricingSeasonsPage() {
         const nextTier = {
           ...(tierIndex >= 0 ? currentTiers[tierIndex] : { nightNumber }),
           nightNumber,
-          extraNightPrice: Math.max(0, Number(value || 0)),
+          extraNightPrice: Math.max(0, Math.round(parsedValue * 100) / 100),
         };
         delete nextTier.extraNightDiscountPct;
         if (tierIndex >= 0) currentTiers[tierIndex] = nextTier;
@@ -720,7 +750,25 @@ export default function PropertyPricingSeasonsPage() {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-              <TextField label="Tarif base (1 nuit)" type="number" value={seasonForm.pricePerNight} onChange={(e) => handleBasePriceChange(e.target.value)} fullWidth inputProps={{ min: 0, step: 1 }} />
+              <TextField
+                label="Tarif base (1 nuit)"
+                type="text"
+                value={basePriceInput !== '' ? basePriceInput : formatDecimalForInput(seasonForm.pricePerNight)}
+                onFocus={() => {
+                  setBasePriceInput((prev) => (prev !== '' ? prev : formatDecimalForInput(seasonForm.pricePerNight)));
+                }}
+                onChange={(e) => {
+                  const rawValue = sanitizeDecimalInput(e.target.value);
+                  setBasePriceInput(rawValue);
+                  handleBasePriceChange(rawValue);
+                }}
+                onBlur={() => {
+                  handleBasePriceChange(basePriceInput);
+                  setBasePriceInput('');
+                }}
+                fullWidth
+                inputProps={{ inputMode: 'decimal' }}
+              />
               <FormControl fullWidth>
                 <InputLabel>Type de tarification</InputLabel>
                 <Select
@@ -773,10 +821,32 @@ export default function PropertyPricingSeasonsPage() {
                             <TableCell align="right" sx={{ py: { xs: 0.75, sm: 1 } }}>
                               <TextField
                                 size="small"
-                                type="number"
-                                value={Number(t.extraNightPrice || 0).toFixed(0)}
-                                onChange={(e) => updateTierByPrice(t.nightNumber, e.target.value)}
-                                inputProps={{ min: 0, step: 1 }}
+                                type="text"
+                                value={tierPriceInputs[t.nightNumber] ?? formatDecimalForInput(t.extraNightPrice)}
+                                onFocus={() => {
+                                  setTierPriceInputs((prev) => ({
+                                    ...prev,
+                                    [t.nightNumber]: prev[t.nightNumber] ?? formatDecimalForInput(t.extraNightPrice),
+                                  }));
+                                }}
+                                onChange={(e) => {
+                                  const rawValue = sanitizeDecimalInput(e.target.value);
+                                  setTierPriceInputs((prev) => ({
+                                    ...prev,
+                                    [t.nightNumber]: rawValue,
+                                  }));
+                                  updateTierByPrice(t.nightNumber, rawValue);
+                                }}
+                                onBlur={() => {
+                                  const rawValue = tierPriceInputs[t.nightNumber] ?? '';
+                                  updateTierByPrice(t.nightNumber, rawValue);
+                                  setTierPriceInputs((prev) => {
+                                    const next = { ...prev };
+                                    delete next[t.nightNumber];
+                                    return next;
+                                  });
+                                }}
+                                inputProps={{ inputMode: 'decimal' }}
                                 InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>€</InputAdornment> }}
                                 sx={{ width: { xs: 100, sm: 120 } }}
                                 disabled={t.readOnly}
@@ -796,7 +866,7 @@ export default function PropertyPricingSeasonsPage() {
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                {Number(t.cumulativePrice || 0).toFixed(0)} €
+                                {Number(t.cumulativePrice || 0).toFixed(2)} €
                               </Box>
                             </TableCell>
                           </TableRow>

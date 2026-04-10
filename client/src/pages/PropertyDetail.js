@@ -631,8 +631,22 @@ export default function PropertyDetail() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Tarification</Typography>
+              <Typography variant="h6" gutterBottom>Tarification</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 2 }}>Taxe de séjour</Typography>
+              
+              <TextField
+                label="Taxe de séjour (€/jour/adulte)"
+                type="number"
+                value={form.touristTaxPerDayPerPerson ?? 0}
+                onChange={(e) => updateField('touristTaxPerDayPerPerson', e.target.value)}
+                onFocus={handleZeroFocus}
+                fullWidth
+                size="small"
+                inputProps={{ min: 0, step: 0.1 }}
+                sx={{ mt: 1.25, mb: 2 }}
+              />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Gestion des saisons tarifaires</Typography>
                 <Button
                   size="small"
                   variant="contained"
@@ -642,17 +656,6 @@ export default function PropertyDetail() {
                   Gérer les saisons
                 </Button>
               </Box>
-              <TextField
-                label="Taxe de séjour (€/jour/personne)"
-                type="number"
-                value={form.touristTaxPerDayPerPerson ?? 0}
-                onChange={(e) => updateField('touristTaxPerDayPerPerson', e.target.value)}
-                onFocus={handleZeroFocus}
-                fullWidth
-                size="small"
-                inputProps={{ min: 0, step: 0.1 }}
-                sx={{ mb: 2 }}
-              />
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 700 }}>
                   <TableHead>
@@ -663,7 +666,6 @@ export default function PropertyDetail() {
                       <TableCell>Tarif base</TableCell>
                       <TableCell>Min nuits</TableCell>
                       <TableCell>Couleur</TableCell>
-                      <TableCell></TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -687,15 +689,10 @@ export default function PropertyDetail() {
                         <TableCell>
                           <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: r.color || '#1976d2' }} />
                         </TableCell>
-                        <TableCell>
-                          <Button size="small" onClick={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}`))}>
-                            Modifier
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))}
                     {(!property.pricingRules || property.pricingRules.length === 0) && (
-                      <TableRow><TableCell colSpan={7} align="center">Aucune saison tarifaire</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} align="center">Aucune saison tarifaire</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
