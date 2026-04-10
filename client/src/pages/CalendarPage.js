@@ -128,6 +128,8 @@ export default function CalendarPage() {
   const lastLoadedRange = useRef({ from: '', to: '' });
   const prevScrollHeight = useRef(0);
   const shouldAdjustScroll = useRef(false);
+  const focusMonthKeyRef = useRef('');
+  const pendingFocusScrollRef = useRef(false);
   const initialScrollDone = useRef(false);
   const prependMonthLock = useRef(false);
   const appendMonthLock = useRef(false);
@@ -242,9 +244,38 @@ export default function CalendarPage() {
     const y = searchParams.get('year');
     const m = searchParams.get('month');
     const resId = searchParams.get('reservationId');
+    const focusStartDate = searchParams.get('focusStartDate');
+    const focusEndDate = searchParams.get('focusEndDate');
+
     if (propId) handleSelectProperty(Number(propId));
-    if (y && m !== null) {
-      setMonths(getMonthsRange(Number(y), Number(m)));
+
+    let targetYear = null;
+    let targetMonth = null;
+
+    if (focusStartDate) {
+      const start = new Date(`${focusStartDate}T00:00:00`);
+      const end = focusEndDate ? new Date(`${focusEndDate}T00:00:00`) : null;
+      if (!Number.isNaN(start.getTime())) {
+        let focus = start;
+        if (end && !Number.isNaN(end.getTime()) && end > start) {
+          const mid = new Date(start);
+          const halfDays = Math.floor((end.getTime() - start.getTime()) / (2 * 86400000));
+          mid.setDate(mid.getDate() + halfDays);
+          focus = mid;
+        }
+        targetYear = focus.getFullYear();
+        targetMonth = focus.getMonth();
+      }
+    } else if (y && m !== null) {
+      targetYear = Number(y);
+      targetMonth = Number(m);
+    }
+
+    if (targetYear !== null && targetMonth !== null) {
+      // Use a tighter range on deep-link navigation so the focused month is visible immediately.
+      setMonths(getMonthsRange(targetYear, targetMonth, 1));
+      focusMonthKeyRef.current = `${targetYear}-${targetMonth}`;
+      pendingFocusScrollRef.current = true;
       initialScrollDone.current = false;
       lastLoadedRange.current = { from: '', to: '' };
     }
@@ -270,6 +301,25 @@ export default function CalendarPage() {
       shouldAdjustScroll.current = false;
     }
   }, [months]);
+
+  useLayoutEffect(() => {
+    if (!pendingFocusScrollRef.current || !selectedProp || !scrollRef.current) return;
+
+    const container = scrollRef.current;
+    const key = focusMonthKeyRef.current;
+    if (!key) {
+      pendingFocusScrollRef.current = false;
+      return;
+    }
+
+    const anchor = container.querySelector(`[data-month-anchor="${key}"]`);
+    if (!anchor) return;
+
+    const anchorTop = anchor.offsetTop;
+    const topPadding = 12;
+    container.scrollTop = Math.max(0, anchorTop - topPadding);
+    pendingFocusScrollRef.current = false;
+  }, [months, selectedProp]);
 
   // Auto-scroll to one week before current date on initial load
   useEffect(() => {
@@ -1480,10 +1530,15 @@ export default function CalendarPage() {
                   // Render rows with labels
                   return rows.map((row, rowIndex) => {
                     const shouldShowLabel = row.monthKey && monthLabelRowMap[row.monthKey] === rowIndex;
+                    const isMonthAnchorRow = row.monthKey && monthRowMap[row.monthKey]?.[0] === rowIndex;
                     const [year, month] = row.monthKey ? row.monthKey.split('-').map(Number) : [0, 0];
                     
                     return (
-                      <Box key={`row-${rowIndex}`} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, position: 'relative' }}>
+                      <Box
+                        key={`row-${rowIndex}`}
+                        data-month-anchor={isMonthAnchorRow ? row.monthKey : undefined}
+                        sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5, position: 'relative' }}
+                      >
                         {shouldShowLabel && (
                           <Box sx={{ position: 'absolute', left: -45, top: 0, bottom: 0, width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                             <Typography sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap', lineHeight: 1 }}>

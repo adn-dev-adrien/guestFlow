@@ -1174,7 +1174,7 @@ export default function ReservationPage() {
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
-          navigateBackWithFrom(navigate, from);
+          navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
         }
       } else {
         const optionsToSave = quote.optionLines.map(opt => {
@@ -1217,7 +1217,7 @@ export default function ReservationPage() {
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
-          navigateBackWithFrom(navigate, from);
+          navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
         }
       }
     } catch (err) {
@@ -1286,6 +1286,21 @@ export default function ReservationPage() {
     await handleSaveReservation(action);
   };
 
+  const buildBackUrlWithReservationFocus = useCallback(() => {
+    if (!from) return from;
+    if (!from.startsWith('/calendar')) return from;
+
+    const [basePath, rawQuery = ''] = from.split('?');
+    const params = new URLSearchParams(rawQuery);
+
+    if (selectedProp) params.set('propertyId', String(selectedProp));
+    if (form.startDate) params.set('focusStartDate', form.startDate);
+    if (form.endDate) params.set('focusEndDate', form.endDate);
+
+    const query = params.toString();
+    return query ? `${basePath}?${query}` : basePath;
+  }, [from, selectedProp, form.startDate, form.endDate]);
+
   const loadHistory = useCallback(async () => {
     if (!editingReservationId) return;
     try {
@@ -1331,7 +1346,7 @@ export default function ReservationPage() {
   }
 
   const goBackToOrigin = () => {
-    requestLeave(() => navigateBackWithFrom(navigate, from));
+    requestLeave(() => navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus()));
   };
 
   // Date bounds to visually block unavailable dates in native date picker.
