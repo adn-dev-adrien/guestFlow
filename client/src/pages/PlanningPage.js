@@ -277,6 +277,50 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   );
 }
 
+function DepartureMiniRow({ reservation, onToggleDone }) {
+  const done = Boolean(reservation.checkOutDone);
+  const checkOutTime = reservation.checkOutTime || '10:00';
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 1.5,
+        borderColor: done ? 'success.main' : 'divider',
+        bgcolor: done ? 'rgba(76,175,80,0.06)' : 'background.paper',
+        transition: 'all 0.2s',
+      }}
+    >
+      <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Tooltip title={done ? 'Départ validé' : 'Valider le départ'}>
+            <Checkbox
+              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 22, color: 'text.disabled' }} />}
+              checkedIcon={<CheckCircleIcon sx={{ fontSize: 22, color: 'success.main' }} />}
+              checked={done}
+              onChange={() => onToggleDone(reservation)}
+              sx={{ p: 0 }}
+            />
+          </Tooltip>
+
+          <AccessTimeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+          <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 42 }}>
+            {checkOutTime}
+          </Typography>
+
+          <HomeWorkIcon sx={{ fontSize: 14, color: 'primary.main' }} />
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main', minWidth: 0 }} noWrap>
+            {reservation.propertyName}
+          </Typography>
+
+          <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 0 }} noWrap>
+            · {reservation.firstName} {reservation.lastName}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [planningDays, setPlanningDays] = useState([]);
@@ -284,6 +328,7 @@ export default function PlanningPage() {
   const [alertMap, setAlertMap] = useState({});
   const [properties, setProperties] = useState([]);
   const [resourceBookingsMap, setResourceBookingsMap] = useState({});
+  const [departuresMap, setDeparturesMap] = useState({});
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -408,6 +453,18 @@ export default function PlanningPage() {
 
     setPlanningDays(days);
 
+    const departuresByDate = {};
+    for (const reservation of reservationsBase) {
+      if (reservation.endDate >= from && reservation.endDate <= to) {
+        if (!departuresByDate[reservation.endDate]) departuresByDate[reservation.endDate] = [];
+        departuresByDate[reservation.endDate].push(reservation);
+      }
+    }
+    Object.keys(departuresByDate).forEach((date) => {
+      departuresByDate[date].sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
+    });
+    setDeparturesMap(departuresByDate);
+
     // Group resource bookings by date
     const rbByDate = {};
     for (const rb of rbEvents) {
@@ -434,12 +491,12 @@ export default function PlanningPage() {
       if (scrollHeight - scrollTop - clientHeight < 200 && !loading && lastLoadedRef.current) {
         const nextStart = addDays(lastLoadedRef.current, 1);
         const nextEnd = addDays(nextStart, DAYS_AHEAD - 1);
-        api.getReservations({ from: nextStart, to: nextEnd }).then((newArrivals) => {
-          if (newArrivals.length === 0) {
+        api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
+          if (newReservations.length === 0) {
             lastLoadedRef.current = null;
             return;
           }
-          const detailed = Promise.all(newArrivals.map((r) => api.getReservation(r.id))).then((ress) => {
+          Promise.all(newReservations.map((r) => api.getReservation(r.id))).then((ress) => {
             const byDate = {};
             for (const r of ress) {
               if (!byDate[r.startDate]) byDate[r.startDate] = [];
@@ -453,6 +510,30 @@ export default function PlanningPage() {
                   (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59')
                 ),
               }));
+
+            const nextDepartures = {};
+            for (const reservation of newReservations) {
+              if (reservation.endDate >= nextStart && reservation.endDate <= nextEnd) {
+                if (!nextDepartures[reservation.endDate]) nextDepartures[reservation.endDate] = [];
+                nextDepartures[reservation.endDate].push(reservation);
+              }
+            }
+            Object.keys(nextDepartures).forEach((date) => {
+              nextDepartures[date].sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
+            });
+
+            setDeparturesMap((prev) => {
+              const merged = { ...prev };
+              Object.keys(nextDepartures).forEach((date) => {
+                const existing = merged[date] || [];
+                const existingIds = new Set(existing.map((r) => r.id));
+                const appended = [...existing, ...nextDepartures[date].filter((r) => !existingIds.has(r.id))];
+                appended.sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
+                merged[date] = appended;
+              });
+              return merged;
+            });
+
             setPlanningDays((prev) => [...prev, ...newDays]);
             detectAlerts([...planningDays, ...newDays], properties);
             lastLoadedRef.current = nextEnd;
@@ -476,6 +557,18 @@ export default function PlanningPage() {
         ),
       }))
     );
+  };
+
+  const handleToggleDepartureDone = async (reservation) => {
+    const newValue = !reservation.checkOutDone;
+    await api.markPayment(reservation.id, { checkOutDone: newValue });
+    setDeparturesMap((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((date) => {
+        next[date] = next[date].map((r) => (r.id === reservation.id ? { ...r, checkOutDone: newValue } : r));
+      });
+      return next;
+    });
   };
 
   return (
@@ -574,9 +667,10 @@ export default function PlanningPage() {
         )}
 
         {/* Merge reservation days + resource booking days */}
-        {[...new Set([...planningDays.map((d) => d.date), ...Object.keys(resourceBookingsMap)])].sort().map((date, idx, arr) => {
+        {[...new Set([...planningDays.map((d) => d.date), ...Object.keys(resourceBookingsMap), ...Object.keys(departuresMap)])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
+          const dayDepartures = departuresMap[date] || [];
           const reservations = day ? day.reservations : [];
           const isToday = date === todayStr;
           const allReady = reservations.length > 0 && reservations.every((r) => r.checkInReady);
@@ -615,6 +709,19 @@ export default function PlanningPage() {
                   />
                 </Box>
               </Box>
+
+              {dayDepartures.length > 0 && (
+                <Box sx={{ mb: 1.25 }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
+                    Départs ({dayDepartures.filter((r) => r.checkOutDone).length}/{dayDepartures.length})
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {dayDepartures.map((r) => (
+                      <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
 
               {reservations.map((r) => (
                 <ReservationCard
