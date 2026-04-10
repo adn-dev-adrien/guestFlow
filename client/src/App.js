@@ -105,15 +105,15 @@ function NavContent({ onItemClick }) {
             to={item.path}
             onClick={(e) => {
               if (item.path === '/properties') {
-                setPropertiesMenuOpen((prev) => !prev);
+                setPropertiesMenuOpen(location.pathname.startsWith('/properties') ? true : (prev) => !prev);
                 setCalendarMenuOpen(false);
                 setFinanceMenuOpen(false);
               } else if (item.path === '/calendar') {
-                setCalendarMenuOpen((prev) => !prev);
+                setCalendarMenuOpen(location.pathname.startsWith('/calendar') ? true : (prev) => !prev);
                 setPropertiesMenuOpen(false);
                 setFinanceMenuOpen(false);
               } else if (item.path === '/finance') {
-                setFinanceMenuOpen((prev) => !prev);
+                setFinanceMenuOpen(location.pathname.startsWith('/finance') ? true : (prev) => !prev);
                 setPropertiesMenuOpen(false);
                 setCalendarMenuOpen(false);
               } else {
@@ -260,7 +260,9 @@ function AppShell() {
   }, []);
 
   const handleNavItemClick = (event, targetPath) => {
-    if (targetPath === location.pathname) {
+    const currentPathWithSearch = `${location.pathname}${location.search || ''}`;
+    const isExactSameTarget = targetPath === currentPathWithSearch || (targetPath === location.pathname && !location.search);
+    if (isExactSameTarget) {
       if (isMobile) setMobileOpen(false);
       event.preventDefault();
       return;

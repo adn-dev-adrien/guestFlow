@@ -254,7 +254,12 @@ export default function CalendarPage() {
     const focusStartDate = searchParams.get('focusStartDate');
     const focusEndDate = searchParams.get('focusEndDate');
 
-    if (propId) handleSelectProperty(Number(propId));
+    if (propId) {
+      handleSelectProperty(Number(propId));
+    } else {
+      setSelectedProp('');
+      setSelectedProperty(null);
+    }
 
     let targetYear = null;
     let targetMonth = null;
