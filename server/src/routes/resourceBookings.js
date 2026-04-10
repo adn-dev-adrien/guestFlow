@@ -43,7 +43,7 @@ router.get('/occupied-slots', (req, res) => {
   if (!resourceId || !date) return res.status(400).json({ error: 'resourceId and date required' });
   
   const bookings = db.prepare(`
-    SELECT rb.startTime, rb.endTime, rb.clientName, r.turnoverMinutes, c.firstName, c.lastName
+    SELECT rb.id, rb.startTime, rb.endTime, rb.clientName, r.turnoverMinutes, c.firstName, c.lastName
     FROM resource_bookings rb
     LEFT JOIN resources r ON rb.resourceId = r.id
     LEFT JOIN clients c ON rb.clientId = c.id
@@ -55,6 +55,7 @@ router.get('/occupied-slots', (req, res) => {
     const clientDisplay = [b.firstName, b.lastName].filter(Boolean).join(' ') || b.clientName || 'Client externe';
     const turnover = Number(b.turnoverMinutes || 0);
     return {
+      id: b.id,
       startTime: b.startTime,
       endTime: b.endTime,
       turnover,
@@ -103,8 +104,8 @@ router.post('/', (req, res) => {
     FROM resource_bookings rb
     WHERE rb.resourceId = ?
       AND rb.date = ?
-      AND rb.startTime < time(?, '+' || ? || ' minutes')
-      AND time(rb.endTime, '+' || ? || ' minutes') > ?
+      AND rb.startTime < strftime('%H:%M', ?, '+' || ? || ' minutes')
+      AND strftime('%H:%M', rb.endTime, '+' || ? || ' minutes') > ?
   `).get(resourceId, date, endTime, turnover, turnover, startTime);
   if (cnt >= resource.quantity) return res.status(409).json({ error: 'Créneau non disponible (capacité atteinte)' });
 
@@ -134,8 +135,8 @@ router.put('/:id', (req, res) => {
     FROM resource_bookings rb
     WHERE rb.resourceId = ?
       AND rb.date = ?
-      AND rb.startTime < time(?, '+' || ? || ' minutes')
-      AND time(rb.endTime, '+' || ? || ' minutes') > ?
+        AND rb.startTime < strftime('%H:%M', ?, '+' || ? || ' minutes')
+        AND strftime('%H:%M', rb.endTime, '+' || ? || ' minutes') > ?
       AND rb.id != ?
   `).get(existing.resourceId, newDate, newEnd, turnover, turnover, newStart, req.params.id);
   if (cnt >= resource.quantity) return res.status(409).json({ error: 'Créneau non disponible (capacité atteinte)' });

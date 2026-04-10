@@ -99,31 +99,54 @@ export default function MiniDayPlanner({
     const rawMins = openMin + clickY / PIXELS_PER_MINUTE;
     const snapped = Math.round(rawMins / slotDuration) * slotDuration;
     const clamped = Math.max(openMin, Math.min(closeMin - slotDuration, snapped));
-    const time = minutesToTime(clamped);
 
-    // Check if the clicked slot itself is occupied
-    const slotOccupied = isTimeOccupied(clamped, clamped + slotDuration, occupiedSlots);
-    if (slotOccupied) return; // Can't start on an occupied slot
+    // Find if click lands inside an occupied slot (booking body + turnover window)
+    const hitOccupied = occupiedSlots.find(o => {
+      const oStart = timeToMinutes(o.startTime);
+      const oEnd = timeToMinutes(o.endTime) + (o.turnover || 0);
+      return clamped >= oStart && clamped < oEnd;
+    });
 
-    if (!selectedStart) {
-      onTimeSelect(time, 'start');
-    } else if (!selectedEnd) {
-      if (clamped > timeToMinutes(selectedStart)) {
-        // Verify entire range is free
-        const rangeOccupied = isTimeOccupied(timeToMinutes(selectedStart), clamped, occupiedSlots);
-        if (rangeOccupied) {
-          // Reset and set new start
-          onTimeSelect(time, 'start');
-        } else {
-          onTimeSelect(time, 'end');
+    const resourceTurnover = occupiedSlots.length > 0 ? (occupiedSlots[0].turnover || 0) : 0;
+
+    if (!selectedStart || (selectedStart && selectedEnd)) {
+      // Setting START time
+      if (hitOccupied) {
+        // Snap to just after the end of this occupied slot (including its turnover)
+        const snapMins = timeToMinutes(hitOccupied.endTime) + (hitOccupied.turnover || 0);
+        const snappedToGrid = Math.ceil(snapMins / slotDuration) * slotDuration;
+        if (snappedToGrid < closeMin) {
+          onTimeSelect(minutesToTime(snappedToGrid), 'start');
         }
       } else {
-        // Clicked before start → reset
-        onTimeSelect(time, 'start');
+        onTimeSelect(minutesToTime(clamped), 'start');
       }
     } else {
-      // Both set → restart
-      onTimeSelect(time, 'start');
+      // Setting END time (selectedStart is set, selectedEnd is not)
+      if (hitOccupied) {
+        // Snap end to just before this occupied slot begins, minus resource turnover
+        const snapMins = timeToMinutes(hitOccupied.startTime) - resourceTurnover;
+        const snappedToGrid = Math.floor(snapMins / slotDuration) * slotDuration;
+        if (snappedToGrid > timeToMinutes(selectedStart)) {
+          onTimeSelect(minutesToTime(snappedToGrid), 'end');
+        } else {
+          // No room — reset start to after this occupied slot
+          const afterMins = timeToMinutes(hitOccupied.endTime) + (hitOccupied.turnover || 0);
+          const afterGrid = Math.ceil(afterMins / slotDuration) * slotDuration;
+          if (afterGrid < closeMin) onTimeSelect(minutesToTime(afterGrid), 'start');
+        }
+      } else if (clamped > timeToMinutes(selectedStart)) {
+        // Check entire range is free
+        const rangeOccupied = isTimeOccupied(timeToMinutes(selectedStart), clamped, occupiedSlots);
+        if (rangeOccupied) {
+          onTimeSelect(minutesToTime(clamped), 'start');
+        } else {
+          onTimeSelect(minutesToTime(clamped), 'end');
+        }
+      } else {
+        // Clicked before or at start → reset start
+        onTimeSelect(minutesToTime(clamped), 'start');
+      }
     }
   }
 

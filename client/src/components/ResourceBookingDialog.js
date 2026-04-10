@@ -32,7 +32,8 @@ function isSlotAvailable(slotStart, slotEnd, occupiedSlots) {
     const occupiedEnd = timeToMinutes(occupied.endTime) + (occupied.turnover || 0);
     const newStart = timeToMinutes(slotStart);
     const newEnd = timeToMinutes(slotEnd);
-    return newStart < occupiedEnd && newEnd > occupiedStart;
+    const newEndWithTurnover = newEnd + (occupied.turnover || 0);
+    return newStart < occupiedEnd && newEndWithTurnover > occupiedStart;
   });
 }
 
@@ -68,12 +69,54 @@ export default function ResourceBookingDialog({
   const [saving, setSaving] = useState(false);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
 
+  const openMinutes = timeToMinutes(openTime);
+  const closeMinutes = timeToMinutes(closeTime);
+
+  const timeOptions = useMemo(() => {
+    const options = [];
+    for (let m = openMinutes; m <= closeMinutes; m += BOOKING_STEP_MINUTES) {
+      options.push(minutesToTime(m));
+    }
+    return options;
+  }, [openMinutes, closeMinutes]);
+
+  const endTimeOptions = useMemo(() => {
+    if (!selectedStart) return [];
+    const selectedStartMinutes = timeToMinutes(selectedStart);
+    return timeOptions.filter((time) => timeToMinutes(time) >= selectedStartMinutes);
+  }, [selectedStart, timeOptions]);
+
   // Derived
   const startTime = selectedStart;
   const endTime = selectedEnd;
   const durationMinutes = selectedStart && selectedEnd
     ? timeToMinutes(selectedEnd) - timeToMinutes(selectedStart)
     : 0;
+  const isChronological = selectedStart && selectedEnd
+    ? timeToMinutes(selectedEnd) > timeToMinutes(selectedStart)
+    : true;
+
+  function isStartOptionDisabled(time) {
+    const mins = timeToMinutes(time);
+    if (selectedEnd && mins >= timeToMinutes(selectedEnd)) return true;
+    if (selectedEnd) return !isSlotAvailable(time, selectedEnd, occupiedSlots);
+    return occupiedSlots.some((occupied) => {
+      const occupiedStart = timeToMinutes(occupied.startTime);
+      const occupiedEnd = timeToMinutes(occupied.endTime) + (occupied.turnover || 0);
+      return mins >= occupiedStart && mins < occupiedEnd;
+    });
+  }
+
+  function isEndOptionDisabled(time) {
+    const mins = timeToMinutes(time);
+    if (selectedStart && mins <= timeToMinutes(selectedStart)) return true;
+    if (selectedStart) return !isSlotAvailable(selectedStart, time, occupiedSlots);
+    return occupiedSlots.some((occupied) => {
+      const occupiedStart = timeToMinutes(occupied.startTime);
+      const occupiedEnd = timeToMinutes(occupied.endTime) + (occupied.turnover || 0);
+      return mins > occupiedStart && mins < occupiedEnd;
+    });
+  }
 
   // Price calculation: resource price is per hour, pro-rated
   const totalPrice = resource?.priceType === 'per_hour' || resource?.priceType === 'free'
@@ -90,9 +133,13 @@ export default function ResourceBookingDialog({
   useEffect(() => {
     if (!open || !date || !resource?.id) return;
     api.getOccupiedSlots(resource.id, date)
-      .then(result => setOccupiedSlots(result.occupiedSlots || []))
+      .then((result) => {
+        const slots = result.occupiedSlots || [];
+        const filtered = booking?.id ? slots.filter((slot) => Number(slot.id) !== Number(booking.id)) : slots;
+        setOccupiedSlots(filtered);
+      })
       .catch(() => setOccupiedSlots([]));
-  }, [open, date, resource?.id]);
+  }, [open, date, resource?.id, booking?.id]);
 
   useEffect(() => {
     if (open) {
@@ -144,7 +191,7 @@ export default function ResourceBookingDialog({
   };
 
   async function handleSave() {
-    if (!slotAvailable || !selectedStart || !selectedEnd) return; // Block save if invalid
+    if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological) return; // Block save if invalid
     setSaving(true);
     try {
       const data = {
@@ -165,7 +212,14 @@ export default function ResourceBookingDialog({
     }
   }
 
-  const canSave = Boolean(date && selectedStart && selectedEnd && (externalMode ? clientName.trim() : selectedClient) && slotAvailable);
+  const canSave = Boolean(
+    date
+    && selectedStart
+    && selectedEnd
+    && isChronological
+    && (externalMode ? clientName.trim() : selectedClient)
+    && slotAvailable
+  );
 
 
   return (
@@ -225,6 +279,63 @@ export default function ResourceBookingDialog({
                   Sélectionnez un créneau dans le planning
                 </Typography>
               </Box>
+            )}
+
+            <Box sx={{ display: 'flex', gap: 1.25 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Heure début</InputLabel>
+                <Select
+                  label="Heure début"
+                  value={selectedStart}
+                  onChange={(e) => {
+                    const nextStart = e.target.value;
+                    setSelectedStart(nextStart);
+                    if (selectedEnd && nextStart && timeToMinutes(selectedEnd) <= timeToMinutes(nextStart)) {
+                      setSelectedEnd('');
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Choisir</em>
+                  </MenuItem>
+                  {timeOptions.map((time) => {
+                    const disabled = isStartOptionDisabled(time);
+                    return (
+                      <MenuItem key={`start-${time}`} value={time} disabled={disabled} sx={disabled ? { color: 'text.disabled' } : undefined}>
+                        {time}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth size="small">
+                <InputLabel>Heure fin</InputLabel>
+                <Select
+                  label="Heure fin"
+                  value={selectedEnd}
+                  disabled={!selectedStart}
+                  onChange={(e) => setSelectedEnd(e.target.value)}
+                >
+                  <MenuItem value="">
+                    <em>Choisir</em>
+                  </MenuItem>
+                  {endTimeOptions.map((time) => {
+                    const disabled = isEndOptionDisabled(time);
+                    return (
+                      <MenuItem key={`end-${time}`} value={time} disabled={disabled} sx={disabled ? { color: 'text.disabled' } : undefined}>
+                        {time}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+            </Box>
+
+            {selectedStart && selectedEnd && !isChronological && (
+              <Typography variant="caption" color="error.main">
+                L'heure de fin doit être après l'heure de début.
+              </Typography>
             )}
 
             <Divider />
