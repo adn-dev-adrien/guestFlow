@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Box, TableRow, TableCell,
+  Box, TableRow, TableCell, TableSortLabel,
   IconButton, Button, TextField,
   FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
@@ -40,6 +40,17 @@ export default function PricedItemsPage({
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+
+  const handleSortClick = (col) => {
+    if (sortCol === col) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
 
   const loadWithProperties = useCallback(async () => {
     const { items: data, properties: props } = await loadItems();
@@ -91,6 +102,40 @@ export default function PricedItemsPage({
     await removeCrudItem(item.id);
   };
 
+  const sortedItems = useMemo(() => {
+    if (!sortCol) return items;
+    return [...items].sort((a, b) => {
+      let aVal, bVal;
+      if (sortCol === 'name') { aVal = (a[formNameKey] || '').toLowerCase(); bVal = (b[formNameKey] || '').toLowerCase(); }
+      else if (sortCol === 'description') { aVal = (a[formDescriptionKey] || '').toLowerCase(); bVal = (b[formDescriptionKey] || '').toLowerCase(); }
+      else if (sortCol === 'quantity') { aVal = Number(a.quantity || 0); bVal = Number(b.quantity || 0); }
+      else if (sortCol === 'priceType') { aVal = a.priceType || ''; bVal = b.priceType || ''; }
+      else if (sortCol === 'price') { aVal = Number(a.price || 0); bVal = Number(b.price || 0); }
+      else if (sortCol === 'properties') {
+        const resolve = (item) => !item.propertyIds || item.propertyIds.length === 0
+          ? 'aaa'
+          : item.propertyIds.map((pid) => properties.find((p) => p.id === pid)?.name || '').sort().join(',').toLowerCase();
+        aVal = resolve(a); bVal = resolve(b);
+      }
+      else { return 0; }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [items, sortCol, sortDir, formNameKey, formDescriptionKey]);
+
+  const SortableCell = ({ col, children }) => (
+    <TableCell sx={{ fontWeight: 600 }}>
+      <TableSortLabel
+        active={sortCol === col}
+        direction={sortCol === col ? sortDir : 'asc'}
+        onClick={() => handleSortClick(col)}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
+
   return (
     <Box>
       <DataPageScaffold
@@ -101,12 +146,12 @@ export default function PricedItemsPage({
         minWidth={showQuantity ? 980 : 860}
         head={(
           <TableRow>
-            <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
-            {showQuantity && <TableCell sx={{ fontWeight: 600 }}>Quantite</TableCell>}
-            <TableCell sx={{ fontWeight: 600 }}>Type de prix</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Prix (EUR)</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Logements</TableCell>
+            <SortableCell col="name">Nom</SortableCell>
+            <SortableCell col="description">Description</SortableCell>
+            <SortableCell col="properties">Logements</SortableCell>
+            <SortableCell col="price">Prix</SortableCell>
+            {showQuantity && <SortableCell col="quantity">Quantite</SortableCell>}
+            <SortableCell col="priceType">Type de prix</SortableCell>
             <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
           </TableRow>
         )}
@@ -114,7 +159,7 @@ export default function PricedItemsPage({
         emptyColSpan={showQuantity ? 7 : 6}
         emptyText={`Aucune ${itemLabel}`}
       >
-        {items.map((item) => {
+        {sortedItems.map((item) => {
           const deleteDisabled = isDeleteDisabled ? isDeleteDisabled(item) : false;
           const name = item[formNameKey] || '';
           const description = item[formDescriptionKey] || '';
@@ -122,14 +167,14 @@ export default function PricedItemsPage({
             <TableRow key={item.id} hover sx={{ cursor: 'pointer' }} onClick={() => openDialog(item)}>
               <TableCell>{name}</TableCell>
               <TableCell>{description || '-'}</TableCell>
-              {showQuantity && <TableCell>{item.quantity}</TableCell>}
-              <TableCell>{PRICE_TYPES.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
-              <TableCell>{item.price}</TableCell>
               <TableCell>
                 {!item.propertyIds || item.propertyIds.length === 0
                   ? 'Tous les logements'
                   : item.propertyIds.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ')}
               </TableCell>
+              <TableCell>{item.price} €</TableCell>
+              {showQuantity && <TableCell>{item.quantity}</TableCell>}
+              <TableCell>{PRICE_TYPES.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
               <TableCell align="right">
                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
                 <IconButton

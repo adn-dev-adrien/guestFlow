@@ -31,6 +31,7 @@ export default function OptionsPage() {
       formNameKey="title"
       formDescriptionKey="description"
       showQuantity={false}
+      isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
     />
   );
 }
