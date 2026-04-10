@@ -243,7 +243,7 @@ jobs:
           # Start service with explicit DB_PATH (for extra safety)
           NODE_ENV=production \
           DB_PATH="$PERSISTENT_DB" \
-          SKIP_MIGRATIONS=true \
+          SKIP_MIGRATIONS=false \
           pm2 start "$HOME/guestflow/current/server/src/index.js" --name guestflow --update-env
           
           pm2 save

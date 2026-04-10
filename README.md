@@ -294,6 +294,41 @@ pm2 save
 pm2 startup
 ```
 
+## Deployment using GitHub runner
+
+On GitHub side there is a runner enabled.
+In the project I have created .github/workflows/deploy.yml to handle automatic deployment in case of pushing new commit on release branch.
+
+### See runner log
+```bash
+systemctl status actions.runner.computingify-guestFlow.guestflow.service
+```
+
+### See application logs
+As the application GuestFlow is managed by PM2, all logs are inside PM2:
+
+#### To see live logs
+```bash
+pm2 logs guestflow
+```
+
+#### Only the latest line
+```bash
+pm2 logs guestflow --lines 100 --nostream
+```
+
+### Check if the application is running
+```bash
+pm2 status
+pm2 describe guestflow
+```
+As the output we should have:
+status: online
+script path
+cwd
+pm_out_log_path
+pm_err_log_path
+
 ## License
 
 See the [LICENSE](LICENSE) file.
