@@ -329,9 +329,30 @@ function timeToHour(timeStr) {
   return h + (m || 0) / 60;
 }
 
+function addIsoDays(dateStr, deltaDays) {
+  const match = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return dateStr;
+  const d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  d.setUTCDate(d.getUTCDate() + Number(deltaDays || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+// Thresholds: checkOut >= 17 h → guest occupies the departure night (blocks next day arrival)
+//             checkIn  <= 10 h → guest needs the pre-arrival night (blocks previous day departure)
+const LATE_CHECKOUT_BLOCK_HOUR  = 17;
+const EARLY_CHECKIN_BLOCK_HOUR  = 10;
+
+function getNightBlocksFromTimes(checkInTime, checkOutTime) {
+  return {
+    blocksPreviousNight: timeToHour(checkInTime  || '15:00') <= EARLY_CHECKIN_BLOCK_HOUR  ? 1 : 0,
+    blocksNextNight:     timeToHour(checkOutTime || '10:00') >= LATE_CHECKOUT_BLOCK_HOUR  ? 1 : 0,
+  };
+}
+
 // Shared validation for create and update
 // excludeId: reservation ID to exclude (for updates)
-function validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, excludeId) {
+// nightBlocks: { blocksPreviousNight, blocksNextNight } computed from the NEW reservation's times
+function validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, excludeId, nightBlocks = {}) {
   const property = db.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
   const cleaning = property ? (property.cleaningHours ?? 3) : 3;
 
@@ -341,9 +362,26 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
     return { error: 'Impossible de réserver dans le passé.' };
   }
 
-  // Strict overlap: reservations whose date range overlaps (excluding same-day turnover)
-  let overlapSql = 'SELECT id FROM reservations WHERE propertyId = ? AND startDate < ? AND endDate > ?';
-  const overlapParams = [propertyId, endDate, startDate];
+  // ── 1. Strict date overlap ──────────────────────────────────────────────
+  // For EXISTING reservations: if their checkOut >= 17 h they also occupy
+  // the departure night, so their effective exclusive end extends by 2 days
+  // (endDate + 1 = first fully-occupied extra night; +2 = first truly free day).
+  // For the NEW reservation: same logic on candidateEndDate.
+  const newBLocksPrev = Number(nightBlocks.blocksPreviousNight || 0) === 1;
+  const newBlocksNext = Number(nightBlocks.blocksNextNight     || 0) === 1;
+  const newEffStart = newBLocksPrev ? addIsoDays(startDate, -1) : startDate;
+  const newEffEnd   = newBlocksNext ? addIsoDays(endDate,    2) : endDate;
+
+  let overlapSql = `
+    SELECT id
+    FROM reservations
+    WHERE propertyId = ?
+      AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
+                THEN date(startDate, '-1 day') ELSE startDate END) < ?
+      AND (CASE WHEN CAST(SUBSTR(COALESCE(checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ${LATE_CHECKOUT_BLOCK_HOUR}
+                THEN date(endDate,   '+2 day') ELSE endDate   END) > ?
+  `;
+  const overlapParams = [propertyId, newEffEnd, newEffStart];
   if (excludeId) {
     overlapSql += ' AND id != ?';
     overlapParams.push(excludeId);
@@ -353,14 +391,14 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
     return { error: 'Ce logement est déjà réservé pour ces dates.' };
   }
 
-  // Turnover at start: existing reservation ending on our start date
+  // ── 2. Same-day turnover: existing checkout exactly on our start date ──
   let prevSql = 'SELECT checkOutTime FROM reservations WHERE propertyId = ? AND endDate = ?';
   const prevParams = [propertyId, startDate];
   if (excludeId) { prevSql += ' AND id != ?'; prevParams.push(excludeId); }
   const prevRes = db.prepare(prevSql).get(...prevParams);
   if (prevRes) {
     const prevCheckOut = timeToHour(prevRes.checkOutTime || '10:00');
-    const newCheckIn = timeToHour(checkInTime || '15:00');
+    const newCheckIn   = timeToHour(checkInTime || '15:00');
     if (newCheckIn < prevCheckOut + cleaning) {
       const availH = String(Math.floor(prevCheckOut + cleaning)).padStart(2, '0');
       const availM = (prevCheckOut + cleaning) % 1 >= 0.5 ? '30' : '00';
@@ -370,14 +408,14 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
     }
   }
 
-  // Turnover at end: existing reservation starting on our end date
+  // ── 3. Same-day turnover: existing checkin exactly on our end date ─────
   let nextSql = 'SELECT checkInTime FROM reservations WHERE propertyId = ? AND startDate = ?';
   const nextParams = [propertyId, endDate];
   if (excludeId) { nextSql += ' AND id != ?'; nextParams.push(excludeId); }
   const nextRes = db.prepare(nextSql).get(...nextParams);
   if (nextRes) {
-    const newCheckOut = timeToHour(checkOutTime || '10:00');
-    const nextCheckIn = timeToHour(nextRes.checkInTime || '15:00');
+    const newCheckOut  = timeToHour(checkOutTime || '10:00');
+    const nextCheckIn  = timeToHour(nextRes.checkInTime || '15:00');
     if (newCheckOut + cleaning > nextCheckIn) {
       const maxCheckOut = nextCheckIn - cleaning;
       const maxH = String(Math.floor(maxCheckOut)).padStart(2, '0');
@@ -449,13 +487,15 @@ router.post('/', (req, res) => {
     });
   }
 
-  const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, null);
+    const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
+
+    const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks);
   if (validationError) {
     return res.status(409).json(validationError);
   }
 
-  const property = db.prepare('SELECT singleBeds, doubleBeds, maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(propertyId);
-  if (property) {
+    const property = db.prepare('SELECT singleBeds, doubleBeds, maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(propertyId);
+    if (property) {
     const adultsCount = Number(adults || 1);
     const childrenCount = Number(children || 0);
     const teensCount = Number(teens || 0);
@@ -470,7 +510,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: `Le nombre d'adultes (${adultsCount}) dépasse la capacité du logement (${property.maxAdults || 0}).` });
     }
     if (!forceCapacity && childrenTeensCount > Number(property.maxChildren || 0)) {
-      return res.status(400).json({ error: `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).` });
+        return res.status(400).json({ error: `Le nombre d'enfants + ados hors lit bébé (${childrenTeensCount}) dépasse la capacité du logement (${property.maxChildren || 0}).` });
     }
     if (!forceCapacity && babiesCount > Number(property.maxBabies || 0)) {
       return res.status(400).json({ error: `Le nombre de bébés (${babiesCount}) dépasse la capacité du logement (${property.maxBabies || 0}).` });
@@ -519,15 +559,17 @@ router.post('/', (req, res) => {
       checkInTime, checkOutTime,
       platform, totalPrice, discountPercent, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-      notes, cautionAmount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?)
+      notes, cautionAmount, blocksPreviousNight, blocksNextNight)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
     platform || 'direct', quote.totalPrice, quote.discountPercent || 0, quote.finalPrice,
     quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, sentenceCase(notes),
-    cautionAmount || 0
+    cautionAmount || 0,
+    nightBlocks.blocksPreviousNight,
+    nightBlocks.blocksNextNight
   );
 
   const reservationId = result.lastInsertRowid;
@@ -664,7 +706,9 @@ router.put('/:id', (req, res) => {
     });
   }
 
-  const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, Number(req.params.id));
+    const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
+
+    const validationError = validateReservation(propertyId, startDate, endDate, checkInTime, checkOutTime, Number(req.params.id), nightBlocks);
   if (validationError) {
     return res.status(409).json(validationError);
   }
@@ -737,6 +781,7 @@ router.put('/:id', (req, res) => {
       platform=?, totalPrice=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
       depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
       cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, icalSyncLocked=?,
+      blocksPreviousNight=?, blocksNextNight=?,
       updatedAt=datetime('now')
     WHERE id=?
   `).run(
@@ -748,6 +793,7 @@ router.put('/:id', (req, res) => {
     quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
     cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
     cautionReturned ? 1 : 0, cautionReturnedDate || null, nextIcalSyncLocked,
+    nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight,
     req.params.id
   );
 

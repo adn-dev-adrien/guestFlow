@@ -1049,7 +1049,13 @@ export default function ReservationPage() {
       ? reservations.filter(r => r.id !== editingReservationId)
       : reservations;
 
-    const hasOverlap = otherReservations.some(r => r.startDate < form.endDate && r.endDate > form.startDate);
+    const hasOverlap = otherReservations.some((r) => {
+      const coH = (t) => { const [h, m] = (t || '10:00').split(':').map(Number); return h + (m || 0) / 60; };
+      const occupiedStartDate = coH(r.checkInTime)  <= 10 ? addDays(r.startDate, -1) : r.startDate;
+      // +2 days: endDate+1 = first extra blocked night; +2 = first truly free day (for strict > comparison)
+      const occupiedEndDate   = coH(r.checkOutTime) >= 17 ? addDays(r.endDate, 2)  : r.endDate;
+      return occupiedStartDate < form.endDate && occupiedEndDate > form.startDate;
+    });
     if (hasOverlap) {
       await alert({ title: 'Conflit de réservation', message: 'Ce logement est déjà réservé pour ces dates.' });
       return;

@@ -145,6 +145,8 @@ db.exec(`
     sourceIcalSourceId INTEGER,
     sourceIcalEventUid TEXT,
     icalSyncLocked INTEGER NOT NULL DEFAULT 0,
+    blocksPreviousNight INTEGER NOT NULL DEFAULT 0,
+    blocksNextNight INTEGER NOT NULL DEFAULT 0,
     notes TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now')),
@@ -323,6 +325,12 @@ if (!cols.includes('sourceIcalEventUid')) {
 }
 if (!cols.includes('icalSyncLocked')) {
   db.exec("ALTER TABLE reservations ADD COLUMN icalSyncLocked INTEGER NOT NULL DEFAULT 0");
+}
+if (!cols.includes('blocksPreviousNight')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN blocksPreviousNight INTEGER NOT NULL DEFAULT 0");
+}
+if (!cols.includes('blocksNextNight')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN blocksNextNight INTEGER NOT NULL DEFAULT 0");
 }
 const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
 if (!propCols.includes('defaultCautionAmount')) {

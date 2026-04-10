@@ -333,6 +333,46 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
   );
 }
 
+function buildNightBlocksByDate(reservations, from, to) {
+  const map = {};
+  const pushBlock = (date, block) => {
+    if (!date || date < from || date > to) return;
+    if (!map[date]) map[date] = [];
+    map[date].push(block);
+  };
+
+  (reservations || []).forEach((r) => {
+    const checkInMinutes  = timeToMinutes(r.checkInTime  || '15:00');
+    const checkOutMinutes = timeToMinutes(r.checkOutTime || '10:00');
+    if (checkInMinutes <= 10 * 60) {
+      pushBlock(addDays(r.startDate, -1), {
+        id: `${r.id}-prev`,
+        reservationId: r.id,
+        propertyName: r.propertyName,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        reason: 'Arrivée anticipée (nuit bloquée)',
+      });
+    }
+    if (checkOutMinutes >= 17 * 60) {
+      pushBlock(r.endDate, {
+        id: `${r.id}-next`,
+        reservationId: r.id,
+        propertyName: r.propertyName,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        reason: 'Départ tardif (nuit bloquée)',
+      });
+    }
+  });
+
+  Object.keys(map).forEach((date) => {
+    map[date].sort((a, b) => String(a.propertyName || '').localeCompare(String(b.propertyName || '')));
+  });
+
+  return map;
+}
+
 export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [planningDays, setPlanningDays] = useState([]);
@@ -341,6 +381,7 @@ export default function PlanningPage() {
   const [properties, setProperties] = useState([]);
   const [resourceBookingsMap, setResourceBookingsMap] = useState({});
   const [departuresMap, setDeparturesMap] = useState({});
+  const [nightBlocksMap, setNightBlocksMap] = useState({});
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -476,6 +517,7 @@ export default function PlanningPage() {
       departuresByDate[date].sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
     });
     setDeparturesMap(departuresByDate);
+    setNightBlocksMap(buildNightBlocksByDate(reservationsBase, from, to));
 
     // Group resource bookings by date
     const rbByDate = {};
@@ -534,6 +576,8 @@ export default function PlanningPage() {
               nextDepartures[date].sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
             });
 
+            const nextNightBlocks = buildNightBlocksByDate(newReservations, nextStart, nextEnd);
+
             setDeparturesMap((prev) => {
               const merged = { ...prev };
               Object.keys(nextDepartures).forEach((date) => {
@@ -542,6 +586,16 @@ export default function PlanningPage() {
                 const appended = [...existing, ...nextDepartures[date].filter((r) => !existingIds.has(r.id))];
                 appended.sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
                 merged[date] = appended;
+              });
+              return merged;
+            });
+
+            setNightBlocksMap((prev) => {
+              const merged = { ...prev };
+              Object.keys(nextNightBlocks).forEach((date) => {
+                const existing = merged[date] || [];
+                const existingIds = new Set(existing.map((b) => b.id));
+                merged[date] = [...existing, ...nextNightBlocks[date].filter((b) => !existingIds.has(b.id))];
               });
               return merged;
             });
@@ -679,10 +733,11 @@ export default function PlanningPage() {
         )}
 
         {/* Merge reservation days + resource booking days */}
-        {[...new Set([...planningDays.map((d) => d.date), ...Object.keys(resourceBookingsMap), ...Object.keys(departuresMap)])].sort().map((date, idx, arr) => {
+        {[...new Set([...planningDays.map((d) => d.date), ...Object.keys(resourceBookingsMap), ...Object.keys(departuresMap), ...Object.keys(nightBlocksMap)])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
           const dayDepartures = departuresMap[date] || [];
+          const dayNightBlocks = nightBlocksMap[date] || [];
           const reservations = day ? day.reservations : [];
           const isToday = date === todayStr;
           const allReady = reservations.length > 0 && reservations.every((r) => r.checkInReady);
@@ -730,6 +785,32 @@ export default function PlanningPage() {
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {dayDepartures.map((r) => (
                       <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {dayNightBlocks.length > 0 && (
+                <Box sx={{ mb: 1.25 }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, color: 'warning.dark', mb: 0.5 }}>
+                    Nuits bloquées
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {dayNightBlocks.map((b) => (
+                      <Card key={`nb-${b.id}`} variant="outlined" sx={{ borderRadius: 1.5, borderColor: 'warning.main', bgcolor: 'rgba(245,124,0,0.12)' }}>
+                        <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                            <Chip label="NUIT BLOQUÉE" size="small" sx={{ height: 18, fontSize: 10, fontWeight: 800, bgcolor: 'rgba(245,124,0,0.2)', color: 'warning.dark' }} />
+                            <HomeWorkIcon sx={{ fontSize: 14, color: 'warning.dark' }} />
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', minWidth: 0 }} noWrap>
+                              {b.propertyName}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 0 }} noWrap>
+                              · {b.firstName} {b.lastName} · {b.reason}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </Card>
                     ))}
                   </Box>
                 </Box>
