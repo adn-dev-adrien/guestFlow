@@ -34,6 +34,7 @@ export default function PricedItemsPage({
   formDescriptionKey,
   showQuantity,
   isDeleteDisabled,
+  renderExtraFormFields,
 }) {
   const { confirm } = useAppDialogs();
   const [properties, setProperties] = useState([]);
@@ -300,6 +301,7 @@ export default function PricedItemsPage({
             </FormControl>
 
           </Box>
+          {renderExtraFormFields && renderExtraFormFields(form, setForm)}
       </FormDialog>
     </Box>
   );

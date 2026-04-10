@@ -3,6 +3,7 @@ import {
   Box, Typography, Card, CardContent, Checkbox, Chip, Divider,
   LinearProgress, TextField, Button, Tooltip, IconButton, Table, TableBody, TableCell, TableRow
 } from '@mui/material';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PersonIcon from '@mui/icons-material/Person';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
@@ -67,6 +68,44 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
         );
       })}
     </Box>
+  );
+}
+
+function ResourceBookingsSection({ bookings }) {
+  if (!bookings || bookings.length === 0) return null;
+  return (
+    <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: 'rgba(2,136,209,0.04)' }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+          <Inventory2Icon sx={{ fontSize: 16, color: 'info.main' }} />
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.dark' }}>
+            Créneaux ressources ({bookings.length})
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+          {bookings.map((b) => (
+            <Box key={b.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Chip
+                label={`${b.startTime}–${b.endTime}`}
+                size="small"
+                sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: b.paid ? 'success.light' : 'info.light' }}
+              />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{b.displayName}</Typography>
+              {b.resourceName && (
+                <Typography variant="caption" color="text.secondary">· {b.resourceName}</Typography>
+              )}
+              {b.propertyName && (
+                <Typography variant="caption" color="text.secondary">· {b.propertyName}</Typography>
+              )}
+              {b.clientPhone && (
+                <Typography variant="caption" color="text.secondary">· {b.clientPhone}</Typography>
+              )}
+              {b.paid && <Chip label="Payé" size="small" color="success" sx={{ height: 18, fontSize: 10 }} />}
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -228,6 +267,7 @@ export default function PlanningPage() {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [alertMap, setAlertMap] = useState({});
   const [properties, setProperties] = useState([]);
+  const [resourceBookingsMap, setResourceBookingsMap] = useState({});
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -328,7 +368,10 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const reservationsBase = await api.getReservations({ from, to });
+    const [reservationsBase, rbEvents] = await Promise.all([
+      api.getReservations({ from, to }),
+      api.getResourceBookingPlanningEvents(from, to).catch(() => []),
+    ]);
     const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
     const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
 
@@ -348,6 +391,14 @@ export default function PlanningPage() {
       }));
 
     setPlanningDays(days);
+
+    // Group resource bookings by date
+    const rbByDate = {};
+    for (const rb of rbEvents) {
+      if (!rbByDate[rb.date]) rbByDate[rb.date] = [];
+      rbByDate[rb.date].push(rb);
+    }
+    setResourceBookingsMap(rbByDate);
     detectAlerts(days, properties);
     lastLoadedRef.current = to;
     setLoading(false);
@@ -500,17 +551,21 @@ export default function PlanningPage() {
           <Card>
             <CardContent>
               <Typography color="text.secondary" align="center" sx={{ py: 3 }}>
-                Aucune arrivée sur les {DAYS_AHEAD} prochains jours
+                Aucune arrivée ni créneau ressource sur les {DAYS_AHEAD} prochains jours
               </Typography>
             </CardContent>
           </Card>
         )}
 
-        {planningDays.map((day, idx) => {
-          const isToday = day.date === todayStr;
-          const allReady = day.reservations.every((r) => r.checkInReady);
+        {/* Merge reservation days + resource booking days */}
+        {[...new Set([...planningDays.map((d) => d.date), ...Object.keys(resourceBookingsMap)])].sort().map((date, idx, arr) => {
+          const day = planningDays.find((d) => d.date === date);
+          const dayResourceBookings = resourceBookingsMap[date] || [];
+          const reservations = day ? day.reservations : [];
+          const isToday = date === todayStr;
+          const allReady = reservations.length > 0 && reservations.every((r) => r.checkInReady);
           return (
-            <Box key={day.date} sx={{ mb: 3 }}>
+            <Box key={date} sx={{ mb: 3 }}>
               {/* Day header */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Box
@@ -528,11 +583,11 @@ export default function PlanningPage() {
                 >
                   <TodayIcon sx={{ fontSize: 20 }} />
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
-                    {frenchWeekday(day.date)}
+                    {frenchWeekday(date)}
                     {isToday && ' — Aujourd\'hui'}
                   </Typography>
                   <Chip
-                    label={`${day.reservations.filter((r) => r.checkInReady).length}/${day.reservations.length}`}
+                    label={`${reservations.filter((r) => r.checkInReady).length}/${reservations.length}`}
                     size="small"
                     sx={{
                       ml: 'auto',
@@ -545,7 +600,7 @@ export default function PlanningPage() {
                 </Box>
               </Box>
 
-              {day.reservations.map((r) => (
+              {reservations.map((r) => (
                 <ReservationCard
                   key={r.id}
                   reservation={r}
@@ -554,7 +609,9 @@ export default function PlanningPage() {
                 />
               ))}
 
-              {idx < planningDays.length - 1 && <Divider sx={{ mt: 2 }} />}
+              <ResourceBookingsSection bookings={dayResourceBookings} />
+
+              {idx < arr.length - 1 && <Divider sx={{ mt: 2 }} />}
             </Box>
           );
         })}

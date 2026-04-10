@@ -81,6 +81,16 @@ const api = {
   updateResource: (id, data) => request(`/resources/${id}`, { method: 'PUT', body: data }),
   deleteResource: (id) => request(`/resources/${id}`, { method: 'DELETE' }),
 
+  // Resource bookings (complex resources — time slots)
+  getResourceBookings: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/resource-bookings?${qs}`);
+  },
+  getResourceBookingPlanningEvents: (from, to) => request(`/resource-bookings/planning-events?from=${from}&to=${to}`),
+  createResourceBooking: (data) => request('/resource-bookings', { method: 'POST', body: data }),
+  updateResourceBooking: (id, data) => request(`/resource-bookings/${id}`, { method: 'PUT', body: data }),
+  deleteResourceBooking: (id) => request(`/resource-bookings/${id}`, { method: 'DELETE' }),
+
   // Reservations
   getReservations: (params) => {
     const qs = new URLSearchParams(params).toString();

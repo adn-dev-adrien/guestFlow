@@ -202,6 +202,30 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS resource_bookings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    resourceId INTEGER NOT NULL,
+    reservationId INTEGER,
+    clientId INTEGER,
+    clientName TEXT,
+    clientPhone TEXT,
+    propertyId INTEGER,
+    date TEXT NOT NULL,
+    startTime TEXT NOT NULL,
+    endTime TEXT NOT NULL,
+    notes TEXT DEFAULT '',
+    totalPrice REAL DEFAULT 0,
+    paid INTEGER DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE,
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE SET NULL,
+    FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE SET NULL,
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS reservation_nights (
     reservationId INTEGER NOT NULL,
     date TEXT NOT NULL,
@@ -394,6 +418,21 @@ tryAddOptionColumn('autoOptionType', "ALTER TABLE options ADD COLUMN autoOptionT
 tryAddOptionColumn('autoEnabled', "ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0");
 tryAddOptionColumn('autoPricingMode', "ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed'");
 tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
+
+// ---------- RESOURCES COMPLEX COLUMNS ----------
+const resourceComplexCols = db.prepare("PRAGMA table_info(resources)").all().map(c => c.name);
+const tryAddResourceColumn = (col, sql) => {
+  if (resourceComplexCols.length > 0 && !resourceComplexCols.includes(col)) {
+    try { db.exec(sql); } catch (e) {
+      if (!String(e?.message || '').includes('duplicate column name')) throw e;
+    }
+  }
+};
+tryAddResourceColumn('isComplex', 'ALTER TABLE resources ADD COLUMN isComplex INTEGER NOT NULL DEFAULT 0');
+tryAddResourceColumn('slotDuration', 'ALTER TABLE resources ADD COLUMN slotDuration INTEGER NOT NULL DEFAULT 60');
+tryAddResourceColumn('openTime', "ALTER TABLE resources ADD COLUMN openTime TEXT NOT NULL DEFAULT '08:00'");
+tryAddResourceColumn('closeTime', "ALTER TABLE resources ADD COLUMN closeTime TEXT NOT NULL DEFAULT '22:00'");
+tryAddResourceColumn('closedDays', "ALTER TABLE resources ADD COLUMN closedDays TEXT NOT NULL DEFAULT '[]'");
 
 const icalSourceCols = db.prepare("PRAGMA table_info(ical_sources)").all().map(c => c.name);
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('platformColor')) {

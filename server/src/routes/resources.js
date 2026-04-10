@@ -11,6 +11,11 @@ function parseResource(resource) {
   return {
     ...resource,
     propertyIds: resource.propertyIds ? JSON.parse(resource.propertyIds) : [],
+    isComplex: Boolean(resource.isComplex),
+    slotDuration: Number(resource.slotDuration || 60),
+    openTime: resource.openTime || '08:00',
+    closeTime: resource.closeTime || '22:00',
+    closedDays: resource.closedDays || '[]',
   };
 }
 
@@ -123,21 +128,46 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, closedDays } = req.body;
   const result = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(sentenceCase(name), Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, sentenceCase(note));
+    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, closedDays)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    sentenceCase(name),
+    Number(quantity) || 0,
+    Number(price) || 0,
+    priceType || 'per_stay',
+    propertyIds ? JSON.stringify(propertyIds) : null,
+    sentenceCase(note),
+    isComplex ? 1 : 0,
+    Number(slotDuration) || 60,
+    openTime || '08:00',
+    closeTime || '22:00',
+    typeof closedDays === 'string' ? closedDays : JSON.stringify(closedDays || []),
+  );
   res.json({ id: result.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, closedDays } = req.body;
   db.prepare(`
     UPDATE resources
-    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, updatedAt = datetime('now')
+    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, openTime = ?, closeTime = ?, closedDays = ?, updatedAt = datetime('now')
     WHERE id = ?
-  `).run(sentenceCase(name), Number(quantity) || 0, Number(price) || 0, priceType || 'per_stay', propertyIds ? JSON.stringify(propertyIds) : null, sentenceCase(note), req.params.id);
+  `).run(
+    sentenceCase(name),
+    Number(quantity) || 0,
+    Number(price) || 0,
+    priceType || 'per_stay',
+    propertyIds ? JSON.stringify(propertyIds) : null,
+    sentenceCase(note),
+    isComplex ? 1 : 0,
+    Number(slotDuration) || 60,
+    openTime || '08:00',
+    closeTime || '22:00',
+    typeof closedDays === 'string' ? closedDays : JSON.stringify(closedDays || []),
+    req.params.id,
+  );
   res.json({ ok: true });
 });
 

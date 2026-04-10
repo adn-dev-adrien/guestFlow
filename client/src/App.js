@@ -41,6 +41,7 @@ import TouristTaxPage from './pages/TouristTaxPage';
 import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
 import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
+import ResourcePlanningPage from './pages/ResourcePlanningPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -89,6 +90,11 @@ function NavContent({ onItemClick }) {
       setPropertiesMenuOpen(false);
       setFinanceMenuOpen(false);
     }
+    if (location.pathname === '/resource-planning') {
+      setCalendarMenuOpen(true);
+      setPropertiesMenuOpen(false);
+      setFinanceMenuOpen(false);
+    }
     if (location.pathname.startsWith('/finance')) {
       setFinanceMenuOpen(true);
       setPropertiesMenuOpen(false);
@@ -109,7 +115,7 @@ function NavContent({ onItemClick }) {
                 setCalendarMenuOpen(false);
                 setFinanceMenuOpen(false);
               } else if (item.path === '/calendar') {
-                setCalendarMenuOpen(location.pathname.startsWith('/calendar') ? true : (prev) => !prev);
+                setCalendarMenuOpen((location.pathname.startsWith('/calendar') || location.pathname === '/resource-planning') ? true : (prev) => !prev);
                 setPropertiesMenuOpen(false);
                 setFinanceMenuOpen(false);
               } else if (item.path === '/finance') {
@@ -167,6 +173,18 @@ function NavContent({ onItemClick }) {
           {item.path === '/calendar' && (
             <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
               <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                <ListItemButton
+                  component={Link}
+                  to="/resource-planning"
+                  onClick={(e) => onItemClick && onItemClick(e, '/resource-planning')}
+                  selected={location.pathname === '/resource-planning'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemText
+                    primary="Ressources"
+                    primaryTypographyProps={{ variant: 'body2', fontStyle: 'italic' }}
+                  />
+                </ListItemButton>
                 {properties.map((p) => (
                   <ListItemButton
                     key={`calendar-${p.id}`}
@@ -337,6 +355,7 @@ function AppShell() {
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path="/planning" element={<PlanningPage />} />
+          <Route path="/resource-planning" element={<ResourcePlanningPage />} />
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
         </Routes>
       </Box>
