@@ -17,6 +17,7 @@ const PRICE_TYPES = [
   { value: 'per_person', label: 'Par personne' },
   { value: 'per_night', label: 'Par jour' },
   { value: 'per_person_per_night', label: 'Par personne / jour' },
+  { value: 'per_hour', label: 'Par heure' },
   { value: 'free', label: 'Gratuit' },
 ];
 
@@ -35,6 +36,7 @@ export default function PricedItemsPage({
   showQuantity,
   isDeleteDisabled,
   renderExtraFormFields,
+  getRowSx,
 }) {
   const { confirm } = useAppDialogs();
   const [properties, setProperties] = useState([]);
@@ -165,7 +167,7 @@ export default function PricedItemsPage({
           const name = item[formNameKey] || '';
           const description = item[formDescriptionKey] || '';
           return (
-            <TableRow key={item.id} hover sx={{ cursor: 'pointer' }} onClick={() => openDialog(item)}>
+            <TableRow key={item.id} hover sx={{ cursor: 'pointer', ...(getRowSx ? getRowSx(item) : {}) }} onClick={() => openDialog(item)}>
               <TableCell>{name}</TableCell>
               <TableCell>{description || '-'}</TableCell>
               <TableCell>

@@ -17,7 +17,7 @@ function enrichBooking(b) {
 
 const JOIN_QUERY = `
   SELECT rb.*,
-    r.name AS resourceName, r.slotDuration, r.price AS resourcePrice, r.openTime, r.closeTime,
+    r.name AS resourceName, r.slotDuration, r.price AS resourcePrice, r.openTime, r.closeTime, r.turnoverMinutes, r.openDays,
     c.firstName, c.lastName,
     p.name AS propertyName
   FROM resource_bookings rb
@@ -33,6 +33,36 @@ router.get('/planning-events', (req, res) => {
   if (!from || !to) return res.status(400).json({ error: 'from and to required' });
   const bookings = db.prepare(`${JOIN_QUERY} WHERE rb.date >= ? AND rb.date <= ? ORDER BY rb.date, rb.startTime`).all(from, to);
   res.json(bookings.map(enrichBooking));
+});
+
+// GET /resource-bookings/occupied-slots?resourceId=&date=
+// Returns occupied time slots including turnover for a resource on a given date
+// Format: { occupiedSlots: [{ startTime, endTime, description }] }
+router.get('/occupied-slots', (req, res) => {
+  const { resourceId, date } = req.query;
+  if (!resourceId || !date) return res.status(400).json({ error: 'resourceId and date required' });
+  
+  const bookings = db.prepare(`
+    SELECT rb.startTime, rb.endTime, rb.clientName, r.turnoverMinutes, c.firstName, c.lastName
+    FROM resource_bookings rb
+    LEFT JOIN resources r ON rb.resourceId = r.id
+    LEFT JOIN clients c ON rb.clientId = c.id
+    WHERE rb.resourceId = ? AND rb.date = ?
+    ORDER BY rb.startTime
+  `).all(resourceId, date);
+
+  const occupiedSlots = bookings.map(b => {
+    const clientDisplay = [b.firstName, b.lastName].filter(Boolean).join(' ') || b.clientName || 'Client externe';
+    const turnover = Number(b.turnoverMinutes || 0);
+    return {
+      startTime: b.startTime,
+      endTime: b.endTime,
+      turnover,
+      description: clientDisplay,
+    };
+  });
+
+  res.json({ occupiedSlots });
 });
 
 // GET /resource-bookings?resourceId=&date= OR ?resourceId=&weekStart=
@@ -64,10 +94,18 @@ router.post('/', (req, res) => {
   if (!resourceId || !date || !startTime || !endTime) {
     return res.status(400).json({ error: 'resourceId, date, startTime, endTime sont requis' });
   }
-  const resource = db.prepare('SELECT quantity FROM resources WHERE id = ?').get(resourceId);
+  const resource = db.prepare('SELECT quantity, turnoverMinutes FROM resources WHERE id = ?').get(resourceId);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
 
-  const { cnt } = db.prepare('SELECT COUNT(*) as cnt FROM resource_bookings WHERE resourceId=? AND date=? AND startTime < ? AND endTime > ?').get(resourceId, date, endTime, startTime);
+  const turnover = Number(resource.turnoverMinutes || 0);
+  const { cnt } = db.prepare(`
+    SELECT COUNT(*) as cnt
+    FROM resource_bookings rb
+    WHERE rb.resourceId = ?
+      AND rb.date = ?
+      AND rb.startTime < time(?, '+' || ? || ' minutes')
+      AND time(rb.endTime, '+' || ? || ' minutes') > ?
+  `).get(resourceId, date, endTime, turnover, turnover, startTime);
   if (cnt >= resource.quantity) return res.status(409).json({ error: 'Créneau non disponible (capacité atteinte)' });
 
   const result = db.prepare(
@@ -87,10 +125,19 @@ router.put('/:id', (req, res) => {
   const newStart = startTime !== undefined ? startTime : existing.startTime;
   const newEnd = endTime !== undefined ? endTime : existing.endTime;
 
-  const resource = db.prepare('SELECT quantity FROM resources WHERE id = ?').get(existing.resourceId);
+  const resource = db.prepare('SELECT quantity, turnoverMinutes FROM resources WHERE id = ?').get(existing.resourceId);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
 
-  const { cnt } = db.prepare('SELECT COUNT(*) as cnt FROM resource_bookings WHERE resourceId=? AND date=? AND startTime < ? AND endTime > ? AND id!=?').get(existing.resourceId, newDate, newEnd, newStart, req.params.id);
+  const turnover = Number(resource.turnoverMinutes || 0);
+  const { cnt } = db.prepare(`
+    SELECT COUNT(*) as cnt
+    FROM resource_bookings rb
+    WHERE rb.resourceId = ?
+      AND rb.date = ?
+      AND rb.startTime < time(?, '+' || ? || ' minutes')
+      AND time(rb.endTime, '+' || ? || ' minutes') > ?
+      AND rb.id != ?
+  `).get(existing.resourceId, newDate, newEnd, turnover, turnover, newStart, req.params.id);
   if (cnt >= resource.quantity) return res.status(409).json({ error: 'Créneau non disponible (capacité atteinte)' });
 
   db.prepare(

@@ -37,6 +37,12 @@ function timeToMinutes(timeStr) {
   return h * 60 + (m || 0);
 }
 
+function minutesToTime(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   const dbl = Number(doubleBeds || 0);
   const sgl = Number(singleBeds || 0);
@@ -74,38 +80,48 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
 function ResourceBookingsSection({ bookings }) {
   if (!bookings || bookings.length === 0) return null;
   return (
-    <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: 'rgba(2,136,209,0.04)' }}>
-      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
-          <Inventory2Icon sx={{ fontSize: 16, color: 'info.main' }} />
-          <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.dark' }}>
-            Créneaux ressources ({bookings.length})
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          {bookings.map((b) => (
-            <Box key={b.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Chip
-                label={`${b.startTime}–${b.endTime}`}
-                size="small"
-                sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: b.paid ? 'success.light' : 'info.light' }}
-              />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{b.displayName}</Typography>
-              {b.resourceName && (
-                <Typography variant="caption" color="text.secondary">· {b.resourceName}</Typography>
+    <>
+      {bookings.map((b) => {
+        const turnover = Number(b.turnoverMinutes || 0);
+        const turnoverEnd = turnover > 0
+          ? minutesToTime(timeToMinutes(b.endTime) + turnover)
+          : null;
+        return (
+          <Card key={b.id} variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: 'rgba(2,136,209,0.04)' }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+                <Inventory2Icon sx={{ fontSize: 16, color: 'info.main' }} />
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.dark' }}>
+                  {b.resourceName || 'Ressource'}
+                </Typography>
+                {b.paid && <Chip label="Payé" size="small" color="success" sx={{ height: 18, fontSize: 10 }} />}
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  label={`${b.startTime}–${b.endTime}`}
+                  size="small"
+                  sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: b.paid ? 'success.light' : 'info.light' }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{b.displayName}</Typography>
+                {b.propertyName && (
+                  <Typography variant="caption" color="text.secondary">· {b.propertyName}</Typography>
+                )}
+                {b.clientPhone && (
+                  <Typography variant="caption" color="text.secondary">· {b.clientPhone}</Typography>
+                )}
+              </Box>
+
+              {turnover > 0 && turnoverEnd && (
+                <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 0.75, display: 'block' }}>
+                  Remise en état: +{turnover} min (jusqu'à {turnoverEnd})
+                </Typography>
               )}
-              {b.propertyName && (
-                <Typography variant="caption" color="text.secondary">· {b.propertyName}</Typography>
-              )}
-              {b.clientPhone && (
-                <Typography variant="caption" color="text.secondary">· {b.clientPhone}</Typography>
-              )}
-              {b.paid && <Chip label="Payé" size="small" color="success" sx={{ height: 18, fontSize: 10 }} />}
-            </Box>
-          ))}
-        </Box>
-      </CardContent>
-    </Card>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </>
   );
 }
 

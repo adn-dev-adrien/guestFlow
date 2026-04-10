@@ -8,6 +8,18 @@ function overlapClause() {
 
 function parseResource(resource) {
   if (!resource) return resource;
+  let openDays = '[0,1,2,3,4,5,6]';
+  if (resource.openDays) {
+    openDays = resource.openDays;
+  } else if (resource.closedDays) {
+    try {
+      const closed = JSON.parse(resource.closedDays || '[]');
+      const full = [0, 1, 2, 3, 4, 5, 6];
+      openDays = JSON.stringify(full.filter((d) => !closed.includes(d)));
+    } catch {
+      openDays = '[0,1,2,3,4,5,6]';
+    }
+  }
   return {
     ...resource,
     propertyIds: resource.propertyIds ? JSON.parse(resource.propertyIds) : [],
@@ -15,7 +27,8 @@ function parseResource(resource) {
     slotDuration: Number(resource.slotDuration || 60),
     openTime: resource.openTime || '08:00',
     closeTime: resource.closeTime || '22:00',
-    closedDays: resource.closedDays || '[]',
+    openDays,
+    turnoverMinutes: Number(resource.turnoverMinutes || 0),
   };
 }
 
@@ -128,10 +141,10 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, closedDays } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, openDays, turnoverMinutes } = req.body;
   const result = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, closedDays)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, openDays, turnoverMinutes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     sentenceCase(name),
     Number(quantity) || 0,
@@ -143,16 +156,17 @@ router.post('/', (req, res) => {
     Number(slotDuration) || 60,
     openTime || '08:00',
     closeTime || '22:00',
-    typeof closedDays === 'string' ? closedDays : JSON.stringify(closedDays || []),
+    typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
+    Number(turnoverMinutes) || 0,
   );
   res.json({ id: result.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, closedDays } = req.body;
+  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, openTime, closeTime, openDays, turnoverMinutes } = req.body;
   db.prepare(`
     UPDATE resources
-    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, openTime = ?, closeTime = ?, closedDays = ?, updatedAt = datetime('now')
+    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, openTime = ?, closeTime = ?, openDays = ?, turnoverMinutes = ?, updatedAt = datetime('now')
     WHERE id = ?
   `).run(
     sentenceCase(name),
@@ -165,7 +179,8 @@ router.put('/:id', (req, res) => {
     Number(slotDuration) || 60,
     openTime || '08:00',
     closeTime || '22:00',
-    typeof closedDays === 'string' ? closedDays : JSON.stringify(closedDays || []),
+    typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
+    Number(turnoverMinutes) || 0,
     req.params.id,
   );
   res.json({ ok: true });

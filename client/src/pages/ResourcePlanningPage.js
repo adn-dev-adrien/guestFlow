@@ -14,6 +14,7 @@ const PIXELS_PER_MINUTE = 1.5; // 60 min = 90px
 const MIN_BOOKING_HEIGHT = 18;
 const HOUR_COL_WIDTH = 52;
 const DAY_LABELS_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const BOOKING_STEP_MINUTES = 5;
 
 function timeToMinutes(t) {
   const [h, m] = (t || '00:00').split(':').map(Number);
@@ -86,10 +87,17 @@ export default function ResourcePlanningPage() {
   const closeMin = timeToMinutes(selectedResource?.closeTime || '22:00');
   const totalMinutes = Math.max(closeMin - openMin, 60);
   const gridHeight = totalMinutes * PIXELS_PER_MINUTE;
-  const slotDuration = selectedResource?.slotDuration || 60;
+  const slotDuration = selectedResource?.slotDuration || 5;
+  const turnoverMinutes = Number(selectedResource?.turnoverMinutes || 0);
 
-  const closedDays = useMemo(() => {
-    try { return JSON.parse(selectedResource?.closedDays || '[]'); } catch { return []; }
+  const openDays = useMemo(() => {
+    try {
+      if (selectedResource?.openDays) return JSON.parse(selectedResource.openDays);
+      const closed = JSON.parse(selectedResource?.closedDays || '[]');
+      return [0, 1, 2, 3, 4, 5, 6].filter((d) => !closed.includes(d));
+    } catch {
+      return [0, 1, 2, 3, 4, 5, 6];
+    }
   }, [selectedResource]);
 
   // Hour markers (every full hour within open range)
@@ -104,13 +112,13 @@ export default function ResourcePlanningPage() {
 
   // Slot-duration markers (lighter lines)
   const slotMarkers = useMemo(() => {
-    if (slotDuration >= 60) return []; // covered by hourMarkers
+    if (BOOKING_STEP_MINUTES >= 60) return []; // covered by hourMarkers
     const markers = [];
-    for (let m = openMin + slotDuration; m < closeMin; m += slotDuration) {
+    for (let m = openMin + BOOKING_STEP_MINUTES; m < closeMin; m += BOOKING_STEP_MINUTES) {
       if (m % 60 !== 0) markers.push({ top: (m - openMin) * PIXELS_PER_MINUTE });
     }
     return markers;
-  }, [openMin, closeMin, slotDuration]);
+  }, [openMin, closeMin]);
 
   function getBookingsForDate(date) {
     return bookings.filter((b) => b.date === date);
@@ -121,14 +129,16 @@ export default function ResourcePlanningPage() {
     const endM = timeToMinutes(b.endTime);
     const top = (startM - openMin) * PIXELS_PER_MINUTE;
     const height = Math.max((endM - startM) * PIXELS_PER_MINUTE, MIN_BOOKING_HEIGHT);
-    return { top, height };
+    const turnoverHeight = Math.max(0, Number(b.turnoverMinutes || turnoverMinutes) * PIXELS_PER_MINUTE);
+    return { top, height, turnoverTop: top + height, turnoverHeight };
   }
 
   function handleGridClick(date, clientY, rect) {
     const clickY = clientY - rect.top;
     const rawMinutes = openMin + clickY / PIXELS_PER_MINUTE;
-    const snapped = Math.floor(rawMinutes / slotDuration) * slotDuration;
-    const clamped = Math.max(openMin, Math.min(closeMin - slotDuration, snapped));
+    const snapped = Math.floor(rawMinutes / BOOKING_STEP_MINUTES) * BOOKING_STEP_MINUTES;
+    const minDuration = Math.max(slotDuration, BOOKING_STEP_MINUTES);
+    const clamped = Math.max(openMin, Math.min(closeMin - minDuration, snapped));
     setClickedDate(date);
     setClickedTime(minutesToTime(clamped));
     setEditingBooking(null);
@@ -239,8 +249,12 @@ export default function ResourcePlanningPage() {
               <Box sx={{ width: 14, height: 14, bgcolor: 'rgba(0,0,0,0.06)', border: '1px solid #ccc', borderRadius: 0.5 }} />
               <Typography variant="caption">Fermé</Typography>
             </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 14, height: 14, bgcolor: 'rgba(211, 47, 47, 0.35)', borderRadius: 0.5 }} />
+              <Typography variant="caption">Remise en état</Typography>
+            </Box>
             <Typography variant="caption" color="text.secondary">
-              Clic sur une case vide pour créer · Clic sur un créneau pour modifier
+              Clic sur une case vide pour créer · Clic sur un créneau pour modifier (pas de 5 min)
             </Typography>
           </Box>
 
@@ -273,7 +287,7 @@ export default function ResourcePlanningPage() {
               {/* Day columns */}
               {weekDates.map((date) => {
                 const jsDay = new Date(date + 'T12:00:00').getDay();
-                const isClosed = closedDays.includes(jsDay);
+                const isClosed = !openDays.includes(jsDay);
                 const isToday = date === todayStr();
                 const dayBookings = getBookingsForDate(date);
                 const dayLabel = DAY_LABELS_FR[jsDay];
@@ -368,53 +382,73 @@ export default function ResourcePlanningPage() {
 
                       {/* Bookings */}
                       {dayBookings.map((b) => {
-                        const { top, height } = getBookingStyle(b);
+                        const { top, height, turnoverTop, turnoverHeight } = getBookingStyle(b);
                         return (
                           <Tooltip
                             key={b.id}
-                            title={`${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
+                            title={`${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
                             arrow
                           >
-                            <Box
-                              onClick={(e) => handleBookingClick(e, b)}
-                              sx={{
-                                position: 'absolute',
-                                left: 2,
-                                right: 2,
-                                top,
-                                height,
-                                bgcolor: b.paid ? '#388e3c' : '#1976d2',
-                                color: 'white',
-                                borderRadius: 0.75,
-                                px: 0.5,
-                                py: 0.25,
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                boxShadow: 1,
-                                '&:hover': { filter: 'brightness(0.85)' },
-                                zIndex: 1,
-                              }}
-                            >
-                              <Typography
-                                variant="caption"
-                                sx={{ display: 'block', fontWeight: 700, fontSize: '9px', lineHeight: 1.3 }}
+                            <Box>
+                              <Box
+                                onClick={(e) => handleBookingClick(e, b)}
+                                sx={{
+                                  position: 'absolute',
+                                  left: 2,
+                                  right: 2,
+                                  top,
+                                  height,
+                                  bgcolor: b.paid ? '#388e3c' : '#1976d2',
+                                  color: 'white',
+                                  borderRadius: 0.75,
+                                  px: 0.5,
+                                  py: 0.25,
+                                  overflow: 'hidden',
+                                  cursor: 'pointer',
+                                  boxShadow: 1,
+                                  '&:hover': { filter: 'brightness(0.85)' },
+                                  zIndex: 2,
+                                }}
                               >
-                                {b.startTime}–{b.endTime}
-                              </Typography>
-                              {height >= 28 && (
                                 <Typography
                                   variant="caption"
-                                  sx={{ display: 'block', fontSize: '9px', lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+                                  sx={{ display: 'block', fontWeight: 700, fontSize: '9px', lineHeight: 1.3 }}
                                 >
-                                  {b.displayName}
+                                  {b.startTime}–{b.endTime}
                                 </Typography>
-                              )}
-                              {height >= 42 && b.propertyName && (
+                                {height >= 28 && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ display: 'block', fontSize: '9px', lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+                                  >
+                                    {b.displayName}
+                                  </Typography>
+                                )}
+                                {height >= 42 && b.propertyName && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ display: 'block', fontSize: '9px', opacity: 0.85, lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+                                  >
+                                    {b.propertyName}
+                                  </Typography>
+                                )}
+                              </Box>
+                              {turnoverHeight > 0 && (
                                 <Typography
-                                  variant="caption"
-                                  sx={{ display: 'block', fontSize: '9px', opacity: 0.85, lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+                                  component="div"
+                                  sx={{
+                                    position: 'absolute',
+                                    left: 2,
+                                    right: 2,
+                                    top: turnoverTop,
+                                    height: turnoverHeight,
+                                    borderRadius: 0.5,
+                                    bgcolor: 'rgba(211, 47, 47, 0.35)',
+                                    border: '1px dashed rgba(183, 28, 28, 0.6)',
+                                    zIndex: 1,
+                                  }}
                                 >
-                                  {b.propertyName}
+                                  {''}
                                 </Typography>
                               )}
                             </Box>

@@ -27,16 +27,16 @@ const DAY_OPTIONS = [
 
 const emptyResource = {
   name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
-  isComplex: false, slotDuration: 60, openTime: '08:00', closeTime: '22:00', closedDays: [],
+  isComplex: false, slotDuration: 5, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
 };
 
 function ComplexResourceFields({ form, setForm }) {
-  const closedDays = Array.isArray(form.closedDays) ? form.closedDays : [];
+  const openDays = Array.isArray(form.openDays) ? form.openDays : [0, 1, 2, 3, 4, 5, 6];
   const toggleDay = (dayNum) => {
-    const next = closedDays.includes(dayNum)
-      ? closedDays.filter((d) => d !== dayNum)
-      : [...closedDays, dayNum];
-    setForm({ ...form, closedDays: next });
+    const next = openDays.includes(dayNum)
+      ? openDays.filter((d) => d !== dayNum)
+      : [...openDays, dayNum];
+    setForm({ ...form, openDays: next });
   };
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -47,10 +47,10 @@ function ComplexResourceFields({ form, setForm }) {
       {form.isComplex && (
         <Box sx={{ pl: 2, display: 'flex', flexDirection: 'column', gap: 2, borderLeft: '3px solid', borderColor: 'primary.light' }}>
           <FormControl fullWidth size="small">
-            <InputLabel>Durée d'un créneau</InputLabel>
+            <InputLabel>Durée minimale</InputLabel>
             <Select
-              value={form.slotDuration || 60}
-              label="Durée d'un créneau"
+              value={form.slotDuration || 5}
+              label="Durée minimale"
               onChange={(e) => setForm({ ...form, slotDuration: e.target.value })}
             >
               {SLOT_DURATION_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
@@ -76,13 +76,23 @@ function ComplexResourceFields({ form, setForm }) {
               sx={{ flex: 1 }}
             />
           </Box>
+          <TextField
+            label="Temps de remise en état (min)"
+            type="number"
+            size="small"
+            value={form.turnoverMinutes || 0}
+            onChange={(e) => setForm({ ...form, turnoverMinutes: Math.max(0, Number(e.target.value) || 0) })}
+            inputProps={{ min: 0, step: 5 }}
+            helperText="Ex: 15 min pour chauffer/remettre en état"
+            fullWidth
+          />
           <Box>
-            <Typography variant="caption" color="text.secondary" gutterBottom display="block">Jours de fermeture</Typography>
+            <Typography variant="caption" color="text.secondary" gutterBottom display="block">Jours d'ouverture</Typography>
             <FormGroup row>
               {DAY_OPTIONS.map((d) => (
                 <FormControlLabel
                   key={d.value}
-                  control={<Checkbox size="small" checked={closedDays.includes(d.value)} onChange={() => toggleDay(d.value)} />}
+                  control={<Checkbox size="small" checked={openDays.includes(d.value)} onChange={() => toggleDay(d.value)} />}
                   label={<Typography variant="caption">{d.label}</Typography>}
                   sx={{ mr: 1 }}
                 />
@@ -113,10 +123,19 @@ export default function ResourcesPage() {
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
         description: item.note || item.description || '',
         isComplex: Boolean(item.isComplex),
-        slotDuration: item.slotDuration || 60,
+        slotDuration: item.slotDuration || 5,
         openTime: item.openTime || '08:00',
         closeTime: item.closeTime || '22:00',
-        closedDays: (() => { try { return JSON.parse(item.closedDays || '[]'); } catch { return []; } })(),
+        openDays: (() => {
+          try {
+            if (item.openDays) return JSON.parse(item.openDays);
+            const closed = JSON.parse(item.closedDays || '[]');
+            return [0, 1, 2, 3, 4, 5, 6].filter((d) => !closed.includes(d));
+          } catch {
+            return [0, 1, 2, 3, 4, 5, 6];
+          }
+        })(),
+        turnoverMinutes: Number(item.turnoverMinutes || 0),
       })}
       toPayload={(form) => ({
         name: form.name,
@@ -126,10 +145,11 @@ export default function ResourcesPage() {
         propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
         note: form.description || '',
         isComplex: form.isComplex ? 1 : 0,
-        slotDuration: form.isComplex ? (Number(form.slotDuration) || 60) : 60,
+        slotDuration: form.isComplex ? (Number(form.slotDuration) || 5) : 5,
         openTime: form.isComplex ? (form.openTime || '08:00') : '08:00',
         closeTime: form.isComplex ? (form.closeTime || '22:00') : '22:00',
-        closedDays: JSON.stringify(form.isComplex ? (form.closedDays || []) : []),
+        openDays: JSON.stringify(form.isComplex ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),
+        turnoverMinutes: form.isComplex ? (Number(form.turnoverMinutes) || 0) : 0,
       })}
       formNameKey="name"
       formDescriptionKey="description"
@@ -138,6 +158,7 @@ export default function ResourcesPage() {
         const n = (item.name || '').toLowerCase();
         return n.includes('lit') && (n.includes('bébé') || n.includes('bebe'));
       }}
+      getRowSx={(item) => (item.isComplex ? { bgcolor: 'rgba(2, 136, 209, 0.05)' } : {})}
       renderExtraFormFields={(form, setForm) => <ComplexResourceFields form={form} setForm={setForm} />}
     />
   );
