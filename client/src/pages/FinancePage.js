@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Chip
+  TableCell, TableContainer, TableHead, TableRow, Chip, Checkbox, Divider, Tabs, Tab
 } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import PageHeader from '../components/PageHeader';
 import { displayDate } from '../utils/formatters';
+import { PLATFORM_COLORS } from '../constants/platforms';
 import api from '../api';
 
 const COLORS = ['#1565c0', '#4CAF50', '#f57c00', '#9c27b0'];
@@ -24,6 +25,10 @@ export default function FinancePage() {
   const [projectionDate, setProjectionDate] = useState(new Date().toISOString().split('T')[0]);
   const [summary, setSummary] = useState(null);
   const [projection, setProjection] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [upcomingByProperty, setUpcomingByProperty] = useState({});
+  const [pendingPayments, setPendingPayments] = useState([]);
+  const [financeViewTab, setFinanceViewTab] = useState('overdue');
 
   useEffect(() => {
     api.getFinanceSummary(from, to).then(setSummary);
@@ -32,6 +37,43 @@ export default function FinancePage() {
   useEffect(() => {
     api.getFinanceProjection(projectionDate).then(setProjection);
   }, [projectionDate]);
+
+  const loadOperationalFinanceData = async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const [props, pending, upcoming] = await Promise.all([
+      api.getProperties(),
+      api.getPendingPayments(),
+      api.getReservations({ from: todayStr }),
+    ]);
+
+    setProperties(props);
+    setPendingPayments(pending);
+
+    const grouped = {};
+    for (const prop of props) {
+      grouped[prop.id] = upcoming
+        .filter((r) => r.propertyId === prop.id)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate))
+        .slice(0, 5);
+    }
+    setUpcomingByProperty(grouped);
+  };
+
+  useEffect(() => {
+    loadOperationalFinanceData();
+  }, []);
+
+  const handleTogglePayment = async (reservation, field) => {
+    const value = !reservation[field];
+    await api.markPayment(reservation.id, { [field]: value });
+    const [nextSummary, nextProjection] = await Promise.all([
+      api.getFinanceSummary(from, to),
+      api.getFinanceProjection(projectionDate),
+      loadOperationalFinanceData(),
+    ]);
+    setSummary(nextSummary);
+    setProjection(nextProjection);
+  };
 
   const pieData = summary ? [
     { name: 'Encaissé', value: summary.totalCollected },
@@ -42,6 +84,44 @@ export default function FinancePage() {
     name: `${r.firstName} ${r.lastName}`,
     montant: r.finalPrice,
   })) : [];
+
+  const getRemainingDue = (reservation) => {
+    const finalPrice = Number(reservation.finalPrice || 0);
+    const depositPaid = reservation.depositPaid ? Number(reservation.depositAmount || 0) : 0;
+    const balancePaid = reservation.balancePaid ? Number(reservation.balanceAmount || 0) : 0;
+    return Math.round((finalPrice - depositPaid - balancePaid) * 100) / 100;
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const overduePayments = pendingPayments
+    .map((r) => {
+      const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
+      const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
+      const overdueAmount =
+        (depositOverdue ? Number(r.depositAmount || 0) : 0)
+        + (balanceOverdue ? Number(r.balanceAmount || 0) : 0);
+
+      const oldestDueDate = [r.depositDueDate, r.balanceDueDate]
+        .filter(Boolean)
+        .sort()[0];
+
+      return {
+        ...r,
+        depositOverdue,
+        balanceOverdue,
+        overdueAmount: Math.round(overdueAmount * 100) / 100,
+        oldestDueDate,
+      };
+    })
+    .filter((r) => r.depositOverdue || r.balanceOverdue)
+    .sort((a, b) => (a.oldestDueDate || '').localeCompare(b.oldestDueDate || ''));
+  const overdueReservationsCount = overduePayments.length;
+  const overdueTotalAmount = Math.round(
+    overduePayments.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0) * 100
+  ) / 100;
+  const upcomingReservations = Object.values(upcomingByProperty)
+    .flat()
+    .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
   return (
     <Box>
@@ -209,48 +289,243 @@ export default function FinancePage() {
         </CardContent>
       </Card>
 
-      {/* Detailed reservation list for period */}
-      {summary && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Détails des réservations sur la période</Typography>
-            <TableContainer>
-              <Table size="small" sx={{ minWidth: 920 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Prix</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Acompte</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Solde</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {summary.reservations.map(r => (
-                    <TableRow key={r.id}>
-                      <TableCell>{r.firstName} {r.lastName}</TableCell>
-                      <TableCell>{r.propertyName}</TableCell>
-                      <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                      <TableCell><Chip label={r.platform} size="small" /></TableCell>
-                      <TableCell>{r.finalPrice}€</TableCell>
-                      <TableCell>
-                        {r.depositAmount}€
-                        <Chip label={r.depositPaid ? 'Payé' : 'Non payé'} size="small" color={r.depositPaid ? 'success' : 'warning'} sx={{ ml: 1 }} />
-                      </TableCell>
-                      <TableCell>
-                        {r.balanceAmount}€
-                        <Chip label={r.balancePaid ? 'Payé' : 'Non payé'} size="small" color={r.balancePaid ? 'success' : 'warning'} sx={{ ml: 1 }} />
-                      </TableCell>
+      <Divider sx={{ my: 3 }} />
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, gap: 1.5 }}>
+            <Typography variant="h6">Suivi opérationnel</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Chip size="small" color={overdueReservationsCount > 0 ? 'error' : 'success'} label={`${overdueReservationsCount} retard${overdueReservationsCount > 1 ? 's' : ''}`} />
+              <Chip size="small" color={overdueTotalAmount > 0 ? 'error' : 'success'} label={`Retard total: ${overdueTotalAmount.toLocaleString('fr-FR')}€`} />
+              <Chip size="small" label={`En attente: ${pendingPayments.length}`} />
+              <Chip size="small" label={`À venir: ${upcomingReservations.length}`} />
+              <Chip size="small" label={`Période: ${(summary?.reservations || []).length}`} />
+            </Box>
+          </Box>
+
+          <Tabs
+            value={financeViewTab}
+            onChange={(_, nextTab) => setFinanceViewTab(nextTab)}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            sx={{ mt: 1.5, mb: 2 }}
+          >
+            <Tab value="overdue" label="Paiements en retard" />
+            <Tab value="pending" label="Paiements en attente" />
+            <Tab value="upcoming" label="Réservations à venir" />
+            <Tab value="period" label="Réservations période" />
+          </Tabs>
+
+          {financeViewTab === 'overdue' && (
+            overduePayments.length === 0 ? (
+              <Typography color="text.secondary">Aucun paiement en retard</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 920 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Éléments en retard</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Montant en retard</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      )}
+                  </TableHead>
+                  <TableBody>
+                    {overduePayments.map((r) => (
+                      <TableRow
+                        key={`overdue-${r.id}`}
+                        hover
+                        sx={{ cursor: 'pointer' }}
+                        onClick={() => navigate(`/reservations/${r.id}`)}
+                      >
+                        <TableCell>{r.firstName} {r.lastName}</TableCell>
+                        <TableCell>{r.propertyName}</TableCell>
+                        <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                            {r.depositOverdue && (
+                              <Chip size="small" color="error" label={`Acompte: ${r.depositAmount}€ (échu ${displayDate(r.depositDueDate)})`} />
+                            )}
+                            {r.balanceOverdue && (
+                              <Chip size="small" color="error" label={`Solde: ${r.balanceAmount}€ (échu ${displayDate(r.balanceDueDate)})`} />
+                            )}
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{r.overdueAmount}€</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )
+          )}
+
+          {financeViewTab === 'pending' && (
+            pendingPayments.length === 0 ? (
+              <Typography color="text.secondary">Aucun paiement en attente</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 980 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Prix total</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Reste à payer</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Acompte</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Solde</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Caution</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pendingPayments.map((r) => {
+                      const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
+                      const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
+                      const remainingDue = (r.finalPrice || 0)
+                        - (r.depositPaid ? (r.depositAmount || 0) : 0)
+                        - (r.balancePaid ? (r.balanceAmount || 0) : 0);
+                      return (
+                        <TableRow key={r.id} hover>
+                          <TableCell>{r.firstName} {r.lastName}</TableCell>
+                          <TableCell>{r.propertyName}</TableCell>
+                          <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
+                          <TableCell>{r.finalPrice}€</TableCell>
+                          <TableCell align="center" sx={{ color: remainingDue > 0 ? 'error.main' : 'success.main', fontWeight: 700 }}>
+                            {Math.round(remainingDue * 100) / 100}€
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                              <Checkbox checked={!!r.depositPaid} onChange={() => handleTogglePayment(r, 'depositPaid')} size="small" />
+                              <Box>
+                                <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>{r.depositAmount}€</Typography>
+                                {r.depositDueDate && <Typography variant="caption" sx={{ color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
+                              </Box>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                              <Checkbox checked={!!r.balancePaid} onChange={() => handleTogglePayment(r, 'balancePaid')} size="small" />
+                              <Box>
+                                <Typography variant="body2" sx={{ color: balanceOverdue ? 'error.main' : 'inherit', fontWeight: balanceOverdue ? 700 : 400 }}>{r.balanceAmount}€</Typography>
+                                {r.balanceDueDate && <Typography variant="caption" sx={{ color: balanceOverdue ? 'error.main' : 'text.secondary', fontWeight: balanceOverdue ? 700 : 400 }}>{displayDate(r.balanceDueDate)}</Typography>}
+                              </Box>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center">
+                            {r.cautionAmount > 0 ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                <Checkbox checked={!!r.cautionReceived} onChange={() => handleTogglePayment(r, 'cautionReceived')} size="small" />
+                                <Typography variant="body2">{r.cautionAmount}€</Typography>
+                              </Box>
+                            ) : '—'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )
+          )}
+
+          {financeViewTab === 'upcoming' && (
+            upcomingReservations.length === 0 ? (
+              <Typography color="text.secondary">Aucune réservation à venir</Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 880 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Nuits</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Prix</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Reste à payer</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {upcomingReservations.map((r) => {
+                      const nights = Math.round((new Date(r.endDate) - new Date(r.startDate)) / 86400000);
+                      const remaining = (r.finalPrice || 0)
+                        - (r.depositPaid ? (r.depositAmount || 0) : 0)
+                        - (r.balancePaid ? (r.balanceAmount || 0) : 0);
+                      return (
+                        <TableRow key={`upcoming-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
+                          <TableCell>{r.firstName} {r.lastName}</TableCell>
+                          <TableCell>{r.propertyName}</TableCell>
+                          <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                          <TableCell>{nights}</TableCell>
+                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
+                          <TableCell>{r.finalPrice}€</TableCell>
+                          <TableCell sx={{ color: remaining > 0 ? 'error.main' : 'success.main', fontWeight: 600 }}>{remaining}€</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )
+          )}
+
+          {financeViewTab === 'period' && (
+            summary ? (
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 920 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Prix</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Suivi paiement</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {summary.reservations.map((r) => {
+                      const remainingDue = getRemainingDue(r);
+                      return (
+                        <TableRow key={`period-${r.id}`}>
+                          <TableCell>{r.firstName} {r.lastName}</TableCell>
+                          <TableCell>{r.propertyName}</TableCell>
+                          <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                          <TableCell><Chip label={r.platform} size="small" /></TableCell>
+                          <TableCell>{r.finalPrice}€</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+                              <Chip label={remainingDue > 0 ? `Reste ${remainingDue}€` : 'Complet'} size="small" color={remainingDue > 0 ? 'warning' : 'success'} />
+                              <Chip
+                                label={`Acompte ${r.depositPaid ? 'payé' : 'non payé'}${r.depositDueDate && !r.depositPaid ? ` (${displayDate(r.depositDueDate)})` : ''}`}
+                                size="small"
+                                color={r.depositPaid ? 'success' : 'default'}
+                                variant={r.depositPaid ? 'filled' : 'outlined'}
+                              />
+                              <Chip
+                                label={`Solde ${r.balancePaid ? 'payé' : 'non payé'}${r.balanceDueDate && !r.balancePaid ? ` (${displayDate(r.balanceDueDate)})` : ''}`}
+                                size="small"
+                                color={r.balancePaid ? 'success' : 'default'}
+                                variant={r.balancePaid ? 'filled' : 'outlined'}
+                              />
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography color="text.secondary">Aucune donnée disponible sur cette période</Typography>
+            )
+          )}
+        </CardContent>
+      </Card>
     </Box>
   );
 }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, Chip, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider, TextField, Tooltip, IconButton
+  Button, Divider, TextField, Tooltip, IconButton
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import TodayIcon from '@mui/icons-material/Today';
@@ -30,17 +30,7 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [arrivalsToday, setArrivalsToday] = useState([]);
   const [departuresToday, setDeparturesToday] = useState([]);
-  const [pendingPayments, setPendingPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [upcomingByProperty, setUpcomingByProperty] = useState({});
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailRes, setDetailRes] = useState(null);
-
-  const handleOpenDetail = async (resId) => {
-    const res = await api.getReservation(resId);
-    setDetailRes(res);
-    setDetailOpen(true);
-  };
 
   const getRemainingDue = (r) => {
     const paid = (r.depositPaid ? Number(r.depositAmount || 0) : 0)
@@ -83,25 +73,14 @@ export default function Dashboard() {
     // Fetch reservations starting from selectedDate if it's in the past
     const fetchFrom = selectedDate < todayStr ? selectedDate : todayStr;
 
-    const [props, resv, pending, allUpcoming] = await Promise.all([
+    const [props, resv, allUpcoming] = await Promise.all([
       api.getProperties(),
       api.getReservations({ from, to }),
-      api.getPendingPayments(),
       api.getReservations({ from: fetchFrom }),
     ]);
 
     setProperties(props);
     setReservations(resv);
-    setPendingPayments(pending);
-
-    const grouped = {};
-    for (const prop of props) {
-      grouped[prop.id] = allUpcoming
-        .filter(r => r.propertyId === prop.id)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate))
-        .slice(0, 5);
-    }
-    setUpcomingByProperty(grouped);
 
     const arrivalsBase = allUpcoming
       .filter((r) => r.startDate === selectedDate)
@@ -120,12 +99,6 @@ export default function Dashboard() {
   useEffect(() => {
     loadDashboardData();
   }, [selectedDate]); // eslint-disable-line
-
-  const handleTogglePayment = async (r, field) => {
-    const value = !r[field];
-    await api.markPayment(r.id, { [field]: value });
-    await loadDashboardData();
-  };
 
   // Build timeline days (30 days)
   const today = new Date();
@@ -358,271 +331,6 @@ export default function Dashboard() {
           navigate(withFrom(`/reservations/new?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`, '/'));
         }}
       />
-
-      {/* Upcoming reservations per property */}
-      <Divider sx={{ my: 3 }} />
-      <Typography variant="h6" sx={{ mb: 1.5 }}>Réservations à venir</Typography>
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          {properties.map(prop => {
-            const upcoming = upcomingByProperty[prop.id] || [];
-            if (upcoming.length === 0) return null;
-            return (
-              <Box key={prop.id} sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>{prop.name}</Typography>
-                <TableContainer>
-                  <Table size="small" sx={{ minWidth: 820 }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Nuits</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Prix</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Reste à payer</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Créée le</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {upcoming.map(r => {
-                        const nights = Math.round((new Date(r.endDate) - new Date(r.startDate)) / 86400000);
-                        const remaining = (r.finalPrice || 0)
-                          - (r.depositPaid ? (r.depositAmount || 0) : 0)
-                          - (r.balancePaid ? (r.balanceAmount || 0) : 0);
-                        return (
-                        <TableRow
-                          key={r.id}
-                          hover
-                          sx={{ cursor: 'pointer' }}
-                          onClick={() => handleOpenDetail(r.id)}
-                        >
-                          <TableCell>{r.firstName} {r.lastName}</TableCell>
-                          <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                          <TableCell>{nights}</TableCell>
-                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
-                          <TableCell>{r.finalPrice}€</TableCell>
-                          <TableCell sx={{ color: remaining > 0 ? 'error.main' : 'success.main', fontWeight: 600 }}>{remaining}€</TableCell>
-                          <TableCell>{displayDate(r.createdAt ? r.createdAt.split(/[T ]/)[0] : r.createdAt)}</TableCell>
-                        </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            );
-          })}
-          {properties.every(p => !(upcomingByProperty[p.id] || []).length) && (
-            <Typography color="text.secondary">Aucune réservation à venir</Typography>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pending payments with checkboxes */}
-      <Divider sx={{ my: 3 }} />
-      <Typography variant="h6" sx={{ mb: 1.5 }}>Paiements en attente</Typography>
-      <Card>
-        <CardContent>
-          {pendingPayments.length === 0 ? (
-            <Typography color="text.secondary">Aucun paiement en attente</Typography>
-          ) : (
-            <TableContainer>
-              <Table size="small" sx={{ minWidth: 980 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Prix total</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">Reste à payer</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">Acompte</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">Solde</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">Caution</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pendingPayments.map(r => {
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
-                    const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
-                    const remainingDue = (r.finalPrice || 0)
-                      - (r.depositPaid ? (r.depositAmount || 0) : 0)
-                      - (r.balancePaid ? (r.balanceAmount || 0) : 0);
-                    return (
-                    <TableRow key={r.id} hover>
-                      <TableCell>{r.firstName} {r.lastName}</TableCell>
-                      <TableCell>{r.propertyName}</TableCell>
-                      <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                      <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
-                      <TableCell>{r.finalPrice}€</TableCell>
-                      <TableCell align="center" sx={{ color: remainingDue > 0 ? 'error.main' : 'success.main', fontWeight: 700 }}>
-                        {Math.round(remainingDue * 100) / 100}€
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                          <Checkbox
-                            checked={!!r.depositPaid}
-                            onChange={() => handleTogglePayment(r, 'depositPaid')}
-                            size="small"
-                          />
-                          <Box>
-                            <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>{r.depositAmount}€</Typography>
-                            {r.depositDueDate && <Typography variant="caption" sx={{ color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                          <Checkbox
-                            checked={!!r.balancePaid}
-                            onChange={() => handleTogglePayment(r, 'balancePaid')}
-                            size="small"
-                          />
-                          <Box>
-                            <Typography variant="body2" sx={{ color: balanceOverdue ? 'error.main' : 'inherit', fontWeight: balanceOverdue ? 700 : 400 }}>{r.balanceAmount}€</Typography>
-                            {r.balanceDueDate && <Typography variant="caption" sx={{ color: balanceOverdue ? 'error.main' : 'text.secondary', fontWeight: balanceOverdue ? 700 : 400 }}>{displayDate(r.balanceDueDate)}</Typography>}
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        {r.cautionAmount > 0 ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                            <Checkbox
-                              checked={!!r.cautionReceived}
-                              onChange={() => handleTogglePayment(r, 'cautionReceived')}
-                              size="small"
-                            />
-                            <Typography variant="body2">{r.cautionAmount}€</Typography>
-                          </Box>
-                        ) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Reservation Detail Dialog */}
-      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="sm" fullWidth>
-        {detailRes && (() => {
-          const nights = Math.round((new Date(detailRes.endDate) - new Date(detailRes.startDate)) / 86400000);
-          const todayStr = new Date().toISOString().split('T')[0];
-          const depositOverdue = !detailRes.depositPaid && detailRes.depositDueDate && detailRes.depositDueDate < todayStr;
-          const balanceOverdue = !detailRes.balancePaid && detailRes.balanceDueDate && detailRes.balanceDueDate < todayStr;
-          const totalPersons = (detailRes.adults || 0) + (detailRes.children || 0) + (detailRes.teens || 0) + (detailRes.babies || 0);
-          return (
-            <>
-              <DialogTitle>Réservation — {detailRes.propertyName}</DialogTitle>
-              <DialogContent dividers>
-                {/* Client */}
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Client</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
-                  <Typography variant="body2"><b>Nom :</b> {detailRes.firstName} {detailRes.lastName}</Typography>
-                  <Typography variant="body2"><b>Tél :</b> {detailRes.phone || '—'}</Typography>
-                  <Typography variant="body2"><b>Email :</b> {detailRes.email || '—'}</Typography>
-                  <Typography variant="body2"><b>Plateforme :</b> <Chip label={detailRes.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[detailRes.platform], color: 'white', ml: 0.5 }} /></Typography>
-                </Box>
-                <Divider sx={{ my: 1.5 }} />
-
-                {/* Séjour */}
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Séjour</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
-                  <Typography variant="body2"><b>Arrivée :</b> {displayDate(detailRes.startDate)} à {detailRes.checkInTime || '15:00'}</Typography>
-                  <Typography variant="body2"><b>Départ :</b> {displayDate(detailRes.endDate)} à {detailRes.checkOutTime || '10:00'}</Typography>
-                  <Typography variant="body2"><b>Nuits :</b> {nights}</Typography>
-                  <Typography variant="body2"><b>Personnes :</b> {totalPersons} ({detailRes.adults} ad.{detailRes.children > 0 ? `, ${detailRes.children} enf. 2-12` : ''}{detailRes.teens > 0 ? `, ${detailRes.teens} ado${detailRes.teens > 1 ? 's' : ''} 12-18` : ''}{detailRes.babies > 0 ? `, ${detailRes.babies} bébé${detailRes.babies > 1 ? 's' : ''}` : ''})</Typography>
-                </Box>
-
-                {/* Options */}
-                {detailRes.options && detailRes.options.length > 0 && (
-                  <>
-                    <Divider sx={{ my: 1.5 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Options</Typography>
-                    <Table size="small" sx={{ mb: 2 }}>
-                      <TableBody>
-                        {detailRes.options.map(opt => (
-                          <TableRow key={opt.optionId}>
-                            <TableCell sx={{ border: 0, pl: 0 }}>{opt.title}</TableCell>
-                            <TableCell sx={{ border: 0 }} align="right">x{opt.quantity}</TableCell>
-                            <TableCell sx={{ border: 0 }} align="right">{opt.totalPrice}€</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </>
-                )}
-
-                {/* Ressources */}
-                {(detailRes.resources && detailRes.resources.length > 0) || (detailRes.babyBeds && detailRes.babyBeds > 0) ? (
-                  <>
-                    <Divider sx={{ my: 1.5 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Ressources réservées</Typography>
-                    <Table size="small" sx={{ mb: 2 }}>
-                      <TableBody>
-                        {detailRes.babyBeds > 0 && (
-                          <TableRow>
-                            <TableCell sx={{ border: 0, pl: 0 }}>Lit bébé</TableCell>
-                            <TableCell sx={{ border: 0 }} align="right">x{detailRes.babyBeds}</TableCell>
-                            <TableCell sx={{ border: 0 }} align="right">0€</TableCell>
-                          </TableRow>
-                        )}
-                        {detailRes.resources.map(rr => (
-                          <TableRow key={rr.resourceId}>
-                            <TableCell sx={{ border: 0, pl: 0 }}>{rr.name}</TableCell>
-                            <TableCell sx={{ border: 0 }} align="right">x{rr.quantity}</TableCell>
-                            <TableCell sx={{ border: 0 }} align="right">{rr.totalPrice}€</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </>
-                ) : null}
-
-                <Divider sx={{ my: 1.5 }} />
-
-                {/* Finances */}
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Finances</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                  <Typography variant="body2"><b>Prix total :</b> {detailRes.finalPrice}€{detailRes.discountPercent > 0 ? ` (−${detailRes.discountPercent}%)` : ''}</Typography>
-                  <Box />
-                  <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>
-                    <b>Acompte :</b> {detailRes.depositAmount}€ — {detailRes.depositPaid ? '✅ Payé' : '❌ Non payé'}
-                    {detailRes.depositDueDate && ` (${displayDate(detailRes.depositDueDate)})`}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: balanceOverdue ? 'error.main' : 'inherit', fontWeight: balanceOverdue ? 700 : 400 }}>
-                    <b>Solde :</b> {detailRes.balanceAmount}€ — {detailRes.balancePaid ? '✅ Payé' : '❌ Non payé'}
-                    {detailRes.balanceDueDate && ` (${displayDate(detailRes.balanceDueDate)})`}
-                  </Typography>
-                  {detailRes.cautionAmount > 0 && (
-                    <Typography variant="body2" sx={{ color: detailRes.cautionReceived ? 'success.main' : 'error.main', fontWeight: 700 }}>
-                      <b>Caution :</b> {detailRes.cautionAmount}€ — {detailRes.cautionReceived ? '✅ Reçue' : '❌ Non reçue'}
-                    </Typography>
-                  )}
-                </Box>
-
-                {detailRes.notes && (
-                  <Box sx={{ mt: 1 }}>
-                    <Divider sx={{ my: 1.5 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Notes</Typography>
-                    <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>{detailRes.notes}</Typography>
-                  </Box>
-                )}
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => {
-                  navigate(withFrom(`/reservations/${detailRes.id}`, '/'));
-                }}>Éditer la réservation</Button>
-                <Button onClick={() => setDetailOpen(false)}>Fermer</Button>
-              </DialogActions>
-            </>
-          );
-        })()}
-      </Dialog>
     </Box>
   );
 }
