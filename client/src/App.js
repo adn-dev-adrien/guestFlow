@@ -47,13 +47,13 @@ const DRAWER_WIDTH = 240;
 
 const navItems = [
   { label: 'Tableau de bord', path: '/', icon: <DashboardIcon /> },
-  { label: 'Clients', path: '/clients', icon: <PeopleIcon /> },
+  { label: 'Planning', path: '/planning', icon: <CleaningServicesIcon /> },
+  { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
+  { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Logements', path: '/properties', icon: <HomeWorkIcon /> },
   { label: 'Options', path: '/options', icon: <ExtensionIcon /> },
   { label: 'Ressources', path: '/resources', icon: <Inventory2Icon /> },
-  { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
-  { label: 'Planning', path: '/planning', icon: <CleaningServicesIcon /> },
-  { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
+  { label: 'Clients', path: '/clients', icon: <PeopleIcon /> },
   { label: 'Vacances scolaires', path: '/school-holidays', icon: <DateRangeIcon /> },
 ];
 
