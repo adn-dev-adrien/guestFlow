@@ -971,6 +971,47 @@ export default function ReservationPage() {
     return '';
   };
 
+  const getDateRangeConflictInfo = useCallback((startDate, endDate) => {
+    if (!selectedProp || !startDate || !endDate) return null;
+
+    const otherReservations = editingReservationId
+      ? reservations.filter((reservation) => reservation.id !== editingReservationId)
+      : reservations;
+
+    const conflictingReservation = otherReservations.find((reservation) => {
+      const occupiedStartDate = timeToHour(reservation.checkInTime || '15:00') <= 10
+        ? addDays(reservation.startDate, -1)
+        : reservation.startDate;
+      const occupiedEndDate = timeToHour(reservation.checkOutTime || '10:00') >= 17
+        ? addDays(reservation.endDate, 2)
+        : reservation.endDate;
+      return occupiedStartDate < endDate && occupiedEndDate > startDate;
+    });
+
+    if (!conflictingReservation) return null;
+
+    const hasEarlyArrivalBlock = timeToHour(conflictingReservation.checkInTime || '15:00') <= 10;
+    const hasLateDepartureBlock = timeToHour(conflictingReservation.checkOutTime || '10:00') >= 17;
+    const overlapsEarlyArrivalBlock = hasEarlyArrivalBlock
+      && addDays(conflictingReservation.startDate, -1) < endDate
+      && conflictingReservation.startDate >= startDate;
+    const overlapsLateDepartureBlock = hasLateDepartureBlock
+      && addDays(conflictingReservation.endDate, 2) > startDate
+      && conflictingReservation.endDate <= endDate;
+
+    let message = 'Ce logement est déjà réservé pour ces dates.';
+    if (overlapsEarlyArrivalBlock) {
+      message = 'Ce logement est déjà réservé pour ces dates. Une arrivée anticipée bloque aussi la nuit précédente.';
+    } else if (overlapsLateDepartureBlock) {
+      message = 'Ce logement est déjà réservé pour ces dates. Un départ tardif bloque aussi la nuit suivante.';
+    }
+
+    return {
+      reservation: conflictingReservation,
+      message,
+    };
+  }, [selectedProp, editingReservationId, reservations]);
+
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {
     if (!editingReservationId || isReservationLocked) return;
@@ -1045,19 +1086,9 @@ export default function ReservationPage() {
       return;
     }
 
-    const otherReservations = editingReservationId
-      ? reservations.filter(r => r.id !== editingReservationId)
-      : reservations;
-
-    const hasOverlap = otherReservations.some((r) => {
-      const coH = (t) => { const [h, m] = (t || '10:00').split(':').map(Number); return h + (m || 0) / 60; };
-      const occupiedStartDate = coH(r.checkInTime)  <= 10 ? addDays(r.startDate, -1) : r.startDate;
-      // +2 days: endDate+1 = first extra blocked night; +2 = first truly free day (for strict > comparison)
-      const occupiedEndDate   = coH(r.checkOutTime) >= 17 ? addDays(r.endDate, 2)  : r.endDate;
-      return occupiedStartDate < form.endDate && occupiedEndDate > form.startDate;
-    });
-    if (hasOverlap) {
-      await alert({ title: 'Conflit de réservation', message: 'Ce logement est déjà réservé pour ces dates.' });
+    const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
+    if (dateRangeConflictInfo) {
+      await alert({ title: 'Conflit de réservation', message: dateRangeConflictInfo.message });
       return;
     }
 
@@ -1375,13 +1406,9 @@ export default function ReservationPage() {
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
   const isReservationLocked = Boolean(reservationId && existingReservationLocked);
-  const datesUnavailableForProperty = Boolean(
-    selectedProp
-      && form.startDate
-      && form.endDate
-      && otherReservations.some((r) => r.startDate < form.endDate && r.endDate > form.startDate)
-  );
-  const datesUnavailableMessage = 'Ces dates ne sont pas dispo pour ce logement.';
+  const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
+  const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
+  const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';

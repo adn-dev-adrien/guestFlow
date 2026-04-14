@@ -177,6 +177,7 @@ export default function CalendarPage() {
   const initialScrollDone = useRef(false);
   const prependMonthLock = useRef(false);
   const appendMonthLock = useRef(false);
+  const blockedSelectionMessageRef = useRef('');
   const pricingRequestRef = useRef(0);
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
@@ -555,12 +556,59 @@ export default function CalendarPage() {
   const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
   const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
+  const getDaySelectionConflictMessage = (dateStr) => {
+    if (dateStr < today) return 'Impossible de réserver dans le passé.';
+    if (reservations.some((r) => dateStr > r.startDate && dateStr < r.endDate)) {
+      return 'Ce logement est déjà réservé pour ces dates.';
+    }
+    if (reservations.some((r) => r.startDate === dateStr)) {
+      return 'Ce logement est déjà réservé pour ces dates.';
+    }
+    const blockedNightInfo = getBlockedNightInfo(dateStr, reservations);
+    if (blockedNightInfo?.type === 'early-arrival') {
+      return 'Ce logement n\'est pas disponible à cette date : la nuit est bloquée par une arrivée anticipée.';
+    }
+    if (blockedNightInfo?.type === 'late-departure-evening') {
+      return 'Ce logement n\'est pas disponible à cette date : la nuit est bloquée par un départ tardif.';
+    }
+    return '';
+  };
+
+  const getRangeSelectionConflictMessage = (startDate, endDate) => {
+    const overlapReservation = reservations.find((reservation) => {
+      const toHour = (timeValue, fallback) => {
+        const [hours, minutes] = (timeValue || fallback).split(':').map(Number);
+        return hours + (minutes || 0) / 60;
+      };
+      const occupiedStartDate = toHour(reservation.checkInTime, '15:00') <= 10 ? shiftDate(reservation.startDate, -1) : reservation.startDate;
+      const occupiedEndDate = toHour(reservation.checkOutTime, '10:00') >= 17 ? shiftDate(reservation.endDate, 2) : reservation.endDate;
+      return occupiedStartDate < endDate && occupiedEndDate > startDate;
+    });
+
+    if (!overlapReservation) return '';
+
+    const checkInHour = (() => {
+      const [hours, minutes] = (overlapReservation.checkInTime || '15:00').split(':').map(Number);
+      return hours + (minutes || 0) / 60;
+    })();
+    const checkOutHour = (() => {
+      const [hours, minutes] = (overlapReservation.checkOutTime || '10:00').split(':').map(Number);
+      return hours + (minutes || 0) / 60;
+    })();
+
+    if (checkInHour <= 10 && shiftDate(overlapReservation.startDate, -1) < endDate && overlapReservation.startDate > startDate) {
+      return 'Ce logement n\'est pas disponible pour ces dates : une arrivée anticipée bloque une nuit supplémentaire.';
+    }
+    if (checkOutHour >= 17 && shiftDate(overlapReservation.endDate, 2) > startDate && overlapReservation.endDate < endDate) {
+      return 'Ce logement n\'est pas disponible pour ces dates : un départ tardif bloque une nuit supplémentaire.';
+    }
+    return 'Ce logement est déjà réservé pour ces dates.';
+  };
+
   // Check if a day is fully blocked (mid-stay or past)
   const isDayFullyBlocked = (day, y, m) => {
     const dateStr = formatDate(y, m, day);
-    if (dateStr < today) return true;
-    if (reservations.some(r => dateStr > r.startDate && dateStr < r.endDate)) return true;
-    return false;
+    return Boolean(getDaySelectionConflictMessage(dateStr) && !reservations.some((r) => r.startDate === dateStr));
   };
 
   // Check if a day has an existing arrival
@@ -577,9 +625,14 @@ export default function CalendarPage() {
     return dateStr >= min && dateStr <= max;
   };
 
-  const handleMouseDown = (day, y, m) => {
-    if (isDayFullyBlocked(day, y, m) || hasArrivalOnDay(day, y, m)) return;
+  const handleMouseDown = async (day, y, m) => {
     const dateStr = formatDate(y, m, day);
+    const conflictMessage = getDaySelectionConflictMessage(dateStr);
+    if (conflictMessage) {
+      await alert({ title: 'Conflit de réservation', message: conflictMessage });
+      return;
+    }
+    blockedSelectionMessageRef.current = '';
     setDragStartDate(dateStr);
     setDragEndDate(dateStr);
     setIsDragging(true);
@@ -598,11 +651,13 @@ export default function CalendarPage() {
       while (cursor <= target) {
         const cy = cursor.getFullYear(), cm = cursor.getMonth(), cd = cursor.getDate();
         if (isDayFullyBlocked(cd, cy, cm)) {
+          blockedSelectionMessageRef.current = getDaySelectionConflictMessage(formatDate(cy, cm, cd));
           cursor.setDate(cursor.getDate() - 1);
           clamped = formatDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
           break;
         }
         if (hasArrivalOnDay(cd, cy, cm)) {
+          blockedSelectionMessageRef.current = 'Ce logement est déjà réservé pour ces dates.';
           clamped = formatDate(cy, cm, cd);
           break;
         }
@@ -614,6 +669,7 @@ export default function CalendarPage() {
       while (cursor >= target) {
         const cy = cursor.getFullYear(), cm = cursor.getMonth(), cd = cursor.getDate();
         if (isDayFullyBlocked(cd, cy, cm) || hasArrivalOnDay(cd, cy, cm)) {
+          blockedSelectionMessageRef.current = getDaySelectionConflictMessage(formatDate(cy, cm, cd)) || 'Ce logement est déjà réservé pour ces dates.';
           cursor.setDate(cursor.getDate() + 1);
           clamped = formatDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
           break;
@@ -624,7 +680,12 @@ export default function CalendarPage() {
     setDragEndDate(clamped);
   };
 
-  const openNewReservation = (startDate, endDate) => {
+  const openNewReservation = async (startDate, endDate) => {
+    const conflictMessage = getRangeSelectionConflictMessage(startDate, endDate);
+    if (conflictMessage) {
+      await alert({ title: 'Conflit de réservation', message: conflictMessage });
+      return;
+    }
     const centerMonth = months[Math.floor(months.length / 2)] || { year: new Date().getFullYear(), month: new Date().getMonth() };
     const fromParams = new URLSearchParams();
     if (selectedProp) fromParams.set('propertyId', String(selectedProp));
@@ -641,6 +702,12 @@ export default function CalendarPage() {
     const minDate = dragStartDate < dragEndDate ? dragStartDate : dragEndDate;
     const maxDate = dragStartDate < dragEndDate ? dragEndDate : dragStartDate;
     const endDate = minDate === maxDate ? shiftDate(maxDate, 1) : maxDate;
+    if (blockedSelectionMessageRef.current) {
+      const message = blockedSelectionMessageRef.current;
+      blockedSelectionMessageRef.current = '';
+      await alert({ title: 'Conflit de réservation', message });
+      return;
+    }
     await openNewReservation(minDate, endDate);
   };
 
