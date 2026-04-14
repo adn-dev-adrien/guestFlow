@@ -174,103 +174,114 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+        {/* Top row: checkbox + ARRIVÉE badge vertically centred */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
           <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
               checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
               checked={done}
               onChange={() => onToggleReady(r)}
-              sx={{ p: 0, mt: 0.25, flexShrink: 0 }}
+              sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
+          <Chip
+            label="ARRIVÉE"
+            size="small"
+            sx={{
+              height: 18,
+              fontSize: 10,
+              fontWeight: 800,
+              color: done ? 'success.dark' : 'warning.dark',
+              bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
+            }}
+          />
+          {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+        </Box>
 
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-              <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
-                {r.propertyName}
+        {/* Detail block indented to align with the left edge of the ARRIVÉE badge (checkbox 32px + gap 8px) */}
+        <Box sx={{ pl: '40px' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
+            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
+              {r.propertyName}
+            </Typography>
+            {alertInfo?.explanation && (
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 600,
+                  color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
+                  lineHeight: 1.3,
+                }}
+              >
+                {alertInfo.explanation}
               </Typography>
-              {done && (
-                <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />
-              )}
-              {alertInfo?.explanation && (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    fontWeight: 600,
-                    color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {alertInfo.explanation}
-                </Typography>
-              )}
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {r.firstName} {r.lastName}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                <Typography variant="body2" color="text.secondary">
-                  Arrivée {r.checkInTime || '15:00'}
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                Famille:
-              </Typography>
-              <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-              <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-              <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-              <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                Lits:
-              </Typography>
-              <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
-            </Box>
-
-            {optionsText.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-                <ExtensionIcon sx={{ fontSize: 16, color: 'text.secondary', mt: 0.25, flexShrink: 0 }} />
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {optionsText.map((label, i) => (
-                    <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            {resourcesText.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-                <ExtensionIcon sx={{ fontSize: 16, color: 'info.main', mt: 0.25, flexShrink: 0 }} />
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {resourcesText.map((label, i) => (
-                    <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            {r.notes && (
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
-                <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
-                <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
-                  {r.notes}
-                </Typography>
-              </Box>
             )}
           </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {r.firstName} {r.lastName}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" color="text.secondary">
+                Arrivée {r.checkInTime || '15:00'}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+              Famille:
+            </Typography>
+            <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+              Lits:
+            </Typography>
+            <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
+          </Box>
+
+          {optionsText.length > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              <ExtensionIcon sx={{ fontSize: 16, color: 'text.secondary', mt: 0.25, flexShrink: 0 }} />
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {optionsText.map((label, i) => (
+                  <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {resourcesText.length > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              <ExtensionIcon sx={{ fontSize: 16, color: 'info.main', mt: 0.25, flexShrink: 0 }} />
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {resourcesText.map((label, i) => (
+                  <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {r.notes && (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
+              <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
+                {r.notes}
+              </Typography>
+            </Box>
+          )}
         </Box>
       </CardContent>
     </Card>
@@ -280,28 +291,34 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
 function DepartureMiniRow({ reservation, onToggleDone }) {
   const done = Boolean(reservation.checkOutDone);
   const checkOutTime = reservation.checkOutTime || '10:00';
+  const adults = Number(reservation.adults || 0);
+  const children = Number(reservation.children || 0);
+  const teens = Number(reservation.teens || 0);
+  const babies = Number(reservation.babies || 0);
   return (
     <Card
       variant="outlined"
       sx={{
-        borderRadius: 1.5,
+        mb: 1.5,
+        borderRadius: 2,
         borderColor: done ? 'success.main' : 'divider',
         bgcolor: done ? 'rgba(76,175,80,0.06)' : 'background.paper',
+        opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
       }}
     >
-      <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+        {/* Top row: checkbox + DÉPART badge vertically centred */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
           <Tooltip title={done ? 'Départ validé' : 'Valider le départ'}>
             <Checkbox
-              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 22, color: 'text.disabled' }} />}
-              checkedIcon={<CheckCircleIcon sx={{ fontSize: 22, color: 'success.main' }} />}
+              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
+              checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
               checked={done}
               onChange={() => onToggleDone(reservation)}
-              sx={{ p: 0 }}
+              sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
-
           <Chip
             label="DÉPART"
             size="small"
@@ -313,20 +330,51 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
               bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
             }}
           />
+          {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+        </Box>
 
-          <AccessTimeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-          <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 42 }}>
-            {checkOutTime}
-          </Typography>
+        {/* Detail block indented to align with the left edge of the DÉPART badge */}
+        <Box sx={{ pl: '40px' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
+            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
+              {reservation.propertyName}
+            </Typography>
+          </Box>
 
-          <HomeWorkIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-          <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main', minWidth: 0 }} noWrap>
-            {reservation.propertyName}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {reservation.firstName} {reservation.lastName}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="body2" color="text.secondary">
+                Départ {checkOutTime}
+              </Typography>
+            </Box>
+          </Box>
 
-          <Typography variant="caption" sx={{ color: 'text.secondary', minWidth: 0 }} noWrap>
-            · {reservation.firstName} {reservation.lastName}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+              Famille:
+            </Typography>
+            <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+            <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+          </Box>
+
+          {reservation.notes && (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
+              <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
+                {reservation.notes}
+              </Typography>
+            </Box>
+          )}
         </Box>
       </CardContent>
     </Card>
