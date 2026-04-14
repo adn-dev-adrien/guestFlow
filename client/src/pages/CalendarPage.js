@@ -35,6 +35,49 @@ function formatDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+function getBlockedNightInfo(dateStr, reservations) {
+  const nextDateStr = shiftDate(dateStr, 1);
+  const prevDateStr = shiftDate(dateStr, -1);
+
+  const earlyArrival = reservations.find(
+    (r) => r.startDate === nextDateStr && timeToHour(r.checkInTime || '15:00') <= 10
+  );
+  if (earlyArrival) {
+    return {
+      type: 'early-arrival',
+      startPct: hourToPercent(17),
+      endPct: 100,
+      client: earlyArrival,
+    };
+  }
+
+  const lateDeparture = reservations.find(
+    (r) => r.endDate === dateStr && timeToHour(r.checkOutTime || '10:00') >= 17
+  );
+  if (lateDeparture) {
+    return {
+      type: 'late-departure-evening',
+      startPct: hourToPercent(timeToHour(lateDeparture.checkOutTime || '10:00')),
+      endPct: 100,
+      client: lateDeparture,
+    };
+  }
+
+  const lateDeparturePreviousDay = reservations.find(
+    (r) => r.endDate === prevDateStr && timeToHour(r.checkOutTime || '10:00') >= 17
+  );
+  if (lateDeparturePreviousDay) {
+    return {
+      type: 'late-departure-morning',
+      startPct: 0,
+      endPct: hourToPercent(10),
+      client: lateDeparturePreviousDay,
+    };
+  }
+
+  return null;
+}
+
 function shiftDate(dateStr, daysDelta) {
   if (!dateStr) return '';
   const date = new Date(`${dateStr}T00:00:00`);
@@ -63,6 +106,7 @@ function getReservationColor(platform) {
 }
 
 const CLEANING_COLOR = '#e53935';
+const BLOCKED_NIGHT_COLOR = '#ff9800'; // Orange pour les nuits bloquées
 
 const ZONE_COLORS = { A: '#1976d2', B: '#388e3c', C: '#f57c00' };
 
@@ -1187,6 +1231,7 @@ export default function CalendarPage() {
     const departureRes = reservations.find(r => r.endDate === dateStr);
     const arrivalRes = reservations.find(r => r.startDate === dateStr);
     const midRes = reservations.find(r => dateStr > r.startDate && dateStr < r.endDate);
+    const blockedNightInfo = getBlockedNightInfo(dateStr, reservations);
 
     // If mid-stay: full color fill
     if (midRes) {
@@ -1235,8 +1280,11 @@ export default function CalendarPage() {
     const cleanEndHour = checkOutHour !== null ? checkOutHour + cleaningHours : null;
     const cleanEndPct = cleanEndHour !== null ? hourToPercent(cleanEndHour) : null;
     const arrivePct = checkInHour !== null ? hourToPercent(checkInHour) : null;
+    const isLateDepartureEvening = blockedNightInfo?.type === 'late-departure-evening' && blockedNightInfo.client?.id === departureRes?.id;
+    const hasEarlyBlockedNight = blockedNightInfo?.type === 'early-arrival';
+    const isEarlyArrivalDay = Boolean(arrivalRes && checkInHour !== null && checkInHour <= 10);
 
-    const hasVisual = departPct !== null || arrivePct !== null;
+    const hasVisual = departPct !== null || arrivePct !== null || Boolean(blockedNightInfo);
 
     // Empty or drag-only day
     if (!hasVisual) {
@@ -1268,37 +1316,54 @@ export default function CalendarPage() {
     const departColor = departureRes ? getReservationColor(departureRes.platform) : null;
     const arriveColor = arrivalRes ? getReservationColor(arrivalRes.platform) : null;
     const stops = [];
+    const gapColor = inDrag ? '#42a5f5' : 'transparent';
 
     if (departPct !== null) {
       stops.push(`${departColor} 0%`);
       stops.push(`${departColor} ${departPct}%`);
-      const gapColor = inDrag ? '#42a5f5' : 'transparent';
-      // Cleaning block stuck right after checkout
-      if (cleanEndPct !== null && cleanEndPct > departPct) {
-        stops.push(`${CLEANING_COLOR} ${departPct}%`);
-        stops.push(`${CLEANING_COLOR} ${Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100)}%`);
+      const postDepartureColor = isLateDepartureEvening ? BLOCKED_NIGHT_COLOR : CLEANING_COLOR;
+      if (cleanEndPct !== null && cleanEndPct > departPct && !isLateDepartureEvening) {
+        stops.push(`${postDepartureColor} ${departPct}%`);
+        stops.push(`${postDepartureColor} ${Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100)}%`);
         const cleanStop = Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100);
         if (arrivePct !== null && arrivePct > cleanStop) {
           stops.push(`${gapColor} ${cleanStop}%`);
           stops.push(`${gapColor} ${arrivePct}%`);
         } else if (arrivePct === null) {
-          stops.push(`${gapColor} ${cleanStop}%`);
-          stops.push(`${gapColor} 100%`);
+          if (hasEarlyBlockedNight) {
+            stops.push(`${gapColor} ${cleanStop}%`);
+            stops.push(`${gapColor} ${blockedNightInfo.startPct}%`);
+            stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedNightInfo.startPct}%`);
+            stops.push(`${BLOCKED_NIGHT_COLOR} 100%`);
+          } else {
+            stops.push(`${gapColor} ${cleanStop}%`);
+            stops.push(`${gapColor} 100%`);
+          }
         }
       } else {
-        if (arrivePct !== null && arrivePct > departPct) {
+        if (isLateDepartureEvening) {
+          stops.push(`${postDepartureColor} ${departPct}%`);
+          stops.push(`${postDepartureColor} 100%`);
+        } else if (arrivePct !== null && arrivePct > departPct) {
           stops.push(`${gapColor} ${departPct}%`);
           stops.push(`${gapColor} ${arrivePct}%`);
         } else if (arrivePct === null) {
-          stops.push(`${gapColor} ${departPct}%`);
-          stops.push(`${gapColor} 100%`);
+          if (hasEarlyBlockedNight) {
+            stops.push(`${gapColor} ${departPct}%`);
+            stops.push(`${gapColor} ${blockedNightInfo.startPct}%`);
+            stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedNightInfo.startPct}%`);
+            stops.push(`${BLOCKED_NIGHT_COLOR} 100%`);
+          } else {
+            stops.push(`${gapColor} ${departPct}%`);
+            stops.push(`${gapColor} 100%`);
+          }
         }
       }
     }
 
     if (arrivePct !== null) {
       if (departPct === null) {
-        const freeColor = inDrag ? '#42a5f5' : 'transparent';
+        const freeColor = isEarlyArrivalDay ? BLOCKED_NIGHT_COLOR : (inDrag ? '#42a5f5' : 'transparent');
         stops.push(`${freeColor} 0%`);
         stops.push(`${freeColor} ${arrivePct}%`);
       }
@@ -1306,19 +1371,58 @@ export default function CalendarPage() {
       stops.push(`${arriveColor} 100%`);
     }
 
+    if (blockedNightInfo && !departureRes && !arrivalRes) {
+      if (blockedNightInfo.type === 'early-arrival') {
+        const freeColor = inDrag ? '#42a5f5' : 'transparent';
+        stops.length = 0;
+        stops.push(`${freeColor} 0%`);
+        stops.push(`${freeColor} ${blockedNightInfo.startPct}%`);
+        stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedNightInfo.startPct}%`);
+        stops.push(`${BLOCKED_NIGHT_COLOR} 100%`);
+      } else if (blockedNightInfo.type === 'late-departure-morning') {
+        const cleaningStartPct = blockedNightInfo.endPct;
+        const nextDayCleaningEndPct = hourToPercent(10 + cleaningHours);
+        stops.length = 0;
+        stops.push(`${BLOCKED_NIGHT_COLOR} 0%`);
+        stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedNightInfo.endPct}%`);
+        if (nextDayCleaningEndPct > cleaningStartPct) {
+          stops.push(`${CLEANING_COLOR} ${cleaningStartPct}%`);
+          stops.push(`${CLEANING_COLOR} ${Math.min(nextDayCleaningEndPct, 100)}%`);
+        }
+        if (nextDayCleaningEndPct < 100) {
+          stops.push(`${gapColor} ${Math.min(nextDayCleaningEndPct, 100)}%`);
+          stops.push(`${gapColor} 100%`);
+        }
+      }
+    }
+
     const gradient = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : undefined;
 
     // Boundary between departure/cleaning zone and free zone (for click detection)
+    const blockedZoneStartPct = blockedNightInfo
+      ? (blockedNightInfo.type === 'late-departure-morning' ? 0 : blockedNightInfo.startPct)
+      : null;
+    const blockedZoneEndPct = blockedNightInfo
+      ? (blockedNightInfo.type === 'late-departure-morning' ? blockedNightInfo.endPct : 100)
+      : null;
+    const arrivalBlockedZoneEndPct = isEarlyArrivalDay ? arrivePct : null;
+
     const departEndPct = departPct !== null
-      ? (cleanEndPct !== null && cleanEndPct > departPct
+      ? (isLateDepartureEvening
+        ? departPct
+        : (cleanEndPct !== null && cleanEndPct > departPct
         ? Math.min(cleanEndPct, arrivePct !== null ? arrivePct : 100)
-        : departPct)
+        : departPct))
       : 0;
 
     const tooltipParts = [];
     if (departureRes) tooltipParts.push(`Départ: ${departureRes.firstName} ${departureRes.lastName} à ${departureRes.checkOutTime || '10:00'}`);
     if (departureRes) tooltipParts.push(`Ménage: ${cleaningHours}h`);
     if (arrivalRes) tooltipParts.push(`Arrivée: ${arrivalRes.firstName} ${arrivalRes.lastName} à ${arrivalRes.checkInTime || '15:00'}`);
+    if (isEarlyArrivalDay) tooltipParts.push(`Nuit bloquée avant arrivée anticipée de ${arrivalRes.firstName} ${arrivalRes.lastName}`);
+    if (blockedNightInfo?.type === 'early-arrival') tooltipParts.push(`Nuit bloquée: arrivée anticipée de ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
+    if (blockedNightInfo?.type === 'late-departure-evening') tooltipParts.push(`Nuit bloquée: départ tardif de ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
+    if (blockedNightInfo?.type === 'late-departure-morning') tooltipParts.push(`Nuit bloquée puis ménage pour ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
 
     // Compute click zone from cursor position on the 135deg gradient
     const getClickPct = (e) => {
@@ -1333,7 +1437,9 @@ export default function CalendarPage() {
           const pct = getClickPct(e);
           const onDepartZone = departureRes && pct <= departEndPct;
           const onArriveZone = arrivalRes && pct >= arrivePct;
-          if (!onDepartZone && !onArriveZone) {
+          const onBlockedZone = blockedNightInfo && blockedZoneStartPct !== null && blockedZoneEndPct !== null && pct >= blockedZoneStartPct && pct <= blockedZoneEndPct;
+          const onArrivalBlockedZone = isEarlyArrivalDay && arrivalBlockedZoneEndPct !== null && pct <= arrivalBlockedZoneEndPct;
+          if (!onDepartZone && !onArriveZone && !onBlockedZone && !onArrivalBlockedZone) {
             handleMouseDown(day, y, m);
           }
         }}
@@ -1342,7 +1448,13 @@ export default function CalendarPage() {
         onClick={async (e) => {
           if (isDragging) return;
           const pct = getClickPct(e);
-          if (departureRes && pct <= departEndPct) {
+          const onBlockedZone = blockedNightInfo && blockedZoneStartPct !== null && blockedZoneEndPct !== null && pct >= blockedZoneStartPct && pct <= blockedZoneEndPct;
+          const onArrivalBlockedZone = isEarlyArrivalDay && arrivalBlockedZoneEndPct !== null && pct <= arrivalBlockedZoneEndPct;
+          if (onArrivalBlockedZone && arrivalRes) {
+            handleReservationClick(arrivalRes.id);
+          } else if (onBlockedZone && blockedNightInfo?.client) {
+            handleReservationClick(blockedNightInfo.client.id);
+          } else if (departureRes && pct <= departEndPct) {
             handleReservationClick(departureRes.id);
           } else if (arrivalRes && pct >= arrivePct) {
             handleReservationClick(arrivalRes.id);
@@ -1371,7 +1483,17 @@ export default function CalendarPage() {
           {day}
         </Box>
         {renderHolidayIndicators(dateStr)}
-        {renderNoteLabel(dateStr, !!(departureRes || arrivalRes))}
+        {renderNoteLabel(dateStr, !!(departureRes || arrivalRes || blockedNightInfo))}
+        {blockedNightInfo?.client && !departureRes && !arrivalRes && (
+          <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+              {compactName(blockedNightInfo.client.firstName, blockedNightInfo.client.lastName)}
+            </Typography>
+            <Typography sx={{ fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.88)', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+              {blockedNightInfo.type === 'early-arrival' ? 'arrivée anticipée' : 'nuit bloquée'}
+            </Typography>
+          </Box>
+        )}
         {/* Compact label for arrival on short reservations (no mid-day visible) */}
         {arrivalRes && !resHasMidDays(arrivalRes, y, m, dim) && (() => {
           const colorPct = 100 - (arrivePct || 0);
