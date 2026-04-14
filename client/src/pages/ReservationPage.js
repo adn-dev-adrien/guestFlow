@@ -718,6 +718,19 @@ export default function ReservationPage() {
       const opt = propertyOptions.find(o => o.id === so.optionId);
       const userQty = Math.max(0, Number(so.quantity) || 0);
       if (!opt && !shouldLockExistingPricing) continue;
+      const isAutoTimedOption = Boolean(opt?.autoOptionType)
+        || so.autoExtraHours !== undefined
+        || so.autoFullNightApplied !== undefined;
+
+      // Auto timed options (early check-in / late check-out) are priced by server quote.
+      // Keep their computed total instead of recomputing from option base price (often 0).
+      if (isAutoTimedOption) {
+        so.quantity = userQty;
+        so.totalPrice = Number(so.totalPrice || 0);
+        optionsTotal += so.totalPrice;
+        continue;
+      }
+
       const frozenUnitByQty = Number(frozenOptionUnitByQuantityRef.current[so.optionId]);
       const optTotal = shouldLockExistingPricing && Number.isFinite(frozenUnitByQty)
         ? frozenUnitByQty * userQty
