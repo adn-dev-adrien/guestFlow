@@ -779,9 +779,6 @@ export default function PlanningPage() {
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>
-                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
-                    Départs ({dayDepartures.filter((r) => r.checkOutDone).length}/{dayDepartures.length})
-                  </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {dayDepartures.map((r) => (
                       <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} />
