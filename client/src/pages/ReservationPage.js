@@ -18,6 +18,7 @@ import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
+import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 
@@ -121,6 +122,7 @@ export default function ReservationPage() {
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
+    const [occupiedDates, setOccupiedDates] = useState([]);
   const miniCenteredOnceRef = useRef(false);
   const manualDateInputChangeRef = useRef(false);
   const miniStripDateChangeRef = useRef(false);
@@ -559,6 +561,25 @@ export default function ReservationPage() {
   };
 
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
+  // Load occupied dates from backend when property or dates change
+  useEffect(() => {
+    if (!selectedProp || !form.startDate || !form.endDate) {
+      setOccupiedDates([]);
+      return;
+    }
+
+    const loadOccupiedDates = async () => {
+      try {
+        const occupied = await api.getOccupiedDates(selectedProp, form.startDate, form.endDate, editingReservationId);
+        setOccupiedDates(occupied || []);
+      } catch (err) {
+        console.error('Failed to load occupied dates:', err);
+        setOccupiedDates([]);
+      }
+    };
+
+    loadOccupiedDates();
+  }, [selectedProp, form.startDate, form.endDate, editingReservationId]);
 
   // Auto-refresh base price when reservation parameters change
   useEffect(() => {
@@ -986,44 +1007,14 @@ export default function ReservationPage() {
 
   const getDateRangeConflictInfo = useCallback((startDate, endDate) => {
     if (!selectedProp || !startDate || !endDate) return null;
-
-    const otherReservations = editingReservationId
-      ? reservations.filter((reservation) => reservation.id !== editingReservationId)
-      : reservations;
-
-    const conflictingReservation = otherReservations.find((reservation) => {
-      const occupiedStartDate = timeToHour(reservation.checkInTime || '15:00') <= 10
-        ? addDays(reservation.startDate, -1)
-        : reservation.startDate;
-      const occupiedEndDate = timeToHour(reservation.checkOutTime || '10:00') >= 17
-        ? addDays(reservation.endDate, 2)
-        : reservation.endDate;
-      return occupiedStartDate < endDate && occupiedEndDate > startDate;
+    return getRangeOccupancyConflictInfo({
+      startDate,
+      endDate,
+      occupiedDates,
+      reservations,
+      excludeReservationId: editingReservationId,
     });
-
-    if (!conflictingReservation) return null;
-
-    const hasEarlyArrivalBlock = timeToHour(conflictingReservation.checkInTime || '15:00') <= 10;
-    const hasLateDepartureBlock = timeToHour(conflictingReservation.checkOutTime || '10:00') >= 17;
-    const overlapsEarlyArrivalBlock = hasEarlyArrivalBlock
-      && addDays(conflictingReservation.startDate, -1) < endDate
-      && conflictingReservation.startDate >= startDate;
-    const overlapsLateDepartureBlock = hasLateDepartureBlock
-      && addDays(conflictingReservation.endDate, 2) > startDate
-      && conflictingReservation.endDate <= endDate;
-
-    let message = 'Ce logement est déjà réservé pour ces dates.';
-    if (overlapsEarlyArrivalBlock) {
-      message = 'Ce logement est déjà réservé pour ces dates. Une arrivée anticipée bloque aussi la nuit précédente.';
-    } else if (overlapsLateDepartureBlock) {
-      message = 'Ce logement est déjà réservé pour ces dates. Un départ tardif bloque aussi la nuit suivante.';
-    }
-
-    return {
-      reservation: conflictingReservation,
-      message,
-    };
-  }, [selectedProp, editingReservationId, reservations]);
+  }, [selectedProp, occupiedDates, editingReservationId, reservations]);
 
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {

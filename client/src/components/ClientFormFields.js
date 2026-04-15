@@ -11,7 +11,7 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         <TextField label="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} fullWidth required />
         <TextField label="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} fullWidth required />
       </FormRow>
-
+    
       <FormRow>
         <TextField
           label="N°"

@@ -104,6 +104,13 @@ const api = {
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
   deleteReservation: (id) => request(`/reservations/${id}`, { method: 'DELETE' }),
+  getOccupiedDates: (propertyId, from, to, excludeReservationId) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    if (excludeReservationId) params.set('excludeReservationId', excludeReservationId);
+    return request(`/reservations/occupied-dates/${propertyId}?${params.toString()}`);
+  },
 
   // Finance
   getFinanceSummary: (from, to) => {

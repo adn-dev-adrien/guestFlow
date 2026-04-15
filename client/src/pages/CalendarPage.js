@@ -15,6 +15,7 @@ import { TIME_OPTIONS } from '../constants/timeOptions';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
+import { getBlockedNightConflictInfo, getDayOccupancyConflictMessage, getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
 
@@ -36,42 +37,33 @@ function formatDate(y, m, d) {
 }
 
 function getBlockedNightInfo(dateStr, reservations) {
-  const nextDateStr = shiftDate(dateStr, 1);
-  const prevDateStr = shiftDate(dateStr, -1);
+  const blockedNightInfo = getBlockedNightConflictInfo(dateStr, reservations);
+  if (!blockedNightInfo) return null;
 
-  const earlyArrival = reservations.find(
-    (r) => r.startDate === nextDateStr && timeToHour(r.checkInTime || '15:00') <= 10
-  );
-  if (earlyArrival) {
+  if (blockedNightInfo.type === 'early-arrival') {
     return {
-      type: 'early-arrival',
+      ...blockedNightInfo,
       startPct: hourToPercent(17),
       endPct: 100,
-      client: earlyArrival,
+      client: blockedNightInfo.reservation,
     };
   }
 
-  const lateDeparture = reservations.find(
-    (r) => r.endDate === dateStr && timeToHour(r.checkOutTime || '10:00') >= 17
-  );
-  if (lateDeparture) {
+  if (blockedNightInfo.type === 'late-departure-evening') {
     return {
-      type: 'late-departure-evening',
-      startPct: hourToPercent(timeToHour(lateDeparture.checkOutTime || '10:00')),
+      ...blockedNightInfo,
+      startPct: hourToPercent(timeToHour(blockedNightInfo.reservation?.checkOutTime || '10:00')),
       endPct: 100,
-      client: lateDeparture,
+      client: blockedNightInfo.reservation,
     };
   }
 
-  const lateDeparturePreviousDay = reservations.find(
-    (r) => r.endDate === prevDateStr && timeToHour(r.checkOutTime || '10:00') >= 17
-  );
-  if (lateDeparturePreviousDay) {
+  if (blockedNightInfo.type === 'late-departure-morning') {
     return {
-      type: 'late-departure-morning',
+      ...blockedNightInfo,
       startPct: 0,
       endPct: hourToPercent(10),
-      client: lateDeparturePreviousDay,
+      client: blockedNightInfo.reservation,
     };
   }
 
@@ -185,6 +177,7 @@ export default function CalendarPage() {
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteDialogDate, setNoteDialogDate] = useState('');
   const [noteDialogText, setNoteDialogText] = useState('');
+    const [occupiedDates, setOccupiedDates] = useState([]);
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneErrors = (newClient.phoneNumbers || []).map((phone) => !isValidPhone(phone));
   const newClientPhoneError = newClientPhoneErrors.some(Boolean);
@@ -285,6 +278,14 @@ export default function CalendarPage() {
     const notesMap = {};
     notes.forEach(n => { notesMap[n.date] = n.note; });
     setCalendarNotes(notesMap);
+      // Load occupied dates from backend API
+      try {
+        const occupied = await api.getOccupiedDates(selectedProp, from, to);
+        setOccupiedDates(occupied || []);
+      } catch (err) {
+        console.error('Failed to load occupied dates:', err);
+        setOccupiedDates([]);
+      }
   }, [selectedProp, months]);
 
   useEffect(() => { loadProperties(); loadSchoolHolidays(); loadOverviewReservations(); }, [loadOverviewReservations]);
@@ -557,58 +558,27 @@ export default function CalendarPage() {
   const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
   const getDaySelectionConflictMessage = (dateStr) => {
-    if (dateStr < today) return 'Impossible de réserver dans le passé.';
-    if (reservations.some((r) => dateStr > r.startDate && dateStr < r.endDate)) {
-      return 'Ce logement est déjà réservé pour ces dates.';
-    }
-    if (reservations.some((r) => r.startDate === dateStr)) {
-      return 'Ce logement est déjà réservé pour ces dates.';
-    }
-    const blockedNightInfo = getBlockedNightInfo(dateStr, reservations);
-    if (blockedNightInfo?.type === 'early-arrival') {
-      return 'Ce logement n\'est pas disponible à cette date : la nuit est bloquée par une arrivée anticipée.';
-    }
-    if (blockedNightInfo?.type === 'late-departure-evening') {
-      return 'Ce logement n\'est pas disponible à cette date : la nuit est bloquée par un départ tardif.';
-    }
-    return '';
+    return getDayOccupancyConflictMessage({
+      dateStr,
+      today,
+      occupiedDates,
+      reservations,
+    });
   };
 
   const getRangeSelectionConflictMessage = (startDate, endDate) => {
-    const overlapReservation = reservations.find((reservation) => {
-      const toHour = (timeValue, fallback) => {
-        const [hours, minutes] = (timeValue || fallback).split(':').map(Number);
-        return hours + (minutes || 0) / 60;
-      };
-      const occupiedStartDate = toHour(reservation.checkInTime, '15:00') <= 10 ? shiftDate(reservation.startDate, -1) : reservation.startDate;
-      const occupiedEndDate = toHour(reservation.checkOutTime, '10:00') >= 17 ? shiftDate(reservation.endDate, 2) : reservation.endDate;
-      return occupiedStartDate < endDate && occupiedEndDate > startDate;
-    });
-
-    if (!overlapReservation) return '';
-
-    const checkInHour = (() => {
-      const [hours, minutes] = (overlapReservation.checkInTime || '15:00').split(':').map(Number);
-      return hours + (minutes || 0) / 60;
-    })();
-    const checkOutHour = (() => {
-      const [hours, minutes] = (overlapReservation.checkOutTime || '10:00').split(':').map(Number);
-      return hours + (minutes || 0) / 60;
-    })();
-
-    if (checkInHour <= 10 && shiftDate(overlapReservation.startDate, -1) < endDate && overlapReservation.startDate > startDate) {
-      return 'Ce logement n\'est pas disponible pour ces dates : une arrivée anticipée bloque une nuit supplémentaire.';
-    }
-    if (checkOutHour >= 17 && shiftDate(overlapReservation.endDate, 2) > startDate && overlapReservation.endDate < endDate) {
-      return 'Ce logement n\'est pas disponible pour ces dates : un départ tardif bloque une nuit supplémentaire.';
-    }
-    return 'Ce logement est déjà réservé pour ces dates.';
+    return getRangeOccupancyConflictInfo({
+      startDate,
+      endDate,
+      occupiedDates,
+      reservations,
+    })?.message || '';
   };
 
   // Check if a day is fully blocked (mid-stay or past)
   const isDayFullyBlocked = (day, y, m) => {
     const dateStr = formatDate(y, m, day);
-    return Boolean(getDaySelectionConflictMessage(dateStr) && !reservations.some((r) => r.startDate === dateStr));
+    return occupiedDates.includes(dateStr);
   };
 
   // Check if a day has an existing arrival
@@ -951,11 +921,6 @@ export default function CalendarPage() {
     // --- Common validation for create and update ---
     const excludeId = editingReservationId;
 
-    // Filter out the reservation being edited for overlap checks
-    const otherReservations = excludeId
-      ? reservations.filter(r => r.id !== excludeId)
-      : reservations;
-
     // Reject past start dates
     const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
     if (form.startDate < todayStr) {
@@ -963,10 +928,9 @@ export default function CalendarPage() {
       return;
     }
 
-    // Strict overlap: other reservations whose date range overlaps
-    const hasOverlap = otherReservations.some(r => r.startDate < form.endDate && r.endDate > form.startDate);
-    if (hasOverlap) {
-      await alert({ title: 'Conflit de réservation', message: 'Ce logement est déjà réservé pour ces dates.' });
+    const dateConflictMessage = getRangeSelectionConflictMessage(form.startDate, form.endDate);
+    if (dateConflictMessage) {
+      await alert({ title: 'Conflit de réservation', message: dateConflictMessage });
       return;
     }
 
@@ -1466,11 +1430,11 @@ export default function CalendarPage() {
     const gradient = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : undefined;
 
     // Boundary between departure/cleaning zone and free zone (for click detection)
-    const blockedZoneStartPct = blockedNightInfo
-      ? (blockedNightInfo.type === 'late-departure-morning' ? 0 : blockedNightInfo.startPct)
+    const blockedZoneStartPct = blockedNightInfo && blockedNightInfo.type !== 'late-departure-morning'
+      ? blockedNightInfo.startPct
       : null;
-    const blockedZoneEndPct = blockedNightInfo
-      ? (blockedNightInfo.type === 'late-departure-morning' ? blockedNightInfo.endPct : 100)
+    const blockedZoneEndPct = blockedNightInfo && blockedNightInfo.type !== 'late-departure-morning'
+      ? 100
       : null;
     const arrivalBlockedZoneEndPct = isEarlyArrivalDay ? arrivePct : null;
 

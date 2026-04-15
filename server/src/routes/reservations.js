@@ -185,8 +185,37 @@ router.get('/', (req, res) => {
   const reservations = db.prepare(sql).all(...params);
   res.json(reservations);
 });
+// Get occupied dates for a property (blocked by early arrival, late departure, etc.)
+// Query params: from, to (optional excludeReservationId)
+router.get('/occupied-dates/:propertyId', (req, res) => {
+  const { propertyId } = req.params;
+  const { from, to, excludeReservationId } = req.query;
 
-// Get single reservation with options
+  if (!propertyId || !from || !to) {
+    return res.status(400).json({ error: 'propertyId, from, and to are required' });
+  }
+
+  // Get all reservations for this property that overlap the requested range
+  let sql = `
+    SELECT id, startDate, endDate, checkInTime, checkOutTime
+    FROM reservations
+    WHERE propertyId = ?
+      AND endDate > ?
+      AND startDate < ?
+  `;
+  const params = [propertyId, from, to];
+  
+  if (excludeReservationId) {
+    sql += ' AND id != ?';
+    params.push(excludeReservationId);
+  }
+  
+  const reservations = db.prepare(sql).all(...params);
+  res.json(buildOccupiedDatesFromReservations(reservations));
+});
+
+
+// Get one reservation with options/resources/nights
 router.get('/:id', (req, res) => {
   const reservation = db.prepare(`
     SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
@@ -349,6 +378,32 @@ function getNightBlocksFromTimes(checkInTime, checkOutTime) {
   };
 }
 
+function buildOccupiedDatesFromReservations(reservations) {
+  const occupiedDates = new Set();
+
+  for (const reservation of reservations || []) {
+    const { blocksPreviousNight, blocksNextNight } = getNightBlocksFromTimes(
+      reservation.checkInTime,
+      reservation.checkOutTime,
+    );
+
+    const effectiveStart = blocksPreviousNight
+      ? addIsoDays(reservation.startDate, -1)
+      : String(reservation.startDate || '');
+    const effectiveEndExclusive = blocksNextNight
+      ? addIsoDays(reservation.endDate, 1)
+      : String(reservation.endDate || '');
+
+    let cursor = effectiveStart;
+    while (cursor && effectiveEndExclusive && cursor < effectiveEndExclusive) {
+      occupiedDates.add(cursor);
+      cursor = addIsoDays(cursor, 1);
+    }
+  }
+
+  return Array.from(occupiedDates).filter(Boolean).sort();
+}
+
 // Shared validation for create and update
 // excludeId: reservation ID to exclude (for updates)
 // nightBlocks: { blocksPreviousNight, blocksNextNight } computed from the NEW reservation's times
@@ -364,13 +419,13 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
 
   // ── 1. Strict date overlap ──────────────────────────────────────────────
   // For EXISTING reservations: if their checkOut >= 17 h they also occupy
-  // the departure night, so their effective exclusive end extends by 2 days
-  // (endDate + 1 = first fully-occupied extra night; +2 = first truly free day).
+  // the departure night, so their effective exclusive end extends by 1 day
+  // (endDate + 1 = first truly free day).
   // For the NEW reservation: same logic on candidateEndDate.
   const newBLocksPrev = Number(nightBlocks.blocksPreviousNight || 0) === 1;
   const newBlocksNext = Number(nightBlocks.blocksNextNight     || 0) === 1;
   const newEffStart = newBLocksPrev ? addIsoDays(startDate, -1) : startDate;
-  const newEffEnd   = newBlocksNext ? addIsoDays(endDate,    2) : endDate;
+  const newEffEnd   = newBlocksNext ? addIsoDays(endDate,    1) : endDate;
 
   let overlapSql = `
     SELECT id
@@ -379,7 +434,7 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
       AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
                 THEN date(startDate, '-1 day') ELSE startDate END) < ?
       AND (CASE WHEN CAST(SUBSTR(COALESCE(checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ${LATE_CHECKOUT_BLOCK_HOUR}
-                THEN date(endDate,   '+2 day') ELSE endDate   END) > ?
+                THEN date(endDate,   '+1 day') ELSE endDate   END) > ?
   `;
   const overlapParams = [propertyId, newEffEnd, newEffStart];
   if (excludeId) {
@@ -924,5 +979,7 @@ router.delete('/:id', (req, res) => {
 
 module.exports = router;
 module.exports.__test = {
+  buildOccupiedDatesFromReservations,
   computeNextIcalSyncLocked,
+  getNightBlocksFromTimes,
 };

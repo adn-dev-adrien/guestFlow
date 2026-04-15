@@ -5,6 +5,7 @@ import {
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { PLATFORM_COLORS } from '../constants/platforms';
+import { getBlockedNightConflictInfo } from '../utils/reservationConflicts';
 
 const DAY_START = 8;
 const DAY_END = 21;
@@ -38,6 +39,7 @@ function hourToPercent(hour) {
 }
 
 const EMPTY_DAY_COLOR = '#f5f5f5';
+const BLOCKED_NIGHT_COLOR = '#ff9800';
 
 export default function MiniPlanningStrip({
   miniCalendarStart,
@@ -90,6 +92,7 @@ export default function MiniPlanningStrip({
     departureRes,
     arrivalRes,
     middleRes,
+    blockedNightInfo,
     departureIsSelected,
     arrivalIsSelected,
     middleIsSelected,
@@ -118,7 +121,15 @@ export default function MiniPlanningStrip({
     if (departPct !== null) {
       stops.push(`${departColor} 0%`);
       stops.push(`${departColor} ${departPct}%`);
-      if (arrivePct !== null && arrivePct > departPct) {
+      if (blockedNightInfo?.type === 'late-departure-evening') {
+        const blockedEnd = arrivePct !== null ? Math.min(arrivePct, 100) : 100;
+        stops.push(`${BLOCKED_NIGHT_COLOR} ${departPct}%`);
+        stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedEnd}%`);
+        if (arrivePct !== null && arrivePct > blockedEnd) {
+          stops.push(`${EMPTY_DAY_COLOR} ${blockedEnd}%`);
+          stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
+        }
+      } else if (arrivePct !== null && arrivePct > departPct) {
         stops.push(`${EMPTY_DAY_COLOR} ${departPct}%`);
         stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
       } else if (arrivePct === null) {
@@ -201,6 +212,7 @@ export default function MiniPlanningStrip({
             const otherDeparture = findDepartureReservationOnDay(day);
             const otherArrival = findArrivalReservationOnDay(day);
             const otherMiddle = findMiddleReservationOnDay(day);
+            const blockedNightInfo = getBlockedNightConflictInfo(day, otherReservationsForMini);
 
             const mergedDeparture = selectedDeparture || otherDeparture;
             const mergedArrival = selectedArrival || otherArrival;
@@ -210,18 +222,33 @@ export default function MiniPlanningStrip({
               departureRes: mergedDeparture,
               arrivalRes: mergedArrival,
               middleRes: mergedMiddle,
+                blockedNightInfo,
               departureIsSelected: Boolean(selectedDeparture),
               arrivalIsSelected: Boolean(selectedArrival),
               middleIsSelected: Boolean(selectedMiddle),
             });
 
+            const hasReservationVisual = Boolean(mergedDeparture || mergedArrival || mergedMiddle);
+              const finalDayStyle = !hasReservationVisual && blockedNightInfo?.type === 'early-arrival'
+              ? { background: BLOCKED_NIGHT_COLOR, textColor: '#fff' }
+              : dayStyle;
+
             const tooltipRes = selectedDeparture || selectedArrival || selectedMiddle || otherDeparture || otherArrival || otherMiddle;
+            const blockedTooltip = blockedNightInfo
+                ? blockedNightInfo.type === 'early-arrival'
+                ? `Nuit bloquée: arrivée anticipée de ${blockedNightInfo.reservation?.firstName || ''} ${blockedNightInfo.reservation?.lastName || ''}`.trim()
+                  : (blockedNightInfo.type === 'late-departure-evening'
+                    ? `Nuit bloquée: départ tardif de ${blockedNightInfo.reservation?.firstName || ''} ${blockedNightInfo.reservation?.lastName || ''}`.trim()
+                    : '')
+              : '';
 
               return (
                 <Box
                   key={day}
                   onClick={() => onDateClick(day)}
-                  title={tooltipRes ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${tooltipRes.platform || 'reservation'})` : 'Disponible'}
+                  title={tooltipRes
+                    ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${tooltipRes.platform || 'reservation'})`
+                    : (blockedTooltip || 'Disponible')}
                   sx={{
                     borderRadius: 1,
                     borderStyle: 'solid',
@@ -229,7 +256,7 @@ export default function MiniPlanningStrip({
                     borderColor: selectedDeparture || selectedArrival || selectedMiddle
                       ? 'primary.main'
                       : (isArrival || isDeparture ? 'primary.main' : 'divider'),
-                    background: dayStyle.background,
+                    background: finalDayStyle.background,
                     minHeight: 56,
                     px: 0.5,
                     py: 0.75,
@@ -248,8 +275,8 @@ export default function MiniPlanningStrip({
                     },
                   }}
                 >
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1.1, position: 'relative', zIndex: 1 }}>{weekLabel}</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: dayStyle.textColor, lineHeight: 1.15, position: 'relative', zIndex: 1 }}>{dateObj?.getDate()}</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: finalDayStyle.textColor, lineHeight: 1.1, position: 'relative', zIndex: 1 }}>{weekLabel}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: finalDayStyle.textColor, lineHeight: 1.15, position: 'relative', zIndex: 1 }}>{dateObj?.getDate()}</Typography>
                 </Box>
               );
             })}
