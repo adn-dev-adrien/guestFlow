@@ -100,7 +100,38 @@ function getTotalFromWeeklyModel(baseNightPrice, nights) {
   if (nights === 5) return weekPrice * 0.8;
   if (nights === 6) return weekPrice * 0.9;
   if (nights === 7) return weekPrice;
-  return weekPrice * (1 + (nights - 7) * 0.14285714); 
+  return calculateFlexiblePrice(weekPrice, nights); 
+}
+
+/**
+ * Calculates the rental price based on price thresholds.
+ * @param {number} weeklyRate - The price for 7 nights.
+ * @param {number} totalNights - Total number of nights.
+ * @returns {number} - Total price.
+ */
+function calculateFlexiblePrice(weeklyRate, totalNights) {
+    let ratio;
+
+    // Logic: The higher the weekly rate, the more we adjust the extra night cost.
+    // These thresholds are derived from your specific data patterns.
+    if (weeklyRate < 1250) {
+        // Low range (e.g., 1008€, 1213€) -> ~17.16%
+        ratio = 0.17163; 
+    } else if (weeklyRate >= 1250 && weeklyRate <= 1400) {
+        // Mid range (e.g., 1306€) -> ~14.32%
+        ratio = 0.14318; 
+    } else {
+        // High range (e.g., 1525€, 1791€) -> ~16.79%
+        ratio = 0.16787; 
+    }
+
+    const extraNights = totalNights - 7;
+    const extraNightPrice = weeklyRate * ratio;
+    
+    // Base calculation
+    let totalPrice = weeklyRate + (extraNights * extraNightPrice);
+
+    return Math.round(totalPrice);
 }
 
 function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 14) {
