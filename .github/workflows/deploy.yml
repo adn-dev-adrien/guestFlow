@@ -17,7 +17,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted  # Runner self-hosted sur le Raspberry Pi 5
+    runs-on: [self-hosted, Pi5-Runner]  # Runner self-hosted sur le Raspberry Pi 5
     
     steps:
       - name: 📥 Checkout code
