@@ -22,28 +22,71 @@ test('getMonthBounds rejects invalid formats', () => {
   assert.equal(getMonthBounds('2026-13'), null);
 });
 
-test('computeAccommodationAmountAfterDiscount allocates discount proportionally to accommodation', () => {
+test('computeAccommodationAmountAfterDiscount uses billed accommodation TTC then converts to HT', () => {
   const result = computeAccommodationAmountAfterDiscount({
     accommodationRawAmount: 1000,
     optionsTotal: 200,
     resourcesTotal: 100,
     finalPrice: 1100,
+    accommodationVatRate: 20,
   });
 
   assert.equal(result.accommodationRawAmount, 1000);
   assert.equal(result.reductionAmount, 200);
-  assert.equal(result.accommodationAmount, 846.15);
+  assert.equal(result.accommodationTtcAmount, 800);
+  assert.equal(result.accommodationAmount, 666.67);
 });
 
-test('computeAccommodationAmountAfterDiscount keeps accommodation unchanged when no reduction', () => {
+test('computeAccommodationAmountAfterDiscount keeps accommodation-only final when extras exist', () => {
+  const result = computeAccommodationAmountAfterDiscount({
+    accommodationRawAmount: 303.50,
+    optionsTotal: 150,
+    resourcesTotal: 62.59,
+    finalPrice: 303.50,
+    accommodationVatRate: 10,
+  });
+
+  assert.equal(result.accommodationTtcAmount, 303.50);
+  assert.equal(result.accommodationAmount, 275.91);
+});
+
+test('computeAccommodationAmountAfterDiscount keeps TTC amount and exposes HT when no reduction', () => {
   const result = computeAccommodationAmountAfterDiscount({
     accommodationRawAmount: 450,
     optionsTotal: 50,
     resourcesTotal: 0,
     finalPrice: 500,
+    accommodationVatRate: 20,
   });
 
   assert.equal(result.reductionAmount, 0);
+  assert.equal(result.accommodationTtcAmount, 450);
+  assert.equal(result.accommodationAmount, 375);
+});
+
+test('computeAccommodationAmountAfterDiscount keeps raw accommodation when final likely includes extras', () => {
+  const result = computeAccommodationAmountAfterDiscount({
+    accommodationRawAmount: 450,
+    optionsTotal: 300,
+    resourcesTotal: 300,
+    finalPrice: 1000,
+    accommodationVatRate: 20,
+  });
+
+  assert.equal(result.accommodationTtcAmount, 450);
+  assert.equal(result.accommodationAmount, 375);
+});
+
+test('computeAccommodationAmountAfterDiscount keeps same amount when VAT rate is 0', () => {
+  const result = computeAccommodationAmountAfterDiscount({
+    accommodationRawAmount: 450,
+    optionsTotal: 50,
+    resourcesTotal: 0,
+    finalPrice: 500,
+    accommodationVatRate: 0,
+  });
+
+  assert.equal(result.accommodationTtcAmount, 450);
   assert.equal(result.accommodationAmount, 450);
 });
 

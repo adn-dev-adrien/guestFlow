@@ -151,8 +151,9 @@ export default function TouristTaxPage() {
                           <TableCell sx={{ fontWeight: 600 }}>Dates réservation</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Nuits</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Adultes</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Enfants</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Taxe séjour (client)</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="right">Montant séjour (hébergement)</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Montant hébergement HT</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -167,13 +168,14 @@ export default function TouristTaxPage() {
                             <TableCell>{formatReservationDates(row.startDate, row.endDate)}</TableCell>
                             <TableCell align="right">{row.nightsCount}</TableCell>
                             <TableCell align="right">{row.adults}</TableCell>
+                            <TableCell align="right">{row.children ?? 0}</TableCell>
                             <TableCell align="right">{Number(row.taxAmount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</TableCell>
                             <TableCell align="right">{Number(row.accommodationAmount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</TableCell>
                           </TableRow>
                         ))}
                         {property.reservations.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={6} align="center">Aucune réservation directe sur ce logement pour le mois sélectionné</TableCell>
+                            <TableCell colSpan={7} align="center">Aucune réservation directe sur ce logement pour le mois sélectionné</TableCell>
                           </TableRow>
                         )}
                       </TableBody>

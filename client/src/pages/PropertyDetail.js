@@ -26,6 +26,9 @@ const NEW_DEFAULTS = {
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
   defaultCautionAmount: 500,
   touristTaxPerDayPerPerson: 0,
+  vatPercentageAccommodation: 20,
+  vatPercentageOptions: 20,
+  vatPercentageResources: 20,
   defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
 };
 
@@ -118,6 +121,9 @@ export default function PropertyDetail() {
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
+      vatPercentageAccommodation: p.vatPercentageAccommodation ?? 20,
+      vatPercentageOptions: p.vatPercentageOptions ?? 20,
+      vatPercentageResources: p.vatPercentageResources ?? 20,
       defaultCheckIn: p.defaultCheckIn || '15:00', defaultCheckOut: p.defaultCheckOut || '10:00', cleaningHours: p.cleaningHours ?? 3
     };
     setForm(initial);
@@ -645,6 +651,41 @@ export default function PropertyDetail() {
                 inputProps={{ min: 0, step: 0.1 }}
                 sx={{ mt: 1.25, mb: 2 }}
               />
+
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 2 }}>TVA (tous les montants en TTC)</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, mb: 2 }}>
+                <TextField
+                  label="TVA Hébergement (%)"
+                  type="number"
+                  value={form.vatPercentageAccommodation ?? 20}
+                  onChange={(e) => updateField('vatPercentageAccommodation', e.target.value)}
+                  onFocus={handleZeroFocus}
+                  fullWidth
+                  size="small"
+                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                />
+                <TextField
+                  label="TVA Options (%)"
+                  type="number"
+                  value={form.vatPercentageOptions ?? 20}
+                  onChange={(e) => updateField('vatPercentageOptions', e.target.value)}
+                  onFocus={handleZeroFocus}
+                  fullWidth
+                  size="small"
+                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                />
+                <TextField
+                  label="TVA Ressources (%)"
+                  type="number"
+                  value={form.vatPercentageResources ?? 20}
+                  onChange={(e) => updateField('vatPercentageResources', e.target.value)}
+                  onFocus={handleZeroFocus}
+                  fullWidth
+                  size="small"
+                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                />
+              </Box>
+
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Gestion des saisons tarifaires</Typography>
                 <Button

@@ -578,12 +578,12 @@ router.post('/:id/pricing/progressive-preview', (req, res) => {
 // Create property
 router.post('/', photoUpload.single('photo'), async (req, res) => {
   try {
-    const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson } = req.body;
+    const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources } = req.body;
     const photo = req.file ? await saveOptimizedPhoto(req.file) : '';
     const result = db.prepare(`
-      INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, touristTaxPerDayPerPerson ?? 0);
+      INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, touristTaxPerDayPerPerson ?? 0, vatPercentageAccommodation ?? 20, vatPercentageOptions ?? 20, vatPercentageResources ?? 20);
 
     const propertyId = result.lastInsertRowid;
     const currentYear = new Date().getFullYear();
@@ -616,15 +616,15 @@ router.post('/', photoUpload.single('photo'), async (req, res) => {
 // Update property
 router.put('/:id', photoUpload.single('photo'), async (req, res) => {
   try {
-    const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson } = req.body;
+    const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources } = req.body;
     const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
     const newPhoto = req.file ? await saveOptimizedPhoto(req.file) : '';
     const photo = newPhoto || (req.body.photo || (existing ? existing.photo : ''));
 
     db.prepare(`
-      UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, updatedAt=datetime('now')
+      UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, vatPercentageAccommodation=?, vatPercentageOptions=?, vatPercentageResources=?, updatedAt=datetime('now')
       WHERE id=?
-    `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, touristTaxPerDayPerPerson ?? 0, req.params.id);
+    `).run(sentenceCase(name), photo, maxAdults || 2, maxChildren || 0, maxBabies || 0, singleBeds ?? 0, doubleBeds ?? 0, depositPercent || 30, depositDaysBefore || 30, balanceDaysBefore || 7, defaultCheckIn || '15:00', defaultCheckOut || '10:00', cleaningHours || 3, defaultCautionAmount ?? 500, touristTaxPerDayPerPerson ?? 0, vatPercentageAccommodation ?? 20, vatPercentageOptions ?? 20, vatPercentageResources ?? 20, req.params.id);
 
     if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
       removeUploadedFile(existing.photo);

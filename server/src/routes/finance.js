@@ -29,21 +29,41 @@ function isReservationAssignedToMonth({ endDate, monthBounds }) {
   return lastNightDate >= monthBounds.start && lastNightDate < monthBounds.endExclusive;
 }
 
-function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optionsTotal, resourcesTotal, finalPrice }) {
+function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optionsTotal, resourcesTotal, finalPrice, accommodationVatRate }) {
   const raw = Math.max(0, Number(accommodationRawAmount || 0));
   const options = Math.max(0, Number(optionsTotal || 0));
   const resources = Math.max(0, Number(resourcesTotal || 0));
-  const subtotal = raw + options + resources;
   const final = Math.max(0, Number(finalPrice || 0));
-  const reductionAmount = Math.max(0, subtotal - final);
-  const accommodationReduction = subtotal > 0
-    ? reductionAmount * (raw / subtotal)
-    : 0;
-  const net = round2(Math.max(0, raw - accommodationReduction));
+  const vatRate = Math.max(0, Number(accommodationVatRate || 0));
+  const hasExtras = (options + resources) > 0;
+
+  // Reservation data has historical variants:
+  // - some rows store finalPrice as accommodation-only amount,
+  // - others as stay subtotal/final amount.
+  // Resolve accommodation TTC to match reservation sheet values.
+  let resolvedAccommodationTtc = raw;
+  if (hasExtras) {
+    // If extras exist and final <= raw, final is accommodation-only.
+    if (final > 0 && final <= raw) {
+      resolvedAccommodationTtc = final;
+    } else {
+      // If final includes extras, keep accommodation brut TTC.
+      resolvedAccommodationTtc = raw;
+    }
+  } else if (final > 0) {
+    // No extras: final can represent accommodation TTC directly.
+    resolvedAccommodationTtc = final;
+  }
+
+  const accommodationTtcAmount = round2(Math.max(0, resolvedAccommodationTtc));
+  const reductionAmount = round2(Math.max(0, raw - accommodationTtcAmount));
+  const vatDivisor = 1 + (vatRate / 100);
+  const accommodationHtAmount = round2(vatDivisor > 0 ? (accommodationTtcAmount / vatDivisor) : accommodationTtcAmount);
   return {
     accommodationRawAmount: round2(raw),
-    reductionAmount: round2(reductionAmount),
-    accommodationAmount: net,
+    reductionAmount,
+    accommodationTtcAmount,
+    accommodationAmount: accommodationHtAmount,
   };
 }
 
@@ -208,7 +228,12 @@ router.get('/tourist-tax', (req, res) => {
       r.startDate,
       r.endDate,
       r.adults,
-      COALESCE(p.touristTaxPerDayPerPerson, 0) as taxRate,
+      r.children,
+      r.teens,
+      COALESCE(r.touristTaxRate, 0) as storedTaxRate,
+      COALESCE(r.touristTaxTotal, 0) as storedTaxAmount,
+      COALESCE(p.touristTaxPerDayPerPerson, 0) as propertyTaxRate,
+      COALESCE(p.vatPercentageAccommodation, 20) as accommodationVatRate,
       MAX(0,
         CAST(
           JULIANDAY(r.endDate) - JULIANDAY(r.startDate)
@@ -244,13 +269,18 @@ router.get('/tourist-tax', (req, res) => {
     .map((row) => {
       const nightsCount = Number(row.nightsCount || 0);
       const adults = Number(row.adults || 0);
-      const taxRate = Math.max(0, Number(row.taxRate || 0));
+      const storedTaxAmount = Math.max(0, Number(row.storedTaxAmount || 0));
+      const storedTaxRate = Math.max(0, Number(row.storedTaxRate || 0));
+      const propertyTaxRate = Math.max(0, Number(row.propertyTaxRate || 0));
+      const taxRate = storedTaxRate > 0 ? storedTaxRate : propertyTaxRate;
       const taxMeta = computeTouristTaxAmount({ nightsCount, adults, taxRate });
+      const taxAmount = storedTaxAmount > 0 ? storedTaxAmount : taxMeta.taxAmount;
       const accommodationMeta = computeAccommodationAmountAfterDiscount({
         accommodationRawAmount: row.accommodationRawAmount,
         optionsTotal: row.optionsTotal,
         resourcesTotal: row.resourcesTotal,
         finalPrice: row.finalPrice,
+        accommodationVatRate: row.accommodationVatRate,
       });
       const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
       return {
@@ -262,10 +292,11 @@ router.get('/tourist-tax', (req, res) => {
         endDate: row.endDate,
         lastNightDate: row.lastNightDate,
         adults,
+        children: Number(row.children || 0) + Number(row.teens || 0),
         nightsCount,
         adultNights: taxMeta.adultNights,
         taxRate,
-        taxAmount: taxMeta.taxAmount,
+        taxAmount,
         accommodationRawAmount: accommodationMeta.accommodationRawAmount,
         reductionAmount: accommodationMeta.reductionAmount,
         accommodationAmount: accommodationMeta.accommodationAmount,
