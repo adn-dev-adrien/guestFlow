@@ -100,6 +100,7 @@ export default function SyncedPropertyMiniCalendars({
   platformColors,
   onCreateReservation,
   onOpenProperty,
+  onOpenReservation,
   initialStartDate,
   visibleDays = 14,
   title = 'Calendrier cumule',
@@ -118,7 +119,11 @@ export default function SyncedPropertyMiniCalendars({
     setMiniCalendarStart((prev) => addDays(prev, delta));
   };
 
-  const handleDayClick = (propertyId, day) => {
+  const handleDayClick = (propertyId, day, reservation) => {
+    if (reservation && onOpenReservation) {
+      onOpenReservation(reservation);
+      return;
+    }
     const anchor = anchors[propertyId];
     if (!anchor || anchor === day) {
       setAnchors((prev) => ({ ...prev, [propertyId]: day }));
@@ -184,7 +189,7 @@ export default function SyncedPropertyMiniCalendars({
                     return (
                       <Box
                         key={`${property.id}-${day}`}
-                        onClick={() => handleDayClick(property.id, day)}
+                        onClick={() => handleDayClick(property.id, day, reservation)}
                         title={reservation ? `${reservation.firstName} ${reservation.lastName} (${reservation.platform})` : 'Disponible'}
                         sx={{
                           borderRadius: 1,

@@ -327,6 +327,7 @@ export default function Dashboard() {
         reservations={reservations}
         platformColors={PLATFORM_COLORS}
         onOpenProperty={handleOpenPropertyCalendar}
+        onOpenReservation={(r) => navigate(withFrom(`/reservations/${r.id}`, '/'))}
         onCreateReservation={({ propertyId, startDate, endDate }) => {
           navigate(withFrom(`/reservations/new?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`, '/'));
         }}
