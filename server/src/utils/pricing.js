@@ -85,6 +85,34 @@ function parseRuleDateRanges(rule) {
   return parsed;
 }
 
+/**
+ * Calculates the total price of the stay based on the weekly price.
+ * Logic based on standard vacation rental decreasing rates.
+ * * @param {number} weeklyPrice - The rate for 7 nights (the baseline)
+ * @param {number} numberOfNights - The requested number of nights
+ * @returns {number} The calculated total price
+ */
+function calculateStayPrice(weeklyPrice, numberOfNights) {
+    // Handling cases from 1 to 7 nights (decreasing coefficients)
+    const pricingScale = {
+        1: 0.25, // 25% of the weekly price
+        2: 0.50, // 50%
+        3: 0.60, // 60%
+        4: 0.70, // 70%
+        5: 0.80, // 80%
+        6: 0.90, // 90%
+        7: 1.00  // 100%
+    };
+
+    if (numberOfNights <= 7) {
+        return Math.round(weeklyPrice * pricingScale[numberOfNights]);
+    } 
+    
+    // Beyond 7 nights, we apply a pro-rata nightly rate (weeklyPrice / 7)
+    const flatNightlyRate = weeklyPrice / 7;
+    return Math.round(numberOfNights * flatNightlyRate);
+}
+
 function getWeekPriceEquivalent(baseNightPrice) {
   return Number(baseNightPrice || 0) * 4;
 }
@@ -92,18 +120,11 @@ function getWeekPriceEquivalent(baseNightPrice) {
 function getTotalFromWeeklyModel(baseNightPrice, nights) {
   const base = Number(baseNightPrice || 0);
   const weekPrice = getWeekPriceEquivalent(base);
-  if (nights <= 0) return 0;
-  if (nights === 1) return base;
-  if (nights === 2) return base * 2;
-  if (nights === 3) return weekPrice * 0.6;
-  if (nights === 4) return weekPrice * 0.7;
-  if (nights === 5) return weekPrice * 0.8;
-  if (nights === 6) return weekPrice * 0.9;
-  if (nights === 7) return weekPrice;
-  return weekPrice * (1 + (nights - 7) * 0.14285714); 
+
+  return calculateStayPrice(weekPrice, nights); 
 }
 
-function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 14) {
+function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 365) {
   const base = Number(baseNightPrice || 0);
   if (!base || base <= 0) return [];
 
@@ -122,7 +143,7 @@ function buildDefaultProgressiveTiers(baseNightPrice, maxNights = 14) {
   return tiers;
 }
 
-function normalizeProgressiveTiers(baseNightPrice, progressiveTiers, maxNights = 14) {
+function normalizeProgressiveTiers(baseNightPrice, progressiveTiers, maxNights = 365) {
   const base = Number(baseNightPrice || 0);
   const defaults = buildDefaultProgressiveTiers(base, maxNights);
   const providedByNight = new Map(
@@ -155,7 +176,7 @@ function normalizeProgressiveTiers(baseNightPrice, progressiveTiers, maxNights =
   });
 }
 
-function buildProgressivePreview(baseNightPrice, progressiveTiers, maxNights = 14) {
+function buildProgressivePreview(baseNightPrice, progressiveTiers, maxNights = 365) {
   const base = roundMoney(baseNightPrice);
   const normalizedTiers = normalizeProgressiveTiers(base, progressiveTiers, maxNights);
   let cumulative = 0;

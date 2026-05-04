@@ -115,6 +115,7 @@ export default function ReservationPage() {
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
+  const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -309,13 +310,19 @@ export default function ReservationPage() {
     if (form.startDate !== miniSelectionAnchor) setMiniSelectionAnchor('');
   }, [form.startDate, miniSelectionAnchor]);
 
-  const applyQuoteToForm = useCallback((prev, quote) => {
+  const applyQuoteToForm = useCallback((prev, quote, preserveBlankPrice = false) => {
     const resourceLinesById = new Map((quote.resourceLines || []).map((line) => [Number(line.resourceId), line]));
+
+    // Preserve user-manually-set customPrice: if prev.customPrice is not empty, keep it
+    // totalPrice comes from quote (server-calculated)
+    const shouldPreserveCustomPrice = prev.customPrice !== '';
 
     return {
       ...prev,
-      totalPrice: Number(quote.totalPrice || 0),
-      finalPrice: Number(quote.finalPrice || 0),
+      totalPrice: quote.totalPrice == null ? '' : Number(quote.totalPrice || 0),
+      finalPrice: shouldPreserveCustomPrice && prev.customPrice !== ''
+        ? Number(prev.customPrice)
+        : (quote.finalPrice == null ? '' : Number(quote.finalPrice || 0)),
       depositAmount: Number(quote.depositAmount || 0),
       depositDueDate: quote.depositDueDate || '',
       balanceAmount: Number(quote.balanceAmount || 0),
@@ -387,6 +394,7 @@ export default function ReservationPage() {
           const allRes = await api.getReservations({ propertyId: res.propertyId });
           setReservations(allRes);
 
+          const importedBlankPrice = res.sourceType === 'ical' && res.totalPrice == null && res.finalPrice == null;
           setForm({
             clientId: res.clientId,
             adults: res.adults || 1,
@@ -397,9 +405,9 @@ export default function ReservationPage() {
             singleBeds: res.singleBeds || '',
             doubleBeds: res.doubleBeds || '',
             babyBeds: res.babyBeds || '',
-            totalPrice: res.totalPrice || 0,
+            totalPrice: importedBlankPrice ? '' : res.totalPrice || 0,
             discountPercent: res.discountPercent || 0,
-            finalPrice: res.finalPrice || 0,
+            finalPrice: importedBlankPrice ? '' : res.finalPrice || 0,
             customPrice: '',
             depositAmount: res.depositAmount || 0,
             depositDueDate: res.depositDueDate || '',
@@ -421,6 +429,7 @@ export default function ReservationPage() {
             depositPaid: res.depositPaid || false,
             balancePaid: res.balancePaid || false
           });
+          setIsIcalImportedBlankPrice(importedBlankPrice);
 
           initialPricingContextRef.current = {
             propertyId: res.propertyId,
@@ -623,11 +632,13 @@ export default function ReservationPage() {
         setNightlyBreakdown(calc.nightlyBreakdown || []);
         applyQuoteMinNights(calc);
 
+        const preserveBlankPrice = isIcalImportedBlankPrice && form.customPrice === '' && form.totalPrice === '';
+
         setForm(prev => {
           if (prev.startDate !== form.startDate || prev.endDate !== form.endDate || prev.adults !== form.adults || prev.children !== form.children || prev.teens !== form.teens) {
             return prev;
           }
-          return applyQuoteToForm(prev, calc);
+          return applyQuoteToForm(prev, calc, preserveBlankPrice);
         });
       } catch (err) {
         // Keep current form state if quote refresh fails
@@ -1182,6 +1193,13 @@ export default function ReservationPage() {
           return opt;
         });
 
+        // Le totalPrice vient toujours du serveur (quote.totalPrice)
+        // Le finalPrice peut être ajusté via customPrice ou par réduction %
+        const finalTotalPrice = quote.totalPrice;
+        const finalPrice = form.customPrice !== ''
+          ? Number(form.customPrice)
+          : quote.finalPrice;
+
         await api.updateReservation(reservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -1197,9 +1215,9 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
-          totalPrice: quote.totalPrice,
+          totalPrice: finalTotalPrice,
           discountPercent: form.discountPercent,
-          finalPrice: quote.finalPrice,
+          finalPrice: finalPrice,
           customPrice: form.customPrice,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
@@ -1440,11 +1458,24 @@ export default function ReservationPage() {
     const value = parsed / multiplier;
     return Number.isInteger(value) ? value : Number(value.toFixed(4));
   };
-  const accommodationBasePrice = Number(form.totalPrice || 0);
-  const accommodationDiscountedPrice = form.customPrice !== ''
-    ? Math.max(0, Number(form.customPrice || 0))
-    : Math.round(accommodationBasePrice * (1 - (Number(form.discountPercent || 0) / 100)) * 100) / 100;
-  const accommodationDiscountAmount = Math.max(0, Math.round((accommodationBasePrice - accommodationDiscountedPrice) * 100) / 100);
+  const parsedTotalPrice = form.totalPrice === '' ? null : Number(form.totalPrice || 0);
+  const parsedCustomPrice = form.customPrice === '' ? null : Number(form.customPrice || 0);
+  const accommodationBasePrice = parsedTotalPrice ?? 0;
+  const accommodationDiscountedPrice = parsedCustomPrice !== null
+    ? Math.max(0, parsedCustomPrice)
+    : parsedTotalPrice !== null
+      ? Math.round(accommodationBasePrice * (1 - (Number(form.discountPercent || 0) / 100)) * 100) / 100
+      : 0;
+  const accommodationDiscountAmount = parsedTotalPrice !== null
+    ? Math.max(0, Math.round((accommodationBasePrice - accommodationDiscountedPrice) * 100) / 100)
+    : 0;
+  const accommodationPriceDisplay = parsedCustomPrice !== null
+    ? accommodationDiscountedPrice
+    : parsedTotalPrice !== null
+      ? accommodationDiscountedPrice
+      : null;
+  const accommodationBasePriceDisplay = parsedTotalPrice !== null ? parsedTotalPrice.toFixed(2) : null;
+  const accommodationDiscountedPriceDisplay = accommodationPriceDisplay !== null ? accommodationPriceDisplay.toFixed(2) : null;
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
 
@@ -1976,13 +2007,13 @@ export default function ReservationPage() {
                 <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                      Prix hébergement
+                      Prix hébergement brut
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
-                      {accommodationBasePrice.toFixed(2)}€
+                      {accommodationBasePriceDisplay ?? '—'}€
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Tarif brut avant remise
+                      Tarif calculé par le serveur
                     </Typography>
                   </CardContent>
                 </Card>
@@ -1992,23 +2023,47 @@ export default function ReservationPage() {
                   variant="outlined"
                   sx={{
                     height: '100%',
-                    borderColor: accommodationDiscountAmount > 0 ? 'success.main' : 'divider',
-                    bgcolor: accommodationDiscountAmount > 0 ? 'rgba(76, 175, 80, 0.08)' : '#fff',
+                    borderColor: form.customPrice !== '' ? 'info.main' : 'divider',
+                    bgcolor: form.customPrice !== '' ? 'rgba(33, 150, 243, 0.08)' : '#fff',
                   }}
                 >
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                      Prix remisé
+                      Prix hébergement ajusté
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5, color: accommodationDiscountAmount > 0 ? 'success.main' : 'text.primary' }}>
-                      {accommodationDiscountedPrice.toFixed(2)}€
-                    </Typography>
-                    {accommodationDiscountAmount > 0 && (
-                      <Typography variant="caption" sx={{ display: 'block', color: 'success.dark' }}>
-                        Économie: {accommodationDiscountAmount.toFixed(2)}€
-                      </Typography>
+                    <TextField
+                      label="Prix ajusté"
+                      type="number"
+                      value={form.customPrice}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      fullWidth
+                      inputProps={{ min: 0, step: 0.01 }}
+                      sx={{
+                        mt: 1,
+                        '& input[type=number]': {
+                          MozAppearance: 'textfield',
+                        },
+                        '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                          WebkitAppearance: 'none',
+                          margin: 0,
+                        }
+                      }}
+                      size="small"
+                    />
+                    {form.customPrice !== '' && accommodationBasePriceDisplay && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {Number(form.customPrice) < Number(accommodationBasePriceDisplay)
+                            ? `Réduction: ${(Number(accommodationBasePriceDisplay) - Number(form.customPrice)).toFixed(2)}€`
+                            : `Augmentation: ${(Number(form.customPrice) - Number(accommodationBasePriceDisplay)).toFixed(2)}€`}
+                        </Typography>
+                      </Box>
                     )}
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
                       <TextField
                         label="Réduction (%)"
                         type="number"
@@ -2016,17 +2071,7 @@ export default function ReservationPage() {
                         onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
                         fullWidth
                         inputProps={{ min: 0, max: 100 }}
-                      />
-                      <TextField
-                        label="Prix remisé manuel"
-                        type="number"
-                        value={form.customPrice}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
-                        }}
-                        fullWidth
-                        inputProps={{ min: 0, step: 0.01 }}
+                        size="small"
                       />
                     </Stack>
                   </CardContent>
@@ -2205,17 +2250,17 @@ export default function ReservationPage() {
                 return acc + optionLineTotal(so);
               }, 0);
               const resourcesTotal = resourcesSelected.reduce((acc, sr) => acc + resourceLineTotal(sr), 0);
-              const subtotal = form.totalPrice + optionsTotal + resourcesTotal;
+              const subtotal = (parsedTotalPrice ?? 0) + optionsTotal + resourcesTotal;
               
               // La remise s'applique UNIQUEMENT au prix de l'hébergement
-              let accommodationPriceAfterDiscount = form.totalPrice;
+              let accommodationPriceAfterDiscount = parsedTotalPrice ?? 0;
               let discountAmount = 0;
-              if (form.customPrice !== '') {
-                accommodationPriceAfterDiscount = Number(form.customPrice);
-                discountAmount = Math.max(0, form.totalPrice - accommodationPriceAfterDiscount);
-              } else if (form.discountPercent > 0) {
-                discountAmount = Math.round(form.totalPrice * form.discountPercent / 100 * 100) / 100;
-                accommodationPriceAfterDiscount = Math.round((form.totalPrice - discountAmount) * 100) / 100;
+              if (parsedCustomPrice !== null) {
+                accommodationPriceAfterDiscount = parsedCustomPrice;
+                discountAmount = parsedTotalPrice !== null ? Math.max(0, parsedTotalPrice - accommodationPriceAfterDiscount) : 0;
+              } else if (parsedTotalPrice !== null && form.discountPercent > 0) {
+                discountAmount = Math.round(parsedTotalPrice * form.discountPercent / 100 * 100) / 100;
+                accommodationPriceAfterDiscount = Math.round((parsedTotalPrice - discountAmount) * 100) / 100;
               }
               
               const totalSejour = Math.round((accommodationPriceAfterDiscount + optionsTotal + resourcesTotal + touristTaxTotal) * 100) / 100;
@@ -2226,7 +2271,7 @@ export default function ReservationPage() {
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Typography variant="body2" color="text.secondary">Prix hébergement</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25 }}>
-                      {(form.discountPercent > 0 || form.customPrice !== '') && (
+                      {(form.discountPercent > 0 || form.customPrice !== '') && parsedTotalPrice !== null && (
                         <Typography 
                           variant="caption" 
                           sx={{ 
@@ -2235,11 +2280,11 @@ export default function ReservationPage() {
                             color: 'text.secondary'
                           }}
                         >
-                          {form.totalPrice.toFixed(2)}€
+                          {parsedTotalPrice.toFixed(2)}€
                         </Typography>
                       )}
                       <Typography variant="body2" sx={{ fontWeight: 600, color: (form.discountPercent > 0 || form.customPrice !== '') ? 'success.main' : 'inherit' }}>
-                        {accommodationPriceAfterDiscount.toFixed(2)}€
+                        {accommodationPriceDisplay !== null ? `${accommodationPriceDisplay.toFixed(2)}€` : '—'}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
                         {nightlyBreakdown.length > 0 ? (

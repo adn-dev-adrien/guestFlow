@@ -80,11 +80,11 @@ router.get('/summary', (req, res) => {
   let totalPending = 0;
 
   for (const r of reservations) {
-    totalRevenue += r.finalPrice;
-    if (r.depositPaid) totalCollected += r.depositAmount;
-    if (r.balancePaid) totalCollected += r.balanceAmount;
-    if (!r.depositPaid) totalPending += r.depositAmount;
-    if (!r.balancePaid) totalPending += r.balanceAmount;
+    totalRevenue += Number(r.finalPrice || 0);
+    if (r.depositPaid) totalCollected += Number(r.depositAmount || 0);
+    if (r.balancePaid) totalCollected += Number(r.balanceAmount || 0);
+    if (!r.depositPaid) totalPending += Number(r.depositAmount || 0);
+    if (!r.balancePaid) totalPending += Number(r.balanceAmount || 0);
   }
 
   res.json({
@@ -113,16 +113,16 @@ router.get('/projection', (req, res) => {
   const details = [];
 
   for (const r of reservations) {
-    let depositCollected = r.depositPaid ? r.depositAmount : 0;
-    let balanceCollected = r.balancePaid ? r.balanceAmount : 0;
+    let depositCollected = r.depositPaid ? Number(r.depositAmount || 0) : 0;
+    let balanceCollected = r.balancePaid ? Number(r.balanceAmount || 0) : 0;
     let depositExpected = 0;
     let balanceExpected = 0;
 
     if (!r.depositPaid && r.depositDueDate && r.depositDueDate <= targetDate) {
-      depositExpected = r.depositAmount;
+      depositExpected = Number(r.depositAmount || 0);
     }
     if (!r.balancePaid && r.balanceDueDate && r.balanceDueDate <= targetDate) {
-      balanceExpected = r.balanceAmount;
+      balanceExpected = Number(r.balanceAmount || 0);
     }
 
     collected += depositCollected + balanceCollected;
@@ -163,20 +163,21 @@ router.get('/projection', (req, res) => {
 router.get('/pending', (req, res) => {
   const reservations = db.prepare(`
     SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
-      (r.finalPrice
+      (COALESCE(r.finalPrice, 0)
         - (CASE WHEN r.depositPaid = 1 THEN COALESCE(r.depositAmount, 0) ELSE 0 END)
         - (CASE WHEN r.balancePaid = 1 THEN COALESCE(r.balanceAmount, 0) ELSE 0 END)
       ) as remainingDue
     FROM reservations r
     JOIN clients c ON r.clientId = c.id
     JOIN properties p ON r.propertyId = p.id
-    WHERE r.depositPaid = 0
+    WHERE r.finalPrice IS NOT NULL
+      AND (r.depositPaid = 0
        OR r.balancePaid = 0
        OR (r.depositPaid = 1 AND r.balancePaid = 1 AND (
-            r.finalPrice
+            COALESCE(r.finalPrice, 0)
             - COALESCE(r.depositAmount, 0)
             - COALESCE(r.balanceAmount, 0)
-          ) > 0)
+          ) > 0))
     ORDER BY r.depositDueDate, r.balanceDueDate
   `).all();
 
