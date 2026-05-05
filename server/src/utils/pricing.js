@@ -674,7 +674,7 @@ function calculateReservationQuote({
     : Number(customPrice);
   const finalPrice = roundMoney(
     Number.isFinite(customFinalPrice)
-      ? customFinalPrice
+      ? customFinalPrice + optionsTotal + resourcesTotal
       : subtotal * (1 - normalizedDiscountPercent / 100)
   );
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));

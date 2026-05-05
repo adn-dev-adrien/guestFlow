@@ -2390,16 +2390,6 @@ export default function ReservationPage() {
                           </Box>
                         )}
 
-                        {/* Taxe de séjour (pas de TVA) */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Taxe de séjour
-                          </Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                            {touristTaxTotal.toFixed(2)}€
-                          </Typography>
-                        </Box>
-
                         {/* Total HT / TVA */}
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
                           <Typography variant="caption" sx={{ fontWeight: 600 }}>
@@ -2412,20 +2402,6 @@ export default function ReservationPage() {
                       </>
                     )}
                   </Box>
-
-                  {/* Taxe de séjour (ligne séparée) */}
-                  <>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {touristTaxRate.toFixed(2)}€ × {adultsCount} adulte{adultsCount > 1 ? 's' : ''} × {nights} nuit{nights > 1 ? 's' : ''}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{touristTaxTotal.toFixed(2)}€</Typography>
-                    </Box>
-                  </>
 
                   {/* Total du séjour */}
                   <Divider />
