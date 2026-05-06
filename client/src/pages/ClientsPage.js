@@ -369,13 +369,14 @@ export default function ClientsPage() {
             <TableCell sx={{ fontWeight: 600 }}>Prénom</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Téléphone</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>CP</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Ville</TableCell>
             <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
             <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
           </TableRow>
         )}
         hasItems={clients.length > 0}
-        emptyColSpan={7}
+        emptyColSpan={8}
         emptyText="Aucun client trouvé"
       >
         {clients.map((c) => (
@@ -384,6 +385,7 @@ export default function ClientsPage() {
             <TableCell>{c.firstName}</TableCell>
             <TableCell>{c.email}</TableCell>
             <TableCell>{c.phone}</TableCell>
+            <TableCell>{c.postalCode || '—'}</TableCell>
             <TableCell>{c.city || '—'}</TableCell>
             <TableCell>
               {c.notes && <Chip label={c.notes.substring(0, 30)} size="small" variant="outlined" />}
