@@ -1002,10 +1002,23 @@ export default function ReservationPage() {
     const isLockedReservation = Boolean(reservationId && existingReservationLocked);
 
     if (isLockedReservation) {
-      await alert({
-        title: 'Modification impossible',
-        message: 'Cette réservation n\'est plus modifiable. Seules les réservations à venir peuvent être modifiées.',
-      });
+      try {
+        await api.markPayment(reservationId, {
+          depositPaid: Boolean(form.depositPaid),
+          balancePaid: Boolean(form.balancePaid),
+          cautionReceived: Boolean(form.cautionReceived),
+          cautionReceivedDate: form.cautionReceivedDate || null,
+          cautionReturned: Boolean(form.cautionReturned),
+          cautionReturnedDate: form.cautionReturnedDate || null,
+        });
+        if (safeAfterSaveAction) {
+          safeAfterSaveAction();
+        } else {
+          navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
+        }
+      } catch (err) {
+        await alert({ title: 'Erreur', message: err.message || 'Impossible d\'enregistrer les informations de paiement.' });
+      }
       return;
     }
     
@@ -1423,7 +1436,7 @@ export default function ReservationPage() {
                 Actualiser tarifs
               </Button>
             )}
-            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation} disabled={isReservationLocked}>
+            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>
               Enregistrer
             </Button>
             <Button variant="outlined" onClick={goBackToOrigin}>
@@ -1463,7 +1476,7 @@ export default function ReservationPage() {
         <Box>
         {isReservationLocked && (
           <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
-            Cette réservation est passée ou en cours et ne peut plus être modifiée. Seules les réservations à venir sont modifiables.
+            Cette réservation est passée ou en cours: seules les validations de paiement/caution restent modifiables.
           </Typography>
         )}
 
@@ -1896,6 +1909,7 @@ export default function ReservationPage() {
 
           <Divider />
 
+          <Box sx={{ position: 'relative', zIndex: 10 }}>
           <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Finance</Typography>
 
@@ -1997,7 +2011,15 @@ export default function ReservationPage() {
                   fullWidth
                   variant={form.depositPaid ? 'contained' : 'outlined'}
                   color={form.depositPaid ? 'success' : 'inherit'}
-                  onClick={() => updateForm({ depositPaid: !form.depositPaid })}
+                  onClick={async () => {
+                    const next = !form.depositPaid;
+                    if (isReservationLocked && editingReservationId) {
+                      await api.markPayment(editingReservationId, { depositPaid: next });
+                      setForm((prev) => ({ ...prev, depositPaid: next }));
+                    } else {
+                      updateForm({ depositPaid: next });
+                    }
+                  }}
                   sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
                 >
                   {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
@@ -2018,7 +2040,15 @@ export default function ReservationPage() {
                   fullWidth
                   variant={form.balancePaid ? 'contained' : 'outlined'}
                   color={form.balancePaid ? 'success' : 'inherit'}
-                  onClick={() => updateForm({ balancePaid: !form.balancePaid })}
+                  onClick={async () => {
+                    const next = !form.balancePaid;
+                    if (isReservationLocked && editingReservationId) {
+                      await api.markPayment(editingReservationId, { balancePaid: next });
+                      setForm((prev) => ({ ...prev, balancePaid: next }));
+                    } else {
+                      updateForm({ balancePaid: next });
+                    }
+                  }}
                   sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
                 >
                   {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
@@ -2037,13 +2067,16 @@ export default function ReservationPage() {
                   fullWidth
                   variant={form.cautionReceived ? 'contained' : 'outlined'}
                   color={form.cautionReceived ? 'info' : 'inherit'}
-                  onClick={() => {
+                  onClick={async () => {
                     const next = !form.cautionReceived;
                     const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-                    updateForm({
-                      cautionReceived: next,
-                      cautionReceivedDate: next ? today : '',
-                    });
+                    if (isReservationLocked && editingReservationId) {
+                      const date = next ? today : '';
+                      await api.markPayment(editingReservationId, { cautionReceived: next, cautionReceivedDate: date });
+                      setForm((prev) => ({ ...prev, cautionReceived: next, cautionReceivedDate: date }));
+                    } else {
+                      updateForm({ cautionReceived: next, cautionReceivedDate: next ? today : '' });
+                    }
                   }}
                   sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
                 >
@@ -2070,13 +2103,16 @@ export default function ReservationPage() {
                   fullWidth
                   variant={form.cautionReturned ? 'contained' : 'outlined'}
                   color={form.cautionReturned ? 'secondary' : 'inherit'}
-                  onClick={() => {
+                  onClick={async () => {
                     const next = !form.cautionReturned;
                     const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-                    updateForm({
-                      cautionReturned: next,
-                      cautionReturnedDate: next ? today : form.cautionReturnedDate,
-                    });
+                    if (isReservationLocked && editingReservationId) {
+                      const date = next ? today : form.cautionReturnedDate;
+                      await api.markPayment(editingReservationId, { cautionReturned: next, cautionReturnedDate: date });
+                      setForm((prev) => ({ ...prev, cautionReturned: next, cautionReturnedDate: date }));
+                    } else {
+                      updateForm({ cautionReturned: next, cautionReturnedDate: next ? today : form.cautionReturnedDate });
+                    }
                   }}
                   sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
                 >
@@ -2094,6 +2130,8 @@ export default function ReservationPage() {
               </Grid>
             </Grid>
           </Box>
+
+          </Box>{/* end zIndex Finance wrapper */}
 
           <Divider />
 

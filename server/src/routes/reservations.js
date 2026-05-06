@@ -948,10 +948,8 @@ router.put('/:id', (req, res) => {
 
 // Mark deposit/balance/caution as paid, or update check-in/out status
 router.patch('/:id/payment', (req, res) => {
-  const archivedError = getArchivedReservationError(Number(req.params.id));
-  if (archivedError) {
-    return res.status(archivedError.status).json(archivedError.body);
-  }
+  const existing = db.prepare('SELECT id FROM reservations WHERE id = ?').get(Number(req.params.id));
+  if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
 
   const { depositPaid, balancePaid, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
