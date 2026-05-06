@@ -211,7 +211,7 @@ export default function Dashboard() {
                           ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
                         ].join(', ');
                         return (
-                          <TableRow key={r.id} hover sx={getStatusRowSx(r.checkInDone, r.checkInReady)}>
+                          <TableRow key={r.id} hover sx={{ ...getStatusRowSx(r.checkInDone, r.checkInReady), cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; navigate(withFrom(`/reservations/${r.id}`, '/')); }}>
                             <TableCell padding="checkbox">
                               <Tooltip title="Logement prêt">
                                 <Checkbox
@@ -290,7 +290,7 @@ export default function Dashboard() {
                           ...(r.resources || []).map((rr) => `${rr.name} x${rr.quantity}`),
                         ].join(', ');
                         return (
-                          <TableRow key={r.id} hover sx={getStatusRowSx(r.checkOutDone)}>
+                          <TableRow key={r.id} hover sx={{ ...getStatusRowSx(r.checkOutDone), cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; navigate(withFrom(`/reservations/${r.id}`, '/')); }}>
                             <TableCell padding="checkbox">
                               <Tooltip title="Départ effectué">
                                 <Checkbox
