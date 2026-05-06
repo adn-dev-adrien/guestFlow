@@ -587,8 +587,14 @@ function calculateReservationQuote({
       const priceType = option.priceType || 'per_stay';
       const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
       const lockedLine = lockedOptionsById.get(optionId);
+      const shouldRepriceLockedFreeLine = Boolean(
+        !offeredOptionIdSet.has(optionId)
+          && lockedLine
+          && Number(lockedLine.totalPrice || 0) === 0
+          && Number(unitBase || 0) > 0
+      );
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine,
+        lockedLine: shouldRepriceLockedFreeLine ? null : lockedLine,
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });
@@ -599,6 +605,7 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         priceType,
+        originalTotalPrice: merged.totalPrice,
         totalPrice: offeredOptionIdSet.has(optionId) ? 0 : merged.totalPrice,
       };
     })
@@ -617,9 +624,16 @@ function calculateReservationQuote({
     }))
     .filter(Boolean)
     .map((line) => {
-      const lockedLine = lockedOptionsById.get(Number(line.optionId));
+      const optionId = Number(line.optionId);
+      const lockedLine = lockedOptionsById.get(optionId);
+      const shouldRepriceLockedFreeLine = Boolean(
+        !offeredOptionIdSet.has(optionId)
+          && lockedLine
+          && Number(lockedLine.totalPrice || 0) === 0
+          && Number(line.unitPrice || 0) > 0
+      );
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine,
+        lockedLine: shouldRepriceLockedFreeLine ? null : lockedLine,
         targetBilledUnits: 1,
         currentUnitPrice: line.unitPrice,
       });
@@ -627,6 +641,7 @@ function calculateReservationQuote({
         ...line,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
+        originalTotalPrice: merged.totalPrice,
         totalPrice: offeredOptionIdSet.has(Number(line.optionId)) ? 0 : merged.totalPrice,
       };
     })

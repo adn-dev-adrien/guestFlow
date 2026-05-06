@@ -337,6 +337,7 @@ export default function ReservationPage() {
         optionId: Number(line.optionId),
         quantity: Number(line.quantity || 0),
         totalPrice: Number(line.totalPrice || 0),
+        originalTotalPrice: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
         ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
         ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
       })),
@@ -2269,9 +2270,11 @@ export default function ReservationPage() {
                       </Typography>
                       {optionsSelected.map(so => {
                         const opt = propertyOptions.find(o => o.id === so.optionId);
-                        const total = Number(so.totalPrice || 0);
+                        const isOffered = offeredOptionIds.has(Number(so.optionId));
+                        const total = isOffered
+                          ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
+                          : Number(so.totalPrice || 0);
                         const isAuto = Boolean(opt?.autoOptionType);
-                        const isOffered = Number(so.totalPrice || 0) === 0;
                         let autoHint = '';
                         if (isAuto) {
                           if (so.autoFullNightApplied) autoHint = 'nuit complète';
