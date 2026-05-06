@@ -908,8 +908,10 @@ export default function ReservationPage() {
   };
 
   // ==================== CONFLICT CHECKING ====================
-  const getTimeConflictMessage = (reservationForm) => {
-    if (!reservationForm.startDate || !reservationForm.endDate) return '';
+  const getTimeConflictState = (reservationForm) => {
+    if (!reservationForm.startDate || !reservationForm.endDate) {
+      return { arrivalMessage: '', departureMessage: '', message: '' };
+    }
 
     const cleaning = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
     const newCheckInHour = timeToHour(reservationForm.checkInTime || '15:00');
@@ -925,7 +927,8 @@ export default function ReservationPage() {
       if (newCheckInHour < availableFrom) {
         const availH = String(Math.floor(availableFrom)).padStart(2, '0');
         const availM = availableFrom % 1 >= 0.5 ? '30' : '00';
-        return `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.`;
+        const message = `Impossible : le logement n'est disponible qu'à partir de ${availH}:${availM} (départ ${prevRes.checkOutTime || '10:00'} + ${cleaning}h de ménage). Veuillez choisir une heure d'arrivée à partir de ${availH}:${availM}.`;
+        return { arrivalMessage: message, departureMessage: '', message };
       }
     }
 
@@ -936,11 +939,12 @@ export default function ReservationPage() {
         const maxCheckOutHour = nextCheckInHour - cleaning;
         const maxH = String(Math.floor(maxCheckOutHour)).padStart(2, '0');
         const maxM = maxCheckOutHour % 1 >= 0.5 ? '30' : '00';
-        return `Impossible : le départ à ${reservationForm.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.`;
+        const message = `Impossible : le départ à ${reservationForm.checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale pour cette réservation est ${maxH}:${maxM}.`;
+        return { arrivalMessage: '', departureMessage: message, message };
       }
     }
 
-    return '';
+    return { arrivalMessage: '', departureMessage: '', message: '' };
   };
 
   const getDateRangeConflictInfo = useCallback((startDate, endDate) => {
@@ -1049,9 +1053,9 @@ export default function ReservationPage() {
       return;
     }
 
-    const timeConflictMessage = getTimeConflictMessage(form);
-    if (timeConflictMessage) {
-      await alert({ title: 'Conflit de réservation', message: timeConflictMessage });
+    const timeConflictState = getTimeConflictState(form);
+    if (timeConflictState.message) {
+      await alert({ title: 'Conflit de réservation', message: timeConflictState.message });
       return;
     }
 
@@ -1357,7 +1361,8 @@ export default function ReservationPage() {
   const minNightsWarning = minNightsState.breached
     ? `Séjour trop court: ${minNightsState.nights} nuit(s) pour un minimum saisonnier de ${minNightsState.required} nuit(s).`
     : '';
-  const liveTimeConflictMessage = getTimeConflictMessage(form);
+  const liveTimeConflictState = getTimeConflictState(form);
+  const liveTimeConflictMessage = liveTimeConflictState.message;
   const defaultCheckInTime = selectedProperty?.defaultCheckIn || '15:00';
   const defaultCheckOutTime = selectedProperty?.defaultCheckOut || '10:00';
   const quantityPersons = (Number(form.adults) || 1) + (Number(form.children) || 0) + (Number(form.teens) || 0);
@@ -1553,7 +1558,7 @@ export default function ReservationPage() {
 
           <Grid container spacing={2}>
             <Grid item xs={6}>
-              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
+              <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
                 <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
                 <Select
                   value={form.checkInTime}
@@ -1565,7 +1570,7 @@ export default function ReservationPage() {
               </FormControl>
             </Grid>
             <Grid item xs={6}>
-              <FormControl fullWidth error={Boolean(liveTimeConflictMessage)}>
+              <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
                 <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
                 <Select
                   value={form.checkOutTime}
