@@ -118,6 +118,7 @@ export default function ReservationPage() {
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
+  const [isIcalSource, setIsIcalSource] = useState(false);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -438,6 +439,7 @@ export default function ReservationPage() {
           });
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
+          setIsIcalSource(res.sourceType === 'ical');
 
           initialPricingContextRef.current = {
             propertyId: res.propertyId,
@@ -2134,7 +2136,8 @@ export default function ReservationPage() {
               const optionsTotal = Number(quote?.optionsTotal || 0);
               const resourcesTotal = Number(quote?.resourcesTotal || 0);
               const discountAmount = Number(quote?.discountAmount || 0);
-              const totalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
+              const rawTotalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
+              const totalSejour = isIcalSource ? rawTotalSejour - touristTaxTotal : rawTotalSejour;
 
               const vatPercentageAccommodation = Number(quote?.vatPercentageAccommodation ?? selectedProperty?.vatPercentageAccommodation ?? 20);
               const vatPercentageOptions = Number(quote?.vatPercentageOptions ?? selectedProperty?.vatPercentageOptions ?? 20);
@@ -2308,14 +2311,26 @@ export default function ReservationPage() {
                   {/* Taxe de séjour */}
                   <>
                     <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                       <Box>
                         <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
                         <Typography variant="caption" color="text.secondary">
                           {touristTaxRate.toFixed(2)}€ × {adultsCount} adulte{adultsCount > 1 ? 's' : ''} × {nights} nuit{nights > 1 ? 's' : ''}
                         </Typography>
+                        {isIcalSource && (
+                          <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
+                            Collectée par la plateforme
+                          </Typography>
+                        )}
                       </Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{touristTaxTotal.toFixed(2)}€</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {isIcalSource && (
+                          <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, whiteSpace: 'nowrap' }}>✓ Offert</Typography>
+                        )}
+                        <Typography variant="body2" sx={{ fontWeight: 600, textDecoration: isIcalSource ? 'line-through' : 'none', opacity: isIcalSource ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                          {touristTaxTotal.toFixed(2)}€
+                        </Typography>
+                      </Box>
                     </Box>
                   </>
 
