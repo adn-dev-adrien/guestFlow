@@ -183,6 +183,7 @@ async function performIcalSync(source) {
 
   const getMapping = db.prepare('SELECT reservationId, eventHash FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
   const listMappings = db.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
+  const deleteMapping = db.prepare('DELETE FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
   const upsertMapping = db.prepare(`
     INSERT INTO ical_import_events (sourceId, eventUid, reservationId, eventHash, lastSeenAt)
     VALUES (?, ?, ?, ?, datetime('now'))
@@ -191,6 +192,22 @@ async function performIcalSync(source) {
   `);
 
   const getReservationById = db.prepare('SELECT id, sourceType, icalSyncLocked FROM reservations WHERE id = ?');
+  const getLockedReservationByDates = db.prepare(`
+    SELECT id
+    FROM reservations
+    WHERE sourceType = 'ical'
+      AND sourceIcalSourceId = ?
+      AND icalSyncLocked = 1
+      AND startDate = ?
+      AND endDate = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `);
+  const markReservationUid = db.prepare(`
+    UPDATE reservations
+    SET sourceIcalEventUid = ?, updatedAt = datetime('now')
+    WHERE id = ?
+  `);
   const deleteReservation = db.prepare('DELETE FROM reservations WHERE id = ?');
   const insertReservation = db.prepare(`
     INSERT INTO reservations (
@@ -225,6 +242,17 @@ async function performIcalSync(source) {
       const notes = `Import iCal (${source.name})\nUID: ${event.uid}${event.summary ? `\nRésumé: ${event.summary}` : ''}`;
 
       if (!mapping) {
+        // If an imported reservation has been manually locked, try to rebind
+        // it when provider-side UID changes but dates are still identical.
+        const lockedByDates = getLockedReservationByDates.get(source.id, event.startDate, event.endDate);
+        if (lockedByDates) {
+          const reservationId = Number(lockedByDates.id);
+          markReservationUid.run(event.uid, reservationId);
+          upsertMapping.run(source.id, event.uid, reservationId, eventHash);
+          lockedCount += 1;
+          continue;
+        }
+
         const result = insertReservation.run(
           source.propertyId,
           1, // Default client ID for iCal imports (will be created/updated as needed)
@@ -275,7 +303,17 @@ async function performIcalSync(source) {
 
     const staleMappings = listMappings.all(source.id).filter((row) => !seenUids.has(row.eventUid));
     staleMappings.forEach((row) => {
+      const mappedReservation = getReservationById.get(row.reservationId);
+      if (mappedReservation && String(mappedReservation?.sourceType || '') === 'ical' && Number(mappedReservation?.icalSyncLocked || 0) === 1) {
+        // Keep manually locked iCal reservations even if the event UID disappeared.
+        // Mapping row is removed so a future event can rebind by dates.
+        deleteMapping.run(source.id, row.eventUid);
+        lockedCount += 1;
+        return;
+      }
+
       deleteReservation.run(row.reservationId);
+      deleteMapping.run(source.id, row.eventUid);
       removedCount += 1;
     });
 
