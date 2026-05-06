@@ -117,7 +117,10 @@ export default function Dashboard() {
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
-          <Card>
+          <Card
+            sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
+            onClick={() => navigate('/properties')}
+          >
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <HomeWorkIcon sx={{ fontSize: 40, color: 'primary.main' }} />
               <Box>
@@ -128,7 +131,10 @@ export default function Dashboard() {
           </Card>
         </Grid>
         <Grid item xs={12} sm={4}>
-          <Card>
+          <Card
+            sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
+            onClick={() => navigate('/reservations/upcoming')}
+          >
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <EventIcon sx={{ fontSize: 40, color: 'secondary.main' }} />
               <Box>
@@ -139,7 +145,10 @@ export default function Dashboard() {
           </Card>
         </Grid>
         <Grid item xs={12} sm={4}>
-          <Card>
+          <Card
+            sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
+            onClick={() => navigate('/planning')}
+          >
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <TodayIcon sx={{ fontSize: 40, color: '#f57c00' }} />
               <Box>

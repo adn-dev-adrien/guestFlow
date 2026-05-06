@@ -36,6 +36,7 @@ import PropertyPricingSeasonsPage from './pages/PropertyPricingSeasonsPage';
 import OptionsPage from './pages/OptionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationPage from './pages/ReservationPage';
+import ReservationsUpcomingPage from './pages/ReservationsUpcomingPage';
 import FinancePage from './pages/FinancePage';
 import TouristTaxPage from './pages/TouristTaxPage';
 import SchoolHolidaysPage from './pages/SchoolHolidaysPage';
@@ -352,6 +353,7 @@ function AppShell() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/reservations/new" element={<ReservationPage />} />
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />
+          <Route path="/reservations/upcoming" element={<ReservationsUpcomingPage />} />
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path="/planning" element={<PlanningPage />} />
