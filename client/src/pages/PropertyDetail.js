@@ -49,6 +49,9 @@ const EMPTY_ICAL_FORM = {
   isActive: true,
 };
 
+const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const SUPPORTED_PHOTO_FORMATS_TEXT = 'Formats pris en charge: JPG, JPEG, PNG, WEBP.';
+
 function getSortedSeasonRanges(rule) {
   const ranges = Array.isArray(rule?.dateRanges) ? rule.dateRanges : [];
   if (ranges.length > 0) {
@@ -97,6 +100,7 @@ export default function PropertyDetail() {
   const [docName, setDocName] = useState('');
   const [docFile, setDocFile] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
+  const [photoValidationError, setPhotoValidationError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [icalForm, setIcalForm] = useState(EMPTY_ICAL_FORM);
   const [icalSaving, setIcalSaving] = useState(false);
@@ -319,10 +323,31 @@ export default function PropertyDetail() {
     setForm({ ...originalForm });
     setDirty(false);
     setTimedOptions({ ...initialTimedOptions });
+    setPhotoFile(null);
+    setPhotoValidationError('');
+  };
+
+  const handlePhotoFileChange = (event) => {
+    const next = event.target.files?.[0] || null;
+    if (!next) return;
+
+    if (!SUPPORTED_PHOTO_MIME_TYPES.has(next.type)) {
+      setPhotoValidationError(`Format non pris en charge pour la photo. ${SUPPORTED_PHOTO_FORMATS_TEXT}`);
+      event.target.value = '';
+      return;
+    }
+
+    setPhotoValidationError('');
+    setPhotoFile(next);
+    setDirty(true);
   };
 
   const handleSaveProperty = async () => {
     if (!form.name?.trim()) return;
+    if (photoFile && !SUPPORTED_PHOTO_MIME_TYPES.has(photoFile.type)) {
+      setPhotoValidationError(`Format non pris en charge pour la photo. ${SUPPORTED_PHOTO_FORMATS_TEXT}`);
+      return;
+    }
     setSaving(true);
     try {
       if (isNew) {
@@ -347,7 +372,10 @@ export default function PropertyDetail() {
 
       setDirty(false);
       setPhotoFile(null);
+      setPhotoValidationError('');
       await load();
+    } catch (err) {
+      setPhotoValidationError(err?.message || 'Impossible de mettre à jour la photo du logement.');
     } finally {
       setSaving(false);
     }
@@ -506,9 +534,17 @@ export default function PropertyDetail() {
                 <Box>
                   <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
                     {property.photo ? 'Changer la photo' : 'Ajouter une photo'}
-                    <input type="file" hidden accept="image/*" onChange={(e) => { const next = e.target.files?.[0] || null; setPhotoFile(next); if (next) setDirty(true); }} />
+                    <input type="file" hidden accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handlePhotoFileChange} />
                   </Button>
                   {photoFile && <Typography variant="body2" sx={{ mt: 1 }}>{photoFile.name}</Typography>}
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                    {SUPPORTED_PHOTO_FORMATS_TEXT}
+                  </Typography>
+                  {photoValidationError && (
+                    <Typography variant="body2" color="error" sx={{ mt: 0.75 }}>
+                      {photoValidationError}
+                    </Typography>
+                  )}
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />

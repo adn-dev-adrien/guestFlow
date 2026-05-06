@@ -444,17 +444,34 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+const SUPPORTED_PHOTO_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
+const SUPPORTED_PHOTO_FORMATS_LABEL = 'JPG, JPEG, PNG, WEBP';
+
 const photoUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-      cb(new Error('Le fichier photo doit être une image'));
+    if (!file.mimetype || !SUPPORTED_PHOTO_MIME_TYPES.has(file.mimetype)) {
+      cb(new Error(`Format d'image non pris en charge. Formats acceptés: ${SUPPORTED_PHOTO_FORMATS_LABEL}.`));
       return;
     }
     cb(null, true);
   }
 });
+
+function handlePhotoUpload(req, res, next) {
+  photoUpload.single('photo')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || `Format d'image non pris en charge. Formats acceptés: ${SUPPORTED_PHOTO_FORMATS_LABEL}.` });
+    }
+    return next();
+  });
+}
 
 async function saveOptimizedPhoto(file) {
   if (!file) return '';
@@ -576,7 +593,7 @@ router.post('/:id/pricing/progressive-preview', (req, res) => {
 });
 
 // Create property
-router.post('/', photoUpload.single('photo'), async (req, res) => {
+router.post('/', handlePhotoUpload, async (req, res) => {
   try {
     const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources } = req.body;
     const photo = req.file ? await saveOptimizedPhoto(req.file) : '';
@@ -614,7 +631,7 @@ router.post('/', photoUpload.single('photo'), async (req, res) => {
 });
 
 // Update property
-router.put('/:id', photoUpload.single('photo'), async (req, res) => {
+router.put('/:id', handlePhotoUpload, async (req, res) => {
   try {
     const { name, maxAdults, maxChildren, maxBabies, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources } = req.body;
     const existing = db.prepare('SELECT photo FROM properties WHERE id = ?').get(req.params.id);
