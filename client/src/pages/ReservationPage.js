@@ -1004,28 +1004,6 @@ export default function ReservationPage() {
 
   const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
-    const isLockedReservation = Boolean(reservationId && existingReservationLocked);
-
-    if (isLockedReservation) {
-      try {
-        await api.markPayment(reservationId, {
-          depositPaid: Boolean(form.depositPaid),
-          balancePaid: Boolean(form.balancePaid),
-          cautionReceived: Boolean(form.cautionReceived),
-          cautionReceivedDate: form.cautionReceivedDate || null,
-          cautionReturned: Boolean(form.cautionReturned),
-          cautionReturnedDate: form.cautionReturnedDate || null,
-        });
-        if (safeAfterSaveAction) {
-          safeAfterSaveAction();
-        } else {
-          navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
-        }
-      } catch (err) {
-        await alert({ title: 'Erreur', message: err.message || 'Impossible d\'enregistrer les informations de paiement.' });
-      }
-      return;
-    }
     
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Veuillez sélectionner un logement.' });
@@ -1355,6 +1333,7 @@ export default function ReservationPage() {
   const nextResBound = otherReservations.filter((r) => r.startDate >= (form.endDate || ''));
   const departureMax = nextResBound.length > 0 ? nextResBound[0].startDate : '';
   const isReservationLocked = Boolean(reservationId && existingReservationLocked);
+  const lockedSectionSx = isReservationLocked ? { opacity: 0.55, pointerEvents: 'none' } : undefined;
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);
   const datesUnavailableMessage = dateRangeConflictInfo?.message || 'Ces dates ne sont pas dispo pour ce logement.';
@@ -1482,7 +1461,7 @@ export default function ReservationPage() {
         <Box>
         {isReservationLocked && (
           <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
-            Cette réservation est passée ou en cours: seules les validations de paiement/caution restent modifiables.
+            Cette réservation est passée ou en cours : seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution restent modifiables.
           </Typography>
         )}
 
@@ -1491,20 +1470,9 @@ export default function ReservationPage() {
             position: 'relative',
           }}
         >
-          {isReservationLocked && (
-            <Box
-              aria-hidden
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 5,
-                cursor: 'not-allowed',
-                bgcolor: 'transparent',
-              }}
-            />
-          )}
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={lockedSectionSx}>
           <FormControl fullWidth>
             <InputLabel>Logement</InputLabel>
             <Select
@@ -1600,6 +1568,7 @@ export default function ReservationPage() {
               {minNightsWarning}
             </Typography>
           )}
+          </Box>
           
           <Divider />
 
@@ -1621,6 +1590,7 @@ export default function ReservationPage() {
 
           <Divider />
 
+          <Box sx={lockedSectionSx}>
           <Grid container spacing={2}>
             <Grid item xs={3}>
               <TextField
@@ -1725,6 +1695,7 @@ export default function ReservationPage() {
               Attention: la capacité des lits classiques saisis ({reservationBedCapacity}) est inférieure au besoin réel ({requiredRegularBeds}). Les enfants de 2 à 12 ans placés en lit bébé sont déduits automatiquement du calcul.
             </Typography>
           )}
+          </Box>
 
           <FormControl fullWidth>
             <InputLabel>Plateforme</InputLabel>
@@ -1735,6 +1706,7 @@ export default function ReservationPage() {
 
           <Divider />
 
+          <Box sx={lockedSectionSx}>
           {propertyOptions.length > 0 && (
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Options</Typography>
@@ -1912,6 +1884,7 @@ export default function ReservationPage() {
               </Box>
             </>
           )}
+          </Box>
 
           <Divider />
 
@@ -2009,6 +1982,7 @@ export default function ReservationPage() {
                   label="Échéance acompte"
                   type="date"
                   value={form.depositDueDate}
+                  disabled={isReservationLocked}
                   InputLabelProps={{ shrink: true }}
                   onChange={(e) => updateForm({ depositDueDate: e.target.value })}
                   fullWidth
@@ -2038,6 +2012,7 @@ export default function ReservationPage() {
                   label="Échéance solde"
                   type="date"
                   value={form.balanceDueDate}
+                  disabled={isReservationLocked}
                   InputLabelProps={{ shrink: true }}
                   onChange={(e) => updateForm({ balanceDueDate: e.target.value })}
                   fullWidth
@@ -2141,6 +2116,7 @@ export default function ReservationPage() {
 
           <Divider />
 
+          <Box sx={lockedSectionSx}>
           <TextField
             label="Notes"
             multiline
@@ -2149,6 +2125,7 @@ export default function ReservationPage() {
             onChange={(e) => updateForm({ notes: e.target.value })}
             fullWidth
           />
+          </Box>
           </Box>
         </Box>
         </Box>

@@ -166,6 +166,14 @@ function addReservationHistoryEntry(reservationId, eventType, changes) {
     .run(reservationId, eventType, JSON.stringify(changes || []));
 }
 
+function getTodayIsoDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function computeNextIcalSyncLocked(existingReservation) {
   if (!existingReservation) return 0;
   if (String(existingReservation.sourceType || '') === 'ical') return 1;
@@ -781,6 +789,7 @@ router.put('/:id', (req, res) => {
   } = req.body;
 
   const beforeAuditSnapshot = getReservationAuditSnapshotFromDb(Number(req.params.id));
+  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= getTodayIsoDate());
 
   const existingReservation = db.prepare('SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice FROM reservations WHERE id = ?').get(Number(req.params.id));
   const canReuseLockedPricing = !refreshPricingToCurrent
@@ -822,6 +831,36 @@ router.put('/:id', (req, res) => {
   if (quote.error) {
     return res.status(quote.status || 400).json({ error: quote.error });
   }
+
+  const afterAuditSnapshot = getReservationAuditSnapshotFromPayload(req.body, quote);
+  if (pastReservationLocked) {
+    const allowedLockedFields = new Set([
+      'clientId',
+      'platform',
+      'touristTaxRate',
+      'touristTaxTotal',
+      'discountPercent',
+      'finalPrice',
+      'depositAmount',
+      'balanceAmount',
+      'depositPaid',
+      'balancePaid',
+      'cautionReceived',
+      'cautionReceivedDate',
+      'cautionReturned',
+      'cautionReturnedDate',
+    ]);
+    const forbiddenChanges = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
+      .filter((change) => !allowedLockedFields.has(change.field));
+
+    if (forbiddenChanges.length > 0) {
+      return res.status(400).json({
+        error: 'Cette réservation est passée ou en cours. Seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution peuvent encore être modifiés.',
+        code: 'PAST_RESERVATION_LOCKED',
+      });
+    }
+  }
+
   if (quote.minNightsBreached && !forceMinNights) {
     return res.status(409).json({
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
@@ -985,7 +1024,6 @@ router.put('/:id', (req, res) => {
     }
   }
 
-  const afterAuditSnapshot = getReservationAuditSnapshotFromPayload(req.body, quote);
   const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
   if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {
     changes.push({
