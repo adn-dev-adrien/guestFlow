@@ -143,6 +143,14 @@ const api = {
   // iCal Export
   getIcalToken: (propertyId) => request(`/ical/token/${propertyId}`),
   regenerateIcalToken: (propertyId) => request(`/ical/regenerate-token/${propertyId}`, { method: 'POST' }),
+
+  // App settings
+  getSettings: () => request('/settings'),
+  updateSettings: (payload) => request('/settings', { method: 'PUT', body: payload }),
+
+  // Google Calendar sync
+  getGoogleCalendarStatus: () => request('/google-calendar/status'),
+  syncGoogleCalendarReservations: (payload = {}) => request('/google-calendar/sync-reservations', { method: 'POST', body: payload }),
 };
 
 export default api;

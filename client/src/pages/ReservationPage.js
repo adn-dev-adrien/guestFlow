@@ -11,6 +11,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import SyncIcon from '@mui/icons-material/Sync';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
@@ -124,6 +125,7 @@ export default function ReservationPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyEntries, setHistoryEntries] = useState([]);
+  const [googleSyncing, setGoogleSyncing] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
@@ -1279,6 +1281,24 @@ export default function ReservationPage() {
     await handleSaveReservation(action);
   };
 
+  const handleSyncGoogleCalendar = async () => {
+    setGoogleSyncing(true);
+    try {
+      const result = await api.syncGoogleCalendarReservations();
+      await alert({
+        title: 'Google Calendar',
+        message: result?.message || 'Synchronisation terminee.',
+      });
+    } catch (err) {
+      await alert({
+        title: 'Erreur Google Calendar',
+        message: err?.message || 'Impossible de synchroniser les reservations vers Google Calendar.',
+      });
+    } finally {
+      setGoogleSyncing(false);
+    }
+  };
+
   const buildBackUrlWithReservationFocus = useCallback(() => {
     if (!from) return from;
     if (!from.startsWith('/calendar')) return from;
@@ -1452,6 +1472,14 @@ export default function ReservationPage() {
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              startIcon={googleSyncing ? <CircularProgress size={16} /> : <SyncIcon />}
+              onClick={handleSyncGoogleCalendar}
+              disabled={googleSyncing}
+            >
+              {googleSyncing ? 'Sync Google...' : 'Sync Google'}
+            </Button>
             {reservationId && (
               <Button variant="outlined" color="warning" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
                 Actualiser tarifs

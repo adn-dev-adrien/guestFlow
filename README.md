@@ -47,6 +47,13 @@ A web application for managing tourist accommodations: property booking and fina
 - Key indicators: number of properties, upcoming bookings, outstanding balance
 - Pending payments list with checkboxes to mark payments as received
 
+### Google Calendar Integration
+- Sync all reservations to a Google Calendar automatically
+- Event titles include property name and guest name for easy identification
+- Event descriptions contain guest count, bed allocations, and selected options
+- Manage credentials via Settings page (Paramètres) in the application UI
+- Automatic event creation/update with deterministic IDs for duplicate prevention
+
 ## Tech Stack
 
 | Component | Technology |
@@ -93,7 +100,9 @@ guestFlow/
 │           ├── properties.js
 │           ├── options.js
 │           ├── reservations.js
-│           └── finance.js
+│           ├── finance.js
+│           ├── settings.js
+│           └── googleCalendar.js
 ├── client/
 │   ├── package.json
 │   ├── public/
@@ -110,7 +119,9 @@ guestFlow/
 │           ├── PropertyDetail.js
 │           ├── OptionsPage.js
 │           ├── CalendarPage.js
-│           └── FinancePage.js
+│           ├── FinancePage.js
+│           ├── ReservationPage.js
+│           └── SettingsPage.js
 └── server/uploads/            # Uploaded documents and photos
 ```
 
@@ -305,14 +316,64 @@ NODE_ENV=production node src/index.js
 
 The full application is then available at `http://localhost:4000`.
 
-### 3. Environment Variables
+### 3. Configuring Google Calendar Integration
+
+GuestFlow can sync all reservations to a Google Calendar automatically. This is useful for seeing your bookings across all platforms in a single calendar view.
+
+#### Setting up Google Calendar
+
+1. **Create a Google Service Account**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project (or select an existing one)
+   - Go to **APIs & Services** → **Credentials**
+   - Click **Create Credentials** → **Service Account**
+   - Fill in the service account details and click **Create**
+   - Under **Keys**, click **Add Key** → **Create new key** → **JSON**
+   - Save the downloaded JSON file (you'll need this)
+
+2. **Share Your Google Calendar**
+   - Open your Google Calendar
+   - Copy your **Calendar ID** from settings (usually ends with `@gmail.com` or similar)
+   - Go back to Google Cloud Console and note the service account email
+   - In your Google Calendar settings, share the calendar with the service account email (with "Make changes to events" permission)
+
+3. **Enter Credentials in GuestFlow**
+   - Open GuestFlow and navigate to **Paramètres** (Settings) in the menu
+   - Fill in the three fields:
+     - **Calendar ID**: Your Google Calendar ID
+     - **Service Account Email**: From the service account JSON file
+     - **Private Key**: From the service account JSON file (the entire `private_key` value)
+   - Click **Save Settings**
+   - Settings are persisted and survive server restarts
+
+4. **Sync Reservations**
+   - Go to the **Réservations** (Reservations) page
+   - Click the **Sync Google** button to sync all reservations to your calendar
+   - Events will be created with:
+     - **Title**: Property name − Guest name (e.g., "Villa Sunset − Jean Dupont")
+     - **Description**: Guest count, bed allocations, and selected options
+     - **Time**: Based on check-in and check-out times
+
+#### Environment Variables (Optional)
+
+For production deployments or automated setups, you can configure Google Calendar via environment variables instead of the Settings page. The application checks environment variables as a fallback if Settings are not configured in the database.
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_CALENDAR_ID` | Google Calendar target ID for reservation sync |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Service account email used to write events |
+| `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | Service account private key (use `\n` for line breaks) |
+
+**Priority:** Database settings (via Settings page) take precedence over environment variables. This allows you to update credentials without restarting the server.
+
+### 4. Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------|
+|----------|-------------|----------|
 | `PORT`   | Express server port | `4000` |
 | `REACT_APP_API_URL` | API URL (client build) | `/api` |
 
-### 4. Deployment with a Process Manager (Optional)
+### 5. Deployment with a Process Manager (Optional)
 
 For a robust production setup, use PM2:
 

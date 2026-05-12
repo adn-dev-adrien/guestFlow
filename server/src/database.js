@@ -556,6 +556,19 @@ db.exec(`
   )
 `);
 
+// ---------- APP SETTINGS ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    googleCalendarId TEXT DEFAULT '',
+    googleServiceAccountEmail TEXT DEFAULT '',
+    googleServiceAccountPrivateKey TEXT DEFAULT '',
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  )
+`);
+db.prepare('INSERT OR IGNORE INTO app_settings (id) VALUES (1)').run();
+
 // Seed school holidays if table is empty
 const holidayCount = db.prepare('SELECT COUNT(*) as c FROM school_holidays').get().c;
 if (holidayCount === 0) {
@@ -762,8 +775,41 @@ function escapeIcalText(text) {
   return text.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
 
+function getAppSettings() {
+  return db.prepare('SELECT * FROM app_settings WHERE id = 1').get() || {
+    id: 1,
+    googleCalendarId: '',
+    googleServiceAccountEmail: '',
+    googleServiceAccountPrivateKey: '',
+    createdAt: null,
+    updatedAt: null,
+  };
+}
+
+function upsertAppSettings({
+  googleCalendarId = '',
+  googleServiceAccountEmail = '',
+  googleServiceAccountPrivateKey = '',
+}) {
+  db.prepare(`
+    INSERT INTO app_settings (id, googleCalendarId, googleServiceAccountEmail, googleServiceAccountPrivateKey, createdAt, updatedAt)
+    VALUES (1, ?, ?, ?, datetime('now'), datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      googleCalendarId = excluded.googleCalendarId,
+      googleServiceAccountEmail = excluded.googleServiceAccountEmail,
+      googleServiceAccountPrivateKey = excluded.googleServiceAccountPrivateKey,
+      updatedAt = datetime('now')
+  `).run(
+    String(googleCalendarId || '').trim(),
+    String(googleServiceAccountEmail || '').trim(),
+    String(googleServiceAccountPrivateKey || ''),
+  );
+}
+
 db.getOrCreateIcalToken = getOrCreateIcalToken;
 db.exportPropertyAsIcal = exportPropertyAsIcal;
+db.getAppSettings = getAppSettings;
+db.upsertAppSettings = upsertAppSettings;
 
 // Skip automatic initialization - let the frontend handle it
 console.log('[Database] Skipping automatic timed options initialization to prevent startup errors');
