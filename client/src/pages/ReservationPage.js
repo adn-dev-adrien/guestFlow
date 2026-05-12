@@ -2172,8 +2172,7 @@ export default function ReservationPage() {
             {(() => {
               const quote = pricingQuote;
               const nights = Number(quote?.nights || Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000)));
-              const adultsCount = Number(form.adults) || 1;
-              const touristTaxRate = Number(quote?.touristTaxRate ?? form.touristTaxRate ?? selectedProperty?.touristTaxPerDayPerPerson ?? 0);
+              const touristTaxLabel = String(quote?.touristTaxLabel || '').trim();
               const touristTaxTotal = Number(quote?.touristTaxTotal ?? form.touristTaxTotal ?? 0);
               const optionsSelected = quote?.optionLines || [];
               const resourcesSelected = quote?.resourceLines || [];
@@ -2361,7 +2360,7 @@ export default function ReservationPage() {
                       <Box>
                         <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {touristTaxRate.toFixed(2)}€ × {adultsCount} adulte{adultsCount > 1 ? 's' : ''} × {nights} nuit{nights > 1 ? 's' : ''}
+                          {touristTaxLabel || 'Calculée automatiquement selon le mode du logement'}
                         </Typography>
                         {isIcalSource && (
                           <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>

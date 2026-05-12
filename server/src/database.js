@@ -365,6 +365,15 @@ if (!propCols.includes('vatPercentageOptions')) {
 if (!propCols.includes('vatPercentageResources')) {
   db.exec("ALTER TABLE properties ADD COLUMN vatPercentageResources REAL DEFAULT 20");
 }
+if (!propCols.includes('touristTaxMode')) {
+  db.exec("ALTER TABLE properties ADD COLUMN touristTaxMode TEXT DEFAULT 'per_day_per_person'");
+}
+if (!propCols.includes('touristTaxPercentage')) {
+  db.exec("ALTER TABLE properties ADD COLUMN touristTaxPercentage REAL DEFAULT 0");
+}
+if (!propCols.includes('touristTaxFixedAmount')) {
+  db.exec("ALTER TABLE properties ADD COLUMN touristTaxFixedAmount REAL DEFAULT 0");
+}
 
 const pricingRuleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map(c => c.name);
 if (!pricingRuleCols.includes('pricingMode')) {

@@ -740,9 +740,44 @@ function calculateReservationQuote({
   const depositDueDate = addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
   const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
-  const touristTaxRate = Number(property.touristTaxPerDayPerPerson || 0);
+  // Calculate tourist tax based on mode
+  const touristTaxMode = property.touristTaxMode || 'per_day_per_person';
   const adultsCount = Number(adults || 1);
-  const touristTaxTotal = roundMoney(touristTaxRate * nights * adultsCount);
+  let touristTaxTotal = 0;
+  let touristTaxRate = 0; // Helper value for response
+  let touristTaxUnitAmount = 0;
+  let touristTaxPercentage = 0;
+  let touristTaxFixedAmount = 0;
+  let touristTaxPricePerNight = 0;
+  let touristTaxLabel = '';
+  
+  if (touristTaxMode === 'per_day_per_person') {
+    // Mode 1: Flat amount per day per adult
+    touristTaxRate = Number(property.touristTaxPerDayPerPerson || 0);
+    touristTaxUnitAmount = touristTaxRate;
+    touristTaxTotal = roundMoney(touristTaxRate * nights * adultsCount);
+    touristTaxLabel = `${touristTaxUnitAmount.toFixed(2)}EUR x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
+  } else if (touristTaxMode === 'percentage_accommodation') {
+    // Mode 2: Percentage of accommodation per day per adult
+    // Calculate price per night, apply percentage, multiply by nights and adults
+    touristTaxPercentage = Number(property.touristTaxPercentage || 0);
+    touristTaxRate = touristTaxPercentage; // Store percentage for reference
+    touristTaxPricePerNight = roundMoney(accommodationAdjustedPrice / nights);
+    touristTaxUnitAmount = roundMoney(touristTaxPricePerNight * (touristTaxPercentage / 100));
+    touristTaxTotal = roundMoney(touristTaxUnitAmount * nights * adultsCount);
+    touristTaxLabel = `(${touristTaxPricePerNight.toFixed(2)}EUR x ${touristTaxPercentage.toFixed(2)}%) x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
+  } else if (touristTaxMode === 'percentage_and_fixed') {
+    // Mode 3: Percentage of accommodation per night per adult plus fixed amount per night per adult
+    touristTaxPercentage = Number(property.touristTaxPercentage || 0);
+    touristTaxFixedAmount = Number(property.touristTaxFixedAmount || 0);
+    touristTaxRate = touristTaxPercentage; // Store percentage for reference
+    touristTaxPricePerNight = roundMoney(accommodationAdjustedPrice / nights);
+    touristTaxUnitAmount = roundMoney(
+      touristTaxPricePerNight * (touristTaxPercentage / 100) + touristTaxFixedAmount
+    );
+    touristTaxTotal = roundMoney(touristTaxUnitAmount * nights * adultsCount);
+    touristTaxLabel = `((${touristTaxPricePerNight.toFixed(2)}EUR x ${touristTaxPercentage.toFixed(2)}%) + ${touristTaxFixedAmount.toFixed(2)}EUR) x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
+  }
 
   return {
     property,
@@ -763,7 +798,15 @@ function calculateReservationQuote({
     balanceAmount: resolvedBalanceAmount,
     depositDueDate,
     balanceDueDate,
+    touristTaxMode,
     touristTaxRate,
+    touristTaxUnitAmount,
+    touristTaxPercentage,
+    touristTaxFixedAmount,
+    touristTaxPricePerNight,
+    touristTaxAdultsCount: adultsCount,
+    touristTaxNights: nights,
+    touristTaxLabel,
     touristTaxTotal,
     totalStayPrice: roundMoney(finalPrice + touristTaxTotal),
     defaultCheckIn: property.defaultCheckIn || '15:00',

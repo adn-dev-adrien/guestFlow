@@ -26,6 +26,9 @@ const NEW_DEFAULTS = {
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
   defaultCautionAmount: 500,
   touristTaxPerDayPerPerson: 0,
+  touristTaxMode: 'per_day_per_person',
+  touristTaxPercentage: 0,
+  touristTaxFixedAmount: 0,
   vatPercentageAccommodation: 20,
   vatPercentageOptions: 20,
   vatPercentageResources: 20,
@@ -125,6 +128,9 @@ export default function PropertyDetail() {
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
+      touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
+      touristTaxPercentage: p.touristTaxPercentage ?? 0,
+      touristTaxFixedAmount: p.touristTaxFixedAmount ?? 0,
       vatPercentageAccommodation: p.vatPercentageAccommodation ?? 20,
       vatPercentageOptions: p.vatPercentageOptions ?? 20,
       vatPercentageResources: p.vatPercentageResources ?? 20,
@@ -676,17 +682,74 @@ export default function PropertyDetail() {
               <Typography variant="h6" gutterBottom>Tarification</Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 2 }}>Taxe de séjour</Typography>
               
-              <TextField
-                label="Taxe de séjour (€/jour/adulte)"
-                type="number"
-                value={form.touristTaxPerDayPerPerson ?? 0}
-                onChange={(e) => updateField('touristTaxPerDayPerPerson', e.target.value)}
-                onFocus={handleZeroFocus}
-                fullWidth
-                size="small"
-                inputProps={{ min: 0, step: 0.1 }}
-                sx={{ mt: 1.25, mb: 2 }}
-              />
+              <FormControl fullWidth size="small" sx={{ mt: 1.25, mb: 1.5 }}>
+                <InputLabel>Mode de calcul</InputLabel>
+                <Select
+                  label="Mode de calcul"
+                  value={form.touristTaxMode ?? 'per_day_per_person'}
+                  onChange={(e) => updateField('touristTaxMode', e.target.value)}
+                >
+                  <MenuItem value="per_day_per_person">Par jour et par adulte</MenuItem>
+                  <MenuItem value="percentage_accommodation">% du montant hébergement</MenuItem>
+                  <MenuItem value="percentage_and_fixed">% + montant fixe</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, mb: 2 }}>
+                {form.touristTaxMode === 'per_day_per_person' && (
+                  <TextField
+                    label="Taxe (€/jour/adulte)"
+                    type="number"
+                    value={form.touristTaxPerDayPerPerson ?? 0}
+                    onChange={(e) => updateField('touristTaxPerDayPerPerson', e.target.value)}
+                    onFocus={handleZeroFocus}
+                    fullWidth
+                    size="small"
+                    inputProps={{ min: 0, step: 0.01 }}
+                  />
+                )}
+                
+                {form.touristTaxMode === 'percentage_accommodation' && (
+                  <TextField
+                    label="Pourcentage (%)"
+                    type="number"
+                    value={form.touristTaxPercentage ?? 0}
+                    onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
+                    onFocus={handleZeroFocus}
+                    fullWidth
+                    size="small"
+                    inputProps={{ min: 0, step: 0.01 }}
+                    helperText="Appliqué au prix par nuit par adulte (hébergement après réduction, hors options)"
+                  />
+                )}
+                
+                {form.touristTaxMode === 'percentage_and_fixed' && (
+                  <>
+                    <TextField
+                      label="Pourcentage (%)"
+                      type="number"
+                      value={form.touristTaxPercentage ?? 0}
+                      onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
+                      onFocus={handleZeroFocus}
+                      fullWidth
+                      size="small"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      helperText="Appliqué au prix par nuit par adulte"
+                    />
+                    <TextField
+                      label="Montant fixe (€)"
+                      type="number"
+                      value={form.touristTaxFixedAmount ?? 0}
+                      onChange={(e) => updateField('touristTaxFixedAmount', e.target.value)}
+                      onFocus={handleZeroFocus}
+                      fullWidth
+                      size="small"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      helperText="Montant fixe par nuit et par adulte, ajouté au pourcentage"
+                    />
+                  </>
+                )}
+              </Box>
 
               <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 2 }}>TVA (tous les montants en TTC)</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, mb: 2 }}>
