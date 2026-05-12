@@ -172,11 +172,43 @@ function computeNextIcalSyncLocked(existingReservation) {
   return Number(existingReservation.icalSyncLocked || 0);
 }
 
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function inferCustomAccommodationPrice({
+  totalPrice,
+  finalPrice,
+  discountPercent,
+  optionsTotal,
+  resourcesTotal,
+}) {
+  const baseTotal = Number(totalPrice);
+  const storedFinal = Number(finalPrice);
+  if (!Number.isFinite(baseTotal) || !Number.isFinite(storedFinal)) return '';
+
+  const options = Number(optionsTotal || 0);
+  const resources = Number(resourcesTotal || 0);
+  const subtotal = roundMoney(baseTotal + options + resources);
+  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
+  const discountedFinal = roundMoney(subtotal * (1 - normalizedDiscountPercent / 100));
+
+  // If final price matches discount formula, there is no explicit manual custom price.
+  if (Math.abs(storedFinal - discountedFinal) < 0.01) return '';
+
+  const accommodationCustomPrice = roundMoney(storedFinal - options - resources);
+  return Number.isFinite(accommodationCustomPrice)
+    ? Math.max(0, accommodationCustomPrice)
+    : '';
+}
+
 // List reservations (optionally filter by propertyId, clientId, date range)
 router.get('/', (req, res) => {
   const { propertyId, clientId, from, to } = req.query;
   let sql = `
-    SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
+    SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
+      COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0) as optionsTotal,
+      COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal
     FROM reservations r
     JOIN clients c ON r.clientId = c.id
     JOIN properties p ON r.propertyId = p.id
@@ -188,7 +220,21 @@ router.get('/', (req, res) => {
   if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
   if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
   sql += ' ORDER BY r.startDate';
-  const reservations = db.prepare(sql).all(...params);
+  const reservations = db.prepare(sql).all(...params).map((row) => {
+    const optionsTotal = Number(row.optionsTotal || 0);
+    const resourcesTotal = Number(row.resourcesTotal || 0);
+    const { optionsTotal: _ignoreOptionsTotal, resourcesTotal: _ignoreResourcesTotal, ...reservation } = row;
+    return {
+      ...reservation,
+      customPrice: inferCustomAccommodationPrice({
+        totalPrice: row.totalPrice,
+        finalPrice: row.finalPrice,
+        discountPercent: row.discountPercent,
+        optionsTotal,
+        resourcesTotal,
+      }),
+    };
+  });
   res.json(reservations);
 });
 // Get occupied dates for a property (blocked by early arrival, late departure, etc.)
@@ -252,6 +298,16 @@ router.get('/:id', (req, res) => {
     WHERE reservationId = ?
     ORDER BY date
   `).all(req.params.id);
+
+  const optionsTotal = (reservation.options || []).reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
+  const resourcesTotal = (reservation.resources || []).reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
+  reservation.customPrice = inferCustomAccommodationPrice({
+    totalPrice: reservation.totalPrice,
+    finalPrice: reservation.finalPrice,
+    discountPercent: reservation.discountPercent,
+    optionsTotal,
+    resourcesTotal,
+  });
 
   res.json(reservation);
 });
@@ -994,5 +1050,6 @@ module.exports = router;
 module.exports.__test = {
   buildOccupiedDatesFromReservations,
   computeNextIcalSyncLocked,
+  inferCustomAccommodationPrice,
   getNightBlocksFromTimes,
 };

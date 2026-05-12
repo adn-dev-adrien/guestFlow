@@ -417,7 +417,7 @@ export default function ReservationPage() {
             touristTaxTotal: res.touristTaxTotal || 0,
             discountPercent: res.discountPercent || 0,
             finalPrice: importedBlankPrice ? '' : res.finalPrice || 0,
-            customPrice: '',
+            customPrice: importedBlankPrice ? '' : (res.customPrice === '' ? '' : Number(res.customPrice || 0)),
             depositAmount: res.depositAmount || 0,
             depositDueDate: res.depositDueDate || '',
             balanceAmount: res.balanceAmount || 0,

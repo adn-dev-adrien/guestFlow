@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 
 const reservationsRoute = require('../routes/reservations');
 
-const { buildOccupiedDatesFromReservations, getNightBlocksFromTimes } = reservationsRoute.__test;
+const {
+  buildOccupiedDatesFromReservations,
+  getNightBlocksFromTimes,
+  inferCustomAccommodationPrice,
+} = reservationsRoute.__test;
 
 test('getNightBlocksFromTimes detects early check-in and late check-out thresholds', () => {
   assert.deepEqual(getNightBlocksFromTimes('10:00', '10:00'), {
@@ -77,4 +81,28 @@ test('buildOccupiedDatesFromReservations merges and sorts occupied dates across 
     '2026-09-15',
     '2026-09-16',
   ]);
+});
+
+test('inferCustomAccommodationPrice returns empty when final price comes from discount formula', () => {
+  const customPrice = inferCustomAccommodationPrice({
+    totalPrice: 500,
+    finalPrice: 540,
+    discountPercent: 10,
+    optionsTotal: 60,
+    resourcesTotal: 40,
+  });
+
+  assert.equal(customPrice, '');
+});
+
+test('inferCustomAccommodationPrice returns manual accommodation price when overridden', () => {
+  const customPrice = inferCustomAccommodationPrice({
+    totalPrice: 500,
+    finalPrice: 610,
+    discountPercent: 10,
+    optionsTotal: 60,
+    resourcesTotal: 40,
+  });
+
+  assert.equal(customPrice, 510);
 });
