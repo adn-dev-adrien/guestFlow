@@ -12,6 +12,7 @@ const {
   isUnavailableIcalEvent,
   parseIcsEvents,
   buildEventHash,
+  normalizeIcalSummary,
   shouldSkipIcalReservationUpdate,
   buildIcalCreationHistoryChanges,
 } = propertiesRoute.__test;
@@ -130,6 +131,12 @@ test('buildEventHash is stable for same payload and changes when event changes',
 
   assert.equal(hashA, hashB);
   assert.notEqual(hashA, hashC);
+});
+
+test('normalizeIcalSummary removes accents and punctuation for fallback matching', () => {
+  assert.equal(normalizeIcalSummary('Réservation - Jean DUPONT (#123)'), 'reservation jean dupont 123');
+  assert.equal(normalizeIcalSummary('  Airbnb, Marie   Curie  '), 'airbnb marie curie');
+  assert.equal(normalizeIcalSummary(''), '');
 });
 
 test('shouldSkipIcalReservationUpdate blocks updates for locked iCal reservations only', () => {

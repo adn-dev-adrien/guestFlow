@@ -109,6 +109,21 @@ function unescapeIcalText(value) {
     .trim();
 }
 
+function normalizeIcalSummary(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractSummaryFromIcalReservationNotes(notes) {
+  const match = String(notes || '').match(/(?:^|\n)Résumé:\s*(.+)$/m);
+  return match ? String(match[1] || '').trim() : '';
+}
+
 function parseAdultsFromText(summary, description) {
   const haystack = `${summary || ''}\n${description || ''}`;
   const regexes = [
@@ -241,7 +256,6 @@ function buildEventHash(event) {
   return crypto
     .createHash('sha1')
     .update(JSON.stringify({
-      uid: event.uid,
       startDate: event.startDate,
       endDate: event.endDate,
       summary: event.summary,
@@ -283,14 +297,42 @@ function syncIcalSource(source) {
     const events = parseIcsEvents(icsText);
 
     const getMapping = db.prepare('SELECT reservationId, eventHash FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
+    const getFallbackMapping = db.prepare(`
+      SELECT eventUid, reservationId, eventHash
+      FROM ical_import_events
+      WHERE sourceId = ? AND startDate = ? AND endDate = ? AND summaryNormalized = ?
+      ORDER BY lastSeenAt DESC
+      LIMIT 1
+    `);
     const listMappings = db.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
+    const deleteMapping = db.prepare('DELETE FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
     const upsertMapping = db.prepare(`
-      INSERT INTO ical_import_events (sourceId, eventUid, reservationId, eventHash, lastSeenAt)
-      VALUES (?, ?, ?, ?, datetime('now'))
+      INSERT INTO ical_import_events (sourceId, eventUid, reservationId, eventHash, startDate, endDate, summaryNormalized, lastSeenAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(sourceId, eventUid)
-      DO UPDATE SET reservationId=excluded.reservationId, eventHash=excluded.eventHash, lastSeenAt=datetime('now')
+      DO UPDATE SET
+        reservationId=excluded.reservationId,
+        eventHash=excluded.eventHash,
+        startDate=excluded.startDate,
+        endDate=excluded.endDate,
+        summaryNormalized=excluded.summaryNormalized,
+        lastSeenAt=datetime('now')
     `);
     const getReservationById = db.prepare('SELECT id, sourceType, icalSyncLocked FROM reservations WHERE id = ?');
+    const listSourceReservationsByDates = db.prepare(`
+      SELECT id, sourceType, icalSyncLocked, sourceIcalEventUid, notes
+      FROM reservations
+      WHERE sourceType = 'ical'
+        AND sourceIcalSourceId = ?
+        AND startDate = ?
+        AND endDate = ?
+      ORDER BY id DESC
+    `);
+    const markReservationUid = db.prepare(`
+      UPDATE reservations
+      SET sourceIcalEventUid = ?, updatedAt = datetime('now')
+      WHERE id = ?
+    `);
     const deleteReservation = db.prepare('DELETE FROM reservations WHERE id = ?');
     const insertReservation = db.prepare(`
       INSERT INTO reservations (
@@ -305,7 +347,7 @@ function syncIcalSource(source) {
     `);
     const updateReservation = db.prepare(`
       UPDATE reservations
-      SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, notes = ?, updatedAt = datetime('now')
+      SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?, notes = ?, updatedAt = datetime('now')
       WHERE id = ?
     `);
 
@@ -320,7 +362,28 @@ function syncIcalSource(source) {
 
       for (const event of eventList) {
         const eventHash = buildEventHash(event);
-        const mapping = getMapping.get(source.id, event.uid);
+        const summaryNormalized = normalizeIcalSummary(event.summary);
+        let mapping = getMapping.get(source.id, event.uid);
+        let previousUid = event.uid;
+
+        if (!mapping && summaryNormalized) {
+          const fallbackMapping = getFallbackMapping.get(source.id, event.startDate, event.endDate, summaryNormalized);
+          if (fallbackMapping) {
+            mapping = fallbackMapping;
+            previousUid = String(fallbackMapping.eventUid || '');
+          }
+        }
+
+        if (!mapping && summaryNormalized) {
+          const legacyCandidate = listSourceReservationsByDates
+            .all(source.id, event.startDate, event.endDate)
+            .find((row) => normalizeIcalSummary(extractSummaryFromIcalReservationNotes(row.notes)) === summaryNormalized);
+          if (legacyCandidate) {
+            mapping = { reservationId: Number(legacyCandidate.id), eventHash: null };
+            previousUid = String(legacyCandidate.sourceIcalEventUid || '');
+          }
+        }
+
         const guestName = parseGuestName(event.summary, event.description);
         const clientId = getOrCreateIcalClient(guestName, source.platformLabel || source.name);
         const notes = `Import iCal (${source.name})\nUID: ${event.uid}${event.summary ? `\nRésumé: ${event.summary}` : ''}`;
@@ -342,7 +405,7 @@ function syncIcalSource(source) {
             property.defaultCautionAmount || 0,
           );
           const reservationId = Number(result.lastInsertRowid);
-          upsertMapping.run(source.id, event.uid, reservationId, eventHash);
+          upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
           addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
           createdCount += 1;
           continue;
@@ -366,19 +429,28 @@ function syncIcalSource(source) {
             property.defaultCautionAmount || 0,
           );
           const reservationId = Number(result.lastInsertRowid);
-          upsertMapping.run(source.id, event.uid, reservationId, eventHash);
+          upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
+          if (previousUid && previousUid !== event.uid) {
+            deleteMapping.run(source.id, previousUid);
+          }
           addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
           createdCount += 1;
           continue;
         }
 
+        markReservationUid.run(event.uid, mapping.reservationId);
+        if (previousUid && previousUid !== event.uid) {
+          deleteMapping.run(source.id, previousUid);
+        }
+
         if (mapping.eventHash === eventHash) {
+          upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
           unchangedCount += 1;
           continue;
         }
 
         if (shouldSkipIcalReservationUpdate(mappedReservation)) {
-          upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash);
+          upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
           lockedCount += 1;
           continue;
         }
@@ -390,10 +462,11 @@ function syncIcalSource(source) {
           property.defaultCheckIn || '15:00',
           property.defaultCheckOut || '10:00',
           source.platformKey,
+          event.uid,
           notes,
           mapping.reservationId,
         );
-        upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash);
+        upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
         updatedCount += 1;
       }
 
@@ -404,6 +477,7 @@ function syncIcalSource(source) {
         .filter((row) => !seenUids.has(row.eventUid));
       staleMappings.forEach((row) => {
         deleteReservation.run(row.reservationId);
+        deleteMapping.run(source.id, row.eventUid);
         removedCount += 1;
       });
 
@@ -1044,6 +1118,7 @@ router.use((err, req, res, next) => {
 });
 
 module.exports = router;
+module.exports.syncIcalSource = syncIcalSource;
 module.exports.__test = {
   normalizePlatformKey,
   parseIcalDate,
@@ -1054,6 +1129,7 @@ module.exports.__test = {
   isUnavailableIcalEvent,
   parseIcsEvents,
   buildEventHash,
+  normalizeIcalSummary,
   shouldSkipIcalReservationUpdate,
   buildIcalCreationHistoryChanges,
 };

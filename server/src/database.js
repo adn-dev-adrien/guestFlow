@@ -281,6 +281,9 @@ db.exec(`
     eventUid TEXT NOT NULL,
     reservationId INTEGER NOT NULL,
     eventHash TEXT NOT NULL,
+    startDate TEXT NOT NULL DEFAULT '',
+    endDate TEXT NOT NULL DEFAULT '',
+    summaryNormalized TEXT NOT NULL DEFAULT '',
     lastSeenAt TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (sourceId, eventUid),
     FOREIGN KEY (sourceId) REFERENCES ical_sources(id) ON DELETE CASCADE,
@@ -486,6 +489,35 @@ if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastImportedCount')) 
 }
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('updatedAt')) {
   db.exec("ALTER TABLE ical_sources ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
+}
+
+const icalImportEventCols = db.prepare("PRAGMA table_info(ical_import_events)").all().map(c => c.name);
+if (icalImportEventCols.length > 0 && !icalImportEventCols.includes('startDate')) {
+  db.exec("ALTER TABLE ical_import_events ADD COLUMN startDate TEXT NOT NULL DEFAULT ''");
+}
+if (icalImportEventCols.length > 0 && !icalImportEventCols.includes('endDate')) {
+  db.exec("ALTER TABLE ical_import_events ADD COLUMN endDate TEXT NOT NULL DEFAULT ''");
+}
+if (icalImportEventCols.length > 0 && !icalImportEventCols.includes('summaryNormalized')) {
+  db.exec("ALTER TABLE ical_import_events ADD COLUMN summaryNormalized TEXT NOT NULL DEFAULT ''");
+}
+if (icalImportEventCols.length > 0) {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ical_import_events_fallback
+    ON ical_import_events (sourceId, startDate, endDate, summaryNormalized)
+  `);
+
+  // Backfill dates for legacy mapping rows so fallback matching can work immediately.
+  db.exec(`
+    UPDATE ical_import_events
+    SET startDate = COALESCE((SELECT startDate FROM reservations WHERE reservations.id = ical_import_events.reservationId), '')
+    WHERE startDate IS NULL OR startDate = ''
+  `);
+  db.exec(`
+    UPDATE ical_import_events
+    SET endDate = COALESCE((SELECT endDate FROM reservations WHERE reservations.id = ical_import_events.reservationId), '')
+    WHERE endDate IS NULL OR endDate = ''
+  `);
 }
 } // end SKIP_MIGRATIONS guard
 
