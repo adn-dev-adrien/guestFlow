@@ -2570,64 +2570,64 @@ export default function ReservationPage() {
             })()}
           </Card>
         </Box>
-      </Box>
 
-      {editingReservationId && (
-        <Box sx={{ maxWidth: 1300, mx: 'auto', px: 2, pb: 1 }}>
-          <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
-            <CardContent sx={{ py: 1.25 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Typography variant="subtitle2">Historique des modifications</Typography>
-                <Button size="small" variant="outlined" onClick={toggleHistory}>
-                  {historyOpen ? 'Masquer historique' : 'Voir historique'}
-                </Button>
-              </Box>
+        {editingReservationId && (
+          <Box sx={{ gridColumn: '1 / -1' }}>
+            <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
+              <CardContent sx={{ py: 1.25 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="subtitle2">Historique des modifications</Typography>
+                  <Button size="small" variant="outlined" onClick={toggleHistory}>
+                    {historyOpen ? 'Masquer historique' : 'Voir historique'}
+                  </Button>
+                </Box>
 
-              {historyOpen && (
-                <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                  {historyLoading && <Typography variant="body2" color="text.secondary">Chargement...</Typography>}
+                {historyOpen && (
+                  <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                    {historyLoading && <Typography variant="body2" color="text.secondary">Chargement...</Typography>}
 
-                  {!historyLoading && historyEntries.length === 0 && (
-                    <Typography variant="body2" color="text.secondary">Aucun historique disponible.</Typography>
-                  )}
+                    {!historyLoading && historyEntries.length === 0 && (
+                      <Typography variant="body2" color="text.secondary">Aucun historique disponible.</Typography>
+                    )}
 
-                  {!historyLoading && historyEntries.map((entry) => {
-                    const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
-                    const historyDetails = changes.map((change) => `${change.label}: ${formatHistoryValue(change.from)} -> ${formatHistoryValue(change.to)}`).join(' | ');
-                    return (
-                      <Box
-                        key={entry.id}
-                        sx={{
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          borderRadius: 1,
-                          px: 1,
-                          py: 0.75,
-                          bgcolor: '#fafafa',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                            {entry.eventType === 'create' ? 'Création' : 'Modification'}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {formatHistoryDate(entry.createdAt)}
+                    {!historyLoading && historyEntries.map((entry) => {
+                      const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
+                      const historyDetails = changes.map((change) => `${change.label}: ${formatHistoryValue(change.from)} -> ${formatHistoryValue(change.to)}`).join(' | ');
+                      return (
+                        <Box
+                          key={entry.id}
+                          sx={{
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            px: 1,
+                            py: 0.75,
+                            bgcolor: '#fafafa',
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                              {entry.eventType === 'create' ? 'Création' : 'Modification'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatHistoryDate(entry.createdAt)}
+                            </Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                            {entry.eventType === 'create'
+                              ? (historyDetails || 'Réservation créée')
+                              : (historyDetails || 'Mise à jour sans changement détecté')}
                           </Typography>
                         </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                          {entry.eventType === 'create'
-                            ? (historyDetails || 'Réservation créée')
-                            : (historyDetails || 'Mise à jour sans changement détecté')}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
-      )}
+                      );
+                    })}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+      </Box>
 
       {/* Client Creation Dialog */}
       <FormDialog
