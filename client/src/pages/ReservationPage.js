@@ -1371,6 +1371,21 @@ export default function ReservationPage() {
   const accommodationDiscountedPriceDisplay = pricingQuote?.accommodationAdjustedPrice != null
     ? Number(pricingQuote.accommodationAdjustedPrice).toFixed(2)
     : (parsedCustomPrice !== null ? Number(parsedCustomPrice).toFixed(2) : accommodationBasePriceDisplay);
+  const displayableResources = availableResources.filter((resource) => {
+    const name = String(resource?.name || '').toLowerCase();
+    return !(name.includes('lit') && (name.includes('bébé') || name.includes('bebe')));
+  });
+  const hasExtrasSection = propertyOptions.length > 0 || displayableResources.length > 0;
+  const formSectionCardSx = {
+    bgcolor: '#fff',
+    borderRadius: 2,
+    overflow: 'hidden',
+  };
+  const sectionGridSx = { width: '100%', m: 0 };
+  const formSectionContentSx = {
+    p: { xs: 1.5, sm: 2 },
+    '&:last-child': { pb: { xs: 1.5, sm: 2 } },
+  };
 
   const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
 
@@ -1471,128 +1486,145 @@ export default function ReservationPage() {
           }}
         >
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box sx={lockedSectionSx}>
-          <FormControl fullWidth>
-            <InputLabel>Logement</InputLabel>
-            <Select
-              value={selectedProp}
-              label="Logement"
-              onChange={(e) => handleReservationPropertyChange(e.target.value)}
-            >
-              {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
-            </Select>
-          </FormControl>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
+            <CardContent sx={formSectionContentSx}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Séjour</Typography>
+          <Stack spacing={2.25}>
+            <FormControl fullWidth>
+              <InputLabel>Logement</InputLabel>
+              <Select
+                value={selectedProp}
+                label="Logement"
+                onChange={(e) => handleReservationPropertyChange(e.target.value)}
+              >
+                {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
+              </Select>
+            </FormControl>
 
-          <MiniPlanningStrip
-            miniCalendarStart={miniCalendarStart}
-            setMiniCalendarStart={setMiniCalendarStart}
-            miniVisibleDays={miniVisibleDays}
-            reservations={reservations}
-            selectedPropertyId={selectedProp}
-            currentReservation={form}
-            currentReservationId={editingReservationId}
-            onDateClick={handleMiniDateClick}
-            onRecenter={() => centerMiniCalendarOnRange(form.startDate, form.endDate)}
-            isLocked={isReservationLocked}
-          />
+            <MiniPlanningStrip
+              miniCalendarStart={miniCalendarStart}
+              setMiniCalendarStart={setMiniCalendarStart}
+              miniVisibleDays={miniVisibleDays}
+              reservations={reservations}
+              selectedPropertyId={selectedProp}
+              currentReservation={form}
+              currentReservationId={editingReservationId}
+              onDateClick={handleMiniDateClick}
+              onRecenter={() => centerMiniCalendarOnRange(form.startDate, form.endDate)}
+              isLocked={isReservationLocked}
+            />
 
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <TextField
-                label="Date d'arrivée"
-                type="date"
-                value={form.startDate || ''}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
-                onChange={(e) => handleManualDateInputChange({ startDate: e.target.value })}
-                error={datesUnavailableForProperty || minNightsState.breached}
-                fullWidth
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                label="Date de départ"
-                type="date"
-                value={form.endDate || ''}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
-                onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
-                error={datesUnavailableForProperty || minNightsState.breached}
-                fullWidth
-              />
-            </Grid>
-          </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+              <Box>
+                <TextField
+                  label="Date d'arrivée"
+                  type="date"
+                  value={form.startDate || ''}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
+                  onChange={(e) => handleManualDateInputChange({ startDate: e.target.value })}
+                  error={datesUnavailableForProperty || minNightsState.breached}
+                  fullWidth
+                />
+              </Box>
+              <Box>
+                <TextField
+                  label="Date de départ"
+                  type="date"
+                  value={form.endDate || ''}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
+                  onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
+                  error={datesUnavailableForProperty || minNightsState.breached}
+                  fullWidth
+                />
+              </Box>
+            </Box>
 
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
-                <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
-                <Select
-                  value={form.checkInTime}
-                  label={`Heure d'arrivée (défaut ${defaultCheckInTime})`}
-                  onChange={(e) => updateForm({ checkInTime: e.target.value })}
-                >
-                  {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={6}>
-              <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
-                <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
-                <Select
-                  value={form.checkOutTime}
-                  label={`Heure de départ (défaut ${defaultCheckOutTime})`}
-                  onChange={(e) => updateForm({ checkOutTime: e.target.value })}
-                >
-                  {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+              <Box>
+                <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
+                  <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
+                  <Select
+                    value={form.checkInTime}
+                    label={`Heure d'arrivée (défaut ${defaultCheckInTime})`}
+                    onChange={(e) => updateForm({ checkInTime: e.target.value })}
+                  >
+                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+              <Box>
+                <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
+                  <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
+                  <Select
+                    value={form.checkOutTime}
+                    label={`Heure de départ (défaut ${defaultCheckOutTime})`}
+                    onChange={(e) => updateForm({ checkOutTime: e.target.value })}
+                  >
+                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+            </Box>
 
-          {liveTimeConflictMessage && (
-            <FormHelperText error sx={{ mt: -1 }}>
-              {liveTimeConflictMessage}
-            </FormHelperText>
-          )}
+            {(liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
+              <Stack spacing={0.5}>
+                {liveTimeConflictMessage && (
+                  <FormHelperText error>
+                    {liveTimeConflictMessage}
+                  </FormHelperText>
+                )}
 
-          {datesUnavailableForProperty && (
-            <Typography variant="body2" color="error" sx={{ mt: -1 }}>
-              {datesUnavailableMessage}
-            </Typography>
-          )}
+                {datesUnavailableForProperty && (
+                  <Typography variant="body2" color="error">
+                    {datesUnavailableMessage}
+                  </Typography>
+                )}
 
-          {minNightsState.breached && (
-            <Typography variant="body2" color="error" sx={{ mt: datesUnavailableForProperty ? 0 : -1 }}>
-              {minNightsWarning}
-            </Typography>
-          )}
-          </Box>
-          
-          <Divider />
+                {minNightsState.breached && (
+                  <Typography variant="body2" color="error">
+                    {minNightsWarning}
+                  </Typography>
+                )}
+              </Stack>
+            )}
+          </Stack>
+            </CardContent>
+          </Card>
 
-          <Autocomplete
-            options={clients}
-            getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
-            value={clients.find(c => c.id === form.clientId) || null}
-            onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
-            onChange={(_, val) => val && updateForm({ clientId: val.id })}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
-            renderInput={(params) => <TextField {...params} label="Rechercher ou créer un client" />}
-            noOptionsText={
-              <Button onClick={() => setCreateClientOpen(true)} size="small">Créer un nouveau client</Button>
-            }
-          />
-          <Button size="small" variant="text" onClick={() => setCreateClientOpen(true)}>
-            + Créer un nouveau client
-          </Button>
+          <Card variant="outlined" sx={formSectionCardSx}>
+            <CardContent sx={formSectionContentSx}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Client</Typography>
+              <Stack spacing={1.25}>
+                <Autocomplete
+                  options={clients}
+                  getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
+                  value={clients.find(c => c.id === form.clientId) || null}
+                  onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
+                  onChange={(_, val) => val && updateForm({ clientId: val.id })}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderInput={(params) => <TextField {...params} label="Rechercher ou créer un client" />}
+                  noOptionsText={
+                    <Button onClick={() => setCreateClientOpen(true)} size="small">Créer un nouveau client</Button>
+                  }
+                />
+                <Box>
+                  <Button size="small" variant="text" onClick={() => setCreateClientOpen(true)}>
+                    + Créer un nouveau client
+                  </Button>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
 
-          <Divider />
-
-          <Box sx={lockedSectionSx}>
-          <Grid container spacing={2}>
-            <Grid item xs={3}>
+          <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
+            <CardContent sx={formSectionContentSx}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Voyageurs et couchages</Typography>
+              <Stack spacing={2.25}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
+            <Box>
               <TextField
                 label={`Adultes${maxAdultsAllowed !== null ? ` (max ${maxAdultsAllowed})` : ''}`}
                 type="number"
@@ -1602,8 +1634,8 @@ export default function ReservationPage() {
                 inputProps={{ min: 1, max: maxAdultsAllowed ?? undefined }}
                 error={exceedsAdultsCapacity}
               />
-            </Grid>
-            <Grid item xs={3}>
+            </Box>
+            <Box>
               <TextField
                 label={`Enfants (2 à 12 ans)`}
                 type="number"
@@ -1613,8 +1645,8 @@ export default function ReservationPage() {
                 inputProps={{ min: 0 }}
                 error={exceedsChildrenCapacity}
               />
-            </Grid>
-            <Grid item xs={3}>
+            </Box>
+            <Box>
               <TextField
                 label={`Ados (12 à 18 ans)`}
                 type="number"
@@ -1624,8 +1656,8 @@ export default function ReservationPage() {
                 inputProps={{ min: 0 }}
                 error={exceedsChildrenCapacity}
               />
-            </Grid>
-            <Grid item xs={3}>
+            </Box>
+            <Box>
               <TextField
                 label={`Bébés (0 à 2 ans)`}
                 type="number"
@@ -1635,17 +1667,17 @@ export default function ReservationPage() {
                 inputProps={{ min: 0, max: maxBabiesAllowed ?? undefined }}
                 error={exceedsBabiesCapacity}
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
 
           {exceedsTotalCapacity && (
-            <Typography variant="body2" color="error" sx={{ mt: -1 }}>
+            <Typography variant="body2" color="error">
               Capacité totale dépassée: {totalGuestsCount}/{totalGuestsMax} personnes.
             </Typography>
           )}
 
-          <Grid container spacing={2}>
-            <Grid item xs={4}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+            <Box>
               <TextField
                 label="Lits doubles"
                 type="number"
@@ -1656,8 +1688,8 @@ export default function ReservationPage() {
                 helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
                 inputProps={{ min: 0, max: maxDoubleBeds ?? undefined }}
               />
-            </Grid>
-            <Grid item xs={4}>
+            </Box>
+            <Box>
               <TextField
                 label="Lits simples"
                 type="number"
@@ -1668,8 +1700,8 @@ export default function ReservationPage() {
                 helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
                 inputProps={{ min: 0, max: maxSingleBeds ?? undefined }}
               />
-            </Grid>
-            <Grid item xs={4}>
+            </Box>
+            <Box>
               <TextField
                 label="Lits bébé"
                 type="number"
@@ -1687,26 +1719,35 @@ export default function ReservationPage() {
                 inputProps={{ min: 0, max: maxBabyBedsByRule }}
                 helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
 
           {bedsCapacityMismatch && (
             <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
               Attention: la capacité des lits classiques saisis ({reservationBedCapacity}) est inférieure au besoin réel ({requiredRegularBeds}). Les enfants de 2 à 12 ans placés en lit bébé sont déduits automatiquement du calcul.
             </Typography>
           )}
-          </Box>
+              </Stack>
+            </CardContent>
+          </Card>
 
-          <FormControl fullWidth>
-            <InputLabel>Plateforme</InputLabel>
-            <Select value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>
-              {PLATFORMS.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <Card variant="outlined" sx={formSectionCardSx}>
+            <CardContent sx={formSectionContentSx}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Canal</Typography>
+              <FormControl fullWidth>
+                <InputLabel>Plateforme</InputLabel>
+                <Select value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>
+                  {PLATFORMS.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </CardContent>
+          </Card>
 
-          <Divider />
-
-          <Box sx={lockedSectionSx}>
+          {hasExtrasSection && (
+            <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
+              <CardContent sx={formSectionContentSx}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Options et ressources</Typography>
+                <Stack spacing={2}>
           {propertyOptions.length > 0 && (
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Options</Typography>
@@ -1796,18 +1837,13 @@ export default function ReservationPage() {
             </Box>
           )}
 
-          {availableResources.length > 0 && (
+          {displayableResources.length > 0 && (
             <>
-              <Divider />
+              {propertyOptions.length > 0 && <Divider />}
               <Box>
                 <Typography variant="subtitle2" gutterBottom>Ressources</Typography>
                 <Stack spacing={1.25}>
-                  {availableResources
-                    .filter(resource => {
-                      const n = (resource.name || '').toLowerCase();
-                      return !(n.includes('lit') && (n.includes('bébé') || n.includes('bebe')));
-                    })
-                    .map(resource => {
+                  {displayableResources.map(resource => {
                       const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                       const enabled = Boolean(selected && Number(selected.quantity) > 0);
                       const unavailable = Number(resource.available || 0) <= 0;
@@ -1884,15 +1920,19 @@ export default function ReservationPage() {
               </Box>
             </>
           )}
-          </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
 
-          <Divider />
-
+          <Card variant="outlined" sx={formSectionCardSx}>
+            <CardContent sx={formSectionContentSx}>
           <Box sx={{ position: 'relative', zIndex: 10 }}>
+          <Stack spacing={2.5}>
           <Box>
-            <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Finance</Typography>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 700, mb: 2 }}>Finance</Typography>
 
-            <Grid container spacing={1.5} alignItems="stretch">
+            <Grid container spacing={2} alignItems="stretch" sx={sectionGridSx}>
               <Grid item xs={12} md={6}>
                 <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -1971,11 +2011,11 @@ export default function ReservationPage() {
               </Grid>
             </Grid>
           </Box>
-              
-          <Divider sx={{ my: 1 }} />
+          
+          <Divider />
             
           <Box>
-            <Grid container spacing={2}>
+            <Grid container spacing={2} sx={sectionGridSx}>
               <Grid item xs={12} md={6}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Acompte</Typography>
                 <TextField
@@ -2038,11 +2078,11 @@ export default function ReservationPage() {
             </Grid>
           </Box>
 
-          <Divider sx={{ my: 1 }} />
+          <Divider />
 
           <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Caution</Typography>
-            <Grid container spacing={1.5}>
+            <Grid container spacing={1.5} sx={sectionGridSx}>
               <Grid item xs={12} md={6}>
                 <Button
                   fullWidth
@@ -2111,21 +2151,24 @@ export default function ReservationPage() {
               </Grid>
             </Grid>
           </Box>
-
+          </Stack>
           </Box>{/* end zIndex Finance wrapper */}
+            </CardContent>
+          </Card>
 
-          <Divider />
-
-          <Box sx={lockedSectionSx}>
-          <TextField
-            label="Notes"
-            multiline
-            rows={3}
-            value={form.notes}
-            onChange={(e) => updateForm({ notes: e.target.value })}
-            fullWidth
-          />
-          </Box>
+          <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
+            <CardContent sx={formSectionContentSx}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Notes</Typography>
+              <TextField
+                label="Notes"
+                multiline
+                rows={3}
+                value={form.notes}
+                onChange={(e) => updateForm({ notes: e.target.value })}
+                fullWidth
+              />
+            </CardContent>
+          </Card>
           </Box>
         </Box>
         </Box>
@@ -2310,7 +2353,6 @@ export default function ReservationPage() {
                   {/* Ressources */}
                   {resourcesSelected.length > 0 && (
                     <>
-                      {optionsSelected.length === 0 && <Divider />}
                       <Divider />
                       <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         Ressources
