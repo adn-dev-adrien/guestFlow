@@ -210,6 +210,79 @@ function inferCustomAccommodationPrice({
     : '';
 }
 
+function suggestBedDistribution({
+  adults,
+  children,
+  teens,
+  maxSingleBeds,
+  maxDoubleBeds,
+}) {
+  const safeAdults = Math.max(0, Number(adults) || 0);
+  const safeChildren = Math.max(0, Number(children) || 0);
+  const safeTeens = Math.max(0, Number(teens) || 0);
+  const safeMaxSingle = Math.max(0, Number(maxSingleBeds) || 0);
+  const safeMaxDouble = Math.max(0, Number(maxDoubleBeds) || 0);
+
+  let remainingAdults = safeAdults;
+  let remainingChildrenTeens = safeChildren + safeTeens;
+  let singleBeds = 0;
+  let doubleBeds = 0;
+
+  // Adults first in double beds (2 per bed) as requested.
+  const adultsInDouble = Math.min(safeMaxDouble, Math.ceil(remainingAdults / 2));
+  doubleBeds += adultsInDouble;
+  remainingAdults = Math.max(0, remainingAdults - adultsInDouble * 2);
+
+  // Children + teens first in single beds as requested.
+  const childrenTeensInSingle = Math.min(safeMaxSingle, remainingChildrenTeens);
+  singleBeds += childrenTeensInSingle;
+  remainingChildrenTeens = Math.max(0, remainingChildrenTeens - childrenTeensInSingle);
+
+  // Then place remaining adults in remaining single beds.
+  const singleBedsLeft = Math.max(0, safeMaxSingle - singleBeds);
+  const adultsInSingle = Math.min(singleBedsLeft, remainingAdults);
+  singleBeds += adultsInSingle;
+  remainingAdults = Math.max(0, remainingAdults - adultsInSingle);
+
+  // Finally, use remaining double beds to maximize accommodation.
+  const peopleLeft = remainingAdults + remainingChildrenTeens;
+  const doubleBedsLeft = Math.max(0, safeMaxDouble - doubleBeds);
+  const fallbackInDouble = Math.min(doubleBedsLeft, Math.ceil(peopleLeft / 2));
+  doubleBeds += fallbackInDouble;
+
+  return {
+    singleBeds,
+    doubleBeds,
+    unassignedPeople: Math.max(0, peopleLeft - fallbackInDouble * 2),
+  };
+}
+
+router.post('/suggest-beds', (req, res) => {
+  const propertyId = Number(req.body.propertyId || 0);
+  if (!propertyId) {
+    return res.status(400).json({ error: 'propertyId requis' });
+  }
+
+  const property = db.prepare('SELECT singleBeds, doubleBeds FROM properties WHERE id = ?').get(propertyId);
+  if (!property) {
+    return res.status(404).json({ error: 'Logement non trouvé' });
+  }
+
+  const suggestion = suggestBedDistribution({
+    adults: req.body.adults,
+    children: req.body.children,
+    teens: req.body.teens,
+    maxSingleBeds: property.singleBeds,
+    maxDoubleBeds: property.doubleBeds,
+  });
+
+  return res.json({
+    ...suggestion,
+    maxSingleBeds: Number(property.singleBeds || 0),
+    maxDoubleBeds: Number(property.doubleBeds || 0),
+  });
+});
+
 // List reservations (optionally filter by propertyId, clientId, date range)
 router.get('/', (req, res) => {
   const { propertyId, clientId, from, to } = req.query;
@@ -1090,4 +1163,5 @@ module.exports.__test = {
   computeNextIcalSyncLocked,
   inferCustomAccommodationPrice,
   getNightBlocksFromTimes,
+  suggestBedDistribution,
 };

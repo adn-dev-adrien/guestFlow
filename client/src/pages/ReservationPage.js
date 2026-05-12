@@ -10,6 +10,7 @@ import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
@@ -749,6 +750,26 @@ export default function ReservationPage() {
 
   const recalcPrice = (updatedForm) => {
     return { ...updatedForm };
+  };
+
+  const handleSuggestBeds = async () => {
+    if (!selectedProp) return;
+    try {
+      const suggestion = await api.suggestBeds({
+        propertyId: Number(selectedProp),
+        adults: Number(form.adults) || 0,
+        children: Number(form.children) || 0,
+        teens: Number(form.teens) || 0,
+        babies: Number(form.babies) || 0,
+      });
+
+      updateForm({
+        singleBeds: Number(suggestion.singleBeds || 0),
+        doubleBeds: Number(suggestion.doubleBeds || 0),
+      });
+    } catch (err) {
+      await alert({ title: 'Suggestion impossible', message: err.message || 'Impossible de suggérer les lits pour ce logement.' });
+    }
   };
 
   const updateForm = (changes) => {
@@ -1720,6 +1741,19 @@ export default function ReservationPage() {
                 helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
               />
             </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<AutoFixHighIcon fontSize="small" />}
+              onClick={handleSuggestBeds}
+              disabled={!selectedProp || isReservationLocked}
+              sx={{ textTransform: 'none' }}
+            >
+              Suggérer les lits
+            </Button>
           </Box>
 
           {bedsCapacityMismatch && (
