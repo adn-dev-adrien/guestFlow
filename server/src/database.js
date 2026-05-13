@@ -1,5 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const crypto = require('crypto');
+const { getEncryptionKey } = require('./encryption-keys');
 
 // DB_PATH env var lets CI/CD point to a persistent location outside the deployment folder.
 // PERSISTENT_DB is used by deployment scripts. Falls back to the traditional location so existing dev setups are unaffected.
@@ -9,6 +11,72 @@ const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+
+// Initialize encryption key on startup (auto-generates if needed)
+console.log('[Database] Initializing encryption...');
+getEncryptionKey();
+console.log('[Database] Encryption ready');
+
+// ---------- ENCRYPTION UTILITIES ----------
+// Sensitive data (Google Calendar credentials) are encrypted before storage
+// Encryption key is auto-generated on first startup and saved to .env.local
+// This ensures that even if the database is compromised, credentials cannot be accessed without the key
+
+function encryptSensitive(text) {
+  if (!text) return '';
+  
+  const key = getEncryptionKey();
+  
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  
+  const authTag = cipher.getAuthTag();
+  
+  // Store as JSON: { iv, authTag, encrypted }
+  // This allows us to detect encrypted vs plaintext data
+  return JSON.stringify({
+    _encrypted: true,
+    iv: iv.toString('hex'),
+    authTag: authTag.toString('hex'),
+    data: encrypted,
+  });
+}
+
+function decryptSensitive(encryptedData) {
+  if (!encryptedData) return '';
+  
+  const key = getEncryptionKey();
+  
+  try {
+    // Try to parse as JSON (encrypted format)
+    const parsed = JSON.parse(encryptedData);
+    
+    if (!parsed._encrypted) {
+      // JSON but not encrypted format, return as-is
+      return encryptedData;
+    }
+    
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      key,
+      Buffer.from(parsed.iv, 'hex')
+    );
+    
+    decipher.setAuthTag(Buffer.from(parsed.authTag, 'hex'));
+    
+    let decrypted = decipher.update(parsed.data, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    // If JSON parsing fails or decryption fails, it's plaintext data (legacy)
+    // Return as-is for backward compatibility
+    return encryptedData;
+  }
+}
 
 // ---------- CLIENTS ----------
 db.exec(`
@@ -776,13 +844,27 @@ function escapeIcalText(text) {
 }
 
 function getAppSettings() {
-  return db.prepare('SELECT * FROM app_settings WHERE id = 1').get() || {
-    id: 1,
-    googleCalendarId: '',
-    googleServiceAccountEmail: '',
-    googleServiceAccountPrivateKey: '',
-    createdAt: null,
-    updatedAt: null,
+  const row = db.prepare('SELECT * FROM app_settings WHERE id = 1').get();
+  
+  if (!row) {
+    return {
+      id: 1,
+      googleCalendarId: '',
+      googleServiceAccountEmail: '',
+      googleServiceAccountPrivateKey: '',
+      createdAt: null,
+      updatedAt: null,
+    };
+  }
+  
+  // Decrypt sensitive fields
+  return {
+    id: row.id,
+    googleCalendarId: decryptSensitive(row.googleCalendarId),
+    googleServiceAccountEmail: decryptSensitive(row.googleServiceAccountEmail),
+    googleServiceAccountPrivateKey: decryptSensitive(row.googleServiceAccountPrivateKey),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -791,6 +873,11 @@ function upsertAppSettings({
   googleServiceAccountEmail = '',
   googleServiceAccountPrivateKey = '',
 }) {
+  // Encrypt sensitive fields before storing
+  const encryptedCalendarId = encryptSensitive(String(googleCalendarId || '').trim());
+  const encryptedEmail = encryptSensitive(String(googleServiceAccountEmail || '').trim());
+  const encryptedKey = encryptSensitive(String(googleServiceAccountPrivateKey || ''));
+  
   db.prepare(`
     INSERT INTO app_settings (id, googleCalendarId, googleServiceAccountEmail, googleServiceAccountPrivateKey, createdAt, updatedAt)
     VALUES (1, ?, ?, ?, datetime('now'), datetime('now'))
@@ -800,9 +887,9 @@ function upsertAppSettings({
       googleServiceAccountPrivateKey = excluded.googleServiceAccountPrivateKey,
       updatedAt = datetime('now')
   `).run(
-    String(googleCalendarId || '').trim(),
-    String(googleServiceAccountEmail || '').trim(),
-    String(googleServiceAccountPrivateKey || ''),
+    encryptedCalendarId,
+    encryptedEmail,
+    encryptedKey,
   );
 }
 
