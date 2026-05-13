@@ -366,6 +366,66 @@ For production deployments or automated setups, you can configure Google Calenda
 
 **Priority:** Database settings (via Settings page) take precedence over environment variables. This allows you to update credentials without restarting the server.
 
+#### Security: Automatic Encryption of Sensitive Data
+
+**All Google Calendar credentials are encrypted before storage in the SQLite database.** This provides protection against database compromise.
+
+- **Automatic encryption key generation:**
+  - On first startup, GuestFlow automatically generates a strong encryption key
+  - The key is saved to `server/.env.local` (automatically added to `.gitignore`)
+  - On subsequent startups, the key is automatically loaded and reused
+  - **No manual setup required** — encryption is transparent and automatic
+
+- **How it works:**
+  - Sensitive fields (`googleCalendarId`, `googleServiceAccountEmail`, `googleServiceAccountPrivateKey`) are encrypted using AES-256-GCM
+  - Each field has its own random initialization vector (IV) and authentication tag
+  - Data is automatically decrypted when retrieved by the application
+  - Even if the database file (`guestflow.db`) is compromised, the encrypted credentials cannot be read without the encryption key
+
+- **For development (recommended):**
+  ```bash
+  # Just start normally - encryption key is auto-generated on first run
+  npm run dev
+  # or
+  npm run dev:server
+  ```
+
+- **For production deployments:**
+  
+  If deploying to a new server or environment, you have two options:
+  
+  **Option A: Use auto-generated key (recommended)**
+  ```bash
+  # Start the app - it generates and saves the key to .env.local
+  NODE_ENV=production node src/index.js
+  ```
+  
+  **Option B: Provide a custom encryption key**
+  ```bash
+  # For multi-instance deployments, provide the same key on all instances
+  export ENCRYPTION_KEY="your-secure-key-here"
+  NODE_ENV=production node src/index.js
+  ```
+
+- **With PM2:**
+  ```bash
+  # Auto-generated key (recommended)
+  pm2 start src/index.js --name guestflow
+  pm2 save
+  
+  # Or with custom key for consistency across deployments
+  export ENCRYPTION_KEY="your-secure-key"
+  pm2 start src/index.js --name guestflow
+  pm2 save
+  ```
+
+- **⚠️ Important notes:**
+  - **`.env.local` file:** The auto-generated key is stored here. Keep it safe and never commit it to git (it's automatically in `.gitignore`)
+  - **Recovery:** If `.env.local` is lost, the stored credentials become unreadable. You can re-enter them via the Settings page with a new key
+  - **Multi-instance deployments:** If running GuestFlow on multiple servers, either:
+    - Copy the `.env.local` from the first instance to others, **OR**
+    - Set the same `ENCRYPTION_KEY` environment variable on all instances
+
 ### 4. Environment Variables
 
 | Variable | Description | Default |

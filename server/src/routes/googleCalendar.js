@@ -93,15 +93,20 @@ function buildEventDescription(reservation, options) {
 }
 
 function buildGoogleEventPayload(reservation, options) {
+  // Construire les heures ISO 8601 avec timezone
+  const startDateTime = `${reservation.startDate}T${reservation.checkInTime || '15:00'}:00`;
+  const endDateTime = `${reservation.endDate}T${reservation.checkOutTime || '10:00'}:00`;
+
   return {
     summary: buildEventTitle(reservation),
     description: buildEventDescription(reservation, options),
     start: {
-      date: reservation.startDate,
+      dateTime: startDateTime,
+      timeZone: 'Europe/Paris', // Adapter à ta timezone si nécessaire
     },
     end: {
-      // Google Calendar all-day events use exclusive end date. Reservation endDate already matches this behavior.
-      date: reservation.endDate,
+      dateTime: endDateTime,
+      timeZone: 'Europe/Paris', // Adapter à ta timezone si nécessaire
     },
     extendedProperties: {
       private: {
@@ -161,6 +166,8 @@ router.post('/sync-reservations', async (req, res) => {
         r.id,
         r.startDate,
         r.endDate,
+        r.checkInTime,
+        r.checkOutTime,
         r.adults,
         r.children,
         r.teens,

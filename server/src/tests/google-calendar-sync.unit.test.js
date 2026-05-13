@@ -47,7 +47,7 @@ test('buildEventDescription includes people, beds and options', () => {
   assert.match(description, /- Kit bebe x2/);
 });
 
-test('buildGoogleEventPayload creates all-day event with metadata', () => {
+test('buildGoogleEventPayload creates event with start and end times', () => {
   const payload = buildGoogleEventPayload(
     {
       id: 42,
@@ -56,6 +56,8 @@ test('buildGoogleEventPayload creates all-day event with metadata', () => {
       clientFirstName: 'Leo',
       startDate: '2026-06-01',
       endDate: '2026-06-05',
+      checkInTime: '15:00',
+      checkOutTime: '10:00',
       adults: 2,
       children: 0,
       teens: 0,
@@ -68,8 +70,10 @@ test('buildGoogleEventPayload creates all-day event with metadata', () => {
   );
 
   assert.equal(payload.summary, 'Loft Centre - Martin Leo');
-  assert.equal(payload.start.date, '2026-06-01');
-  assert.equal(payload.end.date, '2026-06-05');
+  assert.equal(payload.start.dateTime, '2026-06-01T15:00:00');
+  assert.equal(payload.end.dateTime, '2026-06-05T10:00:00');
+  assert.equal(payload.start.timeZone, 'Europe/Paris');
+  assert.equal(payload.end.timeZone, 'Europe/Paris');
   assert.equal(payload.extendedProperties.private.guestflowSource, 'guestflow');
   assert.equal(payload.extendedProperties.private.guestflowReservationId, '42');
 });
