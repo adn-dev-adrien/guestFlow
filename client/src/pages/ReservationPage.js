@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
   MenuItem, Typography, CircularProgress, Chip, FormControlLabel,
@@ -91,9 +91,17 @@ export default function ReservationPage() {
   const { reservationId } = useParams();
   const editingReservationId = reservationId ? Number(reservationId) : null;
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
   const from = getFromParam(searchParams);
+  
+  // Check if in devis mode
+  const isDevisMode = searchParams.get('mode') === 'devis';
+  const devisIdFromUrl = searchParams.get('devisId');
+  const editingDevisId = isDevisMode && devisIdFromUrl ? Number(devisIdFromUrl) : null;
+  const prefillDevis = isDevisMode && !editingDevisId ? location.state?.prefillDevis : null;
+
   const theme = useTheme();
   const downSm = useMediaQuery(theme.breakpoints.down('sm'));
   const downMd = useMediaQuery(theme.breakpoints.down('md'));
@@ -376,8 +384,43 @@ export default function ReservationPage() {
         const urlPropId = searchParams.get('propertyId');
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
-        const initialPropId = reservationId ? null : (urlPropId ? Number(urlPropId) : (props.length > 0 ? props[0].id : ''));
+        const initialPropId = reservationId || editingDevisId
+          ? null
+          : (urlPropId ? Number(urlPropId) : (props.length > 0 ? props[0].id : ''));
         setExistingReservationLocked(false);
+
+        if (prefillDevis?.form) {
+          const prefillPropertyId = Number(prefillDevis.propertyId || prefillDevis.form.propertyId || 0) || null;
+          if (prefillPropertyId) {
+            const propDetails = await api.getProperty(prefillPropertyId);
+            const opts = await api.getOptions();
+            const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(prefillPropertyId));
+
+            setSelectedProp(prefillPropertyId);
+            setSelectedProperty(propDetails || props.find((p) => p.id === prefillPropertyId) || null);
+            setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
+            if (Array.isArray(propDetails?.resources)) {
+              setAvailableResources(propDetails.resources.map((r) => ({
+                ...r,
+                available: Number(r.available ?? r.quantity ?? 0),
+              })));
+            }
+
+            const allRes = await api.getReservations({ propertyId: prefillPropertyId });
+            setReservations(allRes || []);
+          }
+
+          setForm((prev) => ({
+            ...prev,
+            ...prefillDevis.form,
+            propertyId: prefillPropertyId || prefillDevis.form.propertyId || prev.propertyId,
+            selectedOptions: prefillDevis.form.selectedOptions || [],
+            selectedResources: prefillDevis.form.selectedResources || [],
+          }));
+          setOfferedOptionIds(new Set(prefillDevis.offeredOptionIds || []));
+          setLoading(false);
+          return;
+        }
         
         if (initialPropId) {
           setSelectedProp(initialPropId);
@@ -394,12 +437,19 @@ export default function ReservationPage() {
           const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
           setExistingReservationLocked(Boolean(res.startDate && res.startDate <= todayStr));
           const prop = props.find(p => p.id === res.propertyId);
+          const propDetails = await api.getProperty(res.propertyId);
           setSelectedProp(res.propertyId);
-          setSelectedProperty(prop);
+          setSelectedProperty(propDetails || prop);
           
           const opts = await api.getOptions();
           const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(res.propertyId));
-          setPropertyOptions(availableOpts);
+          setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
+          if (Array.isArray(propDetails?.resources)) {
+            setAvailableResources(propDetails.resources.map((r) => ({
+              ...r,
+              available: Number(r.available ?? r.quantity ?? 0),
+            })));
+          }
 
           // Load all reservations for this property to check conflicts
           const allRes = await api.getReservations({ propertyId: res.propertyId });
@@ -476,13 +526,88 @@ export default function ReservationPage() {
           // Load resources
           await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
           await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
+        } else if (editingDevisId) {
+          const devis = await api.getDevisById(editingDevisId);
+          const prop = props.find(p => p.id === devis.propertyId);
+          const propDetails = await api.getProperty(devis.propertyId);
+          setSelectedProp(devis.propertyId);
+          setSelectedProperty(propDetails || prop || null);
+
+          const opts = await api.getOptions();
+          const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(devis.propertyId));
+          setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
+          if (Array.isArray(propDetails?.resources)) {
+            setAvailableResources(propDetails.resources.map((r) => ({
+              ...r,
+              available: Number(r.available ?? r.quantity ?? 0),
+            })));
+          }
+
+          const allRes = await api.getReservations({ propertyId: devis.propertyId });
+          setReservations(allRes || []);
+
+          setForm({
+            clientId: devis.clientId,
+            adults: devis.adults || 1,
+            children: devis.children || 0,
+            teens: devis.teens || 0,
+            babies: devis.babies || 0,
+            platform: devis.platform || 'direct',
+            singleBeds: devis.singleBeds || '',
+            doubleBeds: devis.doubleBeds || '',
+            babyBeds: devis.babyBeds || '',
+            totalPrice: devis.totalPrice || 0,
+            touristTaxRate: devis.touristTaxRate || 0,
+            touristTaxTotal: devis.touristTaxTotal || 0,
+            discountPercent: devis.discountPercent || 0,
+            finalPrice: devis.finalPrice || 0,
+            customPrice: devis.customPrice === '' ? '' : Number(devis.customPrice || 0),
+            depositAmount: devis.depositAmount || 0,
+            depositDueDate: devis.depositDueDate || '',
+            balanceAmount: devis.balanceAmount || 0,
+            balanceDueDate: devis.balanceDueDate || '',
+            cautionAmount: devis.cautionAmount || 0,
+            cautionReceived: false,
+            cautionReceivedDate: '',
+            cautionReturned: false,
+            cautionReturnedDate: '',
+            notes: devis.notes || '',
+            selectedOptions: (devis.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            selectedResources: (devis.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
+            checkInTime: devis.checkInTime || '15:00',
+            checkOutTime: devis.checkOutTime || '10:00',
+            startDate: devis.startDate,
+            endDate: devis.endDate,
+            propertyId: devis.propertyId,
+            depositPaid: false,
+            balancePaid: false,
+          });
+
+          const offeredOpts = new Set((devis.options || [])
+            .filter(o => Number(o.totalPrice || 0) === 0)
+            .map(o => o.optionId)
+          );
+          setOfferedOptionIds(offeredOpts);
+          setPricingQuote(null);
+          setIsIcalImportedBlankPrice(false);
+          setIsIcalSource(false);
+          setUseCurrentPricing(false);
+
+          await loadResourcesAvailability(devis.startDate, devis.endDate, devis.propertyId, null);
+          await loadBabyBedAvailability(devis.startDate, devis.endDate, devis.propertyId, null);
         } else if (initialPropId && startDate && endDate) {
           // New reservation with pre-filled dates from URL
           const prop = await api.getProperty(initialPropId);
           const opts = await api.getOptions();
           const propIdNum = parseInt(initialPropId, 10);
           const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
-          setPropertyOptions(availableOpts);
+          setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
+          if (Array.isArray(prop?.resources)) {
+            setAvailableResources(prop.resources.map((r) => ({
+              ...r,
+              available: Number(r.available ?? r.quantity ?? 0),
+            })));
+          }
 
           const calc = await api.calculatePrice({
             propertyId: initialPropId,
@@ -552,7 +677,7 @@ export default function ReservationPage() {
     };
 
     initPage();
-  }, [reservationId, searchParams]);
+  }, [reservationId, editingDevisId, searchParams, prefillDevis]);
 
   // ==================== DATA LOADING FUNCTIONS ====================
   const loadResourcesAvailability = async (startDate, endDate, propertyId, excludeReservationId = null) => {
@@ -908,7 +1033,13 @@ export default function ReservationPage() {
     setSelectedProp(nextPropertyId);
     setSelectedProperty(prop);
     setReservations(allRes || []);
-    setPropertyOptions(availableOpts);
+    setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
+    if (Array.isArray(prop?.resources)) {
+      setAvailableResources(prop.resources.map((r) => ({
+        ...r,
+        available: Number(r.available ?? r.quantity ?? 0),
+      })));
+    }
     setPricingQuote(calc);
     applyQuoteMinNights(calc);
     setUseCurrentPricing(false);
@@ -1134,7 +1265,56 @@ export default function ReservationPage() {
         return;
       }
 
-      if (reservationId) {
+      if (isDevisMode) {
+        const devisPayload = {
+          propertyId: Number(selectedProp),
+          clientId: form.clientId,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          adults: form.adults,
+          children: form.children,
+          teens: form.teens,
+          babies: form.babies,
+          singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
+          doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
+          babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
+          checkInTime: form.checkInTime,
+          checkOutTime: form.checkOutTime,
+          platform: form.platform,
+          totalPrice: quote.totalPrice,
+          touristTaxRate: quote.touristTaxRate || 0,
+          touristTaxTotal: quote.touristTaxTotal || 0,
+          discountPercent: form.discountPercent,
+          finalPrice: quote.finalPrice,
+          customPrice: form.customPrice,
+          depositAmount: quote.depositAmount,
+          depositDueDate: quote.depositDueDate,
+          balanceAmount: quote.balanceAmount,
+          balanceDueDate: quote.balanceDueDate,
+          cautionAmount: form.cautionAmount,
+          notes: form.notes,
+          selectedOptions: quote.optionLines,
+          selectedResources: quote.resourceLines,
+        };
+
+        if (editingDevisId) {
+          await api.updateDevis(editingDevisId, devisPayload);
+          if (safeAfterSaveAction) {
+            safeAfterSaveAction();
+          } else {
+            navigate('/devis');
+          }
+        } else {
+          const created = await api.createDevis(devisPayload);
+          if (safeAfterSaveAction) {
+            safeAfterSaveAction();
+          } else if (created?.id) {
+            navigate(`/reservations/new?mode=devis&devisId=${created.id}`);
+          } else {
+            navigate('/devis');
+          }
+        }
+      } else if (reservationId) {
         await api.updateReservation(reservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -1360,21 +1540,24 @@ export default function ReservationPage() {
   }
 
   const goBackToOrigin = () => {
+    if (isDevisMode) {
+      requestLeave(() => navigate('/devis'));
+      return;
+    }
     requestLeave(() => navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus()));
   };
 
   // ── Devis helpers ─────────────────────────────────────────────────────────
   const handleCreateDevisFromForm = () => {
-    const params = new URLSearchParams();
-    if (selectedProp) params.set('propertyId', selectedProp);
-    if (form.startDate) params.set('startDate', form.startDate);
-    if (form.endDate) params.set('endDate', form.endDate);
-    if (form.clientId) params.set('clientId', form.clientId);
-    params.set('adults', form.adults);
-    params.set('children', form.children);
-    params.set('teens', form.teens);
-    params.set('babies', form.babies);
-    navigate(`/devis/new?${params.toString()}`);
+    navigate('/reservations/new?mode=devis', {
+      state: {
+        prefillDevis: {
+          propertyId: Number(selectedProp || form.propertyId || 0) || null,
+          form,
+          offeredOptionIds: Array.from(offeredOptionIds || []),
+        },
+      },
+    });
   };
 
   const handleConvertToDevis = async () => {
@@ -1388,9 +1571,66 @@ export default function ReservationPage() {
     if (!ok) return;
     try {
       const devis = await api.createDevisFromReservation(editingReservationId);
-      navigate(`/devis/${devis.id}`);
+        navigate(`/reservations/new?mode=devis&devisId=${devis.id}`);
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || 'Impossible de créer le devis.' });
+    }
+  };
+
+  const handleOpenDevisPdf = async () => {
+    if (!editingDevisId) return;
+    try {
+      const res = await fetch(api.getDevisPdfUrl(editingDevisId));
+      if (!res.ok) throw new Error('Impossible de générer le PDF.');
+      const blob = await res.blob();
+      const fileUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = `devis-${editingDevisId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de télécharger le PDF du devis.' });
+    }
+  };
+
+  const handleConvertDevisToReservation = async () => {
+    if (!editingDevisId) return;
+    const ok = await confirm({
+      title: 'Passer en réservation',
+      message: 'Voulez-vous convertir ce devis en réservation ? Les dates seront bloquées.',
+      confirmLabel: 'Convertir',
+      confirmColor: 'warning',
+    });
+    if (!ok) return;
+    try {
+      const result = await api.convertDevisToReservation(editingDevisId);
+      if (result?.reservationId) {
+        navigate(`/reservations/${result.reservationId}`);
+      } else {
+        navigate('/reservations/new');
+      }
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de convertir le devis.' });
+    }
+  };
+
+  const handleDeleteDevis = async () => {
+    if (!editingDevisId) return;
+    const ok = await confirm({
+      title: 'Supprimer le devis',
+      message: 'Êtes-vous sûr de vouloir supprimer ce devis ? Cette action est irréversible.',
+      confirmLabel: 'Supprimer',
+      confirmColor: 'error',
+    });
+    if (!ok) return;
+    try {
+      await api.deleteDevis(editingDevisId);
+      navigate('/devis');
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de supprimer le devis.' });
     }
   };
 
@@ -1460,7 +1700,9 @@ export default function ReservationPage() {
     '&:last-child': { pb: { xs: 1.5, sm: 2 } },
   };
 
-  const computedTitle = reservationId ? 'Modifier la réservation' : 'Nouvelle réservation';
+  const computedTitle = isDevisMode
+    ? (editingDevisId ? 'Modifier le devis' : 'Nouveau devis')
+    : (reservationId ? 'Modifier la réservation' : 'Nouvelle réservation');
 
   return (
     <Box sx={{ pb: 4 }}>
@@ -1504,20 +1746,22 @@ export default function ReservationPage() {
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <Button
-              variant="outlined"
-              startIcon={googleSyncing ? <CircularProgress size={16} /> : <SyncIcon />}
-              onClick={handleSyncGoogleCalendar}
-              disabled={googleSyncing}
-            >
-              {googleSyncing ? 'Sync Google...' : 'Sync Google'}
-            </Button>
-            {reservationId && (
+            {!isDevisMode && (
+              <Button
+                variant="outlined"
+                startIcon={googleSyncing ? <CircularProgress size={16} /> : <SyncIcon />}
+                onClick={handleSyncGoogleCalendar}
+                disabled={googleSyncing}
+              >
+                {googleSyncing ? 'Sync Google...' : 'Sync Google'}
+              </Button>
+            )}
+            {!isDevisMode && reservationId && (
               <Button variant="outlined" color="warning" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
                 Actualiser tarifs
               </Button>
             )}
-            {!reservationId && (
+            {!isDevisMode && !reservationId && (
               <Button
                 variant="outlined"
                 color="info"
@@ -1527,7 +1771,7 @@ export default function ReservationPage() {
                 Créer un devis
               </Button>
             )}
-            {reservationId && (
+            {!isDevisMode && reservationId && (
               <Button
                 variant="outlined"
                 color="info"
@@ -1537,15 +1781,36 @@ export default function ReservationPage() {
                 Transformer en devis
               </Button>
             )}
+            {isDevisMode && (
+              <Button
+                variant="outlined"
+                color="info"
+                startIcon={<DescriptionIcon />}
+                onClick={handleOpenDevisPdf}
+                disabled={!editingDevisId}
+              >
+                Télécharger PDF
+              </Button>
+            )}
+            {isDevisMode && editingDevisId && (
+              <Button variant="outlined" color="warning" startIcon={<AutoFixHighIcon />} onClick={handleConvertDevisToReservation}>
+                Passer en réservation
+              </Button>
+            )}
             <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>
-              Enregistrer
+              {isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
             </Button>
             <Button variant="outlined" onClick={goBackToOrigin}>
               Annuler
             </Button>
-            {reservationId && (
+            {!isDevisMode && reservationId && (
               <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteReservation} disabled={isReservationLocked}>
                 Supprimer
+              </Button>
+            )}
+            {isDevisMode && editingDevisId && (
+              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteDevis}>
+                Supprimer le devis
               </Button>
             )}
           </Box>

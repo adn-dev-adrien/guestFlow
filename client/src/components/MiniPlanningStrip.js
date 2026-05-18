@@ -43,16 +43,17 @@ const BLOCKED_NIGHT_COLOR = '#ff9800';
 
 export default function MiniPlanningStrip({
   miniCalendarStart,
-  setMiniCalendarStart,
-  miniVisibleDays,
-  reservations,
+  setMiniCalendarStart = () => {},
+  miniVisibleDays = 7,
+  reservations = [],
   selectedPropertyId,
   currentReservation,
   currentReservationId,
-  onDateClick,
-  onRecenter,
+  onDateClick = () => {},
+  onRecenter = () => {},
   isLocked,
 }) {
+  const safeReservations = Array.isArray(reservations) ? reservations : [];
   const selectedReservationColor = PLATFORM_COLORS[currentReservation?.platform] || '#1976d2';
 
   const miniDays = useMemo(() => {
@@ -60,10 +61,10 @@ export default function MiniPlanningStrip({
   }, [miniCalendarStart, miniVisibleDays]);
 
   const otherReservationsForMini = useMemo(() => {
-    const scoped = reservations.filter((r) => Number(r.propertyId) === Number(selectedPropertyId));
+    const scoped = safeReservations.filter((r) => Number(r.propertyId) === Number(selectedPropertyId));
     if (!currentReservationId) return scoped;
     return scoped.filter((r) => r.id !== currentReservationId);
-  }, [reservations, selectedPropertyId, currentReservationId]);
+  }, [safeReservations, selectedPropertyId, currentReservationId]);
 
   const findDepartureReservationOnDay = (dateStr) => {
     if (!dateStr) return null;

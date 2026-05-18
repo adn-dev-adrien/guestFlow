@@ -9,6 +9,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
@@ -40,10 +41,18 @@ function formatPrice(v) {
 
 export default function DevisPage() {
   const navigate = useNavigate();
-  const { confirm } = useAppDialogs();
+  const { confirm, alert } = useAppDialogs();
   const [devisList, setDevisList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+
+  const handleCreateDevis = () => {
+    navigate('/reservations/new?mode=devis');
+  };
+
+  const handleEditDevis = (devisId) => {
+    navigate(`/reservations/new?mode=devis&devisId=${devisId}`);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,8 +98,22 @@ export default function DevisPage() {
     }
   };
 
-  const handleOpenPdf = (devis) => {
-    window.open(api.getDevisPdfUrl(devis.id), '_blank');
+  const handleOpenPdf = async (devis) => {
+    try {
+      const res = await fetch(api.getDevisPdfUrl(devis.id));
+      if (!res.ok) throw new Error('Impossible de générer le PDF.');
+      const blob = await res.blob();
+      const fileUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = `devis-${devis.devisNumber || devis.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de télécharger le PDF du devis.' });
+    }
   };
 
   return (
@@ -102,7 +125,7 @@ export default function DevisPage() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/devis/new')}
+            onClick={handleCreateDevis}
           >
             Nouveau devis
           </Button>
@@ -156,7 +179,7 @@ export default function DevisPage() {
                       key={d.id}
                       hover
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/devis/${d.id}`)}
+                      onClick={() => handleEditDevis(d.id)}
                     >
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
@@ -188,7 +211,7 @@ export default function DevisPage() {
                       <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                         <Stack direction="row" spacing={0.5} justifyContent="center">
                           <Tooltip title="Modifier">
-                            <IconButton size="small" onClick={() => navigate(`/devis/${d.id}`)}>
+                            <IconButton size="small" onClick={() => handleEditDevis(d.id)}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -204,6 +227,11 @@ export default function DevisPage() {
                               </IconButton>
                             </Tooltip>
                           )}
+                          <Tooltip title="Supprimer">
+                            <IconButton size="small" color="error" onClick={() => handleDelete(d)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Stack>
                       </TableCell>
                     </TableRow>

@@ -43,7 +43,7 @@ function enrichDevis(row) {
     SELECT * FROM devis_nights WHERE devisId = ? ORDER BY date
   `).all(row.id);
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
-  const property = db.prepare('SELECT id, name, checkInTime, checkOutTime, defaultCautionAmount FROM properties WHERE id = ?').get(row.propertyId);
+  const property = db.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources FROM properties WHERE id = ?').get(row.propertyId);
   return { ...row, options, resources, nights, client, property };
 }
 
@@ -545,6 +545,9 @@ router.get('/:id/pdf', (req, res) => {
   const settings = db.getAppSettings();
   const property = full.property;
   const client = full.client;
+  const vatAccommodation = Number(property?.vatPercentageAccommodation ?? 20);
+  const vatOptions = Number(property?.vatPercentageOptions ?? 20);
+  const vatResources = Number(property?.vatPercentageResources ?? 20);
 
   // Parse phone numbers
   let phones = [];
@@ -681,29 +684,36 @@ router.get('/:id/pdf', (req, res) => {
   // Table header
   const TH = TABLE_TOP + 20;
   const COL_DESC = LEFT;
-  const COL_QTY = LEFT + PAGE_W * 0.48;
-  const COL_UNIT = LEFT + PAGE_W * 0.62;
-  const COL_TOTAL = LEFT + PAGE_W * 0.8;
+  const COL_QTY = LEFT + PAGE_W * 0.5;
+  const COL_HT = LEFT + PAGE_W * 0.6;
+  const COL_VAT = LEFT + PAGE_W * 0.76;
+  const COL_TOTAL = LEFT + PAGE_W * 0.86;
 
   doc.rect(LEFT, TH, PAGE_W, 18).fill(BRAND);
   doc.fontSize(8.5).fillColor('#ffffff').font('Helvetica-Bold');
-  doc.text('Désignation', COL_DESC + 4, TH + 5, { width: PAGE_W * 0.46 });
-  doc.text('Qté', COL_QTY, TH + 5, { width: PAGE_W * 0.12, align: 'center' });
-  doc.text('Prix unitaire', COL_UNIT, TH + 5, { width: PAGE_W * 0.16, align: 'right' });
-  doc.text('Total TTC', COL_TOTAL, TH + 5, { width: PAGE_W * 0.2, align: 'right' });
+  doc.text('Désignation', COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
+  doc.text('Qté', COL_QTY, TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  doc.text('Prix HT', COL_HT, TH + 5, { width: PAGE_W * 0.16, align: 'right' });
+  doc.text('TVA %', COL_VAT, TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  doc.text('Total TTC', COL_TOTAL, TH + 5, { width: PAGE_W * 0.14, align: 'right' });
 
   let rowY = TH + 18;
   let rowIdx = 0;
+  let subtotalHt = 0;
 
-  function drawRow(desc, qty, unitPrice, total, italic) {
+  function drawRow(desc, qty, totalTtc, vatRate, italic) {
     const rowH = 20;
     if (rowIdx % 2 === 0) doc.rect(LEFT, rowY, PAGE_W, rowH).fill(LIGHT_GRAY);
+    const rate = Number(vatRate || 0);
+    const ht = rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
+    subtotalHt += ht;
     doc.fontSize(9).fillColor(TEXT_DARK);
     if (italic) doc.font('Helvetica-Oblique'); else doc.font('Helvetica');
-    doc.text(desc, COL_DESC + 4, rowY + 6, { width: PAGE_W * 0.46 });
-    doc.font('Helvetica').text(String(qty), COL_QTY, rowY + 6, { width: PAGE_W * 0.12, align: 'center' });
-    doc.text(formatCurrency(unitPrice), COL_UNIT, rowY + 6, { width: PAGE_W * 0.16, align: 'right' });
-    doc.font('Helvetica-Bold').text(formatCurrency(total), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.2, align: 'right' });
+    doc.text(desc, COL_DESC + 4, rowY + 6, { width: PAGE_W * 0.48 });
+    doc.font('Helvetica').text(String(qty), COL_QTY, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
+    doc.text(formatCurrency(ht), COL_HT, rowY + 6, { width: PAGE_W * 0.16, align: 'right' });
+    doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
+    doc.font('Helvetica-Bold').text(formatCurrency(totalTtc), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.14, align: 'right' });
     rowY += rowH;
     rowIdx++;
   }
@@ -728,27 +738,22 @@ router.get('/:id/pdf', (req, res) => {
       const label = g.count === 1
         ? `Nuit du ${formatDateFR(g.firstDate)} (${g.seasonLabel})`
         : `${g.count} nuits — ${g.seasonLabel} (${formatDateFR(g.firstDate)} → ${formatDateFR(g.lastDate)})`;
-      drawRow(label, g.count, g.pricingMode === 'progressive' ? g.totalPrice / g.count : g.unitPrice, g.totalPrice, false);
+      drawRow(label, g.count, g.totalPrice, vatAccommodation, false);
     }
   } else {
     // Flat accommodation row
     const accTotal = roundMoney((full.totalPrice || 0) - (full.options || []).reduce((s, o) => s + o.totalPrice, 0) - (full.resources || []).reduce((s, r) => s + r.totalPrice, 0));
-    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, nights > 0 ? accTotal / nights : 0, accTotal, false);
+    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, accTotal, vatAccommodation, false);
   }
 
   // Options
   for (const opt of full.options || []) {
-    drawRow(opt.title || `Option #${opt.optionId}`, opt.billedUnits || opt.quantity || 1, opt.unitPrice, opt.totalPrice, false);
+    drawRow(opt.title || `Option #${opt.optionId}`, opt.billedUnits || opt.quantity || 1, opt.totalPrice, vatOptions, false);
   }
 
   // Resources
   for (const rsc of full.resources || []) {
-    drawRow(rsc.name || `Ressource #${rsc.resourceId}`, rsc.quantity || 1, rsc.unitPrice, rsc.totalPrice, false);
-  }
-
-  // Tourist tax
-  if (Number(full.touristTaxTotal || 0) > 0) {
-    drawRow('Taxe de séjour', '—', full.touristTaxTotal, full.touristTaxTotal, true);
+    drawRow(rsc.name || `Ressource #${rsc.resourceId}`, rsc.quantity || 1, rsc.totalPrice, vatResources, false);
   }
 
   // Table bottom border
@@ -767,20 +772,29 @@ router.get('/:id/pdf', (req, res) => {
     totY += 16;
   }
 
-  const subtotal = (full.totalPrice || 0) + (full.options || []).reduce((s, o) => s + o.totalPrice, 0) + (full.resources || []).reduce((s, r) => s + r.totalPrice, 0);
-  drawTotalLine('Sous-total HT', subtotal, false);
+  drawTotalLine('Sous-total HT', subtotalHt, false);
+  const subtotalTtc = roundMoney((full.totalPrice || 0) + (full.options || []).reduce((s, o) => s + o.totalPrice, 0) + (full.resources || []).reduce((s, r) => s + r.totalPrice, 0));
+  drawTotalLine('Sous-total TTC', subtotalTtc, false);
   if (Number(full.discountPercent || 0) > 0) {
-    drawTotalLine(`Remise (${full.discountPercent}%)`, -(subtotal * full.discountPercent / 100), false);
+    drawTotalLine(`Remise (${full.discountPercent}%)`, -(subtotalTtc * full.discountPercent / 100), false);
   }
   if (Number(full.touristTaxTotal || 0) > 0) {
     drawTotalLine('Taxe de séjour', full.touristTaxTotal, false);
+    const taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);
+    const taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
+    const taxRate = Number(full.touristTaxRate || 0);
+    const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${formatCurrency(taxRate)} / pers./nuit`;
+    doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
+      .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW, align: 'right' });
+    totY += 10;
   }
 
   // Total line
+  const grandTotalTtc = roundMoney(Number(full.finalPrice || 0) + Number(full.touristTaxTotal || 0));
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
     .text('TOTAL TTC', TOTAL_RX - 4, totY + 4, { width: 120 });
-  doc.text(formatCurrency(full.finalPrice), TOTAL_RX + 120, totY + 4, { width: 80, align: 'right' });
+  doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80, align: 'right' });
   totY += 30;
 
   // ── Payment schedule ──────────────────────────────────────────────────────

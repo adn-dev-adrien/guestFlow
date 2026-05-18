@@ -1352,7 +1352,7 @@ export default function CalendarPage() {
           <Box
             key={dateStr}
             data-date={dateStr}
-            onClick={() => navigate(`/devis/${activeDevis.id}`)}
+            onClick={() => navigate(`/reservations/new?mode=devis&devisId=${activeDevis.id}`)}
             sx={{
               textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
               bgcolor: devisColor, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',

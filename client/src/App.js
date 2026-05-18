@@ -47,7 +47,6 @@ import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import SettingsPage from './pages/SettingsPage';
 import DevisPage from './pages/DevisPage';
-import DevisDetailPage from './pages/DevisDetailPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -362,8 +361,6 @@ function AppShell() {
           <Route path="/reservations/:reservationId" element={<ReservationPage />} />
           <Route path="/reservations/upcoming" element={<ReservationsUpcomingPage />} />
           <Route path="/devis" element={<DevisPage />} />
-          <Route path="/devis/new" element={<DevisDetailPage />} />
-          <Route path="/devis/:devisId" element={<DevisDetailPage />} />
           <Route path="/finance" element={<FinancePage />} />
           <Route path="/finance/tourist-tax" element={<TouristTaxPage />} />
           <Route path="/planning" element={<PlanningPage />} />
