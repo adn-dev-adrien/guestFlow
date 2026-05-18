@@ -700,6 +700,7 @@ function calculateReservationQuote({
         billedUnits: merged.billedUnits,
         priceType,
         originalTotalPrice,
+        offered: offeredOptionIdSet.has(optionId),
         totalPrice: offeredOptionIdSet.has(optionId) ? 0 : merged.totalPrice,
       };
     })
@@ -765,6 +766,7 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         originalTotalPrice,
+        offered: offeredOptionIdSet.has(optionId),
         totalPrice: offeredOptionIdSet.has(Number(line.optionId)) ? 0 : merged.totalPrice,
       };
     })
@@ -784,8 +786,9 @@ function calculateReservationQuote({
         ? lockedUnit
         : Number(selected?.unitPrice !== undefined ? selected.unitPrice : resource.price || 0);
       const priceType = resource.priceType || 'per_stay';
+      const usesHourlyQuantity = priceType === 'per_hour' || Number(resource.isComplex || 0) === 1;
       const baseBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
-      const targetBilledUnits = priceType === 'per_hour'
+      const targetBilledUnits = usesHourlyQuantity
         ? applyPerHourFreeMinutes(baseBilledUnits, resource.freeMinutes)
         : baseBilledUnits;
       const lockedLine = lockedResourcesById.get(resourceId);
@@ -808,27 +811,28 @@ function calculateReservationQuote({
 
   const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
-  const subtotal = roundMoney(Number(totalPrice || 0) + optionsTotal + resourcesTotal);
+  const accommodationBaseTotal = roundMoney(Number(totalPrice || 0));
+  const subtotal = roundMoney(accommodationBaseTotal + optionsTotal + resourcesTotal);
   const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
   const customFinalPrice = customPrice === '' || customPrice === null || customPrice === undefined
     ? null
     : Number(customPrice);
-  const finalPrice = roundMoney(
-    Number.isFinite(customFinalPrice)
-      ? customFinalPrice + optionsTotal + resourcesTotal
-      : subtotal * (1 - normalizedDiscountPercent / 100)
-  );
-  const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
   const accommodationAdjustedPrice = roundMoney(
     Number.isFinite(customFinalPrice)
       ? customFinalPrice
-      : Number(totalPrice || 0) * (1 - normalizedDiscountPercent / 100)
+      : accommodationBaseTotal * (1 - normalizedDiscountPercent / 100)
   );
-  const accommodationDiscountAmount = roundMoney(Math.max(0, Number(totalPrice || 0) - accommodationAdjustedPrice));
-  const accommodationDeltaAmount = roundMoney(Math.abs(Number(totalPrice || 0) - accommodationAdjustedPrice));
-  const accommodationDeltaType = accommodationAdjustedPrice < Number(totalPrice || 0)
+  const finalPrice = roundMoney(
+    Number.isFinite(customFinalPrice)
+      ? customFinalPrice + optionsTotal + resourcesTotal
+      : accommodationAdjustedPrice + optionsTotal + resourcesTotal
+  );
+  const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
+  const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
+  const accommodationDeltaAmount = roundMoney(Math.abs(accommodationBaseTotal - accommodationAdjustedPrice));
+  const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
     ? 'reduction'
-    : accommodationAdjustedPrice > Number(totalPrice || 0)
+    : accommodationAdjustedPrice > accommodationBaseTotal
       ? 'increase'
       : 'none';
 
@@ -838,8 +842,8 @@ function calculateReservationQuote({
   const vatPercentageResources = Number(property.vatPercentageResources || 20);
   
   // For TTC prices: VAT amount = TTC × (vatRate / (100 + vatRate))
-  const accommodationVatAmount = roundMoney(totalPrice * (vatPercentageAccommodation / (100 + vatPercentageAccommodation)));
-  const accommodationNetPrice = roundMoney(totalPrice - accommodationVatAmount);
+  const accommodationVatAmount = roundMoney(accommodationAdjustedPrice * (vatPercentageAccommodation / (100 + vatPercentageAccommodation)));
+  const accommodationNetPrice = roundMoney(accommodationAdjustedPrice - accommodationVatAmount);
   
   const optionsVatAmount = roundMoney(optionsTotal * (vatPercentageOptions / (100 + vatPercentageOptions)));
   const optionsNetPrice = roundMoney(optionsTotal - optionsVatAmount);

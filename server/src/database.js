@@ -135,6 +135,7 @@ db.exec(`
     touristTaxRate REAL DEFAULT 0,
     touristTaxTotal REAL DEFAULT 0,
     discountPercent REAL DEFAULT 0,
+    customPrice REAL,
     finalPrice REAL,
     depositAmount REAL DEFAULT 0,
     depositDueDate TEXT,
@@ -167,6 +168,7 @@ db.exec(`
     billedUnits REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     totalPrice REAL DEFAULT 0,
+    offered INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (reservationId, optionId),
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
@@ -356,6 +358,9 @@ if (!cols.includes('teens')) {
 if (!cols.includes('sourceType')) {
   db.exec("ALTER TABLE reservations ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'manual'");
 }
+if (!cols.includes('customPrice')) {
+  db.exec('ALTER TABLE reservations ADD COLUMN customPrice REAL');
+}
 if (!cols.includes('sourcePlatformKey')) {
   db.exec("ALTER TABLE reservations ADD COLUMN sourcePlatformKey TEXT");
 }
@@ -470,6 +475,9 @@ if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('billedU
 if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('priceType')) {
   db.exec("ALTER TABLE reservation_options ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
 }
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('offered')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
 
 const reservationResourceCols = db.prepare("PRAGMA table_info(reservation_resources)").all().map(c => c.name);
 if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('billedUnits')) {
@@ -482,6 +490,11 @@ if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('pri
 const reservationCustomOptionCols = db.prepare("PRAGMA table_info(reservation_custom_options)").all().map(c => c.name);
 if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('offered')) {
   db.exec("ALTER TABLE reservation_custom_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
+
+const devisCols = db.prepare("PRAGMA table_info(devis)").all().map(c => c.name);
+if (devisCols.length > 0 && !devisCols.includes('customPrice')) {
+  db.exec('ALTER TABLE devis ADD COLUMN customPrice REAL');
 }
 
 const devisCustomOptionCols = db.prepare("PRAGMA table_info(devis_custom_options)").all().map(c => c.name);
@@ -505,6 +518,11 @@ tryAddOptionColumn('autoOptionType', "ALTER TABLE options ADD COLUMN autoOptionT
 tryAddOptionColumn('autoEnabled', "ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0");
 tryAddOptionColumn('autoPricingMode', "ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed'");
 tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
+
+const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
+if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
+  db.exec("ALTER TABLE devis_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
 
 // ---------- RESOURCES COMPLEX COLUMNS ----------
 const resourceComplexCols = db.prepare("PRAGMA table_info(resources)").all().map(c => c.name);
@@ -672,6 +690,7 @@ db.exec(`
     touristTaxRate REAL DEFAULT 0,
     touristTaxTotal REAL DEFAULT 0,
     discountPercent REAL DEFAULT 0,
+    customPrice REAL,
     finalPrice REAL DEFAULT 0,
     depositAmount REAL DEFAULT 0,
     depositDueDate TEXT,
@@ -697,6 +716,7 @@ db.exec(`
     billedUnits REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     totalPrice REAL DEFAULT 0,
+    offered INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (devisId, optionId),
     FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE

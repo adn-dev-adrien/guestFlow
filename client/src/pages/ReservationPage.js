@@ -372,6 +372,7 @@ export default function ReservationPage() {
         quantity: Number(line.quantity || 0),
         totalPrice: Number(line.totalPrice || 0),
         originalTotalPrice: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
+        offered: Boolean(line.offered),
         ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
         ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
       })),
@@ -514,7 +515,7 @@ export default function ReservationPage() {
             cautionReturned: res.cautionReturned || false,
             cautionReturnedDate: res.cautionReturnedDate || '',
             notes: res.notes || '',
-            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
             customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
             selectedResources: (res.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
             checkInTime: res.checkInTime || '15:00',
@@ -535,9 +536,9 @@ export default function ReservationPage() {
             endDate: res.endDate,
           };
           
-          // Charger les options offertes (totalPrice === 0)
+          // Charger les options offertes depuis le flag persistant
           const offeredOpts = new Set((res.options || [])
-            .filter(o => !o.isCustom && Number(o.totalPrice || 0) === 0 && Number(o.unitPrice || 0) > 0)
+            .filter(o => !o.isCustom && Boolean(o.offered))
             .map(o => o.optionId)
           );
           setOfferedOptionIds(offeredOpts);
@@ -616,7 +617,7 @@ export default function ReservationPage() {
             cautionReturned: false,
             cautionReturnedDate: '',
             notes: devis.notes || '',
-            selectedOptions: (devis.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            selectedOptions: (devis.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
             customOptions: (devis.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
             selectedResources: (devis.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
             checkInTime: devis.checkInTime || '15:00',
@@ -629,7 +630,7 @@ export default function ReservationPage() {
           });
 
           const offeredOpts = new Set((devis.options || [])
-            .filter(o => !o.isCustom && Number(o.totalPrice || 0) === 0 && Number(o.unitPrice || 0) > 0)
+            .filter(o => !o.isCustom && Boolean(o.offered))
             .map(o => o.optionId)
           );
           setOfferedOptionIds(offeredOpts);
@@ -984,7 +985,7 @@ export default function ReservationPage() {
   const setResourceQuantity = (resourceId, quantity) => {
     setForm(prev => {
       const resource = availableResources.find(r => r.id === resourceId);
-      const isPerHourResource = resource?.priceType === 'per_hour';
+      const isPerHourResource = Boolean(resource?.isComplex) || resource?.priceType === 'per_hour';
       const maxAvailable = Math.max(0, Number(resource?.available || 0));
       const parsed = Number(quantity);
       const normalizedQty = Number.isNaN(parsed)
@@ -1316,7 +1317,7 @@ export default function ReservationPage() {
     for (const sr of (form.selectedResources || [])) {
       const resource = availableResources.find(r => r.id === sr.resourceId);
       if (!resource) continue;
-      if (resource.priceType === 'per_hour') continue;
+      if (resource.isComplex || resource.priceType === 'per_hour') continue;
       if ((Number(sr.quantity) || 0) > Number(resource.available || 0)) {
         await alert({ title: 'Conflit de réservation', message: `La ressource '${resource.name}' n'est plus disponible en quantité suffisante.` });
         return false;
@@ -1800,6 +1801,7 @@ export default function ReservationPage() {
     const name = String(resource?.name || '').toLowerCase();
     return !(name.includes('lit') && (name.includes('bébé') || name.includes('bebe')));
   });
+  const isHourlyResource = (resource) => Boolean(resource?.isComplex) || resource?.priceType === 'per_hour';
   const hasExtrasSection = true;
   const formSectionCardSx = {
     bgcolor: '#fff',
@@ -2400,7 +2402,7 @@ export default function ReservationPage() {
                   {displayableResources.map(resource => {
                       const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                       const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                      const isPerHour = resource.priceType === 'per_hour';
+                      const isPerHour = Boolean(resource.isComplex) || resource.priceType === 'per_hour';
                       const hasFreeFirstHour = isPerHour && Number(resource.freeMinutes || 0) >= 60;
                       const unavailable = Number(resource.available || 0) <= 0;
                       const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
@@ -2860,7 +2862,7 @@ export default function ReservationPage() {
                         const isCustom = Boolean(so.isCustom);
                         const isOffered = isCustom
                           ? Boolean(so.offered)
-                          : offeredOptionIds.has(Number(so.optionId));
+                          : Boolean(so.offered ?? offeredOptionIds.has(Number(so.optionId)));
                         const total = isOffered
                           ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
                           : Number(so.totalPrice || 0);
@@ -2932,7 +2934,7 @@ export default function ReservationPage() {
                       {resourcesSelected.map(sr => {
                         const res = availableResources.find(r => r.id === sr.resourceId);
                         const total = Number(sr.totalPrice || 0);
-                        const isPerHour = (sr.priceType || res?.priceType) === 'per_hour';
+                        const isPerHour = Boolean(res?.isComplex) || (sr.priceType || res?.priceType) === 'per_hour';
                         const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
                         return (
                           <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

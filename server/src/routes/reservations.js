@@ -19,6 +19,7 @@ const HISTORY_FIELD_LABELS = {
   checkOutTime: 'Heure départ',
   platform: 'Plateforme',
   totalPrice: 'Prix hébergement',
+  customPrice: 'Prix personnalisé',
   touristTaxRate: 'Taux taxe de séjour',
   touristTaxTotal: 'Taxe de séjour',
   discountPercent: 'Réduction (%)',
@@ -92,6 +93,7 @@ function getReservationAuditSnapshotFromDb(reservationId) {
     touristTaxRate: Number(row.touristTaxRate || 0),
     touristTaxTotal: Number(row.touristTaxTotal || 0),
     discountPercent: Number(row.discountPercent || 0),
+    customPrice: row.customPrice == null ? null : Number(row.customPrice),
     finalPrice: Number(row.finalPrice || 0),
     depositAmount: Number(row.depositAmount || 0),
     depositDueDate: row.depositDueDate || null,
@@ -128,6 +130,7 @@ function getReservationAuditSnapshotFromPayload(payload, quote) {
     checkOutTime: payload.checkOutTime || null,
     platform: payload.platform || null,
     totalPrice: quote.totalPrice == null ? null : Number(quote.totalPrice),
+    customPrice: payload.customPrice === undefined || payload.customPrice === null || payload.customPrice === '' ? null : Number(payload.customPrice),
     touristTaxRate: Number(quote.touristTaxRate || 0),
     touristTaxTotal: Number(quote.touristTaxTotal || 0),
     discountPercent: Number(payload.discountPercent || 0),
@@ -316,13 +319,7 @@ router.get('/', (req, res) => {
     const { optionsTotal: _ignoreOptionsTotal, resourcesTotal: _ignoreResourcesTotal, ...reservation } = row;
     return {
       ...reservation,
-      customPrice: inferCustomAccommodationPrice({
-        totalPrice: row.totalPrice,
-        finalPrice: row.finalPrice,
-        discountPercent: row.discountPercent,
-        optionsTotal,
-        resourcesTotal,
-      }),
+      customPrice: row.customPrice == null ? '' : Number(row.customPrice),
     };
   });
   res.json(reservations);
@@ -374,7 +371,8 @@ router.get('/:id', (req, res) => {
         NULLIF(ro.totalPrice, 0),
         NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
         round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)
-      ) as originalTotalPrice
+      ) as originalTotalPrice,
+      COALESCE(ro.offered, CASE WHEN COALESCE(ro.totalPrice, 0) = 0 AND COALESCE(ro.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
     FROM reservation_options ro
     JOIN options o ON ro.optionId = o.id
     WHERE ro.reservationId = ?
@@ -409,13 +407,7 @@ router.get('/:id', (req, res) => {
 
   const optionsTotal = (reservation.options || []).reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
   const resourcesTotal = (reservation.resources || []).reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
-  reservation.customPrice = inferCustomAccommodationPrice({
-    totalPrice: reservation.totalPrice,
-    finalPrice: reservation.finalPrice,
-    discountPercent: reservation.discountPercent,
-    optionsTotal,
-    resourcesTotal,
-  });
+  reservation.customPrice = reservation.customPrice == null ? '' : Number(reservation.customPrice);
 
   res.json(reservation);
 });
@@ -458,7 +450,7 @@ function getReservationPricingSnapshot(reservationId) {
   `).all(reservationId);
 
   const lockedOptionLines = db.prepare(`
-    SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice
+    SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered
     FROM reservation_options
     WHERE reservationId = ?
   `).all(reservationId);
@@ -792,15 +784,17 @@ router.post('/', (req, res) => {
     INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, teens, babies,
       singleBeds, doubleBeds, babyBeds,
       checkInTime, checkOutTime,
-      platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, finalPrice, depositAmount, depositDueDate,
+      platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
       notes, cautionAmount, blocksPreviousNight, blocksNextNight)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
-    platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0, quote.finalPrice,
+    platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
+    customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
+    quote.finalPrice,
     quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, sentenceCase(notes),
     cautionAmount || 0,
     nightBlocks.blocksPreviousNight,
@@ -815,7 +809,7 @@ router.post('/', (req, res) => {
 
   // Insert reservation options
   if (reservationOptions && reservationOptions.length > 0) {
-    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const opt of (quote.optionLines || []).filter((line) => !line.isCustom)) {
       insertOpt.run(
         reservationId,
@@ -825,6 +819,7 @@ router.post('/', (req, res) => {
         Number(opt.billedUnits || 0),
         opt.priceType || 'per_stay',
         opt.totalPrice || 0,
+        opt.offered ? 1 : 0,
       );
     }
   }
@@ -864,15 +859,18 @@ router.post('/', (req, res) => {
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
-      const reserved = db.prepare(`
-        SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
-        FROM reservation_resources rr2
-        JOIN reservations r2 ON r2.id = rr2.reservationId
-        WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ?
-      `).get(rr.resourceId, endDate, startDate).reserved || 0;
-      const available = Number(resource.quantity) - Number(reserved);
-      if (Number(rr.quantity || 0) > available) {
-        return res.status(409).json({ error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` });
+      const usesHourlyQuantity = resource.priceType === 'per_hour' || Number(resource.isComplex || 0) === 1;
+      if (!usesHourlyQuantity) {
+        const reserved = db.prepare(`
+          SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
+          FROM reservation_resources rr2
+          JOIN reservations r2 ON r2.id = rr2.reservationId
+          WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ?
+        `).get(rr.resourceId, endDate, startDate).reserved || 0;
+        const available = Number(resource.quantity) - Number(reserved);
+        if (Number(rr.quantity || 0) > available) {
+          return res.status(409).json({ error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` });
+        }
       }
       const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
       const qty = Number(rr.quantity) || 1;
@@ -1070,7 +1068,7 @@ router.put('/:id', (req, res) => {
     UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
       singleBeds=?, doubleBeds=?, babyBeds=?,
       checkInTime=?, checkOutTime=?,
-      platform=?, totalPrice=?, touristTaxRate=?, touristTaxTotal=?, discountPercent=?, finalPrice=?, depositAmount=?, depositDueDate=?,
+      platform=?, totalPrice=?, touristTaxRate=?, touristTaxTotal=?, discountPercent=?, customPrice=?, finalPrice=?, depositAmount=?, depositDueDate=?,
       depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
       cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, icalSyncLocked=?,
       blocksPreviousNight=?, blocksNextNight=?,
@@ -1080,7 +1078,9 @@ router.put('/:id', (req, res) => {
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
     checkInTime || '15:00', checkOutTime || '10:00',
-    platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0, quote.finalPrice,
+    platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
+    customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
+    quote.finalPrice,
     quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, depositPaid ? 1 : 0,
     quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
     cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
@@ -1092,7 +1092,7 @@ router.put('/:id', (req, res) => {
   // Rebuild reservation options
   if (!pastReservationLocked && reservationOptions) {
     db.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(req.params.id);
-    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const opt of (quote.optionLines || []).filter((line) => !line.isCustom)) {
       insertOpt.run(
         req.params.id,
@@ -1102,6 +1102,7 @@ router.put('/:id', (req, res) => {
         Number(opt.billedUnits || 0),
         opt.priceType || 'per_stay',
         opt.totalPrice || 0,
+        opt.offered ? 1 : 0,
       );
     }
   }
@@ -1148,15 +1149,18 @@ router.put('/:id', (req, res) => {
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
-      const reserved = db.prepare(`
-        SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
-        FROM reservation_resources rr2
-        JOIN reservations r2 ON r2.id = rr2.reservationId
-        WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ? AND rr2.reservationId != ?
-      `).get(rr.resourceId, endDate, startDate, req.params.id).reserved || 0;
-      const available = Number(resource.quantity) - Number(reserved);
-      if (Number(rr.quantity || 0) > available) {
-        return res.status(409).json({ error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` });
+      const usesHourlyQuantity = resource.priceType === 'per_hour' || Number(resource.isComplex || 0) === 1;
+      if (!usesHourlyQuantity) {
+        const reserved = db.prepare(`
+          SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
+          FROM reservation_resources rr2
+          JOIN reservations r2 ON r2.id = rr2.reservationId
+          WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ? AND rr2.reservationId != ?
+        `).get(rr.resourceId, endDate, startDate, req.params.id).reserved || 0;
+        const available = Number(resource.quantity) - Number(reserved);
+        if (Number(rr.quantity || 0) > available) {
+          return res.status(409).json({ error: `Ressource '${resource.name}' indisponible: ${available} restant(s) pour cette période.` });
+        }
       }
       const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
       const qty = Number(rr.quantity) || 1;

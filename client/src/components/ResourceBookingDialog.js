@@ -52,11 +52,12 @@ export default function ResourceBookingDialog({
   const slotDuration = resource?.slotDuration || 5;
   const turnoverMinutes = Number(resource?.turnoverMinutes || 0);
   const minimumUsageMinutes = Number(resource?.minimumUsageMinutes || 0);
+  const isHourlyResource = Boolean(resource?.isComplex) || resource?.priceType === 'per_hour';
   const openTime = resource?.openTime || '08:00';
   const closeTime = resource?.closeTime || '22:00';
   const minimumDurationMinutes = Math.max(
-    resource?.isComplex ? slotDuration : 0,
-    resource?.priceType === 'per_hour' ? minimumUsageMinutes : 0,
+    isHourlyResource ? slotDuration : 0,
+    isHourlyResource ? minimumUsageMinutes : 0,
     BOOKING_STEP_MINUTES,
   );
 
@@ -137,8 +138,8 @@ export default function ResourceBookingDialog({
   const effectiveUnitPrice = Number(currentPropertyPricing?.price ?? resource?.price ?? 0);
   const freeMinutes = Math.max(0, Number(currentPropertyPricing?.freeMinutes || resource?.freeMinutes || 0));
 
-  // Price calculation: resource price is per hour, with per-property free minutes support.
-  const totalPrice = resource?.priceType === 'per_hour' || resource?.priceType === 'free'
+  // Price calculation: hourly resources use duration, with per-property free minutes support.
+  const totalPrice = isHourlyResource || resource?.priceType === 'free'
     ? (resource.priceType === 'free'
       ? 0
       : (effectiveUnitPrice * Math.max(0, durationMinutes - freeMinutes)) / 60)
@@ -289,7 +290,7 @@ export default function ResourceBookingDialog({
                   {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
                   {totalPrice > 0 && <> · {totalPrice.toFixed(2)} €</>}
                 </Typography>
-                {resource?.priceType === 'per_hour' && freeMinutes > 0 && (
+                {isHourlyResource && freeMinutes > 0 && (
                   <Typography variant="caption" color="text.secondary">
                     {Math.min(durationMinutes, freeMinutes)} min offertes ({Math.max(0, durationMinutes - freeMinutes)} min facturees)
                   </Typography>

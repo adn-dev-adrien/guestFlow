@@ -63,7 +63,16 @@ function createPricingTestDb() {
       quantity INTEGER NOT NULL DEFAULT 0,
       price REAL NOT NULL DEFAULT 0,
       priceType TEXT NOT NULL DEFAULT 'per_stay',
+      isComplex INTEGER NOT NULL DEFAULT 0,
       propertyIds TEXT DEFAULT '[]'
+    );
+
+    CREATE TABLE property_resource_prices (
+      propertyId INTEGER NOT NULL,
+      resourceId INTEGER NOT NULL,
+      price REAL,
+      freeMinutes INTEGER DEFAULT 0,
+      PRIMARY KEY (propertyId, resourceId)
     );
   `);
 
@@ -265,6 +274,45 @@ test('calculateReservationQuote late check-out uses progressive extra-night pric
   assert.equal(quote.optionLines[0].optionId, 12);
   assert.equal(quote.optionLines[0].totalPrice, 13.71);
   assert.equal(quote.optionsTotal, 13.71);
+
+  db.close();
+});
+
+test('calculateReservationQuote treats complex hourly resources as hourly and applies free minutes', () => {
+  const db = createPricingTestDb();
+  db.prepare(`
+    INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
+    VALUES (20, 'Bain nordique', 1, 50, 'per_stay', 1, '[1]')
+  `).run();
+  db.prepare(`
+    INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
+    VALUES (1, 20, 50, 60)
+  `).run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-12',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 0,
+    teens: 0,
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [],
+    selectedResources: [{ resourceId: 20, quantity: 2, unitPrice: 50 }],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  assert.equal(quote.resourceLines.length, 1);
+  assert.equal(quote.resourceLines[0].resourceId, 20);
+  assert.equal(quote.resourceLines[0].billedUnits, 1);
+  assert.equal(quote.resourceLines[0].totalPrice, 50);
+  assert.equal(quote.resourcesTotal, 50);
+  assert.equal(quote.finalPrice, 290);
 
   db.close();
 });

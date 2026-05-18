@@ -24,6 +24,7 @@ const DEVIS_HISTORY_FIELD_LABELS = {
   checkOutTime: 'Heure départ',
   platform: 'Plateforme',
   totalPrice: 'Prix hébergement',
+  customPrice: 'Prix personnalisé',
   touristTaxRate: 'Taux taxe de séjour',
   touristTaxTotal: 'Taxe de séjour',
   discountPercent: 'Réduction (%)',
@@ -61,6 +62,7 @@ function getDevisAuditSnapshotFromDb(devisId) {
     checkOutTime: row.checkOutTime || null,
     platform: row.platform || null,
     totalPrice: Number(row.totalPrice || 0),
+    customPrice: row.customPrice == null ? null : Number(row.customPrice),
     touristTaxRate: Number(row.touristTaxRate || 0),
     touristTaxTotal: Number(row.touristTaxTotal || 0),
     discountPercent: Number(row.discountPercent || 0),
@@ -91,6 +93,7 @@ function getDevisAuditSnapshotFromPayload(payload, quote) {
     checkOutTime: payload.checkOutTime || null,
     platform: payload.platform || null,
     totalPrice: quote.totalPrice == null ? null : Number(quote.totalPrice),
+    customPrice: payload.customPrice === undefined || payload.customPrice === null || payload.customPrice === '' ? null : Number(payload.customPrice),
     touristTaxRate: Number(quote.touristTaxRate || 0),
     touristTaxTotal: Number(quote.touristTaxTotal || 0),
     discountPercent: Number(payload.discountPercent || 0),
@@ -216,7 +219,8 @@ function enrichDevis(row) {
         NULLIF(do.totalPrice, 0),
         NULLIF(round(COALESCE(do.unitPrice, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2), 0),
         round(COALESCE(o.price, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2)
-      ) as originalTotalPrice
+      ) as originalTotalPrice,
+      COALESCE(do.offered, CASE WHEN COALESCE(do.totalPrice, 0) = 0 AND COALESCE(do.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
     FROM devis_options do
     JOIN options o ON do.optionId = o.id
     WHERE do.devisId = ?
@@ -411,7 +415,7 @@ router.post('/', (req, res) => {
       startDate, endDate, adults, children, teens, babies,
       singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
       platform, totalPrice, touristTaxRate, touristTaxTotal,
-      discountPercent, finalPrice, depositAmount, depositDueDate,
+      discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, cautionAmount, notes, validUntil
     ) VALUES (
       ?, ?, ?, 'draft',
@@ -443,6 +447,7 @@ router.post('/', (req, res) => {
     roundMoney(quote.touristTaxRate || 0),
     roundMoney(quote.touristTaxTotal || 0),
     Number(body.discountPercent || 0),
+    body.customPrice !== undefined && body.customPrice !== null && body.customPrice !== '' ? Number(body.customPrice) : null,
     roundMoney(quote.finalPrice),
     roundMoney(quote.depositAmount),
     quote.depositDueDate || null,
@@ -456,13 +461,13 @@ router.post('/', (req, res) => {
 
   // Insert options
   const insertOption = db.prepare(`
-    INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const line of (quote.optionLines || []).filter((item) => !item.isCustom)) {
     insertOption.run(devisId, Number(line.optionId), Number(line.quantity || 1),
       roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0),
-      line.priceType || 'per_stay', roundMoney(line.totalPrice));
+      line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
   }
 
   const insertCustomOption = db.prepare(`
@@ -584,7 +589,7 @@ router.put('/:id', (req, res) => {
       singleBeds = ?, doubleBeds = ?, babyBeds = ?,
       checkInTime = ?, checkOutTime = ?, platform = ?,
       totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
-      discountPercent = ?, finalPrice = ?,
+      discountPercent = ?, customPrice = ?, finalPrice = ?,
       depositAmount = ?, depositDueDate = ?,
       balanceAmount = ?, balanceDueDate = ?,
       cautionAmount = ?, notes = ?, validUntil = ?,
@@ -610,6 +615,7 @@ router.put('/:id', (req, res) => {
     roundMoney(quote.touristTaxRate || 0),
     roundMoney(quote.touristTaxTotal || 0),
     Number(body.discountPercent ?? existing.discountPercent ?? 0),
+    body.customPrice !== undefined && body.customPrice !== null && body.customPrice !== '' ? Number(body.customPrice) : (existing.customPrice == null ? null : Number(existing.customPrice)),
     roundMoney(quote.finalPrice),
     roundMoney(quote.depositAmount),
     quote.depositDueDate || null,
@@ -624,13 +630,13 @@ router.put('/:id', (req, res) => {
   // Replace options
   db.prepare('DELETE FROM devis_options WHERE devisId = ?').run(id);
   const insertOption = db.prepare(`
-    INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const line of (quote.optionLines || []).filter((item) => !item.isCustom)) {
     insertOption.run(id, Number(line.optionId), Number(line.quantity || 1),
       roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0),
-      line.priceType || 'per_stay', roundMoney(line.totalPrice));
+      line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
   }
 
   db.prepare('DELETE FROM devis_custom_options WHERE devisId = ?').run(id);
@@ -720,7 +726,7 @@ router.post('/:id/convert-to-reservation', (req, res) => {
       singleBeds, doubleBeds, babyBeds,
       checkInTime, checkOutTime, platform,
       totalPrice, touristTaxRate, touristTaxTotal,
-      discountPercent, finalPrice,
+      discountPercent, customPrice, finalPrice,
       depositAmount, depositDueDate, depositPaid,
       balanceAmount, balanceDueDate, balancePaid,
       cautionAmount, notes, sourceType
@@ -730,7 +736,7 @@ router.post('/:id/convert-to-reservation', (req, res) => {
       ?, ?, ?,
       ?, ?, ?,
       ?, ?, ?,
-      ?, ?,
+      ?, ?, ?,
       ?, ?, 0,
       ?, ?, 0,
       ?, ?, 'manual'
@@ -756,6 +762,7 @@ router.post('/:id/convert-to-reservation', (req, res) => {
     devisRow.touristTaxRate,
     devisRow.touristTaxTotal,
     devisRow.discountPercent,
+    devisRow.customPrice,
     devisRow.finalPrice,
     devisRow.depositAmount,
     devisRow.depositDueDate,
@@ -768,11 +775,11 @@ router.post('/:id/convert-to-reservation', (req, res) => {
 
   // Copy options
   const insertOpt = db.prepare(`
-    INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const o of devisOptions) {
-    insertOpt.run(reservationId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice);
+    insertOpt.run(reservationId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice, o.offered ? 1 : 0);
   }
 
   const insertCustomOpt = db.prepare(`
@@ -848,7 +855,7 @@ router.post('/from-reservation/:reservationId', (req, res) => {
       startDate, endDate, adults, children, teens, babies,
       singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
       platform, totalPrice, touristTaxRate, touristTaxTotal,
-      discountPercent, finalPrice, depositAmount, depositDueDate,
+      discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, cautionAmount, notes
     ) VALUES (
       ?, ?, ?, 'draft',
@@ -880,6 +887,7 @@ router.post('/from-reservation/:reservationId', (req, res) => {
     reservation.touristTaxRate,
     reservation.touristTaxTotal,
     reservation.discountPercent,
+    reservation.customPrice,
     reservation.finalPrice,
     reservation.depositAmount,
     reservation.depositDueDate,
@@ -891,11 +899,11 @@ router.post('/from-reservation/:reservationId', (req, res) => {
   const devisId = info.lastInsertRowid;
 
   const insertOpt = db.prepare(`
-    INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const o of resOptions) {
-    insertOpt.run(devisId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice);
+    insertOpt.run(devisId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice, o.offered ? 1 : 0);
   }
 
   const insertCustomOption = db.prepare(`

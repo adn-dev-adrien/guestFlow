@@ -29,30 +29,28 @@ function isReservationAssignedToMonth({ endDate, monthBounds }) {
   return lastNightDate >= monthBounds.start && lastNightDate < monthBounds.endExclusive;
 }
 
-function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optionsTotal, resourcesTotal, finalPrice, accommodationVatRate }) {
+function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optionsTotal, resourcesTotal, finalPrice, accommodationVatRate, discountPercent = 0 }) {
   const raw = Math.max(0, Number(accommodationRawAmount || 0));
   const options = Math.max(0, Number(optionsTotal || 0));
   const resources = Math.max(0, Number(resourcesTotal || 0));
   const final = Math.max(0, Number(finalPrice || 0));
+  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
   const vatRate = Math.max(0, Number(accommodationVatRate || 0));
-  const hasExtras = (options + resources) > 0;
+  const extras = options + resources;
 
-  // Reservation data has historical variants:
-  // - some rows store finalPrice as accommodation-only amount,
-  // - others as stay subtotal/final amount.
-  // Resolve accommodation TTC to match reservation sheet values.
+  // Finance adjustments act only on the accommodation base.
+  // If a discount is recorded, apply it to the accommodation raw amount.
+  // For historical rows without an explicit discount, keep the raw amount unless the final total
+  // looks like a recent accommodation+extras total (close to the raw amount after removing extras).
   let resolvedAccommodationTtc = raw;
-  if (hasExtras) {
-    // If extras exist and final <= raw, final is accommodation-only.
-    if (final > 0 && final <= raw) {
-      resolvedAccommodationTtc = final;
-    } else {
-      // If final includes extras, keep accommodation brut TTC.
-      resolvedAccommodationTtc = raw;
+  if (normalizedDiscountPercent > 0) {
+    resolvedAccommodationTtc = round2(raw * (1 - normalizedDiscountPercent / 100));
+  } else if (final > raw && final > 0 && extras > 0) {
+    const candidate = Math.max(0, final - extras);
+    const relativeFinal = raw > 0 ? final / raw : Infinity;
+    if (candidate > 0 && relativeFinal <= 1.5) {
+      resolvedAccommodationTtc = candidate;
     }
-  } else if (final > 0) {
-    // No extras: final can represent accommodation TTC directly.
-    resolvedAccommodationTtc = final;
   }
 
   const accommodationTtcAmount = round2(Math.max(0, resolvedAccommodationTtc));
@@ -281,6 +279,7 @@ router.get('/tourist-tax', (req, res) => {
         resourcesTotal: row.resourcesTotal,
         finalPrice: row.finalPrice,
         accommodationVatRate: row.accommodationVatRate,
+          discountPercent: row.discountPercent,
       });
       const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
       return {
