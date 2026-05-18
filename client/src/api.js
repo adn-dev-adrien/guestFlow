@@ -163,6 +163,7 @@ const api = {
   convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
   getDevisPdfUrl: (id) => `${API}/devis/${id}/pdf`,
+  getDevisHistory: (id) => request(`/devis/${id}/history`),
 
   // Google Calendar sync
   getGoogleCalendarStatus: () => request('/google-calendar/status'),

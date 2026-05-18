@@ -149,7 +149,8 @@ export default function ReservationPage() {
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
-    const [occupiedDates, setOccupiedDates] = useState([]);
+  const [occupiedDates, setOccupiedDates] = useState([]);
+  const [excludeReservationIdForDevis, setExcludeReservationIdForDevis] = useState(null);
   const miniCenteredOnceRef = useRef(false);
   const manualDateInputChangeRef = useRef(false);
   const miniStripDateChangeRef = useRef(false);
@@ -420,6 +421,7 @@ export default function ReservationPage() {
 
             const allRes = await api.getReservations({ propertyId: prefillPropertyId });
             setReservations(allRes || []);
+            setExcludeReservationIdForDevis(null);
           }
 
           setForm((prev) => ({
@@ -467,6 +469,7 @@ export default function ReservationPage() {
           // Load all reservations for this property to check conflicts
           const allRes = await api.getReservations({ propertyId: res.propertyId });
           setReservations(allRes);
+          setExcludeReservationIdForDevis(null);
 
           const importedBlankPrice = res.sourceType === 'ical' && res.totalPrice == null && res.finalPrice == null;
           setForm({
@@ -559,6 +562,14 @@ export default function ReservationPage() {
           const allRes = await api.getReservations({ propertyId: devis.propertyId });
           setReservations(allRes || []);
 
+          // Exclude the reservation that matches this devis' dates (if it was transformed into a reservation)
+          const matchingRes = (allRes || []).find(
+            (r) => r.startDate === devis.startDate && r.endDate === devis.endDate
+          );
+          if (matchingRes) {
+            setExcludeReservationIdForDevis(matchingRes.id);
+          }
+
           setForm({
             clientId: devis.clientId,
             adults: devis.adults || 1,
@@ -641,6 +652,7 @@ export default function ReservationPage() {
 
           const allRes = await api.getReservations({ propertyId: initialPropId });
           setReservations(allRes);
+          setExcludeReservationIdForDevis(null);
 
           setForm({
             clientId: null,
@@ -1118,14 +1130,15 @@ export default function ReservationPage() {
 
   const getDateRangeConflictInfo = useCallback((startDate, endDate) => {
     if (!selectedProp || !startDate || !endDate) return null;
+    const excludeId = editingReservationId || excludeReservationIdForDevis;
     return getRangeOccupancyConflictInfo({
       startDate,
       endDate,
       occupiedDates,
       reservations,
-      excludeReservationId: editingReservationId,
+      excludeReservationId: excludeId,
     });
-  }, [selectedProp, occupiedDates, editingReservationId, reservations]);
+  }, [selectedProp, occupiedDates, editingReservationId, excludeReservationIdForDevis, reservations]);
 
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {
@@ -1562,7 +1575,7 @@ export default function ReservationPage() {
 
   const goBackToOrigin = () => {
     if (isDevisMode) {
-      requestLeave(() => navigate('/devis'));
+      requestLeave(() => navigate(-1));
       return;
     }
     requestLeave(() => navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus()));

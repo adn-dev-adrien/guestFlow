@@ -50,8 +50,12 @@ export default function DevisPage() {
     navigate('/reservations/new?mode=devis');
   };
 
-  const handleEditDevis = (devisId) => {
-    navigate(`/reservations/new?mode=devis&devisId=${devisId}`);
+  const handleEditDevis = (devis) => {
+    if (devis.status === 'converted' && devis.convertedReservationId) {
+      navigate(`/reservations/${devis.convertedReservationId}`);
+    } else {
+      navigate(`/reservations/new?mode=devis&devisId=${devis.id}`);
+    }
   };
 
   const load = useCallback(async () => {
@@ -113,16 +117,6 @@ export default function DevisPage() {
       window.URL.revokeObjectURL(fileUrl);
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || 'Impossible de télécharger le PDF du devis.' });
-    }
-  };
-
-  const handleStatusChange = async (devis, nextStatus) => {
-    if (!nextStatus || nextStatus === devis.status || devis.status === 'converted') return;
-    try {
-      await api.updateDevisStatus(devis.id, nextStatus);
-      await load();
-    } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible de changer le statut du devis.' });
     }
   };
 
@@ -189,7 +183,7 @@ export default function DevisPage() {
                       key={d.id}
                       hover
                       sx={{ cursor: 'pointer' }}
-                      onClick={() => handleEditDevis(d.id)}
+                      onClick={() => handleEditDevis(d)}
                     >
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
@@ -197,24 +191,11 @@ export default function DevisPage() {
                         </Typography>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {d.status === 'converted' ? (
-                          <Chip
-                            label={STATUS_LABELS[d.status] || d.status}
-                            color={STATUS_COLORS[d.status] || 'default'}
-                            size="small"
-                          />
-                        ) : (
-                          <FormControl size="small" sx={{ minWidth: 140 }}>
-                            <Select
-                              value={d.status || 'draft'}
-                              onChange={(e) => handleStatusChange(d, e.target.value)}
-                            >
-                              <MenuItem value="draft">Brouillon</MenuItem>
-                              <MenuItem value="sent">Envoyé</MenuItem>
-                              <MenuItem value="accepted">Accepté</MenuItem>
-                            </Select>
-                          </FormControl>
-                        )}
+                        <Chip
+                          label={STATUS_LABELS[d.status] || d.status}
+                          color={STATUS_COLORS[d.status] || 'default'}
+                          size="small"
+                        />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
@@ -234,7 +215,7 @@ export default function DevisPage() {
                       <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                         <Stack direction="row" spacing={0.5} justifyContent="center">
                           <Tooltip title="Modifier">
-                            <IconButton size="small" onClick={() => handleEditDevis(d.id)}>
+                            <IconButton size="small" onClick={() => handleEditDevis(d)}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>

@@ -4,6 +4,128 @@ const fs = require('fs');
 const db = require('../database');
 const PDFDocument = require('pdfkit');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { sentenceCase } = require('../utils/textFormatters');
+
+// ─── history helpers ────────────────────────────────────────────────────────
+
+const DEVIS_HISTORY_FIELD_LABELS = {
+  propertyId: 'Logement',
+  clientId: 'Client',
+  startDate: 'Date arrivée',
+  endDate: 'Date départ',
+  adults: 'Adultes',
+  children: 'Enfants',
+  teens: 'Ados',
+  babies: 'Bébés',
+  singleBeds: 'Lits simples',
+  doubleBeds: 'Lits doubles',
+  babyBeds: 'Lits bébé',
+  checkInTime: 'Heure arrivée',
+  checkOutTime: 'Heure départ',
+  platform: 'Plateforme',
+  totalPrice: 'Prix hébergement',
+  touristTaxRate: 'Taux taxe de séjour',
+  touristTaxTotal: 'Taxe de séjour',
+  discountPercent: 'Réduction (%)',
+  finalPrice: 'Prix final',
+  depositAmount: 'Acompte',
+  depositDueDate: 'Date acompte',
+  balanceAmount: 'Solde',
+  balanceDueDate: 'Date solde',
+  status: 'Statut',
+  notes: 'Notes',
+};
+
+function normalizeDevisHistoryValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Math.round(value * 100) / 100;
+  return value;
+}
+
+function getDevisAuditSnapshotFromDb(devisId) {
+  const row = db.prepare('SELECT * FROM devis WHERE id = ?').get(devisId);
+  if (!row) return null;
+  return {
+    propertyId: Number(row.propertyId),
+    clientId: Number(row.clientId),
+    startDate: row.startDate || null,
+    endDate: row.endDate || null,
+    adults: Number(row.adults || 0),
+    children: Number(row.children || 0),
+    teens: Number(row.teens || 0),
+    babies: Number(row.babies || 0),
+    singleBeds: row.singleBeds === null ? null : Number(row.singleBeds),
+    doubleBeds: row.doubleBeds === null ? null : Number(row.doubleBeds),
+    babyBeds: row.babyBeds === null ? null : Number(row.babyBeds),
+    checkInTime: row.checkInTime || null,
+    checkOutTime: row.checkOutTime || null,
+    platform: row.platform || null,
+    totalPrice: Number(row.totalPrice || 0),
+    touristTaxRate: Number(row.touristTaxRate || 0),
+    touristTaxTotal: Number(row.touristTaxTotal || 0),
+    discountPercent: Number(row.discountPercent || 0),
+    finalPrice: Number(row.finalPrice || 0),
+    depositAmount: Number(row.depositAmount || 0),
+    depositDueDate: row.depositDueDate || null,
+    balanceAmount: Number(row.balanceAmount || 0),
+    balanceDueDate: row.balanceDueDate || null,
+    status: row.status || null,
+    notes: row.notes || null,
+  };
+}
+
+function getDevisAuditSnapshotFromPayload(payload, quote) {
+  return {
+    propertyId: Number(payload.propertyId),
+    clientId: Number(payload.clientId),
+    startDate: payload.startDate || null,
+    endDate: payload.endDate || null,
+    adults: Number(payload.adults || 0),
+    children: Number(payload.children || 0),
+    teens: Number(payload.teens || 0),
+    babies: Number(payload.babies || 0),
+    singleBeds: payload.singleBeds === null || payload.singleBeds === undefined || payload.singleBeds === '' ? null : Number(payload.singleBeds),
+    doubleBeds: payload.doubleBeds === null || payload.doubleBeds === undefined || payload.doubleBeds === '' ? null : Number(payload.doubleBeds),
+    babyBeds: payload.babyBeds === null || payload.babyBeds === undefined || payload.babyBeds === '' ? null : Number(payload.babyBeds),
+    checkInTime: payload.checkInTime || null,
+    checkOutTime: payload.checkOutTime || null,
+    platform: payload.platform || null,
+    totalPrice: quote.totalPrice == null ? null : Number(quote.totalPrice),
+    touristTaxRate: Number(quote.touristTaxRate || 0),
+    touristTaxTotal: Number(quote.touristTaxTotal || 0),
+    discountPercent: Number(payload.discountPercent || 0),
+    finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
+    depositAmount: Number(quote.depositAmount || 0),
+    depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
+    balanceAmount: Number(quote.balanceAmount || 0),
+    balanceDueDate: quote.balanceDueDate || payload.balanceDueDate || null,
+    status: payload.status || null,
+    notes: sentenceCase(payload.notes) || null,
+  };
+}
+
+function computeDevisAuditChanges(beforeSnapshot, afterSnapshot) {
+  const keys = Object.keys(DEVIS_HISTORY_FIELD_LABELS);
+  const changes = [];
+  keys.forEach((key) => {
+    const beforeValue = normalizeDevisHistoryValue(beforeSnapshot?.[key]);
+    const afterValue = normalizeDevisHistoryValue(afterSnapshot?.[key]);
+    if (JSON.stringify(beforeValue) !== JSON.stringify(afterValue)) {
+      changes.push({
+        field: key,
+        label: DEVIS_HISTORY_FIELD_LABELS[key] || key,
+        from: beforeValue,
+        to: afterValue,
+      });
+    }
+  });
+  return changes;
+}
+
+function addDevisHistoryEntry(devisId, eventType, changes) {
+  db.prepare('INSERT INTO devis_history (devisId, eventType, changedFields) VALUES (?, ?, ?)')
+    .run(devisId, eventType, JSON.stringify(changes || []));
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -156,7 +278,51 @@ router.patch('/:id/status', (req, res) => {
 
   db.prepare('UPDATE devis SET status = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(status, id);
   const updated = db.prepare('SELECT * FROM devis WHERE id = ?').get(id);
+  
+  // Add history entry for status change
+  const beforeSnapshot = getDevisAuditSnapshotFromDb(id);
+  beforeSnapshot.status = existing.status;
+  const afterSnapshot = getDevisAuditSnapshotFromDb(id);
+  const statusChanges = computeDevisAuditChanges(beforeSnapshot, afterSnapshot);
+  if (statusChanges.length > 0) {
+    addDevisHistoryEntry(id, 'update', statusChanges);
+  }
+  
   return res.json(enrichDevis(updated));
+});
+
+// ─── history ─────────────────────────────────────────────────────────────────
+
+router.get('/:id/history', (req, res) => {
+  const id = Number(req.params.id);
+  const devis = db.prepare('SELECT * FROM devis WHERE id = ?').get(id);
+  if (!devis) {
+    return res.status(404).json({ error: 'Devis non trouvé' });
+  }
+
+  const rows = db.prepare(`
+    SELECT id, eventType, changedFields, createdAt
+    FROM devis_history
+    WHERE devisId = ?
+    ORDER BY createdAt DESC
+  `).all(id);
+
+  const history = rows.map((row) => {
+    let changes = [];
+    try {
+      changes = JSON.parse(row.changedFields || '[]');
+    } catch {
+      changes = [];
+    }
+    return {
+      id: row.id,
+      eventType: row.eventType,
+      createdAt: row.createdAt,
+      changes,
+    };
+  });
+
+  res.json(history);
 });
 
 // ─── create ──────────────────────────────────────────────────────────────────
@@ -298,6 +464,12 @@ router.post('/', (req, res) => {
   }
 
   const created = db.prepare('SELECT * FROM devis WHERE id = ?').get(devisId);
+  
+  // Add history entry for creation
+  const afterSnapshot = getDevisAuditSnapshotFromDb(devisId);
+  const changes = computeDevisAuditChanges({}, afterSnapshot);
+  addDevisHistoryEntry(devisId, 'create', changes);
+  
   return res.status(201).json(enrichDevis(created));
 });
 
@@ -437,6 +609,15 @@ router.put('/:id', (req, res) => {
       night.pricingMode || 'fixed', roundMoney(night.price));
   }
 
+  // Add history entry for update
+  const beforeSnapshot = getDevisAuditSnapshotFromDb(id);
+  const afterSnapshot = getDevisAuditSnapshotFromDb(id);
+  const updatedSnapshot = getDevisAuditSnapshotFromPayload(body, quote);
+  const updateChanges = computeDevisAuditChanges(beforeSnapshot, updatedSnapshot);
+  if (updateChanges.length > 0) {
+    addDevisHistoryEntry(id, 'update', updateChanges);
+  }
+
   return res.json(enrichDevis(db.prepare('SELECT * FROM devis WHERE id = ?').get(id)));
 });
 
@@ -552,6 +733,23 @@ router.post('/:id/convert-to-reservation', (req, res) => {
     UPDATE devis SET status = 'converted', convertedReservationId = ?, updatedAt = datetime('now')
     WHERE id = ?
   `).run(reservationId, id);
+
+  // Copy devis history to reservation history
+  const devisHistory = db.prepare(`
+    SELECT id, eventType, changedFields, createdAt
+    FROM devis_history
+    WHERE devisId = ?
+    ORDER BY createdAt ASC
+  `).all(id);
+
+  const insertHistory = db.prepare(`
+    INSERT INTO reservation_history (reservationId, eventType, changedFields, createdAt)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  for (const entry of devisHistory) {
+    insertHistory.run(reservationId, entry.eventType, entry.changedFields, entry.createdAt);
+  }
 
   return res.json({ success: true, reservationId });
 });

@@ -256,6 +256,17 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    devisId INTEGER NOT NULL,
+    eventType TEXT NOT NULL DEFAULT 'update',
+    changedFields TEXT NOT NULL DEFAULT '[]',
+    createdAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS ical_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     propertyId INTEGER NOT NULL,
