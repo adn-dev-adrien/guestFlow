@@ -27,6 +27,38 @@ function diffDays(startDate, endDate) {
   return Math.round((e - s) / 86400000);
 }
 
+function addDaysToIsoDate(isoDate, daysDelta) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() + Number(daysDelta || 0));
+  return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function formatDate(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function resolvePaymentSchedule(row, property) {
+  const totalStayPrice = roundMoney(Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0));
+  const depositPercent = Number(property?.depositPercent || 0);
+  const depositAmount = roundMoney(totalStayPrice * (depositPercent / 100));
+  const balanceAmount = roundMoney(totalStayPrice - depositAmount);
+  const depositDueDate = row.startDate
+    ? addDaysToIsoDate(row.startDate, -Number(property?.depositDaysBefore || 0))
+    : null;
+  const balanceDueDate = row.startDate
+    ? addDaysToIsoDate(row.startDate, -Number(property?.balanceDaysBefore || 0))
+    : null;
+
+  return {
+    depositAmount,
+    balanceAmount,
+    depositDueDate,
+    balanceDueDate,
+    totalStayPrice,
+  };
+}
+
 function enrichDevis(row) {
   if (!row) return null;
   const options = db.prepare(`
@@ -45,8 +77,9 @@ function enrichDevis(row) {
     SELECT * FROM devis_nights WHERE devisId = ? ORDER BY date
   `).all(row.id);
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
-  const property = db.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources FROM properties WHERE id = ?').get(row.propertyId);
-  return { ...row, options, resources, nights, client, property };
+  const property = db.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
+  const schedule = resolvePaymentSchedule(row, property);
+  return { ...row, ...schedule, options, resources, nights, client, property };
 }
 
 // ─── list ────────────────────────────────────────────────────────────────────
@@ -160,10 +193,10 @@ router.post('/', (req, res) => {
     roundMoney(quote.touristTaxTotal || 0),
     Number(body.discountPercent || 0),
     roundMoney(quote.finalPrice),
-    roundMoney(body.depositAmount != null ? body.depositAmount : quote.depositAmount),
-    body.depositDueDate || quote.depositDueDate || null,
-    roundMoney(body.balanceAmount != null ? body.balanceAmount : quote.balanceAmount),
-    body.balanceDueDate || quote.balanceDueDate || null,
+    roundMoney(quote.depositAmount),
+    quote.depositDueDate || null,
+    roundMoney(quote.balanceAmount),
+    quote.balanceDueDate || null,
     roundMoney(body.cautionAmount != null ? body.cautionAmount : (property.defaultCautionAmount || 0)),
     String(body.notes || ''),
     body.validUntil || null,
@@ -283,10 +316,10 @@ router.put('/:id', (req, res) => {
     roundMoney(quote.touristTaxTotal || 0),
     Number(body.discountPercent ?? existing.discountPercent ?? 0),
     roundMoney(quote.finalPrice),
-    roundMoney(body.depositAmount != null ? body.depositAmount : quote.depositAmount),
-    body.depositDueDate !== undefined ? body.depositDueDate : existing.depositDueDate,
-    roundMoney(body.balanceAmount != null ? body.balanceAmount : quote.balanceAmount),
-    body.balanceDueDate !== undefined ? body.balanceDueDate : existing.balanceDueDate,
+    roundMoney(quote.depositAmount),
+    quote.depositDueDate || null,
+    roundMoney(quote.balanceAmount),
+    quote.balanceDueDate || null,
     roundMoney(body.cautionAmount ?? existing.cautionAmount ?? 0),
     String(body.notes ?? existing.notes ?? ''),
     body.validUntil !== undefined ? body.validUntil : existing.validUntil,
@@ -869,64 +902,35 @@ router.get('/:id/pdf', (req, res) => {
 
   let py = PAY_TOP + 22;
   const payTextColor = TEXT_DARK;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const depositAmt = Number(full.depositAmount || 0);
+  const balanceAmt = Number(full.balanceAmount || 0);
 
-  const depositAmt   = Number(full.depositAmount  || 0);
-  const balanceAmt   = Number(full.balanceAmount   || 0);
-  const depositDate  = full.depositDueDate  ? new Date(`${full.depositDueDate}T00:00:00`)  : null;
-  const balanceDate  = full.balanceDueDate  ? new Date(`${full.balanceDueDate}T00:00:00`)  : null;
-
-  const depositExpired = depositDate && depositDate < today;
-  const balanceExpired = balanceDate && balanceDate < today;
-
-  if (depositAmt > 0 && balanceAmt > 0 && depositExpired && balanceExpired) {
-    // Les deux échéances sont dépassées → un seul règlement total
-    const totalDue = roundMoney(depositAmt + balanceAmt);
-    py = checkBreak(py, 44);
-    doc.rect(LEFT, py, PAGE_W, 36).fill('#fff3e0');
-    doc.fontSize(9).fillColor('#e65100').font('Helvetica-Bold')
-      .text('RÈGLEMENT — NOUS RESTONS À VOTRE DISPOSITION', LEFT + 8, py + 5);
-    doc.font('Helvetica').fillColor(payTextColor).fontSize(9)
-      .text(
-        `Nos échéances de paiement sont désormais arrivées à terme. Afin de finaliser votre réservation, nous vous invitons à procéder au règlement du montant total de ${formatCurrency(totalDue)} à votre convenance dans les meilleurs délais. N'hésitez pas à nous contacter si vous avez la moindre question.`,
-        LEFT + 8, py + 18, { width: PAGE_W - 16 }
-      );
-    py += 42;
-  } else {
-    // Deposit
-    if (depositAmt > 0) {
-      const depositDateLabel = depositExpired
-        ? ''
-        : (full.depositDueDate ? `avant le ${formatDateFR(full.depositDueDate)}` : '');
-      const depositBody = `Merci de bien vouloir régler un acompte de ${formatCurrency(depositAmt)}${depositDateLabel ? ` ${depositDateLabel}` : ''} dés maintenant afin de confirmer votre réservation et de bloquer vos dates.`;
-      const depositBodyH = doc.heightOfString(depositBody, { width: PAGE_W - 16 });
-      const depositBlockH = 14 + depositBodyH + 10; // titre + corps + padding bas
-      py = checkBreak(py, depositBlockH);
-      doc.rect(LEFT, py, PAGE_W, depositBlockH).fill('#fff8e1');
-      doc.fontSize(9).fillColor('#e65100').font('Helvetica-Bold')
-        .text('ACOMPTE POUR CONFIRMER LA RÉSERVATION', LEFT + 8, py + 5);
-      doc.font('Helvetica').fillColor(payTextColor).fontSize(9)
-        .text(depositBody, LEFT + 8, py + 17, { width: PAGE_W - 16 });
-      py += depositBlockH + 6;
+  // Acompte (même logique que le résumé de réservation : montant + échéance)
+  if (depositAmt > 0) {
+    py = checkBreak(py, 34);
+    doc.rect(LEFT, py, PAGE_W, 28).fill('#fff8e1');
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text('Acompte :', LEFT + 8, py + 7);
+    doc.font('Helvetica-Bold').fillColor(payTextColor)
+      .text(formatCurrency(depositAmt), LEFT + 70, py + 7);
+    if (full.depositDueDate) {
+      doc.font('Helvetica').fillColor(TEXT_LIGHT)
+        .text(`À payer avant le ${formatDateFR(full.depositDueDate)}`, LEFT + 170, py + 7);
     }
+    py += 34;
+  }
 
-    // Balance
-    if (balanceAmt > 0) {
-      py = checkBreak(py, 30);
-      doc.rect(LEFT, py, PAGE_W, 24).fill(LIGHT_GRAY);
-      doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica')
-        .text('Solde :', LEFT + 8, py + 7);
-      doc.fillColor(payTextColor).font('Helvetica-Bold')
-        .text(formatCurrency(balanceAmt), LEFT + 60, py + 7);
-      if (balanceExpired) {
-        doc.font('Helvetica').fillColor(TEXT_LIGHT)
-          .text(`à régler dès que possible (échéance du ${formatDateFR(full.balanceDueDate)} passée)`, LEFT + 130, py + 7);
-      } else if (full.balanceDueDate) {
-        doc.font('Helvetica').fillColor(TEXT_LIGHT)
-          .text(`à régler avant le ${formatDateFR(full.balanceDueDate)}`, LEFT + 130, py + 7);
-      }
-      py += 30;
+  // Solde (même logique que le résumé de réservation : montant + échéance)
+  if (balanceAmt > 0) {
+    py = checkBreak(py, 30);
+    doc.rect(LEFT, py, PAGE_W, 24).fill(LIGHT_GRAY);
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text('Solde :', LEFT + 8, py + 7);
+    doc.font('Helvetica-Bold').fillColor(payTextColor)
+      .text(formatCurrency(balanceAmt), LEFT + 70, py + 7);
+    if (full.balanceDueDate) {
+      doc.font('Helvetica').fillColor(TEXT_LIGHT)
+        .text(`À payer avant le ${formatDateFR(full.balanceDueDate)}`, LEFT + 170, py + 7);
     }
+    py += 30;
   }
 
   // Caution
@@ -944,7 +948,7 @@ router.get('/:id/pdf', (req, res) => {
     py = checkBreak(py + 8, 70);
     doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text('COORDONNÉES BANCAIRES', LEFT, py); py += 14;
     doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
-    if (settings.companyBankName) { doc.text(`Banque : ${settings.companyBankName}`, LEFT, py); py += 13; }
+    if (settings.companyBankName) { doc.text(`Dénomination du compte : ${settings.companyBankName}`, LEFT, py); py += 13; }
     if (settings.companyIban) { doc.text(`IBAN : ${settings.companyIban}`, LEFT, py); py += 13; }
     if (settings.companyBic) { doc.text(`BIC : ${settings.companyBic}`, LEFT, py); py += 13; }
   }

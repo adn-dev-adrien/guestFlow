@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -22,6 +22,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState('');
@@ -48,12 +49,52 @@ export default function SettingsPage() {
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [savedForm, setSavedForm] = useState(EMPTY_FORM);
+  const [navGuardOpen, setNavGuardOpen] = useState(false);
+  const pendingNavRef = useRef(null);
+  const dirtyRef = useRef(false);
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 
-  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    isDirty && currentLocation.pathname !== nextLocation.pathname
-  );
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  useEffect(() => {
+    const guardHandler = (targetPath) => {
+      if (!dirtyRef.current) return false;
+      if (!targetPath || targetPath === window.location.pathname) return false;
+      pendingNavRef.current = targetPath;
+      setNavGuardOpen(true);
+      return true;
+    };
+
+    window.__guestflowBeforeNavigate = guardHandler;
+    return () => {
+      if (window.__guestflowBeforeNavigate === guardHandler) {
+        delete window.__guestflowBeforeNavigate;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = () => {
+      pendingNavRef.current = null;
+      setNavGuardOpen(true);
+      window.history.pushState(null, '', window.location.href);
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, [isDirty]);
 
   useEffect(() => {
     let mounted = true;
@@ -171,17 +212,25 @@ export default function SettingsPage() {
     setStatusMessage('');
   };
 
+  const handleLeaveWithoutSaving = () => {
+    setNavGuardOpen(false);
+    const dest = pendingNavRef.current;
+    pendingNavRef.current = null;
+    if (dest) navigate(dest);
+    else navigate(-1);
+  };
+
   return (
     <Box sx={{ pb: 6 }}>
       {/* Blocker dialog */}
-      <Dialog open={blocker.state === 'blocked'} onClose={() => blocker.reset?.()}>
+      <Dialog open={navGuardOpen} onClose={() => setNavGuardOpen(false)}>
         <DialogTitle>Modifications non enregistrées</DialogTitle>
         <DialogContent>
           <Typography>Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => blocker.reset?.()}>Rester</Button>
-          <Button color="error" onClick={() => blocker.proceed?.()}>Quitter sans enregistrer</Button>
+          <Button onClick={() => setNavGuardOpen(false)}>Rester</Button>
+          <Button color="error" onClick={handleLeaveWithoutSaving}>Quitter sans enregistrer</Button>
         </DialogActions>
       </Dialog>
 
@@ -350,7 +399,7 @@ export default function SettingsPage() {
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
-                label="Nom de la banque"
+                label="Dénomination du compte"
                 value={form.companyBankName}
                 onChange={(e) => updateField('companyBankName', e.target.value)}
                 fullWidth

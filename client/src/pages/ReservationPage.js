@@ -73,6 +73,11 @@ function timeToHour(timeStr) {
   return h + (m || 0) / 60;
 }
 
+function parseCustomPrice(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  return Number(value);
+}
+
 const EMPTY_CLIENT = {
   lastName: '',
   firstName: '',
@@ -471,7 +476,7 @@ export default function ReservationPage() {
             touristTaxTotal: res.touristTaxTotal || 0,
             discountPercent: res.discountPercent || 0,
             finalPrice: importedBlankPrice ? '' : res.finalPrice || 0,
-            customPrice: importedBlankPrice ? '' : (res.customPrice === '' ? '' : Number(res.customPrice || 0)),
+            customPrice: importedBlankPrice ? '' : parseCustomPrice(res.customPrice),
             depositAmount: res.depositAmount || 0,
             depositDueDate: res.depositDueDate || '',
             balanceAmount: res.balanceAmount || 0,
@@ -561,7 +566,7 @@ export default function ReservationPage() {
             touristTaxTotal: devis.touristTaxTotal || 0,
             discountPercent: devis.discountPercent || 0,
             finalPrice: devis.finalPrice || 0,
-            customPrice: devis.customPrice === '' ? '' : Number(devis.customPrice || 0),
+            customPrice: parseCustomPrice(devis.customPrice),
             depositAmount: devis.depositAmount || 0,
             depositDueDate: devis.depositDueDate || '',
             balanceAmount: devis.balanceAmount || 0,

@@ -724,19 +724,6 @@ function calculateReservationQuote({
   const totalVatAmount = roundMoney(accommodationVatAmount + optionsVatAmount + resourcesVatAmount);
   const totalNetPrice = roundMoney(accommodationNetPrice + optionsNetPrice + resourcesNetPrice);
 
-  const autoDepositAmount = roundMoney(finalPrice * (Number(property.depositPercent || 0) / 100));
-  const autoBalanceAmount = roundMoney(finalPrice - autoDepositAmount);
-  let resolvedDepositAmount = autoDepositAmount;
-  let resolvedBalanceAmount = autoBalanceAmount;
-
-  if (depositPaid && balancePaid) {
-    resolvedDepositAmount = roundMoney(depositAmount);
-    resolvedBalanceAmount = roundMoney(balanceAmount);
-  } else if (depositPaid) {
-    resolvedDepositAmount = roundMoney(depositAmount);
-    resolvedBalanceAmount = roundMoney(Math.max(0, finalPrice - resolvedDepositAmount));
-  }
-
   const depositDueDate = addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
   const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
@@ -779,6 +766,21 @@ function calculateReservationQuote({
     touristTaxLabel = `((${touristTaxPricePerNight.toFixed(2)}EUR x ${touristTaxPercentage.toFixed(2)}%) + ${touristTaxFixedAmount.toFixed(2)}EUR) x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
   }
 
+  // Payment schedule is based on the full stay amount, including tourist tax.
+  const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
+  const autoDepositAmount = roundMoney(totalStayPrice * (Number(property.depositPercent || 0) / 100));
+  const autoBalanceAmount = roundMoney(totalStayPrice - autoDepositAmount);
+  let resolvedDepositAmount = autoDepositAmount;
+  let resolvedBalanceAmount = autoBalanceAmount;
+
+  if (depositPaid && balancePaid) {
+    resolvedDepositAmount = roundMoney(depositAmount);
+    resolvedBalanceAmount = roundMoney(balanceAmount);
+  } else if (depositPaid) {
+    resolvedDepositAmount = roundMoney(depositAmount);
+    resolvedBalanceAmount = roundMoney(Math.max(0, totalStayPrice - resolvedDepositAmount));
+  }
+
   return {
     property,
     nights,
@@ -808,7 +810,7 @@ function calculateReservationQuote({
     touristTaxNights: nights,
     touristTaxLabel,
     touristTaxTotal,
-    totalStayPrice: roundMoney(finalPrice + touristTaxTotal),
+    totalStayPrice,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
