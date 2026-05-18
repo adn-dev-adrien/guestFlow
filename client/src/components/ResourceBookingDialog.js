@@ -126,10 +126,23 @@ export default function ResourceBookingDialog({
     });
   }
 
-  // Price calculation: resource price is per hour, pro-rated
+  const currentPropertyPricing = (() => {
+    const pid = String(propertyId || '');
+    if (!pid) return null;
+    const map = resource?.propertyPricing && typeof resource.propertyPricing === 'object'
+      ? resource.propertyPricing
+      : null;
+    return map ? map[pid] : null;
+  })();
+  const effectiveUnitPrice = Number(currentPropertyPricing?.price ?? resource?.price ?? 0);
+  const freeMinutes = Math.max(0, Number(currentPropertyPricing?.freeMinutes || resource?.freeMinutes || 0));
+
+  // Price calculation: resource price is per hour, with per-property free minutes support.
   const totalPrice = resource?.priceType === 'per_hour' || resource?.priceType === 'free'
-    ? (resource.priceType === 'free' ? 0 : (resource.price || 0) * durationMinutes / 60)
-    : (resource?.price || 0); // per_stay = fixed price regardless
+    ? (resource.priceType === 'free'
+      ? 0
+      : (effectiveUnitPrice * Math.max(0, durationMinutes - freeMinutes)) / 60)
+    : effectiveUnitPrice;
 
   // Check if current selection has conflicts
   const slotAvailable = useMemo(() => {
@@ -209,7 +222,6 @@ export default function ResourceBookingDialog({
         notes,
         paid,
         propertyId: propertyId || null,
-        totalPrice,
         ...(externalMode
           ? { clientId: null, clientName: clientName.trim() || null, clientPhone: clientPhone.trim() || null }
           : { clientId: selectedClient?.id || null, clientName: null, clientPhone: null }),
@@ -277,6 +289,11 @@ export default function ResourceBookingDialog({
                   {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
                   {totalPrice > 0 && <> · {totalPrice.toFixed(2)} €</>}
                 </Typography>
+                {resource?.priceType === 'per_hour' && freeMinutes > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    {Math.min(durationMinutes, freeMinutes)} min offertes ({Math.max(0, durationMinutes - freeMinutes)} min facturees)
+                  </Typography>
+                )}
                 {!slotAvailable && (
                   <Typography variant="caption" color="error.main">Chevauche une réservation ou une remise en état</Typography>
                 )}

@@ -33,11 +33,14 @@ function parseResource(resource) {
   };
 }
 
-function getPropertyPriceMap(resourceId) {
-  return db.prepare('SELECT propertyId, price FROM property_resource_prices WHERE resourceId = ? ORDER BY propertyId')
+function getPropertyPricingMap(resourceId) {
+  return db.prepare('SELECT propertyId, price, freeMinutes FROM property_resource_prices WHERE resourceId = ? ORDER BY propertyId')
     .all(Number(resourceId))
     .reduce((acc, row) => {
-      acc[String(row.propertyId)] = Number(row.price || 0);
+      acc[String(row.propertyId)] = {
+        price: Number(row.price || 0),
+        freeMinutes: Math.max(0, Number(row.freeMinutes || 0)),
+      };
       return acc;
     }, {});
 }
@@ -45,12 +48,19 @@ function getPropertyPriceMap(resourceId) {
 function computeEffectiveResourcePrice(resource, propertyId) {
   const pid = Number(propertyId);
   if (!pid) return Number(resource.price || 0);
-  const propertyPrices = resource.propertyPrices || getPropertyPriceMap(resource.id);
-  const override = propertyPrices[String(pid)];
+  const propertyPricing = resource.propertyPricing || getPropertyPricingMap(resource.id);
+  const override = propertyPricing[String(pid)]?.price;
   if (override === undefined || override === null || Number.isNaN(Number(override))) {
     return Number(resource.price || 0);
   }
   return Number(override);
+}
+
+function computeEffectiveFreeMinutes(resource, propertyId) {
+  const pid = Number(propertyId);
+  if (!pid) return 0;
+  const propertyPricing = resource.propertyPricing || getPropertyPricingMap(resource.id);
+  return Math.max(0, Number(propertyPricing[String(pid)]?.freeMinutes || 0));
 }
 
 function isResourceApplicableToProperty(resource, propertyId) {
@@ -92,13 +102,19 @@ router.get('/', (req, res) => {
     .map(parseResource)
     .filter((resource) => isResourceApplicableToProperty(resource, propertyId))
     .map((resource) => {
-      const propertyPrices = getPropertyPriceMap(resource.id);
-      const effectivePrice = computeEffectiveResourcePrice({ ...resource, propertyPrices }, propertyId);
+      const propertyPricing = getPropertyPricingMap(resource.id);
+      const effectivePrice = computeEffectiveResourcePrice({ ...resource, propertyPricing }, propertyId);
+      const effectiveFreeMinutes = computeEffectiveFreeMinutes({ ...resource, propertyPricing }, propertyId);
       return {
         ...resource,
         basePrice: Number(resource.price || 0),
         price: effectivePrice,
-        propertyPrices,
+        freeMinutes: effectiveFreeMinutes,
+        propertyPricing,
+        propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
+          acc[pid] = Number(cfg.price || 0);
+          return acc;
+        }, {}),
       };
     });
   res.json(resources);
@@ -115,13 +131,19 @@ router.get('/availability', (req, res) => {
 
   const out = resources.map((resource) => {
     const info = computeAvailability(resource.id, startDate, endDate, excludeReservationId ? Number(excludeReservationId) : null);
-    const propertyPrices = getPropertyPriceMap(resource.id);
-    const effectivePrice = computeEffectiveResourcePrice({ ...resource, propertyPrices }, propertyId);
+    const propertyPricing = getPropertyPricingMap(resource.id);
+    const effectivePrice = computeEffectiveResourcePrice({ ...resource, propertyPricing }, propertyId);
+    const effectiveFreeMinutes = computeEffectiveFreeMinutes({ ...resource, propertyPricing }, propertyId);
     return {
       ...resource,
       basePrice: Number(resource.price || 0),
       price: effectivePrice,
-      propertyPrices,
+      freeMinutes: effectiveFreeMinutes,
+      propertyPricing,
+      propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
+        acc[pid] = Number(cfg.price || 0);
+        return acc;
+      }, {}),
       reserved: info.reserved,
       available: info.available,
       unavailable: info.available <= 0,
@@ -170,18 +192,31 @@ router.get('/:id', (req, res) => {
   const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(req.params.id);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
   const parsed = parseResource(resource);
+  const propertyPricing = getPropertyPricingMap(parsed.id);
   res.json({
     ...parsed,
     basePrice: Number(parsed.price || 0),
-    propertyPrices: getPropertyPriceMap(parsed.id),
+    propertyPricing,
+    propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
+      acc[pid] = Number(cfg.price || 0);
+      return acc;
+    }, {}),
   });
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, propertyPrices, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
-  const normalizedPropertyPrices = Object.entries(propertyPrices || {})
-    .map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice) }))
-    .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0);
+  const { name, quantity, price, priceType, propertyIds, propertyPrices, propertyPricing, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
+  const rawPricingEntries = propertyPricing && typeof propertyPricing === 'object'
+    ? Object.entries(propertyPricing).map(([pid, cfg]) => ({ propertyId: Number(pid), price: Number(cfg?.price), freeMinutes: Number(cfg?.freeMinutes || 0) }))
+    : Object.entries(propertyPrices || {}).map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice), freeMinutes: 0 }));
+
+  const normalizedPropertyPricing = rawPricingEntries
+    .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0)
+    .map((line) => ({
+      propertyId: Number(line.propertyId),
+      price: Number(line.price),
+      freeMinutes: Math.max(0, Math.round(Number(line.freeMinutes || 0))),
+    }));
 
   const tx = db.transaction(() => {
     const result = db.prepare(`
@@ -204,9 +239,9 @@ router.post('/', (req, res) => {
     );
 
     const resourceId = Number(result.lastInsertRowid);
-    const insertPrice = db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price) VALUES (?, ?, ?)');
-    normalizedPropertyPrices.forEach((line) => {
-      insertPrice.run(line.propertyId, resourceId, line.price);
+    const insertPrice = db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (?, ?, ?, ?)');
+    normalizedPropertyPricing.forEach((line) => {
+      insertPrice.run(line.propertyId, resourceId, line.price, line.freeMinutes);
     });
 
     return resourceId;
@@ -217,11 +252,19 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, propertyPrices, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
+  const { name, quantity, price, priceType, propertyIds, propertyPrices, propertyPricing, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
   const resourceId = Number(req.params.id);
-  const normalizedPropertyPrices = Object.entries(propertyPrices || {})
-    .map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice) }))
-    .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0);
+  const rawPricingEntries = propertyPricing && typeof propertyPricing === 'object'
+    ? Object.entries(propertyPricing).map(([pid, cfg]) => ({ propertyId: Number(pid), price: Number(cfg?.price), freeMinutes: Number(cfg?.freeMinutes || 0) }))
+    : Object.entries(propertyPrices || {}).map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice), freeMinutes: 0 }));
+
+  const normalizedPropertyPricing = rawPricingEntries
+    .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0)
+    .map((line) => ({
+      propertyId: Number(line.propertyId),
+      price: Number(line.price),
+      freeMinutes: Math.max(0, Math.round(Number(line.freeMinutes || 0))),
+    }));
 
   const tx = db.transaction(() => {
     db.prepare(`
@@ -246,9 +289,9 @@ router.put('/:id', (req, res) => {
     );
 
     db.prepare('DELETE FROM property_resource_prices WHERE resourceId = ?').run(resourceId);
-    const insertPrice = db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price) VALUES (?, ?, ?)');
-    normalizedPropertyPrices.forEach((line) => {
-      insertPrice.run(line.propertyId, resourceId, line.price);
+    const insertPrice = db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (?, ?, ?, ?)');
+    normalizedPropertyPricing.forEach((line) => {
+      insertPrice.run(line.propertyId, resourceId, line.price, line.freeMinutes);
     });
   });
 

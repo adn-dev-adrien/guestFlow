@@ -27,7 +27,7 @@ const DAY_OPTIONS = [
 
 const emptyResource = {
   name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
-  propertyPrices: {},
+  propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
 };
 
@@ -37,16 +37,48 @@ function ComplexResourceFields({ form, setForm, properties }) {
   const targetProperties = normalizedPropertyIds.length > 0
     ? (properties || []).filter((p) => normalizedPropertyIds.includes(Number(p.id)))
     : (properties || []);
+
+  const getPropertyPricingLine = (propertyId) => {
+    const raw = (form.propertyPricing || {})[String(propertyId)] || {};
+    return {
+      price: raw.price ?? '',
+      freeMinutes: Math.max(0, Number(raw.freeMinutes || 0)),
+    };
+  };
+
   const updatePropertyPrice = (propertyId, value) => {
-    const nextPrices = { ...(form.propertyPrices || {}) };
+    const nextPricing = { ...(form.propertyPricing || {}) };
     const trimmed = String(value || '').trim();
+    const existing = nextPricing[String(propertyId)] || {};
     if (trimmed === '') {
-      delete nextPrices[String(propertyId)];
+      if (Number(existing.freeMinutes || 0) > 0) {
+        nextPricing[String(propertyId)] = { price: '', freeMinutes: Number(existing.freeMinutes || 0) };
+      } else {
+        delete nextPricing[String(propertyId)];
+      }
     } else {
       const parsed = Number(trimmed);
-      nextPrices[String(propertyId)] = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+      nextPricing[String(propertyId)] = {
+        price: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+        freeMinutes: Number(existing.freeMinutes || 0),
+      };
     }
-    setForm({ ...form, propertyPrices: nextPrices });
+    setForm({ ...form, propertyPricing: nextPricing });
+  };
+
+  const updatePropertyFirstHourFree = (propertyId, enabled) => {
+    const nextPricing = { ...(form.propertyPricing || {}) };
+    const existing = nextPricing[String(propertyId)] || {};
+    const nextLine = {
+      price: existing.price ?? '',
+      freeMinutes: enabled ? 60 : 0,
+    };
+    if ((nextLine.price === '' || nextLine.price === null || nextLine.price === undefined) && nextLine.freeMinutes === 0) {
+      delete nextPricing[String(propertyId)];
+    } else {
+      nextPricing[String(propertyId)] = nextLine;
+    }
+    setForm({ ...form, propertyPricing: nextPricing });
   };
 
   const toggleDay = (dayNum) => {
@@ -74,22 +106,34 @@ function ComplexResourceFields({ form, setForm, properties }) {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography variant="body2" fontWeight={600}>Prix specifique par logement (optionnel)</Typography>
         <Typography variant="caption" color="text.secondary">
-          Laisse vide pour utiliser le prix general de la ressource.
+          Laisse vide pour utiliser le prix general. Tu peux aussi offrir la 1ere heure.
         </Typography>
         {targetProperties.length === 0 && (
           <Typography variant="caption" color="text.secondary">Aucun logement disponible.</Typography>
         )}
         {targetProperties.map((property) => (
-          <TextField
-            key={property.id}
-            label={`Prix ${property.name} (EUR)`}
-            type="number"
-            size="small"
-            value={(form.propertyPrices || {})[String(property.id)] ?? ''}
-            onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
-            inputProps={{ min: 0, step: '0.01' }}
-            fullWidth
-          />
+          <Box key={property.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+            <TextField
+              label={`Prix ${property.name} (EUR/h)`}
+              type="number"
+              size="small"
+              value={getPropertyPricingLine(property.id).price}
+              onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
+              inputProps={{ min: 0, step: '0.01' }}
+              fullWidth
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={getPropertyPricingLine(property.id).freeMinutes >= 60}
+                  onChange={(e) => updatePropertyFirstHourFree(property.id, e.target.checked)}
+                />
+              }
+              label={<Typography variant="caption">1ere heure offerte pour {property.name}</Typography>}
+              sx={{ m: 0 }}
+            />
+          </Box>
         ))}
       </Box>
 
@@ -174,7 +218,12 @@ export default function ResourcesPage() {
       fromItem={(item) => ({
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
-        propertyPrices: item.propertyPrices && typeof item.propertyPrices === 'object' ? item.propertyPrices : {},
+        propertyPricing: item.propertyPricing && typeof item.propertyPricing === 'object'
+          ? item.propertyPricing
+          : Object.entries(item.propertyPrices || {}).reduce((acc, [pid, price]) => {
+            acc[String(pid)] = { price: Number(price || 0), freeMinutes: 0 };
+            return acc;
+          }, {}),
         description: item.note || item.description || '',
         isComplex: Boolean(item.isComplex),
         slotDuration: item.slotDuration || 5,
@@ -198,11 +247,19 @@ export default function ResourcesPage() {
         price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
         priceType: form.priceType || 'per_stay',
         propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
-        propertyPrices: Object.entries(form.propertyPrices || {})
+        propertyPricing: Object.entries(form.propertyPricing || {})
           .reduce((acc, [propertyId, rawPrice]) => {
-            const parsed = Number(rawPrice);
-            if (Number.isFinite(parsed) && parsed >= 0) {
-              acc[String(propertyId)] = parsed;
+            const parsedPrice = Number(rawPrice?.price);
+            const parsedFreeMinutes = Number(rawPrice?.freeMinutes || 0);
+            const hasPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0;
+            const freeMinutes = Number.isFinite(parsedFreeMinutes)
+              ? Math.max(0, Math.round(parsedFreeMinutes))
+              : 0;
+            if (hasPrice || freeMinutes > 0) {
+              acc[String(propertyId)] = {
+                price: hasPrice ? parsedPrice : 0,
+                freeMinutes,
+              };
             }
             return acc;
           }, {}),

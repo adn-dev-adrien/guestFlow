@@ -227,6 +227,7 @@ db.exec(`
     propertyId INTEGER NOT NULL,
     resourceId INTEGER NOT NULL,
     price REAL NOT NULL DEFAULT 0,
+    freeMinutes INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (propertyId, resourceId),
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
     FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
@@ -524,6 +525,10 @@ tryAddResourceColumn('turnoverMinutes', 'ALTER TABLE resources ADD COLUMN turnov
 tryAddResourceColumn('minimumUsageMinutes', 'ALTER TABLE resources ADD COLUMN minimumUsageMinutes INTEGER NOT NULL DEFAULT 0');
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_property_resource_prices_resource ON property_resource_prices(resourceId)');
+const propertyResourcePriceCols = db.prepare("PRAGMA table_info(property_resource_prices)").all().map(c => c.name);
+if (propertyResourcePriceCols.length > 0 && !propertyResourcePriceCols.includes('freeMinutes')) {
+  db.exec('ALTER TABLE property_resource_prices ADD COLUMN freeMinutes INTEGER NOT NULL DEFAULT 0');
+}
 
 const icalSourceCols = db.prepare("PRAGMA table_info(ical_sources)").all().map(c => c.name);
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('platformColor')) {

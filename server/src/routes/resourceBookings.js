@@ -13,6 +13,28 @@ function toMinutes(timeStr) {
   return (hours * 60) + (minutes || 0);
 }
 
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function computeBookingTotalPrice({ resource, startTime, endTime, propertyId }) {
+  const durationMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
+  const pid = Number(propertyId || 0);
+  const override = pid > 0
+    ? db.prepare('SELECT price, freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?')
+      .get(pid, Number(resource.id))
+    : null;
+  const unitPrice = Number(override?.price ?? resource.price ?? 0);
+  const freeMinutes = Math.max(0, Number(override?.freeMinutes || 0));
+
+  if (resource.priceType === 'free') return 0;
+  if (resource.priceType === 'per_hour') {
+    const billedMinutes = Math.max(0, durationMinutes - freeMinutes);
+    return roundMoney((unitPrice * billedMinutes) / 60);
+  }
+  return roundMoney(unitPrice);
+}
+
 function enrichBooking(b) {
   b.displayName = (b.firstName || b.lastName)
     ? [b.firstName, b.lastName].filter(Boolean).join(' ')
@@ -98,11 +120,11 @@ router.get('/:id', (req, res) => {
 
 // POST /resource-bookings
 router.post('/', (req, res) => {
-  const { resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid } = req.body;
+  const { resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, paid } = req.body;
   if (!resourceId || !date || !startTime || !endTime) {
     return res.status(400).json({ error: 'resourceId, date, startTime, endTime sont requis' });
   }
-  const resource = db.prepare('SELECT quantity, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?').get(resourceId);
+  const resource = db.prepare('SELECT id, quantity, price, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?').get(resourceId);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
 
   const bookingDuration = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
@@ -124,9 +146,16 @@ router.post('/', (req, res) => {
   `).get(resourceId, date, endTime, turnover, turnover, startTime);
   if (cnt >= resource.quantity) return res.status(409).json({ error: 'Créneau non disponible (capacité atteinte)' });
 
+  const computedTotalPrice = computeBookingTotalPrice({
+    resource,
+    startTime,
+    endTime,
+    propertyId,
+  });
+
   const result = db.prepare(
     'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(resourceId, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice || 0, paid ? 1 : 0);
+  ).run(resourceId, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', computedTotalPrice, paid ? 1 : 0);
 
   res.json({ id: result.lastInsertRowid });
 });
@@ -136,12 +165,12 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
 
-  const { reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid } = req.body;
+  const { reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, paid } = req.body;
   const newDate = date !== undefined ? date : existing.date;
   const newStart = startTime !== undefined ? startTime : existing.startTime;
   const newEnd = endTime !== undefined ? endTime : existing.endTime;
 
-  const resource = db.prepare('SELECT quantity, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?').get(existing.resourceId);
+  const resource = db.prepare('SELECT id, quantity, price, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?').get(existing.resourceId);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
 
   const bookingDuration = Math.max(0, toMinutes(newEnd) - toMinutes(newStart));
@@ -164,6 +193,14 @@ router.put('/:id', (req, res) => {
   `).get(existing.resourceId, newDate, newEnd, turnover, turnover, newStart, req.params.id);
   if (cnt >= resource.quantity) return res.status(409).json({ error: 'Créneau non disponible (capacité atteinte)' });
 
+  const nextPropertyId = propertyId !== undefined ? propertyId : existing.propertyId;
+  const computedTotalPrice = computeBookingTotalPrice({
+    resource,
+    startTime: newStart,
+    endTime: newEnd,
+    propertyId: nextPropertyId,
+  });
+
   db.prepare(
     "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,paid=?,updatedAt=datetime('now') WHERE id=?"
   ).run(
@@ -174,7 +211,7 @@ router.put('/:id', (req, res) => {
     propertyId !== undefined ? (propertyId || null) : existing.propertyId,
     newDate, newStart, newEnd,
     notes !== undefined ? notes : existing.notes,
-    totalPrice !== undefined ? totalPrice : existing.totalPrice,
+    computedTotalPrice,
     paid !== undefined ? (paid ? 1 : 0) : existing.paid,
     req.params.id,
   );
