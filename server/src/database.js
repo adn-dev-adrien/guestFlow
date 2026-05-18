@@ -777,12 +777,86 @@ console.log('[Migration] Running options table migration...');
 migrateOptionsColumns();
 console.log('[Migration] Options table migration completed');
 
-// Moved to API route - don't initialize timed options at startup as it can fail if columns missing
-// The frontend or API will create timed options as needed via PropertyDetail component
 function ensureDefaultTimedOptionsForProperty(propertyId) {
-  // This function is now a no-op at startup
-  // It's called from the API routes when needed
-  return;
+  const pid = Number(propertyId);
+  if (!Number.isFinite(pid) || pid <= 0) return;
+
+  const defaults = [
+    {
+      autoOptionType: 'early_check_in',
+      title: 'Arrivée anticipée',
+      description: "Option automatique si arrivée avant l'heure par défaut",
+      autoEnabled: 1,
+      autoPricingMode: 'proportional',
+      autoFullNightThreshold: '10:00',
+    },
+    {
+      autoOptionType: 'late_check_out',
+      title: 'Départ tardif',
+      description: "Option automatique si départ après l'heure par défaut",
+      autoEnabled: 1,
+      autoPricingMode: 'proportional',
+      autoFullNightThreshold: '17:00',
+    },
+  ];
+
+  const findScopedByType = db.prepare(`
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
+    FROM options o
+    INNER JOIN property_options po ON po.optionId = o.id
+    WHERE po.propertyId = ? AND o.autoOptionType = ?
+    LIMIT 1
+  `);
+  const findGlobalByType = db.prepare(`
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
+    FROM options o
+    WHERE o.autoOptionType = ?
+      AND NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
+    LIMIT 1
+  `);
+  const insertOption = db.prepare(`
+    INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)
+  `);
+  const insertLink = db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)');
+  const upgradeLegacyTimedOption = db.prepare(`
+    UPDATE options
+    SET
+      autoEnabled = 1,
+      autoPricingMode = 'proportional',
+      autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
+    WHERE id = ?
+  `);
+
+  const tx = db.transaction(() => {
+    for (const def of defaults) {
+      const existing = findScopedByType.get(pid, def.autoOptionType);
+      const globalExisting = existing ? null : findGlobalByType.get(def.autoOptionType);
+      const candidate = existing || globalExisting;
+
+      if (candidate) {
+        const isLegacyDisabledFixedZero = Number(candidate.autoEnabled || 0) !== 1
+          && String(candidate.autoPricingMode || 'fixed') === 'fixed'
+          && Number(candidate.price || 0) === 0;
+        if (isLegacyDisabledFixedZero) {
+          upgradeLegacyTimedOption.run(def.autoFullNightThreshold, Number(candidate.id));
+        }
+        continue;
+      }
+
+      const created = insertOption.run(
+        def.title,
+        def.description,
+        def.autoOptionType,
+        Number(def.autoEnabled || 0),
+        def.autoPricingMode || 'fixed',
+        def.autoFullNightThreshold,
+      );
+      insertLink.run(pid, Number(created.lastInsertRowid));
+    }
+  });
+
+  tx();
 }
 
 // ---------- ICAL EXPORT TOKENS ----------
@@ -994,8 +1068,21 @@ db.getAppSettings = getAppSettings;
 db.upsertAppSettings = upsertAppSettings;
 db.generateDevisNumber = generateDevisNumber;
 
-// Skip automatic initialization - let the frontend handle it
-console.log('[Database] Skipping automatic timed options initialization to prevent startup errors');
+// Initialize default timed options for existing properties when schema supports it.
+try {
+  const optionColumns = db.prepare('PRAGMA table_info(options)').all().map((col) => col.name);
+  const requiredTimedColumns = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
+  const hasTimedColumns = requiredTimedColumns.every((name) => optionColumns.includes(name));
+  if (!hasTimedColumns) {
+    console.log('[Database] Timed options initialization skipped: options table columns are incomplete');
+  } else {
+    const propertyIds = db.prepare('SELECT id FROM properties').all().map((row) => Number(row.id));
+    propertyIds.forEach((propertyId) => ensureDefaultTimedOptionsForProperty(propertyId));
+    console.log(`[Database] Timed options initialization checked for ${propertyIds.length} properties`);
+  }
+} catch (error) {
+  console.log('[Database] Timed options initialization skipped due to startup error:', error.message);
+}
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 

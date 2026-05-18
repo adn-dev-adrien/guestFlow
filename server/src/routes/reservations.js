@@ -451,6 +451,11 @@ function getReservationPricingSnapshot(reservationId) {
 
 // Calculate price for a potential reservation
 router.post('/calculate-price', (req, res) => {
+  const propertyId = Number(req.body.propertyId);
+  if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
+    db.ensureDefaultTimedOptionsForProperty(propertyId);
+  }
+
   const reservationId = Number(req.body.reservationId || 0);
   const forceCurrentPricing = Boolean(req.body.forceCurrentPricing);
   let lockedPricing = {
@@ -468,7 +473,7 @@ router.post('/calculate-price', (req, res) => {
 
   const quote = calculateReservationQuote({
     db,
-    propertyId: Number(req.body.propertyId),
+    propertyId,
     startDate: req.body.startDate,
     endDate: req.body.endDate,
     checkInTime: req.body.checkInTime,

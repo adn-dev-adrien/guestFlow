@@ -632,6 +632,10 @@ router.get('/:id', (req, res) => {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
 
+  if (typeof db.ensureDefaultTimedOptionsForProperty === 'function') {
+    db.ensureDefaultTimedOptionsForProperty(Number(req.params.id));
+  }
+
   property.pricingRules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(req.params.id)
     .map((rule) => {
       let tiers = [];
