@@ -105,7 +105,7 @@ test('computeAutoTimedOptionContext computes proportional early check-in hours a
   assert.equal(line.optionId, 10);
   assert.equal(line.autoExtraHours, 2);
   assert.equal(line.autoFullNightApplied, false);
-  assert.equal(line.totalPrice, 20);
+  assert.equal(line.totalPrice, 48);
 });
 
 test('computeAutoTimedOptionContext applies full-night price for late check-out beyond threshold', () => {
@@ -148,10 +148,10 @@ test('computeAutoTimedOptionContext late check-out proportional uses next-night 
     lateCheckoutNextNightPrice: 120,
   });
 
-  // 2h / 12h of next-night price (120), never from total stay.
+  // 2h / 7h (10:00 -> 17:00) of next-night price (120), never from total stay.
   assert.equal(line.autoExtraHours, 2);
   assert.equal(line.autoFullNightApplied, false);
-  assert.equal(line.totalPrice, 20);
+  assert.equal(line.totalPrice, 34.29);
 });
 
 test('calculateReservationQuote auto-adds proportional early check-in option with extra hours', () => {
@@ -184,8 +184,8 @@ test('calculateReservationQuote auto-adds proportional early check-in option wit
   assert.equal(quote.optionLines[0].optionId, 10);
   assert.equal(quote.optionLines[0].autoExtraHours, 2);
   assert.equal(quote.optionLines[0].autoFullNightApplied, false);
-  assert.equal(quote.optionLines[0].totalPrice, 20);
-  assert.equal(quote.optionsTotal, 20);
+  assert.equal(quote.optionLines[0].totalPrice, 48);
+  assert.equal(quote.optionsTotal, 48);
 
   db.close();
 });

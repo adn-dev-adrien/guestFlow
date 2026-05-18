@@ -269,9 +269,15 @@ function computeAutoTimedOptionContext({
 
   let totalPrice = Number(option.price || 0);
   if (String(option.autoPricingMode || 'fixed') === 'proportional') {
+    const proportionalWindowHours = isEarly
+      ? Math.max(0, defaultHour - thresholdHour)
+      : Math.max(0, thresholdHour - defaultHour);
+    const proportionalRatio = proportionalWindowHours > 0
+      ? Math.max(0, Math.min(1, extraHours / proportionalWindowHours))
+      : 0;
     totalPrice = isFullNight
       ? concernedNightPrice
-      : (concernedNightPrice / 12) * extraHours;
+      : concernedNightPrice * proportionalRatio;
   }
 
   return {
