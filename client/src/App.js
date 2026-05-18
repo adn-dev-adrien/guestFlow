@@ -253,6 +253,24 @@ function AppShell() {
 
   useEffect(() => {
     let isMounted = true;
+    api.getSettings()
+      .then((settings) => {
+        if (!isMounted) return;
+        if (settings?.companyLogoPath) {
+          const link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+          link.rel = 'icon';
+          link.href = settings.companyLogoPath;
+          if (!document.head.contains(link)) document.head.appendChild(link);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
     api.getPlatformColors()
       .then((data) => {
         if (!isMounted) return;

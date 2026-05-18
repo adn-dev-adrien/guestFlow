@@ -1,4 +1,6 @@
 const router = require('express').Router();
+const path = require('path');
+const fs = require('fs');
 const db = require('../database');
 const PDFDocument = require('pdfkit');
 const { calculateReservationQuote } = require('../utils/pricing');
@@ -563,49 +565,93 @@ router.get('/:id/pdf', (req, res) => {
   const doc = new PDFDocument({
     size: 'A4',
     margin: 45,
+    bufferPages: true,
     info: {
       Title: `Devis ${full.devisNumber}`,
       Author: settings.companyName || 'GuestFlow',
     },
   });
 
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="devis-${full.devisNumber}.pdf"`);
-  doc.pipe(res);
+  // Collect chunks in memory (required with bufferPages:true to support switchToPage)
+  const chunks = [];
+  doc.on('data', (chunk) => chunks.push(chunk));
+  doc.on('end', () => {
+    const buf = Buffer.concat(chunks);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="devis-${full.devisNumber}.pdf"`);
+    res.setHeader('Content-Length', buf.length);
+    res.end(buf);
+  });
+  doc.on('error', (err) => {
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erreur lors de la génération du PDF.' });
+    }
+  });
 
   const PAGE_W = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const LEFT = doc.page.margins.left;
+  const PAGE_H = doc.page.height;
+  const MARGIN_TOP = doc.page.margins.top;
+  const MARGIN_BOTTOM = doc.page.margins.bottom;
+  const RIGHT_PAD = 6; // marge droite pour les textes alignés à droite
+  // Reserve 28px at bottom for the per-page footer
+  const FOOTER_H = 28;
+  const CONTENT_BOTTOM = PAGE_H - MARGIN_BOTTOM - FOOTER_H;
+
+  function checkBreak(currentY, needed = 40) {
+    if (currentY + needed > CONTENT_BOTTOM) {
+      doc.addPage();
+      return MARGIN_TOP;
+    }
+    return currentY;
+  }
+
+  // ── Logo (zone blanche au-dessus de la bande) ────────────────────────────
+  const LOGO_H = 60;
+  const LOGO_W = 100;
+  const HAS_LOGO = settings.companyLogoPath && fs.existsSync(path.join(__dirname, '..', '..', 'uploads', path.basename(settings.companyLogoPath)));
+  const BAND_TOP = 40;
 
   // ── Header band ──────────────────────────────────────────────────────────
-  doc.rect(LEFT, 40, PAGE_W, 70).fill(BRAND);
+  doc.rect(LEFT, BAND_TOP, PAGE_W, 70).fill(BRAND);
 
   if (settings.companyName) {
     doc.fontSize(20).fillColor('#ffffff').font('Helvetica-Bold')
-      .text(settings.companyName, LEFT + 12, 52, { width: PAGE_W * 0.55 });
+      .text(settings.companyName, LEFT + 12, BAND_TOP + 12, { width: PAGE_W * 0.55 });
   }
 
   // Devis title top-right
   doc.fontSize(18).fillColor('#ffffff').font('Helvetica-Bold')
-    .text('DEVIS', LEFT + PAGE_W * 0.6, 52, { width: PAGE_W * 0.4, align: 'right' });
+    .text('DEVIS', LEFT + PAGE_W * 0.6, BAND_TOP + 12, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
   doc.fontSize(10).fillColor('#cce0ff').font('Helvetica')
-    .text(`N° ${full.devisNumber}`, LEFT + PAGE_W * 0.6, 76, { width: PAGE_W * 0.4, align: 'right' });
+    .text(`N° ${full.devisNumber}`, LEFT + PAGE_W * 0.6, BAND_TOP + 36, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
 
   // ── Company & client block ───────────────────────────────────────────────
-  const INFO_TOP = 125;
-  const COL2 = LEFT + PAGE_W * 0.55;
+  const INFO_TOP = BAND_TOP + 85;
+  // COL2 aligned with the start of the 3rd meta pill (Logement)
+  const COL2 = LEFT + (PAGE_W * 2 / 3);
 
-  // Company info (left)
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text('ÉMETTEUR', LEFT, INFO_TOP);
+  // Logo à gauche de l'émetteur (si présent)
+  const EMETTEUR_LEFT = HAS_LOGO ? LEFT + LOGO_W + 12 : LEFT;
+  const EMETTEUR_WIDTH = HAS_LOGO ? PAGE_W * 0.55 - LOGO_W - 12 : PAGE_W * 0.55;
+
+  if (HAS_LOGO) {
+    const logoAbsPath = path.join(__dirname, '..', '..', 'uploads', path.basename(settings.companyLogoPath));
+    doc.image(logoAbsPath, LEFT, INFO_TOP, { height: LOGO_H, width: LOGO_W, fit: [LOGO_W, LOGO_H], align: 'left', valign: 'center' });
+  }
+
+  // Company info (right of logo, or at LEFT if no logo)
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text('ÉMETTEUR', EMETTEUR_LEFT, INFO_TOP);
   let cy = INFO_TOP + 14;
   doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold');
   if (settings.companyName) {
-    doc.text(settings.companyName, LEFT, cy); cy += 14;
+    doc.text(settings.companyName, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH }); cy += 14;
   }
   doc.font('Helvetica').fontSize(9).fillColor(TEXT_LIGHT);
   if (settings.companyAddress) {
     const addrLines = settings.companyAddress.split('\n');
     for (const line of addrLines) {
-      doc.text(line, LEFT, cy); cy += 13;
+      doc.text(line, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH }); cy += 13;
     }
   }
 
@@ -636,7 +682,13 @@ router.get('/:id/pdf', (req, res) => {
   // Meta pills
   const metaItems = [
     { label: 'Date du devis', value: formatDateFR(full.createdAt ? full.createdAt.slice(0, 10) : '') },
-    { label: 'Valable jusqu\'au', value: full.validUntil ? formatDateFR(full.validUntil) : 'Sur demande' },
+    { label: 'Valable jusqu\'au', value: (() => {
+      if (full.validUntil) return formatDateFR(full.validUntil);
+      const days = Number(settings.quoteValidityDays) || 30;
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return formatDateFR(d.toISOString().slice(0, 10));
+    })() },
     { label: 'Logement', value: property ? property.name : `#${full.propertyId}` },
   ];
 
@@ -654,30 +706,41 @@ router.get('/:id/pdf', (req, res) => {
   doc.moveTo(LEFT, SEJ_TOP + 15).lineTo(LEFT + PAGE_W, SEJ_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   const nights = diffDays(full.startDate, full.endDate);
-  const sejItems = [
+
+  // Ligne 1 : arrivée, départ, durée
+  const row1 = [
     ['Arrivée', `${formatDateFR(full.startDate)} à ${full.checkInTime || '15:00'}`],
     ['Départ', `${formatDateFR(full.endDate)} à ${full.checkOutTime || '10:00'}`],
     ['Durée', `${nights} nuit${nights > 1 ? 's' : ''}`],
-    ['Adultes', String(full.adults || 0)],
   ];
-  if (Number(full.teens || 0) > 0) sejItems.push(['Adolescents', String(full.teens)]);
-  if (Number(full.children || 0) > 0) sejItems.push(['Enfants', String(full.children)]);
-  if (Number(full.babies || 0) > 0) sejItems.push(['Bébés', String(full.babies)]);
 
-  const colW = (PAGE_W - 12) / 4;
-  let sx = LEFT;
-  let sy = SEJ_TOP + 22;
-  let itemInRow = 0;
-  for (const [label, value] of sejItems) {
-    doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica').text(label, sx, sy);
-    doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold').text(value, sx, sy + 11, { width: colW });
-    itemInRow++;
-    if (itemInRow === 4) { sx = LEFT; sy += 38; itemInRow = 0; }
-    else sx += colW + 4;
+  // Ligne 2 : composition voyageurs
+  const row2 = [['Adultes', String(full.adults || 0)]];
+  if (Number(full.teens || 0) > 0) row2.push(['Adolescents', String(full.teens)]);
+  if (Number(full.children || 0) > 0) row2.push(['Enfants', String(full.children)]);
+  if (Number(full.babies || 0) > 0) row2.push(['Bébés', String(full.babies)]);
+
+  const ROW_H = 38;
+
+  // Chaque ligne répartit ses items sur toute la largeur
+  function drawSejRow(items, sy) {
+    const gap = 8;
+    const w = (PAGE_W - gap * (items.length - 1)) / items.length;
+    items.forEach(([label, value], i) => {
+      const sx = LEFT + i * (w + gap);
+      doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica').text(label, sx, sy);
+      doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold').text(value, sx, sy + 11, { width: w });
+    });
   }
 
+  const sy1 = SEJ_TOP + 22;
+  drawSejRow(row1, sy1);
+  const sy2 = sy1 + ROW_H;
+  drawSejRow(row2, sy2);
+  const sy = sy2;
+
   // ── Pricing table ─────────────────────────────────────────────────────────
-  const TABLE_TOP = sy + (itemInRow > 0 ? 38 : 6) + 14;
+  const TABLE_TOP = sy + ROW_H + 14;
   doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text('DÉTAIL TARIFAIRE', LEFT, TABLE_TOP);
   doc.moveTo(LEFT, TABLE_TOP + 15).lineTo(LEFT + PAGE_W, TABLE_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
@@ -693,9 +756,9 @@ router.get('/:id/pdf', (req, res) => {
   doc.fontSize(8.5).fillColor('#ffffff').font('Helvetica-Bold');
   doc.text('Désignation', COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
   doc.text('Qté', COL_QTY, TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text('Prix HT', COL_HT, TH + 5, { width: PAGE_W * 0.16, align: 'right' });
+  doc.text('Prix HT', COL_HT, TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
   doc.text('TVA %', COL_VAT, TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text('Total TTC', COL_TOTAL, TH + 5, { width: PAGE_W * 0.14, align: 'right' });
+  doc.text('Total TTC', COL_TOTAL, TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
 
   let rowY = TH + 18;
   let rowIdx = 0;
@@ -703,6 +766,7 @@ router.get('/:id/pdf', (req, res) => {
 
   function drawRow(desc, qty, totalTtc, vatRate, italic) {
     const rowH = 20;
+    rowY = checkBreak(rowY, rowH);
     if (rowIdx % 2 === 0) doc.rect(LEFT, rowY, PAGE_W, rowH).fill(LIGHT_GRAY);
     const rate = Number(vatRate || 0);
     const ht = rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
@@ -711,9 +775,9 @@ router.get('/:id/pdf', (req, res) => {
     if (italic) doc.font('Helvetica-Oblique'); else doc.font('Helvetica');
     doc.text(desc, COL_DESC + 4, rowY + 6, { width: PAGE_W * 0.48 });
     doc.font('Helvetica').text(String(qty), COL_QTY, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
-    doc.text(formatCurrency(ht), COL_HT, rowY + 6, { width: PAGE_W * 0.16, align: 'right' });
+    doc.text(formatCurrency(ht), COL_HT, rowY + 6, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
     doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
-    doc.font('Helvetica-Bold').text(formatCurrency(totalTtc), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.14, align: 'right' });
+    doc.font('Helvetica-Bold').text(formatCurrency(totalTtc), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
     rowY += rowH;
     rowIdx++;
   }
@@ -736,8 +800,8 @@ router.get('/:id/pdf', (req, res) => {
     if (cur) groups.push(cur);
     for (const g of groups) {
       const label = g.count === 1
-        ? `Nuit du ${formatDateFR(g.firstDate)} (${g.seasonLabel})`
-        : `${g.count} nuits — ${g.seasonLabel} (${formatDateFR(g.firstDate)} → ${formatDateFR(g.lastDate)})`;
+        ? `Hébergement — 1 nuit (${g.seasonLabel})`
+        : `Hébergement — ${g.count} nuits (${g.seasonLabel})`;
       drawRow(label, g.count, g.totalPrice, vatAccommodation, false);
     }
   } else {
@@ -760,7 +824,7 @@ router.get('/:id/pdf', (req, res) => {
   doc.moveTo(LEFT, rowY).lineTo(LEFT + PAGE_W, rowY).strokeColor(MID_GRAY).lineWidth(0.5).stroke();
 
   // ── Totals ────────────────────────────────────────────────────────────────
-  let totY = rowY + 10;
+  let totY = checkBreak(rowY + 10, 120);
   const TOTAL_LW = 200;
   const TOTAL_RX = LEFT + PAGE_W - TOTAL_LW;
 
@@ -768,7 +832,7 @@ router.get('/:id/pdf', (req, res) => {
     doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(label, TOTAL_RX, totY, { width: 120 });
     if (bold) doc.font('Helvetica-Bold').fillColor(TEXT_DARK);
     else doc.font('Helvetica').fillColor(TEXT_DARK);
-    doc.text(formatCurrency(amount), TOTAL_RX + 120, totY, { width: 80, align: 'right' });
+    doc.text(formatCurrency(amount), TOTAL_RX + 120, totY, { width: 80 - RIGHT_PAD, align: 'right' });
     totY += 16;
   }
 
@@ -785,7 +849,7 @@ router.get('/:id/pdf', (req, res) => {
     const taxRate = Number(full.touristTaxRate || 0);
     const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${formatCurrency(taxRate)} / pers./nuit`;
     doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
-      .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW, align: 'right' });
+      .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     totY += 10;
   }
 
@@ -794,45 +858,80 @@ router.get('/:id/pdf', (req, res) => {
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
     .text('TOTAL TTC', TOTAL_RX - 4, totY + 4, { width: 120 });
-  doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80, align: 'right' });
+  doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80 - RIGHT_PAD, align: 'right' });
   totY += 30;
 
   // ── Payment schedule ──────────────────────────────────────────────────────
+  totY = checkBreak(totY, 60);
   const PAY_TOP = totY + 14;
   doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text('MODALITÉS DE RÈGLEMENT', LEFT, PAY_TOP);
   doc.moveTo(LEFT, PAY_TOP + 15).lineTo(LEFT + PAGE_W, PAY_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   let py = PAY_TOP + 22;
   const payTextColor = TEXT_DARK;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
 
-  // Deposit
-  if (Number(full.depositAmount || 0) > 0) {
-    doc.rect(LEFT, py, PAGE_W, 32).fill('#fff8e1');
+  const depositAmt   = Number(full.depositAmount  || 0);
+  const balanceAmt   = Number(full.balanceAmount   || 0);
+  const depositDate  = full.depositDueDate  ? new Date(`${full.depositDueDate}T00:00:00`)  : null;
+  const balanceDate  = full.balanceDueDate  ? new Date(`${full.balanceDueDate}T00:00:00`)  : null;
+
+  const depositExpired = depositDate && depositDate < today;
+  const balanceExpired = balanceDate && balanceDate < today;
+
+  if (depositAmt > 0 && balanceAmt > 0 && depositExpired && balanceExpired) {
+    // Les deux échéances sont dépassées → un seul règlement total
+    const totalDue = roundMoney(depositAmt + balanceAmt);
+    py = checkBreak(py, 44);
+    doc.rect(LEFT, py, PAGE_W, 36).fill('#fff3e0');
     doc.fontSize(9).fillColor('#e65100').font('Helvetica-Bold')
-      .text('ACOMPTE POUR CONFIRMER LA RÉSERVATION', LEFT + 8, py + 5);
+      .text('RÈGLEMENT — NOUS RESTONS À VOTRE DISPOSITION', LEFT + 8, py + 5);
     doc.font('Helvetica').fillColor(payTextColor).fontSize(9)
       .text(
-        `Merci de bien vouloir régler un acompte de ${formatCurrency(full.depositAmount)}` +
-        (full.depositDueDate ? ` avant le ${formatDateFR(full.depositDueDate)}` : '') +
-        ' afin de confirmer votre réservation et de bloquer vos dates.',
-        LEFT + 8, py + 17, { width: PAGE_W - 16 }
+        `Nos échéances de paiement sont désormais arrivées à terme. Afin de finaliser votre réservation, nous vous invitons à procéder au règlement du montant total de ${formatCurrency(totalDue)} à votre convenance dans les meilleurs délais. N'hésitez pas à nous contacter si vous avez la moindre question.`,
+        LEFT + 8, py + 18, { width: PAGE_W - 16 }
       );
-    py += 38;
-  }
+    py += 42;
+  } else {
+    // Deposit
+    if (depositAmt > 0) {
+      const depositDateLabel = depositExpired
+        ? ''
+        : (full.depositDueDate ? `avant le ${formatDateFR(full.depositDueDate)}` : '');
+      const depositBody = `Merci de bien vouloir régler un acompte de ${formatCurrency(depositAmt)}${depositDateLabel ? ` ${depositDateLabel}` : ''} dés maintenant afin de confirmer votre réservation et de bloquer vos dates.`;
+      const depositBodyH = doc.heightOfString(depositBody, { width: PAGE_W - 16 });
+      const depositBlockH = 14 + depositBodyH + 10; // titre + corps + padding bas
+      py = checkBreak(py, depositBlockH);
+      doc.rect(LEFT, py, PAGE_W, depositBlockH).fill('#fff8e1');
+      doc.fontSize(9).fillColor('#e65100').font('Helvetica-Bold')
+        .text('ACOMPTE POUR CONFIRMER LA RÉSERVATION', LEFT + 8, py + 5);
+      doc.font('Helvetica').fillColor(payTextColor).fontSize(9)
+        .text(depositBody, LEFT + 8, py + 17, { width: PAGE_W - 16 });
+      py += depositBlockH + 6;
+    }
 
-  // Balance
-  if (Number(full.balanceAmount || 0) > 0) {
-    doc.rect(LEFT, py, PAGE_W, 24).fill(LIGHT_GRAY);
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text('Solde :', LEFT + 8, py + 7);
-    doc.fillColor(payTextColor).font('Helvetica-Bold')
-      .text(formatCurrency(full.balanceAmount), LEFT + 60, py + 7);
-    doc.font('Helvetica').fillColor(TEXT_LIGHT)
-      .text(full.balanceDueDate ? `à régler avant le ${formatDateFR(full.balanceDueDate)}` : '', LEFT + 130, py + 7);
-    py += 30;
+    // Balance
+    if (balanceAmt > 0) {
+      py = checkBreak(py, 30);
+      doc.rect(LEFT, py, PAGE_W, 24).fill(LIGHT_GRAY);
+      doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica')
+        .text('Solde :', LEFT + 8, py + 7);
+      doc.fillColor(payTextColor).font('Helvetica-Bold')
+        .text(formatCurrency(balanceAmt), LEFT + 60, py + 7);
+      if (balanceExpired) {
+        doc.font('Helvetica').fillColor(TEXT_LIGHT)
+          .text(`à régler dès que possible (échéance du ${formatDateFR(full.balanceDueDate)} passée)`, LEFT + 130, py + 7);
+      } else if (full.balanceDueDate) {
+        doc.font('Helvetica').fillColor(TEXT_LIGHT)
+          .text(`à régler avant le ${formatDateFR(full.balanceDueDate)}`, LEFT + 130, py + 7);
+      }
+      py += 30;
+    }
   }
 
   // Caution
   if (Number(full.cautionAmount || 0) > 0) {
+    py = checkBreak(py, 30);
     doc.rect(LEFT, py, PAGE_W, 24).fill('#e8f5e9');
     doc.fontSize(9).fillColor('#2e7d32').font('Helvetica').text('Caution :', LEFT + 8, py + 7);
     doc.font('Helvetica-Bold').fillColor(payTextColor)
@@ -842,7 +941,7 @@ router.get('/:id/pdf', (req, res) => {
 
   // RIB / bank details
   if (settings.companyIban || settings.companyBic || settings.companyBankName) {
-    py += 8;
+    py = checkBreak(py + 8, 70);
     doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text('COORDONNÉES BANCAIRES', LEFT, py); py += 14;
     doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
     if (settings.companyBankName) { doc.text(`Banque : ${settings.companyBankName}`, LEFT, py); py += 13; }
@@ -856,7 +955,8 @@ router.get('/:id/pdf', (req, res) => {
     'Dans l\'attente de votre confirmation, nous vous souhaitons une excellente journée.';
 
   if (footerText.trim()) {
-    py += 14;
+    const footerH = doc.heightOfString(footerText, { width: PAGE_W }) + 30;
+    py = checkBreak(py + 14, footerH);
     doc.rect(LEFT, py, PAGE_W, 1).fill(MID_GRAY);
     py += 8;
     doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
@@ -864,19 +964,35 @@ router.get('/:id/pdf', (req, res) => {
     py += doc.heightOfString(footerText, { width: PAGE_W }) + 6;
   }
 
-  // ── Legal footer (Siret / TVA) ─────────────────────────────────────────────
+  // ── Per-page footer (company name + SIRET/TVA + page n/N) ─────────────────
   const legalParts = [];
   if (settings.companySiret) legalParts.push(`SIRET : ${settings.companySiret}`);
   if (settings.companyTva) legalParts.push(`N° TVA : ${settings.companyTva}`);
+  const legalCenter = legalParts.join('   •   ');
 
-  if (legalParts.length > 0) {
-    // Draw at absolute bottom
-    const legalY = doc.page.height - doc.page.margins.bottom - 20;
-    doc.rect(LEFT, legalY - 4, PAGE_W, 1).fill(MID_GRAY);
+  const range = doc.bufferedPageRange();
+  const totalPages = range.count;
+  for (let i = 0; i < totalPages; i++) {
+    doc.switchToPage(range.start + i);
+    const fY = PAGE_H - MARGIN_BOTTOM - FOOTER_H;
+    doc.rect(LEFT, fY, PAGE_W, 1).fill(MID_GRAY);
+    const ftY = fY + 6;
+    // Left: company name
+    if (settings.companyName) {
+      doc.fontSize(7.5).fillColor('#888888').font('Helvetica-Bold')
+        .text(settings.companyName, LEFT, ftY, { width: PAGE_W * 0.35, ellipsis: true });
+    }
+    // Center: SIRET / TVA
+    if (legalCenter) {
+      doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
+        .text(legalCenter, LEFT + PAGE_W * 0.35, ftY, { width: PAGE_W * 0.3, align: 'center' });
+    }
+    // Right: page X / N
     doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
-      .text(legalParts.join('   •   '), LEFT, legalY, { width: PAGE_W, align: 'center' });
+      .text(`Page ${i + 1} / ${totalPages}`, LEFT + PAGE_W * 0.65, ftY, { width: PAGE_W * 0.35, align: 'right' });
   }
 
+  doc.flushPages();
   doc.end();
 });
 

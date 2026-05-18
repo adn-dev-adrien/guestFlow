@@ -883,6 +883,18 @@ function escapeIcalText(text) {
   return text.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
 
+// Migrate app_settings columns if needed
+(function migrateAppSettings() {
+  const asCols = db.prepare("PRAGMA table_info(app_settings)").all().map(c => c.name);
+  if (asCols.length === 0) return; // table doesn't exist yet
+  if (!asCols.includes('quoteValidityDays')) {
+    db.exec("ALTER TABLE app_settings ADD COLUMN quoteValidityDays INTEGER DEFAULT 30");
+  }
+  if (!asCols.includes('companyLogoPath')) {
+    db.exec("ALTER TABLE app_settings ADD COLUMN companyLogoPath TEXT DEFAULT ''");
+  }
+})();
+
 function getAppSettings() {
   return db.prepare('SELECT * FROM app_settings WHERE id = 1').get() || {
     id: 1,
@@ -897,6 +909,8 @@ function getAppSettings() {
     companyBic: '',
     companyBankName: '',
     quoteFooterText: '',
+    quoteValidityDays: 30,
+    companyLogoPath: '',
     createdAt: null,
     updatedAt: null,
   };
@@ -914,12 +928,18 @@ function upsertAppSettings({
   companyBic = '',
   companyBankName = '',
   quoteFooterText = '',
+  quoteValidityDays = 30,
+  companyLogoPath,
 }) {
+  // Build update dynamically to preserve existing logo if not provided
+  const current = db.prepare('SELECT companyLogoPath FROM app_settings WHERE id = 1').get();
+  const logoPath = companyLogoPath !== undefined ? String(companyLogoPath || '') : (current?.companyLogoPath || '');
+
   db.prepare(`
     INSERT INTO app_settings (id, googleCalendarId, googleServiceAccountEmail, googleServiceAccountPrivateKey,
-      companyName, companyAddress, companySiret, companyTva, companyIban, companyBic, companyBankName, quoteFooterText,
-      createdAt, updatedAt)
-    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      companyName, companyAddress, companySiret, companyTva, companyIban, companyBic, companyBankName,
+      quoteFooterText, quoteValidityDays, companyLogoPath, createdAt, updatedAt)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       googleCalendarId = excluded.googleCalendarId,
       googleServiceAccountEmail = excluded.googleServiceAccountEmail,
@@ -932,6 +952,8 @@ function upsertAppSettings({
       companyBic = excluded.companyBic,
       companyBankName = excluded.companyBankName,
       quoteFooterText = excluded.quoteFooterText,
+      quoteValidityDays = excluded.quoteValidityDays,
+      companyLogoPath = excluded.companyLogoPath,
       updatedAt = datetime('now')
   `).run(
     String(googleCalendarId || '').trim(),
@@ -945,6 +967,8 @@ function upsertAppSettings({
     String(companyBic || '').trim(),
     String(companyBankName || '').trim(),
     String(quoteFooterText || ''),
+    Number(quoteValidityDays) || 30,
+    logoPath,
   );
 }
 
