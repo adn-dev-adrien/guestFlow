@@ -211,7 +211,12 @@ function resolvePaymentSchedule(row, property) {
 function enrichDevis(row) {
   if (!row) return null;
   const options = db.prepare(`
-    SELECT do.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold
+    SELECT do.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
+      COALESCE(
+        NULLIF(do.totalPrice, 0),
+        NULLIF(round(COALESCE(do.unitPrice, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2), 0),
+        round(COALESCE(o.price, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2)
+      ) as originalTotalPrice
     FROM devis_options do
     JOIN options o ON do.optionId = o.id
     WHERE do.devisId = ?

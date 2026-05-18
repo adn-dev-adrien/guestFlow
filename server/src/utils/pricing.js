@@ -451,7 +451,7 @@ function getApplicableResources(db, propertyId) {
   let resources;
   try {
     resources = db.prepare(`
-      SELECT r.*, prp.price as propertyPrice
+      SELECT r.*, prp.price as propertyPrice, prp.freeMinutes as propertyFreeMinutes
       FROM resources r
       LEFT JOIN property_resource_prices prp ON prp.resourceId = r.id AND prp.propertyId = ?
       ORDER BY r.name
@@ -466,9 +466,19 @@ function getApplicableResources(db, propertyId) {
     .map((resource) => ({
       ...resource,
       price: resource.propertyPrice != null ? Number(resource.propertyPrice) : Number(resource.price || 0),
+      freeMinutes: resource.propertyFreeMinutes != null
+        ? Math.max(0, Number(resource.propertyFreeMinutes || 0))
+        : 0,
       propertyIds: parseJsonArray(resource.propertyIds).map((id) => Number(id)),
     }))
     .filter((resource) => resource.propertyIds.length === 0 || resource.propertyIds.includes(Number(propertyId)));
+}
+
+function applyPerHourFreeMinutes(baseUnits, freeMinutes) {
+  const normalizedUnits = normalizeBilledUnits(baseUnits);
+  const normalizedFreeMinutes = Math.max(0, Number(freeMinutes || 0));
+  const freeUnits = roundMoney(normalizedFreeMinutes / 60);
+  return roundMoney(Math.max(0, normalizedUnits - freeUnits));
 }
 
 function getProgressiveExtraNightPrice(rule, nightNumber, fallbackBasePrice) {
@@ -679,6 +689,9 @@ function calculateReservationQuote({
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });
+      const originalTotalPrice = offeredOptionIdSet.has(optionId) && Number(merged.totalPrice || 0) === 0
+        ? roundMoney(targetBilledUnits * Number(unitBase || 0))
+        : merged.totalPrice;
       return {
         optionId,
         title: option.title,
@@ -686,7 +699,7 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         priceType,
-        originalTotalPrice: merged.totalPrice,
+        originalTotalPrice,
         totalPrice: offeredOptionIdSet.has(optionId) ? 0 : merged.totalPrice,
       };
     })
@@ -744,11 +757,14 @@ function calculateReservationQuote({
         targetBilledUnits: 1,
         currentUnitPrice: line.unitPrice,
       });
+      const originalTotalPrice = offeredOptionIdSet.has(optionId) && Number(merged.totalPrice || 0) === 0
+        ? roundMoney(Number(line.unitPrice || 0))
+        : merged.totalPrice;
       return {
         ...line,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        originalTotalPrice: merged.totalPrice,
+        originalTotalPrice,
         totalPrice: offeredOptionIdSet.has(Number(line.optionId)) ? 0 : merged.totalPrice,
       };
     })
@@ -768,7 +784,10 @@ function calculateReservationQuote({
         ? lockedUnit
         : Number(selected?.unitPrice !== undefined ? selected.unitPrice : resource.price || 0);
       const priceType = resource.priceType || 'per_stay';
-      const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+      const baseBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+      const targetBilledUnits = priceType === 'per_hour'
+        ? applyPerHourFreeMinutes(baseBilledUnits, resource.freeMinutes)
+        : baseBilledUnits;
       const lockedLine = lockedResourcesById.get(resourceId);
       const merged = mergeLineWithLockedSnapshot({
         lockedLine,

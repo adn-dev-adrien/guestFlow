@@ -537,7 +537,7 @@ export default function ReservationPage() {
           
           // Charger les options offertes (totalPrice === 0)
           const offeredOpts = new Set((res.options || [])
-            .filter(o => Number(o.totalPrice || 0) === 0)
+            .filter(o => !o.isCustom && Number(o.totalPrice || 0) === 0 && Number(o.unitPrice || 0) > 0)
             .map(o => o.optionId)
           );
           setOfferedOptionIds(offeredOpts);
@@ -546,7 +546,9 @@ export default function ReservationPage() {
           frozenOptionUnitByQuantityRef.current = Object.fromEntries(
             (res.options || []).map((o) => [
               o.optionId,
-              Math.max(0, Number(o.totalPrice || 0)) / Math.max(1, Number(o.quantity || 1)),
+              o.unitPrice !== undefined
+                ? Number(o.unitPrice || 0)
+                : (Math.max(0, Number(o.totalPrice || 0)) / Math.max(1, Number(o.quantity || 1))),
             ])
           );
           frozenResourceUnitByQuantityRef.current = Object.fromEntries(
@@ -627,7 +629,7 @@ export default function ReservationPage() {
           });
 
           const offeredOpts = new Set((devis.options || [])
-            .filter(o => Number(o.totalPrice || 0) === 0)
+            .filter(o => !o.isCustom && Number(o.totalPrice || 0) === 0 && Number(o.unitPrice || 0) > 0)
             .map(o => o.optionId)
           );
           setOfferedOptionIds(offeredOpts);
@@ -982,9 +984,12 @@ export default function ReservationPage() {
   const setResourceQuantity = (resourceId, quantity) => {
     setForm(prev => {
       const resource = availableResources.find(r => r.id === resourceId);
+      const isPerHourResource = resource?.priceType === 'per_hour';
       const maxAvailable = Math.max(0, Number(resource?.available || 0));
       const parsed = Number(quantity);
-      const normalizedQty = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(maxAvailable, parsed));
+      const normalizedQty = Number.isNaN(parsed)
+        ? 0
+        : Math.max(0, isPerHourResource ? parsed : Math.min(maxAvailable, parsed));
 
       const exists = prev.selectedResources.find(sr => sr.resourceId === resourceId);
       let newResources = prev.selectedResources;
@@ -1311,6 +1316,7 @@ export default function ReservationPage() {
     for (const sr of (form.selectedResources || [])) {
       const resource = availableResources.find(r => r.id === sr.resourceId);
       if (!resource) continue;
+      if (resource.priceType === 'per_hour') continue;
       if ((Number(sr.quantity) || 0) > Number(resource.available || 0)) {
         await alert({ title: 'Conflit de réservation', message: `La ressource '${resource.name}' n'est plus disponible en quantité suffisante.` });
         return false;
@@ -2394,9 +2400,11 @@ export default function ReservationPage() {
                   {displayableResources.map(resource => {
                       const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                       const enabled = Boolean(selected && Number(selected.quantity) > 0);
+                      const isPerHour = resource.priceType === 'per_hour';
+                      const hasFreeFirstHour = isPerHour && Number(resource.freeMinutes || 0) >= 60;
                       const unavailable = Number(resource.available || 0) <= 0;
                       const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
-                      const resourceConflict = Boolean(selected) && (unavailable || requestedTooMuch);
+                      const resourceConflict = Boolean(selected) && !isPerHour && (unavailable || requestedTooMuch);
                       let factorHint = '';
                       if (resource.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
                       else if (resource.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
@@ -2426,8 +2434,13 @@ export default function ReservationPage() {
                                 <Typography variant="body2" color={resourceConflict ? 'error.main' : 'text.secondary'}>
                                   {unavailable
                                     ? 'Déjà réservée'
-                                    : `${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''} • ${resource.available} dispo`}
+                                    : `${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}${!isPerHour ? ` • ${resource.available} dispo` : ''}`}
                                 </Typography>
+                                {hasFreeFirstHour && (
+                                  <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
+                                    1ère heure offerte pour ce logement
+                                  </Typography>
+                                )}
                               </Box>
                               <Stack alignItems="flex-end" spacing={0.5}>
                                 <FormControlLabel
@@ -2443,12 +2456,14 @@ export default function ReservationPage() {
                                 <TextField
                                   size="small"
                                   type="number"
-                                  label="Qté"
+                                  label={isPerHour ? 'Heures' : 'Qté'}
                                   value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
                                   onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
-                                  inputProps={{ min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }}
+                                  inputProps={isPerHour
+                                    ? { min: 1, step: 1 }
+                                    : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }}
                                   error={resourceConflict}
-                                  helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : ''}
+                                  helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
                                   sx={{ width: { xs: '100%', sm: 'auto' } }}
                                 />
                                 <Chip
@@ -2917,10 +2932,13 @@ export default function ReservationPage() {
                       {resourcesSelected.map(sr => {
                         const res = availableResources.find(r => r.id === sr.resourceId);
                         const total = Number(sr.totalPrice || 0);
+                        const isPerHour = (sr.priceType || res?.priceType) === 'per_hour';
+                        const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
                         return (
                           <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
-                              {sr.name || res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}` : ''}
+                              {sr.name || res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}${isPerHour ? 'h' : ''}` : ''}
+                              {hasFreeFirstHour ? ' • 1ère heure offerte' : ''}
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{total.toFixed(2)}€</Typography>
                           </Box>

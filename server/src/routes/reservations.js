@@ -369,7 +369,12 @@ router.get('/:id', (req, res) => {
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
 
   reservation.options = db.prepare(`
-    SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice
+    SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice,
+      COALESCE(
+        NULLIF(ro.totalPrice, 0),
+        NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
+        round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)
+      ) as originalTotalPrice
     FROM reservation_options ro
     JOIN options o ON ro.optionId = o.id
     WHERE ro.reservationId = ?
