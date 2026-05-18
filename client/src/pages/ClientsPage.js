@@ -10,6 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HomeIcon from '@mui/icons-material/Home';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DataPageScaffold from '../components/DataPageScaffold';
 import FormDialog from '../components/FormDialog';
 import ClientFormFields from '../components/ClientFormFields';
@@ -17,6 +18,7 @@ import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
+import { useAppDialogs } from '../components/DialogProvider';
 
 const emptyClient = {
   lastName: '',
@@ -60,6 +62,7 @@ function sortReservationsByCurrentDate(reservations) {
 
 export default function ClientsPage() {
   const navigate = useNavigate();
+  const { confirm, alert } = useAppDialogs();
   const [urlParams, setUrlParams] = useSearchParams();
   const {
     items: clients,
@@ -344,6 +347,30 @@ export default function ClientsPage() {
     openReservationFromClients(reservation.id, reservation.clientId, 'client');
   };
 
+  const handleCleanupOrphanClients = async () => {
+    const ok = await confirm({
+      title: 'Nettoyer la base clients',
+      message: 'Supprimer tous les clients sans réservation ? Les clients liés à un devis seront conservés.',
+      confirmLabel: 'Nettoyer',
+      confirmColor: 'warning',
+    });
+    if (!ok) return;
+
+    try {
+      const result = await api.cleanupOrphanClients();
+      await reload(search);
+      await alert({
+        title: 'Nettoyage terminé',
+        message: `${result.deletedCount || 0} client(s) supprimé(s). ${result.keptWithDevisCount || 0} client(s) conservé(s) car liés à un devis.`,
+      });
+    } catch (error) {
+      await alert({
+        title: 'Erreur',
+        message: error?.message || 'Impossible d\'effectuer le nettoyage des clients.',
+      });
+    }
+  };
+
   return (
     <Box>
       <DataPageScaffold
@@ -352,15 +379,26 @@ export default function ClientsPage() {
         actionIcon={<AddIcon />}
         onAction={() => handleOpen(null)}
         topContent={(
-          <TextField
-            fullWidth
-            placeholder="Rechercher un client (nom, email, téléphone…)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-            size="small"
-            variant="outlined"
-          />
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TextField
+              fullWidth
+              placeholder="Rechercher un client (nom, email, téléphone…)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
+              size="small"
+              variant="outlined"
+              sx={{ flex: 1, minWidth: 260 }}
+            />
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<DeleteSweepIcon />}
+              onClick={handleCleanupOrphanClients}
+            >
+              Cleanup clients
+            </Button>
+          </Box>
         )}
         minWidth={860}
         head={(

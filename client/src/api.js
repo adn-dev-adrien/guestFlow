@@ -24,6 +24,7 @@ const api = {
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getClient: (id) => request(`/clients/${id}`),
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
+  cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
   deleteClient: (id, options = {}) => {

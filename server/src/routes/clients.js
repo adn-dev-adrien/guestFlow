@@ -37,6 +37,44 @@ router.get('/', (req, res) => {
   res.json(clients.map(normalizeClientRow));
 });
 
+// Cleanup clients without reservations (and without devis to avoid deleting active quotes)
+router.post('/cleanup-orphans', (req, res) => {
+  const deletableCountRow = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM clients c
+    WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+      AND NOT EXISTS (SELECT 1 FROM devis d WHERE d.clientId = c.id)
+  `).get();
+
+  const keptWithDevisRow = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM clients c
+    WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+      AND EXISTS (SELECT 1 FROM devis d WHERE d.clientId = c.id)
+  `).get();
+
+  const deletedCount = Number(deletableCountRow?.count || 0);
+  const keptWithDevisCount = Number(keptWithDevisRow?.count || 0);
+
+  if (deletedCount > 0) {
+    db.prepare(`
+      DELETE FROM clients
+      WHERE id IN (
+        SELECT c.id
+        FROM clients c
+        WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+          AND NOT EXISTS (SELECT 1 FROM devis d WHERE d.clientId = c.id)
+      )
+    `).run();
+  }
+
+  res.json({
+    ok: true,
+    deletedCount,
+    keptWithDevisCount,
+  });
+});
+
 // Get single client
 router.get('/:id', (req, res) => {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
