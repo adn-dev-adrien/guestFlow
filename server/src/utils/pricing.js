@@ -555,6 +555,7 @@ function calculateReservationQuote({
   discountPercent,
   customPrice,
   selectedOptions,
+  customOptions,
   selectedResources,
   depositPaid,
   balancePaid,
@@ -677,6 +678,27 @@ function calculateReservationQuote({
     })
     .filter(Boolean);
 
+  const customOptionLines = (Array.isArray(customOptions) ? customOptions : [])
+    .map((line, index) => {
+      const description = String(line?.description || '').trim();
+      const amount = roundMoney(Math.max(0, Number(line?.amount || 0)));
+      const offered = Boolean(line?.offered);
+      if (!description || amount <= 0) return null;
+      return {
+        isCustom: true,
+        customKey: line?.customKey || `custom_${index + 1}`,
+        title: description,
+        offered,
+        quantity: 1,
+        unitPrice: amount,
+        billedUnits: 1,
+        priceType: 'per_stay',
+        originalTotalPrice: amount,
+        totalPrice: offered ? 0 : amount,
+      };
+    })
+    .filter(Boolean);
+
   const selectedOptionIds = new Set(optionLines.map((line) => Number(line.optionId)));
   const autoOptionLines = Array.from(optionsById.values())
     .filter((option) => Number(option.autoEnabled || 0) === 1)
@@ -718,7 +740,7 @@ function calculateReservationQuote({
     })
     .filter((line) => !selectedOptionIds.has(Number(line.optionId)));
 
-  const finalOptionLines = [...optionLines, ...autoOptionLines];
+  const finalOptionLines = [...optionLines, ...autoOptionLines, ...customOptionLines];
 
   const resourceLines = (Array.isArray(selectedResources) ? selectedResources : [])
     .map((selected) => {

@@ -167,7 +167,7 @@ export default function ReservationPage() {
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
-    notes: '', selectedOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
+    notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
     startDate: '', endDate: '', propertyId: null
   });
 
@@ -197,11 +197,20 @@ export default function ReservationPage() {
       .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
       .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) }))
       .sort((a, b) => a.optionId - b.optionId),
+    customOptions: (form.customOptions || [])
+      .map((line, index) => ({
+        customKey: String(line.customKey || `custom_${index + 1}`),
+        description: String(line.description || '').trim(),
+        amount: Number(line.amount || 0),
+        offered: Boolean(line.offered),
+      }))
+      .filter((line) => line.description && Number(line.amount || 0) > 0)
+      .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
       .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0) }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.selectedResources, propertyOptions, offeredOptionIds]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -358,13 +367,19 @@ export default function ReservationPage() {
       depositDueDate: quote.depositDueDate || '',
       balanceAmount: Number(quote.balanceAmount || 0),
       balanceDueDate: quote.balanceDueDate || '',
-      selectedOptions: (quote.optionLines || []).map((line) => ({
+      selectedOptions: (quote.optionLines || []).filter((line) => !line.isCustom).map((line) => ({
         optionId: Number(line.optionId),
         quantity: Number(line.quantity || 0),
         totalPrice: Number(line.totalPrice || 0),
         originalTotalPrice: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
         ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
         ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
+      })),
+      customOptions: (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => ({
+        customKey: String(line.customKey || `custom_${index + 1}`),
+        description: String(line.title || line.description || '').trim(),
+        amount: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
+        offered: Boolean(line.offered),
       })),
       selectedResources: (prev.selectedResources || []).map((item) => {
         const line = resourceLinesById.get(Number(item.resourceId));
@@ -430,6 +445,7 @@ export default function ReservationPage() {
             status: prefillDevis.form.status || prev.status || 'draft',
             propertyId: prefillPropertyId || prefillDevis.form.propertyId || prev.propertyId,
             selectedOptions: prefillDevis.form.selectedOptions || [],
+            customOptions: prefillDevis.form.customOptions || [],
             selectedResources: prefillDevis.form.selectedResources || [],
           }));
           setOfferedOptionIds(new Set(prefillDevis.offeredOptionIds || []));
@@ -498,7 +514,8 @@ export default function ReservationPage() {
             cautionReturned: res.cautionReturned || false,
             cautionReturnedDate: res.cautionReturnedDate || '',
             notes: res.notes || '',
-            selectedOptions: (res.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
             selectedResources: (res.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
             checkInTime: res.checkInTime || '15:00',
             checkOutTime: res.checkOutTime || '10:00',
@@ -597,7 +614,8 @@ export default function ReservationPage() {
             cautionReturned: false,
             cautionReturnedDate: '',
             notes: devis.notes || '',
-            selectedOptions: (devis.options || []).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            selectedOptions: (devis.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice })),
+            customOptions: (devis.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
             selectedResources: (devis.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
             checkInTime: devis.checkInTime || '15:00',
             checkOutTime: devis.checkOutTime || '10:00',
@@ -681,6 +699,7 @@ export default function ReservationPage() {
             cautionReturnedDate: '',
             notes: '',
             selectedOptions: [],
+            customOptions: [],
             selectedResources: [],
             checkInTime: calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
             checkOutTime: calc.defaultCheckOut || prop.defaultCheckOut || '10:00',
@@ -790,7 +809,8 @@ export default function ReservationPage() {
           balancePaid: form.balancePaid,
           depositAmount: form.depositAmount,
           balanceAmount: form.balanceAmount,
-          selectedOptions: (form.selectedOptions || []).filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+          selectedOptions: buildSelectedOptionsPayload(),
+          customOptions: buildCustomOptionsPayload(),
           selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
           offeredOptionIds: Array.from(offeredOptionIds),
           lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
@@ -1002,6 +1022,49 @@ export default function ReservationPage() {
     setResourceQuantity(resourceId, 0);
   };
 
+  const addCustomOption = () => {
+    setForm((prev) => recalcPrice({
+      ...prev,
+      customOptions: [
+        ...(prev.customOptions || []),
+        { customKey: `custom_${Date.now()}`, description: '', amount: 0, offered: false },
+      ],
+    }));
+  };
+
+  const updateCustomOption = (customKey, changes) => {
+    setForm((prev) => recalcPrice({
+      ...prev,
+      customOptions: (prev.customOptions || []).map((line) => (
+        line.customKey === customKey ? { ...line, ...changes } : line
+      )),
+    }));
+  };
+
+  const removeCustomOption = (customKey) => {
+    setForm((prev) => recalcPrice({
+      ...prev,
+      customOptions: (prev.customOptions || []).filter((line) => line.customKey !== customKey),
+    }));
+  };
+
+  const buildSelectedOptionsPayload = () => {
+    return (form.selectedOptions || [])
+      .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
+      .map((item) => ({ optionId: item.optionId, quantity: item.quantity }));
+  };
+
+  const buildCustomOptionsPayload = () => {
+    return (form.customOptions || [])
+      .map((line, index) => ({
+        customKey: String(line.customKey || `custom_${index + 1}`),
+        description: String(line.description || '').trim(),
+        amount: Number(line.amount || 0),
+        offered: Boolean(line.offered),
+      }))
+      .filter((line) => line.description && Number(line.amount || 0) > 0);
+  };
+
   // ==================== CLIENT CREATION ====================
   const closeCreateClient = () => {
     setCreateClientOpen(false);
@@ -1072,6 +1135,7 @@ export default function ReservationPage() {
     setForm(prev => recalcPrice({
       ...prev,
       selectedOptions: [],
+      customOptions: [],
       selectedResources: [],
       singleBeds: '',
       doubleBeds: '',
@@ -1168,7 +1232,8 @@ export default function ReservationPage() {
         balancePaid: form.balancePaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
-        selectedOptions: (form.selectedOptions || []).filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedOptions: buildSelectedOptionsPayload(),
+        customOptions: buildCustomOptionsPayload(),
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
         offeredOptionIds: Array.from(offeredOptionIds),
         reservationId: editingReservationId,
@@ -1268,7 +1333,8 @@ export default function ReservationPage() {
         balancePaid: form.balancePaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
-        selectedOptions: (form.selectedOptions || []).filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType).map((item) => ({ optionId: item.optionId, quantity: item.quantity })),
+        selectedOptions: buildSelectedOptionsPayload(),
+        customOptions: buildCustomOptionsPayload(),
         selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
         offeredOptionIds: Array.from(offeredOptionIds),
         lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
@@ -1321,7 +1387,8 @@ export default function ReservationPage() {
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           offeredOptionIds: Array.from(offeredOptionIds),
-          selectedOptions: quote.optionLines,
+          selectedOptions: buildSelectedOptionsPayload(),
+          customOptions: buildCustomOptionsPayload(),
           selectedResources: quote.resourceLines,
         };
 
@@ -1379,7 +1446,8 @@ export default function ReservationPage() {
           forceMinNights,
           forceCapacity,
           offeredOptionIds: Array.from(offeredOptionIds),
-          options: quote.optionLines,
+          options: buildSelectedOptionsPayload(),
+          customOptions: buildCustomOptionsPayload(),
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
@@ -1418,7 +1486,8 @@ export default function ReservationPage() {
           forceMinNights,
           forceCapacity,
           offeredOptionIds: Array.from(offeredOptionIds),
-          options: quote.optionLines,
+          options: buildSelectedOptionsPayload(),
+          customOptions: buildCustomOptionsPayload(),
           resources: quote.resourceLines,
         });
         setInitialSnapshot(formSnapshot);
@@ -1725,7 +1794,7 @@ export default function ReservationPage() {
     const name = String(resource?.name || '').toLowerCase();
     return !(name.includes('lit') && (name.includes('bébé') || name.includes('bebe')));
   });
-  const hasExtrasSection = propertyOptions.length > 0 || displayableResources.length > 0;
+  const hasExtrasSection = true;
   const formSectionCardSx = {
     bgcolor: '#fff',
     borderRadius: 2,
@@ -2267,6 +2336,55 @@ export default function ReservationPage() {
             </Box>
           )}
 
+          <>
+            {propertyOptions.length > 0 && <Divider />}
+            <Box>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Typography variant="subtitle2">Options personnalisées</Typography>
+                <Button size="small" variant="outlined" onClick={addCustomOption} disabled={isReservationLocked}>
+                  Ajouter une ligne
+                </Button>
+              </Stack>
+              {(form.customOptions || []).length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Aucune option personnalisée.
+                </Typography>
+              ) : (
+                <Stack spacing={1.25}>
+                  {(form.customOptions || []).map((line) => (
+                    <Card key={line.customKey} variant="outlined" sx={{ bgcolor: '#fff' }}>
+                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Stack spacing={1.25}>
+                          <TextField
+                            size="small"
+                            label="Description"
+                            value={line.description || ''}
+                            onChange={(e) => updateCustomOption(line.customKey, { description: e.target.value })}
+                            fullWidth
+                          />
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                            <TextField
+                              size="small"
+                              type="number"
+                              label="Prix TTC"
+                              value={line.amount ?? 0}
+                              onChange={(e) => updateCustomOption(line.customKey, { amount: Math.max(0, Number(e.target.value || 0)) })}
+                              inputProps={{ min: 0, step: 0.01 }}
+                              sx={{ width: { xs: '100%', sm: 180 } }}
+                            />
+                            <Button color="error" variant="text" onClick={() => removeCustomOption(line.customKey)}>
+                              Supprimer
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </>
+
           {displayableResources.length > 0 && (
             <>
               {propertyOptions.length > 0 && <Divider />}
@@ -2722,9 +2840,12 @@ export default function ReservationPage() {
                       <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         Options
                       </Typography>
-                      {optionsSelected.map(so => {
+                      {optionsSelected.map((so, index) => {
                         const opt = propertyOptions.find(o => o.id === so.optionId);
-                        const isOffered = offeredOptionIds.has(Number(so.optionId));
+                        const isCustom = Boolean(so.isCustom);
+                        const isOffered = isCustom
+                          ? Boolean(so.offered)
+                          : offeredOptionIds.has(Number(so.optionId));
                         const total = isOffered
                           ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
                           : Number(so.totalPrice || 0);
@@ -2735,7 +2856,7 @@ export default function ReservationPage() {
                           else if (so.autoExtraHours > 0) autoHint = `${Number(so.autoExtraHours).toFixed(1).replace('.0', '')}h suppl.`;
                         }
                         return (
-                          <Box key={so.optionId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                          <Box key={so.optionId || so.customKey || `custom_${index}`} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                             <Box sx={{ flex: 1 }}>
                               <Typography variant="body2" color="text.secondary">
                                 {so.title || opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
@@ -2752,6 +2873,12 @@ export default function ReservationPage() {
                                   variant={isOffered ? 'contained' : 'outlined'}
                                   color={isOffered ? 'success' : 'inherit'}
                                   onClick={() => {
+                                    if (isCustom) {
+                                      const targetKey = String(so.customKey || '');
+                                      if (!targetKey) return;
+                                      updateCustomOption(targetKey, { offered: !isOffered });
+                                      return;
+                                    }
                                     const next = new Set(offeredOptionIds);
                                     if (isOffered) next.delete(so.optionId);
                                     else next.add(so.optionId);

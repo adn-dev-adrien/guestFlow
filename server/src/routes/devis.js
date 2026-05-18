@@ -216,6 +216,17 @@ function enrichDevis(row) {
     JOIN options o ON do.optionId = o.id
     WHERE do.devisId = ?
   `).all(row.id);
+  const customOptions = db.prepare(`
+    SELECT dco.id as customOptionId, dco.description as title, dco.description, 1 as quantity,
+      dco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
+      CASE WHEN COALESCE(dco.offered, 0) = 1 THEN 0 ELSE dco.amount END as totalPrice,
+      dco.amount as originalTotalPrice,
+      COALESCE(dco.offered, 0) as offered,
+      1 as isCustom
+    FROM devis_custom_options dco
+    WHERE dco.devisId = ?
+    ORDER BY dco.sortOrder, dco.id
+  `).all(row.id);
   const resources = db.prepare(`
     SELECT dr.*, r.name, r.priceType as resourcePriceType
     FROM devis_resources dr
@@ -228,7 +239,7 @@ function enrichDevis(row) {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
   const property = db.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
   const schedule = resolvePaymentSchedule(row, property);
-  return { ...row, ...schedule, options, resources, nights, client, property };
+  return { ...row, ...schedule, options: [...options, ...customOptions], resources, nights, client, property };
 }
 
 // ─── list ────────────────────────────────────────────────────────────────────
@@ -345,6 +356,12 @@ router.post('/', (req, res) => {
     quantity: Number(o.quantity || 1),
     unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
   })).filter((line) => !optionMetaById.get(Number(line.optionId))?.autoOptionType);
+  const customOptions = (body.customOptions || []).map((line, index) => ({
+    customKey: String(line.customKey || `custom_${index + 1}`),
+    description: String(line.description || '').trim(),
+    amount: Number(line.amount || 0),
+    offered: Boolean(line.offered),
+  })).filter((line) => line.description && Number(line.amount || 0) > 0);
   const selectedResources = (body.selectedResources || []).map((r) => ({
     resourceId: Number(r.resourceId),
     quantity: Number(r.quantity || 1),
@@ -374,6 +391,7 @@ router.post('/', (req, res) => {
     babies: Number(body.babies || 0),
     discountPercent: Number(body.discountPercent || 0),
     selectedOptions,
+    customOptions,
     selectedResources,
     customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
     offeredOptionIds: body.offeredOptionIds,
@@ -436,10 +454,27 @@ router.post('/', (req, res) => {
     INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
-  for (const line of quote.optionLines || []) {
+  for (const line of (quote.optionLines || []).filter((item) => !item.isCustom)) {
     insertOption.run(devisId, Number(line.optionId), Number(line.quantity || 1),
       roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0),
       line.priceType || 'per_stay', roundMoney(line.totalPrice));
+  }
+
+  const insertCustomOption = db.prepare(`
+    INSERT INTO devis_custom_options (devisId, description, amount, offered, sortOrder)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  let customOrder = 0;
+  for (const line of quote.optionLines || []) {
+    if (!line.isCustom) continue;
+    insertCustomOption.run(
+      devisId,
+      String(line.title || '').trim(),
+      roundMoney(line.originalTotalPrice || line.totalPrice || 0),
+      line.offered ? 1 : 0,
+      customOrder,
+    );
+    customOrder += 1;
   }
 
   // Insert resources
@@ -494,6 +529,12 @@ router.put('/:id', (req, res) => {
     quantity: Number(o.quantity || 1),
     unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
   })).filter((line) => !optionMetaById.get(Number(line.optionId))?.autoOptionType);
+  const customOptions = (body.customOptions || []).map((line, index) => ({
+    customKey: String(line.customKey || `custom_${index + 1}`),
+    description: String(line.description || '').trim(),
+    amount: Number(line.amount || 0),
+    offered: Boolean(line.offered),
+  })).filter((line) => line.description && Number(line.amount || 0) > 0);
   const selectedResources = (body.selectedResources || []).map((r) => ({
     resourceId: Number(r.resourceId),
     quantity: Number(r.quantity || 1),
@@ -523,6 +564,7 @@ router.put('/:id', (req, res) => {
     babies: Number(body.babies ?? existing.babies),
     discountPercent: Number(body.discountPercent ?? existing.discountPercent ?? 0),
     selectedOptions,
+    customOptions,
     selectedResources,
     customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
     offeredOptionIds: body.offeredOptionIds,
@@ -580,10 +622,28 @@ router.put('/:id', (req, res) => {
     INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
-  for (const line of quote.optionLines || []) {
+  for (const line of (quote.optionLines || []).filter((item) => !item.isCustom)) {
     insertOption.run(id, Number(line.optionId), Number(line.quantity || 1),
       roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0),
       line.priceType || 'per_stay', roundMoney(line.totalPrice));
+  }
+
+  db.prepare('DELETE FROM devis_custom_options WHERE devisId = ?').run(id);
+  const insertCustomOption = db.prepare(`
+    INSERT INTO devis_custom_options (devisId, description, amount, offered, sortOrder)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  let customOrder = 0;
+  for (const line of quote.optionLines || []) {
+    if (!line.isCustom) continue;
+    insertCustomOption.run(
+      id,
+      String(line.title || '').trim(),
+      roundMoney(line.originalTotalPrice || line.totalPrice || 0),
+      line.offered ? 1 : 0,
+      customOrder,
+    );
+    customOrder += 1;
   }
 
   // Replace resources
@@ -645,6 +705,7 @@ router.post('/:id/convert-to-reservation', (req, res) => {
   if (!property) return res.status(404).json({ error: 'Logement introuvable' });
 
   const devisOptions = db.prepare('SELECT * FROM devis_options WHERE devisId = ?').all(id);
+  const devisCustomOptions = db.prepare('SELECT * FROM devis_custom_options WHERE devisId = ? ORDER BY sortOrder, id').all(id);
   const devisResources = db.prepare('SELECT * FROM devis_resources WHERE devisId = ?').all(id);
 
   const insertRes = db.prepare(`
@@ -709,6 +770,14 @@ router.post('/:id/convert-to-reservation', (req, res) => {
     insertOpt.run(reservationId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice);
   }
 
+  const insertCustomOpt = db.prepare(`
+    INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  for (const o of devisCustomOptions) {
+    insertCustomOpt.run(reservationId, o.description, o.amount, Number(o.offered || 0), o.sortOrder || 0);
+  }
+
   // Copy resources
   const insertRsc = db.prepare(`
     INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice)
@@ -762,6 +831,7 @@ router.post('/from-reservation/:reservationId', (req, res) => {
   if (!reservation) return res.status(404).json({ error: 'Réservation introuvable' });
 
   const resOptions = db.prepare('SELECT * FROM reservation_options WHERE reservationId = ?').all(reservationId);
+  const resCustomOptions = db.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId);
   const resResources = db.prepare('SELECT * FROM reservation_resources WHERE reservationId = ?').all(reservationId);
   const resNights = db.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(reservationId);
 
@@ -821,6 +891,14 @@ router.post('/from-reservation/:reservationId', (req, res) => {
   `);
   for (const o of resOptions) {
     insertOpt.run(devisId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice);
+  }
+
+  const insertCustomOption = db.prepare(`
+    INSERT INTO devis_custom_options (devisId, description, amount, offered, sortOrder)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  for (const o of resCustomOptions) {
+    insertCustomOption.run(devisId, o.description, o.amount, Number(o.offered || 0), o.sortOrder || 0);
   }
 
   const insertRsc = db.prepare(`

@@ -71,6 +71,7 @@ function getReservationAuditSnapshotFromDb(reservationId) {
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
   if (!row) return null;
   const options = db.prepare('SELECT optionId, quantity, totalPrice FROM reservation_options WHERE reservationId = ?').all(reservationId);
+  const customOptions = db.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId);
   const resources = db.prepare('SELECT resourceId, quantity, totalPrice FROM reservation_resources WHERE reservationId = ?').all(reservationId);
   return {
     propertyId: Number(row.propertyId),
@@ -102,7 +103,10 @@ function getReservationAuditSnapshotFromDb(reservationId) {
     cautionReceivedDate: row.cautionReceivedDate || null,
     cautionReturned: Number(row.cautionReturned || 0),
     cautionReturnedDate: row.cautionReturnedDate || null,
-    optionsSignature: getOptionsSignature(options),
+    optionsSignature: getOptionsSignature([
+      ...options,
+      ...customOptions.map((line, idx) => ({ optionId: 1000000 + idx, quantity: 1, totalPrice: Number(line.offered ? 0 : (line.amount || 0)) })),
+    ]),
     resourcesSignature: getResourcesSignature(resources),
   };
 }
@@ -138,7 +142,11 @@ function getReservationAuditSnapshotFromPayload(payload, quote) {
     cautionReceivedDate: payload.cautionReceivedDate || null,
     cautionReturned: payload.cautionReturned ? 1 : 0,
     cautionReturnedDate: payload.cautionReturnedDate || null,
-    optionsSignature: getOptionsSignature(quote.optionLines || []),
+    optionsSignature: getOptionsSignature((quote.optionLines || []).map((line, idx) => ({
+      optionId: line.optionId != null ? Number(line.optionId) : (2000000 + idx),
+      quantity: Number(line.quantity || 1),
+      totalPrice: Number(line.totalPrice || 0),
+    }))),
     resourcesSignature: getResourcesSignature(quote.resourceLines || []),
   };
 }
@@ -288,7 +296,8 @@ router.get('/', (req, res) => {
   const { propertyId, clientId, from, to } = req.query;
   let sql = `
     SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
-      COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0) as optionsTotal,
+      COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0)
+      + COALESCE((SELECT SUM(CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END) FROM reservation_custom_options rco WHERE rco.reservationId = r.id), 0) as optionsTotal,
       COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal
     FROM reservations r
     JOIN clients c ON r.clientId = c.id
@@ -365,6 +374,19 @@ router.get('/:id', (req, res) => {
     JOIN options o ON ro.optionId = o.id
     WHERE ro.reservationId = ?
   `).all(req.params.id);
+
+  const customOptions = db.prepare(`
+    SELECT rco.id as customOptionId, rco.description as title, rco.description, 1 as quantity,
+      rco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
+      CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
+      rco.amount as originalTotalPrice,
+      COALESCE(rco.offered, 0) as offered,
+      1 as isCustom
+    FROM reservation_custom_options rco
+    WHERE rco.reservationId = ?
+    ORDER BY rco.sortOrder, rco.id
+  `).all(req.params.id);
+  reservation.options = [...reservation.options, ...customOptions];
 
   reservation.resources = db.prepare(`
     SELECT rr.*, rs.name, rs.note, rs.propertyId, rs.priceType
@@ -484,6 +506,7 @@ router.post('/calculate-price', (req, res) => {
     discountPercent: req.body.discountPercent,
     customPrice: req.body.customPrice,
     selectedOptions: req.body.selectedOptions,
+    customOptions: req.body.customOptions,
     selectedResources: req.body.selectedResources,
     depositPaid: req.body.depositPaid,
     balancePaid: req.body.balancePaid,
@@ -658,6 +681,7 @@ router.post('/', (req, res) => {
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     cautionAmount,
     options: reservationOptions,
+    customOptions: reservationCustomOptions,
     resources: reservationResources
   } = req.body;
 
@@ -674,6 +698,7 @@ router.post('/', (req, res) => {
     discountPercent,
     customPrice,
     selectedOptions: reservationOptions,
+    customOptions: reservationCustomOptions,
     selectedResources: reservationResources,
     depositAmount,
     balanceAmount,
@@ -786,7 +811,7 @@ router.post('/', (req, res) => {
   // Insert reservation options
   if (reservationOptions && reservationOptions.length > 0) {
     const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    for (const opt of quote.optionLines || []) {
+    for (const opt of (quote.optionLines || []).filter((line) => !line.isCustom)) {
       insertOpt.run(
         reservationId,
         opt.optionId,
@@ -796,6 +821,22 @@ router.post('/', (req, res) => {
         opt.priceType || 'per_stay',
         opt.totalPrice || 0,
       );
+    }
+  }
+
+  if (reservationCustomOptions && reservationCustomOptions.length > 0) {
+    const insertCustomOpt = db.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
+    let sortOrder = 0;
+    for (const line of quote.optionLines || []) {
+      if (!line.isCustom) continue;
+      insertCustomOpt.run(
+        reservationId,
+        String(line.title || line.description || '').trim(),
+        Number(line.originalTotalPrice || line.totalPrice || 0),
+        line.offered ? 1 : 0,
+        sortOrder,
+      );
+      sortOrder += 1;
     }
   }
 
@@ -858,6 +899,7 @@ router.put('/:id', (req, res) => {
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
     cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     options: reservationOptions,
+    customOptions: reservationCustomOptions,
     resources: reservationResources
   } = req.body;
 
@@ -885,6 +927,7 @@ router.put('/:id', (req, res) => {
     discountPercent,
     customPrice,
     selectedOptions: reservationOptions,
+    customOptions: reservationCustomOptions,
     selectedResources: reservationResources,
     depositPaid,
     balancePaid,
@@ -1045,7 +1088,7 @@ router.put('/:id', (req, res) => {
   if (!pastReservationLocked && reservationOptions) {
     db.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(req.params.id);
     const insertOpt = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    for (const opt of quote.optionLines || []) {
+    for (const opt of (quote.optionLines || []).filter((line) => !line.isCustom)) {
       insertOpt.run(
         req.params.id,
         opt.optionId,
@@ -1055,6 +1098,25 @@ router.put('/:id', (req, res) => {
         opt.priceType || 'per_stay',
         opt.totalPrice || 0,
       );
+    }
+  }
+
+  if (!pastReservationLocked) {
+    db.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(req.params.id);
+    if (reservationCustomOptions) {
+      const insertCustomOpt = db.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
+      let sortOrder = 0;
+      for (const line of quote.optionLines || []) {
+        if (!line.isCustom) continue;
+        insertCustomOpt.run(
+          req.params.id,
+          String(line.title || line.description || '').trim(),
+          Number(line.originalTotalPrice || line.totalPrice || 0),
+          line.offered ? 1 : 0,
+          sortOrder,
+        );
+        sortOrder += 1;
+      }
     }
   }
 

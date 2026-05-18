@@ -173,6 +173,20 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reservation_custom_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    offered INTEGER NOT NULL DEFAULT 0,
+    sortOrder INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
+  )
+`);
+
 // ---------- RESOURCES ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS resources (
@@ -453,6 +467,16 @@ if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('pri
   db.exec("ALTER TABLE reservation_resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
 }
 
+const reservationCustomOptionCols = db.prepare("PRAGMA table_info(reservation_custom_options)").all().map(c => c.name);
+if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('offered')) {
+  db.exec("ALTER TABLE reservation_custom_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
+
+const devisCustomOptionCols = db.prepare("PRAGMA table_info(devis_custom_options)").all().map(c => c.name);
+if (devisCustomOptionCols.length > 0 && !devisCustomOptionCols.includes('offered')) {
+  db.exec("ALTER TABLE devis_custom_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
+
 const optionCols = db.prepare("PRAGMA table_info(options)").all().map(c => c.name);
 const tryAddOptionColumn = (columnName, sql) => {
   if (optionCols.length > 0 && !optionCols.includes(columnName)) {
@@ -658,6 +682,20 @@ db.exec(`
     PRIMARY KEY (devisId, optionId),
     FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_custom_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    devisId INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL DEFAULT 0,
+    offered INTEGER NOT NULL DEFAULT 0,
+    sortOrder INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE
   )
 `);
 
