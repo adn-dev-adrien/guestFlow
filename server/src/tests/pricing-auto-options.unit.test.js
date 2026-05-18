@@ -130,6 +130,30 @@ test('computeAutoTimedOptionContext applies full-night price for late check-out 
   assert.equal(line.totalPrice, 120);
 });
 
+test('computeAutoTimedOptionContext late check-out proportional uses next-night price source', () => {
+  const line = computeAutoTimedOptionContext({
+    option: {
+      id: 12,
+      title: 'Depart tardif',
+      autoOptionType: 'late_check_out',
+      autoEnabled: 1,
+      autoPricingMode: 'proportional',
+      autoFullNightThreshold: '17:00',
+      price: 0,
+    },
+    checkOutTime: '12:00',
+    defaultCheckIn: '15:00',
+    defaultCheckOut: '10:00',
+    nightlyBreakdown: [{ price: 999 }],
+    lateCheckoutNextNightPrice: 120,
+  });
+
+  // 2h / 12h of next-night price (120), never from total stay.
+  assert.equal(line.autoExtraHours, 2);
+  assert.equal(line.autoFullNightApplied, false);
+  assert.equal(line.totalPrice, 20);
+});
+
 test('calculateReservationQuote auto-adds proportional early check-in option with extra hours', () => {
   const db = createPricingTestDb();
   db.prepare(`

@@ -233,6 +233,7 @@ function computeAutoTimedOptionContext({
   defaultCheckIn,
   defaultCheckOut,
   nightlyBreakdown,
+  lateCheckoutNextNightPrice,
 }) {
   if (!option || !option.autoOptionType || Number(option.autoEnabled || 0) !== 1) return null;
 
@@ -252,9 +253,14 @@ function computeAutoTimedOptionContext({
 
   const thresholdDefault = isEarly ? '10:00' : '17:00';
   const thresholdHour = timeToDecimalHour(option.autoFullNightThreshold || thresholdDefault, isEarly ? 10 : 17);
+  const firstNightPrice = Number(nightlyBreakdown?.[0]?.price || 0);
+  const lastStayNightPrice = Number(nightlyBreakdown?.[Math.max(0, (nightlyBreakdown?.length || 1) - 1)]?.price || 0);
+  // Source de calcul: une nuit de référence (jamais le total séjour)
+  // - arrivée anticipée: nuit d'arrivée
+  // - départ tardif: nuit suivant la date de départ (fallback: dernière nuit du séjour)
   const concernedNightPrice = isEarly
-    ? Number(nightlyBreakdown?.[0]?.price || 0)
-    : Number(nightlyBreakdown?.[Math.max(0, (nightlyBreakdown?.length || 1) - 1)]?.price || 0);
+    ? firstNightPrice
+    : Number(lateCheckoutNextNightPrice || lastStayNightPrice || 0);
 
   const isFullNight = isEarly ? requestedHour <= thresholdHour : requestedHour >= thresholdHour;
   const extraHours = isEarly
@@ -281,6 +287,22 @@ function computeAutoTimedOptionContext({
     autoExtraHours: roundMoney(extraHours),
     autoFullNightApplied: Boolean(isFullNight),
   };
+}
+
+function getNightBasePriceForDate(rules, dateStr) {
+  let nightlyBase = 100;
+  for (const rule of rules || []) {
+    const ranges = parseRuleDateRanges(rule);
+    if (!ranges.length) {
+      nightlyBase = Number(rule.pricePerNight || 0);
+      break;
+    }
+    if (ranges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
+      nightlyBase = Number(rule.pricePerNight || 0);
+      break;
+    }
+  }
+  return roundMoney(nightlyBase);
 }
 
 function normalizeBilledUnits(value) {
@@ -621,6 +643,7 @@ function calculateReservationQuote({
       defaultCheckIn: property.defaultCheckIn || '15:00',
       defaultCheckOut: property.defaultCheckOut || '10:00',
       nightlyBreakdown,
+      lateCheckoutNextNightPrice: getNightBasePriceForDate(rules, endDate),
     }))
     .filter(Boolean)
     .map((line) => {
