@@ -12,6 +12,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import SyncIcon from '@mui/icons-material/Sync';
+import DescriptionIcon from '@mui/icons-material/Description';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
@@ -1362,6 +1363,37 @@ export default function ReservationPage() {
     requestLeave(() => navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus()));
   };
 
+  // ── Devis helpers ─────────────────────────────────────────────────────────
+  const handleCreateDevisFromForm = () => {
+    const params = new URLSearchParams();
+    if (selectedProp) params.set('propertyId', selectedProp);
+    if (form.startDate) params.set('startDate', form.startDate);
+    if (form.endDate) params.set('endDate', form.endDate);
+    if (form.clientId) params.set('clientId', form.clientId);
+    params.set('adults', form.adults);
+    params.set('children', form.children);
+    params.set('teens', form.teens);
+    params.set('babies', form.babies);
+    navigate(`/devis/new?${params.toString()}`);
+  };
+
+  const handleConvertToDevis = async () => {
+    if (!editingReservationId) return;
+    const ok = await confirm({
+      title: 'Transformer en devis',
+      message: 'Voulez-vous créer un devis à partir de cette réservation ? La réservation actuelle ne sera pas modifiée.',
+      confirmLabel: 'Créer le devis',
+      confirmColor: 'info',
+    });
+    if (!ok) return;
+    try {
+      const devis = await api.createDevisFromReservation(editingReservationId);
+      navigate(`/devis/${devis.id}`);
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de créer le devis.' });
+    }
+  };
+
   // Date bounds to visually block unavailable dates in native date picker.
   const otherReservations = reservationId
     ? reservations.filter((r) => r.id !== Number(reservationId)).sort((a, b) => a.startDate.localeCompare(b.startDate))
@@ -1483,6 +1515,26 @@ export default function ReservationPage() {
             {reservationId && (
               <Button variant="outlined" color="warning" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
                 Actualiser tarifs
+              </Button>
+            )}
+            {!reservationId && (
+              <Button
+                variant="outlined"
+                color="info"
+                startIcon={<DescriptionIcon />}
+                onClick={handleCreateDevisFromForm}
+              >
+                Créer un devis
+              </Button>
+            )}
+            {reservationId && (
+              <Button
+                variant="outlined"
+                color="info"
+                startIcon={<DescriptionIcon />}
+                onClick={handleConvertToDevis}
+              >
+                Transformer en devis
               </Button>
             )}
             <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>

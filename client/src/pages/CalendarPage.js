@@ -125,6 +125,7 @@ export default function CalendarPage() {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [overviewReservations, setOverviewReservations] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [devisList, setDevisList] = useState([]);
 
   const getMonthsRange = (centerY, centerM, range = 3) => {
     const result = [];
@@ -270,11 +271,13 @@ export default function CalendarPage() {
     lastLoadedRange.current = { from, to };
     const prop = await api.getProperty(selectedProp);
     setSelectedProperty(prop);
-    const [data, notes] = await Promise.all([
+    const [data, notes, devisData] = await Promise.all([
       api.getReservations({ propertyId: selectedProp, from, to }),
-      api.getCalendarNotes(selectedProp, from, to)
+      api.getCalendarNotes(selectedProp, from, to),
+      api.getDevis({ propertyId: selectedProp, from, to }).catch(() => []),
     ]);
     setReservations(data);
+    setDevisList((devisData || []).filter((d) => d.status !== 'converted'));
     const notesMap = {};
     notes.forEach(n => { notesMap[n.date] = n.note; });
     setCalendarNotes(notesMap);
@@ -1264,6 +1267,17 @@ export default function CalendarPage() {
     const midRes = reservations.find(r => dateStr > r.startDate && dateStr < r.endDate);
     const blockedNightInfo = getBlockedNightInfo(dateStr, reservations);
 
+    // Devis (quotes) — shown as faded overlay when no reservation is present
+    const midDevis = !midRes && !departureRes && !arrivalRes
+      ? devisList.find((d) => dateStr > d.startDate && dateStr < d.endDate)
+      : null;
+    const arrivalDevis = !arrivalRes && !midRes
+      ? devisList.find((d) => d.startDate === dateStr)
+      : null;
+    const departureDevis = !departureRes && !midRes
+      ? devisList.find((d) => d.endDate === dateStr)
+      : null;
+
     // If mid-stay: full color fill
     if (midRes) {
       const color = getReservationColor(midRes.platform);
@@ -1320,6 +1334,50 @@ export default function CalendarPage() {
     // Empty or drag-only day
     if (!hasVisual) {
       const isToday = dateStr === today;
+
+      // Render devis (quote) as faded background when no reservation
+      const activeDevis = midDevis || arrivalDevis || departureDevis;
+      if (activeDevis && !inDrag) {
+        const devisColor = '#9e9e9e';
+        const isArrival = Boolean(arrivalDevis);
+        const isDeparture = Boolean(departureDevis);
+        const resStart = new Date(activeDevis.startDate);
+        const resEnd = new Date(activeDevis.endDate);
+        const totalDays = Math.max(1, Math.round((resEnd - resStart) / 86400000));
+        const midDate = new Date(resStart);
+        midDate.setDate(midDate.getDate() + Math.round(totalDays / 2));
+        const midDateStr = formatDate(midDate.getFullYear(), midDate.getMonth(), midDate.getDate());
+        const isLabelDay = dateStr === midDateStr;
+        return (
+          <Box
+            key={dateStr}
+            data-date={dateStr}
+            onClick={() => navigate(`/devis/${activeDevis.id}`)}
+            sx={{
+              textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
+              bgcolor: devisColor, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
+              opacity: 0.35,
+              border: isToday ? '3px solid #1976d2' : 'none',
+              background: isArrival
+                ? `linear-gradient(to right, transparent 50%, ${devisColor} 50%)`
+                : isDeparture
+                  ? `linear-gradient(to right, ${devisColor} 50%, transparent 50%)`
+                  : devisColor,
+            }}
+          >
+            {renderHolidayIndicators(dateStr)}
+            {isLabelDay && (
+              <Typography sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+                {activeDevis.firstName} {activeDevis.lastName}
+              </Typography>
+            )}
+            {!isLabelDay && (
+              <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{day}</Typography>
+            )}
+          </Box>
+        );
+      }
       return (
         <Box key={dateStr} data-date={dateStr}
           onMouseDown={() => !isPast && handleMouseDown(day, y, m)}

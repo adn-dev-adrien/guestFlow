@@ -39,6 +39,7 @@ app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
 app.use('/api/google-calendar', require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/devis', require('./routes/devis'));
 
 app.get('/api/version', (req, res) => {
   res.json({

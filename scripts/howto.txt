@@ -1,0 +1,9 @@
+cd /home/adrien/guestFlow
+DOMAIN=www.domainesolio.com \
+WP_URL=http://192.168.0.196:8080 \
+WP_DB_HOST=wp_db:3306 \
+WP_DB_NAME=wordpress \
+WP_DB_USER=wpuser \
+WP_DB_PASSWORD='TON_MOT_DE_PASSE_DB' \
+WP_CONTAINER=wp_app \
+./scripts/import_domain_to_wordpress.sh

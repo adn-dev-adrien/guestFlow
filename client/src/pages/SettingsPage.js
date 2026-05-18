@@ -8,6 +8,7 @@ import {
   TextField,
   Typography,
   Alert,
+  Divider,
 } from '@mui/material';
 import api from '../api';
 
@@ -21,6 +22,14 @@ export default function SettingsPage() {
     googleCalendarId: '',
     googleServiceAccountEmail: '',
     googleServiceAccountPrivateKey: '',
+    companyName: '',
+    companyAddress: '',
+    companySiret: '',
+    companyTva: '',
+    companyIban: '',
+    companyBic: '',
+    companyBankName: '',
+    quoteFooterText: '',
   });
 
   useEffect(() => {
@@ -33,6 +42,14 @@ export default function SettingsPage() {
           googleCalendarId: settings.googleCalendarId || '',
           googleServiceAccountEmail: settings.googleServiceAccountEmail || '',
           googleServiceAccountPrivateKey: settings.googleServiceAccountPrivateKey || '',
+          companyName: settings.companyName || '',
+          companyAddress: settings.companyAddress || '',
+          companySiret: settings.companySiret || '',
+          companyTva: settings.companyTva || '',
+          companyIban: settings.companyIban || '',
+          companyBic: settings.companyBic || '',
+          companyBankName: settings.companyBankName || '',
+          quoteFooterText: settings.quoteFooterText || '',
         });
         setSavedAt(settings.updatedAt || '');
       } catch (error) {
@@ -62,6 +79,14 @@ export default function SettingsPage() {
         googleCalendarId: saved.googleCalendarId || '',
         googleServiceAccountEmail: saved.googleServiceAccountEmail || '',
         googleServiceAccountPrivateKey: saved.googleServiceAccountPrivateKey || '',
+        companyName: saved.companyName || '',
+        companyAddress: saved.companyAddress || '',
+        companySiret: saved.companySiret || '',
+        companyTva: saved.companyTva || '',
+        companyIban: saved.companyIban || '',
+        companyBic: saved.companyBic || '',
+        companyBankName: saved.companyBankName || '',
+        quoteFooterText: saved.quoteFooterText || '',
       });
       setSavedAt(saved.updatedAt || '');
       setStatusType('success');
@@ -82,11 +107,106 @@ export default function SettingsPage() {
 
   return (
     <Box sx={{ maxWidth: 920, mx: 'auto' }}>
+
+      {/* ── Informations société ───────────────────────────────────── */}
+      <Card variant="outlined" sx={{ bgcolor: '#fff', mb: 3 }}>
+        <CardContent>
+          <Stack spacing={2.5}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>Informations société</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Ces informations apparaissent sur vos devis PDF (en-tête et pied de page).
+              </Typography>
+            </Box>
+
+            <TextField
+              label="Nom de la société / Raison sociale"
+              value={form.companyName}
+              onChange={(e) => updateField('companyName', e.target.value)}
+              fullWidth
+              disabled={loading || saving}
+            />
+
+            <TextField
+              label="Adresse complète"
+              value={form.companyAddress}
+              onChange={(e) => updateField('companyAddress', e.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+              disabled={loading || saving}
+              helperText="Vous pouvez utiliser des retours à la ligne."
+            />
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Numéro SIRET"
+                value={form.companySiret}
+                onChange={(e) => updateField('companySiret', e.target.value)}
+                fullWidth
+                disabled={loading || saving}
+              />
+              <TextField
+                label="Numéro de TVA intracommunautaire"
+                value={form.companyTva}
+                onChange={(e) => updateField('companyTva', e.target.value)}
+                fullWidth
+                disabled={loading || saving}
+              />
+            </Stack>
+
+            <Divider />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Coordonnées bancaires (RIB)</Typography>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Nom de la banque"
+                value={form.companyBankName}
+                onChange={(e) => updateField('companyBankName', e.target.value)}
+                fullWidth
+                disabled={loading || saving}
+              />
+              <TextField
+                label="BIC"
+                value={form.companyBic}
+                onChange={(e) => updateField('companyBic', e.target.value)}
+                fullWidth
+                disabled={loading || saving}
+              />
+            </Stack>
+
+            <TextField
+              label="IBAN"
+              value={form.companyIban}
+              onChange={(e) => updateField('companyIban', e.target.value)}
+              fullWidth
+              disabled={loading || saving}
+              helperText="Ex : FR76 3000 6000 0112 3456 7890 189"
+            />
+
+            <Divider />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Texte de pied de devis</Typography>
+
+            <TextField
+              label="Message de conclusion (affiché en bas de chaque devis PDF)"
+              value={form.quoteFooterText}
+              onChange={(e) => updateField('quoteFooterText', e.target.value)}
+              fullWidth
+              multiline
+              minRows={4}
+              disabled={loading || saving}
+              helperText="Laissez vide pour utiliser le message par défaut (bienveillant et commercial)."
+            />
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* ── Google Calendar ────────────────────────────────────────── */}
       <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
         <CardContent>
           <Stack spacing={2.5}>
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Parametres</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>Parametres Google Calendar</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 Configurez ici les variables Google Calendar. Ces valeurs sont gerees et stockees par le backend.
               </Typography>

@@ -480,6 +480,85 @@ cwd
 pm_out_log_path
 pm_err_log_path
 
+## Install wordpress
+
+### Step 1: Prepare Raspberry PI
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y ca-certificates curl gnupg lsb-release
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+docker --version
+docker compose version
+```
+
+### Step 2: Create wordpress docker instance
+
+Create a directory in home to install the docker wordpress
+Then create a file named docker-compose.yml with this content:
+```bash
+services:
+  db:
+    image: mariadb:11
+    container_name: wp_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: change_me_wp_pass
+      MYSQL_ROOT_PASSWORD: change_me_root_pass
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:6-apache
+    container_name: wp_app
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: change_me_wp_pass
+    volumes:
+      - wp_data:/var/www/html
+
+volumes:
+  db_data:
+  wp_data:
+```
+BECAREFUL to update passwords
+
+### Step 3: Start wordpress
+
+```bash
+docker compose up -d
+docker ps
+```
+
+Wordpress is now available at http://RPI_IP:8080
+
+### Step 4: wordpress configuration in CLI
+
+```bash
+docker run --rm --network host \
+  -v wp_data:/var/www/html \
+  --user 33:33 \
+  wordpress:cli \
+  wp core install \
+  --url="http://IP_DU_PI:8080" \
+  --title="Mon Site" \
+  --admin_user="admin" \
+  --admin_password="MotDePasseFort!" \
+  --admin_email="toi@domaine.com" \
+  --path=/var/www/html
+```
+
 ## License
 
 See the [LICENSE](LICENSE) file.

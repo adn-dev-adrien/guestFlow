@@ -563,11 +563,119 @@ db.exec(`
     googleCalendarId TEXT DEFAULT '',
     googleServiceAccountEmail TEXT DEFAULT '',
     googleServiceAccountPrivateKey TEXT DEFAULT '',
+    companyName TEXT DEFAULT '',
+    companyAddress TEXT DEFAULT '',
+    companySiret TEXT DEFAULT '',
+    companyTva TEXT DEFAULT '',
+    companyIban TEXT DEFAULT '',
+    companyBic TEXT DEFAULT '',
+    companyBankName TEXT DEFAULT '',
+    quoteFooterText TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   )
 `);
 db.prepare('INSERT OR IGNORE INTO app_settings (id) VALUES (1)').run();
+
+// Migrate app_settings company columns
+const appSettingsCols = db.prepare("PRAGMA table_info(app_settings)").all().map(c => c.name);
+const tryAddAppSettingsCol = (col, sql) => {
+  if (!appSettingsCols.includes(col)) {
+    try { db.exec(sql); } catch (e) {
+      if (!String(e?.message || '').includes('duplicate column name')) throw e;
+    }
+  }
+};
+tryAddAppSettingsCol('companyName', "ALTER TABLE app_settings ADD COLUMN companyName TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyAddress', "ALTER TABLE app_settings ADD COLUMN companyAddress TEXT DEFAULT ''");
+tryAddAppSettingsCol('companySiret', "ALTER TABLE app_settings ADD COLUMN companySiret TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyTva', "ALTER TABLE app_settings ADD COLUMN companyTva TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyIban', "ALTER TABLE app_settings ADD COLUMN companyIban TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyBic TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
+tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
+
+// ---------- DEVIS (QUOTES) ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    devisNumber TEXT NOT NULL UNIQUE,
+    propertyId INTEGER NOT NULL,
+    clientId INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
+    adults INTEGER DEFAULT 1,
+    children INTEGER DEFAULT 0,
+    teens INTEGER DEFAULT 0,
+    babies INTEGER DEFAULT 0,
+    singleBeds INTEGER,
+    doubleBeds INTEGER,
+    babyBeds INTEGER,
+    checkInTime TEXT DEFAULT '15:00',
+    checkOutTime TEXT DEFAULT '10:00',
+    platform TEXT DEFAULT 'direct',
+    totalPrice REAL DEFAULT 0,
+    touristTaxRate REAL DEFAULT 0,
+    touristTaxTotal REAL DEFAULT 0,
+    discountPercent REAL DEFAULT 0,
+    finalPrice REAL DEFAULT 0,
+    depositAmount REAL DEFAULT 0,
+    depositDueDate TEXT,
+    balanceAmount REAL DEFAULT 0,
+    balanceDueDate TEXT,
+    cautionAmount REAL DEFAULT 0,
+    notes TEXT DEFAULT '',
+    validUntil TEXT,
+    convertedReservationId INTEGER,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+    FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_options (
+    devisId INTEGER NOT NULL,
+    optionId INTEGER NOT NULL,
+    quantity REAL DEFAULT 1,
+    unitPrice REAL NOT NULL DEFAULT 0,
+    billedUnits REAL NOT NULL DEFAULT 0,
+    priceType TEXT NOT NULL DEFAULT 'per_stay',
+    totalPrice REAL DEFAULT 0,
+    PRIMARY KEY (devisId, optionId),
+    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
+    FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_resources (
+    devisId INTEGER NOT NULL,
+    resourceId INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unitPrice REAL NOT NULL DEFAULT 0,
+    billedUnits REAL NOT NULL DEFAULT 0,
+    priceType TEXT NOT NULL DEFAULT 'per_stay',
+    totalPrice REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (devisId, resourceId),
+    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
+    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_nights (
+    devisId INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    seasonLabel TEXT DEFAULT 'Standard',
+    pricingMode TEXT DEFAULT 'fixed',
+    price REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (devisId, date),
+    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE
+  )
+`);
 
 // Seed school holidays if table is empty
 const holidayCount = db.prepare('SELECT COUNT(*) as c FROM school_holidays').get().c;
@@ -781,6 +889,14 @@ function getAppSettings() {
     googleCalendarId: '',
     googleServiceAccountEmail: '',
     googleServiceAccountPrivateKey: '',
+    companyName: '',
+    companyAddress: '',
+    companySiret: '',
+    companyTva: '',
+    companyIban: '',
+    companyBic: '',
+    companyBankName: '',
+    quoteFooterText: '',
     createdAt: null,
     updatedAt: null,
   };
@@ -790,26 +906,69 @@ function upsertAppSettings({
   googleCalendarId = '',
   googleServiceAccountEmail = '',
   googleServiceAccountPrivateKey = '',
+  companyName = '',
+  companyAddress = '',
+  companySiret = '',
+  companyTva = '',
+  companyIban = '',
+  companyBic = '',
+  companyBankName = '',
+  quoteFooterText = '',
 }) {
   db.prepare(`
-    INSERT INTO app_settings (id, googleCalendarId, googleServiceAccountEmail, googleServiceAccountPrivateKey, createdAt, updatedAt)
-    VALUES (1, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO app_settings (id, googleCalendarId, googleServiceAccountEmail, googleServiceAccountPrivateKey,
+      companyName, companyAddress, companySiret, companyTva, companyIban, companyBic, companyBankName, quoteFooterText,
+      createdAt, updatedAt)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       googleCalendarId = excluded.googleCalendarId,
       googleServiceAccountEmail = excluded.googleServiceAccountEmail,
       googleServiceAccountPrivateKey = excluded.googleServiceAccountPrivateKey,
+      companyName = excluded.companyName,
+      companyAddress = excluded.companyAddress,
+      companySiret = excluded.companySiret,
+      companyTva = excluded.companyTva,
+      companyIban = excluded.companyIban,
+      companyBic = excluded.companyBic,
+      companyBankName = excluded.companyBankName,
+      quoteFooterText = excluded.quoteFooterText,
       updatedAt = datetime('now')
   `).run(
     String(googleCalendarId || '').trim(),
     String(googleServiceAccountEmail || '').trim(),
     String(googleServiceAccountPrivateKey || ''),
+    String(companyName || '').trim(),
+    String(companyAddress || '').trim(),
+    String(companySiret || '').trim(),
+    String(companyTva || '').trim(),
+    String(companyIban || '').trim(),
+    String(companyBic || '').trim(),
+    String(companyBankName || '').trim(),
+    String(quoteFooterText || ''),
   );
+}
+
+function generateDevisNumber() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `${year}-${month}-`;
+  const existing = db.prepare(
+    "SELECT devisNumber FROM devis WHERE devisNumber LIKE ? ORDER BY devisNumber DESC LIMIT 1"
+  ).get(`${prefix}%`);
+  let increment = 1;
+  if (existing) {
+    const parts = existing.devisNumber.split('-');
+    increment = parseInt(parts[2] || '0', 10) + 1;
+  }
+  return `${prefix}${String(increment).padStart(3, '0')}`;
 }
 
 db.getOrCreateIcalToken = getOrCreateIcalToken;
 db.exportPropertyAsIcal = exportPropertyAsIcal;
 db.getAppSettings = getAppSettings;
 db.upsertAppSettings = upsertAppSettings;
+db.generateDevisNumber = generateDevisNumber;
 
 // Skip automatic initialization - let the frontend handle it
 console.log('[Database] Skipping automatic timed options initialization to prevent startup errors');

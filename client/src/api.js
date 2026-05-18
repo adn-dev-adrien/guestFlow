@@ -148,6 +148,19 @@ const api = {
   getSettings: () => request('/settings'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: payload }),
 
+  // Devis (quotes)
+  getDevis: (params) => {
+    const qs = new URLSearchParams(params || {}).toString();
+    return request(`/devis${qs ? `?${qs}` : ''}`);
+  },
+  getDevisById: (id) => request(`/devis/${id}`),
+  createDevis: (data) => request('/devis', { method: 'POST', body: data }),
+  updateDevis: (id, data) => request(`/devis/${id}`, { method: 'PUT', body: data }),
+  deleteDevis: (id) => request(`/devis/${id}`, { method: 'DELETE' }),
+  convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
+  createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
+  getDevisPdfUrl: (id) => `${API}/devis/${id}/pdf`,
+
   // Google Calendar sync
   getGoogleCalendarStatus: () => request('/google-calendar/status'),
   syncGoogleCalendarReservations: (payload = {}) => request('/google-calendar/sync-reservations', { method: 'POST', body: payload }),
