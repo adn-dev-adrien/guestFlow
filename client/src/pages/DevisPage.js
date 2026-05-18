@@ -116,6 +116,16 @@ export default function DevisPage() {
     }
   };
 
+  const handleStatusChange = async (devis, nextStatus) => {
+    if (!nextStatus || nextStatus === devis.status || devis.status === 'converted') return;
+    try {
+      await api.updateDevisStatus(devis.id, nextStatus);
+      await load();
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de changer le statut du devis.' });
+    }
+  };
+
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
       <PageHeader
@@ -186,12 +196,25 @@ export default function DevisPage() {
                           {d.devisNumber}
                         </Typography>
                       </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={STATUS_LABELS[d.status] || d.status}
-                          color={STATUS_COLORS[d.status] || 'default'}
-                          size="small"
-                        />
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {d.status === 'converted' ? (
+                          <Chip
+                            label={STATUS_LABELS[d.status] || d.status}
+                            color={STATUS_COLORS[d.status] || 'default'}
+                            size="small"
+                          />
+                        ) : (
+                          <FormControl size="small" sx={{ minWidth: 140 }}>
+                            <Select
+                              value={d.status || 'draft'}
+                              onChange={(e) => handleStatusChange(d, e.target.value)}
+                            >
+                              <MenuItem value="draft">Brouillon</MenuItem>
+                              <MenuItem value="sent">Envoyé</MenuItem>
+                              <MenuItem value="accepted">Accepté</MenuItem>
+                            </Select>
+                          </FormControl>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">

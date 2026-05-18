@@ -111,6 +111,27 @@ router.get('/:id', (req, res) => {
   return res.json(enrichDevis(row));
 });
 
+// ─── status update (safe) ───────────────────────────────────────────────────
+
+router.patch('/:id/status', (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare('SELECT * FROM devis WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Devis non trouvé' });
+
+  const allowed = new Set(['draft', 'sent', 'accepted']);
+  const status = String(req.body?.status || '').trim();
+  if (!allowed.has(status)) {
+    return res.status(400).json({ error: 'Statut invalide' });
+  }
+  if (existing.status === 'converted') {
+    return res.status(400).json({ error: 'Un devis converti ne peut plus changer de statut' });
+  }
+
+  db.prepare('UPDATE devis SET status = ?, updatedAt = datetime(\'now\') WHERE id = ?').run(status, id);
+  const updated = db.prepare('SELECT * FROM devis WHERE id = ?').get(id);
+  return res.json(enrichDevis(updated));
+});
+
 // ─── create ──────────────────────────────────────────────────────────────────
 
 router.post('/', (req, res) => {

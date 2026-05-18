@@ -34,6 +34,12 @@ const PRICE_TYPE_LABELS = {
   free: 'gratuit',
 };
 
+const DEVIS_STATUS_OPTIONS = [
+  { value: 'draft', label: 'Brouillon' },
+  { value: 'sent', label: 'Envoyé' },
+  { value: 'accepted', label: 'Accepté' },
+];
+
 function formatDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
@@ -155,6 +161,7 @@ export default function ReservationPage() {
 
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
+    status: 'draft',
     singleBeds: '', doubleBeds: '', babyBeds: '',
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
@@ -418,6 +425,7 @@ export default function ReservationPage() {
           setForm((prev) => ({
             ...prev,
             ...prefillDevis.form,
+            status: prefillDevis.form.status || prev.status || 'draft',
             propertyId: prefillPropertyId || prefillDevis.form.propertyId || prev.propertyId,
             selectedOptions: prefillDevis.form.selectedOptions || [],
             selectedResources: prefillDevis.form.selectedResources || [],
@@ -558,6 +566,7 @@ export default function ReservationPage() {
             teens: devis.teens || 0,
             babies: devis.babies || 0,
             platform: devis.platform || 'direct',
+            status: devis.status || 'draft',
             singleBeds: devis.singleBeds || '',
             doubleBeds: devis.doubleBeds || '',
             babyBeds: devis.babyBeds || '',
@@ -1286,6 +1295,7 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
+          status: form.status || 'draft',
           totalPrice: quote.totalPrice,
           touristTaxRate: quote.touristTaxRate || 0,
           touristTaxTotal: quote.touristTaxTotal || 0,
@@ -1785,6 +1795,20 @@ export default function ReservationPage() {
               >
                 Transformer en devis
               </Button>
+            )}
+            {isDevisMode && (
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Statut</InputLabel>
+                <Select
+                  value={form.status || 'draft'}
+                  label="Statut"
+                  onChange={(e) => updateForm({ status: e.target.value })}
+                >
+                  {DEVIS_STATUS_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             )}
             {isDevisMode && (
               <Button

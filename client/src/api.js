@@ -158,6 +158,7 @@ const api = {
   getDevisById: (id) => request(`/devis/${id}`),
   createDevis: (data) => request('/devis', { method: 'POST', body: data }),
   updateDevis: (id, data) => request(`/devis/${id}`, { method: 'PUT', body: data }),
+  updateDevisStatus: (id, status) => request(`/devis/${id}/status`, { method: 'PATCH', body: { status } }),
   deleteDevis: (id) => request(`/devis/${id}`, { method: 'DELETE' }),
   convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
