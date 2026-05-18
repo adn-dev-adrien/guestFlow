@@ -23,11 +23,12 @@ function enrichBooking(b) {
 
 const JOIN_QUERY = `
   SELECT rb.*,
-    r.name AS resourceName, r.slotDuration, r.price AS resourcePrice, r.openTime, r.closeTime, r.turnoverMinutes, r.openDays,
+    r.name AS resourceName, r.slotDuration, COALESCE(prp.price, r.price) AS resourcePrice, r.openTime, r.closeTime, r.turnoverMinutes, r.openDays,
     c.firstName, c.lastName,
     p.name AS propertyName
   FROM resource_bookings rb
   LEFT JOIN resources r ON rb.resourceId = r.id
+  LEFT JOIN property_resource_prices prp ON prp.resourceId = r.id AND prp.propertyId = rb.propertyId
   LEFT JOIN clients c ON rb.clientId = c.id
   LEFT JOIN properties p ON rb.propertyId = p.id
 `;

@@ -448,10 +448,24 @@ function getApplicableOptions(db, propertyId) {
 }
 
 function getApplicableResources(db, propertyId) {
-  const resources = db.prepare('SELECT * FROM resources ORDER BY name').all();
+  let resources;
+  try {
+    resources = db.prepare(`
+      SELECT r.*, prp.price as propertyPrice
+      FROM resources r
+      LEFT JOIN property_resource_prices prp ON prp.resourceId = r.id AND prp.propertyId = ?
+      ORDER BY r.name
+    `).all(Number(propertyId));
+  } catch (error) {
+    if (!String(error?.message || '').toLowerCase().includes('no such table: property_resource_prices')) {
+      throw error;
+    }
+    resources = db.prepare('SELECT * FROM resources ORDER BY name').all();
+  }
   return resources
     .map((resource) => ({
       ...resource,
+      price: resource.propertyPrice != null ? Number(resource.propertyPrice) : Number(resource.price || 0),
       propertyIds: parseJsonArray(resource.propertyIds).map((id) => Number(id)),
     }))
     .filter((resource) => resource.propertyIds.length === 0 || resource.propertyIds.includes(Number(propertyId)));

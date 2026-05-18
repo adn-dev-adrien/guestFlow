@@ -303,7 +303,7 @@ export default function PricedItemsPage({
             </FormControl>
 
           </Box>
-          {renderExtraFormFields && renderExtraFormFields(form, setForm)}
+          {renderExtraFormFields && renderExtraFormFields(form, setForm, { properties })}
       </FormDialog>
     </Box>
   );

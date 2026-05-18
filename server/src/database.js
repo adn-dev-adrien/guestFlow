@@ -223,6 +223,17 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS property_resource_prices (
+    propertyId INTEGER NOT NULL,
+    resourceId INTEGER NOT NULL,
+    price REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (propertyId, resourceId),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS resource_bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     resourceId INTEGER NOT NULL,
@@ -511,6 +522,8 @@ tryAddResourceColumn('closedDays', "ALTER TABLE resources ADD COLUMN closedDays 
 tryAddResourceColumn('openDays', "ALTER TABLE resources ADD COLUMN openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]'");
 tryAddResourceColumn('turnoverMinutes', 'ALTER TABLE resources ADD COLUMN turnoverMinutes INTEGER NOT NULL DEFAULT 0');
 tryAddResourceColumn('minimumUsageMinutes', 'ALTER TABLE resources ADD COLUMN minimumUsageMinutes INTEGER NOT NULL DEFAULT 0');
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_property_resource_prices_resource ON property_resource_prices(resourceId)');
 
 const icalSourceCols = db.prepare("PRAGMA table_info(ical_sources)").all().map(c => c.name);
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('platformColor')) {

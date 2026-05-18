@@ -27,11 +27,28 @@ const DAY_OPTIONS = [
 
 const emptyResource = {
   name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
+  propertyPrices: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
 };
 
-function ComplexResourceFields({ form, setForm }) {
+function ComplexResourceFields({ form, setForm, properties }) {
   const openDays = Array.isArray(form.openDays) ? form.openDays : [0, 1, 2, 3, 4, 5, 6];
+  const normalizedPropertyIds = Array.isArray(form.propertyIds) ? form.propertyIds.map((id) => Number(id)) : [];
+  const targetProperties = normalizedPropertyIds.length > 0
+    ? (properties || []).filter((p) => normalizedPropertyIds.includes(Number(p.id)))
+    : (properties || []);
+  const updatePropertyPrice = (propertyId, value) => {
+    const nextPrices = { ...(form.propertyPrices || {}) };
+    const trimmed = String(value || '').trim();
+    if (trimmed === '') {
+      delete nextPrices[String(propertyId)];
+    } else {
+      const parsed = Number(trimmed);
+      nextPrices[String(propertyId)] = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    }
+    setForm({ ...form, propertyPrices: nextPrices });
+  };
+
   const toggleDay = (dayNum) => {
     const next = openDays.includes(dayNum)
       ? openDays.filter((d) => d !== dayNum)
@@ -53,6 +70,28 @@ function ComplexResourceFields({ form, setForm }) {
           </Select>
         </FormControl>
       )}
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Typography variant="body2" fontWeight={600}>Prix specifique par logement (optionnel)</Typography>
+        <Typography variant="caption" color="text.secondary">
+          Laisse vide pour utiliser le prix general de la ressource.
+        </Typography>
+        {targetProperties.length === 0 && (
+          <Typography variant="caption" color="text.secondary">Aucun logement disponible.</Typography>
+        )}
+        {targetProperties.map((property) => (
+          <TextField
+            key={property.id}
+            label={`Prix ${property.name} (EUR)`}
+            type="number"
+            size="small"
+            value={(form.propertyPrices || {})[String(property.id)] ?? ''}
+            onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
+            inputProps={{ min: 0, step: '0.01' }}
+            fullWidth
+          />
+        ))}
+      </Box>
 
       <FormControlLabel
         control={<Switch checked={Boolean(form.isComplex)} onChange={(e) => setForm({ ...form, isComplex: e.target.checked })} />}
@@ -135,6 +174,7 @@ export default function ResourcesPage() {
       fromItem={(item) => ({
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
+        propertyPrices: item.propertyPrices && typeof item.propertyPrices === 'object' ? item.propertyPrices : {},
         description: item.note || item.description || '',
         isComplex: Boolean(item.isComplex),
         slotDuration: item.slotDuration || 5,
@@ -158,6 +198,14 @@ export default function ResourcesPage() {
         price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
         priceType: form.priceType || 'per_stay',
         propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
+        propertyPrices: Object.entries(form.propertyPrices || {})
+          .reduce((acc, [propertyId, rawPrice]) => {
+            const parsed = Number(rawPrice);
+            if (Number.isFinite(parsed) && parsed >= 0) {
+              acc[String(propertyId)] = parsed;
+            }
+            return acc;
+          }, {}),
         note: form.description || '',
         isComplex: form.isComplex ? 1 : 0,
         slotDuration: form.isComplex ? (Number(form.slotDuration) || 5) : 5,
@@ -175,7 +223,7 @@ export default function ResourcesPage() {
         return n.includes('lit') && (n.includes('bébé') || n.includes('bebe'));
       }}
       getRowSx={(item) => (item.isComplex ? { bgcolor: 'rgba(2, 136, 209, 0.05)' } : {})}
-      renderExtraFormFields={(form, setForm) => <ComplexResourceFields form={form} setForm={setForm} />}
+      renderExtraFormFields={(form, setForm, { properties }) => <ComplexResourceFields form={form} setForm={setForm} properties={properties} />}
     />
   );
 }

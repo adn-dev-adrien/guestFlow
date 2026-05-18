@@ -33,6 +33,34 @@ function parseResource(resource) {
   };
 }
 
+function getPropertyPriceMap(resourceId) {
+  return db.prepare('SELECT propertyId, price FROM property_resource_prices WHERE resourceId = ? ORDER BY propertyId')
+    .all(Number(resourceId))
+    .reduce((acc, row) => {
+      acc[String(row.propertyId)] = Number(row.price || 0);
+      return acc;
+    }, {});
+}
+
+function computeEffectiveResourcePrice(resource, propertyId) {
+  const pid = Number(propertyId);
+  if (!pid) return Number(resource.price || 0);
+  const propertyPrices = resource.propertyPrices || getPropertyPriceMap(resource.id);
+  const override = propertyPrices[String(pid)];
+  if (override === undefined || override === null || Number.isNaN(Number(override))) {
+    return Number(resource.price || 0);
+  }
+  return Number(override);
+}
+
+function isResourceApplicableToProperty(resource, propertyId) {
+  if (!propertyId) return true;
+  const ids = Array.isArray(resource.propertyIds)
+    ? resource.propertyIds.map((id) => Number(id))
+    : [];
+  return ids.length === 0 || ids.includes(Number(propertyId));
+}
+
 function computeAvailability(resourceId, startDate, endDate, excludeReservationId = null) {
   const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
   if (!resource) return null;
@@ -60,15 +88,19 @@ function computeAvailability(resourceId, startDate, endDate, excludeReservationI
 // List resources (global + optional property filtering)
 router.get('/', (req, res) => {
   const { propertyId } = req.query;
-  let sql = 'SELECT * FROM resources';
-  const params = [];
-  if (propertyId) {
-    // Show resources with no property restriction OR those that include this property
-    sql += ' WHERE (propertyIds IS NULL OR propertyIds = ? OR propertyIds LIKE ?)';
-    params.push('[]', `%"${propertyId}"%`);
-  }
-  sql += ' ORDER BY name';
-  const resources = db.prepare(sql).all(...params).map(parseResource);
+  const resources = db.prepare('SELECT * FROM resources ORDER BY name').all()
+    .map(parseResource)
+    .filter((resource) => isResourceApplicableToProperty(resource, propertyId))
+    .map((resource) => {
+      const propertyPrices = getPropertyPriceMap(resource.id);
+      const effectivePrice = computeEffectiveResourcePrice({ ...resource, propertyPrices }, propertyId);
+      return {
+        ...resource,
+        basePrice: Number(resource.price || 0),
+        price: effectivePrice,
+        propertyPrices,
+      };
+    });
   res.json(resources);
 });
 
@@ -77,20 +109,19 @@ router.get('/availability', (req, res) => {
   const { propertyId, startDate, endDate, excludeReservationId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate et endDate requis' });
 
-  let sql = 'SELECT * FROM resources';
-  const params = [];
-  if (propertyId) {
-    sql += ' WHERE (propertyIds IS NULL OR propertyIds = ? OR propertyIds LIKE ?)';
-    params.push('[]', `%"${propertyId}"%`);
-  }
-  sql += ' ORDER BY name';
-  const resources = db.prepare(sql).all(...params);
+  const resources = db.prepare('SELECT * FROM resources ORDER BY name').all()
+    .map(parseResource)
+    .filter((resource) => isResourceApplicableToProperty(resource, propertyId));
 
   const out = resources.map((resource) => {
     const info = computeAvailability(resource.id, startDate, endDate, excludeReservationId ? Number(excludeReservationId) : null);
+    const propertyPrices = getPropertyPriceMap(resource.id);
+    const effectivePrice = computeEffectiveResourcePrice({ ...resource, propertyPrices }, propertyId);
     return {
       ...resource,
-      propertyIds: resource.propertyIds ? JSON.parse(resource.propertyIds) : [],
+      basePrice: Number(resource.price || 0),
+      price: effectivePrice,
+      propertyPrices,
       reserved: info.reserved,
       available: info.available,
       unavailable: info.available <= 0,
@@ -138,54 +169,90 @@ router.get('/baby-bed-availability', (req, res) => {
 router.get('/:id', (req, res) => {
   const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(req.params.id);
   if (!resource) return res.status(404).json({ error: 'Ressource non trouvée' });
-  res.json(parseResource(resource));
+  const parsed = parseResource(resource);
+  res.json({
+    ...parsed,
+    basePrice: Number(parsed.price || 0),
+    propertyPrices: getPropertyPriceMap(parsed.id),
+  });
 });
 
 router.post('/', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
-  const result = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    sentenceCase(name),
-    Number(quantity) || 0,
-    Number(price) || 0,
-    priceType || 'per_stay',
-    propertyIds ? JSON.stringify(propertyIds) : null,
-    sentenceCase(note),
-    isComplex ? 1 : 0,
-    Number(slotDuration) || 60,
-    Number(minimumUsageMinutes) || 0,
-    openTime || '08:00',
-    closeTime || '22:00',
-    typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
-    Number(turnoverMinutes) || 0,
-  );
-  res.json({ id: result.lastInsertRowid });
+  const { name, quantity, price, priceType, propertyIds, propertyPrices, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
+  const normalizedPropertyPrices = Object.entries(propertyPrices || {})
+    .map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice) }))
+    .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0);
+
+  const tx = db.transaction(() => {
+    const result = db.prepare(`
+      INSERT INTO resources (name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      sentenceCase(name),
+      Number(quantity) || 0,
+      Number(price) || 0,
+      priceType || 'per_stay',
+      propertyIds ? JSON.stringify(propertyIds) : null,
+      sentenceCase(note),
+      isComplex ? 1 : 0,
+      Number(slotDuration) || 60,
+      Number(minimumUsageMinutes) || 0,
+      openTime || '08:00',
+      closeTime || '22:00',
+      typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
+      Number(turnoverMinutes) || 0,
+    );
+
+    const resourceId = Number(result.lastInsertRowid);
+    const insertPrice = db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price) VALUES (?, ?, ?)');
+    normalizedPropertyPrices.forEach((line) => {
+      insertPrice.run(line.propertyId, resourceId, line.price);
+    });
+
+    return resourceId;
+  });
+
+  const createdId = tx();
+  res.json({ id: createdId });
 });
 
 router.put('/:id', (req, res) => {
-  const { name, quantity, price, priceType, propertyIds, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
-  db.prepare(`
-    UPDATE resources
-    SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, minimumUsageMinutes = ?, openTime = ?, closeTime = ?, openDays = ?, turnoverMinutes = ?, updatedAt = datetime('now')
-    WHERE id = ?
-  `).run(
-    sentenceCase(name),
-    Number(quantity) || 0,
-    Number(price) || 0,
-    priceType || 'per_stay',
-    propertyIds ? JSON.stringify(propertyIds) : null,
-    sentenceCase(note),
-    isComplex ? 1 : 0,
-    Number(slotDuration) || 60,
-    Number(minimumUsageMinutes) || 0,
-    openTime || '08:00',
-    closeTime || '22:00',
-    typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
-    Number(turnoverMinutes) || 0,
-    req.params.id,
-  );
+  const { name, quantity, price, priceType, propertyIds, propertyPrices, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes } = req.body;
+  const resourceId = Number(req.params.id);
+  const normalizedPropertyPrices = Object.entries(propertyPrices || {})
+    .map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice) }))
+    .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0);
+
+  const tx = db.transaction(() => {
+    db.prepare(`
+      UPDATE resources
+      SET name = ?, quantity = ?, price = ?, priceType = ?, propertyIds = ?, note = ?, isComplex = ?, slotDuration = ?, minimumUsageMinutes = ?, openTime = ?, closeTime = ?, openDays = ?, turnoverMinutes = ?, updatedAt = datetime('now')
+      WHERE id = ?
+    `).run(
+      sentenceCase(name),
+      Number(quantity) || 0,
+      Number(price) || 0,
+      priceType || 'per_stay',
+      propertyIds ? JSON.stringify(propertyIds) : null,
+      sentenceCase(note),
+      isComplex ? 1 : 0,
+      Number(slotDuration) || 60,
+      Number(minimumUsageMinutes) || 0,
+      openTime || '08:00',
+      closeTime || '22:00',
+      typeof openDays === 'string' ? openDays : JSON.stringify(openDays || [0, 1, 2, 3, 4, 5, 6]),
+      Number(turnoverMinutes) || 0,
+      resourceId,
+    );
+
+    db.prepare('DELETE FROM property_resource_prices WHERE resourceId = ?').run(resourceId);
+    const insertPrice = db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price) VALUES (?, ?, ?)');
+    normalizedPropertyPrices.forEach((line) => {
+      insertPrice.run(line.propertyId, resourceId, line.price);
+    });
+  });
+
+  tx();
   res.json({ ok: true });
 });
 
