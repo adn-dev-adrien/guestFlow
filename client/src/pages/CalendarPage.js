@@ -1294,7 +1294,7 @@ export default function CalendarPage() {
         <Box key={dateStr} data-date={dateStr} onClick={() => handleReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }} sx={{
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
           bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
           opacity: isPast ? 0.5 : 1,
           border: isToday ? '3px solid #1976d2' : 'none',
           transition: 'border 0.2s',
@@ -1338,7 +1338,7 @@ export default function CalendarPage() {
       // Render devis (quote) as faded background when no reservation
       const activeDevis = midDevis || arrivalDevis || departureDevis;
       if (activeDevis && !inDrag) {
-        const devisColor = '#9e9e9e';
+        const devisColor = '#bdbdbd';
         const isArrival = Boolean(arrivalDevis);
         const isDeparture = Boolean(departureDevis);
         const resStart = new Date(activeDevis.startDate);
@@ -1354,26 +1354,36 @@ export default function CalendarPage() {
             data-date={dateStr}
             onClick={() => navigate(`/reservations/new?mode=devis&devisId=${activeDevis.id}`)}
             sx={{
-              textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
+              textAlign: 'center', py: 1, borderRadius: 1, position: 'relative', cursor: 'pointer',
               bgcolor: devisColor, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64,
-              opacity: 0.35,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
+              opacity: isPast ? 0.5 : 1,
               border: isToday ? '3px solid #1976d2' : 'none',
+              transition: 'border 0.2s',
               background: isArrival
-                ? `linear-gradient(to right, transparent 50%, ${devisColor} 50%)`
+                ? `linear-gradient(135deg, transparent 0%, transparent 49.5%, ${devisColor} 50%, ${devisColor} 100%)`
                 : isDeparture
-                  ? `linear-gradient(to right, ${devisColor} 50%, transparent 50%)`
+                  ? `linear-gradient(135deg, ${devisColor} 0%, ${devisColor} 50%, transparent 50.5%, transparent 100%)`
                   : devisColor,
             }}
           >
             {renderHolidayIndicators(dateStr)}
+            {renderNoteLabel(dateStr, true)}
             {isLabelDay && (
-              <Typography sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
-                {activeDevis.firstName} {activeDevis.lastName}
-              </Typography>
+              <>
+                <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+                  devis
+                </Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+                  {activeDevis.firstName} {activeDevis.lastName}
+                </Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+                  {activeDevis.platform || '-'}
+                </Typography>
+              </>
             )}
             {!isLabelDay && (
-              <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{day}</Typography>
+              <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{day}</Typography>
             )}
           </Box>
         );
@@ -1385,6 +1395,7 @@ export default function CalendarPage() {
           onContextMenu={(e) => { e.preventDefault(); handleOpenNoteDialog(dateStr); }}
           sx={{
             textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
+            height: 64, boxSizing: 'border-box',
             cursor: isPast ? 'default' : 'pointer', fontSize: 14,
             bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
             color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
@@ -1560,6 +1571,7 @@ export default function CalendarPage() {
         title={tooltipParts.join('\n')}
         sx={{
           textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
+          height: 64, boxSizing: 'border-box',
           cursor: 'pointer', fontSize: 14, fontWeight: 600,
           background: gradient || 'grey.100',
           border: dateStr === today ? '3px solid #1976d2' : '1px solid #e0e0e0',

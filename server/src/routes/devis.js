@@ -792,11 +792,22 @@ router.get('/:id/pdf', (req, res) => {
   const metaItems = [
     { label: 'Date du devis', value: formatDateFR(full.createdAt ? full.createdAt.slice(0, 10) : '') },
     { label: 'Valable jusqu\'au', value: (() => {
-      if (full.validUntil) return formatDateFR(full.validUntil);
-      const days = Number(settings.quoteValidityDays) || 30;
-      const d = new Date();
-      d.setDate(d.getDate() + days);
-      return formatDateFR(d.toISOString().slice(0, 10));
+      let validUntilIso = '';
+      if (full.validUntil) {
+        validUntilIso = String(full.validUntil);
+      } else {
+        const days = Number(settings.quoteValidityDays) || 30;
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        validUntilIso = d.toISOString().slice(0, 10);
+      }
+
+      const startDateIso = String(full.startDate || '');
+      if (startDateIso && validUntilIso && validUntilIso > startDateIso) {
+        validUntilIso = addDaysToIsoDate(startDateIso, -2) || validUntilIso;
+      }
+
+      return formatDateFR(validUntilIso);
     })() },
     { label: 'Logement', value: property ? property.name : `#${full.propertyId}` },
   ];
