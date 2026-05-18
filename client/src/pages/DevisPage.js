@@ -169,7 +169,7 @@ export default function DevisPage() {
                     <TableCell sx={{ fontWeight: 700 }}>Logement</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Arrivée</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Départ</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right">Montant</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right">Montant TTC</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -205,7 +205,7 @@ export default function DevisPage() {
                       <TableCell>{formatDate(d.endDate)}</TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {formatPrice(d.finalPrice)}
+                          {formatPrice(Number(d.finalPrice || 0) + Number(d.touristTaxTotal || 0))}
                         </Typography>
                       </TableCell>
                       <TableCell align="center" onClick={(e) => e.stopPropagation()}>
@@ -222,7 +222,7 @@ export default function DevisPage() {
                           </Tooltip>
                           {d.status !== 'converted' && (
                             <Tooltip title="Confirmer en réservation">
-                              <IconButton size="small" color="success" onClick={() => handleConvert(d)}>
+                              <IconButton size="small" color="default" onClick={() => handleConvert(d)}>
                                 <CheckCircleIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
