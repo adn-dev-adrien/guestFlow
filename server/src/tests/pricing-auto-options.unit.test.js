@@ -226,3 +226,45 @@ test('calculateReservationQuote does not add timed options when reservation uses
 
   db.close();
 });
+
+test('calculateReservationQuote late check-out uses progressive extra-night price as next-night reference', () => {
+  const db = createPricingTestDb();
+  db.prepare(`
+    UPDATE pricing_rules
+    SET pricingMode = 'progressive', progressiveTiers = '[]'
+    WHERE id = 1
+  `).run();
+  db.prepare(`
+    INSERT INTO options (id, title, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES (12, 'Depart tardif', 'per_stay', 0, 'late_check_out', 1, 'proportional', '17:00')
+  `).run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 12)').run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-12',
+    checkInTime: '15:00',
+    checkOutTime: '12:00',
+    adults: 2,
+    children: 0,
+    teens: 0,
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [],
+    selectedResources: [],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  // Progressive stay for 2 nights => extra night (n+1 = 3rd night) is 48.
+  // Late checkout at 12:00 is 2h over default 10:00 with a 7h proportional window (10->17).
+  // 48 * (2 / 7) = 13.71
+  assert.equal(quote.optionLines.length, 1);
+  assert.equal(quote.optionLines[0].optionId, 12);
+  assert.equal(quote.optionLines[0].totalPrice, 13.71);
+  assert.equal(quote.optionsTotal, 13.71);
+
+  db.close();
+});

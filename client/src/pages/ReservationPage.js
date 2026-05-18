@@ -1176,34 +1176,34 @@ export default function ReservationPage() {
     
     if (!selectedProp) {
       await alert({ title: 'Erreur', message: 'Veuillez sélectionner un logement.' });
-      return;
+      return false;
     }
 
     if (!form.startDate || !form.endDate) {
       await alert({ title: 'Erreur', message: 'Veuillez sélectionner les dates.' });
-      return;
+      return false;
     }
 
     if (!form.clientId) {
       await alert({ title: 'Erreur', message: 'Veuillez sélectionner un client.' });
-      return;
+      return false;
     }
 
     if (form.startDate < todayStr && !reservationId) {
       await alert({ title: 'Conflit de réservation', message: 'Impossible de réserver dans le passé.' });
-      return;
+      return false;
     }
 
     const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
     if (dateRangeConflictInfo) {
       await alert({ title: 'Conflit de réservation', message: dateRangeConflictInfo.message });
-      return;
+      return false;
     }
 
     const timeConflictState = getTimeConflictState(form);
     if (timeConflictState.message) {
       await alert({ title: 'Conflit de réservation', message: timeConflictState.message });
-      return;
+      return false;
     }
 
     if (exceedsGuestCapacity && !forceCapacity) {
@@ -1220,14 +1220,14 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        await handleSaveReservation(safeAfterSaveAction, forceMinNights, true);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true);
       }
-      return;
+      return false;
     }
 
     if (exceedsSingleBedsLimit || exceedsDoubleBedsLimit) {
       await alert({ title: 'Conflit de réservation', message: 'Le nombre de lits saisi dépasse la capacité configurée du logement.' });
-      return;
+      return false;
     }
 
     for (const sr of (form.selectedResources || [])) {
@@ -1235,7 +1235,7 @@ export default function ReservationPage() {
       if (!resource) continue;
       if ((Number(sr.quantity) || 0) > Number(resource.available || 0)) {
         await alert({ title: 'Conflit de réservation', message: `La ressource '${resource.name}' n'est plus disponible en quantité suffisante.` });
-        return;
+        return false;
       }
     }
 
@@ -1274,9 +1274,8 @@ export default function ReservationPage() {
           cancelLabel: 'Annuler',
           confirmColor: 'warning',
         });
-        if (!proceed) return;
-        await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
-        return;
+        if (!proceed) return false;
+        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
       }
 
       if (isDevisMode) {
@@ -1308,17 +1307,18 @@ export default function ReservationPage() {
           balanceDueDate: quote.balanceDueDate,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
+          offeredOptionIds: Array.from(offeredOptionIds),
           selectedOptions: quote.optionLines,
           selectedResources: quote.resourceLines,
         };
 
         if (editingDevisId) {
           await api.updateDevis(editingDevisId, devisPayload);
+          setInitialSnapshot(formSnapshot);
           if (safeAfterSaveAction) {
             safeAfterSaveAction();
-          } else {
-            navigate('/devis');
           }
+          return true;
         } else {
           const created = await api.createDevis(devisPayload);
           if (safeAfterSaveAction) {
@@ -1328,6 +1328,7 @@ export default function ReservationPage() {
           } else {
             navigate('/devis');
           }
+          return true;
         }
       } else if (reservationId) {
         await api.updateReservation(reservationId, {
@@ -1368,11 +1369,13 @@ export default function ReservationPage() {
           options: quote.optionLines,
           resources: quote.resourceLines,
         });
+        setInitialSnapshot(formSnapshot);
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
           navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
         }
+        return true;
       } else {
         await api.createReservation({
           propertyId: Number(selectedProp),
@@ -1405,11 +1408,13 @@ export default function ReservationPage() {
           options: quote.optionLines,
           resources: quote.resourceLines,
         });
+        setInitialSnapshot(formSnapshot);
         if (safeAfterSaveAction) {
           safeAfterSaveAction();
         } else {
           navigateBackWithFrom(navigate, buildBackUrlWithReservationFocus());
         }
+        return true;
       }
     } catch (err) {
       if (err?.code === 'MIN_NIGHTS' && !forceMinNights) {
@@ -1421,11 +1426,12 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
+          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity);
         }
-        return;
+        return false;
       }
       await alert({ title: 'Erreur', message: err.message });
+      return false;
     }
   };
 
@@ -1595,6 +1601,9 @@ export default function ReservationPage() {
   const handleOpenDevisPdf = async () => {
     if (!editingDevisId) return;
     try {
+      const saved = await handleSaveReservation(() => {});
+      if (!saved) return;
+
       const res = await fetch(api.getDevisPdfUrl(editingDevisId));
       if (!res.ok) throw new Error('Impossible de générer le PDF.');
       const blob = await res.blob();

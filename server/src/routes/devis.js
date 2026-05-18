@@ -21,6 +21,33 @@ function formatCurrency(amount) {
   return `${Number(amount || 0).toFixed(2).replace('.', ',')} €`;
 }
 
+function isLineOffered(line) {
+  const total = Number(line?.totalPrice || 0);
+  const billedUnits = Number(line?.billedUnits || line?.quantity || 0);
+  const unitPrice = Number(line?.unitPrice || 0);
+  return total === 0 && billedUnits > 0 && unitPrice > 0;
+}
+
+function timeToDecimalHour(timeStr, fallback = 0) {
+  const value = String(timeStr || '').trim();
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number(fallback || 0);
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number(fallback || 0);
+  return hours + minutes / 60;
+}
+
+function formatHoursLabel(hoursValue) {
+  const hours = Number(hoursValue || 0);
+  if (!Number.isFinite(hours) || hours <= 0) return '';
+  const rounded = Math.round(hours * 10) / 10;
+  const display = Number.isInteger(rounded)
+    ? String(rounded)
+    : String(rounded).replace('.', ',');
+  return `${display}h`;
+}
+
 function diffDays(startDate, endDate) {
   const s = new Date(`${startDate}T00:00:00`);
   const e = new Date(`${endDate}T00:00:00`);
@@ -62,7 +89,7 @@ function resolvePaymentSchedule(row, property) {
 function enrichDevis(row) {
   if (!row) return null;
   const options = db.prepare(`
-    SELECT do.*, o.title, o.priceType as optionPriceType
+    SELECT do.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold
     FROM devis_options do
     JOIN options o ON do.optionId = o.id
     WHERE do.devisId = ?
@@ -144,33 +171,47 @@ router.post('/', (req, res) => {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(Number(body.propertyId));
   if (!property) return res.status(404).json({ error: 'Logement introuvable' });
 
+  const optionMetaById = new Map(
+    db.prepare('SELECT id, autoOptionType FROM options').all().map((opt) => [Number(opt.id), opt])
+  );
   const selectedOptions = (body.selectedOptions || []).map((o) => ({
     optionId: Number(o.optionId),
     quantity: Number(o.quantity || 1),
     unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
-  }));
+  })).filter((line) => !optionMetaById.get(Number(line.optionId))?.autoOptionType);
   const selectedResources = (body.selectedResources || []).map((r) => ({
     resourceId: Number(r.resourceId),
     quantity: Number(r.quantity || 1),
     unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
   }));
+  const lockedResourceLines = (body.selectedResources || [])
+    .map((r) => ({
+      resourceId: Number(r.resourceId),
+      quantity: Number(r.quantity || 1),
+      unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
+      billedUnits: r.billedUnits != null ? Number(r.billedUnits) : Number(r.quantity || 1),
+      priceType: r.priceType || 'per_stay',
+      totalPrice: Number(r.totalPrice || 0),
+    }))
+    .filter((line) => Number(line.totalPrice || 0) === 0 && Number(line.unitPrice || 0) > 0);
 
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(body.propertyId),
     startDate: body.startDate,
     endDate: body.endDate,
+    checkInTime: body.checkInTime || property.defaultCheckIn || '15:00',
+    checkOutTime: body.checkOutTime || property.defaultCheckOut || '10:00',
     adults: Number(body.adults || 1),
     children: Number(body.children || 0),
     teens: Number(body.teens || 0),
     babies: Number(body.babies || 0),
     discountPercent: Number(body.discountPercent || 0),
-    depositPercent: property.depositPercent,
-    depositDaysBefore: property.depositDaysBefore,
-    balanceDaysBefore: property.balanceDaysBefore,
     selectedOptions,
     selectedResources,
-    customAccommodationPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
+    customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
+    offeredOptionIds: body.offeredOptionIds,
+    lockedResourceLines,
   });
 
   const devisNumber = db.generateDevisNumber();
@@ -273,33 +314,47 @@ router.put('/:id', (req, res) => {
   );
   if (!property) return res.status(404).json({ error: 'Logement introuvable' });
 
+  const optionMetaById = new Map(
+    db.prepare('SELECT id, autoOptionType FROM options').all().map((opt) => [Number(opt.id), opt])
+  );
   const selectedOptions = (body.selectedOptions || []).map((o) => ({
     optionId: Number(o.optionId),
     quantity: Number(o.quantity || 1),
     unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
-  }));
+  })).filter((line) => !optionMetaById.get(Number(line.optionId))?.autoOptionType);
   const selectedResources = (body.selectedResources || []).map((r) => ({
     resourceId: Number(r.resourceId),
     quantity: Number(r.quantity || 1),
     unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
   }));
+  const lockedResourceLines = (body.selectedResources || [])
+    .map((r) => ({
+      resourceId: Number(r.resourceId),
+      quantity: Number(r.quantity || 1),
+      unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
+      billedUnits: r.billedUnits != null ? Number(r.billedUnits) : Number(r.quantity || 1),
+      priceType: r.priceType || 'per_stay',
+      totalPrice: Number(r.totalPrice || 0),
+    }))
+    .filter((line) => Number(line.totalPrice || 0) === 0 && Number(line.unitPrice || 0) > 0);
 
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(body.propertyId || existing.propertyId),
     startDate: body.startDate || existing.startDate,
     endDate: body.endDate || existing.endDate,
+    checkInTime: body.checkInTime || existing.checkInTime || property.defaultCheckIn || '15:00',
+    checkOutTime: body.checkOutTime || existing.checkOutTime || property.defaultCheckOut || '10:00',
     adults: Number(body.adults ?? existing.adults),
     children: Number(body.children ?? existing.children),
     teens: Number(body.teens ?? existing.teens),
     babies: Number(body.babies ?? existing.babies),
     discountPercent: Number(body.discountPercent ?? existing.discountPercent ?? 0),
-    depositPercent: property.depositPercent,
-    depositDaysBefore: property.depositDaysBefore,
-    balanceDaysBefore: property.balanceDaysBefore,
     selectedOptions,
     selectedResources,
-    customAccommodationPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
+    customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
+    offeredOptionIds: body.offeredOptionIds,
+    lockedResourceLines,
   });
 
   db.prepare(`
@@ -817,21 +872,61 @@ router.get('/:id/pdf', (req, res) => {
   let rowY = TH + 18;
   let rowIdx = 0;
   let subtotalHt = 0;
+  let subtotalTtcFromRows = 0;
 
-  function drawRow(desc, qty, totalTtc, vatRate, italic) {
-    const rowH = 20;
+  function drawRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
+    const originalTtc = Number(meta.originalTtc || 0);
+    const showOriginal = originalTtc > Number(totalTtc || 0) + 0.009;
+    const hasBadge = Boolean(meta.badgeText);
+    const rowH = showOriginal || hasBadge ? 28 : 20;
     rowY = checkBreak(rowY, rowH);
     if (rowIdx % 2 === 0) doc.rect(LEFT, rowY, PAGE_W, rowH).fill(LIGHT_GRAY);
     const rate = Number(vatRate || 0);
     const ht = rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
     subtotalHt += ht;
+    subtotalTtcFromRows += Number(totalTtc || 0);
+
     doc.fontSize(9).fillColor(TEXT_DARK);
     if (italic) doc.font('Helvetica-Oblique'); else doc.font('Helvetica');
-    doc.text(desc, COL_DESC + 4, rowY + 6, { width: PAGE_W * 0.48 });
+    const descY = showOriginal ? rowY + 10 : rowY + 6;
+    doc.text(desc, COL_DESC + 4, descY, { width: PAGE_W * 0.48 });
+    if (hasBadge) {
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#2e7d32')
+        .text(meta.badgeText, COL_DESC + 4, rowY + 3, { width: PAGE_W * 0.48 });
+    }
     doc.font('Helvetica').text(String(qty), COL_QTY, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
-    doc.text(formatCurrency(ht), COL_HT, rowY + 6, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    if (showOriginal) {
+      const originalHt = rate > 0
+        ? roundMoney(originalTtc / (1 + (rate / 100)))
+        : roundMoney(originalTtc);
+      const originalHtText = formatCurrency(originalHt);
+      doc.fontSize(7.5).fillColor('#8a8a8a').font('Helvetica')
+        .text(originalHtText, COL_HT, rowY + 3, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+      const oldHtWidth = doc.widthOfString(originalHtText);
+      const oldHtX = COL_HT + (PAGE_W * 0.16 - RIGHT_PAD) - oldHtWidth;
+      const oldHtY = rowY + 7;
+      doc.moveTo(oldHtX, oldHtY).lineTo(oldHtX + oldHtWidth, oldHtY).strokeColor('#8a8a8a').lineWidth(0.6).stroke();
+      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica')
+        .text(formatCurrency(ht), COL_HT, rowY + 14, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    } else {
+      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica')
+        .text(formatCurrency(ht), COL_HT, rowY + 6, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+    }
     doc.text(`${rate.toFixed(2).replace('.', ',')}%`, COL_VAT, rowY + 6, { width: PAGE_W * 0.1, align: 'center' });
-    doc.font('Helvetica-Bold').text(formatCurrency(totalTtc), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+    if (showOriginal) {
+      const originalTtcText = formatCurrency(originalTtc);
+      doc.fontSize(7.5).fillColor('#8a8a8a').font('Helvetica')
+        .text(originalTtcText, COL_TOTAL, rowY + 3, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+      const oldTtcWidth = doc.widthOfString(originalTtcText);
+      const oldTtcX = COL_TOTAL + (PAGE_W * 0.14 - RIGHT_PAD) - oldTtcWidth;
+      const oldTtcY = rowY + 7;
+      doc.moveTo(oldTtcX, oldTtcY).lineTo(oldTtcX + oldTtcWidth, oldTtcY).strokeColor('#8a8a8a').lineWidth(0.6).stroke();
+      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica-Bold')
+        .text(formatCurrency(totalTtc), COL_TOTAL, rowY + 14, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+    } else {
+      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica-Bold')
+        .text(formatCurrency(totalTtc), COL_TOTAL, rowY + 6, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+    }
     rowY += rowH;
     rowIdx++;
   }
@@ -852,26 +947,71 @@ router.get('/:id/pdf', (req, res) => {
       }
     }
     if (cur) groups.push(cur);
+    const accommodationFactor = Number(full.discountPercent || 0) > 0
+      ? Math.max(0, 1 - (Number(full.discountPercent || 0) / 100))
+      : 1;
     for (const g of groups) {
       const label = g.count === 1
         ? `Hébergement — 1 nuit (${g.seasonLabel})`
         : `Hébergement — ${g.count} nuits (${g.seasonLabel})`;
-      drawRow(label, g.count, g.totalPrice, vatAccommodation, false);
+      const reducedTotal = roundMoney(Number(g.totalPrice || 0) * accommodationFactor);
+      drawRow(label, g.count, reducedTotal, vatAccommodation, false, {
+        originalTtc: Number(g.totalPrice || 0),
+        badgeText: Number(full.discountPercent || 0) > 0 ? `RÉDUCTION LOGEMENT ${Number(full.discountPercent || 0)}%` : '',
+      });
     }
   } else {
     // Flat accommodation row
     const accTotal = roundMoney((full.totalPrice || 0) - (full.options || []).reduce((s, o) => s + o.totalPrice, 0) - (full.resources || []).reduce((s, r) => s + r.totalPrice, 0));
-    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, accTotal, vatAccommodation, false);
+    const accommodationFactor = Number(full.discountPercent || 0) > 0
+      ? Math.max(0, 1 - (Number(full.discountPercent || 0) / 100))
+      : 1;
+    const reducedAccTotal = roundMoney(Number(accTotal || 0) * accommodationFactor);
+    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, reducedAccTotal, vatAccommodation, false, {
+      originalTtc: Number(accTotal || 0),
+      badgeText: Number(full.discountPercent || 0) > 0 ? `RÉDUCTION LOGEMENT ${Number(full.discountPercent || 0)}%` : '',
+    });
   }
 
   // Options
   for (const opt of full.options || []) {
-    drawRow(opt.title || `Option #${opt.optionId}`, opt.billedUnits || opt.quantity || 1, opt.totalPrice, vatOptions, false);
+    let optionLabel = opt.title || `Option #${opt.optionId}`;
+    if (opt.autoOptionType === 'early_check_in' || opt.autoOptionType === 'late_check_out') {
+      const isEarly = opt.autoOptionType === 'early_check_in';
+      const defaultHour = isEarly
+        ? timeToDecimalHour(full.property?.checkInTime || '15:00', 15)
+        : timeToDecimalHour(full.property?.checkOutTime || '10:00', 10);
+      const requestedHour = isEarly
+        ? timeToDecimalHour(full.checkInTime || full.property?.checkInTime || '15:00', defaultHour)
+        : timeToDecimalHour(full.checkOutTime || full.property?.checkOutTime || '10:00', defaultHour);
+      const extraHours = isEarly
+        ? Math.max(0, defaultHour - requestedHour)
+        : Math.max(0, requestedHour - defaultHour);
+      const hoursLabel = formatHoursLabel(extraHours);
+      if (hoursLabel) {
+        optionLabel = `${optionLabel} (${hoursLabel} suppl.)`;
+      }
+    }
+    const offered = isLineOffered(opt);
+    const originalTtc = offered
+      ? roundMoney(Number(opt.unitPrice || 0) * Number(opt.billedUnits || opt.quantity || 0))
+      : Number(opt.totalPrice || 0);
+    drawRow(optionLabel, opt.billedUnits || opt.quantity || 1, Number(opt.totalPrice || 0), vatOptions, false, {
+      originalTtc,
+      badgeText: offered ? 'OFFERT' : '',
+    });
   }
 
   // Resources
   for (const rsc of full.resources || []) {
-    drawRow(rsc.name || `Ressource #${rsc.resourceId}`, rsc.quantity || 1, rsc.totalPrice, vatResources, false);
+    const offered = isLineOffered(rsc);
+    const originalTtc = offered
+      ? roundMoney(Number(rsc.unitPrice || 0) * Number(rsc.billedUnits || rsc.quantity || 0))
+      : Number(rsc.totalPrice || 0);
+    drawRow(rsc.name || `Ressource #${rsc.resourceId}`, rsc.quantity || 1, Number(rsc.totalPrice || 0), vatResources, false, {
+      originalTtc,
+      badgeText: offered ? 'OFFERT' : '',
+    });
   }
 
   // Table bottom border
@@ -891,11 +1031,8 @@ router.get('/:id/pdf', (req, res) => {
   }
 
   drawTotalLine('Sous-total HT', subtotalHt, false);
-  const subtotalTtc = roundMoney((full.totalPrice || 0) + (full.options || []).reduce((s, o) => s + o.totalPrice, 0) + (full.resources || []).reduce((s, r) => s + r.totalPrice, 0));
+  const subtotalTtc = roundMoney(subtotalTtcFromRows);
   drawTotalLine('Sous-total TTC', subtotalTtc, false);
-  if (Number(full.discountPercent || 0) > 0) {
-    drawTotalLine(`Remise (${full.discountPercent}%)`, -(subtotalTtc * full.discountPercent / 100), false);
-  }
   if (Number(full.touristTaxTotal || 0) > 0) {
     drawTotalLine('Taxe de séjour', full.touristTaxTotal, false);
     const taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);

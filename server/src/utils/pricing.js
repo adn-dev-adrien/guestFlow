@@ -311,6 +311,44 @@ function getNightBasePriceForDate(rules, dateStr) {
   return roundMoney(nightlyBase);
 }
 
+function getRuleNightBaseForDate(rules, dateStr) {
+  let matchedRule = null;
+  let nightlyBase = 100;
+
+  for (const rule of rules || []) {
+    const ranges = parseRuleDateRanges(rule);
+    if (!ranges.length) {
+      matchedRule = rule;
+      nightlyBase = Number(rule.pricePerNight || 0);
+      break;
+    }
+    if (ranges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
+      matchedRule = rule;
+      nightlyBase = Number(rule.pricePerNight || 0);
+      break;
+    }
+  }
+
+  return {
+    matchedRule,
+    nightlyBase: roundMoney(nightlyBase),
+  };
+}
+
+function getLateCheckoutNextNightReferencePrice({ rules, endDate, stayNights }) {
+  const { matchedRule, nightlyBase } = getRuleNightBaseForDate(rules, endDate);
+  if ((matchedRule?.pricingMode || 'fixed') !== 'progressive') {
+    return roundMoney(nightlyBase);
+  }
+
+  const extraNightNumber = Math.max(1, Number(stayNights || 0) + 1);
+  const extraNightPrice = extraNightNumber === 1
+    ? nightlyBase
+    : getProgressiveExtraNightPrice(matchedRule, extraNightNumber, nightlyBase);
+
+  return roundMoney(extraNightPrice);
+}
+
 function normalizeBilledUnits(value) {
   const units = Number(value);
   if (!Number.isFinite(units)) return 0;
@@ -649,7 +687,11 @@ function calculateReservationQuote({
       defaultCheckIn: property.defaultCheckIn || '15:00',
       defaultCheckOut: property.defaultCheckOut || '10:00',
       nightlyBreakdown,
-      lateCheckoutNextNightPrice: getNightBasePriceForDate(rules, endDate),
+      lateCheckoutNextNightPrice: getLateCheckoutNextNightReferencePrice({
+        rules,
+        endDate,
+        stayNights: nights,
+      }),
     }))
     .filter(Boolean)
     .map((line) => {
