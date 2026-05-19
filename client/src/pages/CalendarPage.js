@@ -170,6 +170,7 @@ export default function CalendarPage() {
   const initialScrollDone = useRef(false);
   const prependMonthLock = useRef(false);
   const appendMonthLock = useRef(false);
+  const autoPreloadAttemptsRef = useRef(0);
   const blockedSelectionMessageRef = useRef('');
   const pricingRequestRef = useRef(0);
   const [editingReservationId, setEditingReservationId] = useState(null);
@@ -257,6 +258,7 @@ export default function CalendarPage() {
     lastLoadedRange.current = { from: '', to: '' };
     prependMonthLock.current = false;
     appendMonthLock.current = false;
+    autoPreloadAttemptsRef.current = 0;
   };
 
   const loadSchoolHolidays = async () => setSchoolHolidays(await api.getSchoolHolidays());
@@ -339,6 +341,7 @@ export default function CalendarPage() {
       pendingFocusScrollRef.current = true;
       initialScrollDone.current = false;
       lastLoadedRange.current = { from: '', to: '' };
+      autoPreloadAttemptsRef.current = 0;
     }
     // If reservationId param is present, open the edit dialog after property is loaded
     if (resId) {
@@ -390,6 +393,66 @@ export default function CalendarPage() {
     initialScrollDone.current = true;
   }, [selectedProp, months]);
 
+  useLayoutEffect(() => {
+    if (!selectedProp || !initialScrollDone.current || !scrollRef.current) return;
+    const el = scrollRef.current;
+    const isScrollable = el.scrollHeight > el.clientHeight + 1;
+    if (isScrollable) return;
+    if (autoPreloadAttemptsRef.current >= 3) return;
+
+    autoPreloadAttemptsRef.current += 1;
+    setMonths((prev) => {
+      if (!prev.length) return prev;
+      const first = prev[0];
+      const last = prev[prev.length - 1];
+      const prevDate = new Date(first.year, first.month - 1, 1);
+      const nextDate = new Date(last.year, last.month + 1, 1);
+      const previousMonth = { year: prevDate.getFullYear(), month: prevDate.getMonth() };
+      const nextMonth = { year: nextDate.getFullYear(), month: nextDate.getMonth() };
+
+      const alreadyHasPrevious = prev[0]?.year === previousMonth.year && prev[0]?.month === previousMonth.month;
+      const alreadyHasNext = prev[prev.length - 1]?.year === nextMonth.year && prev[prev.length - 1]?.month === nextMonth.month;
+
+      if (alreadyHasPrevious && alreadyHasNext) return prev;
+      return [
+        ...(alreadyHasPrevious ? [] : [previousMonth]),
+        ...prev,
+        ...(alreadyHasNext ? [] : [nextMonth]),
+      ];
+    });
+  }, [selectedProp, months]);
+
+  const prependMonth = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) {
+      prevScrollHeight.current = el.scrollHeight;
+      shouldAdjustScroll.current = true;
+    }
+    setMonths((prev) => {
+      const first = prev[0];
+      if (!first) return prev;
+      const d = new Date(first.year, first.month - 1, 1);
+      const nextMonth = { year: d.getFullYear(), month: d.getMonth() };
+      if (prev[0]?.year === nextMonth.year && prev[0]?.month === nextMonth.month) {
+        return prev;
+      }
+      return [nextMonth, ...prev];
+    });
+  }, []);
+
+  const appendMonth = useCallback(() => {
+    setMonths((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last) return prev;
+      const d = new Date(last.year, last.month + 1, 1);
+      const nextMonth = { year: d.getFullYear(), month: d.getMonth() };
+      if (prev[prev.length - 1]?.year === nextMonth.year && prev[prev.length - 1]?.month === nextMonth.month) {
+        return prev;
+      }
+      return [...prev, nextMonth];
+    });
+  }, []);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el || !initialScrollDone.current) return;
@@ -408,30 +471,12 @@ export default function CalendarPage() {
 
     if (el.scrollTop < topThreshold && !prependMonthLock.current) {
       prependMonthLock.current = true;
-      prevScrollHeight.current = el.scrollHeight;
-      shouldAdjustScroll.current = true;
-      setMonths(prev => {
-        const first = prev[0];
-        const d = new Date(first.year, first.month - 1, 1);
-        const nextMonth = { year: d.getFullYear(), month: d.getMonth() };
-        if (prev[0]?.year === nextMonth.year && prev[0]?.month === nextMonth.month) {
-          return prev;
-        }
-        return [nextMonth, ...prev];
-      });
+      prependMonth();
     }
 
     if (distanceFromBottom < bottomThreshold && !appendMonthLock.current) {
       appendMonthLock.current = true;
-      setMonths(prev => {
-        const last = prev[prev.length - 1];
-        const d = new Date(last.year, last.month + 1, 1);
-        const nextMonth = { year: d.getFullYear(), month: d.getMonth() };
-        if (prev[prev.length - 1]?.year === nextMonth.year && prev[prev.length - 1]?.month === nextMonth.month) {
-          return prev;
-        }
-        return [...prev, nextMonth];
-      });
+      appendMonth();
     }
   };
 
@@ -1127,6 +1172,7 @@ export default function CalendarPage() {
     initialScrollDone.current = false;
     prependMonthLock.current = false;
     appendMonthLock.current = false;
+    autoPreloadAttemptsRef.current = 0;
     lastLoadedRange.current = { from: '', to: '' };
   };
 
@@ -1645,6 +1691,16 @@ export default function CalendarPage() {
           </FormControl>
           {selectedProp && (
             <Button variant="text" onClick={() => setSelectedProp('')}>Vue logements</Button>
+          )}
+          {selectedProp && (
+            <Button variant="outlined" onClick={prependMonth} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+              Mois précédent
+            </Button>
+          )}
+          {selectedProp && (
+            <Button variant="outlined" onClick={appendMonth} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+              Mois suivant
+            </Button>
           )}
           <Button variant="outlined" onClick={scrollToToday} sx={{ width: { xs: '100%', sm: 'auto' } }}>Aujourd'hui</Button>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
