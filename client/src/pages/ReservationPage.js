@@ -518,7 +518,16 @@ export default function ReservationPage() {
             notes: res.notes || '',
             selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
             customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
-            selectedResources: (res.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice, offered: Boolean(r.offered) })),
+            selectedResources: (res.resources || []).map(r => ({
+              resourceId: r.resourceId,
+              quantity: r.quantity,
+              unitPrice: r.unitPrice,
+              billedUnits: r.billedUnits,
+              priceType: r.priceType,
+              totalPrice: r.totalPrice,
+              originalTotalPrice: Number(r.originalTotalPrice ?? r.totalPrice ?? 0),
+              offered: Boolean(r.offered),
+            })),
             checkInTime: res.checkInTime || '15:00',
             checkOutTime: res.checkOutTime || '10:00',
             startDate: res.startDate,
@@ -2960,8 +2969,11 @@ export default function ReservationPage() {
                         const isOffered = Boolean(sr.offered);
                         const total = Number(sr.totalPrice || 0);
                         const originalTotal = Number(sr.originalTotalPrice ?? total ?? 0);
-                        const isPerHour = Boolean(res?.isComplex) || (sr.priceType || res?.priceType) === 'per_hour';
+                        const isPerHour = Boolean(res?.isComplex)
+                          || (sr.priceType || res?.priceType) === 'per_hour'
+                          || Number(res?.freeMinutes || 0) > 0;
                         const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
+                        const displayedOriginalTotal = isOffered ? originalTotal : total;
                         const resourceHint = hasFreeFirstHour ? '1ère heure offerte' : '';
                         return (
                           <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
@@ -2976,7 +2988,7 @@ export default function ReservationPage() {
                               )}
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              {isPerHour && (
+                              {(isPerHour || isOffered) && (
                                 <Button
                                   size="small"
                                   variant={isOffered ? 'contained' : 'outlined'}
@@ -2997,7 +3009,7 @@ export default function ReservationPage() {
                                   color: isOffered ? 'text.secondary' : 'inherit',
                                 }}
                               >
-                                {(isOffered ? originalTotal : total).toFixed(2)}€
+                                {displayedOriginalTotal.toFixed(2)}€
                               </Typography>
                             </Box>
                           </Box>

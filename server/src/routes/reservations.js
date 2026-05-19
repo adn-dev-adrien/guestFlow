@@ -394,6 +394,11 @@ router.get('/:id', (req, res) => {
 
   reservation.resources = db.prepare(`
     SELECT rr.*, rs.name, rs.note, rs.propertyId, rs.priceType,
+      COALESCE(
+        NULLIF(rr.totalPrice, 0),
+        NULLIF(round(COALESCE(rr.unitPrice, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2), 0),
+        round(COALESCE(rs.price, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2)
+      ) as originalTotalPrice,
       COALESCE(rr.offered, CASE WHEN COALESCE(rr.totalPrice, 0) = 0 AND COALESCE(rr.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
     FROM reservation_resources rr
     JOIN resources rs ON rr.resourceId = rs.id
@@ -861,7 +866,13 @@ router.post('/', (req, res) => {
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
-      const usesHourlyQuantity = resource.priceType === 'per_hour' || Number(resource.isComplex || 0) === 1;
+      const resourcePricing = db.prepare('SELECT freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(Number(propertyId), Number(rr.resourceId));
+      const freeMinutes = Number(resourcePricing?.freeMinutes || 0);
+      const usesHourlyQuantity = resource.priceType === 'per_hour'
+        || Number(resource.isComplex || 0) === 1
+        || resource.isComplex === true
+        || String(resource.isComplex || '').toLowerCase() === 'true'
+        || freeMinutes > 0;
       if (!usesHourlyQuantity) {
         const reserved = db.prepare(`
           SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
@@ -1152,7 +1163,13 @@ router.put('/:id', (req, res) => {
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
-      const usesHourlyQuantity = resource.priceType === 'per_hour' || Number(resource.isComplex || 0) === 1;
+      const resourcePricing = db.prepare('SELECT freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(Number(propertyId), Number(rr.resourceId));
+      const freeMinutes = Number(resourcePricing?.freeMinutes || 0);
+      const usesHourlyQuantity = resource.priceType === 'per_hour'
+        || Number(resource.isComplex || 0) === 1
+        || resource.isComplex === true
+        || String(resource.isComplex || '').toLowerCase() === 'true'
+        || freeMinutes > 0;
       if (!usesHourlyQuantity) {
         const reserved = db.prepare(`
           SELECT COALESCE(SUM(rr2.quantity), 0) as reserved

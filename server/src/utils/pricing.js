@@ -487,6 +487,17 @@ function getProgressiveExtraNightPrice(rule, nightNumber, fallbackBasePrice) {
   return tier ? Number(tier.extraNightPrice || 0) : Number(fallbackBasePrice || 0);
 }
 
+const DEBUG_RESOURCE_LINES = process.env.DEBUG_RESOURCE_LINES === '1';
+
+function debugResourceLine(stage, payload) {
+  if (!DEBUG_RESOURCE_LINES) return;
+  try {
+    console.log(`[pricing.resourceLines] ${stage}`, payload);
+  } catch {
+    // Keep pricing computation resilient even if debug logging fails.
+  }
+}
+
 function calculateBaseStayPrice(rules, startDate, endDate) {
   const nights = diffIsoDatesInDays(startDate, endDate);
   if (nights <= 0) {
@@ -776,45 +787,113 @@ function calculateReservationQuote({
 
   const resourceLines = (Array.isArray(selectedResources) ? selectedResources : [])
     .map((selected) => {
+      debugResourceLine('input.selected', { selected });
+
       const quantity = Math.max(0, Number(selected?.quantity || 0));
-      if (quantity <= 0) return null;
+      debugResourceLine('parsed.quantity', { quantity });
+      if (quantity <= 0) {
+        debugResourceLine('skip.non_positive_quantity', { quantity, selected });
+        return null;
+      }
+
       const resourceId = Number(selected.resourceId);
+      debugResourceLine('parsed.resourceId', { resourceId });
       const resource = resourcesById.get(resourceId);
-      if (!resource) return null;
-      const lockedUnit = Number(resourceUnitOverrides[resourceId]);
-      const unitPrice = Number.isFinite(lockedUnit)
-        ? lockedUnit
-        : Number(selected?.unitPrice !== undefined ? selected.unitPrice : resource.price || 0);
-      const priceType = resource.priceType || 'per_stay';
-      const usesHourlyQuantity = priceType === 'per_hour' || Number(resource.isComplex || 0) === 1;
-      const baseBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+      if (!resource) {
+        debugResourceLine('skip.resource_not_found', {
+          resourceId,
+          selected,
+          knownResourceIds: Array.from(resourcesById.keys()),
+        });
+        return null;
+      }
+
+      debugResourceLine('pricing.base', {
+        resourceId,
+        resource
+      });
+      
+      const isComplexResource = Number(resource.isComplex || 0) === 1
+        || resource.isComplex === true
+        || String(resource.isComplex || '').toLowerCase() === 'true';
+      const usesHourlyQuantity = resource.priceType === 'per_hour'
+        || isComplexResource
+        || Number(resource.freeMinutes || 0) > 0;
+
+      debugResourceLine('pricing.type_flags', {
+        resourceId,
+        isComplexResource,
+        usesHourlyQuantity,
+        freeMinutes: Number(resource.freeMinutes || 0),
+      });
+
+      const baseBilledUnits = usesHourlyQuantity
+        ? roundMoney(quantity)
+        : roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
       const targetBilledUnits = usesHourlyQuantity
         ? applyPerHourFreeMinutes(baseBilledUnits, resource.freeMinutes)
         : baseBilledUnits;
-      const lockedLine = lockedResourcesById.get(resourceId);
-      const merged = mergeLineWithLockedSnapshot({
-        lockedLine,
+
+      debugResourceLine('pricing.units', {
+        resourceId,
+        persons,
+        nights,
+        quantity,
+        baseBilledUnits,
         targetBilledUnits,
-        currentUnitPrice: unitPrice,
       });
-      const offered = Boolean(selected?.offered || lockedLine?.offered);
+
+      const lockedLine = lockedResourcesById.get(resourceId);
+      const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
+      const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
+      const shouldBypassLockedTotal = hasExplicitOffered && !offered && Boolean(lockedLine?.offered);
+
+      debugResourceLine('pricing.offered_flags', {
+        resourceId,
+        lockedLine,
+        hasExplicitOffered,
+        offered,
+        shouldBypassLockedTotal,
+      });
+
+      const merged = mergeLineWithLockedSnapshot({
+        lockedLine: shouldBypassLockedTotal ? null : lockedLine,
+        targetBilledUnits,
+        currentUnitPrice: resource.price,
+      });
+
+      debugResourceLine('pricing.merged', {
+        resourceId,
+        merged,
+      });
+
       const calculatedTotal = roundMoney(merged.totalPrice);
+      const fallbackOriginalTotal = roundMoney(targetBilledUnits * roundMoney(resource.price));
       const originalTotalPrice = offered
-        ? roundMoney(calculatedTotal > 0 ? calculatedTotal : merged.billedUnits * merged.unitPrice)
+        ? roundMoney(calculatedTotal > 0 ? calculatedTotal : fallbackOriginalTotal)
         : calculatedTotal;
-      return {
+
+      const resultLine = {
         resourceId,
         name: resource.name,
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        priceType,
         originalTotalPrice,
         offered,
         totalPrice: offered ? 0 : calculatedTotal,
       };
+
+      debugResourceLine('pricing.output_line', {
+        resourceId,
+        resultLine,
+      });
+
+      return resultLine;
     })
     .filter(Boolean);
+
+  debugResourceLine('pricing.output_lines', { resourceLines });
 
   const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));

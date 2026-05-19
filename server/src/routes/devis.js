@@ -376,6 +376,7 @@ router.post('/', (req, res) => {
     resourceId: Number(r.resourceId),
     quantity: Number(r.quantity || 1),
     unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
+    offered: Boolean(r.offered),
   }));
   const lockedResourceLines = (body.selectedResources || [])
     .map((r) => ({
@@ -385,6 +386,7 @@ router.post('/', (req, res) => {
       billedUnits: r.billedUnits != null ? Number(r.billedUnits) : Number(r.quantity || 1),
       priceType: r.priceType || 'per_stay',
       totalPrice: Number(r.totalPrice || 0),
+      offered: Boolean(r.offered),
     }))
     .filter((line) => Number(line.totalPrice || 0) === 0 && Number(line.unitPrice || 0) > 0);
 
@@ -550,6 +552,7 @@ router.put('/:id', (req, res) => {
     resourceId: Number(r.resourceId),
     quantity: Number(r.quantity || 1),
     unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined,
+    offered: Boolean(r.offered),
   }));
   const lockedResourceLines = (body.selectedResources || [])
     .map((r) => ({
@@ -559,6 +562,7 @@ router.put('/:id', (req, res) => {
       billedUnits: r.billedUnits != null ? Number(r.billedUnits) : Number(r.quantity || 1),
       priceType: r.priceType || 'per_stay',
       totalPrice: Number(r.totalPrice || 0),
+      offered: Boolean(r.offered),
     }))
     .filter((line) => Number(line.totalPrice || 0) === 0 && Number(line.unitPrice || 0) > 0);
 
