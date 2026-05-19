@@ -797,6 +797,11 @@ function calculateReservationQuote({
         targetBilledUnits,
         currentUnitPrice: unitPrice,
       });
+      const offered = Boolean(selected?.offered || lockedLine?.offered);
+      const calculatedTotal = roundMoney(merged.totalPrice);
+      const originalTotalPrice = offered
+        ? roundMoney(calculatedTotal > 0 ? calculatedTotal : merged.billedUnits * merged.unitPrice)
+        : calculatedTotal;
       return {
         resourceId,
         name: resource.name,
@@ -804,7 +809,9 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         priceType,
-        totalPrice: merged.totalPrice,
+        originalTotalPrice,
+        offered,
+        totalPrice: offered ? 0 : calculatedTotal,
       };
     })
     .filter(Boolean);

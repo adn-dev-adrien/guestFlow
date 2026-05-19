@@ -207,7 +207,7 @@ export default function ReservationPage() {
       .filter((line) => line.description && Number(line.amount || 0) > 0)
       .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
-      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0) }))
+      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered) }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
   }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds]);
@@ -388,6 +388,7 @@ export default function ReservationPage() {
           ...item,
           unitPrice: Number(line?.unitPrice ?? item.unitPrice ?? 0),
           totalPrice: Number(line?.totalPrice || 0),
+          offered: Boolean(line?.offered ?? item.offered),
         };
       }),
     };
@@ -517,7 +518,7 @@ export default function ReservationPage() {
             notes: res.notes || '',
             selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
             customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
-            selectedResources: (res.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
+            selectedResources: (res.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice, offered: Boolean(r.offered) })),
             checkInTime: res.checkInTime || '15:00',
             checkOutTime: res.checkOutTime || '10:00',
             startDate: res.startDate,
@@ -619,7 +620,7 @@ export default function ReservationPage() {
             notes: devis.notes || '',
             selectedOptions: (devis.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
             customOptions: (devis.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
-            selectedResources: (devis.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice })),
+            selectedResources: (devis.resources || []).map(r => ({ resourceId: r.resourceId, quantity: r.quantity, unitPrice: r.unitPrice, totalPrice: r.totalPrice, offered: Boolean(r.offered) })),
             checkInTime: devis.checkInTime || '15:00',
             checkOutTime: devis.checkOutTime || '10:00',
             startDate: devis.startDate,
@@ -814,7 +815,7 @@ export default function ReservationPage() {
           balanceAmount: form.balanceAmount,
           selectedOptions: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
-          selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+          selectedResources: buildSelectedResourcesPayload(),
           offeredOptionIds: Array.from(offeredOptionIds),
           lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
           lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
@@ -1011,6 +1012,7 @@ export default function ReservationPage() {
             quantity: normalizedQty,
             unitPrice: Number(resource?.price || 0),
             totalPrice: 0,
+            offered: false,
           }
         ];
       }
@@ -1026,6 +1028,17 @@ export default function ReservationPage() {
       return;
     }
     setResourceQuantity(resourceId, 0);
+  };
+
+  const setResourceOffered = (resourceId, offered) => {
+    setForm((prev) => recalcPrice({
+      ...prev,
+      selectedResources: (prev.selectedResources || []).map((sr) => (
+        Number(sr.resourceId) === Number(resourceId)
+          ? { ...sr, offered: Boolean(offered) }
+          : sr
+      )),
+    }));
   };
 
   const addCustomOption = () => {
@@ -1069,6 +1082,17 @@ export default function ReservationPage() {
         offered: Boolean(line.offered),
       }))
       .filter((line) => line.description && Number(line.amount || 0) > 0);
+  };
+
+  const buildSelectedResourcesPayload = () => {
+    return (form.selectedResources || [])
+      .map((item) => ({
+        resourceId: item.resourceId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        offered: Boolean(item.offered),
+      }))
+      .filter((item) => Number(item.quantity || 0) > 0);
   };
 
   // ==================== CLIENT CREATION ====================
@@ -1240,7 +1264,7 @@ export default function ReservationPage() {
         balanceAmount: form.balanceAmount,
         selectedOptions: buildSelectedOptionsPayload(),
         customOptions: buildCustomOptionsPayload(),
-        selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+        selectedResources: buildSelectedResourcesPayload(),
         offeredOptionIds: Array.from(offeredOptionIds),
         reservationId: editingReservationId,
         forceCurrentPricing: true,
@@ -1342,7 +1366,7 @@ export default function ReservationPage() {
         balanceAmount: form.balanceAmount,
         selectedOptions: buildSelectedOptionsPayload(),
         customOptions: buildCustomOptionsPayload(),
-        selectedResources: (form.selectedResources || []).map((item) => ({ resourceId: item.resourceId, quantity: item.quantity, unitPrice: item.unitPrice })),
+        selectedResources: buildSelectedResourcesPayload(),
         offeredOptionIds: Array.from(offeredOptionIds),
         lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
         lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
@@ -2933,16 +2957,49 @@ export default function ReservationPage() {
                       </Typography>
                       {resourcesSelected.map(sr => {
                         const res = availableResources.find(r => r.id === sr.resourceId);
+                        const isOffered = Boolean(sr.offered);
                         const total = Number(sr.totalPrice || 0);
+                        const originalTotal = Number(sr.originalTotalPrice ?? total ?? 0);
                         const isPerHour = Boolean(res?.isComplex) || (sr.priceType || res?.priceType) === 'per_hour';
                         const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
+                        const resourceHint = hasFreeFirstHour ? '1ère heure offerte' : '';
                         return (
-                          <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="body2" color="text.secondary">
-                              {sr.name || res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}${isPerHour ? 'h' : ''}` : ''}
-                              {hasFreeFirstHour ? ' • 1ère heure offerte' : ''}
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{total.toFixed(2)}€</Typography>
+                          <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                {sr.name || res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}${isPerHour ? 'h' : ''}` : ''}
+                              </Typography>
+                              {resourceHint && (
+                                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  {resourceHint}
+                                </Typography>
+                              )}
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              {isPerHour && (
+                                <Button
+                                  size="small"
+                                  variant={isOffered ? 'contained' : 'outlined'}
+                                  color={isOffered ? 'success' : 'inherit'}
+                                  onClick={() => setResourceOffered(sr.resourceId, !isOffered)}
+                                  sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                                >
+                                  {isOffered ? '✓ Offert' : 'Offrir'}
+                                </Button>
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 600,
+                                  whiteSpace: 'nowrap',
+                                  textDecoration: isOffered ? 'line-through' : 'none',
+                                  opacity: isOffered ? 0.6 : 1,
+                                  color: isOffered ? 'text.secondary' : 'inherit',
+                                }}
+                              >
+                                {(isOffered ? originalTotal : total).toFixed(2)}€
+                              </Typography>
+                            </Box>
                           </Box>
                         );
                       })}

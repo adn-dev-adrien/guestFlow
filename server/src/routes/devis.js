@@ -237,7 +237,8 @@ function enrichDevis(row) {
     ORDER BY dco.sortOrder, dco.id
   `).all(row.id);
   const resources = db.prepare(`
-    SELECT dr.*, r.name, r.priceType as resourcePriceType
+    SELECT dr.*, r.name, r.priceType as resourcePriceType,
+      COALESCE(dr.offered, CASE WHEN COALESCE(dr.totalPrice, 0) = 0 AND COALESCE(dr.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
     FROM devis_resources dr
     JOIN resources r ON dr.resourceId = r.id
     WHERE dr.devisId = ?
@@ -489,13 +490,13 @@ router.post('/', (req, res) => {
 
   // Insert resources
   const insertResource = db.prepare(`
-    INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const line of quote.resourceLines || []) {
     insertResource.run(devisId, Number(line.resourceId), Number(line.quantity || 1),
       roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0),
-      line.priceType || 'per_stay', roundMoney(line.totalPrice));
+      line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
   }
 
   // Insert nightly breakdown
@@ -660,13 +661,13 @@ router.put('/:id', (req, res) => {
   // Replace resources
   db.prepare('DELETE FROM devis_resources WHERE devisId = ?').run(id);
   const insertResource = db.prepare(`
-    INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const line of quote.resourceLines || []) {
     insertResource.run(id, Number(line.resourceId), Number(line.quantity || 1),
       roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0),
-      line.priceType || 'per_stay', roundMoney(line.totalPrice));
+      line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
   }
 
   // Replace nights
@@ -792,11 +793,11 @@ router.post('/:id/convert-to-reservation', (req, res) => {
 
   // Copy resources
   const insertRsc = db.prepare(`
-    INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const r of devisResources) {
-    insertRsc.run(reservationId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice);
+    insertRsc.run(reservationId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice, r.offered ? 1 : 0);
   }
 
   // Copy nights
@@ -915,11 +916,11 @@ router.post('/from-reservation/:reservationId', (req, res) => {
   }
 
   const insertRsc = db.prepare(`
-    INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const r of resResources) {
-    insertRsc.run(devisId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice);
+    insertRsc.run(devisId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice, r.offered ? 1 : 0);
   }
 
   const insertNight = db.prepare(`

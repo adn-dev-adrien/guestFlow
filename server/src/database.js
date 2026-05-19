@@ -218,6 +218,7 @@ db.exec(`
     billedUnits REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     totalPrice REAL NOT NULL DEFAULT 0,
+    offered INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (reservationId, resourceId),
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
@@ -486,6 +487,15 @@ if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('bil
 if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('priceType')) {
   db.exec("ALTER TABLE reservation_resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
 }
+if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('offered')) {
+  try {
+    db.exec("ALTER TABLE reservation_resources ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+  } catch (error) {
+    if (!String(error?.message || '').includes('duplicate column name')) {
+      throw error;
+    }
+  }
+}
 
 const reservationCustomOptionCols = db.prepare("PRAGMA table_info(reservation_custom_options)").all().map(c => c.name);
 if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('offered')) {
@@ -522,6 +532,17 @@ tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN aut
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
   db.exec("ALTER TABLE devis_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
+
+const devisResourceCols = db.prepare("PRAGMA table_info(devis_resources)").all().map(c => c.name);
+if (devisResourceCols.length > 0 && !devisResourceCols.includes('offered')) {
+  try {
+    db.exec("ALTER TABLE devis_resources ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+  } catch (error) {
+    if (!String(error?.message || '').includes('duplicate column name')) {
+      throw error;
+    }
+  }
 }
 
 // ---------- RESOURCES COMPLEX COLUMNS ----------
@@ -746,6 +767,7 @@ db.exec(`
     billedUnits REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     totalPrice REAL NOT NULL DEFAULT 0,
+    offered INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (devisId, resourceId),
     FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
     FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE

@@ -62,9 +62,10 @@ function getResourcesSignature(lines) {
       resourceId: Number(line.resourceId),
       quantity: Number(line.quantity || 0),
       totalPrice: Number(line.totalPrice || 0),
+      offered: Number(line.offered || 0),
     }))
     .sort((a, b) => a.resourceId - b.resourceId)
-    .map((line) => `${line.resourceId}:${line.quantity}:${line.totalPrice.toFixed(2)}`)
+    .map((line) => `${line.resourceId}:${line.quantity}:${line.totalPrice.toFixed(2)}:${line.offered}`)
     .join('|');
 }
 
@@ -73,7 +74,7 @@ function getReservationAuditSnapshotFromDb(reservationId) {
   if (!row) return null;
   const options = db.prepare('SELECT optionId, quantity, totalPrice FROM reservation_options WHERE reservationId = ?').all(reservationId);
   const customOptions = db.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId);
-  const resources = db.prepare('SELECT resourceId, quantity, totalPrice FROM reservation_resources WHERE reservationId = ?').all(reservationId);
+  const resources = db.prepare('SELECT resourceId, quantity, totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(reservationId);
   return {
     propertyId: Number(row.propertyId),
     clientId: Number(row.clientId),
@@ -392,7 +393,8 @@ router.get('/:id', (req, res) => {
   reservation.options = [...reservation.options, ...customOptions];
 
   reservation.resources = db.prepare(`
-    SELECT rr.*, rs.name, rs.note, rs.propertyId, rs.priceType
+    SELECT rr.*, rs.name, rs.note, rs.propertyId, rs.priceType,
+      COALESCE(rr.offered, CASE WHEN COALESCE(rr.totalPrice, 0) = 0 AND COALESCE(rr.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
     FROM reservation_resources rr
     JOIN resources rs ON rr.resourceId = rs.id
     WHERE rr.reservationId = ?
@@ -456,7 +458,7 @@ function getReservationPricingSnapshot(reservationId) {
   `).all(reservationId);
 
   const lockedResourceLines = db.prepare(`
-    SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice
+    SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered
     FROM reservation_resources
     WHERE reservationId = ?
   `).all(reservationId);
@@ -855,7 +857,7 @@ router.post('/', (req, res) => {
 
   // Insert reservation resources with availability check
   if (reservationResources && reservationResources.length > 0) {
-    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
@@ -882,6 +884,7 @@ router.post('/', (req, res) => {
         Number(rr.billedUnits || qty),
         rr.priceType || resource.priceType || 'per_stay',
         rr.totalPrice || unitPrice * qty,
+        rr.offered ? 1 : 0,
       );
     }
   }
@@ -1145,7 +1148,7 @@ router.put('/:id', (req, res) => {
   // Rebuild reservation resources with availability check
   if (!pastReservationLocked && reservationResources) {
     db.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(req.params.id);
-    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const insertRes = db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const rr of quote.resourceLines || []) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(rr.resourceId);
       if (!resource) return res.status(400).json({ error: `Ressource introuvable (id=${rr.resourceId})` });
@@ -1172,6 +1175,7 @@ router.put('/:id', (req, res) => {
         Number(rr.billedUnits || qty),
         rr.priceType || resource.priceType || 'per_stay',
         rr.totalPrice || unitPrice * qty,
+        rr.offered ? 1 : 0,
       );
     }
   }

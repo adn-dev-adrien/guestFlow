@@ -316,3 +316,43 @@ test('calculateReservationQuote treats complex hourly resources as hourly and ap
 
   db.close();
 });
+
+test('calculateReservationQuote keeps an offered complex hourly resource at zero while preserving its original price', () => {
+  const db = createPricingTestDb();
+  db.prepare(`
+    INSERT INTO resources (id, name, quantity, price, priceType, isComplex, propertyIds)
+    VALUES (21, 'Bain nordique offert', 1, 50, 'per_stay', 1, '[1]')
+  `).run();
+  db.prepare(`
+    INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes)
+    VALUES (1, 21, 50, 60)
+  `).run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-12',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 0,
+    teens: 0,
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [],
+    selectedResources: [{ resourceId: 21, quantity: 2, unitPrice: 50, offered: true }],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  assert.equal(quote.resourceLines.length, 1);
+  assert.equal(quote.resourceLines[0].resourceId, 21);
+  assert.equal(quote.resourceLines[0].offered, true);
+  assert.equal(quote.resourceLines[0].originalTotalPrice, 50);
+  assert.equal(quote.resourceLines[0].totalPrice, 0);
+  assert.equal(quote.resourcesTotal, 0);
+  assert.equal(quote.finalPrice, 240);
+
+  db.close();
+});
