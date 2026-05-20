@@ -1059,6 +1059,14 @@ router.get('/:id/pdf', (req, res) => {
       doc.text(line, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH }); cy += 13;
     }
   }
+  if (settings.companyPhone) {
+    doc.text(`Tél : ${settings.companyPhone}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
+    cy += 13;
+  }
+  if (settings.companyEmail) {
+    doc.text(`Email : ${settings.companyEmail}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
+    cy += 13;
+  }
 
   // Client info (right)
   doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text('CLIENT', COL2, INFO_TOP);
@@ -1435,6 +1443,8 @@ router.get('/:id/pdf', (req, res) => {
 
   // ── Per-page footer (company name + SIRET/TVA + page n/N) ─────────────────
   const legalParts = [];
+  if (settings.companyPhone) legalParts.push(`Tél : ${settings.companyPhone}`);
+  if (settings.companyEmail) legalParts.push(`Email : ${settings.companyEmail}`);
   if (settings.companySiret) legalParts.push(`SIRET : ${settings.companySiret}`);
   if (settings.companyTva) legalParts.push(`N° TVA : ${settings.companyTva}`);
   const legalCenter = legalParts.join('   •   ');

@@ -42,6 +42,8 @@ export default function SettingsPage() {
     googleServiceAccountPrivateKey: '',
     companyName: '',
     companyAddress: '',
+    companyEmail: '',
+    companyPhone: '',
     companySiret: '',
     companyTva: '',
     companyIban: '',
@@ -112,6 +114,8 @@ export default function SettingsPage() {
           googleServiceAccountPrivateKey: settings.googleServiceAccountPrivateKey || '',
           companyName: settings.companyName || '',
           companyAddress: settings.companyAddress || '',
+          companyEmail: settings.companyEmail || '',
+          companyPhone: settings.companyPhone || '',
           companySiret: settings.companySiret || '',
           companyTva: settings.companyTva || '',
           companyIban: settings.companyIban || '',
@@ -153,6 +157,8 @@ export default function SettingsPage() {
         googleServiceAccountPrivateKey: saved.googleServiceAccountPrivateKey || '',
         companyName: saved.companyName || '',
         companyAddress: saved.companyAddress || '',
+        companyEmail: saved.companyEmail || '',
+        companyPhone: saved.companyPhone || '',
         companySiret: saved.companySiret || '',
         companyTva: saved.companyTva || '',
         companyIban: saved.companyIban || '',
@@ -421,6 +427,23 @@ export default function SettingsPage() {
               disabled={loading || saving}
               helperText="Vous pouvez utiliser des retours à la ligne."
             />
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Email de contact"
+                value={form.companyEmail}
+                onChange={(e) => updateField('companyEmail', e.target.value)}
+                fullWidth
+                disabled={loading || saving}
+              />
+              <TextField
+                label="Téléphone de contact"
+                value={form.companyPhone}
+                onChange={(e) => updateField('companyPhone', e.target.value)}
+                fullWidth
+                disabled={loading || saving}
+              />
+            </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField

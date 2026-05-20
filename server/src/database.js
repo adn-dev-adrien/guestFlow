@@ -675,6 +675,8 @@ db.exec(`
     googleServiceAccountPrivateKey TEXT DEFAULT '',
     companyName TEXT DEFAULT '',
     companyAddress TEXT DEFAULT '',
+    companyEmail TEXT DEFAULT '',
+    companyPhone TEXT DEFAULT '',
     companySiret TEXT DEFAULT '',
     companyTva TEXT DEFAULT '',
     companyIban TEXT DEFAULT '',
@@ -698,6 +700,8 @@ const tryAddAppSettingsCol = (col, sql) => {
 };
 tryAddAppSettingsCol('companyName', "ALTER TABLE app_settings ADD COLUMN companyName TEXT DEFAULT ''");
 tryAddAppSettingsCol('companyAddress', "ALTER TABLE app_settings ADD COLUMN companyAddress TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyEmail', "ALTER TABLE app_settings ADD COLUMN companyEmail TEXT DEFAULT ''");
+tryAddAppSettingsCol('companyPhone', "ALTER TABLE app_settings ADD COLUMN companyPhone TEXT DEFAULT ''");
 tryAddAppSettingsCol('companySiret', "ALTER TABLE app_settings ADD COLUMN companySiret TEXT DEFAULT ''");
 tryAddAppSettingsCol('companyTva', "ALTER TABLE app_settings ADD COLUMN companyTva TEXT DEFAULT ''");
 tryAddAppSettingsCol('companyIban', "ALTER TABLE app_settings ADD COLUMN companyIban TEXT DEFAULT ''");
@@ -1113,6 +1117,8 @@ function getAppSettings() {
     googleServiceAccountPrivateKey: '',
     companyName: '',
     companyAddress: '',
+    companyEmail: '',
+    companyPhone: '',
     companySiret: '',
     companyTva: '',
     companyIban: '',
@@ -1127,35 +1133,121 @@ function getAppSettings() {
 }
 
 function upsertAppSettings({
-  googleCalendarId = '',
-  googleServiceAccountEmail = '',
-  googleServiceAccountPrivateKey = '',
-  companyName = '',
-  companyAddress = '',
-  companySiret = '',
-  companyTva = '',
-  companyIban = '',
-  companyBic = '',
-  companyBankName = '',
-  quoteFooterText = '',
-  quoteValidityDays = 30,
+  googleCalendarId,
+  googleServiceAccountEmail,
+  googleServiceAccountPrivateKey,
+  companyName,
+  companyAddress,
+  companyEmail,
+  companyPhone,
+  companySiret,
+  companyTva,
+  companyIban,
+  companyBic,
+  companyBankName,
+  quoteFooterText,
+  quoteValidityDays,
   companyLogoPath,
 }) {
-  // Build update dynamically to preserve existing logo if not provided
-  const current = db.prepare('SELECT companyLogoPath FROM app_settings WHERE id = 1').get();
-  const logoPath = companyLogoPath !== undefined ? String(companyLogoPath || '') : (current?.companyLogoPath || '');
+  // Non-destructive upsert: preserve existing values when payload omits fields.
+  const current = db.getAppSettings();
+  const resolved = {
+    googleCalendarId: googleCalendarId !== undefined
+      ? String(googleCalendarId || '').trim()
+      : String(current.googleCalendarId || '').trim(),
+    googleServiceAccountEmail: googleServiceAccountEmail !== undefined
+      ? String(googleServiceAccountEmail || '').trim()
+      : String(current.googleServiceAccountEmail || '').trim(),
+    googleServiceAccountPrivateKey: googleServiceAccountPrivateKey !== undefined
+      ? String(googleServiceAccountPrivateKey || '')
+      : String(current.googleServiceAccountPrivateKey || ''),
+    companyName: companyName !== undefined
+      ? String(companyName || '').trim()
+      : String(current.companyName || '').trim(),
+    companyAddress: companyAddress !== undefined
+      ? String(companyAddress || '').trim()
+      : String(current.companyAddress || '').trim(),
+    companyEmail: companyEmail !== undefined
+      ? String(companyEmail || '').trim()
+      : String(current.companyEmail || '').trim(),
+    companyPhone: companyPhone !== undefined
+      ? String(companyPhone || '').trim()
+      : String(current.companyPhone || '').trim(),
+    companySiret: companySiret !== undefined
+      ? String(companySiret || '').trim()
+      : String(current.companySiret || '').trim(),
+    companyTva: companyTva !== undefined
+      ? String(companyTva || '').trim()
+      : String(current.companyTva || '').trim(),
+    companyIban: companyIban !== undefined
+      ? String(companyIban || '').trim()
+      : String(current.companyIban || '').trim(),
+    companyBic: companyBic !== undefined
+      ? String(companyBic || '').trim()
+      : String(current.companyBic || '').trim(),
+    companyBankName: companyBankName !== undefined
+      ? String(companyBankName || '').trim()
+      : String(current.companyBankName || '').trim(),
+    quoteFooterText: quoteFooterText !== undefined
+      ? String(quoteFooterText || '')
+      : String(current.quoteFooterText || ''),
+    quoteValidityDays: quoteValidityDays !== undefined
+      ? (Number(quoteValidityDays) || 30)
+      : (Number(current.quoteValidityDays) || 30),
+    companyLogoPath: companyLogoPath !== undefined
+      ? String(companyLogoPath || '')
+      : String(current.companyLogoPath || ''),
+  };
 
   db.prepare(`
-    INSERT INTO app_settings (id, googleCalendarId, googleServiceAccountEmail, googleServiceAccountPrivateKey,
-      companyName, companyAddress, companySiret, companyTva, companyIban, companyBic, companyBankName,
-      quoteFooterText, quoteValidityDays, companyLogoPath, createdAt, updatedAt)
-    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO app_settings (
+      id,
+      googleCalendarId,
+      googleServiceAccountEmail,
+      googleServiceAccountPrivateKey,
+      companyName,
+      companyAddress,
+      companyEmail,
+      companyPhone,
+      companySiret,
+      companyTva,
+      companyIban,
+      companyBic,
+      companyBankName,
+      quoteFooterText,
+      quoteValidityDays,
+      companyLogoPath,
+      createdAt,
+      updatedAt
+    )
+    VALUES (
+      1,
+      @googleCalendarId,
+      @googleServiceAccountEmail,
+      @googleServiceAccountPrivateKey,
+      @companyName,
+      @companyAddress,
+      @companyEmail,
+      @companyPhone,
+      @companySiret,
+      @companyTva,
+      @companyIban,
+      @companyBic,
+      @companyBankName,
+      @quoteFooterText,
+      @quoteValidityDays,
+      @companyLogoPath,
+      datetime('now'),
+      datetime('now')
+    )
     ON CONFLICT(id) DO UPDATE SET
       googleCalendarId = excluded.googleCalendarId,
       googleServiceAccountEmail = excluded.googleServiceAccountEmail,
       googleServiceAccountPrivateKey = excluded.googleServiceAccountPrivateKey,
       companyName = excluded.companyName,
       companyAddress = excluded.companyAddress,
+      companyEmail = excluded.companyEmail,
+      companyPhone = excluded.companyPhone,
       companySiret = excluded.companySiret,
       companyTva = excluded.companyTva,
       companyIban = excluded.companyIban,
@@ -1165,21 +1257,23 @@ function upsertAppSettings({
       quoteValidityDays = excluded.quoteValidityDays,
       companyLogoPath = excluded.companyLogoPath,
       updatedAt = datetime('now')
-  `).run(
-    String(googleCalendarId || '').trim(),
-    String(googleServiceAccountEmail || '').trim(),
-    String(googleServiceAccountPrivateKey || ''),
-    String(companyName || '').trim(),
-    String(companyAddress || '').trim(),
-    String(companySiret || '').trim(),
-    String(companyTva || '').trim(),
-    String(companyIban || '').trim(),
-    String(companyBic || '').trim(),
-    String(companyBankName || '').trim(),
-    String(quoteFooterText || ''),
-    Number(quoteValidityDays) || 30,
-    logoPath,
-  );
+  `).run({
+    googleCalendarId: resolved.googleCalendarId,
+    googleServiceAccountEmail: resolved.googleServiceAccountEmail,
+    googleServiceAccountPrivateKey: resolved.googleServiceAccountPrivateKey,
+    companyName: resolved.companyName,
+    companyAddress: resolved.companyAddress,
+    companyEmail: resolved.companyEmail,
+    companyPhone: resolved.companyPhone,
+    companySiret: resolved.companySiret,
+    companyTva: resolved.companyTva,
+    companyIban: resolved.companyIban,
+    companyBic: resolved.companyBic,
+    companyBankName: resolved.companyBankName,
+    quoteFooterText: resolved.quoteFooterText,
+    quoteValidityDays: resolved.quoteValidityDays,
+    companyLogoPath: resolved.companyLogoPath,
+  });
 }
 
 function generateDevisNumber() {

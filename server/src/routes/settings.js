@@ -30,6 +30,8 @@ function toSettingsPayload(row) {
     googleServiceAccountPrivateKey: String(row.googleServiceAccountPrivateKey || ''),
     companyName: String(row.companyName || '').trim(),
     companyAddress: String(row.companyAddress || '').trim(),
+    companyEmail: String(row.companyEmail || '').trim(),
+    companyPhone: String(row.companyPhone || '').trim(),
     companySiret: String(row.companySiret || '').trim(),
     companyTva: String(row.companyTva || '').trim(),
     companyIban: String(row.companyIban || '').trim(),
@@ -48,19 +50,50 @@ router.get('/', (req, res) => {
 });
 
 router.put('/', (req, res) => {
+  const current = db.getAppSettings();
   const payload = {
-    googleCalendarId: String(req.body.googleCalendarId || '').trim(),
-    googleServiceAccountEmail: String(req.body.googleServiceAccountEmail || '').trim(),
-    googleServiceAccountPrivateKey: String(req.body.googleServiceAccountPrivateKey || ''),
-    companyName: String(req.body.companyName || '').trim(),
-    companyAddress: String(req.body.companyAddress || '').trim(),
-    companySiret: String(req.body.companySiret || '').trim(),
-    companyTva: String(req.body.companyTva || '').trim(),
-    companyIban: String(req.body.companyIban || '').trim(),
-    companyBic: String(req.body.companyBic || '').trim(),
-    companyBankName: String(req.body.companyBankName || '').trim(),
-    quoteFooterText: String(req.body.quoteFooterText || ''),
-    quoteValidityDays: Number(req.body.quoteValidityDays) || 30,
+    googleCalendarId: req.body.googleCalendarId !== undefined
+      ? String(req.body.googleCalendarId || '').trim()
+      : current.googleCalendarId,
+    googleServiceAccountEmail: req.body.googleServiceAccountEmail !== undefined
+      ? String(req.body.googleServiceAccountEmail || '').trim()
+      : current.googleServiceAccountEmail,
+    googleServiceAccountPrivateKey: req.body.googleServiceAccountPrivateKey !== undefined
+      ? String(req.body.googleServiceAccountPrivateKey || '')
+      : current.googleServiceAccountPrivateKey,
+    companyName: req.body.companyName !== undefined
+      ? String(req.body.companyName || '').trim()
+      : current.companyName,
+    companyAddress: req.body.companyAddress !== undefined
+      ? String(req.body.companyAddress || '').trim()
+      : current.companyAddress,
+    companyEmail: req.body.companyEmail !== undefined
+      ? String(req.body.companyEmail || '').trim()
+      : current.companyEmail,
+    companyPhone: req.body.companyPhone !== undefined
+      ? String(req.body.companyPhone || '').trim()
+      : current.companyPhone,
+    companySiret: req.body.companySiret !== undefined
+      ? String(req.body.companySiret || '').trim()
+      : current.companySiret,
+    companyTva: req.body.companyTva !== undefined
+      ? String(req.body.companyTva || '').trim()
+      : current.companyTva,
+    companyIban: req.body.companyIban !== undefined
+      ? String(req.body.companyIban || '').trim()
+      : current.companyIban,
+    companyBic: req.body.companyBic !== undefined
+      ? String(req.body.companyBic || '').trim()
+      : current.companyBic,
+    companyBankName: req.body.companyBankName !== undefined
+      ? String(req.body.companyBankName || '').trim()
+      : current.companyBankName,
+    quoteFooterText: req.body.quoteFooterText !== undefined
+      ? String(req.body.quoteFooterText || '')
+      : current.quoteFooterText,
+    quoteValidityDays: req.body.quoteValidityDays !== undefined
+      ? (Number(req.body.quoteValidityDays) || 30)
+      : (Number(current.quoteValidityDays) || 30),
   };
 
   db.upsertAppSettings(payload);
