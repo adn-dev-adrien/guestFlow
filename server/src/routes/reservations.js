@@ -34,6 +34,7 @@ const HISTORY_FIELD_LABELS = {
   cautionReceivedDate: 'Date réception caution',
   cautionReturned: 'Caution restituée',
   cautionReturnedDate: 'Date restitution caution',
+  extraGuestSurchargeOffered: 'Surcoût voyageurs offert',
   optionsSignature: 'Options',
   resourcesSignature: 'Ressources',
 };
@@ -106,6 +107,7 @@ function getReservationAuditSnapshotFromDb(reservationId) {
     cautionReceivedDate: row.cautionReceivedDate || null,
     cautionReturned: Number(row.cautionReturned || 0),
     cautionReturnedDate: row.cautionReturnedDate || null,
+    extraGuestSurchargeOffered: Number(row.extraGuestSurchargeOffered || 0),
     optionsSignature: getOptionsSignature([
       ...options,
       ...customOptions.map((line, idx) => ({ optionId: 1000000 + idx, quantity: 1, totalPrice: Number(line.offered ? 0 : (line.amount || 0)) })),
@@ -146,6 +148,7 @@ function getReservationAuditSnapshotFromPayload(payload, quote) {
     cautionReceivedDate: payload.cautionReceivedDate || null,
     cautionReturned: payload.cautionReturned ? 1 : 0,
     cautionReturnedDate: payload.cautionReturnedDate || null,
+    extraGuestSurchargeOffered: payload.extraGuestSurchargeOffered ? 1 : 0,
     optionsSignature: getOptionsSignature((quote.optionLines || []).map((line, idx) => ({
       optionId: line.optionId != null ? Number(line.optionId) : (2000000 + idx),
       quantity: Number(line.quantity || 1),
@@ -514,6 +517,7 @@ router.post('/calculate-price', (req, res) => {
     selectedResources: req.body.selectedResources,
     depositPaid: req.body.depositPaid,
     balancePaid: req.body.balancePaid,
+    extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds: req.body.offeredOptionIds,
@@ -684,6 +688,7 @@ router.post('/', (req, res) => {
     forceCapacity,
     depositAmount, depositDueDate, balanceAmount, balanceDueDate, notes,
     cautionAmount,
+    extraGuestSurchargeOffered,
     options: reservationOptions,
     customOptions: reservationCustomOptions,
     resources: reservationResources
@@ -704,6 +709,7 @@ router.post('/', (req, res) => {
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
     selectedResources: reservationResources,
+    extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount,
     balanceAmount,
     offeredOptionIds: req.body.offeredOptionIds,
@@ -793,8 +799,8 @@ router.post('/', (req, res) => {
       checkInTime, checkOutTime,
       platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
       balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-      notes, cautionAmount, blocksPreviousNight, blocksNextNight)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?)
+      notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?)
   `).run(
     propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
     singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -804,6 +810,7 @@ router.post('/', (req, res) => {
     quote.finalPrice,
     quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, sentenceCase(notes),
     cautionAmount || 0,
+    extraGuestSurchargeOffered ? 1 : 0,
     nightBlocks.blocksPreviousNight,
     nightBlocks.blocksNextNight
   );
@@ -914,7 +921,7 @@ router.put('/:id', (req, res) => {
     forceCapacity,
     refreshPricingToCurrent,
     depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid, notes,
-    cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
+    cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate, extraGuestSurchargeOffered,
     options: reservationOptions,
     customOptions: reservationCustomOptions,
     resources: reservationResources
@@ -946,6 +953,7 @@ router.put('/:id', (req, res) => {
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
     selectedResources: reservationResources,
+    extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositPaid,
     balancePaid,
     depositAmount,
@@ -974,6 +982,7 @@ router.put('/:id', (req, res) => {
       'touristTaxTotal',
       'discountPercent',
       'finalPrice',
+      'extraGuestSurchargeOffered',
       'depositAmount',
       'balanceAmount',
       'depositPaid',
@@ -1084,7 +1093,7 @@ router.put('/:id', (req, res) => {
       checkInTime=?, checkOutTime=?,
       platform=?, totalPrice=?, touristTaxRate=?, touristTaxTotal=?, discountPercent=?, customPrice=?, finalPrice=?, depositAmount=?, depositDueDate=?,
       depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
-      cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, icalSyncLocked=?,
+      cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, extraGuestSurchargeOffered=?, icalSyncLocked=?,
       blocksPreviousNight=?, blocksNextNight=?,
       updatedAt=datetime('now')
     WHERE id=?
@@ -1098,7 +1107,7 @@ router.put('/:id', (req, res) => {
     quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, depositPaid ? 1 : 0,
     quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
     cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
-    cautionReturned ? 1 : 0, cautionReturnedDate || null, nextIcalSyncLocked,
+    cautionReturned ? 1 : 0, cautionReturnedDate || null, extraGuestSurchargeOffered ? 1 : 0, nextIcalSyncLocked,
     nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight,
     req.params.id
   );

@@ -39,6 +39,8 @@ db.exec(`
     maxAdults INTEGER DEFAULT 2,
     maxChildren INTEGER DEFAULT 0,
     maxBabies INTEGER DEFAULT 0,
+    basePriceIncludedGuests INTEGER DEFAULT 0,
+    extraGuestPrice REAL DEFAULT 0,
     singleBeds INTEGER DEFAULT 0,
     doubleBeds INTEGER DEFAULT 0,
     depositPercent REAL DEFAULT 30,
@@ -148,6 +150,7 @@ db.exec(`
     sourceIcalSourceId INTEGER,
     sourceIcalEventUid TEXT,
     icalSyncLocked INTEGER NOT NULL DEFAULT 0,
+    extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0,
     blocksPreviousNight INTEGER NOT NULL DEFAULT 0,
     blocksNextNight INTEGER NOT NULL DEFAULT 0,
     notes TEXT DEFAULT '',
@@ -374,6 +377,9 @@ if (!cols.includes('sourceIcalEventUid')) {
 if (!cols.includes('icalSyncLocked')) {
   db.exec("ALTER TABLE reservations ADD COLUMN icalSyncLocked INTEGER NOT NULL DEFAULT 0");
 }
+if (!cols.includes('extraGuestSurchargeOffered')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0");
+}
 if (!cols.includes('blocksPreviousNight')) {
   db.exec("ALTER TABLE reservations ADD COLUMN blocksPreviousNight INTEGER NOT NULL DEFAULT 0");
 }
@@ -416,6 +422,12 @@ if (!propCols.includes('touristTaxPercentage')) {
 }
 if (!propCols.includes('touristTaxFixedAmount')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxFixedAmount REAL DEFAULT 0");
+}
+if (!propCols.includes('basePriceIncludedGuests')) {
+  db.exec("ALTER TABLE properties ADD COLUMN basePriceIncludedGuests INTEGER DEFAULT 0");
+}
+if (!propCols.includes('extraGuestPrice')) {
+  db.exec("ALTER TABLE properties ADD COLUMN extraGuestPrice REAL DEFAULT 0");
 }
 
 const pricingRuleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map(c => c.name);

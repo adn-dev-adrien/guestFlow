@@ -22,6 +22,8 @@ import api from '../api';
 
 const NEW_DEFAULTS = {
   name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0,
+  basePriceIncludedGuests: 0,
+  extraGuestPrice: 0,
   singleBeds: 0, doubleBeds: 0,
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
   defaultCautionAmount: 500,
@@ -124,6 +126,8 @@ export default function PropertyDetail() {
     setProperty(p);
     const initial = {
       name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
+      basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
+      extraGuestPrice: p.extraGuestPrice ?? 0,
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
@@ -560,6 +564,30 @@ export default function PropertyDetail() {
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0 }} />
                   <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0 }} />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <TextField
+                    label="Capacité incluse dans le prix de base"
+                    type="number"
+                    value={form.basePriceIncludedGuests ?? 0}
+                    onChange={(e) => updateField('basePriceIncludedGuests', e.target.value)}
+                    onFocus={handleZeroFocus}
+                    fullWidth
+                    size="small"
+                    inputProps={{ min: 0, step: 1 }}
+                    helperText="Nombre de personnes incluses avant surcoût"
+                  />
+                  <TextField
+                    label="Supplément par personne (€ / séjour)"
+                    type="number"
+                    value={form.extraGuestPrice ?? 0}
+                    onChange={(e) => updateField('extraGuestPrice', e.target.value)}
+                    onFocus={handleZeroFocus}
+                    fullWidth
+                    size="small"
+                    inputProps={{ min: 0, step: 0.01 }}
+                    helperText="Ex: 15 pour facturer 15€ par personne supplémentaire"
+                  />
                 </Box>
               </Box>
             </CardContent>

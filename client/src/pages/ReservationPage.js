@@ -163,6 +163,7 @@ export default function ReservationPage() {
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
     status: 'draft',
     singleBeds: '', doubleBeds: '', babyBeds: '',
+    extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
@@ -186,6 +187,7 @@ export default function ReservationPage() {
     adults: Number(form.adults || 0),
     children: Number(form.children || 0),
     teens: Number(form.teens || 0),
+    extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
     discountPercent: Number(form.discountPercent || 0),
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
     depositPaid: Boolean(form.depositPaid),
@@ -209,7 +211,7 @@ export default function ReservationPage() {
       .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered) }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -499,6 +501,7 @@ export default function ReservationPage() {
             singleBeds: res.singleBeds || '',
             doubleBeds: res.doubleBeds || '',
             babyBeds: res.babyBeds || '',
+            extraGuestSurchargeOffered: Boolean(res.extraGuestSurchargeOffered),
             totalPrice: importedBlankPrice ? '' : res.totalPrice || 0,
             touristTaxRate: res.touristTaxRate || 0,
             touristTaxTotal: res.touristTaxTotal || 0,
@@ -610,6 +613,7 @@ export default function ReservationPage() {
             singleBeds: devis.singleBeds || '',
             doubleBeds: devis.doubleBeds || '',
             babyBeds: devis.babyBeds || '',
+            extraGuestSurchargeOffered: false,
             totalPrice: devis.totalPrice || 0,
             touristTaxRate: devis.touristTaxRate || 0,
             touristTaxTotal: devis.touristTaxTotal || 0,
@@ -673,6 +677,7 @@ export default function ReservationPage() {
             adults: 1,
             children: 0,
             teens: 0,
+            extraGuestSurchargeOffered: false,
             offeredOptionIds: [],
             ...(editingReservationId ? { reservationId: editingReservationId } : {}),
           });
@@ -694,6 +699,7 @@ export default function ReservationPage() {
             singleBeds: '',
             doubleBeds: '',
             babyBeds: '',
+            extraGuestSurchargeOffered: false,
             totalPrice: calc.totalPrice,
             touristTaxRate: calc.touristTaxRate || 0,
             touristTaxTotal: calc.touristTaxTotal || 0,
@@ -815,6 +821,7 @@ export default function ReservationPage() {
           adults: form.adults,
           children: form.children,
           teens: form.teens,
+          extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           discountPercent: form.discountPercent,
           customPrice: form.customPrice,
           depositPaid: form.depositPaid,
@@ -1149,6 +1156,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         offeredOptionIds: Array.from(offeredOptionIds),
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       }),
@@ -1264,6 +1272,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
         customPrice: form.customPrice,
         depositPaid: form.depositPaid,
@@ -1366,6 +1375,7 @@ export default function ReservationPage() {
         adults: form.adults,
         children: form.children,
         teens: form.teens,
+        extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
         customPrice: form.customPrice,
         depositPaid: form.depositPaid,
@@ -1419,6 +1429,7 @@ export default function ReservationPage() {
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
           customPrice: form.customPrice,
+          extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
           balanceAmount: quote.balanceAmount,
@@ -1469,6 +1480,7 @@ export default function ReservationPage() {
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
           customPrice: form.customPrice,
+          extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
           depositPaid: form.depositPaid,
@@ -1516,6 +1528,7 @@ export default function ReservationPage() {
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
           customPrice: form.customPrice,
+          extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
           balanceAmount: quote.balanceAmount,
@@ -2853,6 +2866,12 @@ export default function ReservationPage() {
               const touristTaxTotal = Number(quote?.touristTaxTotal ?? form.touristTaxTotal ?? 0);
               const optionsSelected = quote?.optionLines || [];
               const resourcesSelected = quote?.resourceLines || [];
+              const extraGuestCount = Number(quote?.extraGuestCount || 0);
+              const includedGuests = Number(quote?.includedGuests || 0);
+              const extraGuestUnitPrice = Number(quote?.extraGuestUnitPrice || 0);
+              const extraGuestSurchargeOriginal = Number(quote?.extraGuestSurchargeOriginal || 0);
+              const extraGuestSurchargeOffered = Boolean(quote?.extraGuestSurchargeOffered ?? form.extraGuestSurchargeOffered);
+              const hasExtraGuestSurcharge = extraGuestCount > 0 && extraGuestUnitPrice > 0 && extraGuestSurchargeOriginal > 0;
               const optionsTotal = Number(quote?.optionsTotal || 0);
               const resourcesTotal = Number(quote?.resourcesTotal || 0);
               const discountAmount = Number(quote?.discountAmount || 0);
@@ -2940,6 +2959,45 @@ export default function ReservationPage() {
                         </Box>
                       ))}
                     </Box>
+                  )}
+
+                  {hasExtraGuestSurcharge && (
+                    <>
+                      <Divider />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Surcoût voyageurs
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {extraGuestCount} pers. au-delà de {includedGuests} incluses × {extraGuestUnitPrice.toFixed(2)}€
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant={extraGuestSurchargeOffered ? 'contained' : 'outlined'}
+                            color={extraGuestSurchargeOffered ? 'success' : 'inherit'}
+                            onClick={() => updateForm({ extraGuestSurchargeOffered: !extraGuestSurchargeOffered })}
+                            sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                          >
+                            {extraGuestSurchargeOffered ? '✓ Offert' : 'Offrir'}
+                          </Button>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              textDecoration: extraGuestSurchargeOffered ? 'line-through' : 'none',
+                              opacity: extraGuestSurchargeOffered ? 0.6 : 1,
+                              color: extraGuestSurchargeOffered ? 'text.secondary' : 'inherit',
+                            }}
+                          >
+                            {extraGuestSurchargeOriginal.toFixed(2)}€
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </>
                   )}
 
                   {/* Options */}

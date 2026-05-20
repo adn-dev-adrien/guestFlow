@@ -630,6 +630,7 @@ function calculateReservationQuote({
   depositAmount,
   balanceAmount,
   offeredOptionIds,
+  extraGuestSurchargeOffered,
   lockedOptionUnits,
   lockedResourceUnits,
   lockedNightlyBreakdown,
@@ -707,7 +708,15 @@ function calculateReservationQuote({
 
   const mergedNightly = mergeNightlyBreakdownWithLocked(lockedNightlyBreakdown, freshNightlyBreakdown);
   const nightlyBreakdown = mergedNightly.nightlyBreakdown;
-  const totalPrice = mergedNightly.totalPrice;
+  const baseAccommodationPrice = mergedNightly.totalPrice;
+
+  const includedGuests = Math.max(0, Number(property.basePriceIncludedGuests || 0));
+  const extraGuestUnitPrice = Math.max(0, Number(property.extraGuestPrice || 0));
+  const isExtraGuestSurchargeOffered = Boolean(extraGuestSurchargeOffered);
+  const extraGuestCount = Math.max(0, persons - includedGuests);
+  const extraGuestSurchargeOriginal = roundMoney(extraGuestCount * extraGuestUnitPrice);
+  const extraGuestSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal;
+  const totalPrice = roundMoney(baseAccommodationPrice + extraGuestSurcharge);
 
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
@@ -1048,6 +1057,13 @@ function calculateReservationQuote({
     minNightsBreached,
     persons,
     totalPrice: roundMoney(totalPrice),
+    baseAccommodationPrice: roundMoney(baseAccommodationPrice),
+    includedGuests,
+    extraGuestUnitPrice,
+    extraGuestCount,
+    extraGuestSurchargeOffered: isExtraGuestSurchargeOffered,
+    extraGuestSurchargeOriginal,
+    extraGuestSurcharge,
     optionsTotal,
     resourcesTotal,
     subtotal,
