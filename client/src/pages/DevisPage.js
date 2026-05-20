@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
@@ -221,7 +221,7 @@ export default function DevisPage() {
                           </Tooltip>
                           <Tooltip title="Télécharger le PDF">
                             <IconButton size="small" onClick={() => handleOpenPdf(d)}>
-                              <PictureAsPdfIcon fontSize="small" />
+                              <DownloadIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           {d.status !== 'converted' && (

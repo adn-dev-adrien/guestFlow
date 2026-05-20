@@ -969,7 +969,7 @@ router.get('/:id/pdf', (req, res) => {
 
   const doc = new PDFDocument({
     size: 'A4',
-    margin: 45,
+    margins: { top: 34, bottom: 34, left: 45, right: 45 },
     bufferPages: true,
     info: {
       Title: `Devis ${full.devisNumber}`,
@@ -1016,23 +1016,24 @@ router.get('/:id/pdf', (req, res) => {
   const LOGO_W = 100;
   const HAS_LOGO = settings.companyLogoPath && fs.existsSync(path.join(__dirname, '..', '..', 'uploads', path.basename(settings.companyLogoPath)));
   const BAND_TOP = 40;
+  const BAND_HEIGHT = 52;
 
   // ── Header band ──────────────────────────────────────────────────────────
-  doc.rect(LEFT, BAND_TOP, PAGE_W, 70).fill(BRAND);
+  doc.rect(LEFT, BAND_TOP, PAGE_W, BAND_HEIGHT).fill(BRAND);
 
   if (settings.companyName) {
     doc.fontSize(20).fillColor('#ffffff').font('Helvetica-Bold')
-      .text(settings.companyName, LEFT + 12, BAND_TOP + 12, { width: PAGE_W * 0.55 });
+      .text(settings.companyName, LEFT + 12, BAND_TOP + 10, { width: PAGE_W * 0.55 });
   }
 
   // Devis title top-right
   doc.fontSize(18).fillColor('#ffffff').font('Helvetica-Bold')
-    .text('DEVIS', LEFT + PAGE_W * 0.6, BAND_TOP + 12, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
+    .text('DEVIS', LEFT + PAGE_W * 0.6, BAND_TOP + 10, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
   doc.fontSize(10).fillColor('#cce0ff').font('Helvetica')
-    .text(`N° ${full.devisNumber}`, LEFT + PAGE_W * 0.6, BAND_TOP + 36, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
+    .text(`N° ${full.devisNumber}`, LEFT + PAGE_W * 0.6, BAND_TOP + 31, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
 
   // ── Company & client block ───────────────────────────────────────────────
-  const INFO_TOP = BAND_TOP + 85;
+  const INFO_TOP = BAND_TOP + 74;
   // COL2 aligned with the start of the 3rd meta pill (Logement)
   const COL2 = LEFT + (PAGE_W * 2 / 3);
 
@@ -1164,7 +1165,7 @@ router.get('/:id/pdf', (req, res) => {
   const sy = sy2;
 
   // ── Pricing table ─────────────────────────────────────────────────────────
-  const TABLE_TOP = sy + ROW_H + 14;
+  const TABLE_TOP = sy + ROW_H + 6;
   doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text('DÉTAIL TARIFAIRE', LEFT, TABLE_TOP);
   doc.moveTo(LEFT, TABLE_TOP + 15).lineTo(LEFT + PAGE_W, TABLE_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
@@ -1333,9 +1334,41 @@ router.get('/:id/pdf', (req, res) => {
   doc.moveTo(LEFT, rowY).lineTo(LEFT + PAGE_W, rowY).strokeColor(MID_GRAY).lineWidth(0.5).stroke();
 
   // ── Totals ────────────────────────────────────────────────────────────────
-  let totY = checkBreak(rowY + 10, 120);
+  let totY = checkBreak(rowY + 10, 170);
   const TOTAL_LW = 200;
   const TOTAL_RX = LEFT + PAGE_W - TOTAL_LW;
+  const LEFT_COL_W = Math.max(220, TOTAL_RX - LEFT - 20);
+  let bankBottomY = totY;
+  const BANK_BLOCK_Y_OFFSET = 6;
+
+  if (settings.companyIban || settings.companyBic || settings.companyBankName) {
+    const bankTop = totY + BANK_BLOCK_Y_OFFSET;
+    let bankY = bankTop;
+    doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text('COORDONNÉES BANCAIRES', LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+    bankY += 14;
+    doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
+    if (settings.companyBankName) {
+      doc.text(`Dénomination du compte : ${settings.companyBankName}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+      bankY += 13;
+    }
+    if (settings.companyBic) {
+      doc.text(`BIC : ${settings.companyBic}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+      bankY += 13;
+    }
+    if (settings.companyIban) {
+      doc.text(`IBAN : ${settings.companyIban}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+      bankY += 13;
+    }
+
+    // Discreet frame around bank details block.
+    doc
+      .roundedRect(LEFT - 4, bankTop - 4, LEFT_COL_W - 14, (bankY - bankTop) + 8, 3)
+      .lineWidth(0.6)
+      .strokeColor('#d6d6d6')
+      .stroke();
+
+    bankBottomY = bankY + 2;
+  }
 
   function drawTotalLine(label, amount, bold) {
     doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(label, TOTAL_RX, totY, { width: 120 });
@@ -1366,6 +1399,7 @@ router.get('/:id/pdf', (req, res) => {
     .text('TOTAL TTC', TOTAL_RX - 4, totY + 4, { width: 120 });
   doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80 - RIGHT_PAD, align: 'right' });
   totY += 30;
+  totY = Math.max(totY, bankBottomY);
 
   // ── Payment schedule ──────────────────────────────────────────────────────
   totY = checkBreak(totY, 60);
@@ -1416,16 +1450,6 @@ router.get('/:id/pdf', (req, res) => {
     py += 30;
   }
 
-  // RIB / bank details
-  if (settings.companyIban || settings.companyBic || settings.companyBankName) {
-    py = checkBreak(py + 8, 70);
-    doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text('COORDONNÉES BANCAIRES', LEFT, py); py += 14;
-    doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
-    if (settings.companyBankName) { doc.text(`Dénomination du compte : ${settings.companyBankName}`, LEFT, py); py += 13; }
-    if (settings.companyIban) { doc.text(`IBAN : ${settings.companyIban}`, LEFT, py); py += 13; }
-    if (settings.companyBic) { doc.text(`BIC : ${settings.companyBic}`, LEFT, py); py += 13; }
-  }
-
   // ── Custom footer text ────────────────────────────────────────────────────
   const footerText = settings.quoteFooterText ||
     'Nous vous remercions de votre intérêt et restons à votre disposition pour tout renseignement complémentaire. ' +
@@ -1443,8 +1467,6 @@ router.get('/:id/pdf', (req, res) => {
 
   // ── Per-page footer (company name + SIRET/TVA + page n/N) ─────────────────
   const legalParts = [];
-  if (settings.companyPhone) legalParts.push(`Tél : ${settings.companyPhone}`);
-  if (settings.companyEmail) legalParts.push(`Email : ${settings.companyEmail}`);
   if (settings.companySiret) legalParts.push(`SIRET : ${settings.companySiret}`);
   if (settings.companyTva) legalParts.push(`N° TVA : ${settings.companyTva}`);
   const legalCenter = legalParts.join('   •   ');
