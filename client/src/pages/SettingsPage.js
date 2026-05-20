@@ -16,15 +16,19 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
+import SyncIcon from '@mui/icons-material/Sync';
 import api from '../api';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [googleSyncing, setGoogleSyncing] = useState(false);
   const [savedAt, setSavedAt] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [statusType, setStatusType] = useState('success');
@@ -220,6 +224,20 @@ export default function SettingsPage() {
     else navigate(-1);
   };
 
+  const handleSyncGoogleCalendar = async () => {
+    setGoogleSyncing(true);
+    try {
+      const result = await api.syncGoogleCalendarReservations();
+      setStatusType('success');
+      setStatusMessage(result?.message || 'Synchronisation Google Calendar terminée.');
+    } catch (error) {
+      setStatusType('error');
+      setStatusMessage(error?.message || 'Impossible de synchroniser les réservations vers Google Calendar.');
+    } finally {
+      setGoogleSyncing(false);
+    }
+  };
+
   return (
     <Box sx={{ pb: 6 }}>
       {/* Blocker dialog */}
@@ -276,17 +294,44 @@ export default function SettingsPage() {
             )}
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="outlined" onClick={handleCancel} disabled={!isDirty || saving || loading}>
-              Annuler
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<SaveIcon />}
-              onClick={handleSave}
-              disabled={!isDirty || saving || loading}
-            >
-              {saving ? 'Enregistrement...' : 'Enregistrer'}
-            </Button>
+            <Tooltip title="Annuler" enterDelay={1000} enterNextDelay={1000}>
+              <span>
+                <IconButton
+                  aria-label="Annuler"
+                  onClick={handleCancel}
+                  disabled={!isDirty || saving || loading}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title={saving ? 'Enregistrement...' : 'Enregistrer'} enterDelay={1000} enterNextDelay={1000}>
+              <span>
+                <IconButton
+                  color="primary"
+                  aria-label={saving ? 'Enregistrement...' : 'Enregistrer'}
+                  onClick={handleSave}
+                  disabled={!isDirty || saving || loading}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: '#fff',
+                    borderRadius: 1,
+                    '&:hover': { bgcolor: 'primary.dark' },
+                    '&.Mui-disabled': {
+                      bgcolor: 'action.disabledBackground',
+                      color: 'action.disabled',
+                    },
+                  }}
+                >
+                  {saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+                </IconButton>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
       </Box>
@@ -509,6 +554,15 @@ export default function SettingsPage() {
               <Typography variant="caption" color={hasGoogleConfig ? 'success.main' : 'warning.main'}>
                 {hasGoogleConfig ? 'Configuration Google complète.' : 'Configuration Google incomplète.'}
               </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={googleSyncing ? <CircularProgress size={14} /> : <SyncIcon fontSize="small" />}
+                onClick={handleSyncGoogleCalendar}
+                disabled={googleSyncing || loading || saving || !hasGoogleConfig}
+              >
+                {googleSyncing ? 'Sync Google...' : 'Sync Google'}
+              </Button>
             </Box>
           </Stack>
         </CardContent>

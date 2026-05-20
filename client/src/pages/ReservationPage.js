@@ -4,14 +4,14 @@ import {
   Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
   MenuItem, Typography, CircularProgress, Chip, FormControlLabel,
   Switch, Stack, Card, CardContent, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText, useMediaQuery
+  Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText, useMediaQuery, Tooltip
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
-import SyncIcon from '@mui/icons-material/Sync';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
@@ -145,7 +145,6 @@ export default function ReservationPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyEntries, setHistoryEntries] = useState([]);
-  const [googleSyncing, setGoogleSyncing] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [miniCalendarStart, setMiniCalendarStart] = useState(formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   const [miniSelectionAnchor, setMiniSelectionAnchor] = useState('');
@@ -1605,24 +1604,6 @@ export default function ReservationPage() {
     await handleSaveReservation(action);
   };
 
-  const handleSyncGoogleCalendar = async () => {
-    setGoogleSyncing(true);
-    try {
-      const result = await api.syncGoogleCalendarReservations();
-      await alert({
-        title: 'Google Calendar',
-        message: result?.message || 'Synchronisation terminee.',
-      });
-    } catch (err) {
-      await alert({
-        title: 'Erreur Google Calendar',
-        message: err?.message || 'Impossible de synchroniser les reservations vers Google Calendar.',
-      });
-    } finally {
-      setGoogleSyncing(false);
-    }
-  };
-
   const buildBackUrlWithReservationFocus = useCallback(() => {
     if (!from) return from;
     if (!from.startsWith('/calendar')) return from;
@@ -1881,9 +1862,19 @@ export default function ReservationPage() {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Button startIcon={<ArrowBackIcon />} variant="text" onClick={goBackToOrigin}>
-              Retour
-            </Button>
+            <Tooltip title="Retour" enterDelay={1000} enterNextDelay={1000}>
+              <IconButton
+                aria-label="Retour"
+                onClick={goBackToOrigin}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+            </Tooltip>
             <Typography variant="h6" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 700 }}>
               {computedTitle}
             </Typography>
@@ -1893,40 +1884,37 @@ export default function ReservationPage() {
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {!isDevisMode && (
-              <Button
-                variant="outlined"
-                startIcon={googleSyncing ? <CircularProgress size={16} /> : <SyncIcon />}
-                onClick={handleSyncGoogleCalendar}
-                disabled={googleSyncing}
-              >
-                {googleSyncing ? 'Sync Google...' : 'Sync Google'}
-              </Button>
-            )}
-            {!isDevisMode && reservationId && (
-              <Button variant="outlined" color="warning" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
-                Actualiser tarifs
-              </Button>
-            )}
             {!isDevisMode && !reservationId && (
-              <Button
-                variant="outlined"
-                color="info"
-                startIcon={<DescriptionIcon />}
-                onClick={handleCreateDevisFromForm}
-              >
-                Créer un devis
-              </Button>
+              <Tooltip title="Créer un devis" enterDelay={1000} enterNextDelay={1000}>
+                <IconButton
+                  color="info"
+                  aria-label="Créer un devis"
+                  onClick={handleCreateDevisFromForm}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'info.main',
+                    borderRadius: 1,
+                  }}
+                >
+                  <DescriptionIcon />
+                </IconButton>
+              </Tooltip>
             )}
             {!isDevisMode && reservationId && (
-              <Button
-                variant="outlined"
-                color="info"
-                startIcon={<DescriptionIcon />}
-                onClick={handleConvertToDevis}
-              >
-                Transformer en devis
-              </Button>
+              <Tooltip title="Transformer en devis" enterDelay={1000} enterNextDelay={1000}>
+                <IconButton
+                  color="info"
+                  aria-label="Transformer en devis"
+                  onClick={handleConvertToDevis}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'info.main',
+                    borderRadius: 1,
+                  }}
+                >
+                  <DescriptionIcon />
+                </IconButton>
+              </Tooltip>
             )}
             {isDevisMode && (
               <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -1943,36 +1931,100 @@ export default function ReservationPage() {
               </FormControl>
             )}
             {isDevisMode && (
-              <Button
-                variant="outlined"
-                color="info"
-                startIcon={<DescriptionIcon />}
-                onClick={handleOpenDevisPdf}
-                disabled={!editingDevisId}
+              <Tooltip title="Télécharger PDF" enterDelay={1000} enterNextDelay={1000}>
+                <span>
+                  <IconButton
+                    color="info"
+                    aria-label="Télécharger PDF"
+                    onClick={handleOpenDevisPdf}
+                    disabled={!editingDevisId}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'info.main',
+                      borderRadius: 1,
+                    }}
+                  >
+                    <DescriptionIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+            {isDevisMode && editingDevisId && (
+              <Tooltip title="Passer en réservation" enterDelay={1000} enterNextDelay={1000}>
+                <IconButton
+                  color="warning"
+                  aria-label="Passer en réservation"
+                  onClick={handleConvertDevisToReservation}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'warning.main',
+                    borderRadius: 1,
+                  }}
+                >
+                  <AutoFixHighIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'} enterDelay={1000} enterNextDelay={1000}>
+              <IconButton
+                color="primary"
+                onClick={handleSaveReservation}
+                sx={{
+                  bgcolor: 'primary.main',
+                  color: '#fff',
+                  borderRadius: 1,
+                  '&:hover': { bgcolor: 'primary.dark' },
+                }}
               >
-                Télécharger PDF
-              </Button>
-            )}
-            {isDevisMode && editingDevisId && (
-              <Button variant="outlined" color="warning" startIcon={<AutoFixHighIcon />} onClick={handleConvertDevisToReservation}>
-                Passer en réservation
-              </Button>
-            )}
-            <Button startIcon={<SaveIcon />} variant="contained" onClick={handleSaveReservation}>
-              {isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
-            </Button>
-            <Button variant="outlined" onClick={goBackToOrigin}>
-              Annuler
-            </Button>
+                <SaveIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Annuler" enterDelay={1000} enterNextDelay={1000}>
+              <IconButton
+                color="default"
+                aria-label="Annuler"
+                onClick={goBackToOrigin}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Tooltip>
             {!isDevisMode && reservationId && (
-              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteReservation} disabled={isReservationLocked}>
-                Supprimer
-              </Button>
+              <Tooltip title="Supprimer" enterDelay={1000} enterNextDelay={1000}>
+                <span>
+                  <IconButton
+                    color="error"
+                    onClick={handleDeleteReservation}
+                    disabled={isReservationLocked}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'error.main',
+                      borderRadius: 1,
+                    }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
             )}
             {isDevisMode && editingDevisId && (
-              <Button startIcon={<DeleteIcon />} color="error" variant="outlined" onClick={handleDeleteDevis}>
-                Supprimer le devis
-              </Button>
+              <Tooltip title="Supprimer le devis" enterDelay={1000} enterNextDelay={1000}>
+                <IconButton
+                  color="error"
+                  onClick={handleDeleteDevis}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'error.main',
+                    borderRadius: 1,
+                  }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </Tooltip>
             )}
           </Box>
         </Box>
@@ -1984,7 +2036,7 @@ export default function ReservationPage() {
           mx: 'auto',
           px: 2,
           py: 3,
-          mt: { xs: 9, sm: 10 },
+          mt: { xs: 10, sm: 11 },
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
           gap: 3,
@@ -2528,7 +2580,14 @@ export default function ReservationPage() {
           <Box sx={{ position: 'relative', zIndex: 10 }}>
           <Stack spacing={2.5}>
           <Box>
-            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 700, mb: 2 }}>Finance</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 700, mb: 0 }}>Finance</Typography>
+              {!isDevisMode && reservationId && (
+                <Button variant="outlined" color="warning" size="small" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
+                  Actualiser tarifs
+                </Button>
+              )}
+            </Box>
 
             <Grid container spacing={2} alignItems="stretch" sx={sectionGridSx}>
               <Grid item xs={12} md={6}>
@@ -2775,7 +2834,7 @@ export default function ReservationPage() {
         <Box
           sx={{
             position: { xs: 'static', md: 'sticky' },
-            top: { md: 120 },
+            top: { md: 148 },
             height: 'fit-content',
           }}
         >
@@ -3184,7 +3243,7 @@ export default function ReservationPage() {
         </Box>
 
         {editingReservationId && (
-          <Box sx={{ gridColumn: '1 / -1' }}>
+          <Box sx={{ gridColumn: { xs: '1 / -1', md: '1 / 2' } }}>
             <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
               <CardContent sx={{ py: 1.25 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
