@@ -216,6 +216,89 @@ function getTypeMultiplier(priceType, persons, nights) {
   return 1;
 }
 
+function computeTouristTaxBreakdown({
+  touristTaxMode,
+  touristTaxPerDayPerPerson,
+  touristTaxPercentage,
+  touristTaxDepartmentPercentage,
+  touristTaxFixedAmount,
+  nights,
+  adults,
+  occupants,
+  accommodationAmountTtc,
+  accommodationVatRate,
+}) {
+  const mode = String(touristTaxMode || 'per_day_per_person');
+  const nightsCount = Math.max(0, Number(nights || 0));
+  const adultsCount = Math.max(0, Number(adults || 0));
+  const occupantsCount = Math.max(0, Number(occupants || 0));
+
+  const perDayRate = Math.max(0, Number(touristTaxPerDayPerPerson || 0));
+  const communePercentage = Math.max(0, Number(touristTaxPercentage || 0));
+  const departmentPercentage = Math.max(0, Number(touristTaxDepartmentPercentage || 0));
+  const fixedAmount = Math.max(0, Number(touristTaxFixedAmount || 0));
+
+  const accommodationReferenceTtc = Math.max(0, Number(accommodationAmountTtc || 0));
+  const vatRate = Math.max(0, Number(accommodationVatRate || 0));
+  const vatDivisor = 1 + (vatRate / 100);
+
+  const averageNightPriceTtc = nightsCount > 0
+    ? roundMoney(accommodationReferenceTtc / nightsCount)
+    : 0;
+  const averageNightPriceHt = vatDivisor > 0
+    ? roundMoney(averageNightPriceTtc / vatDivisor)
+    : averageNightPriceTtc;
+  const perOccupantNightPriceHt = occupantsCount > 0
+    ? roundMoney(averageNightPriceHt / occupantsCount)
+    : 0;
+
+  let touristTaxRate = 0;
+  let touristTaxUnitAmount = 0;
+  let municipalUnitAmount = 0;
+  let departmentUnitAmount = 0;
+  let touristTaxTotal = 0;
+  let touristTaxLabel = '';
+
+  if (mode === 'per_day_per_person') {
+    touristTaxRate = perDayRate;
+    touristTaxUnitAmount = perDayRate;
+    touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);
+    touristTaxLabel = `${touristTaxUnitAmount.toFixed(2)}EUR x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nightsCount} nuit${nightsCount > 1 ? 's' : ''}`;
+  } else if (mode === 'percentage_accommodation' || mode === 'percentage_and_fixed') {
+    touristTaxRate = communePercentage;
+    municipalUnitAmount = roundMoney(perOccupantNightPriceHt * (communePercentage / 100));
+    departmentUnitAmount = roundMoney(municipalUnitAmount * (departmentPercentage / 100));
+    touristTaxUnitAmount = roundMoney(municipalUnitAmount + departmentUnitAmount);
+    if (mode === 'percentage_and_fixed') {
+      touristTaxUnitAmount = roundMoney(touristTaxUnitAmount + fixedAmount);
+    }
+    touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);
+    const fixedLabel = mode === 'percentage_and_fixed' && fixedAmount > 0
+      ? ` + ${fixedAmount.toFixed(2)}EUR`
+      : '';
+    touristTaxLabel = `(${averageNightPriceHt.toFixed(2)}EUR HT/nuit ÷ ${occupantsCount || 0} occupant${occupantsCount > 1 ? 's' : ''}) x ${communePercentage.toFixed(2)}% + ${departmentPercentage.toFixed(2)}% dep${fixedLabel} = ${touristTaxUnitAmount.toFixed(2)}EUR/adulte/nuit`;
+  }
+
+  return {
+    touristTaxMode: mode,
+    touristTaxRate,
+    touristTaxUnitAmount,
+    touristTaxPercentage: communePercentage,
+    touristTaxDepartmentPercentage: departmentPercentage,
+    touristTaxFixedAmount: fixedAmount,
+    touristTaxPricePerNight: averageNightPriceTtc,
+    touristTaxPricePerNightHt: averageNightPriceHt,
+    touristTaxPerOccupantNightPriceHt: perOccupantNightPriceHt,
+    touristTaxMunicipalUnitAmount: municipalUnitAmount,
+    touristTaxDepartmentUnitAmount: departmentUnitAmount,
+    touristTaxAdultsCount: adultsCount,
+    touristTaxOccupantsCount: occupantsCount,
+    touristTaxNights: nightsCount,
+    touristTaxLabel,
+    touristTaxTotal,
+  };
+}
+
 function timeToDecimalHour(timeStr, fallback = 0) {
   const value = String(timeStr || '').trim();
   const match = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -620,6 +703,7 @@ function calculateReservationQuote({
   adults,
   children,
   teens,
+  babies,
   discountPercent,
   customPrice,
   selectedOptions,
@@ -967,6 +1051,11 @@ function calculateReservationQuote({
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
   const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
   const accommodationDeltaAmount = roundMoney(Math.abs(accommodationBaseTotal - accommodationAdjustedPrice));
+  const baseAccommodationAdjustedPrice = roundMoney(
+    Number.isFinite(customFinalPrice)
+      ? Math.max(0, customFinalPrice - extraGuestSurcharge)
+      : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100)
+  );
   const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
     ? 'reduction'
     : accommodationAdjustedPrice > accommodationBaseTotal
@@ -994,44 +1083,19 @@ function calculateReservationQuote({
   const depositDueDate = addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
   const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
-  // Calculate tourist tax based on mode
-  const touristTaxMode = property.touristTaxMode || 'per_day_per_person';
-  const adultsCount = Number(adults || 1);
-  let touristTaxTotal = 0;
-  let touristTaxRate = 0; // Helper value for response
-  let touristTaxUnitAmount = 0;
-  let touristTaxPercentage = 0;
-  let touristTaxFixedAmount = 0;
-  let touristTaxPricePerNight = 0;
-  let touristTaxLabel = '';
-  
-  if (touristTaxMode === 'per_day_per_person') {
-    // Mode 1: Flat amount per day per adult
-    touristTaxRate = Number(property.touristTaxPerDayPerPerson || 0);
-    touristTaxUnitAmount = touristTaxRate;
-    touristTaxTotal = roundMoney(touristTaxRate * nights * adultsCount);
-    touristTaxLabel = `${touristTaxUnitAmount.toFixed(2)}EUR x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
-  } else if (touristTaxMode === 'percentage_accommodation') {
-    // Mode 2: Percentage of accommodation per day per adult
-    // Calculate price per night, apply percentage, multiply by nights and adults
-    touristTaxPercentage = Number(property.touristTaxPercentage || 0);
-    touristTaxRate = touristTaxPercentage; // Store percentage for reference
-    touristTaxPricePerNight = roundMoney(accommodationAdjustedPrice / nights);
-    touristTaxUnitAmount = roundMoney(touristTaxPricePerNight * (touristTaxPercentage / 100));
-    touristTaxTotal = roundMoney(touristTaxUnitAmount * nights * adultsCount);
-    touristTaxLabel = `(${touristTaxPricePerNight.toFixed(2)}EUR x ${touristTaxPercentage.toFixed(2)}%) x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
-  } else if (touristTaxMode === 'percentage_and_fixed') {
-    // Mode 3: Percentage of accommodation per night per adult plus fixed amount per night per adult
-    touristTaxPercentage = Number(property.touristTaxPercentage || 0);
-    touristTaxFixedAmount = Number(property.touristTaxFixedAmount || 0);
-    touristTaxRate = touristTaxPercentage; // Store percentage for reference
-    touristTaxPricePerNight = roundMoney(accommodationAdjustedPrice / nights);
-    touristTaxUnitAmount = roundMoney(
-      touristTaxPricePerNight * (touristTaxPercentage / 100) + touristTaxFixedAmount
-    );
-    touristTaxTotal = roundMoney(touristTaxUnitAmount * nights * adultsCount);
-    touristTaxLabel = `((${touristTaxPricePerNight.toFixed(2)}EUR x ${touristTaxPercentage.toFixed(2)}%) + ${touristTaxFixedAmount.toFixed(2)}EUR) x ${adultsCount} adulte${adultsCount > 1 ? 's' : ''} x ${nights} nuit${nights > 1 ? 's' : ''}`;
-  }
+  const touristTaxBreakdown = computeTouristTaxBreakdown({
+    touristTaxMode: property.touristTaxMode,
+    touristTaxPerDayPerPerson: property.touristTaxPerDayPerPerson,
+    touristTaxPercentage: property.touristTaxPercentage,
+    touristTaxDepartmentPercentage: property.touristTaxDepartmentPercentage,
+    touristTaxFixedAmount: property.touristTaxFixedAmount,
+    nights,
+    adults: Number(adults || 0),
+    occupants: Number(adults || 0) + Number(children || 0) + Number(teens || 0) + Number(babies || 0),
+    accommodationAmountTtc: baseAccommodationAdjustedPrice,
+    accommodationVatRate: vatPercentageAccommodation,
+  });
+  const touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
 
   // Payment schedule is based on the full stay amount, including tourist tax.
   const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
@@ -1074,16 +1138,8 @@ function calculateReservationQuote({
     balanceAmount: resolvedBalanceAmount,
     depositDueDate,
     balanceDueDate,
-    touristTaxMode,
-    touristTaxRate,
-    touristTaxUnitAmount,
-    touristTaxPercentage,
-    touristTaxFixedAmount,
-    touristTaxPricePerNight,
-    touristTaxAdultsCount: adultsCount,
-    touristTaxNights: nights,
-    touristTaxLabel,
-    touristTaxTotal,
+    baseAccommodationAdjustedPrice,
+    ...touristTaxBreakdown,
     totalStayPrice,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
@@ -1111,6 +1167,7 @@ function calculateReservationQuote({
 module.exports = {
   roundMoney,
   parseJsonArray,
+  computeTouristTaxBreakdown,
   normalizeDateRanges,
   getBoundsFromDateRanges,
   parseRuleDateRanges,
@@ -1123,5 +1180,6 @@ module.exports = {
 module.exports.__test = {
   timeToDecimalHour,
   computeAutoTimedOptionContext,
+  computeTouristTaxBreakdown,
   calculateReservationQuote,
 };

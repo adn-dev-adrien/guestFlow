@@ -30,6 +30,7 @@ const NEW_DEFAULTS = {
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
+  touristTaxDepartmentPercentage: 0,
   touristTaxFixedAmount: 0,
   vatPercentageAccommodation: 20,
   vatPercentageOptions: 20,
@@ -134,6 +135,7 @@ export default function PropertyDetail() {
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
       touristTaxPercentage: p.touristTaxPercentage ?? 0,
+      touristTaxDepartmentPercentage: p.touristTaxDepartmentPercentage ?? 0,
       touristTaxFixedAmount: p.touristTaxFixedAmount ?? 0,
       vatPercentageAccommodation: p.vatPercentageAccommodation ?? 20,
       vatPercentageOptions: p.vatPercentageOptions ?? 20,
@@ -738,23 +740,9 @@ export default function PropertyDetail() {
                 )}
                 
                 {form.touristTaxMode === 'percentage_accommodation' && (
-                  <TextField
-                    label="Pourcentage (%)"
-                    type="number"
-                    value={form.touristTaxPercentage ?? 0}
-                    onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
-                    onFocus={handleZeroFocus}
-                    fullWidth
-                    size="small"
-                    inputProps={{ min: 0, step: 0.01 }}
-                    helperText="Appliqué au prix par nuit par adulte (hébergement après réduction, hors options)"
-                  />
-                )}
-                
-                {form.touristTaxMode === 'percentage_and_fixed' && (
                   <>
                     <TextField
-                      label="Pourcentage (%)"
+                      label="Pourcentage commune (%)"
                       type="number"
                       value={form.touristTaxPercentage ?? 0}
                       onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
@@ -762,7 +750,45 @@ export default function PropertyDetail() {
                       fullWidth
                       size="small"
                       inputProps={{ min: 0, step: 0.01 }}
-                      helperText="Appliqué au prix par nuit par adulte"
+                      helperText="Appliqué au prix moyen HT de la nuit par occupant"
+                    />
+                    <TextField
+                      label="Pourcentage additionnel départemental (%)"
+                      type="number"
+                      value={form.touristTaxDepartmentPercentage ?? 0}
+                      onChange={(e) => updateField('touristTaxDepartmentPercentage', e.target.value)}
+                      onFocus={handleZeroFocus}
+                      fullWidth
+                      size="small"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      helperText="Pourcentage additionnel appliqué sur la part communale"
+                    />
+                  </>
+                )}
+                
+                {form.touristTaxMode === 'percentage_and_fixed' && (
+                  <>
+                    <TextField
+                      label="Pourcentage commune (%)"
+                      type="number"
+                      value={form.touristTaxPercentage ?? 0}
+                      onChange={(e) => updateField('touristTaxPercentage', e.target.value)}
+                      onFocus={handleZeroFocus}
+                      fullWidth
+                      size="small"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      helperText="Appliqué au prix moyen HT de la nuit par occupant"
+                    />
+                    <TextField
+                      label="Pourcentage additionnel départemental (%)"
+                      type="number"
+                      value={form.touristTaxDepartmentPercentage ?? 0}
+                      onChange={(e) => updateField('touristTaxDepartmentPercentage', e.target.value)}
+                      onFocus={handleZeroFocus}
+                      fullWidth
+                      size="small"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      helperText="Pourcentage additionnel appliqué sur la part communale"
                     />
                     <TextField
                       label="Montant fixe (€)"

@@ -287,6 +287,7 @@ router.post('/suggest-beds', (req, res) => {
     adults: req.body.adults,
     children: req.body.children,
     teens: req.body.teens,
+    babies: req.body.babies,
     maxSingleBeds: property.singleBeds,
     maxDoubleBeds: property.doubleBeds,
   });
@@ -704,6 +705,7 @@ router.post('/', (req, res) => {
     adults,
     children,
     teens,
+    babies,
     discountPercent,
     customPrice,
     selectedOptions: reservationOptions,
@@ -948,6 +950,7 @@ router.put('/:id', (req, res) => {
     adults,
     children,
     teens,
+    babies,
     discountPercent,
     customPrice,
     selectedOptions: reservationOptions,

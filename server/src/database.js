@@ -51,6 +51,7 @@ db.exec(`
     cleaningHours REAL DEFAULT 3,
     defaultCautionAmount REAL DEFAULT 500,
     touristTaxPerDayPerPerson REAL DEFAULT 0,
+    touristTaxDepartmentPercentage REAL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   )
@@ -419,6 +420,9 @@ if (!propCols.includes('touristTaxMode')) {
 }
 if (!propCols.includes('touristTaxPercentage')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxPercentage REAL DEFAULT 0");
+}
+if (!propCols.includes('touristTaxDepartmentPercentage')) {
+  db.exec("ALTER TABLE properties ADD COLUMN touristTaxDepartmentPercentage REAL DEFAULT 0");
 }
 if (!propCols.includes('touristTaxFixedAmount')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxFixedAmount REAL DEFAULT 0");

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const financeRoute = require('../routes/finance');
+const { computeTouristTaxBreakdown } = require('../utils/pricing');
 
 const {
   getMonthBounds,
@@ -94,6 +95,24 @@ test('computeTouristTaxAmount computes adult-nights and rounds tax amount', () =
   const result = computeTouristTaxAmount({ nightsCount: 7, adults: 2, taxRate: 1.234 });
   assert.equal(result.adultNights, 14);
   assert.equal(result.taxAmount, 17.28);
+});
+
+test('percentage tourist tax uses average HT night rate per occupant and taxes adults only', () => {
+  const breakdown = computeTouristTaxBreakdown({
+    touristTaxMode: 'percentage_accommodation',
+    touristTaxPercentage: 5,
+    touristTaxDepartmentPercentage: 10,
+    nights: 3,
+    adults: 5,
+    occupants: 10,
+    accommodationAmountTtc: 360,
+    accommodationVatRate: 20,
+  });
+
+  assert.equal(breakdown.touristTaxPricePerNightHt, 100);
+  assert.equal(breakdown.touristTaxPerOccupantNightPriceHt, 10);
+  assert.equal(breakdown.touristTaxUnitAmount, 0.55);
+  assert.equal(breakdown.touristTaxTotal, 8.25);
 });
 
 test('cross-month reservation is assigned to next month based on last night only', () => {

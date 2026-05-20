@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const db = require('../database');
+const { computeTouristTaxBreakdown } = require('../utils/pricing');
 
 function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -66,13 +67,19 @@ function computeAccommodationAmountAfterDiscount({ accommodationRawAmount, optio
 }
 
 function computeTouristTaxAmount({ nightsCount, adults, taxRate }) {
-  const nights = Math.max(0, Number(nightsCount || 0));
-  const adultsCount = Math.max(0, Number(adults || 0));
-  const rate = Math.max(0, Number(taxRate || 0));
-  const adultNights = nights * adultsCount;
+  const breakdown = computeTouristTaxBreakdown({
+    touristTaxMode: 'per_day_per_person',
+    touristTaxPerDayPerPerson: Number(taxRate || 0),
+    nights: Number(nightsCount || 0),
+    adults: Number(adults || 0),
+    occupants: Number(adults || 0),
+    accommodationAmountTtc: 0,
+    accommodationVatRate: 0,
+  });
+  const adultNights = breakdown.touristTaxNights * breakdown.touristTaxAdultsCount;
   return {
     adultNights,
-    taxAmount: round2(adultNights * rate),
+    taxAmount: round2(breakdown.touristTaxTotal),
   };
 }
 
@@ -228,9 +235,18 @@ router.get('/tourist-tax', (req, res) => {
       r.adults,
       r.children,
       r.teens,
+      r.babies,
+      COALESCE(r.discountPercent, 0) as discountPercent,
+      COALESCE(r.extraGuestSurchargeOffered, 0) as extraGuestSurchargeOffered,
       COALESCE(r.touristTaxRate, 0) as storedTaxRate,
       COALESCE(r.touristTaxTotal, 0) as storedTaxAmount,
       COALESCE(p.touristTaxPerDayPerPerson, 0) as propertyTaxRate,
+      COALESCE(p.touristTaxMode, 'per_day_per_person') as touristTaxMode,
+      COALESCE(p.touristTaxPercentage, 0) as touristTaxPercentage,
+      COALESCE(p.touristTaxDepartmentPercentage, 0) as touristTaxDepartmentPercentage,
+      COALESCE(p.touristTaxFixedAmount, 0) as touristTaxFixedAmount,
+      COALESCE(p.basePriceIncludedGuests, 0) as basePriceIncludedGuests,
+      COALESCE(p.extraGuestPrice, 0) as extraGuestPrice,
       COALESCE(p.vatPercentageAccommodation, 20) as accommodationVatRate,
       MAX(0,
         CAST(
@@ -238,6 +254,14 @@ router.get('/tourist-tax', (req, res) => {
           AS INTEGER
         )
       ) as nightsCount,
+      COALESCE(
+        (
+          SELECT COUNT(1)
+          FROM reservation_nights rn
+          WHERE rn.reservationId = r.id
+        ),
+        0
+      ) as nightlyBreakdownCount,
       COALESCE(
         (
         SELECT ROUND(SUM(rn.price), 2)
@@ -267,20 +291,41 @@ router.get('/tourist-tax', (req, res) => {
     .map((row) => {
       const nightsCount = Number(row.nightsCount || 0);
       const adults = Number(row.adults || 0);
-      const storedTaxAmount = Math.max(0, Number(row.storedTaxAmount || 0));
-      const storedTaxRate = Math.max(0, Number(row.storedTaxRate || 0));
-      const propertyTaxRate = Math.max(0, Number(row.propertyTaxRate || 0));
-      const taxRate = storedTaxRate > 0 ? storedTaxRate : propertyTaxRate;
-      const taxMeta = computeTouristTaxAmount({ nightsCount, adults, taxRate });
-      const taxAmount = storedTaxAmount > 0 ? storedTaxAmount : taxMeta.taxAmount;
+      const children = Number(row.children || 0);
+      const teens = Number(row.teens || 0);
+      const babies = Number(row.babies || 0);
       const accommodationMeta = computeAccommodationAmountAfterDiscount({
         accommodationRawAmount: row.accommodationRawAmount,
         optionsTotal: row.optionsTotal,
         resourcesTotal: row.resourcesTotal,
         finalPrice: row.finalPrice,
         accommodationVatRate: row.accommodationVatRate,
-          discountPercent: row.discountPercent,
+        discountPercent: row.discountPercent,
       });
+      const surchargePersonCount = adults + children + teens;
+      const includedGuests = Math.max(0, Number(row.basePriceIncludedGuests || 0));
+      const extraGuestCount = Math.max(0, surchargePersonCount - includedGuests);
+      const extraGuestUnitPrice = Math.max(0, Number(row.extraGuestPrice || 0));
+      const extraGuestSurcharge = Number(row.extraGuestSurchargeOffered || 0) === 1
+        ? 0
+        : round2(extraGuestCount * extraGuestUnitPrice);
+      const hasNightlyBreakdown = Number(row.nightlyBreakdownCount || 0) > 0;
+      const surchargeToExcludeFromReference = hasNightlyBreakdown ? 0 : extraGuestSurcharge;
+
+      const accommodationReferenceTtc = round2(Math.max(0, accommodationMeta.accommodationTtcAmount - surchargeToExcludeFromReference));
+      const touristTaxBreakdown = computeTouristTaxBreakdown({
+        touristTaxMode: row.touristTaxMode,
+        touristTaxPerDayPerPerson: row.propertyTaxRate,
+        touristTaxPercentage: row.touristTaxPercentage,
+        touristTaxDepartmentPercentage: row.touristTaxDepartmentPercentage,
+        touristTaxFixedAmount: row.touristTaxFixedAmount,
+        nights: nightsCount,
+        adults,
+        occupants: adults + children + teens + babies,
+        accommodationAmountTtc: accommodationReferenceTtc,
+        accommodationVatRate: row.accommodationVatRate,
+      });
+
       const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
       return {
         reservationId: row.reservationId,
@@ -291,11 +336,11 @@ router.get('/tourist-tax', (req, res) => {
         endDate: row.endDate,
         lastNightDate: row.lastNightDate,
         adults,
-        children: Number(row.children || 0) + Number(row.teens || 0),
+        children: children + teens,
         nightsCount,
-        adultNights: taxMeta.adultNights,
-        taxRate,
-        taxAmount,
+        adultNights: touristTaxBreakdown.touristTaxAdultsCount * touristTaxBreakdown.touristTaxNights,
+        taxRate: touristTaxBreakdown.touristTaxUnitAmount,
+        taxAmount: touristTaxBreakdown.touristTaxTotal,
         accommodationRawAmount: accommodationMeta.accommodationRawAmount,
         reductionAmount: accommodationMeta.reductionAmount,
         accommodationAmount: accommodationMeta.accommodationAmount,

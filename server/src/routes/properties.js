@@ -692,6 +692,7 @@ router.post('/', handlePhotoUpload, async (req, res) => {
       touristTaxPerDayPerPerson,
       touristTaxMode,
       touristTaxPercentage,
+      touristTaxDepartmentPercentage,
       touristTaxFixedAmount,
       vatPercentageAccommodation,
       vatPercentageOptions,
@@ -699,8 +700,8 @@ router.post('/', handlePhotoUpload, async (req, res) => {
     } = req.body;
     const photo = req.file ? await saveOptimizedPhoto(req.file) : '';
     const result = db.prepare(`
-      INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxFixedAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       sentenceCase(name),
       photo,
@@ -721,6 +722,7 @@ router.post('/', handlePhotoUpload, async (req, res) => {
       touristTaxPerDayPerPerson ?? 0,
       touristTaxMode || 'per_day_per_person',
       touristTaxPercentage ?? 0,
+      touristTaxDepartmentPercentage ?? 0,
       touristTaxFixedAmount ?? 0,
       vatPercentageAccommodation ?? 20,
       vatPercentageOptions ?? 20,
@@ -777,6 +779,7 @@ router.put('/:id', handlePhotoUpload, async (req, res) => {
       touristTaxPerDayPerPerson,
       touristTaxMode,
       touristTaxPercentage,
+      touristTaxDepartmentPercentage,
       touristTaxFixedAmount,
       vatPercentageAccommodation,
       vatPercentageOptions,
@@ -787,7 +790,7 @@ router.put('/:id', handlePhotoUpload, async (req, res) => {
     const photo = newPhoto || (req.body.photo || (existing ? existing.photo : ''));
 
     db.prepare(`
-      UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxFixedAmount=?, vatPercentageAccommodation=?, vatPercentageOptions=?, vatPercentageResources=?, updatedAt=datetime('now')
+      UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, vatPercentageAccommodation=?, vatPercentageOptions=?, vatPercentageResources=?, updatedAt=datetime('now')
       WHERE id=?
     `).run(
       sentenceCase(name),
@@ -809,6 +812,7 @@ router.put('/:id', handlePhotoUpload, async (req, res) => {
       touristTaxPerDayPerPerson ?? 0,
       touristTaxMode || 'per_day_per_person',
       touristTaxPercentage ?? 0,
+      touristTaxDepartmentPercentage ?? 0,
       touristTaxFixedAmount ?? 0,
       vatPercentageAccommodation ?? 20,
       vatPercentageOptions ?? 20,

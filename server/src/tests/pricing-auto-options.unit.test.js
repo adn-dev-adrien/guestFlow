@@ -7,6 +7,7 @@ const pricingUtils = require('../utils/pricing');
 const {
   timeToDecimalHour,
   computeAutoTimedOptionContext,
+  computeTouristTaxBreakdown,
   calculateReservationQuote,
 } = pricingUtils.__test;
 
@@ -22,7 +23,16 @@ function createPricingTestDb() {
       balanceDaysBefore INTEGER DEFAULT 7,
       defaultCheckIn TEXT DEFAULT '15:00',
       defaultCheckOut TEXT DEFAULT '10:00',
-      touristTaxPerDayPerPerson REAL DEFAULT 0
+      touristTaxPerDayPerPerson REAL DEFAULT 0,
+      touristTaxMode TEXT DEFAULT 'per_day_per_person',
+      touristTaxPercentage REAL DEFAULT 0,
+      touristTaxDepartmentPercentage REAL DEFAULT 0,
+      touristTaxFixedAmount REAL DEFAULT 0,
+      vatPercentageAccommodation REAL DEFAULT 20,
+      vatPercentageOptions REAL DEFAULT 20,
+      vatPercentageResources REAL DEFAULT 20,
+      basePriceIncludedGuests INTEGER DEFAULT 0,
+      extraGuestPrice REAL DEFAULT 0
     );
 
     CREATE TABLE pricing_rules (
@@ -77,8 +87,15 @@ function createPricingTestDb() {
   `);
 
   db.prepare(`
-    INSERT INTO properties (id, name, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, touristTaxPerDayPerPerson)
-    VALUES (1, 'Maison test', 30, 30, 7, '15:00', '10:00', 0)
+    INSERT INTO properties (
+      id, name, depositPercent, depositDaysBefore, balanceDaysBefore,
+      defaultCheckIn, defaultCheckOut,
+      touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage,
+      touristTaxDepartmentPercentage, touristTaxFixedAmount,
+      vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources,
+      basePriceIncludedGuests, extraGuestPrice
+    )
+    VALUES (1, 'Maison test', 30, 30, 7, '15:00', '10:00', 0, 'per_day_per_person', 0, 0, 0, 20, 20, 20, 0, 0)
   `).run();
 
   db.prepare(`
@@ -161,6 +178,91 @@ test('computeAutoTimedOptionContext late check-out proportional uses next-night 
   assert.equal(line.autoExtraHours, 2);
   assert.equal(line.autoFullNightApplied, false);
   assert.equal(line.totalPrice, 34.29);
+});
+
+test('computeTouristTaxBreakdown percentage mode uses average HT per night divided by total occupants and taxes only adults', () => {
+  const result = computeTouristTaxBreakdown({
+    touristTaxMode: 'percentage_accommodation',
+    touristTaxPercentage: 5,
+    touristTaxDepartmentPercentage: 10,
+    nights: 3,
+    adults: 5,
+    occupants: 10,
+    accommodationAmountTtc: 360,
+    accommodationVatRate: 20,
+  });
+
+  assert.equal(result.touristTaxPricePerNightHt, 100);
+  assert.equal(result.touristTaxPerOccupantNightPriceHt, 10);
+  assert.equal(result.touristTaxUnitAmount, 0.55);
+  assert.equal(result.touristTaxTotal, 8.25);
+});
+
+test('calculateReservationQuote excludes extra-guest surcharge from percentage tourist-tax base', () => {
+  const db = createPricingTestDb();
+  db.prepare(`
+    UPDATE properties
+    SET touristTaxMode = 'percentage_accommodation',
+        touristTaxPercentage = 5,
+        touristTaxDepartmentPercentage = 10,
+        basePriceIncludedGuests = 2,
+        extraGuestPrice = 15,
+        vatPercentageAccommodation = 20
+    WHERE id = 1
+  `).run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-13',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 1,
+    teens: 1,
+    babies: 1,
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [],
+    selectedResources: [],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  assert.equal(quote.baseAccommodationPrice, 360);
+  assert.equal(quote.extraGuestSurcharge, 30);
+  assert.equal(quote.totalPrice, 390);
+  assert.equal(quote.baseAccommodationAdjustedPrice, 360);
+  assert.equal(quote.touristTaxPricePerNightHt, 100);
+  assert.equal(quote.touristTaxPerOccupantNightPriceHt, 20);
+  assert.equal(quote.touristTaxAdultsCount, 2);
+  assert.equal(quote.touristTaxOccupantsCount, 5);
+  assert.equal(quote.touristTaxUnitAmount, 1.1);
+  assert.equal(quote.touristTaxTotal, 6.6);
+
+  db.close();
+});
+
+test('computeTouristTaxBreakdown percentage_and_fixed stacks municipal, departmental and fixed parts', () => {
+  const result = computeTouristTaxBreakdown({
+    touristTaxMode: 'percentage_and_fixed',
+    touristTaxPercentage: 5,
+    touristTaxDepartmentPercentage: 10,
+    touristTaxFixedAmount: 0.2,
+    nights: 2,
+    adults: 2,
+    occupants: 4,
+    accommodationAmountTtc: 240,
+    accommodationVatRate: 20,
+  });
+
+  // 240 TTC / 2 nights = 120 TTC/night => 100 HT/night
+  // 100 / 4 occupants = 25
+  // municipal = 1.25 ; departmental = 0.13 ; + fixed 0.20 => 1.58 / adult / night
+  // total = 1.58 * 2 nights * 2 adults = 6.32
+  assert.equal(result.touristTaxUnitAmount, 1.58);
+  assert.equal(result.touristTaxTotal, 6.32);
 });
 
 test('calculateReservationQuote auto-adds proportional early check-in option with extra hours', () => {
