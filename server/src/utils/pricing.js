@@ -388,15 +388,28 @@ function mergeLineWithLockedSnapshot({
   targetBilledUnits,
   currentUnitPrice,
 }) {
+  debugResourceLine('merge.locked_snapshot.input', {
+    lockedLine,
+    targetBilledUnits,
+    currentUnitPrice,
+  });
+
   const resolvedTargetUnits = normalizeBilledUnits(targetBilledUnits);
   const normalizedCurrentUnitPrice = roundMoney(currentUnitPrice);
 
+  debugResourceLine('merge.locked_snapshot.normalized', {
+    resolvedTargetUnits,
+    normalizedCurrentUnitPrice,
+  });
+
   if (!lockedLine) {
-    return {
+    const result = {
       billedUnits: resolvedTargetUnits,
       totalPrice: roundMoney(resolvedTargetUnits * normalizedCurrentUnitPrice),
       unitPrice: normalizedCurrentUnitPrice,
     };
+    debugResourceLine('merge.locked_snapshot.no_locked_line', { result });
+    return result;
   }
 
   const lockedTotal = roundMoney(lockedLine.totalPrice);
@@ -409,31 +422,51 @@ function mergeLineWithLockedSnapshot({
     ? roundMoney(lockedTotal / lockedUnits)
     : roundMoney(lockedLine.unitPrice || normalizedCurrentUnitPrice);
 
+  debugResourceLine('merge.locked_snapshot.locked_values', {
+    lockedTotal,
+    lockedUnits,
+    lockedUnitPrice,
+  });
+
   if (resolvedTargetUnits === lockedUnits) {
-    return {
+    const result = {
       billedUnits: lockedUnits,
       totalPrice: lockedTotal,
       unitPrice: lockedUnitPrice,
     };
+    debugResourceLine('merge.locked_snapshot.same_units', { result });
+    return result;
   }
 
   if (resolvedTargetUnits > lockedUnits) {
     const deltaUnits = resolvedTargetUnits - lockedUnits;
     const mergedTotal = roundMoney(lockedTotal + deltaUnits * normalizedCurrentUnitPrice);
-    return {
+    const result = {
       billedUnits: resolvedTargetUnits,
       totalPrice: mergedTotal,
       unitPrice: resolvedTargetUnits > 0 ? roundMoney(mergedTotal / resolvedTargetUnits) : normalizedCurrentUnitPrice,
     };
+    debugResourceLine('merge.locked_snapshot.increase_units', {
+      deltaUnits,
+      mergedTotal,
+      result,
+    });
+    return result;
   }
 
   const removedUnits = lockedUnits - resolvedTargetUnits;
   const reducedTotal = roundMoney(Math.max(0, lockedTotal - removedUnits * lockedUnitPrice));
-  return {
+  const result = {
     billedUnits: resolvedTargetUnits,
     totalPrice: reducedTotal,
     unitPrice: resolvedTargetUnits > 0 ? roundMoney(reducedTotal / resolvedTargetUnits) : lockedUnitPrice,
   };
+  debugResourceLine('merge.locked_snapshot.decrease_units', {
+    removedUnits,
+    reducedTotal,
+    result,
+  });
+  return result;
 }
 
 function getApplicableOptions(db, propertyId) {
@@ -870,8 +903,17 @@ function calculateReservationQuote({
       const calculatedTotal = roundMoney(merged.totalPrice);
       const fallbackOriginalTotal = roundMoney(targetBilledUnits * roundMoney(resource.price));
       const originalTotalPrice = offered
-        ? roundMoney(calculatedTotal > 0 ? calculatedTotal : fallbackOriginalTotal)
+        ? fallbackOriginalTotal
         : calculatedTotal;
+    debugResourceLine('pricing', {
+        mergedTotalPrice: merged.totalPrice,
+        calculatedTotal,
+        resourcePrice: resource.price,
+        targetBilledUnits,
+        fallbackOriginalTotal,
+        originalTotalPrice,
+      });
+
 
       const resultLine = {
         resourceId,
