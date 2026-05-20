@@ -8,6 +8,8 @@ const {
   timeToDecimalHour,
   computeAutoTimedOptionContext,
   computeTouristTaxBreakdown,
+  normalizeOptionProgressiveTiers,
+  calculateProgressiveParticipantOptionTotal,
   calculateReservationQuote,
 } = pricingUtils.__test;
 
@@ -55,6 +57,7 @@ function createPricingTestDb() {
       description TEXT DEFAULT '',
       priceType TEXT NOT NULL DEFAULT 'per_stay',
       price REAL NOT NULL DEFAULT 0,
+      optionProgressiveTiers TEXT NOT NULL DEFAULT '[]',
       autoOptionType TEXT,
       autoEnabled INTEGER NOT NULL DEFAULT 0,
       autoPricingMode TEXT NOT NULL DEFAULT 'fixed',
@@ -263,6 +266,79 @@ test('computeTouristTaxBreakdown percentage_and_fixed stacks municipal, departme
   // total = 1.58 * 2 nights * 2 adults = 6.32
   assert.equal(result.touristTaxUnitAmount, 1.58);
   assert.equal(result.touristTaxTotal, 6.32);
+});
+
+test('normalizeOptionProgressiveTiers sanitizes and sorts tiers', () => {
+  const tiers = normalizeOptionProgressiveTiers([
+    { participantNumber: 3, unitPrice: 10 },
+    { participantNumber: 1, unitPrice: 20 },
+    { participantNumber: 2, unitPrice: 15 },
+    { participantNumber: 2, unitPrice: 12 },
+  ]);
+
+  assert.deepEqual(tiers, [
+    { participantNumber: 1, unitPrice: 20 },
+    { participantNumber: 2, unitPrice: 12 },
+    { participantNumber: 3, unitPrice: 10 },
+  ]);
+});
+
+test('calculateProgressiveParticipantOptionTotal applies last tier as fallback for extra participants', () => {
+  const result = calculateProgressiveParticipantOptionTotal(
+    5,
+    [
+      { participantNumber: 1, unitPrice: 20 },
+      { participantNumber: 2, unitPrice: 15 },
+      { participantNumber: 3, unitPrice: 10 },
+      { participantNumber: 4, unitPrice: 5 },
+    ],
+    20
+  );
+
+  assert.equal(result.billedUnits, 5);
+  assert.equal(result.totalPrice, 55);
+  assert.equal(result.lastUnitPrice, 5);
+});
+
+test('calculateReservationQuote supports progressive participant options', () => {
+  const db = createPricingTestDb();
+  db.prepare(`
+    INSERT INTO options (id, title, priceType, price, optionProgressiveTiers)
+    VALUES (30, 'Activite famille', 'per_participant_progressive', 20, ?)
+  `).run(JSON.stringify([
+    { participantNumber: 1, unitPrice: 20 },
+    { participantNumber: 2, unitPrice: 20 },
+    { participantNumber: 3, unitPrice: 5 },
+  ]));
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 30)').run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-12',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 0,
+    teens: 0,
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [{ optionId: 30, quantity: 4 }],
+    selectedResources: [],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  // 20 + 20 + 5 + 5
+  assert.equal(quote.optionLines.length, 1);
+  assert.equal(quote.optionLines[0].optionId, 30);
+  assert.equal(quote.optionLines[0].billedUnits, 4);
+  assert.equal(quote.optionLines[0].originalTotalPrice, 50);
+  assert.equal(quote.optionLines[0].totalPrice, 50);
+  assert.equal(quote.optionsTotal, 50);
+
+  db.close();
 });
 
 test('calculateReservationQuote auto-adds proportional early check-in option with extra hours', () => {

@@ -96,6 +96,7 @@ db.exec(`
     description TEXT DEFAULT '',
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     price REAL NOT NULL DEFAULT 0,
+    optionProgressiveTiers TEXT NOT NULL DEFAULT '[]',
     autoOptionType TEXT,
     autoEnabled INTEGER NOT NULL DEFAULT 0,
     autoPricingMode TEXT NOT NULL DEFAULT 'fixed',
@@ -104,7 +105,7 @@ db.exec(`
   )
 `);
 
-// priceType: per_stay, per_person, per_night, per_person_per_night, per_hour
+// priceType: per_stay, per_person, per_night, per_person_per_night, per_hour, per_participant_progressive
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS property_options (
@@ -544,6 +545,7 @@ tryAddOptionColumn('autoOptionType', "ALTER TABLE options ADD COLUMN autoOptionT
 tryAddOptionColumn('autoEnabled', "ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0");
 tryAddOptionColumn('autoPricingMode', "ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed'");
 tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
+tryAddOptionColumn('optionProgressiveTiers', "ALTER TABLE options ADD COLUMN optionProgressiveTiers TEXT NOT NULL DEFAULT '[]'");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
@@ -842,7 +844,7 @@ function migrateOptionsColumns() {
     
     console.log('[Migration] Options table columns:', columnNames);
     
-    const needed = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
+    const needed = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold', 'optionProgressiveTiers'];
     const missing = needed.filter(col => !columnNames.includes(col));
     
     if (missing.length > 0) {
@@ -882,6 +884,15 @@ function migrateOptionsColumns() {
           console.log('[Migration] ✅ Added autoFullNightThreshold column');
         } catch (e) {
           console.log('[Migration] Column autoFullNightThreshold might already exist:', e.message);
+        }
+      }
+
+      if (!columnNames.includes('optionProgressiveTiers')) {
+        try {
+          db.exec("ALTER TABLE options ADD COLUMN optionProgressiveTiers TEXT NOT NULL DEFAULT '[]'");
+          console.log('[Migration] ✅ Added optionProgressiveTiers column');
+        } catch (e) {
+          console.log('[Migration] Column optionProgressiveTiers might already exist:', e.message);
         }
       }
       

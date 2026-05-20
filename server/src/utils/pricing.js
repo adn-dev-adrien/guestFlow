@@ -216,6 +216,65 @@ function getTypeMultiplier(priceType, persons, nights) {
   return 1;
 }
 
+function normalizeOptionProgressiveTiers(rawTiers) {
+  const parsed = parseJsonArray(rawTiers);
+  const byParticipant = new Map();
+
+  parsed.forEach((entry) => {
+    const participantNumber = Math.max(1, Math.floor(Number(entry?.participantNumber || 0)));
+    const unitPrice = Math.max(0, Number(entry?.unitPrice || 0));
+    if (!Number.isFinite(participantNumber) || !Number.isFinite(unitPrice)) return;
+    byParticipant.set(participantNumber, {
+      participantNumber,
+      unitPrice: roundMoney(unitPrice),
+    });
+  });
+
+  return Array.from(byParticipant.values())
+    .sort((a, b) => a.participantNumber - b.participantNumber);
+}
+
+function getProgressiveUnitPriceForParticipant(tiers, participantNumber, fallbackUnitPrice = 0) {
+  const target = Math.max(1, Math.floor(Number(participantNumber || 0)));
+  const normalizedFallback = Math.max(0, Number(fallbackUnitPrice || 0));
+  const normalizedTiers = Array.isArray(tiers) ? tiers : [];
+
+  let resolved = normalizedFallback;
+  for (const tier of normalizedTiers) {
+    if (Number(tier.participantNumber) > target) break;
+    resolved = Math.max(0, Number(tier.unitPrice || 0));
+  }
+
+  return roundMoney(resolved);
+}
+
+function calculateProgressiveParticipantOptionTotal(quantity, tiers, fallbackUnitPrice = 0) {
+  const billedUnits = Math.max(0, Math.floor(Number(quantity || 0)));
+  if (billedUnits <= 0) {
+    return {
+      billedUnits: 0,
+      totalPrice: 0,
+      averageUnitPrice: 0,
+      lastUnitPrice: roundMoney(Math.max(0, Number(fallbackUnitPrice || 0))),
+    };
+  }
+
+  let total = 0;
+  let lastUnitPrice = roundMoney(Math.max(0, Number(fallbackUnitPrice || 0)));
+  for (let index = 1; index <= billedUnits; index += 1) {
+    lastUnitPrice = getProgressiveUnitPriceForParticipant(tiers, index, fallbackUnitPrice);
+    total += lastUnitPrice;
+  }
+
+  const totalPrice = roundMoney(total);
+  return {
+    billedUnits,
+    totalPrice,
+    averageUnitPrice: billedUnits > 0 ? roundMoney(totalPrice / billedUnits) : 0,
+    lastUnitPrice,
+  };
+}
+
 function computeTouristTaxBreakdown({
   touristTaxMode,
   touristTaxPerDayPerPerson,
@@ -809,10 +868,63 @@ function calculateReservationQuote({
       const optionId = Number(selected.optionId);
       const option = optionsById.get(optionId);
       if (!option) return null;
+      const priceType = option.priceType || 'per_stay';
+
+      if (priceType === 'per_participant_progressive') {
+        const fallbackUnitPrice = Number(option.price || 0);
+        const progressiveTiers = normalizeOptionProgressiveTiers(option.optionProgressiveTiers);
+        const computed = calculateProgressiveParticipantOptionTotal(
+          quantity,
+          progressiveTiers,
+          fallbackUnitPrice
+        );
+        const lockedLine = lockedOptionsById.get(optionId);
+        const lockedUnits = normalizeBilledUnits(
+          lockedLine?.billedUnits !== undefined
+            ? lockedLine.billedUnits
+            : lockedLine?.quantity
+        );
+
+        const shouldKeepLockedSnapshot = Boolean(
+          lockedLine
+            && Number(lockedLine.totalPrice || 0) > 0
+            && lockedUnits === computed.billedUnits
+        );
+        const shouldRepriceLockedFreeLine = Boolean(
+          !offeredOptionIdSet.has(optionId)
+            && lockedLine
+            && Number(lockedLine.totalPrice || 0) === 0
+            && Number(computed.totalPrice || 0) > 0
+        );
+
+        const mergedTotal = shouldKeepLockedSnapshot && !shouldRepriceLockedFreeLine
+          ? roundMoney(lockedLine.totalPrice)
+          : computed.totalPrice;
+        const effectiveAverageUnit = computed.billedUnits > 0
+          ? roundMoney(mergedTotal / computed.billedUnits)
+          : 0;
+        const originalTotalPrice = offeredOptionIdSet.has(optionId) && mergedTotal === 0
+          ? computed.totalPrice
+          : mergedTotal;
+
+        return {
+          optionId,
+          title: option.title,
+          quantity,
+          unitPrice: effectiveAverageUnit,
+          billedUnits: computed.billedUnits,
+          priceType,
+          optionProgressiveTiers: progressiveTiers,
+          progressiveLastUnitPrice: computed.lastUnitPrice,
+          originalTotalPrice,
+          offered: offeredOptionIdSet.has(optionId),
+          totalPrice: offeredOptionIdSet.has(optionId) ? 0 : mergedTotal,
+        };
+      }
+
       const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
         ? Number(optionUnitOverrides[optionId])
         : Number(option.price || 0);
-      const priceType = option.priceType || 'per_stay';
       const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
       const lockedLine = lockedOptionsById.get(optionId);
       const shouldRepriceLockedFreeLine = Boolean(
@@ -1167,6 +1279,8 @@ function calculateReservationQuote({
 module.exports = {
   roundMoney,
   parseJsonArray,
+  normalizeOptionProgressiveTiers,
+  calculateProgressiveParticipantOptionTotal,
   computeTouristTaxBreakdown,
   normalizeDateRanges,
   getBoundsFromDateRanges,
@@ -1180,6 +1294,8 @@ module.exports = {
 module.exports.__test = {
   timeToDecimalHour,
   computeAutoTimedOptionContext,
+  normalizeOptionProgressiveTiers,
+  calculateProgressiveParticipantOptionTotal,
   computeTouristTaxBreakdown,
   calculateReservationQuote,
 };

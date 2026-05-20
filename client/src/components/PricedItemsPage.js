@@ -37,7 +37,10 @@ export default function PricedItemsPage({
   isDeleteDisabled,
   renderExtraFormFields,
   getRowSx,
+  priceTypes,
 }) {
+    const resolvedPriceTypes = priceTypes || PRICE_TYPES;
+
   const { confirm } = useAppDialogs();
   const [properties, setProperties] = useState([]);
   const [open, setOpen] = useState(false);
@@ -177,7 +180,7 @@ export default function PricedItemsPage({
               </TableCell>
               <TableCell>{item.price} €</TableCell>
               {showQuantity && <TableCell>{item.quantity}</TableCell>}
-              <TableCell>{PRICE_TYPES.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
+              <TableCell>{resolvedPriceTypes.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
               <TableCell align="right">
                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
                 <IconButton
@@ -241,7 +244,7 @@ export default function PricedItemsPage({
                 label="Type de prix"
                 onChange={(e) => setForm({ ...form, priceType: e.target.value })}
               >
-                {PRICE_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+                {resolvedPriceTypes.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
               </Select>
             </FormControl>
 
