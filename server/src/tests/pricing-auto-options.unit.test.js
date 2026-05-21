@@ -235,7 +235,7 @@ test('calculateReservationQuote excludes extra-guest surcharge from percentage t
 
   assert.equal(quote.baseAccommodationPrice, 360);
   assert.equal(quote.extraGuestSurcharge, 30);
-  assert.equal(quote.totalPrice, 390);
+  assert.equal(quote.totalPrice, 360);
   assert.equal(quote.baseAccommodationAdjustedPrice, 360);
   assert.equal(quote.touristTaxPricePerNightHt, 100);
   assert.equal(quote.touristTaxPerOccupantNightPriceHt, 20);
@@ -243,6 +243,106 @@ test('calculateReservationQuote excludes extra-guest surcharge from percentage t
   assert.equal(quote.touristTaxOccupantsCount, 5);
   assert.equal(quote.touristTaxUnitAmount, 1.1);
   assert.equal(quote.touristTaxTotal, 6.6);
+
+  db.close();
+});
+
+test('calculateReservationQuote includes extra-guest surcharge when custom price is set', () => {
+  const db = createPricingTestDb();
+  db.prepare(`
+    UPDATE properties
+    SET basePriceIncludedGuests = 2,
+        extraGuestPrice = 15,
+        touristTaxPerDayPerPerson = 0,
+        touristTaxMode = 'per_day_per_person'
+    WHERE id = 1
+  `).run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-13',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 1,
+    teens: 1,
+    babies: 0,
+    platform: 'direct',
+    discountPercent: 0,
+    customPrice: 300,
+    selectedOptions: [],
+    selectedResources: [],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  assert.equal(quote.extraGuestSurchargeOriginal, 30);
+  assert.equal(quote.extraGuestSurcharge, 30);
+  assert.equal(quote.baseAccommodationAdjustedPrice, 300);
+  assert.equal(quote.finalPrice, 330);
+  assert.equal(quote.totalStayPrice, 330);
+
+  db.close();
+});
+
+test('calculateReservationQuote keeps tourist tax for direct platform', () => {
+  const db = createPricingTestDb();
+  db.prepare("UPDATE properties SET touristTaxPerDayPerPerson = 2, touristTaxMode = 'per_day_per_person' WHERE id = 1").run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-13',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 0,
+    teens: 0,
+    babies: 0,
+    platform: 'direct',
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [],
+    selectedResources: [],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  assert.equal(quote.touristTaxTotal, 12);
+  assert.equal(quote.totalStayPrice, 372);
+
+  db.close();
+});
+
+test('calculateReservationQuote offers tourist tax for non-direct platform', () => {
+  const db = createPricingTestDb();
+  db.prepare("UPDATE properties SET touristTaxPerDayPerPerson = 2, touristTaxMode = 'per_day_per_person' WHERE id = 1").run();
+
+  const quote = calculateReservationQuote({
+    db,
+    propertyId: 1,
+    startDate: '2026-07-10',
+    endDate: '2026-07-13',
+    checkInTime: '15:00',
+    checkOutTime: '10:00',
+    adults: 2,
+    children: 0,
+    teens: 0,
+    babies: 0,
+    platform: 'airbnb',
+    discountPercent: 0,
+    customPrice: '',
+    selectedOptions: [],
+    selectedResources: [],
+    depositPaid: false,
+    balancePaid: false,
+  });
+
+  assert.equal(quote.touristTaxTotal, 0);
+  assert.equal(quote.totalStayPrice, 360);
 
   db.close();
 });

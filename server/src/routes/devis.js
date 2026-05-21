@@ -409,6 +409,7 @@ router.post('/', (req, res) => {
     customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
     offeredOptionIds: body.offeredOptionIds,
     lockedResourceLines,
+    platform: body.platform,
   });
 
   const devisNumber = db.generateDevisNumber();
@@ -586,6 +587,7 @@ router.put('/:id', (req, res) => {
     customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
     offeredOptionIds: body.offeredOptionIds,
     lockedResourceLines,
+    platform: body.platform || existing.platform,
   });
 
   db.prepare(`

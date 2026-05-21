@@ -779,6 +779,7 @@ function calculateReservationQuote({
   lockedNightlyBreakdown,
   lockedOptionLines,
   lockedResourceLines,
+  platform,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -859,7 +860,7 @@ function calculateReservationQuote({
   const extraGuestCount = Math.max(0, persons - includedGuests);
   const extraGuestSurchargeOriginal = roundMoney(extraGuestCount * extraGuestUnitPrice);
   const extraGuestSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal;
-  const totalPrice = roundMoney(baseAccommodationPrice + extraGuestSurcharge);
+  const totalPrice = roundMoney(baseAccommodationPrice);
 
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
@@ -1145,7 +1146,7 @@ function calculateReservationQuote({
   const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const accommodationBaseTotal = roundMoney(Number(totalPrice || 0));
-  const subtotal = roundMoney(accommodationBaseTotal + optionsTotal + resourcesTotal);
+  const subtotal = roundMoney(accommodationBaseTotal + extraGuestSurcharge + optionsTotal + resourcesTotal);
   const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
   const customFinalPrice = customPrice === '' || customPrice === null || customPrice === undefined
     ? null
@@ -1155,17 +1156,13 @@ function calculateReservationQuote({
       ? customFinalPrice
       : accommodationBaseTotal * (1 - normalizedDiscountPercent / 100)
   );
-  const finalPrice = roundMoney(
-    Number.isFinite(customFinalPrice)
-      ? customFinalPrice + optionsTotal + resourcesTotal
-      : accommodationAdjustedPrice + optionsTotal + resourcesTotal
-  );
+  const finalPrice = roundMoney(accommodationAdjustedPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
   const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
   const accommodationDeltaAmount = roundMoney(Math.abs(accommodationBaseTotal - accommodationAdjustedPrice));
   const baseAccommodationAdjustedPrice = roundMoney(
     Number.isFinite(customFinalPrice)
-      ? Math.max(0, customFinalPrice - extraGuestSurcharge)
+      ? customFinalPrice
       : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100)
   );
   const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
@@ -1207,7 +1204,13 @@ function calculateReservationQuote({
     accommodationAmountTtc: baseAccommodationAdjustedPrice,
     accommodationVatRate: vatPercentageAccommodation,
   });
-  const touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
+  // Tourist tax is offered (set to 0) when collected by non-direct platforms.
+  const normalizedPlatform = String(platform || 'direct').toLowerCase();
+  const isTouristTaxOfferedByPlatform = normalizedPlatform !== 'direct';
+  let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
+  if (isTouristTaxOfferedByPlatform) {
+    touristTaxTotal = 0;
+  }
 
   // Payment schedule is based on the full stay amount, including tourist tax.
   const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
@@ -1252,6 +1255,9 @@ function calculateReservationQuote({
     balanceDueDate,
     baseAccommodationAdjustedPrice,
     ...touristTaxBreakdown,
+    touristTaxOriginalTotal: Number(touristTaxBreakdown.touristTaxTotal || 0),
+    touristTaxTotal,
+    touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     totalStayPrice,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',

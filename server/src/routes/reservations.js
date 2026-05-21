@@ -527,6 +527,7 @@ router.post('/calculate-price', (req, res) => {
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
+    platform: req.body.platform,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);

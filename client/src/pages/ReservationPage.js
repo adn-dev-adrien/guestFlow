@@ -136,6 +136,7 @@ export default function ReservationPage() {
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [showVatDetail, setShowVatDetail] = useState(false);
+  const [showTouristTaxDetail, setShowTouristTaxDetail] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -211,7 +212,8 @@ export default function ReservationPage() {
       .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered) }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds]);
+    platform: form.platform,
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -679,6 +681,7 @@ export default function ReservationPage() {
             teens: 0,
             extraGuestSurchargeOffered: false,
             offeredOptionIds: [],
+            platform: 'direct',
             ...(editingReservationId ? { reservationId: editingReservationId } : {}),
           });
           setPricingQuote(calc);
@@ -835,6 +838,7 @@ export default function ReservationPage() {
           lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
           lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
           forceCurrentPricing: useCurrentPricing,
+          platform: form.platform,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         });
 
@@ -1158,6 +1162,7 @@ export default function ReservationPage() {
         teens: form.teens,
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         offeredOptionIds: Array.from(offeredOptionIds),
+        platform: form.platform,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       }),
       api.getReservations({ propertyId: nextPropertyId }),
@@ -1283,6 +1288,7 @@ export default function ReservationPage() {
         customOptions: buildCustomOptionsPayload(),
         selectedResources: buildSelectedResourcesPayload(),
         offeredOptionIds: Array.from(offeredOptionIds),
+        platform: form.platform,
         reservationId: editingReservationId,
         forceCurrentPricing: true,
       });
@@ -1389,6 +1395,7 @@ export default function ReservationPage() {
         lockedOptionUnits: shouldLockExistingPricing ? frozenOptionUnitByQuantityRef.current : {},
         lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
         forceCurrentPricing: useCurrentPricing,
+        platform: form.platform,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       });
       setPricingQuote(quote);
@@ -2864,6 +2871,10 @@ export default function ReservationPage() {
               const nights = Number(quote?.nights || Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000)));
               const touristTaxLabel = String(quote?.touristTaxLabel || '').trim();
               const touristTaxTotal = Number(quote?.touristTaxTotal ?? form.touristTaxTotal ?? 0);
+              const touristTaxOriginalTotal = Number(quote?.touristTaxOriginalTotal ?? touristTaxTotal);
+              const touristTaxUnitAmount = Number(quote?.touristTaxUnitAmount || 0);
+              const touristTaxAdultsCount = Number(quote?.touristTaxAdultsCount || 0);
+              const touristTaxNights = Number(quote?.touristTaxNights || nights || 0);
               const optionsSelected = quote?.optionLines || [];
               const resourcesSelected = quote?.resourceLines || [];
               const extraGuestCount = Number(quote?.extraGuestCount || 0);
@@ -3138,27 +3149,54 @@ export default function ReservationPage() {
                   {/* Taxe de séjour */}
                   <>
                     <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                      <Box>
-                        <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {touristTaxLabel || 'Calculée automatiquement selon le mode du logement'}
-                        </Typography>
-                        {isIcalSource && (
-                          <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
-                            Collectée par la plateforme
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {isIcalSource && (
-                          <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, whiteSpace: 'nowrap' }}>✓ Offert</Typography>
-                        )}
-                        <Typography variant="body2" sx={{ fontWeight: 600, textDecoration: isIcalSource ? 'line-through' : 'none', opacity: isIcalSource ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                          {touristTaxTotal.toFixed(2)}€
-                        </Typography>
-                      </Box>
-                    </Box>
+                    {(() => {
+                      const isTouristTaxOffered = isIcalSource || (String(form.platform || '').toLowerCase() !== 'direct');
+                      const touristTaxDisplayedAmount = isTouristTaxOffered ? touristTaxOriginalTotal : touristTaxTotal;
+                      return (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Button
+                                  size="small"
+                                  variant="text"
+                                  onClick={() => setShowTouristTaxDetail((prev) => !prev)}
+                                  sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                                >
+                                  {showTouristTaxDetail ? 'Masquer détail' : 'Afficher détail'}
+                                </Button>
+                              </Box>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              {isTouristTaxOffered && (
+                                <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, whiteSpace: 'nowrap' }}>✓ Offert</Typography>
+                              )}
+                              <Typography variant="body2" sx={{ fontWeight: 600, textDecoration: isTouristTaxOffered ? 'line-through' : 'none', opacity: isTouristTaxOffered ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                                {touristTaxDisplayedAmount.toFixed(2)}€
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {showTouristTaxDetail && (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {touristTaxLabel || 'Calculée automatiquement selon le mode du logement'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Base: {touristTaxUnitAmount.toFixed(2)}€ x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {isTouristTaxOffered && (
+                            <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
+                              Collectée par la plateforme
+                            </Typography>
+                          )}
+                        </Box>
+                      );
+                    })()}
                   </>
 
                   {/* Réduction sur l'hébergement */}
