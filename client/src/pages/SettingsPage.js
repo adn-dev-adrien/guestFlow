@@ -1,596 +1,312 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Stack,
-  TextField,
-  Typography,
-  Alert,
-  Divider,
-  IconButton,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  CircularProgress,
-} from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
-import CloseIcon from '@mui/icons-material/Close';
-import DeleteIcon from '@mui/icons-material/Delete';
-import SyncIcon from '@mui/icons-material/Sync';
+import { Box, Typography, Alert } from '@mui/material';
 import api from '../api';
+import PageActionBar from '../components/PageActionBar';
+import ConfirmDialog from '../components/ConfirmDialog';
+import SettingsCompanySection from '../components/SettingsCompanySection';
+import SettingsQuoteSection from '../components/SettingsQuoteSection';
+import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
+import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
+
+const EMPTY_FORM = {
+  company: {
+    name: '', address: '', email: '', phone: '',
+    siret: '', tva: '', iban: '', bic: '', bankName: '',
+    logoPath: '',
+  },
+  quote: { footerText: '', validityDays: 30 },
+  googleCalendar: {
+    calendarId: '',
+    serviceAccountEmail: '',
+    privateKeyMasked: '',
+    privateKeyFingerprint: null,
+    configured: false,
+    statusLabel: 'Synchronisation non configurée',
+    privateKeyDraft: undefined, // undefined = preserve; '' = clear; 'value' = store
+  },
+};
+
+function diffFields(draftGroup, savedGroup) {
+  const out = {};
+  for (const key of Object.keys(draftGroup)) {
+    if (key === 'privateKeyDraft') continue;
+    if (JSON.stringify(draftGroup[key]) !== JSON.stringify(savedGroup[key])) {
+      out[key] = draftGroup[key];
+    }
+  }
+  return out;
+}
+
+function buildPayloadFromDraft(draft, saved) {
+  const payload = {};
+
+  const companyDirty = diffFields(draft.company, saved.company);
+  // logoPath is committed via its own endpoint, never via the main save.
+  delete companyDirty.logoPath;
+  if (Object.keys(companyDirty).length > 0) payload.company = companyDirty;
+
+  const quoteDirty = diffFields(draft.quote, saved.quote);
+  if (Object.keys(quoteDirty).length > 0) payload.quote = quoteDirty;
+
+  const gcDirty = {};
+  if (draft.googleCalendar.calendarId !== saved.googleCalendar.calendarId) {
+    gcDirty.calendarId = draft.googleCalendar.calendarId;
+  }
+  if (draft.googleCalendar.serviceAccountEmail !== saved.googleCalendar.serviceAccountEmail) {
+    gcDirty.serviceAccountEmail = draft.googleCalendar.serviceAccountEmail;
+  }
+  // privateKeyDraft: only include in payload when defined (= touched).
+  if (draft.googleCalendar.privateKeyDraft !== undefined) {
+    gcDirty.privateKey = draft.googleCalendar.privateKeyDraft;
+  }
+  if (Object.keys(gcDirty).length > 0) payload.googleCalendar = gcDirty;
+
+  return payload;
+}
+
+function fromServer(settings) {
+  if (!settings) return EMPTY_FORM;
+  return {
+    company: { ...EMPTY_FORM.company, ...(settings.company || {}) },
+    quote: { ...EMPTY_FORM.quote, ...(settings.quote || {}) },
+    googleCalendar: {
+      ...EMPTY_FORM.googleCalendar,
+      ...(settings.googleCalendar || {}),
+      privateKeyDraft: undefined,
+    },
+  };
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [googleSyncing, setGoogleSyncing] = useState(false);
-  const [savedAt, setSavedAt] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [statusType, setStatusType] = useState('success');
-  const [companyLogoPath, setCompanyLogoPath] = useState('');
-  const [logoUploading, setLogoUploading] = useState(false);
-  const logoInputRef = useRef(null);
-
-  const EMPTY_FORM = {
-    googleCalendarId: '',
-    googleServiceAccountEmail: '',
-    googleServiceAccountPrivateKey: '',
-    companyName: '',
-    companyAddress: '',
-    companyEmail: '',
-    companyPhone: '',
-    companySiret: '',
-    companyTva: '',
-    companyIban: '',
-    companyBic: '',
-    companyBankName: '',
-    quoteFooterText: '',
-    quoteValidityDays: 30,
-  };
-
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [globalMessage, setGlobalMessage] = useState(null);
   const [savedForm, setSavedForm] = useState(EMPTY_FORM);
-  const [navGuardOpen, setNavGuardOpen] = useState(false);
-  const pendingNavRef = useRef(null);
-  const dirtyRef = useRef(false);
+  const [draft, setDraft] = useState(EMPTY_FORM);
+  const [updatedAtLabel, setUpdatedAtLabel] = useState(null);
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
-
-  useEffect(() => {
-    dirtyRef.current = isDirty;
-  }, [isDirty]);
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (e) => {
-      e.preventDefault();
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
-
-  useEffect(() => {
-    const guardHandler = (targetPath) => {
-      if (!dirtyRef.current) return false;
-      if (!targetPath || targetPath === window.location.pathname) return false;
-      pendingNavRef.current = targetPath;
-      setNavGuardOpen(true);
-      return true;
-    };
-
-    window.__guestflowBeforeNavigate = guardHandler;
-    return () => {
-      if (window.__guestflowBeforeNavigate === guardHandler) {
-        delete window.__guestflowBeforeNavigate;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = () => {
-      pendingNavRef.current = null;
-      setNavGuardOpen(true);
-      window.history.pushState(null, '', window.location.href);
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, [isDirty]);
+  const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
+    draft, saved: savedForm, navigate,
+  });
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const settings = await api.getSettings();
+        const data = await api.getSettings();
         if (!mounted) return;
-        const loaded = {
-          googleCalendarId: settings.googleCalendarId || '',
-          googleServiceAccountEmail: settings.googleServiceAccountEmail || '',
-          googleServiceAccountPrivateKey: settings.googleServiceAccountPrivateKey || '',
-          companyName: settings.companyName || '',
-          companyAddress: settings.companyAddress || '',
-          companyEmail: settings.companyEmail || '',
-          companyPhone: settings.companyPhone || '',
-          companySiret: settings.companySiret || '',
-          companyTva: settings.companyTva || '',
-          companyIban: settings.companyIban || '',
-          companyBic: settings.companyBic || '',
-          companyBankName: settings.companyBankName || '',
-          quoteFooterText: settings.quoteFooterText || '',
-          quoteValidityDays: settings.quoteValidityDays ?? 30,
-        };
-        setForm(loaded);
-        setSavedForm(loaded);
-        setCompanyLogoPath(settings.companyLogoPath || '');
-        setSavedAt(settings.updatedAt || '');
-      } catch (error) {
-        if (!mounted) return;
-        setStatusType('error');
-        setStatusMessage(error.message || 'Impossible de charger les parametres.');
+        const shaped = fromServer(data);
+        setSavedForm(shaped);
+        setDraft(shaped);
+        setUpdatedAtLabel(data && data.updatedAtLabel);
+      } catch (err) {
+        if (mounted) setGlobalMessage({ severity: 'error', text: err.message || 'Impossible de charger les paramètres.' });
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  const updateField = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const updateGroup = (group) => (key, value) => {
+    setDraft((prev) => ({
+      ...prev,
+      [group]: { ...prev[group], [key]: value },
+    }));
+    if (errors[mapClientKeyToErrorKey(group, key)]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[mapClientKeyToErrorKey(group, key)];
+        return next;
+      });
+    }
+  };
+
+  const updatePrivateKey = (value) => {
+    setDraft((prev) => ({
+      ...prev,
+      googleCalendar: { ...prev.googleCalendar, privateKeyDraft: value },
+    }));
+    if (errors.googleServiceAccountPrivateKey) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.googleServiceAccountPrivateKey;
+        return next;
+      });
+    }
   };
 
   const handleSave = async () => {
     setSaving(true);
-    setStatusMessage('');
+    setErrors({});
+    setGlobalMessage(null);
+    const payload = buildPayloadFromDraft(draft, savedForm);
+    if (Object.keys(payload).length === 0) {
+      setSaving(false);
+      return;
+    }
     try {
-      const saved = await api.updateSettings(form);
-      const updatedForm = {
-        googleCalendarId: saved.googleCalendarId || '',
-        googleServiceAccountEmail: saved.googleServiceAccountEmail || '',
-        googleServiceAccountPrivateKey: saved.googleServiceAccountPrivateKey || '',
-        companyName: saved.companyName || '',
-        companyAddress: saved.companyAddress || '',
-        companyEmail: saved.companyEmail || '',
-        companyPhone: saved.companyPhone || '',
-        companySiret: saved.companySiret || '',
-        companyTva: saved.companyTva || '',
-        companyIban: saved.companyIban || '',
-        companyBic: saved.companyBic || '',
-        companyBankName: saved.companyBankName || '',
-        quoteFooterText: saved.quoteFooterText || '',
-        quoteValidityDays: saved.quoteValidityDays ?? 30,
-      };
-      setForm(updatedForm);
-      setSavedForm(updatedForm);
-      setSavedAt(saved.updatedAt || '');
-      setStatusType('success');
-      setStatusMessage('Paramètres enregistrés avec succès.');
-    } catch (error) {
-      setStatusType('error');
-      setStatusMessage(error.message || 'Impossible d\'enregistrer les parametres.');
+      const updated = await api.updateSettings(payload);
+      const shaped = fromServer(updated);
+      setSavedForm(shaped);
+      setDraft(shaped);
+      setUpdatedAtLabel(updated && updated.updatedAtLabel);
+      setGlobalMessage({ severity: 'success', text: 'Paramètres enregistrés.' });
+    } catch (err) {
+      if (err && err.errors) {
+        setErrors(err.errors);
+      } else {
+        setGlobalMessage({ severity: 'error', text: err.message || "Impossible d'enregistrer les paramètres." });
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setLogoUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('logo', file);
-      const result = await api.uploadCompanyLogo(formData);
-      setCompanyLogoPath(result.companyLogoPath || '');
-    } catch (err) {
-      setStatusType('error');
-      setStatusMessage(err.message || 'Erreur lors de l\'upload du logo.');
-    } finally {
-      setLogoUploading(false);
-      if (logoInputRef.current) logoInputRef.current.value = '';
-    }
-  };
-
-  const handleLogoDelete = async () => {
-    setLogoUploading(true);
-    try {
-      await api.deleteCompanyLogo();
-      setCompanyLogoPath('');
-    } catch (err) {
-      setStatusType('error');
-      setStatusMessage(err.message || 'Erreur lors de la suppression du logo.');
-    } finally {
-      setLogoUploading(false);
-    }
-  };
-
-  const hasGoogleConfig = Boolean(
-    form.googleCalendarId.trim()
-    && form.googleServiceAccountEmail.trim()
-    && form.googleServiceAccountPrivateKey.trim(),
-  );
-
   const handleCancel = () => {
-    setForm(savedForm);
-    setStatusMessage('');
+    setDraft(savedForm);
+    setErrors({});
+    setGlobalMessage(null);
   };
 
-  const handleLeaveWithoutSaving = () => {
-    setNavGuardOpen(false);
-    const dest = pendingNavRef.current;
-    pendingNavRef.current = null;
-    if (dest) navigate(dest);
-    else navigate(-1);
-  };
-
-  const handleSyncGoogleCalendar = async () => {
-    setGoogleSyncing(true);
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
     try {
-      const result = await api.syncGoogleCalendarReservations();
-      setStatusType('success');
-      setStatusMessage(result?.message || 'Synchronisation Google Calendar terminée.');
-    } catch (error) {
-      setStatusType('error');
-      setStatusMessage(error?.message || 'Impossible de synchroniser les réservations vers Google Calendar.');
+      const out = await api.testGoogleCalendarConnection();
+      setTestResult({ severity: 'success', message: out.message });
+    } catch (err) {
+      setTestResult({ severity: 'error', message: err.error || err.message || 'Échec du test.' });
     } finally {
-      setGoogleSyncing(false);
+      setTesting(false);
     }
   };
+
+  const handleUploadLogo = async (file) => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await api.uploadCompanyLogo(formData);
+    const newPath = res && res.company && res.company.logoPath;
+    if (newPath != null) {
+      setSavedForm((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath } }));
+      setDraft((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath } }));
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    const res = await api.deleteCompanyLogo();
+    const newPath = res && res.company && res.company.logoPath;
+    setSavedForm((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath || '' } }));
+    setDraft((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath || '' } }));
+  };
+
+  const subtitle = isDirty ? (
+    <Typography variant="caption" color="warning.main" sx={{ fontStyle: 'italic' }}>
+      Modifications non enregistrées
+    </Typography>
+  ) : (updatedAtLabel ? (
+    <Typography variant="caption" color="text.disabled">
+      Dernière mise à jour : {updatedAtLabel}
+    </Typography>
+  ) : null);
 
   return (
-    <Box sx={{ pb: 6 }}>
-      {/* Blocker dialog */}
-      <Dialog open={navGuardOpen} onClose={() => setNavGuardOpen(false)}>
-        <DialogTitle>Modifications non enregistrées</DialogTitle>
-        <DialogContent>
-          <Typography>Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNavGuardOpen(false)}>Rester</Button>
-          <Button color="error" onClick={handleLeaveWithoutSaving}>Quitter sans enregistrer</Button>
-        </DialogActions>
-      </Dialog>
+    <Box>
+      <PageActionBar
+        title="Paramètres"
+        subtitle={subtitle}
+        onSave={handleSave}
+        saveDisabled={!isDirty || saving || loading}
+        saveBusy={saving}
+        onCancel={handleCancel}
+        cancelDisabled={!isDirty || saving || loading}
+      />
 
-      {/* ── Bandeau d'actions fixe ──────────────────────────────── */}
-      <Box
-        sx={{
-          position: 'fixed',
-          top: { xs: 56, sm: 64 },
-          left: { xs: 0, md: 240 },
-          width: { xs: '100%', md: 'calc(100% - 240px)' },
-          zIndex: 1200,
-          px: { xs: 1.5, sm: 2, md: 3 },
-          py: 1,
-        }}
-      >
-        <Box
-          sx={{
-            maxWidth: 920,
-            mx: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 1,
-            bgcolor: '#fff',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            px: 1.5,
-            py: 1,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Paramètres</Typography>
-            {isDirty && (
-              <Typography variant="caption" color="warning.main" sx={{ fontStyle: 'italic' }}>
-                Modifications non enregistrées
-              </Typography>
-            )}
-            {savedAt && !isDirty && (
-              <Typography variant="caption" color="text.disabled">
-                Dernière mise à jour : {new Date(savedAt).toLocaleString('fr-FR')}
-              </Typography>
-            )}
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title="Annuler" enterDelay={1000} enterNextDelay={1000}>
-              <span>
-                <IconButton
-                  aria-label="Annuler"
-                  onClick={handleCancel}
-                  disabled={!isDirty || saving || loading}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                  }}
-                >
-                  <CloseIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title={saving ? 'Enregistrement...' : 'Enregistrer'} enterDelay={1000} enterNextDelay={1000}>
-              <span>
-                <IconButton
-                  color="primary"
-                  aria-label={saving ? 'Enregistrement...' : 'Enregistrer'}
-                  onClick={handleSave}
-                  disabled={!isDirty || saving || loading}
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: '#fff',
-                    borderRadius: 1,
-                    '&:hover': { bgcolor: 'primary.dark' },
-                    '&.Mui-disabled': {
-                      bgcolor: 'action.disabledBackground',
-                      color: 'action.disabled',
-                    },
-                  }}
-                >
-                  {saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-                </IconButton>
-              </span>
-            </Tooltip>
-          </Box>
-        </Box>
+      <Box sx={{ maxWidth: { xs: '100%', md: 920 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
+        {globalMessage && (
+          <Alert
+            severity={globalMessage.severity}
+            sx={{ mb: 2 }}
+            onClose={() => setGlobalMessage(null)}
+          >
+            {globalMessage.text}
+          </Alert>
+        )}
+
+        <SettingsCompanySection
+          values={draft.company}
+          errors={errors}
+          onChange={updateGroup('company')}
+          onUploadLogo={handleUploadLogo}
+          onDeleteLogo={handleDeleteLogo}
+          disabled={loading || saving}
+        />
+
+        <SettingsQuoteSection
+          values={draft.quote}
+          errors={errors}
+          onChange={updateGroup('quote')}
+          disabled={loading || saving}
+        />
+
+        <SettingsGoogleCalendarSection
+          values={draft.googleCalendar}
+          errors={errors}
+          statusLabel={draft.googleCalendar.statusLabel}
+          onChange={updateGroup('googleCalendar')}
+          onChangePrivateKey={updatePrivateKey}
+          onTest={handleTest}
+          testing={testing}
+          testResult={testResult}
+          disabled={loading || saving}
+        />
       </Box>
 
-      {/* Espace pour compenser le bandeau fixe */}
-      <Box sx={{ height: 56, mb: 2 }} />
-
-      {statusMessage && (
-        <Alert severity={statusType === 'error' ? 'error' : 'success'} sx={{ mb: 2, maxWidth: 920, mx: 'auto' }} onClose={() => setStatusMessage('')}>
-          {statusMessage}
-        </Alert>
-      )}
-
-      {/* ── Informations société ───────────────────────────────────── */}
-      <Box sx={{ maxWidth: 920, mx: 'auto' }}>
-      <Card variant="outlined" sx={{ bgcolor: '#fff', mb: 3 }}>
-        <CardContent>
-          <Stack spacing={2.5}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Informations société</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Ces informations apparaissent sur vos devis PDF (en-tête et pied de page).
-              </Typography>
-            </Box>
-
-            {/* Logo upload */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Logo de la société</Typography>
-              <Stack direction="row" spacing={2} alignItems="center">
-                {companyLogoPath ? (
-                  <Box
-                    component="img"
-                    src={companyLogoPath}
-                    alt="Logo société"
-                    sx={{ height: 64, maxWidth: 200, objectFit: 'contain', border: '1px solid #eee', borderRadius: 1, p: 0.5 }}
-                  />
-                ) : (
-                  <Box sx={{ height: 64, width: 120, border: '1px dashed #ccc', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Typography variant="caption" color="text.disabled">Aucun logo</Typography>
-                  </Box>
-                )}
-                <Stack spacing={1}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    disabled={logoUploading || loading}
-                    onClick={() => logoInputRef.current?.click()}
-                  >
-                    {logoUploading ? 'Chargement...' : companyLogoPath ? 'Remplacer le logo' : 'Choisir un logo'}
-                  </Button>
-                  {companyLogoPath && (
-                    <Tooltip title="Supprimer le logo">
-                      <IconButton size="small" color="error" onClick={handleLogoDelete} disabled={logoUploading}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </Stack>
-              </Stack>
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={handleLogoUpload}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                Le logo s'affichera sur vos devis PDF et sera utilisé comme favicon de l'application. Max 2 Mo.
-              </Typography>
-            </Box>
-
-            <TextField
-              label="Nom de la société / Raison sociale"
-              value={form.companyName}
-              onChange={(e) => updateField('companyName', e.target.value)}
-              fullWidth
-              disabled={loading || saving}
-            />
-
-            <TextField
-              label="Adresse complète"
-              value={form.companyAddress}
-              onChange={(e) => updateField('companyAddress', e.target.value)}
-              fullWidth
-              multiline
-              minRows={2}
-              disabled={loading || saving}
-              helperText="Vous pouvez utiliser des retours à la ligne."
-            />
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Email de contact"
-                value={form.companyEmail}
-                onChange={(e) => updateField('companyEmail', e.target.value)}
-                fullWidth
-                disabled={loading || saving}
-              />
-              <TextField
-                label="Téléphone de contact"
-                value={form.companyPhone}
-                onChange={(e) => updateField('companyPhone', e.target.value)}
-                fullWidth
-                disabled={loading || saving}
-              />
-            </Stack>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Numéro SIRET"
-                value={form.companySiret}
-                onChange={(e) => updateField('companySiret', e.target.value)}
-                fullWidth
-                disabled={loading || saving}
-              />
-              <TextField
-                label="Numéro de TVA intracommunautaire"
-                value={form.companyTva}
-                onChange={(e) => updateField('companyTva', e.target.value)}
-                fullWidth
-                disabled={loading || saving}
-              />
-            </Stack>
-
-            <Divider />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Coordonnées bancaires (RIB)</Typography>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Dénomination du compte"
-                value={form.companyBankName}
-                onChange={(e) => updateField('companyBankName', e.target.value)}
-                fullWidth
-                disabled={loading || saving}
-              />
-              <TextField
-                label="BIC"
-                value={form.companyBic}
-                onChange={(e) => updateField('companyBic', e.target.value)}
-                fullWidth
-                disabled={loading || saving}
-              />
-            </Stack>
-
-            <TextField
-              label="IBAN"
-              value={form.companyIban}
-              onChange={(e) => updateField('companyIban', e.target.value)}
-              fullWidth
-              disabled={loading || saving}
-              helperText="Ex : FR76 3000 6000 0112 3456 7890 189"
-            />
-
-            <Divider />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Texte de pied de devis</Typography>
-
-            <TextField
-              label="Message de conclusion (affiché en bas de chaque devis PDF)"
-              value={form.quoteFooterText}
-              onChange={(e) => updateField('quoteFooterText', e.target.value)}
-              fullWidth
-              multiline
-              minRows={4}
-              disabled={loading || saving}
-              helperText="Laissez vide pour utiliser le message par défaut (bienveillant et commercial)."
-            />
-          </Stack>
-        </CardContent>
-      </Card>
-
-      {/* ── Paramètres devis ──────────────────────────────────────── */}
-      <Card variant="outlined" sx={{ bgcolor: '#fff', mb: 3 }}>  
-        <CardContent>
-          <Stack spacing={2.5}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Paramètres devis</Typography>
-            </Box>
-            <TextField
-              label="Durée de validité par défaut (jours)"
-              type="number"
-              value={form.quoteValidityDays}
-              onChange={(e) => updateField('quoteValidityDays', Number(e.target.value) || 30)}
-              inputProps={{ min: 1, max: 365 }}
-              sx={{ maxWidth: 280 }}
-              disabled={loading || saving}
-              helperText="Nombre de jours de validité par défaut pour les nouveaux devis."
-            />
-          </Stack>
-        </CardContent>
-      </Card>
-
-      {/* ── Google Calendar ────────────────────────────────────────── */}
-      <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
-        <CardContent>
-          <Stack spacing={2.5}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Parametres Google Calendar</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Configurez ici les variables Google Calendar. Ces valeurs sont gerees et stockees par le backend.
-              </Typography>
-            </Box>
-
-            {statusMessage && (
-              <Alert severity={statusType === 'error' ? 'error' : 'success'}>
-                {statusMessage}
-              </Alert>
-            )}
-
-            <TextField
-              label="Google Calendar ID"
-              value={form.googleCalendarId}
-              onChange={(e) => updateField('googleCalendarId', e.target.value)}
-              fullWidth
-              disabled={loading || saving}
-            />
-
-            <TextField
-              label="Service Account Email"
-              value={form.googleServiceAccountEmail}
-              onChange={(e) => updateField('googleServiceAccountEmail', e.target.value)}
-              fullWidth
-              disabled={loading || saving}
-            />
-
-            <TextField
-              label="Service Account Private Key"
-              value={form.googleServiceAccountPrivateKey}
-              onChange={(e) => updateField('googleServiceAccountPrivateKey', e.target.value)}
-              fullWidth
-              multiline
-              minRows={6}
-              disabled={loading || saving}
-              helperText="Collez la cle complete (format PEM). Les sauts de ligne seront pris en charge automatiquement."
-            />
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-              <Typography variant="caption" color={hasGoogleConfig ? 'success.main' : 'warning.main'}>
-                {hasGoogleConfig ? 'Configuration Google complète.' : 'Configuration Google incomplète.'}
-              </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={googleSyncing ? <CircularProgress size={14} /> : <SyncIcon fontSize="small" />}
-                onClick={handleSyncGoogleCalendar}
-                disabled={googleSyncing || loading || saving || !hasGoogleConfig}
-              >
-                {googleSyncing ? 'Sync Google...' : 'Sync Google'}
-              </Button>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-      </Box>
+      <ConfirmDialog
+        open={guardDialogOpen}
+        onClose={dismissGuard}
+        onConfirm={confirmLeave}
+        title="Modifications non enregistrées"
+        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        confirmLabel="Quitter sans enregistrer"
+        cancelLabel="Rester"
+        confirmColor="error"
+      />
     </Box>
   );
+}
+
+// Map wrapped field name → server-side error column key.
+function mapClientKeyToErrorKey(group, key) {
+  if (group === 'company') {
+    return ({
+      name: 'companyName',
+      address: 'companyAddress',
+      email: 'companyEmail',
+      phone: 'companyPhone',
+      siret: 'companySiret',
+      tva: 'companyTva',
+      iban: 'companyIban',
+      bic: 'companyBic',
+      bankName: 'companyBankName',
+    })[key];
+  }
+  if (group === 'quote') {
+    return ({
+      footerText: 'quoteFooterText',
+      validityDays: 'quoteValidityDays',
+    })[key];
+  }
+  if (group === 'googleCalendar') {
+    return ({
+      calendarId: 'googleCalendarId',
+      serviceAccountEmail: 'googleServiceAccountEmail',
+    })[key];
+  }
+  return null;
 }

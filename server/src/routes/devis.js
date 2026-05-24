@@ -5,6 +5,7 @@ const db = require('../database');
 const PDFDocument = require('pdfkit');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { sentenceCase } = require('../utils/textFormatters');
+const settingsModel = require('../models/settingsModel');
 
 // ─── history helpers ────────────────────────────────────────────────────────
 
@@ -951,7 +952,7 @@ router.get('/:id/pdf', (req, res) => {
   if (!devisRow) return res.status(404).json({ error: 'Devis non trouvé' });
 
   const full = enrichDevis(devisRow);
-  const settings = db.getAppSettings();
+  const settings = settingsModel.read();
   const property = full.property;
   const client = full.client;
   const vatAccommodation = Number(property?.vatPercentageAccommodation ?? 20);

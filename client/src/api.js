@@ -169,6 +169,7 @@ const api = {
   // Google Calendar sync
   getGoogleCalendarStatus: () => request('/google-calendar/status'),
   syncGoogleCalendarReservations: (payload = {}) => request('/google-calendar/sync-reservations', { method: 'POST', body: payload }),
+  testGoogleCalendarConnection: () => request('/google-calendar/test-connection', { method: 'POST' }),
 };
 
 export default api;

@@ -1,50 +1,10 @@
 const router = require('express').Router();
-const { google } = require('googleapis');
 const db = require('../database');
-
-function sanitizePrivateKey(privateKey) {
-  return String(privateKey || '').replace(/\\n/g, '\n').trim();
-}
-
-function getGoogleCalendarConfig(overrides = {}) {
-  const settings = db.getAppSettings ? db.getAppSettings() : {};
-
-  const calendarId = String(
-    overrides.calendarId
-    || settings.googleCalendarId
-    || process.env.GOOGLE_CALENDAR_ID
-    || ''
-  ).trim();
-  const clientEmail = String(
-    overrides.clientEmail
-    || settings.googleServiceAccountEmail
-    || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-    || ''
-  ).trim();
-  const privateKey = sanitizePrivateKey(
-    overrides.privateKey
-    || settings.googleServiceAccountPrivateKey
-    || process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
-    || ''
-  );
-
-  return {
-    calendarId,
-    clientEmail,
-    privateKey,
-    configured: Boolean(calendarId && clientEmail && privateKey),
-  };
-}
-
-function getGoogleCalendarClient(config) {
-  const auth = new google.auth.JWT({
-    email: config.clientEmail,
-    key: config.privateKey,
-    scopes: ['https://www.googleapis.com/auth/calendar'],
-  });
-
-  return google.calendar({ version: 'v3', auth });
-}
+const {
+  getGoogleCalendarConfig,
+  getGoogleCalendarClient,
+} = require('../utils/googleCalendarClient');
+const googleCalendarController = require('../controllers/googleCalendarController');
 
 function formatCountLabel(count, singular, plural) {
   const safe = Number(count || 0);
@@ -150,6 +110,8 @@ router.get('/status', (req, res) => {
     serviceAccountEmail: config.clientEmail || null,
   });
 });
+
+router.post('/test-connection', googleCalendarController.testConnection);
 
 router.post('/sync-reservations', async (req, res) => {
   const config = getGoogleCalendarConfig(req.body || {});
