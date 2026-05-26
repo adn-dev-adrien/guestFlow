@@ -6,6 +6,16 @@ function overlapClause() {
   return 'r.startDate < ? AND r.endDate > ?';
 }
 
+function parseJsonArray(raw) {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 function parseResource(resource) {
   if (!resource) return resource;
   let openDays = '[0,1,2,3,4,5,6]';
@@ -158,14 +168,19 @@ router.get('/baby-bed-availability', (req, res) => {
   const { propertyId, startDate, endDate, excludeReservationId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate et endDate requis' });
 
-  const resources = db.prepare(`
+  const allBabyBeds = db.prepare(`
     SELECT * FROM resources
-    WHERE (lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe'))
-      AND (propertyId IS NULL OR propertyId = ?)
-  `).all(propertyId || null);
+    WHERE lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe')
+  `).all();
+  const propertyIdNum = propertyId != null && propertyId !== '' ? Number(propertyId) : null;
+  const resources = allBabyBeds.filter((r) => {
+    const ids = parseJsonArray(r.propertyIds);
+    if (ids.length === 0) return true; // global
+    return propertyIdNum != null && ids.includes(propertyIdNum);
+  });
 
   const totalQuantity = resources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-  const hasGlobal = resources.some(r => r.propertyId === null);
+  const hasGlobal = resources.some((r) => parseJsonArray(r.propertyIds).length === 0);
 
   let sql = `
     SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved

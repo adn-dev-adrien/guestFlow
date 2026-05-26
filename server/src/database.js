@@ -832,11 +832,14 @@ if (holidayCount === 0) {
   for (const row of seed) insert.run(...row);
 }
 
-// Seed default resource: baby bed (global)
-const babyBed = db.prepare("SELECT id FROM resources WHERE lower(name) = lower('Lit bébé') AND propertyId IS NULL").get();
+// Seed default resource: baby bed (global = propertyIds NULL or empty).
+// Use propertyIds (JSON) only — the legacy propertyId single FK is dropped by the DB Hygiene block at the end of this file.
+const babyBed = db.prepare(
+  "SELECT id FROM resources WHERE lower(name) = lower('Lit bébé') AND (propertyIds IS NULL OR propertyIds = '[]' OR propertyIds = '')"
+).get();
 if (!babyBed) {
-  db.prepare('INSERT INTO resources (name, quantity, price, propertyId, note) VALUES (?, ?, ?, ?, ?)')
-    .run('Lit bébé', 1, 0, null, 'Ressource par défaut');
+  db.prepare('INSERT INTO resources (name, quantity, price, note) VALUES (?, ?, ?, ?)')
+    .run('Lit bébé', 1, 0, 'Ressource par défaut');
 }
 
 // Migration: Add missing columns to options table if they don't exist
@@ -1146,5 +1149,9 @@ try {
 }
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
+
+// ---------- DB HYGIENE — Bloc 0 ----------
+// See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
+require('./utils/dbHygiene').applyHygiene(db);
 
 module.exports = db;

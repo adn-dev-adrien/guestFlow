@@ -3,6 +3,16 @@ const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { calculateReservationQuote } = require('../utils/pricing');
 
+function parseJsonArray(raw) {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 const HISTORY_FIELD_LABELS = {
   propertyId: 'Logement',
   clientId: 'Client',
@@ -777,13 +787,18 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre total de bébés et d'enfants (${babiesCount + childrenCount}).` });
   }
 
-  const babyResources = db.prepare(`
+  const allBabyBeds = db.prepare(`
     SELECT * FROM resources
-    WHERE (lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe'))
-      AND (propertyId IS NULL OR propertyId = ?)
-  `).all(propertyId);
+    WHERE lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe')
+  `).all();
+  const propertyIdNum = propertyId != null ? Number(propertyId) : null;
+  const babyResources = allBabyBeds.filter((r) => {
+    const ids = parseJsonArray(r.propertyIds);
+    if (ids.length === 0) return true; // global
+    return propertyIdNum != null && ids.includes(propertyIdNum);
+  });
   const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-  const babyHasGlobal = babyResources.some(r => r.propertyId === null);
+  const babyHasGlobal = babyResources.some((r) => parseJsonArray(r.propertyIds).length === 0);
   let babyReservedSql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ?';
   const babyReservedParams = [endDate, startDate];
   if (!babyHasGlobal) {
@@ -1069,13 +1084,18 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: `Le nombre de lits bébé (${babyBedsCount}) ne peut pas dépasser le nombre total de bébés et d'enfants (${babiesCount + childrenCount}).` });
     }
 
-    const babyResources = db.prepare(`
+    const allBabyBedsUpd = db.prepare(`
       SELECT * FROM resources
-      WHERE (lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe'))
-        AND (propertyId IS NULL OR propertyId = ?)
-    `).all(propertyId);
+      WHERE lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe')
+    `).all();
+    const propertyIdNumUpd = propertyId != null ? Number(propertyId) : null;
+    const babyResources = allBabyBedsUpd.filter((r) => {
+      const ids = parseJsonArray(r.propertyIds);
+      if (ids.length === 0) return true; // global
+      return propertyIdNumUpd != null && ids.includes(propertyIdNumUpd);
+    });
     const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-    const babyHasGlobal = babyResources.some(r => r.propertyId === null);
+    const babyHasGlobal = babyResources.some((r) => parseJsonArray(r.propertyIds).length === 0);
     let babyReservedSql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ? AND id != ?';
     const babyReservedParams = [endDate, startDate, req.params.id];
     if (!babyHasGlobal) {

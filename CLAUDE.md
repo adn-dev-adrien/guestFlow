@@ -79,22 +79,48 @@ For multi-option questions, use `AskUserQuestion` (interactive choices). For fre
 
 ## 5. Git & branches
 
-**Current policy: the user owns all git operations.** Claude does NOT:
-- create or switch branches
-- stage, commit, amend, or revert
-- push, pull, fetch, merge, rebase
-- open, comment on, or merge PRs
-- tag or release
+**Current policy: Claude owns the local git pipeline up to the push.** The user handles PR review and merge via the GitHub web UI.
 
-Claude only edits files in the working tree. At the end of a task, Claude hands off with a summary; the user takes it from there.
+### 5.1 What Claude does
 
-**Naming conventions** (for the user's reference when branching/committing):
-- Branches: `feature/<short-kebab-name>` for features, `fix/<short-kebab-name>` for fixes.
-- Target branch: `master`.
-- Commits: Conventional Commits in English (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
-- Deployment branch: `release` (push there triggers GitHub Actions / PM2 deploy).
+For every spec retro-implementation:
+1. **As soon as a spec is approved**, before entering plan mode for implementation, create the working branch from up-to-date `master`:
+   ```bash
+   git checkout master && git pull
+   git checkout -b feature/<short-kebab-name>
+   ```
+2. **Implement** the spec on that branch (after the plan is approved).
+3. **Stage explicit files only** — never `git add -A` or `git add .`. List each file by path so secrets and accidental binaries can't slip in.
+4. **Commit** with a Conventional Commit message in English (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`), scoped (`feat(settings):`, `feat(db):`) and bodied with bullet points describing what + why. Always include the Co-Authored-By trailer.
+5. **Push** to `origin`: `git push -u origin feature/<short-kebab-name>`.
+6. **Hand off the PR URL** that GitHub prints after the push. The user creates the pull request from that URL, reviews, and **squash-merges** in the GitHub web UI.
+7. After the user confirms the merge, **return to master and pull**:
+   ```bash
+   git checkout master && git pull
+   ```
+   Then the next spec can start from a clean tree.
 
-This policy may be revisited later — when the user grants git access, this section will be updated and Claude will follow the conventions above.
+### 5.2 What Claude does NOT do
+
+- Push to `master` directly.
+- Force-push anywhere.
+- Open, comment on, or merge PRs (no `gh` CLI / no GitHub API calls).
+- Push to the `release` branch (that branch triggers GitHub Actions / PM2 deploy — user-controlled).
+- Skip hooks (`--no-verify`), bypass signing, or amend pushed commits.
+- Run destructive commands (`reset --hard`, `clean -f`, branch deletion) without explicit user instruction.
+
+### 5.3 Conventions
+
+- **Branches:** `feature/<short-kebab-name>` for features, `fix/<short-kebab-name>` for bug fixes.
+- **Target branch:** `master`.
+- **Merge strategy:** **squash merge** (user-enforced in the GitHub UI). Keeps `master` history one-commit-per-feature.
+- **Deployment branch:** `release` — push there triggers GitHub Actions / PM2 deploy. **User-only.**
+
+### 5.4 Conflict / safety rules
+
+- If `git pull` on `master` reports conflicts or a stale local state, **stop and ask the user** rather than auto-resolving with `--ours` or `--theirs`.
+- If the working tree is dirty when a new spec starts, **stop and ask** — never auto-stash or auto-discard. The user may have in-progress work.
+- If `git push` is rejected (e.g. someone pushed the same branch name), **stop and ask** — never `--force`.
 
 ---
 
