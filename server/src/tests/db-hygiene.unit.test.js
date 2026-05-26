@@ -68,6 +68,14 @@ const DDL = `
   );
   CREATE TABLE ical_tokens (propertyId INTEGER, token TEXT);
   CREATE TABLE calendar_notes (propertyId INTEGER, date TEXT);
+
+  CREATE TABLE establishment_closures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER,
+    label TEXT,
+    startDate TEXT,
+    endDate TEXT
+  );
 `;
 
 function freshDb() {

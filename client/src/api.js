@@ -170,6 +170,18 @@ const api = {
   getGoogleCalendarStatus: () => request('/google-calendar/status'),
   syncGoogleCalendarReservations: (payload = {}) => request('/google-calendar/sync-reservations', { method: 'POST', body: payload }),
   testGoogleCalendarConnection: () => request('/google-calendar/test-connection', { method: 'POST' }),
+
+  // Establishment closures
+  getEstablishmentClosures: (params = {}) => {
+    const filtered = Object.entries(params)
+      .filter(([, v]) => v != null && v !== '')
+      .reduce((acc, [k, v]) => { acc[k] = String(v); return acc; }, {});
+    const qs = new URLSearchParams(filtered).toString();
+    return request(`/establishment-closures${qs ? `?${qs}` : ''}`);
+  },
+  createEstablishmentClosure: (data) => request('/establishment-closures', { method: 'POST', body: data }),
+  updateEstablishmentClosure: (id, data) => request(`/establishment-closures/${id}`, { method: 'PUT', body: data }),
+  deleteEstablishmentClosure: (id) => request(`/establishment-closures/${id}`, { method: 'DELETE' }),
 };
 
 export default api;

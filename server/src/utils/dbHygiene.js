@@ -50,6 +50,8 @@ const FK_INDEXES = [
   // iCal anti-overbooking lookups (spec §1.1)
   ['idx_reservations_ical_source', 'reservations', 'sourceIcalSourceId, sourceIcalEventUid'],
   ['idx_ical_import_events_reservationId', 'ical_import_events', 'reservationId'],
+  // establishment_closures overlap lookups (spec establishment-closures §5)
+  ['idx_establishment_closures_propertyId_dates', 'establishment_closures', 'propertyId, startDate, endDate'],
 ];
 
 const UNIQUE_INDEXES = [

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { calculateReservationQuote } = require('../utils/pricing');
+const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 
 function parseJsonArray(raw) {
   if (!raw) return [];
@@ -365,7 +366,14 @@ router.get('/occupied-dates/:propertyId', (req, res) => {
   }
   
   const reservations = db.prepare(sql).all(...params);
-  res.json(buildOccupiedDatesFromReservations(reservations));
+  const occupiedFromReservations = buildOccupiedDatesFromReservations(reservations);
+
+  // Append dates covered by applicable closures (global + per-property).
+  const closures = establishmentClosuresModel.list({ propertyId, from, to });
+  const closureDates = establishmentClosuresModel.expandClosuresToDates(closures);
+
+  const merged = Array.from(new Set([...occupiedFromReservations, ...closureDates])).sort();
+  res.json(merged);
 });
 
 
@@ -671,6 +679,15 @@ function validateReservation(propertyId, startDate, endDate, checkInTime, checkO
         error: `Départ à ${checkOutTime || '10:00'} + ${cleaning}h de ménage empêche l'arrivée du client suivant à ${nextRes.checkInTime || '15:00'}. L'heure de départ maximale est ${maxH}:${maxM}.`
       };
     }
+  }
+
+  // ── 4. Establishment closure covering the requested range ──────────────
+  const coveringClosure = establishmentClosuresModel.findCoveringClosure(propertyId, startDate, endDate);
+  if (coveringClosure) {
+    return {
+      error: `Fermeture en place sur cette période : « ${coveringClosure.label} » du ${coveringClosure.startDate} au ${coveringClosure.endDate}.`,
+      code: 'CLOSURE_COVERS_DATE',
+    };
   }
 
   return null; // no error

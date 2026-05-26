@@ -666,6 +666,22 @@ db.exec(`
   )
 `);
 
+// ---------- ESTABLISHMENT CLOSURES ----------
+// Global (propertyId IS NULL) or per-property (propertyId NOT NULL) closure periods.
+// Used to block reservations and visualize unavailable ranges on the calendar.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS establishment_closures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER,
+    label TEXT NOT NULL DEFAULT 'Fermeture établissement',
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+  )
+`);
+
 // ---------- APP SETTINGS ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS app_settings (

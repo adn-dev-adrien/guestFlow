@@ -75,6 +75,21 @@ For multi-option questions, use `AskUserQuestion` (interactive choices). For fre
 - **Status field:** `Draft` → `Approved` → `Implemented`. Keep it up to date.
 - **The spec is the source of truth for *why*** a feature exists. Code answers *what*; the spec answers *why*.
 
+### 4.1 Specs must stay in sync with the code — always
+
+**Every user feedback / correction / scope change during or after implementation MUST update the matching spec at the same time as the code.** Specs that lag behind reality are worse than no specs — they mislead future readers (including future-you and future-Claude).
+
+Applies to *all* of these situations:
+- Bug fixes that change observable behavior (even cosmetic ones like "row click opens edit", "default value changed").
+- UX tweaks (icon placement, label wording, sidebar location).
+- Scope changes (a feature is widened, narrowed, deferred).
+- Validation rule adjustments.
+- API contract changes (even backward-compatible additions).
+
+**Concrete rule:** when the user gives feedback on an already-implemented spec, the same commit (or a same-PR follow-up commit) must update the spec markdown. Push the spec change alongside the code change — never skip it because "the spec is already merged."
+
+If a feedback proves the spec was *wrong* (vs. *incomplete*), the spec fix is even more important than the code fix — write down what the right behavior is so it doesn't drift back later.
+
 ---
 
 ## 5. Git & branches

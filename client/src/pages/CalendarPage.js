@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, FormControl, InputLabel, Select,
   MenuItem, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Autocomplete, Chip, Checkbox, FormControlLabel, Divider, Grid
+  TextField, Autocomplete, Chip, Checkbox, FormControlLabel, Divider, Grid, Tooltip
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageHeader from '../components/PageHeader';
@@ -18,6 +18,7 @@ import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays
 import { getBlockedNightConflictInfo, getDayOccupancyConflictMessage, getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
+import { getClosureForDate } from '../utils/closureCalendar';
 
 const PRICE_TYPE_LABELS = {
   per_stay: 'prix fixe',
@@ -180,6 +181,7 @@ export default function CalendarPage() {
   const [noteDialogDate, setNoteDialogDate] = useState('');
   const [noteDialogText, setNoteDialogText] = useState('');
     const [occupiedDates, setOccupiedDates] = useState([]);
+    const [closures, setClosures] = useState([]);
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneErrors = (newClient.phoneNumbers || []).map((phone) => !isValidPhone(phone));
   const newClientPhoneError = newClientPhoneErrors.some(Boolean);
@@ -290,6 +292,14 @@ export default function CalendarPage() {
       } catch (err) {
         console.error('Failed to load occupied dates:', err);
         setOccupiedDates([]);
+      }
+      // Load establishment closures (global + per-property) overlapping the visible range.
+      try {
+        const cls = await api.getEstablishmentClosures({ propertyId: selectedProp, from, to });
+        setClosures(cls || []);
+      } catch (err) {
+        console.error('Failed to load closures:', err);
+        setClosures([]);
       }
   }, [selectedProp, months]);
 
@@ -1434,7 +1444,8 @@ export default function CalendarPage() {
           </Box>
         );
       }
-      return (
+      const closure = getClosureForDate(dateStr, closures, selectedProp);
+      const cellNode = (
         <Box key={dateStr} data-date={dateStr}
           onMouseDown={() => !isPast && handleMouseDown(day, y, m)}
           onMouseEnter={() => handleMouseEnter(day, y, m)}
@@ -1442,20 +1453,49 @@ export default function CalendarPage() {
           sx={{
             textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', minHeight: 64,
             height: 64, boxSizing: 'border-box',
-            cursor: isPast ? 'default' : 'pointer', fontSize: 14,
+            cursor: isPast || closure ? 'default' : 'pointer', fontSize: 14,
             bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
             color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
             fontWeight: inDrag ? 600 : 400,
             border: isToday ? '3px solid #1976d2' : 'none',
-            ...(!isPast && { '&:hover': { bgcolor: 'primary.light', color: 'white' } }),
+            ...(!isPast && !closure && { '&:hover': { bgcolor: 'primary.light', color: 'white' } }),
             transition: 'background-color 0.15s, border 0.2s',
+            ...(closure ? {
+              backgroundImage:
+                'repeating-linear-gradient(135deg, rgba(0,0,0,0.06) 0, rgba(0,0,0,0.06) 8px, rgba(0,0,0,0.14) 8px, rgba(0,0,0,0.14) 16px)',
+              borderTop: '1px dashed',
+              borderBottom: '1px dashed',
+              borderColor: 'grey.500',
+            } : {}),
           }}
         >
           {renderHolidayIndicators(dateStr)}
           {renderNoteLabel(dateStr, false)}
-          {day}
+          {closure ? (
+            <Typography
+              variant="caption"
+              sx={{
+                position: 'absolute',
+                left: 0, right: 0, top: '50%', transform: 'translateY(-50%)',
+                fontStyle: 'italic', color: 'text.disabled', fontSize: 11,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                px: 0.5,
+              }}
+            >
+              {closure.label || 'Fermé'}
+            </Typography>
+          ) : day}
         </Box>
       );
+      return closure ? (
+        <Tooltip
+          key={`tip-${dateStr}`}
+          title={`${closure.label || 'Fermeture'} — du ${closure.startDate} au ${closure.endDate}`}
+          arrow
+        >
+          {cellNode}
+        </Tooltip>
+      ) : cellNode;
     }
 
     // Build gradient stops for the diagonal fill

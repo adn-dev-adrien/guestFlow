@@ -40,6 +40,7 @@ app.use('/api/ical', require('./routes/ical'));
 app.use('/api/google-calendar', require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/devis', require('./routes/devis'));
+app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
 
 app.get('/api/version', (req, res) => {
   res.json({

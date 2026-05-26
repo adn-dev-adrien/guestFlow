@@ -22,6 +22,7 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -46,6 +47,7 @@ import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import SettingsPage from './pages/SettingsPage';
+import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 
 const DRAWER_WIDTH = 240;
@@ -113,6 +115,7 @@ function NavContent({ onItemClick }) {
       || location.pathname === '/resources'
       || location.pathname === '/clients'
       || location.pathname === '/school-holidays'
+      || location.pathname === '/establishment-closures'
     ) {
       setSettingsMenuOpen(true);
       setCalendarMenuOpen(false);
@@ -144,6 +147,7 @@ function NavContent({ onItemClick }) {
                     || location.pathname === '/resources'
                     || location.pathname === '/clients'
                     || location.pathname === '/school-holidays'
+                    || location.pathname === '/establishment-closures'
                     || location.pathname.startsWith('/properties')
                     ? true
                     : (prev) => !prev
@@ -171,6 +175,7 @@ function NavContent({ onItemClick }) {
                       || location.pathname === '/resources'
                       || location.pathname === '/clients'
                       || location.pathname === '/school-holidays'
+                      || location.pathname === '/establishment-closures'
                       || location.pathname.startsWith('/properties')
                     )
                     : location.pathname === item.path
@@ -381,6 +386,16 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Vacances scolaires" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                <ListItemButton
+                  component={Link}
+                  to="/establishment-closures"
+                  onClick={(e) => onItemClick && onItemClick(e, '/establishment-closures')}
+                  selected={location.pathname === '/establishment-closures'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
               </List>
             </Collapse>
           )}
@@ -530,6 +545,7 @@ function AppShell() {
           <Route path="/planning" element={<PlanningPage />} />
           <Route path="/resource-planning" element={<ResourcePlanningPage />} />
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
+          <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Box>
