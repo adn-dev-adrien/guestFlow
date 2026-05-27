@@ -87,6 +87,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **PricingSummary extracted from ReservationPage** (Bloc 3 slice 3c-2, spec
+  `pricing-summary-extraction.md`) — the ~525-LOC right-panel pricing summary moved to a presentational
+  `client/src/components/PricingSummary.js`. Renders the server quote (accommodation struck/green,
+  options/resources with "Offrir", extra-guest, tourist tax + detail, VAT breakdown, total,
+  deposit/balance/caution); owns its display-detail toggles internally; lifts "Offrir" interactions to
+  the page via callbacks. No behavior/visual change; verified by a clean `CI=true` build + in-browser
+  (0 console errors, identical rendering).
 - **ReservationPage action bar → shared `PageActionBar`** (Bloc 3 slice 3c-1, spec
   `reservation-page-action-bar.md`) — the bespoke `position: fixed` bar (and its `mt` layout
   compensation + hard-coded sidebar offset) is replaced by the shared sticky `<PageActionBar>`, same
