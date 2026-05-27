@@ -82,6 +82,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Reservations backend MVC extraction** (Bloc 3 slice 3a, spec `reservations-backend-mvc.md`) — pure
+  structural refactor, **no API/behavior change**. The 1317-LOC `routes/reservations.js` monolith is now
+  thin (verb/path → controller); logic moved to `controllers/reservationsController.js`,
+  `models/reservationsModel.js` (all SQL), and pure utils `utils/occupancy.js`,
+  `utils/reservationAudit.js`, `utils/bedDistribution.js`, `utils/reservationHelpers.js`. Same endpoints,
+  payloads, status codes, history/iCal-lock/pricing-snapshot behavior. New unit tests (occupancy, audit)
+  + manual create/conflict/history/delete verification; full suite green (255).
 - **Pricing (Bloc 2):** `PlanningPage` now renders the server-computed effective quantity (`billedUnits`)
   instead of recomputing per-price-type multipliers client-side (`getMultiplier`/`getEffectiveQty`
   removed). `CalendarPage`'s dead local `recalcPrice` duplicate was removed. `ReservationPage`'s
