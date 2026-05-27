@@ -238,8 +238,15 @@ credential encryption at rest, `GUESTFLOW_SESSION_SECRET` for sessions). This fi
 must never be committed or shared. Google service-account credentials are encrypted (AES-256-GCM) at
 rest using that key.
 
-To reset the admin account, delete the database (`rm server/guestflow.db`) — the default admin is
-re-seeded on the next launch.
+The admin password persists across restarts. If you ever lose it, recover access without touching the
+database by hand — run, on the server:
+
+```bash
+cd server && npm run reset-admin
+```
+
+This restores the default admin (`admin@guestflow.local` / `ChangeMe!2026`) with a forced password
+change on next login, and invalidates existing sessions. (Requires filesystem/SSH access to the server.)
 
 ### Security configuration
 

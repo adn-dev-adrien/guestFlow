@@ -6,6 +6,7 @@
     "dev:watch": "nodemon --watch src --ext js,json --signal SIGTERM src/index.js",
     "dev": "npm run dev:clean && npm run dev:watch",
     "start": "node src/index.js",
+    "reset-admin": "node scripts/reset-admin.js",
     "test": "node --test \"src/tests/**/*.test.js\""
   },
   "devDependencies": {

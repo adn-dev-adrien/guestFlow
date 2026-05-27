@@ -74,3 +74,28 @@ test('unique email constraint blocks duplicates', () => {
   seedUser(db);
   assert.throws(() => seedUser(db));
 });
+
+test('resetAdminToDefault restores default credentials + forced change on an altered admin', () => {
+  const db = makeDb();
+  // Admin exists but with a changed password, no forced change, and deactivated.
+  seedUser(db, { password: 'SomeOtherPassword123', mustChange: 0, active: 0 });
+  const model = usersModel.create(db);
+
+  const email = model.resetAdminToDefault();
+  assert.equal(email, 'admin@guestflow.local');
+
+  // Default password works again, account re-activated, forced change set.
+  const user = model.verifyCredentials('admin@guestflow.local', 'ChangeMe!2026');
+  assert.ok(user, 'default password restored + account active');
+  assert.equal(user.mustChangePassword, true);
+  assert.equal(model.verifyCredentials('admin@guestflow.local', 'SomeOtherPassword123'), null, 'old password no longer valid');
+});
+
+test('resetAdminToDefault recreates the admin when the row is missing', () => {
+  const db = makeDb();
+  const model = usersModel.create(db);
+  model.resetAdminToDefault();
+  const user = model.verifyCredentials('admin@guestflow.local', 'ChangeMe!2026');
+  assert.ok(user);
+  assert.equal(user.mustChangePassword, true);
+});

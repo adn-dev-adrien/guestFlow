@@ -5,6 +5,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Admin account recovery** — `cd server && npm run reset-admin` restores the default admin
+  (`admin@guestflow.local` / `ChangeMe!2026`) with a forced password change and clears sessions, for
+  when the password is lost (no manual DB editing). Backed by `usersModel.resetAdminToDefault()`
+  (recreates the admin if missing) + unit tests. The admin password already persists across restarts
+  (the seed only runs when the `users` table is empty).
 - **Security hardening — headers, rate limiting, uploads, validation** (Bloc S PR 2, spec
   `security-hardening.md`):
   - **HTTP security headers** via `helmet`, including a CSP tuned for the SPA
