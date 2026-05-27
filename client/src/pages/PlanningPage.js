@@ -132,20 +132,9 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   const children = Number(r.children || 0);
   const teens = Number(r.teens || 0);
   const babies = Number(r.babies || 0);
-  const persons = adults + children + teens;
-  const nights = Math.max(1, Math.round((new Date(r.endDate) - new Date(r.startDate)) / 86400000));
-
-  const getMultiplier = (priceType) => {
-    if (priceType === 'per_person') return persons;
-    if (priceType === 'per_night') return nights;
-    if (priceType === 'per_person_per_night') return persons * nights;
-    return 1;
-  };
-
-  const getEffectiveQty = (item) => {
-    const baseQty = Number(item.quantity || 0);
-    const multiplier = getMultiplier(item.priceType);
-    const value = baseQty * multiplier;
+  // Effective billed quantity is computed server-side (billedUnits); the client only renders it.
+  const formatQty = (item) => {
+    const value = Number(item.billedUnits ?? item.quantity ?? 0);
     return Number.isInteger(value) ? value : Number(value.toFixed(2));
   };
 
@@ -158,8 +147,8 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
     alertBgColor = 'rgba(33, 150, 243, 0.08)';
   }
 
-  const optionsText = (r.options || []).map((o) => `${o.title} ×${getEffectiveQty(o)}`);
-  const resourcesText = (r.resources || []).map((rr) => `${rr.name} ×${getEffectiveQty(rr)}`);
+  const optionsText = (r.options || []).map((o) => `${o.title} ×${formatQty(o)}`);
+  const resourcesText = (r.resources || []).map((rr) => `${rr.name} ×${formatQty(rr)}`);
 
   return (
     <Card

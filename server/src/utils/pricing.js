@@ -611,6 +611,39 @@ function mergeLineWithLockedSnapshot({
   return result;
 }
 
+/**
+ * A locked line that was "offered" is stored with totalPrice = 0, which would erase its real price
+ * (the merge derives unit price from total/units). To keep offering lossless, reconstruct the real
+ * total from the stored unit price before merging. A genuinely free line (unit price 0) is left as-is.
+ */
+function reconstructLockedRealTotal(lockedLine) {
+  if (!lockedLine) return lockedLine;
+  const total = roundMoney(lockedLine.totalPrice);
+  if (total > 0) return lockedLine;
+  const units = normalizeBilledUnits(
+    lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity
+  );
+  const unit = roundMoney(lockedLine.unitPrice || 0);
+  if (units > 0 && unit > 0) {
+    return { ...lockedLine, totalPrice: roundMoney(units * unit) };
+  }
+  return lockedLine;
+}
+
+/**
+ * Applies the `offered` flag to a computed (real) line total. The real price is always preserved as
+ * `originalTotalPrice`; offering only zeroes the billed `totalPrice`. This is the single place where
+ * offering affects money, so toggling offered on/off is always lossless.
+ */
+function applyOfferedToLine(realTotal, offered) {
+  const real = roundMoney(realTotal);
+  return {
+    originalTotalPrice: real,
+    totalPrice: offered ? 0 : real,
+    offered: Boolean(offered),
+  };
+}
+
 function getApplicableOptions(db, propertyId) {
   const options = db.prepare('SELECT * FROM options ORDER BY title').all();
   const propStmt = db.prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId');
@@ -810,6 +843,8 @@ function calculateReservationQuote({
       subtotal: 0,
       discountAmount: 0,
       finalPrice: 0,
+      engineFinalPrice: 0,
+      priceOverridden: false,
       depositAmount: 0,
       balanceAmount: 0,
       depositDueDate: null,
@@ -879,34 +914,21 @@ function calculateReservationQuote({
           progressiveTiers,
           fallbackUnitPrice
         );
-        const lockedLine = lockedOptionsById.get(optionId);
+        const lockedLine = reconstructLockedRealTotal(lockedOptionsById.get(optionId));
         const lockedUnits = normalizeBilledUnits(
           lockedLine?.billedUnits !== undefined
             ? lockedLine.billedUnits
             : lockedLine?.quantity
         );
-
-        const shouldKeepLockedSnapshot = Boolean(
+        const keepLockedSnapshot = Boolean(
           lockedLine
             && Number(lockedLine.totalPrice || 0) > 0
             && lockedUnits === computed.billedUnits
         );
-        const shouldRepriceLockedFreeLine = Boolean(
-          !offeredOptionIdSet.has(optionId)
-            && lockedLine
-            && Number(lockedLine.totalPrice || 0) === 0
-            && Number(computed.totalPrice || 0) > 0
-        );
-
-        const mergedTotal = shouldKeepLockedSnapshot && !shouldRepriceLockedFreeLine
-          ? roundMoney(lockedLine.totalPrice)
-          : computed.totalPrice;
+        const realTotal = keepLockedSnapshot ? roundMoney(lockedLine.totalPrice) : computed.totalPrice;
         const effectiveAverageUnit = computed.billedUnits > 0
-          ? roundMoney(mergedTotal / computed.billedUnits)
+          ? roundMoney(realTotal / computed.billedUnits)
           : 0;
-        const originalTotalPrice = offeredOptionIdSet.has(optionId) && mergedTotal === 0
-          ? computed.totalPrice
-          : mergedTotal;
 
         return {
           optionId,
@@ -917,9 +939,7 @@ function calculateReservationQuote({
           priceType,
           optionProgressiveTiers: progressiveTiers,
           progressiveLastUnitPrice: computed.lastUnitPrice,
-          originalTotalPrice,
-          offered: offeredOptionIdSet.has(optionId),
-          totalPrice: offeredOptionIdSet.has(optionId) ? 0 : mergedTotal,
+          ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
         };
       }
 
@@ -927,21 +947,11 @@ function calculateReservationQuote({
         ? Number(optionUnitOverrides[optionId])
         : Number(option.price || 0);
       const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
-      const lockedLine = lockedOptionsById.get(optionId);
-      const shouldRepriceLockedFreeLine = Boolean(
-        !offeredOptionIdSet.has(optionId)
-          && lockedLine
-          && Number(lockedLine.totalPrice || 0) === 0
-          && Number(unitBase || 0) > 0
-      );
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: shouldRepriceLockedFreeLine ? null : lockedLine,
+        lockedLine: reconstructLockedRealTotal(lockedOptionsById.get(optionId)),
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });
-      const originalTotalPrice = offeredOptionIdSet.has(optionId) && Number(merged.totalPrice || 0) === 0
-        ? roundMoney(targetBilledUnits * Number(unitBase || 0))
-        : merged.totalPrice;
       return {
         optionId,
         title: option.title,
@@ -949,9 +959,7 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         priceType,
-        originalTotalPrice,
-        offered: offeredOptionIdSet.has(optionId),
-        totalPrice: offeredOptionIdSet.has(optionId) ? 0 : merged.totalPrice,
+        ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
       };
     })
     .filter(Boolean);
@@ -996,33 +1004,27 @@ function calculateReservationQuote({
     .filter(Boolean)
     .map((line) => {
       const optionId = Number(line.optionId);
-      const lockedLine = lockedOptionsById.get(optionId);
-      const shouldRepriceLockedFreeLine = Boolean(
-        !offeredOptionIdSet.has(optionId)
-          && lockedLine
-          && Number(lockedLine.totalPrice || 0) === 0
-          && Number(line.unitPrice || 0) > 0
-      );
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: shouldRepriceLockedFreeLine ? null : lockedLine,
+        lockedLine: reconstructLockedRealTotal(lockedOptionsById.get(optionId)),
         targetBilledUnits: 1,
         currentUnitPrice: line.unitPrice,
       });
-      const originalTotalPrice = offeredOptionIdSet.has(optionId) && Number(merged.totalPrice || 0) === 0
-        ? roundMoney(Number(line.unitPrice || 0))
-        : merged.totalPrice;
       return {
         ...line,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        originalTotalPrice,
-        offered: offeredOptionIdSet.has(optionId),
-        totalPrice: offeredOptionIdSet.has(Number(line.optionId)) ? 0 : merged.totalPrice,
+        ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
       };
     })
     .filter((line) => !selectedOptionIds.has(Number(line.optionId)));
 
-  const finalOptionLines = [...optionLines, ...autoOptionLines, ...customOptionLines];
+  // Render the summary in the same order as the main option list (catalog order = by title);
+  // custom options keep their input order at the end.
+  const byTitle = (a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'fr');
+  const finalOptionLines = [
+    ...[...optionLines, ...autoOptionLines].sort(byTitle),
+    ...customOptionLines,
+  ];
 
   const resourceLines = (Array.isArray(selectedResources) ? selectedResources : [])
     .map((selected) => {
@@ -1085,41 +1087,12 @@ function calculateReservationQuote({
       const lockedLine = lockedResourcesById.get(resourceId);
       const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
       const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
-      const shouldBypassLockedTotal = hasExplicitOffered && !offered && Boolean(lockedLine?.offered);
-
-      debugResourceLine('pricing.offered_flags', {
-        resourceId,
-        lockedLine,
-        hasExplicitOffered,
-        offered,
-        shouldBypassLockedTotal,
-      });
 
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: shouldBypassLockedTotal ? null : lockedLine,
+        lockedLine: reconstructLockedRealTotal(lockedLine),
         targetBilledUnits,
         currentUnitPrice: resource.price,
       });
-
-      debugResourceLine('pricing.merged', {
-        resourceId,
-        merged,
-      });
-
-      const calculatedTotal = roundMoney(merged.totalPrice);
-      const fallbackOriginalTotal = roundMoney(targetBilledUnits * roundMoney(resource.price));
-      const originalTotalPrice = offered
-        ? fallbackOriginalTotal
-        : calculatedTotal;
-    debugResourceLine('pricing', {
-        mergedTotalPrice: merged.totalPrice,
-        calculatedTotal,
-        resourcePrice: resource.price,
-        targetBilledUnits,
-        fallbackOriginalTotal,
-        originalTotalPrice,
-      });
-
 
       const resultLine = {
         resourceId,
@@ -1127,9 +1100,7 @@ function calculateReservationQuote({
         quantity,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        originalTotalPrice,
-        offered,
-        totalPrice: offered ? 0 : calculatedTotal,
+        ...applyOfferedToLine(merged.totalPrice, offered),
       };
 
       debugResourceLine('pricing.output_line', {
@@ -1139,7 +1110,8 @@ function calculateReservationQuote({
 
       return resultLine;
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'));
 
   debugResourceLine('pricing.output_lines', { resourceLines });
 
@@ -1170,6 +1142,12 @@ function calculateReservationQuote({
     : accommodationAdjustedPrice > accommodationBaseTotal
       ? 'increase'
       : 'none';
+
+  // Engine price = what the pricing engine computes ignoring any manual override, so the client can
+  // show the engine value alongside an overridden price. `finalPrice` stays the effective amount.
+  const priceOverridden = Number.isFinite(customFinalPrice);
+  const engineAccommodationPrice = roundMoney(accommodationBaseTotal * (1 - normalizedDiscountPercent / 100));
+  const engineFinalPrice = roundMoney(engineAccommodationPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
 
   // VAT calculations (all prices are TTC - VAT already included)
   const vatPercentageAccommodation = Number(property.vatPercentageAccommodation || 20);
@@ -1249,6 +1227,8 @@ function calculateReservationQuote({
     discountPercent: normalizedDiscountPercent,
     discountAmount,
     finalPrice,
+    engineFinalPrice,
+    priceOverridden,
     depositAmount: resolvedDepositAmount,
     balanceAmount: resolvedBalanceAmount,
     depositDueDate,

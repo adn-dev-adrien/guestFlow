@@ -221,7 +221,7 @@ function enrichDevis(row) {
         NULLIF(round(COALESCE(do.unitPrice, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2), 0),
         round(COALESCE(o.price, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2)
       ) as originalTotalPrice,
-      COALESCE(do.offered, CASE WHEN COALESCE(do.totalPrice, 0) = 0 AND COALESCE(do.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
+      do.offered as offered
     FROM devis_options do
     JOIN options o ON do.optionId = o.id
     WHERE do.devisId = ?
@@ -239,7 +239,12 @@ function enrichDevis(row) {
   `).all(row.id);
   const resources = db.prepare(`
     SELECT dr.*, r.name, r.priceType as resourcePriceType,
-      COALESCE(dr.offered, CASE WHEN COALESCE(dr.totalPrice, 0) = 0 AND COALESCE(dr.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
+      COALESCE(
+        NULLIF(dr.totalPrice, 0),
+        NULLIF(round(COALESCE(dr.unitPrice, 0) * COALESCE(dr.billedUnits, dr.quantity, 0), 2), 0),
+        round(COALESCE(r.price, 0) * COALESCE(dr.billedUnits, dr.quantity, 0), 2)
+      ) as originalTotalPrice,
+      dr.offered as offered
     FROM devis_resources dr
     JOIN resources r ON dr.resourceId = r.id
     WHERE dr.devisId = ?

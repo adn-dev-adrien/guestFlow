@@ -5,6 +5,18 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Pricing engine — server-authoritative, thin client** (Bloc 2, spec `pricing-engine-thin-client.md`):
+  - Quote now returns `engineFinalPrice` (engine-computed price ignoring any manual override) and
+    `priceOverridden`, so the UI shows the engine price struck through with the manual price in green.
+    The manual price (`customPrice`) overrides the **accommodation** amount and drives the accommodation
+    VAT base; options/resources add on top.
+  - New `server/src/utils/financeValidation.js` (`validateMoneyAmount`, `validatePercentage`,
+    `validateFinanceInputs`) enforced at `POST /api/reservations/calculate-price` (rejects negative/NaN
+    amounts and out-of-range percentages with `400 NEGATIVE_AMOUNT|NOT_A_NUMBER|INVALID_PERCENTAGE`).
+  - Option/resource summary lines are returned in display order (by title / name) instead of insertion
+    order; custom options keep their input order last.
+  - Unit tests: `finance-validation.unit.test.js` (6 cases), `pricing-offered-engine.unit.test.js`
+    (6 cases). Full suite green (213).
 - **School holidays** redesigned with auto-sync + Gantt timeline (spec `school-holidays.md`):
   - Page `/school-holidays` rebuilt as a **Gantt-style annual timeline**: one card per French school year (Sept → Aug), 12-month axis, 3 stacked zone lanes (A/B/C) with colored bands per period. Click a band → edit dialog.
   - **Auto-sync from `data.education.gouv.fr`** ([fr-en-calendrier-scolaire](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/)) via Node's built-in `fetch` (no new dependency). User-configurable interval (default 60 d, range 1–365) and horizon (default 24 months, range 1–60). Scheduling is a 1-hour tick that re-reads the config from DB on every fire — settings changes take effect without a restart.
@@ -36,6 +48,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Pricing (Bloc 2):** `PlanningPage` now renders the server-computed effective quantity (`billedUnits`)
+  instead of recomputing per-price-type multipliers client-side (`getMultiplier`/`getEffectiveQty`
+  removed). `CalendarPage`'s dead local `recalcPrice` duplicate was removed. `ReservationPage`'s
+  "Actualiser les tarifs" now also clears any manual price (reverts fully to engine pricing), and the
+  redundant "Remise sur hébergement" summary line was removed (the struck engine price already conveys it).
 - `GET /api/school-holidays` response shape changed from `Array` to `{ periods, syncState }`. Updated existing callers (`CalendarPage.js`, `PropertyPricingSeasonsPage.js`) to extract `.periods`. New endpoints `POST /api/school-holidays/sync`, `GET/PUT /api/school-holidays/sync-settings`, `PUT /api/school-holidays/:id/unlock`. `POST` and `PUT /:id` now validate (`400 INVALID_PERIOD`) and `PUT /:id` flips `isLocked = 1` when editing an officially-imported row.
 - `scheduledTasks.js` runs a new hourly tick for school-holidays auto-sync, plus a 60s boot tick that fires the first sync if the configured interval has elapsed since the last run.
 - `POST /api/reservations` and `PUT /api/reservations/:id` now reject overlapping closures with `409 CLOSURE_COVERS_DATE` and a French message naming the closure label + range.
@@ -48,6 +65,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Offered options/resources price bug (Bloc 2):** an option/resource that was "offert" (billed 0) on a
+  saved reservation, then made paid again, no longer stays at 0 — the real price is always recomputed and
+  restored. The fragile `totalPrice = 0 → offered` inference (in `pricing.js`, plus the SQL fallbacks in
+  `reservations.js` and `devis.js`) was replaced by a single lossless rule: `offered` only zeroes the
+  billed total while the real price is preserved as `originalTotalPrice`. Covered by a round-trip unit test.
 - Private key is no longer returned in clear text by `GET /api/settings`.
 - The Settings form no longer wipes the private key when saved without re-entering it (handled by `MaskedTextField` + 3-way payload semantics).
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.

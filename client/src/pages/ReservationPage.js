@@ -1291,12 +1291,14 @@ export default function ReservationPage() {
         platform: form.platform,
         reservationId: editingReservationId,
         forceCurrentPricing: true,
+        customPrice: '',
       });
       setPricingQuote(calc);
       applyQuoteMinNights(calc);
       setNightlyBreakdown(calc.nightlyBreakdown || []);
       setUseCurrentPricing(true);
-      setForm((prev) => applyQuoteToForm(prev, calc));
+      // Reverting to current pricing also clears any manual price override.
+      setForm((prev) => applyQuoteToForm({ ...prev, customPrice: '' }, calc));
     } catch (err) {
       await alert({ title: 'Erreur', message: err.message || 'Impossible d\'actualiser les tarifs.' });
     }
@@ -3198,24 +3200,6 @@ export default function ReservationPage() {
                       );
                     })()}
                   </>
-
-                  {/* Réduction sur l'hébergement */}
-                  {discountAmount > 0 && (
-                    <>
-                      <Divider />
-                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Remise sur hébergement
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="body2" color="text.secondary">
-                          {form.customPrice !== '' ? 'Prix personnalisé' : `Remise ${form.discountPercent}%`}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
-                          -{discountAmount.toFixed(2)}€
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
 
                   {/* Détails TVA */}
                   <Divider />
