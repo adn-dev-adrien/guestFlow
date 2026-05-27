@@ -87,6 +87,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **CalendarPage dead reservation dialog removed** (Bloc 3 slice 3b, spec `calendar-dead-dialog-removal.md`)
+  — pure dead-code removal, no behavior change. The unreachable in-page reservation create/edit dialog
+  (`dialogOpen` was never set true; all entry points navigate to the ReservationPage route) and
+  everything used only by it (form state, debounced pricing effect, option/resource setters,
+  `applyQuoteToForm`, capacity/baby-bed loaders, inline create-client flow, related imports) were
+  deleted: `CalendarPage.js` 2274 → 1251 LOC (−1023). The live calendar (rendering, navigation, note
+  dialog, occupied/closure/cleaning bands) is unchanged; verified by a clean `CI=true` build + in-browser
+  check (calendar renders, reservation click → `/reservations/:id`, 0 console errors).
 - **Reservations backend MVC extraction** (Bloc 3 slice 3a, spec `reservations-backend-mvc.md`) — pure
   structural refactor, **no API/behavior change**. The 1317-LOC `routes/reservations.js` monolith is now
   thin (verb/path → controller); logic moved to `controllers/reservationsController.js`,
