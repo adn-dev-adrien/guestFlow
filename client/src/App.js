@@ -9,8 +9,13 @@ dayjs.locale('fr');
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import {
   AppBar, Toolbar, Typography, Drawer, List, ListItemButton, ListItemIcon,
-  ListItemText, Box, IconButton, useMediaQuery, Collapse
+  ListItemText, Box, IconButton, useMediaQuery, Collapse,
+  CircularProgress, Card, CardContent
 } from '@mui/material';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { AuthProvider, useAuth } from './hooks/useAuth';
+import LoginPage from './pages/LoginPage';
+import ChangePasswordForm from './components/ChangePasswordForm';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
@@ -63,6 +68,7 @@ const navItems = [
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
+  const { logout } = useAuth();
   const [properties, setProperties] = useState([]);
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
   const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
@@ -401,6 +407,12 @@ function NavContent({ onItemClick }) {
           )}
         </Box>
       ))}
+      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+        <ListItemButton onClick={() => logout()} sx={{ py: 0.75, borderRadius: 2, mx: 1 }}>
+          <ListItemIcon sx={{ minWidth: 34 }}><LogoutIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary="Se déconnecter" primaryTypographyProps={{ variant: 'body2' }} />
+        </ListItemButton>
+      </Box>
     </List>
   );
 }
@@ -553,13 +565,50 @@ function AppShell() {
   );
 }
 
+function ForcedPasswordChange() {
+  const { changePassword } = useAuth();
+  return (
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
+      <Card variant="outlined" sx={{ width: '100%', maxWidth: 440 }}>
+        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>Définir votre mot de passe</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Vous utilisez le mot de passe par défaut. Choisissez-en un nouveau pour accéder à l'application.
+          </Typography>
+          <ChangePasswordForm
+            currentLabel="Mot de passe actuel (par défaut)"
+            submitLabel="Définir le mot de passe"
+            onSubmit={changePassword}
+          />
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}
+
+function AuthGate() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+  if (!user) return <LoginPage />;
+  if (user.mustChangePassword) return <ForcedPasswordChange />;
+  return <AppShell />;
+}
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
         <DialogProvider>
-          <AppShell />
+          <AuthProvider>
+            <AuthGate />
+          </AuthProvider>
         </DialogProvider>
       </BrowserRouter>
     </ThemeProvider>

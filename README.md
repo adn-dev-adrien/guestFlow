@@ -222,6 +222,25 @@ rm server/guestflow.db
 
 Migrations (adding new columns) run automatically on startup in `server/src/database.js`.
 
+### Authentication
+
+GuestFlow requires a login. On the **first launch**, a default admin account is created:
+
+| Email | Password |
+|---|---|
+| `admin@guestflow.local` | `ChangeMe!2026` |
+
+This default password **only unlocks the "set your password" screen** — you cannot use the app until
+you change it. **Change it immediately on first login**, ideally before exposing the instance publicly.
+
+Secrets are auto-generated into `server/.env.local` on first run (`GUESTFLOW_ENCRYPTION_KEY` for
+credential encryption at rest, `GUESTFLOW_SESSION_SECRET` for sessions). This file is git-ignored and
+must never be committed or shared. Google service-account credentials are encrypted (AES-256-GCM) at
+rest using that key.
+
+To reset the admin account, delete the database (`rm server/guestflow.db`) — the default admin is
+re-seeded on the next launch.
+
 ## Production Deployment
 ## Release Packaging
 

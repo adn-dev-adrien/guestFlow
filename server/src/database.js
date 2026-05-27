@@ -733,6 +733,30 @@ db.exec(`
 `);
 db.prepare('INSERT OR IGNORE INTO app_settings (id) VALUES (1)').run();
 
+// ---------- USERS (auth) ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    passwordHash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'admin',
+    mustChangePassword INTEGER NOT NULL DEFAULT 0,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  )
+`);
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uniq_users_email ON users(email)');
+// Seed the default admin on first launch. The default password only unlocks the
+// "set your password" screen (mustChangePassword = 1) — see specs/security-auth-encryption.md.
+if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0) {
+  const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('./constants/authDefaults');
+  const { hashPassword } = require('./utils/passwordHash');
+  db.prepare("INSERT INTO users (email, passwordHash, role, mustChangePassword) VALUES (?, ?, 'admin', 1)")
+    .run(DEFAULT_ADMIN_EMAIL, hashPassword(DEFAULT_ADMIN_PASSWORD));
+  console.log('[Database] Seeded default admin user — change the password immediately on first login.');
+}
+
 // Migrate app_settings company columns
 const appSettingsCols = db.prepare("PRAGMA table_info(app_settings)").all().map(c => c.name);
 const tryAddAppSettingsCol = (col, sql) => {

@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Alert } from '@mui/material';
+import { Box, Typography, Alert, Card, CardContent } from '@mui/material';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
+import ChangePasswordForm from '../components/ChangePasswordForm';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
+import { useAuth } from '../hooks/useAuth';
 
 const EMPTY_FORM = {
   company: {
@@ -80,6 +82,8 @@ function fromServer(settings) {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const { changePassword } = useAuth();
+  const [passwordMessage, setPasswordMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -265,6 +269,26 @@ export default function SettingsPage() {
           testResult={testResult}
           disabled={loading || saving}
         />
+
+        <Card variant="outlined" sx={{ mt: 2 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 0.5 }}>Sécurité</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Changer le mot de passe de votre compte.
+            </Typography>
+            {passwordMessage && (
+              <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPasswordMessage(null)}>
+                {passwordMessage}
+              </Alert>
+            )}
+            <Box sx={{ maxWidth: 420 }}>
+              <ChangePasswordForm
+                onSubmit={changePassword}
+                onSuccess={() => setPasswordMessage('Mot de passe mis à jour.')}
+              />
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
 
       <ConfirmDialog

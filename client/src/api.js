@@ -3,6 +3,7 @@ const API = process.env.REACT_APP_API_URL || '/api';
 async function request(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+    credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
     ...options,
     body: options.body instanceof FormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
   });
@@ -11,14 +12,26 @@ async function request(path, options = {}) {
     const message = err.error || res.statusText;
     const apiError = new Error(message);
     Object.assign(apiError, err, { status: res.status });
+    // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth.
+    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login') {
+      window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
+    }
     throw apiError;
   }
+  if (res.status === 204) return null;
   return res.json();
 }
 
 const api = {
   // Version / deployment metadata
   getVersion: () => request('/version'),
+
+  // Auth
+  login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
+  getMe: () => request('/auth/me'),
+  changePassword: (currentPassword, newPassword) =>
+    request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),

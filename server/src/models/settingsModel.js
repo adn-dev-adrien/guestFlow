@@ -11,6 +11,14 @@
  */
 
 const db = require('../database');
+const { encrypt, decrypt, isEncrypted } = require('../utils/encryption');
+
+// Google credentials are encrypted at rest (AES-256-GCM); everything else is stored as-is.
+const ENCRYPTED_COLUMNS = [
+  'googleCalendarId',
+  'googleServiceAccountEmail',
+  'googleServiceAccountPrivateKey',
+];
 
 const COLUMNS = [
   'googleCalendarId',
@@ -48,6 +56,9 @@ function createSettingsModel(databaseInstance) {
     read() {
       const row = readStmt.get();
       if (!row) return { ...DEFAULTS };
+      for (const col of ENCRYPTED_COLUMNS) {
+        if (row[col]) row[col] = decrypt(row[col]);
+      }
       return row;
     },
 
@@ -60,7 +71,8 @@ function createSettingsModel(databaseInstance) {
         const v = payload[c];
         if (c === 'quoteValidityDays') return Number(v) || 30;
         if (v == null) return '';
-        return typeof v === 'string' ? v : String(v);
+        const str = typeof v === 'string' ? v : String(v);
+        return ENCRYPTED_COLUMNS.includes(c) ? encrypt(str) : str;
       });
       databaseInstance
         .prepare(`UPDATE app_settings SET ${setClauses}, updatedAt = datetime('now') WHERE id = 1`)
@@ -69,6 +81,25 @@ function createSettingsModel(databaseInstance) {
 
     updateLogoPath(path) {
       updateLogoStmt.run(String(path || ''));
+    },
+
+    /**
+     * One-time, idempotent migration: encrypt any Google credential still stored in clear text.
+     * Safe to run on every boot — already-encrypted values are skipped.
+     */
+    migrateEncryption() {
+      const raw = databaseInstance
+        .prepare(`SELECT ${ENCRYPTED_COLUMNS.join(', ')} FROM app_settings WHERE id = 1`)
+        .get();
+      if (!raw) return;
+      for (const col of ENCRYPTED_COLUMNS) {
+        const value = raw[col];
+        if (value && !isEncrypted(value)) {
+          databaseInstance
+            .prepare(`UPDATE app_settings SET ${col} = ? WHERE id = 1`)
+            .run(encrypt(value));
+        }
+      }
     },
   };
 }

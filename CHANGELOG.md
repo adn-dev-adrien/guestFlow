@@ -5,6 +5,27 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Security foundation — authentication + credential encryption** (Bloc S PR 1, spec
+  `security-auth-encryption.md`):
+  - **All `/api` routes now require a logged-in session** (fail-closed in `index.js`), except
+    `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, the public
+    `GET /api/ical/export/:token` feed, and `GET /api/version`.
+  - Server-side sessions (`express-session` + `better-sqlite3-session-store`) via an httpOnly,
+    `sameSite=lax`, prod-`secure` cookie (30-day sliding); password hashing with `scrypt` (no new crypto
+    dep). New `users` table (multi-user-ready, `role` default `admin`).
+  - **Default admin + forced first-login password change**: seeded `admin@guestflow.local` /
+    `ChangeMe!2026` with `mustChangePassword`; the default password only opens the "set password" screen
+    (other routes return `403 PASSWORD_CHANGE_REQUIRED`). Documented in the README.
+  - **Google credentials encrypted at rest** (AES-256-GCM) in `settingsModel`, key auto-generated into
+    `server/.env.local`; transparent one-time boot migration of legacy cleartext values.
+  - Client: `LoginPage`, `useAuth` context (gates the app), forced password-change screen, "Se
+    déconnecter" in the sidebar, "Sécurité → Changer le mot de passe" in Settings; `api.js` sends the
+    session cookie and redirects to login on 401. Minimal login throttle (full rate limiting in PR 2).
+  - New server files: `utils/encryption.js`, `utils/localEnv.js`, `utils/passwordHash.js`,
+    `models/usersModel.js`, `middleware/requireAuth.js`, `controllers/authController.js`,
+    `routes/auth.js`, `constants/authDefaults.js`.
+  - Unit tests (+28): `encryption`, `password-hash`, `users-model`, `require-auth`, `auth-controller`,
+    `settings-model-encryption`. Full suite green (241).
 - **Pricing engine — server-authoritative, thin client** (Bloc 2, spec `pricing-engine-thin-client.md`):
   - Quote now returns `engineFinalPrice` (engine-computed price ignoring any manual override) and
     `priceOverridden`, so the UI shows the engine price struck through with the manual price in green.
@@ -78,6 +99,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Users + sessions (Bloc S):** new `users` table (`CREATE TABLE IF NOT EXISTS` + `uniq_users_email`)
+  seeded with the default admin on first launch (`mustChangePassword = 1`); a `sessions` table is
+  created by `better-sqlite3-session-store`. Existing Google credentials in `app_settings` are
+  encrypted in place once on boot (idempotent, tagged `enc:v1:`); `server/.env.local` gains
+  auto-generated `GUESTFLOW_ENCRYPTION_KEY` and `GUESTFLOW_SESSION_SECRET` (git-ignored).
 - `school_holidays` table gains three additive columns: `externalRef TEXT`, `isLocked INTEGER NOT NULL DEFAULT 0`, `lastSyncedAt TEXT` (idempotent `ALTER TABLE ADD COLUMN` block). Existing rows: `externalRef = NULL`, `isLocked = 0`. New singleton table `school_holidays_sync_state` auto-created. New index `idx_school_holidays_externalRef` added via the DB hygiene catalog.
 - New table `establishment_closures` auto-created on boot via the existing `CREATE TABLE IF NOT EXISTS` pattern. No data migration needed — the table never existed before.
 - On boot, the DB hygiene pass attempts to drop the legacy `resources.propertyId` column. SQLite refuses to drop a column that is part of a `FOREIGN KEY` definition, so on existing databases the column stays in the schema but is no longer read or written by any code — an info log explains this is harmless. Fresh installations / minimal test schemas without the FK definition do drop the column cleanly.

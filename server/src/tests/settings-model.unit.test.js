@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
+const crypto = require('crypto');
+
+// Encrypted Google fields need a key; set one in env so the test stays hermetic (no .env.local writes).
+process.env.GUESTFLOW_ENCRYPTION_KEY = process.env.GUESTFLOW_ENCRYPTION_KEY || crypto.randomBytes(32).toString('base64');
 
 const settingsModel = require('../models/settingsModel');
 
