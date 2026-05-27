@@ -717,6 +717,14 @@ function getArchivedReservationError(reservationId) {
 
 // Create reservation
 router.post('/', (req, res) => {
+  const financeError = validateFinanceInputs({
+    customPrice: { value: req.body.customPrice, kind: 'money' },
+    depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
+    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
+    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
+  });
+  if (financeError) return res.status(400).json({ error: financeError });
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
@@ -956,6 +964,14 @@ router.post('/', (req, res) => {
 
 // Update reservation
 router.put('/:id', (req, res) => {
+  const financeError = validateFinanceInputs({
+    customPrice: { value: req.body.customPrice, kind: 'money' },
+    depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
+    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
+    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
+  });
+  if (financeError) return res.status(400).json({ error: financeError });
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds,
@@ -1274,6 +1290,12 @@ router.put('/:id', (req, res) => {
 
 // Mark deposit/balance/caution as paid, or update check-in/out status
 router.patch('/:id/payment', (req, res) => {
+  const financeError = validateFinanceInputs({
+    depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
+    cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
+  });
+  if (financeError) return res.status(400).json({ error: financeError });
   const existing = db.prepare('SELECT id FROM reservations WHERE id = ?').get(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
 

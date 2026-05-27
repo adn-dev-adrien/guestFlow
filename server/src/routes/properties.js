@@ -6,6 +6,7 @@ const fs = require('fs');
 const sharp = require('sharp');
 const crypto = require('crypto');
 const { sentenceCase } = require('../utils/textFormatters');
+const { isAllowedUpload, safeUploadName, safeUploadPath } = require('../utils/uploadSafety');
 const {
   normalizeDateRanges,
   getBoundsFromDateRanges,
@@ -508,15 +509,36 @@ function syncIcalSource(source) {
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+const DOCUMENT_LIMIT_BYTES = 10 * 1024 * 1024;
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, `${Date.now()}-${safeUploadName(file.originalname)}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: DOCUMENT_LIMIT_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (!isAllowedUpload(file.originalname, file.mimetype, 'document')) {
+      cb(new Error('Type de fichier non autorisé.'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+function handleDocumentUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      const msg = err.code === 'LIMIT_FILE_SIZE'
+        ? 'Fichier trop volumineux (max 10 Mo).'
+        : (err.message || 'Type de fichier non autorisé.');
+      return res.status(400).json({ error: msg });
+    }
+    return next();
+  });
+}
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set([
   'image/jpeg',
@@ -561,8 +583,8 @@ async function saveOptimizedPhoto(file) {
 
 function removeUploadedFile(filePath) {
   if (!filePath || !filePath.startsWith('/uploads/')) return;
-  const absPath = path.join(uploadsDir, path.basename(filePath));
-  if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
+  const absPath = safeUploadPath(uploadsDir, filePath);
+  if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
 }
 
 function findPricingRuleOverlap(propertyId, dateRanges, excludeRuleId = null) {
@@ -1022,7 +1044,7 @@ router.post('/:id/pricing/apply-to', (req, res) => {
 });
 
 // --- Documents ---
-router.post('/:id/documents', upload.single('file'), (req, res) => {
+router.post('/:id/documents', handleDocumentUpload, (req, res) => {
   const { type, name } = req.body;
   if (!req.file) return res.status(400).json({ error: 'Fichier requis' });
   const filePath = `/uploads/${req.file.filename}`;

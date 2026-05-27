@@ -1,11 +1,13 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
 const { startScheduledTasks } = require('./scheduledTasks');
 const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
+const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
 
 loadLocalEnv();
 const SqliteStore = require('better-sqlite3-session-store')(session);
@@ -29,8 +31,29 @@ const commitShaShort = commitSha ? commitSha.slice(0, 7) : null;
 const app = express();
 app.set('trust proxy', 1); // honor X-Forwarded-* behind the prod reverse proxy (secure cookies)
 
-// Credentialed CORS so the session cookie works cross-origin in dev (client :3000 → API :4000).
-// Full CORS lockdown is Bloc S PR 2.
+// HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built with
+// INLINE_RUNTIME_CHUNK=false so script-src can stay 'self'). The CSP is only enforced in production,
+// where Express serves the built SPA; the dev CRA server (:3000) is unaffected.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow the dev client (:3000) to load /uploads from :4000
+}));
+
+// Strict CORS allowlist with credentials (session cookie). Cross-origin only matters in dev
+// (client :3000 → API :4000); prod is same-origin. Configure prod origins via CORS_ORIGINS.
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
   .split(',').map((s) => s.trim()).filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
@@ -62,19 +85,14 @@ try {
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Minimal in-memory login throttle (proper rate limiting comes in Bloc S PR 2).
-const loginAttempts = new Map();
-app.use('/api/auth/login', (req, res, next) => {
-  const now = Date.now();
-  const windowMs = 15 * 60 * 1000;
-  const ip = req.ip || 'unknown';
-  const entry = loginAttempts.get(ip) || { count: 0, start: now };
-  if (now - entry.start > windowMs) { entry.count = 0; entry.start = now; }
-  entry.count += 1;
-  loginAttempts.set(ip, entry);
-  if (entry.count > 20) return res.status(429).json({ error: 'TOO_MANY_ATTEMPTS' });
-  return next();
+// Global API rate limit (per IP), except the public iCal export feed (polled by external services).
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
+  return apiLimiter(req, res, next);
 });
+
+// Stricter brute-force limit on the login route.
+app.use('/api/auth/login', loginLimiter);
 
 // Auth routes are public (login/me) or session-checked in the controller (logout/change-password),
 // so they are mounted OUTSIDE the auth guard below.

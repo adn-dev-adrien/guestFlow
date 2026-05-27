@@ -5,6 +5,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Security hardening — headers, rate limiting, uploads, validation** (Bloc S PR 2, spec
+  `security-hardening.md`):
+  - **HTTP security headers** via `helmet`, including a CSP tuned for the SPA
+    (`script-src 'self'` thanks to `INLINE_RUNTIME_CHUNK=false`; `style-src`/`font-src` allow MUI inline
+    styles + Google Fonts; `img-src` allows uploaded images). Verified against a production build.
+  - **Rate limiting** (`express-rate-limit`): login 10 failed/15 min/IP, global API 300/15 min/IP
+    (`429`), env-configurable; public iCal export exempt. Replaces PR 1's minimal throttle.
+  - **Upload hardening**: document upload gains a 10 MB limit + extension/MIME allowlist; logo extension
+    is whitelisted; file deletion is path-contained (`safeUploadPath`). New pure util `utils/uploadSafety.js`.
+  - **Money/percentage validation at write boundaries**: reservations `POST`/`PUT`/`PATCH payment` and
+    devis `POST`/`PUT` reject negative/NaN/out-of-range values (`400`) before any DB write
+    (resourceBookings computes its price server-side, nothing to validate).
+  - New deps: `helmet`, `express-rate-limit`. Unit tests: `upload-safety` (6). Full suite green (247).
 - **Security foundation — authentication + credential encryption** (Bloc S PR 1, spec
   `security-auth-encryption.md`):
   - **All `/api` routes now require a logged-in session** (fail-closed in `index.js`), except

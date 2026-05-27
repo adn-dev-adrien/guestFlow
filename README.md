@@ -241,6 +241,23 @@ rest using that key.
 To reset the admin account, delete the database (`rm server/guestflow.db`) — the default admin is
 re-seeded on the next launch.
 
+### Security configuration
+
+The API sends HTTP security headers (helmet) including a Content-Security-Policy, and is rate-limited
+per IP (login: 10 failed attempts / 15 min; global API: 300 requests / 15 min — both `429` when
+exceeded). The public iCal export feed is exempt from the global limit.
+
+Optional environment variables (sensible defaults otherwise):
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `CORS_ORIGINS` | Comma-separated allowed origins (credentialed). Prod is same-origin, so usually unneeded. | `http://localhost:3000` |
+| `LOGIN_RATELIMIT_MAX` / `LOGIN_RATELIMIT_WINDOW_MS` | Login rate limit | `10` / `900000` |
+| `API_RATELIMIT_MAX` / `API_RATELIMIT_WINDOW_MS` | Global API rate limit | `300` / `900000` |
+
+The production build is created with `INLINE_RUNTIME_CHUNK=false` (already wired into
+`client` `npm run build`) so the CSP can keep `script-src 'self'`.
+
 ## Production Deployment
 ## Release Packaging
 

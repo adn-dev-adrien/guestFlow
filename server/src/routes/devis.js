@@ -4,6 +4,7 @@ const fs = require('fs');
 const db = require('../database');
 const PDFDocument = require('pdfkit');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { validateFinanceInputs } = require('../utils/financeValidation');
 const { sentenceCase } = require('../utils/textFormatters');
 const settingsModel = require('../models/settingsModel');
 
@@ -356,6 +357,13 @@ router.get('/:id/history', (req, res) => {
 
 router.post('/', (req, res) => {
   const body = req.body;
+  const financeError = validateFinanceInputs({
+    customPrice: { value: body.customPrice, kind: 'money' },
+    depositAmount: { value: body.depositAmount, kind: 'money' },
+    balanceAmount: { value: body.balanceAmount, kind: 'money' },
+    discountPercent: { value: body.discountPercent, kind: 'percentage' },
+  });
+  if (financeError) return res.status(400).json({ error: financeError });
   if (!body.propertyId || !body.clientId || !body.startDate || !body.endDate) {
     return res.status(400).json({ error: 'propertyId, clientId, startDate et endDate sont requis' });
   }
@@ -532,6 +540,13 @@ router.post('/', (req, res) => {
 // ─── update ──────────────────────────────────────────────────────────────────
 
 router.put('/:id', (req, res) => {
+  const financeError = validateFinanceInputs({
+    customPrice: { value: req.body.customPrice, kind: 'money' },
+    depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
+    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
+  });
+  if (financeError) return res.status(400).json({ error: financeError });
   const id = Number(req.params.id);
   const existing = db.prepare('SELECT * FROM devis WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'Devis non trouvé' });
