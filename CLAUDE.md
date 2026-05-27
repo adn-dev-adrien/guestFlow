@@ -94,7 +94,7 @@ If a feedback proves the spec was *wrong* (vs. *incomplete*), the spec fix is ev
 
 ## 5. Git & branches
 
-**Current policy: Claude owns the local git pipeline up to the push.** The user handles PR review and merge via the GitHub web UI.
+**Current policy: Claude owns the full git pipeline — branch, commit, push, AND pull request creation (via `gh`).** The user only reviews and **squash-merges** the PR in the GitHub web UI. Claude never merges.
 
 ### 5.1 What Claude does
 
@@ -108,7 +108,7 @@ For every spec retro-implementation:
 3. **Stage explicit files only** — never `git add -A` or `git add .`. List each file by path so secrets and accidental binaries can't slip in.
 4. **Commit** with a Conventional Commit message in English (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`), scoped (`feat(settings):`, `feat(db):`) and bodied with bullet points describing what + why. Always include the Co-Authored-By trailer.
 5. **Push** to `origin`: `git push -u origin feature/<short-kebab-name>`.
-6. **Hand off the PR URL** that GitHub prints after the push. The user creates the pull request from that URL, reviews, and **squash-merges** in the GitHub web UI.
+6. **Create the pull request** with `gh pr create --base master` — English title (Conventional-Commit style) + a body summarizing what/why, the spec link, and the test/verification status. **Hand off the PR URL** to the user, who reviews and **squash-merges** in the GitHub web UI. Claude never merges.
 7. After the user confirms the merge, **return to master and pull**:
    ```bash
    git checkout master && git pull
@@ -119,7 +119,7 @@ For every spec retro-implementation:
 
 - Push to `master` directly.
 - Force-push anywhere.
-- Open, comment on, or merge PRs (no `gh` CLI / no GitHub API calls).
+- **Merge** PRs (the user squash-merges via the web UI). Claude may create PRs with `gh pr create` and read PR status, but never `gh pr merge`.
 - Push to the `release` branch (that branch triggers GitHub Actions / PM2 deploy — user-controlled).
 - Skip hooks (`--no-verify`), bypass signing, or amend pushed commits.
 - Run destructive commands (`reset --hard`, `clean -f`, branch deletion) without explicit user instruction.
