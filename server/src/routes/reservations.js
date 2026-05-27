@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { validateFinanceInputs } = require('../utils/financeValidation');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 
 function parseJsonArray(raw) {
@@ -395,7 +396,7 @@ router.get('/:id', (req, res) => {
         NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
         round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)
       ) as originalTotalPrice,
-      COALESCE(ro.offered, CASE WHEN COALESCE(ro.totalPrice, 0) = 0 AND COALESCE(ro.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
+      ro.offered as offered
     FROM reservation_options ro
     JOIN options o ON ro.optionId = o.id
     WHERE ro.reservationId = ?
@@ -421,7 +422,7 @@ router.get('/:id', (req, res) => {
         NULLIF(round(COALESCE(rr.unitPrice, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2), 0),
         round(COALESCE(rs.price, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2)
       ) as originalTotalPrice,
-      COALESCE(rr.offered, CASE WHEN COALESCE(rr.totalPrice, 0) = 0 AND COALESCE(rr.unitPrice, 0) > 0 THEN 1 ELSE 0 END) as offered
+      rr.offered as offered
     FROM reservation_resources rr
     JOIN resources rs ON rr.resourceId = rs.id
     WHERE rr.reservationId = ?
@@ -499,6 +500,14 @@ function getReservationPricingSnapshot(reservationId) {
 
 // Calculate price for a potential reservation
 router.post('/calculate-price', (req, res) => {
+  const financeError = validateFinanceInputs({
+    customPrice: { value: req.body.customPrice, kind: 'money' },
+    depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
+    discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
+  });
+  if (financeError) return res.status(400).json({ error: financeError });
+
   const propertyId = Number(req.body.propertyId);
   if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
     db.ensureDefaultTimedOptionsForProperty(propertyId);

@@ -739,75 +739,8 @@ export default function CalendarPage() {
     await openNewReservation(minDate, endDate);
   };
 
-  const recalcPrice = (updatedForm) => {
-    const base = updatedForm.totalPrice;
-    const nights = Math.max(1, Math.round((new Date(updatedForm.endDate) - new Date(updatedForm.startDate)) / 86400000));
-    const persons = (Number(updatedForm.adults) || 1) + (Number(updatedForm.children) || 0) + (Number(updatedForm.teens) || 0);
-    const depositPercent = Number(selectedProperty?.depositPercent ?? 30);
-    const depositDaysBefore = Number(selectedProperty?.depositDaysBefore ?? 30);
-    const balanceDaysBefore = Number(selectedProperty?.balanceDaysBefore ?? 7);
-
-    const typeMultiplier = (priceType) => {
-      if (priceType === 'per_person') return persons;
-      if (priceType === 'per_night') return nights;
-      if (priceType === 'per_person_per_night') return persons * nights;
-      return 1; // per_stay, per_hour, fixed
-    };
-
-    let optionsTotal = 0;
-    for (const so of updatedForm.selectedOptions) {
-      const opt = propertyOptions.find(o => o.id === so.optionId);
-      if (!opt) continue;
-      const userQty = Math.max(1, Number(so.quantity) || 1);
-      const optTotal = Number(opt.price) * userQty * typeMultiplier(opt.priceType);
-      so.quantity = userQty;
-      so.totalPrice = optTotal;
-      optionsTotal += optTotal;
-    }
-    let resourcesTotal = 0;
-    for (const sr of (updatedForm.selectedResources || [])) {
-      const resource = availableResources.find(r => r.id === sr.resourceId);
-      const unitPrice = resource?.price !== undefined ? Number(resource.price) : Number(sr.unitPrice || 0);
-      const qty = Math.max(0, Number(sr.quantity) || 0);
-      sr.unitPrice = unitPrice;
-      sr.totalPrice = unitPrice * qty * typeMultiplier(resource?.priceType || 'per_stay');
-      resourcesTotal += sr.totalPrice;
-    }
-    const subtotal = base + optionsTotal + resourcesTotal;
-    let final;
-    if (updatedForm.customPrice !== '') {
-      final = Number(updatedForm.customPrice);
-    } else {
-      final = subtotal * (1 - (updatedForm.discountPercent || 0) / 100);
-    }
-    final = Math.round(final * 100) / 100;
-
-    const autoDepositAmount = Math.round(final * (depositPercent / 100) * 100) / 100;
-    const autoBalanceAmount = Math.round((final - autoDepositAmount) * 100) / 100;
-
-    let depositAmount = autoDepositAmount;
-    let balanceAmount = autoBalanceAmount;
-
-    if (updatedForm.depositPaid && updatedForm.balancePaid) {
-      depositAmount = Number(updatedForm.depositAmount || 0);
-      balanceAmount = Number(updatedForm.balanceAmount || 0);
-    } else if (updatedForm.depositPaid) {
-      depositAmount = Number(updatedForm.depositAmount || 0);
-      balanceAmount = Math.max(0, Math.round((final - depositAmount) * 100) / 100);
-    }
-
-    return {
-      ...updatedForm,
-      finalPrice: final,
-      depositAmount,
-      depositDueDate: shiftDate(updatedForm.startDate, -depositDaysBefore),
-      balanceAmount,
-      balanceDueDate: shiftDate(updatedForm.startDate, -balanceDaysBefore),
-    };
-  };
-
   const updateForm = (changes) => {
-    setForm(prev => recalcPrice({ ...prev, ...changes }));
+    setForm(prev => ({ ...prev, ...changes }));
   };
 
   const setOptionQuantity = (optionId, quantity) => {
@@ -825,7 +758,7 @@ export default function CalendarPage() {
       } else {
         newOpts = [...prev.selectedOptions, { optionId, quantity: normalizedQty, totalPrice: 0 }];
       }
-      return recalcPrice({ ...prev, selectedOptions: newOpts });
+      return { ...prev, selectedOptions: newOpts };
     });
   };
 
@@ -859,7 +792,7 @@ export default function CalendarPage() {
         ];
       }
 
-      return recalcPrice({ ...prev, selectedResources: newResources });
+      return { ...prev, selectedResources: newResources };
     });
   };
 
@@ -934,18 +867,17 @@ export default function CalendarPage() {
     setSelectedProperty(prop);
     setPropertyOptions(availableOpts);
     applyQuoteMinNights(calc);
-    setForm(prev => recalcPrice({
+    setForm(prev => applyQuoteToForm({
       ...prev,
       selectedOptions: [],
       selectedResources: [],
       singleBeds: '',
       doubleBeds: '',
       babyBeds: '',
-      totalPrice: Number(calc.totalPrice || 0),
       cautionAmount: prop.defaultCautionAmount ?? 500,
       checkInTime: prev.checkInTime || calc.defaultCheckIn || prop.defaultCheckIn || '15:00',
       checkOutTime: prev.checkOutTime || calc.defaultCheckOut || prop.defaultCheckOut || '10:00',
-    }));
+    }, calc));
 
     await Promise.all([
       loadResourcesAvailability(form.startDate, form.endDate, editingReservationId || null, nextPropertyId),
