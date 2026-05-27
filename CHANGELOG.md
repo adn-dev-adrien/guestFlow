@@ -87,6 +87,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **ReservationPage action bar → shared `PageActionBar`** (Bloc 3 slice 3c-1, spec
+  `reservation-page-action-bar.md`) — the bespoke `position: fixed` bar (and its `mt` layout
+  compensation + hard-coded sidebar offset) is replaced by the shared sticky `<PageActionBar>`, same
+  actions/conditions/handlers (back, créer/transformer devis, statut devis, PDF, passer en réservation,
+  Save, Cancel, Supprimer). `PageActionBar` gained two backward-compatible capabilities: an `onBack`
+  handler (for computed back navigation) and custom-node action items (`{ node }`, e.g. the devis-status
+  `<Select>`). Verified in-browser (reservation + devis modes, 0 console errors).
 - **CalendarPage dead reservation dialog removed** (Bloc 3 slice 3b, spec `calendar-dead-dialog-removal.md`)
   — pure dead-code removal, no behavior change. The unreachable in-page reservation create/edit dialog
   (`dialogOpen` was never set true; all entry points navigate to the ReservationPage route) and

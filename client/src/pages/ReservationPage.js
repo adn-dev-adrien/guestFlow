@@ -7,12 +7,10 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText, useMediaQuery, Tooltip
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
-import SaveIcon from '@mui/icons-material/Save';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import DescriptionIcon from '@mui/icons-material/Description';
+import PageActionBar from '../components/PageActionBar';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
 import FormRow from '../components/FormRow';
@@ -1854,203 +1852,50 @@ export default function ReservationPage() {
     ? (editingDevisId ? 'Modifier le devis' : 'Nouveau devis')
     : (reservationId ? 'Modifier la réservation' : 'Nouvelle réservation');
 
+  const actionBarBefore = [
+    ...(!isDevisMode && !reservationId
+      ? [{ icon: <DescriptionIcon />, tooltip: 'Créer un devis', onClick: handleCreateDevisFromForm, color: 'info' }] : []),
+    ...(!isDevisMode && reservationId
+      ? [{ icon: <DescriptionIcon />, tooltip: 'Transformer en devis', onClick: handleConvertToDevis, color: 'info' }] : []),
+    ...(isDevisMode ? [{
+      node: (
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Statut</InputLabel>
+          <Select value={form.status || 'draft'} label="Statut" onChange={(e) => updateForm({ status: e.target.value })}>
+            {DEVIS_STATUS_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      ),
+    }] : []),
+    ...(isDevisMode
+      ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
+    ...(isDevisMode && editingDevisId
+      ? [{ icon: <AutoFixHighIcon />, tooltip: 'Passer en réservation', onClick: handleConvertDevisToReservation, color: 'warning' }] : []),
+  ];
+
+  const actionBarAfter = [
+    ...(!isDevisMode && reservationId
+      ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked }] : []),
+    ...(isDevisMode && editingDevisId
+      ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer le devis', onClick: handleDeleteDevis, color: 'error' }] : []),
+  ];
+
   return (
     <Box sx={{ pb: 4 }}>
-      <Box
-        sx={{
-          position: 'fixed',
-          top: { xs: 56, sm: 64 },
-          left: { xs: 0, md: 240 },
-          width: { xs: '100%', md: 'calc(100% - 240px)' },
-          zIndex: 1200,
-          px: { xs: 1.5, sm: 2, md: 3 },
-          py: 1,
-        }}
-      >
-        <Box
-          sx={{
-            maxWidth: 900,
-            mx: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 1,
-            bgcolor: '#fff',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            px: 1.5,
-            py: 1,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tooltip title="Retour" enterDelay={1000} enterNextDelay={1000}>
-              <IconButton
-                aria-label="Retour"
-                onClick={goBackToOrigin}
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                }}
-              >
-                <ArrowBackIcon />
-              </IconButton>
-            </Tooltip>
-            <Typography variant="h6" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 700 }}>
-              {computedTitle}
-            </Typography>
-            {useCurrentPricing && (
-              <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />
-            )}
-          </Box>
-
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {!isDevisMode && !reservationId && (
-              <Tooltip title="Créer un devis" enterDelay={1000} enterNextDelay={1000}>
-                <IconButton
-                  color="info"
-                  aria-label="Créer un devis"
-                  onClick={handleCreateDevisFromForm}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'info.main',
-                    borderRadius: 1,
-                  }}
-                >
-                  <DescriptionIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-            {!isDevisMode && reservationId && (
-              <Tooltip title="Transformer en devis" enterDelay={1000} enterNextDelay={1000}>
-                <IconButton
-                  color="info"
-                  aria-label="Transformer en devis"
-                  onClick={handleConvertToDevis}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'info.main',
-                    borderRadius: 1,
-                  }}
-                >
-                  <DescriptionIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-            {isDevisMode && (
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Statut</InputLabel>
-                <Select
-                  value={form.status || 'draft'}
-                  label="Statut"
-                  onChange={(e) => updateForm({ status: e.target.value })}
-                >
-                  {DEVIS_STATUS_OPTIONS.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-            {isDevisMode && (
-              <Tooltip title="Télécharger PDF" enterDelay={1000} enterNextDelay={1000}>
-                <span>
-                  <IconButton
-                    color="info"
-                    aria-label="Télécharger PDF"
-                    onClick={handleOpenDevisPdf}
-                    disabled={!editingDevisId}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'info.main',
-                      borderRadius: 1,
-                    }}
-                  >
-                    <DescriptionIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
-            {isDevisMode && editingDevisId && (
-              <Tooltip title="Passer en réservation" enterDelay={1000} enterNextDelay={1000}>
-                <IconButton
-                  color="warning"
-                  aria-label="Passer en réservation"
-                  onClick={handleConvertDevisToReservation}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'warning.main',
-                    borderRadius: 1,
-                  }}
-                >
-                  <AutoFixHighIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-            <Tooltip title={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'} enterDelay={1000} enterNextDelay={1000}>
-              <IconButton
-                color="primary"
-                onClick={handleSaveReservation}
-                sx={{
-                  bgcolor: 'primary.main',
-                  color: '#fff',
-                  borderRadius: 1,
-                  '&:hover': { bgcolor: 'primary.dark' },
-                }}
-              >
-                <SaveIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Annuler" enterDelay={1000} enterNextDelay={1000}>
-              <IconButton
-                color="default"
-                aria-label="Annuler"
-                onClick={goBackToOrigin}
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                }}
-              >
-                <CloseIcon />
-              </IconButton>
-            </Tooltip>
-            {!isDevisMode && reservationId && (
-              <Tooltip title="Supprimer" enterDelay={1000} enterNextDelay={1000}>
-                <span>
-                  <IconButton
-                    color="error"
-                    onClick={handleDeleteReservation}
-                    disabled={isReservationLocked}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'error.main',
-                      borderRadius: 1,
-                    }}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
-            {isDevisMode && editingDevisId && (
-              <Tooltip title="Supprimer le devis" enterDelay={1000} enterNextDelay={1000}>
-                <IconButton
-                  color="error"
-                  onClick={handleDeleteDevis}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'error.main',
-                    borderRadius: 1,
-                  }}
-                >
-                  <DeleteIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
-        </Box>
-      </Box>
+      <PageActionBar
+        title={computedTitle}
+        onBack={goBackToOrigin}
+        subtitle={useCurrentPricing
+          ? <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />
+          : null}
+        actionsBefore={actionBarBefore}
+        onSave={handleSaveReservation}
+        saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
+        onCancel={goBackToOrigin}
+        actionsAfter={actionBarAfter}
+      />
 
       <Box
         sx={{
@@ -2058,7 +1903,6 @@ export default function ReservationPage() {
           mx: 'auto',
           px: 2,
           py: 3,
-          mt: { xs: 10, sm: 11 },
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
           gap: 3,

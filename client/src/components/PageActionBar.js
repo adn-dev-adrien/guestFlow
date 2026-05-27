@@ -8,6 +8,7 @@
  * Props:
  *   title?       string         (page title, hidden on xs by default)
  *   backTo?      string         (router path; shows a back IconButton on the left)
+ *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
  *
  *   onSave?      () => void     (omit → no Save button)
@@ -22,9 +23,11 @@
  *   actionsBefore? Action[]     (inserted BEFORE Save — page-specific helpers)
  *   actionsAfter?  Action[]     (inserted AFTER Cancel — destructive zone)
  *
- *   Action shape:
+ *   Action shape (icon button):
  *     { icon, tooltip, onClick, color?, disabled?, ariaLabel? }
  *     color ∈ 'primary' | 'info' | 'success' | 'warning' | 'error' | 'default'
+ *   Or a custom node: { node: ReactNode } — rendered as-is (e.g. a <Select>),
+ *     always kept inline (never collapsed into the mobile overflow menu).
  *
  * Visual:
  *  - Sticky top: 56px (xs), 64px (sm+); white bg; thin bottom border.
@@ -61,6 +64,10 @@ const saveFilledSx = {
 };
 
 function renderCustomAction(action, key) {
+  // A custom-node item (e.g. a Select) is rendered as-is.
+  if (action.node) {
+    return <React.Fragment key={key}>{action.node}</React.Fragment>;
+  }
   const { icon, tooltip, onClick, color, disabled, ariaLabel } = action;
   return (
     <Tooltip key={key} title={tooltip} enterDelay={500} enterNextDelay={500}>
@@ -82,6 +89,7 @@ function renderCustomAction(action, key) {
 export default function PageActionBar({
   title,
   backTo,
+  onBack,
   subtitle,
   onSave,
   saveDisabled = false,
@@ -98,10 +106,11 @@ export default function PageActionBar({
   const navigate = useNavigate();
   const [menuAnchor, setMenuAnchor] = useState(null);
 
-  const allExtras = [...actionsBefore, ...actionsAfter];
-  const useOverflow = isMobile && allExtras.length > 2;
-  const visibleBefore = useOverflow ? [] : actionsBefore;
-  const visibleAfter = useOverflow ? [] : actionsAfter;
+  // Only icon actions collapse into the mobile overflow menu; custom-node items always stay inline.
+  const iconExtras = [...actionsBefore, ...actionsAfter].filter((a) => !a.node);
+  const useOverflow = isMobile && iconExtras.length > 2;
+  const visibleBefore = useOverflow ? actionsBefore.filter((a) => a.node) : actionsBefore;
+  const visibleAfter = useOverflow ? actionsAfter.filter((a) => a.node) : actionsAfter;
 
   return (
     <Box
@@ -120,9 +129,9 @@ export default function PageActionBar({
         mb: 2,
       }}
     >
-      {backTo && (
+      {(onBack || backTo) && (
         <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
-          <IconButton aria-label="Retour" onClick={() => navigate(backTo)} sx={borderedSx('default')}>
+          <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
             <ArrowBackIcon />
           </IconButton>
         </Tooltip>
@@ -151,7 +160,7 @@ export default function PageActionBar({
               </IconButton>
             </Tooltip>
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-              {allExtras.map((a, i) => (
+              {iconExtras.map((a, i) => (
                 <MenuItem
                   key={`menu-${i}`}
                   onClick={() => { setMenuAnchor(null); a.onClick(); }}
