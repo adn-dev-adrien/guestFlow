@@ -76,6 +76,12 @@ const DDL = `
     startDate TEXT,
     endDate TEXT
   );
+
+  CREATE TABLE school_holidays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    externalRef TEXT
+  );
 `;
 
 function freshDb() {

@@ -1,118 +1,207 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Box, Typography, TableRow, TableCell,
-  IconButton
-} from '@mui/material';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Box, Button, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
+import SyncIcon from '@mui/icons-material/Sync';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { displayDate } from '../utils/formatters';
-import DataPageScaffold from '../components/DataPageScaffold';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import PageActionBar from '../components/PageActionBar';
 import FormDialog from '../components/FormDialog';
 import SchoolHolidayFormFields from '../components/SchoolHolidayFormFields';
+import SchoolHolidaysTimeline from '../components/SchoolHolidaysTimeline';
+import SchoolHolidaysSyncBanner from '../components/SchoolHolidaysSyncBanner';
+import SchoolHolidaysSyncSettingsDialog from '../components/SchoolHolidaysSyncSettingsDialog';
 import { useAppDialogs } from '../components/DialogProvider';
-import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 
 const emptyForm = {
-  label: '', zoneA_start: '', zoneA_end: '', zoneB_start: '', zoneB_end: '', zoneC_start: '', zoneC_end: ''
+  label: '',
+  zoneA_start: '', zoneA_end: '',
+  zoneB_start: '', zoneB_end: '',
+  zoneC_start: '', zoneC_end: '',
 };
 
 export default function SchoolHolidaysPage() {
   const { confirm } = useAppDialogs();
-  const {
-    items: holidays,
-    reload,
-    createItem,
-    updateItem,
-    removeItem,
-  } = useCrudResource({
-    listFn: () => api.getSchoolHolidays(),
-    createFn: (payload) => api.createSchoolHoliday(payload),
-    updateFn: (id, payload) => api.updateSchoolHoliday(id, payload),
-    deleteFn: (id) => api.deleteSchoolHoliday(id),
-  });
+  const [periods, setPeriods] = useState([]);
+  const [syncState, setSyncState] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const [editPeriod, setEditPeriod] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [validationError, setValidationError] = useState('');
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const reload = useCallback(async () => {
+    const data = await api.getSchoolHolidays();
+    setPeriods(data?.periods || []);
+    setSyncState(data?.syncState || null);
+  }, []);
 
   useEffect(() => { reload(); }, [reload]);
 
-  const openCreate = () => { setForm(emptyForm); setEditId(null); setDialogOpen(true); };
-  const openEdit = (h) => {
+  const setField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const openCreate = () => {
+    setEditPeriod(null);
+    setForm(emptyForm);
+    setValidationError('');
+    setDialogOpen(true);
+  };
+
+  const openEdit = (period) => {
+    setEditPeriod(period);
     setForm({
-      label: h.label, zoneA_start: h.zoneA_start || '', zoneA_end: h.zoneA_end || '',
-      zoneB_start: h.zoneB_start || '', zoneB_end: h.zoneB_end || '',
-      zoneC_start: h.zoneC_start || '', zoneC_end: h.zoneC_end || ''
+      label: period.label || '',
+      zoneA_start: period.zoneA_start || '',
+      zoneA_end: period.zoneA_end || '',
+      zoneB_start: period.zoneB_start || '',
+      zoneB_end: period.zoneB_end || '',
+      zoneC_start: period.zoneC_start || '',
+      zoneC_end: period.zoneC_end || '',
     });
-    setEditId(h.id);
+    setValidationError('');
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (editId) await updateItem(editId, form);
-    else await createItem(form);
-    setDialogOpen(false);
+    setValidationError('');
+    try {
+      if (editPeriod) {
+        await api.updateSchoolHoliday(editPeriod.id, form);
+      } else {
+        await api.createSchoolHoliday(form);
+      }
+      setDialogOpen(false);
+      await reload();
+    } catch (e) {
+      setValidationError(e?.body?.error || e?.message || 'Erreur lors de l’enregistrement.');
+    }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    if (!editPeriod) return;
     const ok = await confirm({
       title: 'Confirmer la suppression',
-      message: 'Supprimer cette période de vacances ?'
+      message: editPeriod.externalRef
+        ? 'Supprimer cette période ? Elle a été importée automatiquement et sera ré-importée à la prochaine synchronisation.'
+        : 'Supprimer cette période de vacances ?',
     });
     if (!ok) return;
-    await removeItem(id);
+    await api.deleteSchoolHoliday(editPeriod.id);
+    setDialogOpen(false);
+    await reload();
   };
 
-  const setField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const handleUnlock = async () => {
+    if (!editPeriod) return;
+    await api.unlockSchoolHoliday(editPeriod.id);
+    setDialogOpen(false);
+    await reload();
+  };
+
+  const triggerSync = async () => {
+    setSyncing(true);
+    try {
+      await api.syncSchoolHolidays();
+      await reload();
+    } catch (e) {
+      // Surface server-side errors via the banner reload (lastSyncStatus will reflect).
+      await reload();
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSettingsSaved = async () => {
+    await reload();
+  };
 
   return (
     <Box>
-      <DataPageScaffold
+      <PageActionBar
         title="Vacances scolaires"
-        actionLabel="Ajouter"
-        actionIcon={<AddIcon />}
-        onAction={openCreate}
-        minWidth={760}
-        head={(
-          <TableRow>
-            <TableCell sx={{ fontWeight: 600 }}>Période</TableCell>
-            <TableCell sx={{ fontWeight: 600 }} align="center">Zone A</TableCell>
-            <TableCell sx={{ fontWeight: 600 }} align="center">Zone B</TableCell>
-            <TableCell sx={{ fontWeight: 600 }} align="center">Zone C</TableCell>
-            <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
-          </TableRow>
-        )}
-        hasItems={holidays.length > 0}
-        emptyColSpan={5}
-        emptyText="Aucune période configurée"
-      >
-        {holidays.map(h => (
-          <TableRow key={h.id} hover>
-            <TableCell>{h.label}</TableCell>
-            <TableCell align="center">{displayDate(h.zoneA_start)} → {displayDate(h.zoneA_end)}</TableCell>
-            <TableCell align="center">{displayDate(h.zoneB_start)} → {displayDate(h.zoneB_end)}</TableCell>
-            <TableCell align="center">{displayDate(h.zoneC_start)} → {displayDate(h.zoneC_end)}</TableCell>
-            <TableCell align="center">
-              <IconButton size="small" onClick={() => openEdit(h)}><EditIcon fontSize="small" /></IconButton>
-              <IconButton size="small" color="error" onClick={() => handleDelete(h.id)}><DeleteIcon fontSize="small" /></IconButton>
-            </TableCell>
-          </TableRow>
-        ))}
-      </DataPageScaffold>
+        backTo="/settings"
+        actionsBefore={[
+          {
+            icon: <SyncIcon />,
+            tooltip: 'Synchroniser maintenant',
+            onClick: triggerSync,
+            color: 'info',
+            disabled: syncing,
+          },
+          {
+            icon: <AddIcon />,
+            tooltip: 'Ajouter une période',
+            onClick: openCreate,
+            color: 'primary',
+          },
+        ]}
+      />
 
-      {/* Create / Edit Dialog */}
+      <Box sx={{ px: { xs: 1.5, sm: 3 }, maxWidth: 1200, mx: 'auto' }}>
+        <SchoolHolidaysSyncBanner
+          syncState={syncState}
+          onSync={triggerSync}
+          onOpenSettings={() => setSettingsOpen(true)}
+          busy={syncing}
+        />
+
+        <SchoolHolidaysTimeline periods={periods} onEdit={openEdit} />
+      </Box>
+
       <FormDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        title={editId ? 'Modifier la période' : 'Ajouter une période'}
+        title={editPeriod ? 'Modifier la période' : 'Ajouter une période'}
         onSubmit={handleSave}
-        submitDisabled={!form.label}
-        submitLabel="Enregistrer"
+        submitDisabled={!form.label?.trim()}
       >
-        <SchoolHolidayFormFields form={form} setField={setField} />
+        {editPeriod?.externalRef ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Source officielle (data.education.gouv.fr).
+            {editPeriod.isLocked === 1
+              ? ' Cette période est actuellement verrouillée — la synchronisation automatique ne la touchera plus.'
+              : ' Toute modification verrouillera cette période contre la synchronisation automatique.'}
+          </Alert>
+        ) : null}
+
+        <SchoolHolidayFormFields form={form} setField={setField} validationError={validationError} />
+
+        {editPeriod ? (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+            {editPeriod.externalRef && editPeriod.isLocked === 1 ? (
+              <Button
+                size="small"
+                startIcon={<LockOpenIcon />}
+                onClick={handleUnlock}
+                color="info"
+                variant="outlined"
+              >
+                Réactiver la mise à jour automatique
+              </Button>
+            ) : null}
+            <Button
+              size="small"
+              startIcon={<DeleteIcon />}
+              onClick={handleDelete}
+              color="error"
+              variant="outlined"
+              sx={{ ml: 'auto' }}
+            >
+              Supprimer
+            </Button>
+          </Box>
+        ) : null}
       </FormDialog>
 
+      <SchoolHolidaysSyncSettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        initial={syncState}
+        onSaved={handleSettingsSaved}
+      />
     </Box>
   );
 }

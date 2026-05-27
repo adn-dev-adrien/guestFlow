@@ -52,6 +52,8 @@ const FK_INDEXES = [
   ['idx_ical_import_events_reservationId', 'ical_import_events', 'reservationId'],
   // establishment_closures overlap lookups (spec establishment-closures §5)
   ['idx_establishment_closures_propertyId_dates', 'establishment_closures', 'propertyId, startDate, endDate'],
+  // school_holidays auto-sync upsert lookup (spec school-holidays §5)
+  ['idx_school_holidays_externalRef', 'school_holidays', 'externalRef'],
 ];
 
 const UNIQUE_INDEXES = [

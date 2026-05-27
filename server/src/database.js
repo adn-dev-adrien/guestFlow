@@ -666,6 +666,34 @@ db.exec(`
   )
 `);
 
+// Auto-sync columns (see specs/school-holidays.md §5)
+const schCols = db.prepare("PRAGMA table_info(school_holidays)").all().map(c => c.name);
+const tryAddSchCol = (col, sql) => {
+  if (!schCols.includes(col)) {
+    try { db.exec(sql); } catch (e) {
+      if (!String(e?.message || '').includes('duplicate column name')) throw e;
+    }
+  }
+};
+tryAddSchCol('externalRef', "ALTER TABLE school_holidays ADD COLUMN externalRef TEXT");
+tryAddSchCol('isLocked', "ALTER TABLE school_holidays ADD COLUMN isLocked INTEGER NOT NULL DEFAULT 0");
+tryAddSchCol('lastSyncedAt', "ALTER TABLE school_holidays ADD COLUMN lastSyncedAt TEXT");
+
+// Singleton: school holidays sync state + user-editable config.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS school_holidays_sync_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    syncIntervalDays INTEGER NOT NULL DEFAULT 60,
+    syncHorizonMonths INTEGER NOT NULL DEFAULT 24,
+    lastSyncAt TEXT,
+    lastSyncStatus TEXT DEFAULT 'never',
+    lastSyncMessage TEXT DEFAULT '',
+    lastImportedCount INTEGER DEFAULT 0,
+    updatedAt TEXT DEFAULT (datetime('now'))
+  )
+`);
+db.prepare('INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1)').run();
+
 // ---------- ESTABLISHMENT CLOSURES ----------
 // Global (propertyId IS NULL) or per-property (propertyId NOT NULL) closure periods.
 // Used to block reservations and visualize unavailable ranges on the calendar.

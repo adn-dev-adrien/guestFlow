@@ -159,7 +159,7 @@ export default function PropertyPricingSeasonsPage() {
         }))
         .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))),
     });
-    setSchoolHolidays(holidays || []);
+    setSchoolHolidays(holidays?.periods || []);
     setAllProperties(props || []);
   }, [id]);
 

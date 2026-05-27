@@ -125,11 +125,15 @@ const api = {
   getPendingPayments: () => request('/finance/pending'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
 
-  // School holidays
+  // School holidays — getSchoolHolidays now returns { periods, syncState }.
   getSchoolHolidays: () => request('/school-holidays'),
   createSchoolHoliday: (data) => request('/school-holidays', { method: 'POST', body: data }),
   updateSchoolHoliday: (id, data) => request(`/school-holidays/${id}`, { method: 'PUT', body: data }),
   deleteSchoolHoliday: (id) => request(`/school-holidays/${id}`, { method: 'DELETE' }),
+  unlockSchoolHoliday: (id) => request(`/school-holidays/${id}/unlock`, { method: 'PUT' }),
+  syncSchoolHolidays: () => request('/school-holidays/sync', { method: 'POST' }),
+  updateSchoolHolidaysSyncSettings: ({ syncIntervalDays, syncHorizonMonths }) =>
+    request('/school-holidays/sync-settings', { method: 'PUT', body: { syncIntervalDays, syncHorizonMonths } }),
 
   // Calendar notes
   getCalendarNotes: (propertyId, from, to) => {

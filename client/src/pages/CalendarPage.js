@@ -263,7 +263,7 @@ export default function CalendarPage() {
     autoPreloadAttemptsRef.current = 0;
   };
 
-  const loadSchoolHolidays = async () => setSchoolHolidays(await api.getSchoolHolidays());
+  const loadSchoolHolidays = async () => setSchoolHolidays((await api.getSchoolHolidays()).periods || []);
 
   const loadCalendarData = useCallback(async () => {
     if (!selectedProp || months.length === 0) return;
