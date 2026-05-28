@@ -25,9 +25,7 @@ export default function FinancePage() {
   const [projectionDate, setProjectionDate] = useState(new Date().toISOString().split('T')[0]);
   const [summary, setSummary] = useState(null);
   const [projection, setProjection] = useState(null);
-  const [properties, setProperties] = useState([]);
-  const [upcomingByProperty, setUpcomingByProperty] = useState({});
-  const [pendingPayments, setPendingPayments] = useState([]);
+  const [operational, setOperational] = useState(null);
   const [financeViewTab, setFinanceViewTab] = useState('overdue');
 
   useEffect(() => {
@@ -38,29 +36,12 @@ export default function FinancePage() {
     api.getFinanceProjection(projectionDate).then(setProjection);
   }, [projectionDate]);
 
-  const loadOperationalFinanceData = async () => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const [props, pending, upcoming] = await Promise.all([
-      api.getProperties(),
-      api.getPendingPayments(),
-      api.getReservations({ from: todayStr }),
-    ]);
-
-    setProperties(props);
-    setPendingPayments(pending);
-
-    const grouped = {};
-    for (const prop of props) {
-      grouped[prop.id] = upcoming
-        .filter((r) => r.propertyId === prop.id)
-        .sort((a, b) => a.startDate.localeCompare(b.startDate))
-        .slice(0, 5);
-    }
-    setUpcomingByProperty(grouped);
+  const loadOperational = async () => {
+    setOperational(await api.getFinanceOperational());
   };
 
   useEffect(() => {
-    loadOperationalFinanceData();
+    loadOperational();
   }, []);
 
   const handleTogglePayment = async (reservation, field) => {
@@ -69,7 +50,7 @@ export default function FinancePage() {
     const [nextSummary, nextProjection] = await Promise.all([
       api.getFinanceSummary(from, to),
       api.getFinanceProjection(projectionDate),
-      loadOperationalFinanceData(),
+      loadOperational(),
     ]);
     setSummary(nextSummary);
     setProjection(nextProjection);
@@ -85,43 +66,12 @@ export default function FinancePage() {
     montant: r.finalPrice,
   })) : [];
 
-  const getRemainingDue = (reservation) => {
-    const finalPrice = Number(reservation.finalPrice || 0);
-    const depositPaid = reservation.depositPaid ? Number(reservation.depositAmount || 0) : 0;
-    const balancePaid = reservation.balancePaid ? Number(reservation.balanceAmount || 0) : 0;
-    return Math.round((finalPrice - depositPaid - balancePaid) * 100) / 100;
-  };
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const overduePayments = pendingPayments
-    .map((r) => {
-      const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
-      const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
-      const overdueAmount =
-        (depositOverdue ? Number(r.depositAmount || 0) : 0)
-        + (balanceOverdue ? Number(r.balanceAmount || 0) : 0);
-
-      const oldestDueDate = [r.depositDueDate, r.balanceDueDate]
-        .filter(Boolean)
-        .sort()[0];
-
-      return {
-        ...r,
-        depositOverdue,
-        balanceOverdue,
-        overdueAmount: Math.round(overdueAmount * 100) / 100,
-        oldestDueDate,
-      };
-    })
-    .filter((r) => r.depositOverdue || r.balanceOverdue)
-    .sort((a, b) => (a.oldestDueDate || '').localeCompare(b.oldestDueDate || ''));
-  const overdueReservationsCount = overduePayments.length;
-  const overdueTotalAmount = Math.round(
-    overduePayments.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0) * 100
-  ) / 100;
-  const upcomingReservations = Object.values(upcomingByProperty)
-    .flat()
-    .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+  // The server (financeModel.getOperational) owns all overdue/pending/upcoming derivation.
+  const overduePayments = operational?.overdue.reservations || [];
+  const overdueReservationsCount = operational?.overdue.count || 0;
+  const overdueTotalAmount = operational?.overdue.totalAmount || 0;
+  const pendingPayments = operational?.pending.reservations || [];
+  const upcomingReservations = operational?.upcoming.reservations || [];
 
   return (
     <Box>
@@ -382,11 +332,7 @@ export default function FinancePage() {
                   </TableHead>
                   <TableBody>
                     {pendingPayments.map((r) => {
-                      const depositOverdue = !r.depositPaid && r.depositDueDate && r.depositDueDate < todayStr;
-                      const balanceOverdue = !r.balancePaid && r.balanceDueDate && r.balanceDueDate < todayStr;
-                      const remainingDue = (r.finalPrice || 0)
-                        - (r.depositPaid ? (r.depositAmount || 0) : 0)
-                        - (r.balancePaid ? (r.balanceAmount || 0) : 0);
+                      const { depositOverdue, balanceOverdue, remainingDue } = r;
                       return (
                         <TableRow key={r.id} hover>
                           <TableCell>{r.firstName} {r.lastName}</TableCell>
@@ -451,10 +397,7 @@ export default function FinancePage() {
                   </TableHead>
                   <TableBody>
                     {upcomingReservations.map((r) => {
-                      const nights = Math.round((new Date(r.endDate) - new Date(r.startDate)) / 86400000);
-                      const remaining = (r.finalPrice || 0)
-                        - (r.depositPaid ? (r.depositAmount || 0) : 0)
-                        - (r.balancePaid ? (r.balanceAmount || 0) : 0);
+                      const { nights, remainingDue: remaining } = r;
                       return (
                         <TableRow key={`upcoming-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
                           <TableCell>{r.firstName} {r.lastName}</TableCell>
@@ -489,7 +432,7 @@ export default function FinancePage() {
                   </TableHead>
                   <TableBody>
                     {summary.reservations.map((r) => {
-                      const remainingDue = getRemainingDue(r);
+                      const remainingDue = r.remainingDue;
                       return (
                         <TableRow key={`period-${r.id}`}>
                           <TableCell>{r.firstName} {r.lastName}</TableCell>

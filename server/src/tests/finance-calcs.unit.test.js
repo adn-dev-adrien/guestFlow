@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const financeRoute = require('../routes/finance');
 const { computeTouristTaxBreakdown } = require('../utils/pricing');
 
 const {
@@ -10,7 +9,7 @@ const {
   isReservationAssignedToMonth,
   computeAccommodationAmountAfterDiscount,
   computeTouristTaxAmount,
-} = financeRoute.__test;
+} = require('../utils/financeCalcs');
 
 test('getMonthBounds returns correct month boundaries', () => {
   const bounds = getMonthBounds('2026-03');

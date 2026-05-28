@@ -11,6 +11,7 @@ const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature } = require('../utils/reservationAudit');
+const { computePaymentStatus } = require('../utils/paymentStatus');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 function createReservationsModel(database) {
@@ -33,13 +34,17 @@ function createReservationsModel(database) {
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }
       sql += ' ORDER BY r.startDate';
+      const today = new Date().toISOString().split('T')[0];
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).
         const { optionsTotal: _o, resourcesTotal: _r, ...reservation } = row;
+        const payment = computePaymentStatus(row, today);
         return {
           ...reservation,
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
+          remainingDue: payment.remainingDue,
+          paymentComplete: payment.paymentComplete,
         };
       });
     },
@@ -114,6 +119,9 @@ function createReservationsModel(database) {
       `).all(id);
 
       reservation.customPrice = reservation.customPrice == null ? '' : Number(reservation.customPrice);
+      const payment = computePaymentStatus(reservation);
+      reservation.remainingDue = payment.remainingDue;
+      reservation.paymentComplete = payment.paymentComplete;
       return reservation;
     },
 

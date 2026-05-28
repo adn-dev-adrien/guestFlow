@@ -5,6 +5,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Server-owned payment status** — new `utils/paymentStatus.js` (`computePaymentStatus`) is the single
+  authority for `remainingDue` / `paymentComplete` / `depositOverdue` / `balanceOverdue` / `overdueAmount` /
+  `oldestDueDate`, replacing two divergent client `getRemainingDue` copies. New
+  `GET /api/finance/operational` returns the whole "Suivi opérationnel" section ready to render
+  (overdue sorted + count + total, pending list, flat upcoming with `nights`). Reservation list + detail
+  payloads now carry `remainingDue` + `paymentComplete`. Unit tests: `payment-status` (8), `finance-model` (4).
 - **Server-side French public holidays** — new `GET /api/public-holidays?years=2025,2026` endpoint
   (`utils/frenchHolidays.js` Easter computation → `[{ date, label }]`, validated `?years=`, auth-gated).
   The calendar and the pricing-seasons page now **fetch** their "férié" markers instead of computing
@@ -94,6 +100,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Finance & Dashboard — server-owned money, MVC, render-only pages** (Bloc 5, spec
+  `finance-dashboard-thin.md`): `routes/finance.js` (403 LOC) is now a thin route over `financeController`
+  + `financeModel`, with pure helpers in `utils/financeCalcs.js`. All payment math + overdue derivation +
+  aggregation + upcoming grouping moved server-side. `FinancePage` and `Dashboard` are **render-only** —
+  the two duplicated `getRemainingDue` implementations, the overdue `map/filter/sort/reduce`, the
+  upcoming-by-property grouping and the inline `nights`/`remainingDue` math are gone; both pages read
+  server fields. `/summary` reservations are enriched with `remainingDue` + overdue flags. No schema change.
 - **CalendarPage — structural decomposition** (Bloc 3, spec `calendar-page-decomposition.md`):
   `CalendarPage.js` drops from **1255 → ~430 LOC**, becoming a thin orchestrator (data loading + drag
   selection + wiring). The intricate rendering moves **verbatim** into focused, page-specific pieces:
@@ -236,6 +249,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **`GET /api/finance/pending`** — folded into the new `/finance/operational` (its only consumer was
+  FinancePage). The endpoint now returns `404`.
+- **Client-side payment math** — both `FinancePage.getRemainingDue` and `Dashboard.getRemainingDue`, plus
+  FinancePage's client-side overdue derivation + upcoming-by-property grouping (now server-computed).
 - **Client-side public-holiday computation** (`getFrenchPublicHolidays` in `client/src/frenchHolidays.js`)
   — moved server-side; the file now keeps only the `getSchoolHolidayInfo` lookup.
 - **Dead `PRICE_TYPE_LABELS` constant in `CalendarPage.js`** — leftover from the removed reservation

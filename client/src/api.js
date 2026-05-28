@@ -139,7 +139,7 @@ const api = {
     return request(`/finance/summary?${params}`);
   },
   getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),
-  getPendingPayments: () => request('/finance/pending'),
+  getFinanceOperational: () => request('/finance/operational'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
 
   // School holidays — getSchoolHolidays now returns { periods, syncState }.

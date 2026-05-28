@@ -32,12 +32,6 @@ export default function Dashboard() {
   const [departuresToday, setDeparturesToday] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const getRemainingDue = (r) => {
-    const paid = (r.depositPaid ? Number(r.depositAmount || 0) : 0)
-      + (r.balancePaid ? Number(r.balanceAmount || 0) : 0);
-    return Math.max(0, Math.round((Number(r.finalPrice || 0) - paid) * 100) / 100);
-  };
-
   // Shared optimistic toggle for check-in/out status fields
   const handleToggleStatus = async (r, field, setList) => {
     const value = !r[field];
@@ -211,8 +205,8 @@ export default function Dashboard() {
                     </TableHead>
                     <TableBody>
                       {arrivalsToday.map((r) => {
-                        const remaining = getRemainingDue(r);
-                        const paymentOk = remaining <= 0;
+                        const remaining = r.remainingDue;
+                        const paymentOk = r.paymentComplete;
                         const cautionOk = Number(r.cautionAmount || 0) <= 0 || !!r.cautionReceived;
                         const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
                         const resourcesText = [
@@ -291,8 +285,8 @@ export default function Dashboard() {
                     </TableHead>
                     <TableBody>
                       {departuresToday.map((r) => {
-                        const remaining = getRemainingDue(r);
-                        const paymentOk = remaining <= 0;
+                        const remaining = r.remainingDue;
+                        const paymentOk = r.paymentComplete;
                         const optionsText = (r.options || []).map((o) => `${o.title} x${o.quantity}`).join(', ');
                         const resourcesText = [
                           ...(Number(r.babyBeds || 0) > 0 ? [`Lit bebe x${r.babyBeds}`] : []),
