@@ -1085,7 +1085,7 @@ function calculateReservationQuote({
 
       const baseBilledUnits = usesHourlyQuantity
         ? roundMoney(quantity)
-        : roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
+        : roundMoney(quantity * getTypeMultiplier(resource.priceType, persons, nights));
       const targetBilledUnits = usesHourlyQuantity
         ? applyPerHourFreeMinutes(baseBilledUnits, resource.freeMinutes)
         : baseBilledUnits;

@@ -303,17 +303,15 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {(isPerHour || isOffered) && (
-                        <Button
-                          size="small"
-                          variant={isOffered ? 'contained' : 'outlined'}
-                          color={isOffered ? 'success' : 'inherit'}
-                          onClick={() => onToggleResourceOffered(sr.resourceId, !isOffered)}
-                          sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
-                        >
-                          {isOffered ? '✓ Offert' : 'Offrir'}
-                        </Button>
-                      )}
+                      <Button
+                        size="small"
+                        variant={isOffered ? 'contained' : 'outlined'}
+                        color={isOffered ? 'success' : 'inherit'}
+                        onClick={() => onToggleResourceOffered(sr.resourceId, !isOffered)}
+                        sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                      >
+                        {isOffered ? '✓ Offert' : 'Offrir'}
+                      </Button>
                       <Typography
                         variant="body2"
                         sx={{
