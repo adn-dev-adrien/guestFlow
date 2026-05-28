@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Card, CardContent, TextField, Button, Typography, Alert, Stack, CircularProgress } from '@mui/material';
+import PasswordField from '../components/PasswordField';
 import { useAuth } from '../hooks/useAuth';
 
 /**
@@ -46,9 +47,8 @@ export default function LoginPage() {
                 fullWidth
                 required
               />
-              <TextField
+              <PasswordField
                 label="Mot de passe"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"

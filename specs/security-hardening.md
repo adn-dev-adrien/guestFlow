@@ -41,17 +41,23 @@ uploads, and authoritative money validation at every write boundary.
    cross-origin requests are rejected unless explicitly allowlisted.
 
 **Security headers (helmet + adapted CSP)**
-2. `helmet()` is enabled (HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options`, `Referrer-Policy`,
-   etc.). HSTS only meaningfully applies over HTTPS (prod).
-3. A **Content-Security-Policy tuned for the app** is enforced: `default-src 'self'`;
+2. `helmet()` is enabled (`X-Content-Type-Options: nosniff`, `X-Frame-Options`, `Referrer-Policy`, etc.).
+   **HSTS and CSP are enforced in production only** (`NODE_ENV === 'production'`). Both assume HTTPS: HSTS
+   pins the host to `https`, and helmet's default CSP includes `upgrade-insecure-requests`. Over a
+   plain-HTTP dev session they upgrade `http://localhost` asset requests to `https://localhost`, which
+   fails with a TLS error (observed in Safari: the document loads but `main.<hash>.js` fails). Production
+   runs behind an HTTPS reverse proxy where both are correct; in development they are disabled
+   (`contentSecurityPolicy: false`, `strictTransportSecurity: false`).
+3. The production **Content-Security-Policy tuned for the app**: `default-src 'self'`;
    `img-src 'self' data: blob:` (uploaded images); `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`
    (MUI/emotion inline styles + Google Fonts stylesheet); `font-src 'self' data: https://fonts.gstatic.com`;
-   `script-src 'self'`; `connect-src 'self'`; `object-src 'none'`; `frame-ancestors 'none'`. To keep
-   `script-src 'self'` (no `unsafe-inline`), the client is built with `INLINE_RUNTIME_CHUNK=false` so CRA
-   does not inline its runtime script. (The Inter web font is loaded from Google Fonts in
-   `client/public/index.html`.)
-4. CSP must not break the running app — verified against a **production build served by Express** (the
-   only mode where helmet serves the SPA). The dev CRA server is unaffected.
+   `script-src 'self'`; `connect-src 'self'`; `object-src 'none'`; `frame-ancestors 'none'`; plus helmet's
+   default `upgrade-insecure-requests`. To keep `script-src 'self'` (no `unsafe-inline`), the client is
+   built with `INLINE_RUNTIME_CHUNK=false` so CRA does not inline its runtime script. (The Inter web font
+   is loaded from Google Fonts in `client/public/index.html`.)
+4. CSP must not break the running app — verified against a **production build served by Express** with
+   `NODE_ENV=production`. In dev (`npm run dev`), CSP/HSTS are off, so opening the Express-served build at
+   `:4000` over HTTP no longer triggers the TLS upgrade; the dev CRA server (`:3000`) is unaffected.
 
 **Rate limiting (`express-rate-limit`)**
 5. **Login**: max **10 attempts / 15 min / IP** on `POST /api/auth/login` → `429 TOO_MANY_ATTEMPTS`.

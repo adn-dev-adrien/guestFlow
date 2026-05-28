@@ -5,6 +5,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Show/hide password toggle** — new reusable `PasswordField` component (MUI TextField + eye
+  adornment) used on the login screen and the change-password form (forced first-login change +
+  Settings). Lets the user verify what they type, which notably surfaces browser-autofilled values.
 - **Admin account recovery** — `cd server && npm run reset-admin` restores the default admin
   (`admin@guestflow.local` / `ChangeMe!2026`) with a forced password change and clears sessions, for
   when the password is lost (no manual DB editing). Backed by `usersModel.resetAdminToDefault()`
@@ -144,6 +147,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Dev TLS error in Safari (page would not load over HTTP):** Helmet's default CSP includes
+  `upgrade-insecure-requests` and HSTS pins the host to HTTPS, so a plain-HTTP dev session upgraded
+  `http://localhost/main.<hash>.js` to `https://localhost` → "Une erreur TLS a provoqué l'échec de la
+  connexion sécurisée". CSP and HSTS are now enforced in **production only** (`NODE_ENV === 'production'`,
+  behind the HTTPS reverse proxy); they are disabled in development. Spec: `security-hardening.md`.
 - **Offered options/resources price bug (Bloc 2):** an option/resource that was "offert" (billed 0) on a
   saved reservation, then made paid again, no longer stays at 0 — the real price is always recomputed and
   restored. The fragile `totalPrice = 0 → offered` inference (in `pricing.js`, plus the SQL fallbacks in

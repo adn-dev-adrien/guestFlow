@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, Alert, Stack, CircularProgress } from '@mui/material';
+import { Box, Button, Alert, Stack, CircularProgress } from '@mui/material';
+import PasswordField from './PasswordField';
 
 /**
  * ChangePasswordForm — reusable current/new/confirm password form.
@@ -56,18 +57,16 @@ export default function ChangePasswordForm({
     <Box component="form" onSubmit={submit}>
       <Stack spacing={2}>
         {error && <Alert severity="error">{error}</Alert>}
-        <TextField
+        <PasswordField
           label={currentLabel}
-          type="password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
           autoComplete="current-password"
           fullWidth
           required
         />
-        <TextField
+        <PasswordField
           label="Nouveau mot de passe"
-          type="password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
           autoComplete="new-password"
@@ -75,9 +74,8 @@ export default function ChangePasswordForm({
           fullWidth
           required
         />
-        <TextField
+        <PasswordField
           label="Confirmer le nouveau mot de passe"
-          type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"

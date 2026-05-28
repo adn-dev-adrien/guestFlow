@@ -32,22 +32,30 @@ const app = express();
 app.set('trust proxy', 1); // honor X-Forwarded-* behind the prod reverse proxy (secure cookies)
 
 // HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built with
-// INLINE_RUNTIME_CHUNK=false so script-src can stay 'self'). The CSP is only enforced in production,
-// where Express serves the built SPA; the dev CRA server (:3000) is unaffected.
+// INLINE_RUNTIME_CHUNK=false so script-src can stay 'self').
+//
+// CSP and HSTS are enforced in production only. Helmet's default CSP includes
+// `upgrade-insecure-requests`, and HSTS pins the host to HTTPS — both break a plain-HTTP dev session
+// (assets get upgraded to https://localhost → TLS error in Safari). Prod runs behind an HTTPS reverse
+// proxy where both are correct and desirable. The dev CRA server (:3000) is unaffected either way.
+const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-      objectSrc: ["'none'"],
-      frameAncestors: ["'none'"],
-    },
-  },
+  contentSecurityPolicy: isProduction
+    ? {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      }
+    : false,
+  strictTransportSecurity: isProduction,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow the dev client (:3000) to load /uploads from :4000
 }));
