@@ -1,7 +1,7 @@
 const db = require('./database');
 
-// Reuse the canonical sync engine implemented in routes/properties.
-const propertiesRouter = require('./routes/properties');
+// Canonical anti-overbooking sync engine (+ source status recording) lives in the iCal model.
+const propertyIcalModel = require('./models/propertyIcalModel');
 
 // School holidays auto-sync (spec school-holidays §3 rules 15+).
 const schoolHolidaysModel = require('./models/schoolHolidaysModel');
@@ -39,39 +39,14 @@ async function performAutoSync() {
     // Sync each source
     for (const source of sources) {
       try {
-        const result = await propertiesRouter.syncIcalSource(source);
-
-        // Update source metadata
-        db.prepare(`
-          UPDATE ical_sources
-          SET lastSyncAt = datetime('now'),
-              lastSyncStatus = 'success',
-              lastSyncMessage = ?,
-              lastImportedCount = ?,
-              updatedAt = datetime('now')
-          WHERE id = ?
-        `).run(
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
-          result.createdCount + result.updatedCount,
-          source.id
-        );
-
+        // syncSourceAndRecord runs the sync engine + writes the source status row.
+        const result = await propertyIcalModel.syncSourceAndRecord(source);
         totalCreated += result.createdCount;
         totalUpdated += result.updatedCount;
         totalRemoved += result.removedCount;
-
       } catch (error) {
         totalErrors += 1;
         console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${source.name}":`, error.message);
-
-        db.prepare(`
-          UPDATE ical_sources
-          SET lastSyncAt = datetime('now'),
-              lastSyncStatus = 'error',
-              lastSyncMessage = ?,
-              updatedAt = datetime('now')
-          WHERE id = ?
-        `).run(String(error.message || 'Erreur de synchronisation iCal'), source.id);
       }
     }
 

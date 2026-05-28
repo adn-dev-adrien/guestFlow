@@ -1,8 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const propertiesRoute = require('../routes/properties');
-
 const {
   normalizePlatformKey,
   parseIcalDate,
@@ -15,7 +13,7 @@ const {
   normalizeIcalSummary,
   shouldSkipIcalReservationUpdate,
   buildIcalCreationHistoryChanges,
-} = propertiesRoute.__test;
+} = require('../utils/icalParser');
 
 test('normalizePlatformKey sanitizes labels', () => {
   assert.equal(normalizePlatformKey(' Booking.com '), 'booking-com');
