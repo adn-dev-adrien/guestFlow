@@ -90,6 +90,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Resources — MVC refactor + applicability pivot + safe delete** (Bloc 1, spec `resources.md`):
+  `routes/resources.js` and `routes/resourceBookings.js` are now thin routes over
+  `resourcesController`/`resourcesModel` and `resourceBookingsController`/`resourceBookingsModel` (price
+  resolution, availability, slot-conflict and the server-computed booking price now live in models).
+  Resource↔logement applicability is normalized into a **`resource_properties` pivot** (mirrors
+  `property_options`); the API still exposes `propertyIds` arrays, and `utils/pricing.js`, the baby-bed
+  availability and the baby-bed seed all read the pivot. Resource writes are validated (`400`). Deleting a
+  resource that is used by reservations or bookings now asks for confirmation stating the impact
+  (`409 RESOURCE_IN_USE` + `?force`). New unit tests; full server suite 297.
 - **Clients — MVC refactor + single phone** (Bloc 1, spec `clients.md`): `routes/clients.js` is now a thin
   route over `clientsController` + `clientsModel` (reusing `clientValidation`). A client now has a single
   `phone` (the multi-number list is gone — see Migration); the client form shows one Téléphone field.
@@ -161,6 +170,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Client creation was broken (POST /api/clients hung):** the `clientsController` attached its
+  `create(model)` factory as `.create`, overwriting the `create` request handler — so the route called the
+  factory and never responded. The factory is now `.buildController` on the Bloc-1 controllers
+  (clients/resources/resource-bookings), and POST/PUT handlers work again. Covered by the controller tests.
 - **False "Modifications non enregistrées" prompt on a freshly loaded reservation/devis:** the on-mount
   server pricing recalc reshaped the loaded form after the unsaved-changes baseline was captured, so a
   just-opened (or just-converted) record was wrongly flagged dirty and prompted on "Annuler"/navigation.
@@ -198,6 +211,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Resource applicability pivot (Bloc 1):** new `resource_properties` table (`resourceId`, `propertyId`).
+  On boot, `migrateResourcePropertiesFromJson` backfills it from the legacy `resources.propertyIds` JSON
+  (empty stays global; stale property ids skipped), then drops the `propertyIds` column. Idempotent;
+  lossless.
 - **Clients single-phone (Bloc 1):** the legacy multi-number `clients.phoneNumbers` JSON column is
   dropped. On boot, `migrateClientPhonesToSingle` keeps each client's **first** listed number in the
   scalar `phone` (extras discarded) before the column is removed; idempotent (no-op once gone). Locally

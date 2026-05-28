@@ -29,6 +29,7 @@ export default function PricedItemsPage({
   createItem,
   updateItem,
   deleteItem,
+  getDeleteImpact,
   fromItem,
   toPayload,
   formNameKey,
@@ -100,6 +101,27 @@ export default function PricedItemsPage({
   };
 
   const handleDelete = async (item) => {
+    // When a delete-impact loader is provided and the item is in use, state the impact and force-delete.
+    if (getDeleteImpact) {
+      let impact = null;
+      try { impact = await getDeleteImpact(item.id); } catch { impact = null; }
+      const reservationsCount = Number(impact?.reservationsCount || 0);
+      const bookingsCount = Number(impact?.bookingsCount || 0);
+      if (reservationsCount > 0 || bookingsCount > 0) {
+        const parts = [];
+        if (reservationsCount > 0) parts.push(`${reservationsCount} réservation(s)`);
+        if (bookingsCount > 0) parts.push(`${bookingsCount} créneau(x)`);
+        const ok = await confirm({
+          title: 'Confirmer la suppression',
+          message: `Cette ${itemLabel} est utilisée par ${parts.join(' et ')}. La supprimer la retirera de ces réservations et supprimera ces créneaux. Continuer ?`,
+          confirmColor: 'error',
+        });
+        if (!ok) return;
+        await deleteItem(item.id, { force: true });
+        await reload();
+        return;
+      }
+    }
     const ok = await confirm({
       title: 'Confirmer la suppression',
       message: `Supprimer cette ${itemLabel} ?`

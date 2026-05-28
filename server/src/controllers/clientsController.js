@@ -2,8 +2,8 @@
  * Clients controller — orchestrates list/search, get, delete-impact, create, update, delete (force)
  * and orphan cleanup. Validation via `clientValidation`; all DB access + shaping in `clientsModel`.
  *
- * Exports a default controller bound to the production model, and a `create(model)` factory so tests
- * can inject a fake model.
+ * Exports a default controller bound to the production model, and a `buildController(model)` factory so
+ * tests can inject a fake model. (The factory is NOT named `create` — that's a request handler here.)
  */
 
 const { validateClientPayload } = require('../utils/clientValidation');
@@ -69,6 +69,6 @@ function createController(model) {
 }
 
 const defaultController = createController(require('../models/clientsModel'));
-defaultController.create = createController;
+defaultController.buildController = createController;
 
 module.exports = defaultController;

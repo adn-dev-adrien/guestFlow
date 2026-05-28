@@ -202,7 +202,6 @@ db.exec(`
     price REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
     propertyId INTEGER,
-    propertyIds TEXT,
     note TEXT DEFAULT '',
     minimumUsageMinutes INTEGER NOT NULL DEFAULT 0,
     openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
@@ -212,6 +211,18 @@ db.exec(`
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
   )
 `);
+
+// Resource ↔ property applicability pivot (mirrors property_options). Empty = global (all logements).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS resource_properties (
+    resourceId INTEGER NOT NULL,
+    propertyId INTEGER NOT NULL,
+    PRIMARY KEY (resourceId, propertyId),
+    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE,
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_resource_properties_resourceId ON resource_properties(resourceId)');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS reservation_resources (
@@ -472,9 +483,9 @@ if (resourceCols.length > 0 && !resourceCols.includes('updatedAt')) {
 if (resourceCols.length > 0 && !resourceCols.includes('priceType')) {
   db.exec("ALTER TABLE resources ADD COLUMN priceType TEXT NOT NULL DEFAULT 'per_stay'");
 }
-if (resourceCols.length > 0 && !resourceCols.includes('propertyIds')) {
-  db.exec("ALTER TABLE resources ADD COLUMN propertyIds TEXT");
-}
+// Applicability pivot migration (Bloc 1 — Resources): move `resources.propertyIds` JSON into the
+// `resource_properties` pivot (empty stays global), then drop the column. Idempotent.
+require('./utils/resourcePropertyMigration').migrateResourcePropertiesFromJson(db);
 
 if (!cols.includes('checkInReady')) {
   db.exec("ALTER TABLE reservations ADD COLUMN checkInReady INTEGER DEFAULT 0");
@@ -899,11 +910,12 @@ if (holidayCount === 0) {
   for (const row of seed) insert.run(...row);
 }
 
-// Seed default resource: baby bed (global = propertyIds NULL or empty).
-// Use propertyIds (JSON) only — the legacy propertyId single FK is dropped by the DB Hygiene block at the end of this file.
-const babyBed = db.prepare(
-  "SELECT id FROM resources WHERE lower(name) = lower('Lit bébé') AND (propertyIds IS NULL OR propertyIds = '[]' OR propertyIds = '')"
-).get();
+// Seed default resource: baby bed (global = no resource_properties rows).
+const babyBed = db.prepare(`
+  SELECT r.id FROM resources r
+  WHERE lower(r.name) = lower('Lit bébé')
+    AND NOT EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id)
+`).get();
 if (!babyBed) {
   db.prepare('INSERT INTO resources (name, quantity, price, note) VALUES (?, ?, ?, ?)')
     .run('Lit bébé', 1, 0, 'Ressource par défaut');

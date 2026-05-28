@@ -670,6 +670,18 @@ function getApplicableResources(db, propertyId) {
     }
     resources = db.prepare('SELECT * FROM resources ORDER BY name').all();
   }
+  // Applicability from the resource_properties pivot (a resource with no rows = global / all logements).
+  let scopedByResource = null; // Map<resourceId, Set<propertyId>>
+  try {
+    scopedByResource = new Map();
+    for (const row of db.prepare('SELECT resourceId, propertyId FROM resource_properties').all()) {
+      if (!scopedByResource.has(row.resourceId)) scopedByResource.set(row.resourceId, new Set());
+      scopedByResource.get(row.resourceId).add(Number(row.propertyId));
+    }
+  } catch {
+    scopedByResource = null; // pivot absent (minimal test schema) → treat all as global
+  }
+
   return resources
     .map((resource) => ({
       ...resource,
@@ -677,9 +689,12 @@ function getApplicableResources(db, propertyId) {
       freeMinutes: resource.propertyFreeMinutes != null
         ? Math.max(0, Number(resource.propertyFreeMinutes || 0))
         : 0,
-      propertyIds: parseJsonArray(resource.propertyIds).map((id) => Number(id)),
     }))
-    .filter((resource) => resource.propertyIds.length === 0 || resource.propertyIds.includes(Number(propertyId)));
+    .filter((resource) => {
+      if (!scopedByResource) return true;
+      const scoped = scopedByResource.get(resource.id);
+      return !scoped || scoped.size === 0 || scoped.has(Number(propertyId));
+    });
 }
 
 function applyPerHourFreeMinutes(baseUnits, freeMinutes) {

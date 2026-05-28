@@ -93,7 +93,11 @@ const api = {
   },
   createResource: (data) => request('/resources', { method: 'POST', body: data }),
   updateResource: (id, data) => request(`/resources/${id}`, { method: 'PUT', body: data }),
-  deleteResource: (id) => request(`/resources/${id}`, { method: 'DELETE' }),
+  getResourceDeleteImpact: (id) => request(`/resources/${id}/delete-impact`),
+  deleteResource: (id, options = {}) => {
+    const suffix = options.force ? '?force=true' : '';
+    return request(`/resources/${id}${suffix}`, { method: 'DELETE' });
+  },
 
   // Resource bookings (complex resources — time slots)
   getResourceBookings: (params) => {

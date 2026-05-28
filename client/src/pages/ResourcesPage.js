@@ -214,7 +214,8 @@ export default function ResourcesPage() {
       }}
       createItem={(data) => api.createResource(data)}
       updateItem={(id, data) => api.updateResource(id, data)}
-      deleteItem={(id) => api.deleteResource(id)}
+      deleteItem={(id, options) => api.deleteResource(id, options)}
+      getDeleteImpact={(id) => api.getResourceDeleteImpact(id)}
       fromItem={(item) => ({
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],

@@ -41,14 +41,14 @@ function fakeRes() {
 }
 
 test('create: invalid email → 400', () => {
-  const c = clientsController.create(fakeModel());
+  const c = clientsController.buildController(fakeModel());
   const res = fakeRes();
   c.create({ body: { lastName: 'a', firstName: 'b', email: 'not-an-email' } }, res);
   assert.equal(res.statusCode, 400);
 });
 
 test('create: valid payload → returns created client', () => {
-  const c = clientsController.create(fakeModel());
+  const c = clientsController.buildController(fakeModel());
   const res = fakeRes();
   c.create({ body: { lastName: 'a', firstName: 'b', phone: '0612345678', email: 'a@b.fr' } }, res);
   assert.equal(res.statusCode, 200);
@@ -56,7 +56,7 @@ test('create: valid payload → returns created client', () => {
 });
 
 test('getOne / update on missing client → 404', () => {
-  const c = clientsController.create(fakeModel());
+  const c = clientsController.buildController(fakeModel());
   const r1 = fakeRes();
   c.getOne({ params: { id: 999 } }, r1);
   assert.equal(r1.statusCode, 404);
@@ -75,7 +75,7 @@ test('delete: client with reservations or devis and no force → 409 CLIENT_IN_U
   });
   let removed = false;
   model.remove = () => { removed = true; };
-  const c = clientsController.create(model);
+  const c = clientsController.buildController(model);
   const res = fakeRes();
   c.remove({ params: { id: 5 }, query: {} }, res);
   assert.equal(res.statusCode, 409);
@@ -93,7 +93,7 @@ test('delete: with force=true deletes even when linked', () => {
   });
   let removedId = null;
   model.remove = (id) => { removedId = id; };
-  const c = clientsController.create(model);
+  const c = clientsController.buildController(model);
   const res = fakeRes();
   c.remove({ params: { id: 5 }, query: { force: 'true' } }, res);
   assert.equal(res.statusCode, 200);
@@ -104,7 +104,7 @@ test('delete: with force=true deletes even when linked', () => {
 test('delete: unlinked client deletes without force', () => {
   const model = fakeModel();
   const created = model.insert({ lastName: 'a', firstName: 'b' });
-  const c = clientsController.create(model);
+  const c = clientsController.buildController(model);
   const res = fakeRes();
   c.remove({ params: { id: created.id }, query: {} }, res);
   assert.equal(res.statusCode, 200);
@@ -112,7 +112,7 @@ test('delete: unlinked client deletes without force', () => {
 });
 
 test('delete: missing client → 404', () => {
-  const c = clientsController.create(fakeModel());
+  const c = clientsController.buildController(fakeModel());
   const res = fakeRes();
   c.remove({ params: { id: 999 }, query: {} }, res);
   assert.equal(res.statusCode, 404);

@@ -10,7 +10,6 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
-const { parseJsonArray } = require('../utils/reservationHelpers');
 const { getOptionsSignature, getResourcesSignature } = require('../utils/reservationAudit');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
@@ -305,13 +304,18 @@ function createReservationsModel(database) {
         WHERE lower(name) = lower('Lit bébé') OR lower(name) = lower('Lit bebe')
       `).all();
       const propertyIdNum = propertyId != null ? Number(propertyId) : null;
-      const babyResources = allBabyBeds.filter((r) => {
-        const ids = parseJsonArray(r.propertyIds);
-        if (ids.length === 0) return true;
-        return propertyIdNum != null && ids.includes(propertyIdNum);
-      });
+      // Applicability from the resource_properties pivot (no rows = global). Robust if the table is absent.
+      let scopeStmt = null;
+      try { scopeStmt = database.prepare('SELECT propertyId FROM resource_properties WHERE resourceId = ?'); } catch { scopeStmt = null; }
+      const scopedIdsFor = (id) => {
+        if (!scopeStmt) return [];
+        try { return scopeStmt.all(id).map((row) => Number(row.propertyId)); } catch { return []; }
+      };
+      const babyResources = allBabyBeds
+        .map((r) => ({ ...r, scopedIds: scopedIdsFor(r.id) }))
+        .filter((r) => r.scopedIds.length === 0 || (propertyIdNum != null && r.scopedIds.includes(propertyIdNum)));
       const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-      const babyHasGlobal = babyResources.some((r) => parseJsonArray(r.propertyIds).length === 0);
+      const babyHasGlobal = babyResources.some((r) => r.scopedIds.length === 0);
       let babyReservedSql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ?';
       const babyReservedParams = [endDate, startDate];
       if (excludeId) { babyReservedSql += ' AND id != ?'; babyReservedParams.push(excludeId); }
