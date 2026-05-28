@@ -8,7 +8,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
-    id INTEGER PRIMARY KEY, clientId INTEGER, propertyId INTEGER,
+    id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
     finalPrice REAL, depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositDueDate TEXT,
     balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT
@@ -99,4 +99,21 @@ test('getTouristTaxExtraction rejects a non-past or malformed month', () => {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   assert.equal(model.getTouristTaxExtraction({ month: thisMonth }).status, 400);
+});
+
+test('a kind=devis row never leaks into finance revenue/overdue/pending/upcoming', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), finalPrice: 500, depositAmount: 150, balanceAmount: 350, depositDueDate: iso(-5) });
+  // A devis (kind='devis') with a huge price + overdue date — must be invisible to every finance view.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, finalPrice, depositAmount, depositDueDate, balanceAmount, depositPaid, balancePaid) VALUES (99, 'devis', 1, 1, ?, ?, 9999, 5000, ?, 4999, 0, 0)")
+    .run(iso(1), iso(4), iso(-30));
+
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.totalRevenue, 500); // devis 9999 excluded
+  assert.ok(!summary.reservations.some((r) => r.id === 99));
+
+  const op = model.getOperational();
+  assert.ok(!op.overdue.reservations.some((r) => r.id === 99));
+  assert.ok(!op.pending.reservations.some((r) => r.id === 99));
+  assert.ok(!op.upcoming.reservations.some((r) => r.id === 99));
 });

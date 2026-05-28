@@ -35,7 +35,7 @@ const DDL = `
     FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
   );
   CREATE TABLE reservations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, startDate TEXT, endDate TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation', propertyId INTEGER, startDate TEXT, endDate TEXT,
     platform TEXT, finalPrice REAL, babyBeds INTEGER DEFAULT 0
   );
   CREATE TABLE reservation_resources (

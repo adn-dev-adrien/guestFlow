@@ -8,6 +8,7 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL DEFAULT 'reservation',
     propertyId INTEGER NOT NULL,
     startDate TEXT NOT NULL,
     endDate TEXT NOT NULL,

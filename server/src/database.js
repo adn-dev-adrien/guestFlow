@@ -299,16 +299,6 @@ db.exec(`
   )
 `);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS devis_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    devisId INTEGER NOT NULL,
-    eventType TEXT NOT NULL DEFAULT 'update',
-    changedFields TEXT NOT NULL DEFAULT '[]',
-    createdAt TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE
-  )
-`);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS ical_sources (
@@ -787,104 +777,34 @@ tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyB
 tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
 tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
 
-// ---------- DEVIS (QUOTES) ----------
-db.exec(`
-  CREATE TABLE IF NOT EXISTS devis (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    devisNumber TEXT NOT NULL UNIQUE,
-    propertyId INTEGER NOT NULL,
-    clientId INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft',
-    startDate TEXT NOT NULL,
-    endDate TEXT NOT NULL,
-    adults INTEGER DEFAULT 1,
-    children INTEGER DEFAULT 0,
-    teens INTEGER DEFAULT 0,
-    babies INTEGER DEFAULT 0,
-    singleBeds INTEGER,
-    doubleBeds INTEGER,
-    babyBeds INTEGER,
-    checkInTime TEXT DEFAULT '15:00',
-    checkOutTime TEXT DEFAULT '10:00',
-    platform TEXT DEFAULT 'direct',
-    totalPrice REAL DEFAULT 0,
-    touristTaxRate REAL DEFAULT 0,
-    touristTaxTotal REAL DEFAULT 0,
-    discountPercent REAL DEFAULT 0,
-    customPrice REAL,
-    finalPrice REAL DEFAULT 0,
-    depositAmount REAL DEFAULT 0,
-    depositDueDate TEXT,
-    balanceAmount REAL DEFAULT 0,
-    balanceDueDate TEXT,
-    cautionAmount REAL DEFAULT 0,
-    notes TEXT DEFAULT '',
-    validUntil TEXT,
-    convertedReservationId INTEGER,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
-    FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE CASCADE
-  )
-`);
+// ---------- DEVIS ↔ RESERVATION FUSION ----------
+// Devis are unified into `reservations` (kind='devis'); their lines live in the reservation_* children.
+// Fresh installs never create devis_* tables. Existing installs are migrated ONCE (after an automatic
+// backup) and the legacy devis_* tables are dropped. See specs/devis-reservation-fusion.md.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const rcols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+  if (!rcols.includes('kind')) db.exec("ALTER TABLE reservations ADD COLUMN kind TEXT NOT NULL DEFAULT 'reservation'");
+  if (!rcols.includes('devisNumber')) db.exec('ALTER TABLE reservations ADD COLUMN devisNumber TEXT');
+  if (!rcols.includes('devisStatus')) db.exec('ALTER TABLE reservations ADD COLUMN devisStatus TEXT');
+  if (!rcols.includes('validUntil')) db.exec('ALTER TABLE reservations ADD COLUMN validUntil TEXT');
+  if (!rcols.includes('convertedReservationId')) db.exec('ALTER TABLE reservations ADD COLUMN convertedReservationId INTEGER');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS devis_options (
-    devisId INTEGER NOT NULL,
-    optionId INTEGER NOT NULL,
-    quantity REAL DEFAULT 1,
-    unitPrice REAL NOT NULL DEFAULT 0,
-    billedUnits REAL NOT NULL DEFAULT 0,
-    priceType TEXT NOT NULL DEFAULT 'per_stay',
-    totalPrice REAL DEFAULT 0,
-    offered INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (devisId, optionId),
-    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
-    FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
-  )
-`);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS devis_custom_options (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    devisId INTEGER NOT NULL,
-    description TEXT NOT NULL,
-    amount REAL NOT NULL DEFAULT 0,
-    offered INTEGER NOT NULL DEFAULT 0,
-    sortOrder INTEGER NOT NULL DEFAULT 0,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE
-  )
-`);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS devis_resources (
-    devisId INTEGER NOT NULL,
-    resourceId INTEGER NOT NULL,
-    quantity INTEGER NOT NULL DEFAULT 1,
-    unitPrice REAL NOT NULL DEFAULT 0,
-    billedUnits REAL NOT NULL DEFAULT 0,
-    priceType TEXT NOT NULL DEFAULT 'per_stay',
-    totalPrice REAL NOT NULL DEFAULT 0,
-    offered INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (devisId, resourceId),
-    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE,
-    FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
-  )
-`);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS devis_nights (
-    devisId INTEGER NOT NULL,
-    date TEXT NOT NULL,
-    seasonLabel TEXT DEFAULT 'Standard',
-    pricingMode TEXT DEFAULT 'fixed',
-    price REAL NOT NULL DEFAULT 0,
-    PRIMARY KEY (devisId, date),
-    FOREIGN KEY (devisId) REFERENCES devis(id) ON DELETE CASCADE
-  )
-`);
+  const { migrateDevisIntoReservations, tableExists } = require('./utils/devisFusionMigration');
+  if (tableExists(db, 'devis')) {
+    try {
+      const backupPath = `${dbPath}.pre-devis-fusion-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
+      db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+      console.log('[Fusion] Pre-migration backup written to', backupPath);
+      const result = migrateDevisIntoReservations(db);
+      console.log('[Fusion] devis → reservations:', JSON.stringify(result));
+    } catch (err) {
+      console.error('[Fusion] Devis fusion failed — DB left unchanged (restore the .bak if needed):', err.message);
+      throw err;
+    }
+  }
+}
 
 // Seed school holidays if table is empty
 const holidayCount = db.prepare('SELECT COUNT(*) as c FROM school_holidays').get().c;
@@ -1197,7 +1117,7 @@ function generateDevisNumber() {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const prefix = `${year}-${month}-`;
   const existing = db.prepare(
-    "SELECT devisNumber FROM devis WHERE devisNumber LIKE ? ORDER BY devisNumber DESC LIMIT 1"
+    "SELECT devisNumber FROM reservations WHERE kind = 'devis' AND devisNumber LIKE ? ORDER BY devisNumber DESC LIMIT 1"
   ).get(`${prefix}%`);
   let increment = 1;
   if (existing) {

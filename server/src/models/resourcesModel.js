@@ -109,7 +109,7 @@ function createModel(database) {
       SELECT COALESCE(SUM(rr.quantity), 0) as reserved
       FROM reservation_resources rr
       JOIN reservations r ON r.id = rr.reservationId
-      WHERE rr.resourceId = ? AND ${OVERLAP}
+      WHERE r.kind = 'reservation' AND rr.resourceId = ? AND ${OVERLAP}
     `;
     const params = [resourceId, endDate, startDate];
     if (excludeReservationId) {
@@ -148,7 +148,7 @@ function createModel(database) {
     const totalQuantity = resources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
     const hasGlobal = resources.some((r) => r.scopedIds.length === 0);
 
-    let sql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ?';
+    let sql = "SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE kind = 'reservation' AND startDate < ? AND endDate > ?";
     const params = [endDate, startDate];
     if (!hasGlobal && propertyId) { sql += ' AND propertyId = ?'; params.push(propertyId); }
     if (excludeReservationId) { sql += ' AND id != ?'; params.push(Number(excludeReservationId)); }
@@ -268,7 +268,7 @@ function createModel(database) {
       FROM reservation_resources rr
       JOIN reservations r ON r.id = rr.reservationId
       LEFT JOIN properties p ON p.id = r.propertyId
-      WHERE rr.resourceId = ?
+      WHERE r.kind = 'reservation' AND rr.resourceId = ?
       ORDER BY r.startDate DESC, r.id DESC
     `).all(Number(id));
     const bookings = database.prepare(`

@@ -143,6 +143,7 @@ router.post('/sync-reservations', async (req, res) => {
       FROM reservations r
       JOIN properties p ON p.id = r.propertyId
       JOIN clients c ON c.id = r.clientId
+      WHERE r.kind = 'reservation'
       ORDER BY r.startDate ASC, r.id ASC
     `).all();
 

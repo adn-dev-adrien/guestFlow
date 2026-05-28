@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 
 const devisModel = require('../models/devisModel');
 
+// Post-fusion: devis are reservations(kind='devis'); lines live in the reservation_* children.
 const DDL = `
   CREATE TABLE properties (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00',
@@ -13,26 +14,15 @@ const DDL = `
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, phone TEXT, address TEXT, email TEXT);
   CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, priceType TEXT, price REAL, autoOptionType TEXT, autoFullNightThreshold TEXT);
   CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, priceType TEXT, price REAL);
-  CREATE TABLE devis (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, devisNumber TEXT, propertyId INTEGER, clientId INTEGER, status TEXT DEFAULT 'draft',
-    startDate TEXT, endDate TEXT, adults INTEGER DEFAULT 1, children INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
-    singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER, checkInTime TEXT, checkOutTime TEXT, platform TEXT,
-    totalPrice REAL DEFAULT 0, touristTaxRate REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, discountPercent REAL DEFAULT 0,
-    customPrice REAL, finalPrice REAL DEFAULT 0, depositAmount REAL DEFAULT 0, depositDueDate TEXT, balanceAmount REAL DEFAULT 0,
-    balanceDueDate TEXT, cautionAmount REAL DEFAULT 0, notes TEXT, validUntil TEXT, convertedReservationId INTEGER,
-    createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
-  );
-  CREATE TABLE devis_options (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, optionId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
-  CREATE TABLE devis_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, description TEXT, amount REAL, offered INTEGER DEFAULT 0, sortOrder INTEGER DEFAULT 0);
-  CREATE TABLE devis_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, resourceId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
-  CREATE TABLE devis_nights (devisId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL);
-  CREATE TABLE devis_history (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, eventType TEXT, changedFields TEXT, createdAt TEXT DEFAULT (datetime('now')));
   CREATE TABLE reservations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
+    devisNumber TEXT, devisStatus TEXT, validUntil TEXT, convertedReservationId INTEGER,
+    propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT,
     adults INTEGER, children INTEGER, teens INTEGER, babies INTEGER, singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER,
     checkInTime TEXT, checkOutTime TEXT, platform TEXT, totalPrice REAL, touristTaxRate REAL, touristTaxTotal REAL,
     discountPercent REAL, customPrice REAL, finalPrice REAL, depositAmount REAL, depositDueDate TEXT, depositPaid INTEGER DEFAULT 0,
-    balanceAmount REAL, balanceDueDate TEXT, balancePaid INTEGER DEFAULT 0, cautionAmount REAL, notes TEXT, sourceType TEXT
+    balanceAmount REAL, balanceDueDate TEXT, balancePaid INTEGER DEFAULT 0, cautionAmount REAL, notes TEXT, sourceType TEXT,
+    createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
   CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, optionId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
   CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL, offered INTEGER DEFAULT 0, sortOrder INTEGER DEFAULT 0);
@@ -54,12 +44,12 @@ function freshModel() {
 
 function insertDevis(db, overrides = {}) {
   const d = {
-    devisNumber: 'D-1', propertyId: 1, clientId: 1, status: 'draft', startDate: '2099-06-01', endDate: '2099-06-04',
+    devisNumber: 'D-1', propertyId: 1, clientId: 1, devisStatus: 'draft', startDate: '2099-06-01', endDate: '2099-06-04',
     finalPrice: 400, touristTaxTotal: 30, ...overrides,
   };
   const info = db.prepare(`
-    INSERT INTO devis (devisNumber, propertyId, clientId, status, startDate, endDate, finalPrice, touristTaxTotal)
-    VALUES (@devisNumber, @propertyId, @clientId, @status, @startDate, @endDate, @finalPrice, @touristTaxTotal)
+    INSERT INTO reservations (kind, devisNumber, propertyId, clientId, devisStatus, startDate, endDate, finalPrice, touristTaxTotal)
+    VALUES ('devis', @devisNumber, @propertyId, @clientId, @devisStatus, @startDate, @endDate, @finalPrice, @touristTaxTotal)
   `).run(d);
   return Number(info.lastInsertRowid);
 }
@@ -67,10 +57,10 @@ function insertDevis(db, overrides = {}) {
 test('findById enriches with lines, client, property and payment schedule', () => {
   const { model, db } = freshModel();
   const id = insertDevis(db);
-  db.prepare('INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 80, 1, ?, 80)').run(id, 'per_stay');
-  db.prepare('INSERT INTO devis_custom_options (devisId, description, amount, sortOrder) VALUES (?, ?, 25, 0)').run(id, 'Extra');
-  db.prepare('INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 10, 1, ?, 10)').run(id, 'per_stay');
-  db.prepare('INSERT INTO devis_nights (devisId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)').run(id, '2099-06-01', 'Standard', 'fixed', 100);
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 80, 1, ?, 80)').run(id, 'per_stay');
+  db.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, sortOrder) VALUES (?, ?, 25, 0)').run(id, 'Extra');
+  db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 10, 1, ?, 10)').run(id, 'per_stay');
+  db.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)').run(id, '2099-06-01', 'Standard', 'fixed', 100);
 
   const full = model.findById(id);
   assert.equal(full.options.length, 2); // option + custom option
@@ -95,7 +85,7 @@ test('updateStatus validates, records history, and blocks converted devis', () =
   assert.equal(model.updateStatus(id, 'bogus').status, 400);
   assert.equal(model.updateStatus(9999, 'sent').status, 404);
 
-  db.prepare("UPDATE devis SET status = 'converted' WHERE id = ?").run(id);
+  db.prepare("UPDATE reservations SET devisStatus = 'converted' WHERE id = ?").run(id);
   assert.equal(model.updateStatus(id, 'sent').status, 400);
 });
 
@@ -110,9 +100,9 @@ test('remove deletes / 404', () => {
 test('convertToReservation copies lines, marks converted, blocks double conversion', () => {
   const { model, db } = freshModel();
   const id = insertDevis(db);
-  db.prepare('INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 80, 1, ?, 80)').run(id, 'per_stay');
-  db.prepare('INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 10, 1, ?, 10)').run(id, 'per_stay');
-  db.prepare('INSERT INTO devis_history (devisId, eventType, changedFields) VALUES (?, ?, ?)').run(id, 'create', '[]');
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 80, 1, ?, 80)').run(id, 'per_stay');
+  db.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 10, 1, ?, 10)').run(id, 'per_stay');
+  db.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields, createdAt) VALUES (?, ?, ?, ?)').run(id, 'create', '[]', '2026-05-01 10:00:00');
 
   const result = model.convertToReservation(id);
   assert.equal(result.ok, true);
@@ -120,8 +110,9 @@ test('convertToReservation copies lines, marks converted, blocks double conversi
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_options WHERE reservationId = ?').get(reservationId).c, 1);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_resources WHERE reservationId = ?').get(reservationId).c, 1);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_history WHERE reservationId = ?').get(reservationId).c, 1);
-  const devisRow = db.prepare('SELECT status, convertedReservationId FROM devis WHERE id = ?').get(id);
-  assert.equal(devisRow.status, 'converted');
+  assert.equal(db.prepare("SELECT kind FROM reservations WHERE id = ?").get(reservationId).kind, 'reservation');
+  const devisRow = db.prepare('SELECT devisStatus, convertedReservationId FROM reservations WHERE id = ?').get(id);
+  assert.equal(devisRow.devisStatus, 'converted');
   assert.equal(devisRow.convertedReservationId, reservationId);
 
   assert.equal(model.convertToReservation(id).status, 400); // already converted
@@ -129,7 +120,7 @@ test('convertToReservation copies lines, marks converted, blocks double conversi
 
 test('convertFromReservation creates a devis copying the reservation lines', () => {
   const { model, db } = freshModel();
-  const rid = db.prepare('INSERT INTO reservations (propertyId, clientId, startDate, endDate, finalPrice) VALUES (1, 1, ?, ?, 400)').run('2099-06-01', '2099-06-04').lastInsertRowid;
+  const rid = db.prepare("INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, finalPrice) VALUES ('reservation', 1, 1, ?, ?, 400)").run('2099-06-01', '2099-06-04').lastInsertRowid;
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice) VALUES (?, 1, 1, 80, 1, ?, 80)').run(rid, 'per_stay');
   db.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)').run(rid, '2099-06-01', 'Standard', 'fixed', 100);
 

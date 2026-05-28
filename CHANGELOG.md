@@ -100,6 +100,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Devis ↔ Reservation table fusion** (spec `devis-reservation-fusion.md`): devis are now rows in the
+  unified `reservations` table (`kind='devis'`), their lines in the `reservation_*` children — the parallel
+  `devis_*` tables are gone. `devisModel` reads/writes `reservations WHERE kind='devis'` (status stored as
+  `devisStatus`, aliased back to `status` so the devis API/PDF/convert are unchanged). Every reservation
+  read (occupancy, availability, blocked-night/cleaning, baby beds, resource availability, finance
+  summary/projection/operational/tourist-tax, Google Calendar push, client delete-impact/orphan cleanup)
+  now filters `kind='reservation'`, so a devis never blocks a date or counts as revenue. No API/UX change.
 - **Finance & Dashboard — server-owned money, MVC, render-only pages** (Bloc 5, spec
   `finance-dashboard-thin.md`): `routes/finance.js` (403 LOC) is now a thin route over `financeController`
   + `financeModel`, with pure helpers in `utils/financeCalcs.js`. All payment math + overdue derivation +
@@ -258,6 +265,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **`devis_*` tables** (`devis`, `devis_options`, `devis_custom_options`, `devis_resources`,
+  `devis_nights`, `devis_history`) — folded into the `reservations` family (`kind='devis'`). Data migrated
+  (see Migration).
 - **`GET /api/finance/pending`** — folded into the new `/finance/operational` (its only consumer was
   FinancePage). The endpoint now returns `404`.
 - **Client-side payment math** — both `FinancePage.getRemainingDue` and `Dashboard.getRemainingDue`, plus
@@ -271,6 +281,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Devis ↔ Reservation fusion (one-time, backed up):** on boot, `reservations` gains
+  `kind`/`devisNumber`/`devisStatus`/`validUntil`/`convertedReservationId` (+ a unique index on
+  `devisNumber` and a `kind` index). If the legacy `devis` table exists, the DB is first copied to a
+  timestamped `*.pre-devis-fusion-*.bak` backup, then `migrateDevisIntoReservations` folds every devis into
+  `reservations` (`kind='devis'`) with its options/custom options/resources/nights/history moved into the
+  `reservation_*` children — insert + verify + drop run in one transaction (all-or-nothing). Idempotent
+  (skips once `devis` is gone). Rollback = restore the `.bak`. Existing reservations are untouched.
 - **Resource applicability pivot (Bloc 1):** new `resource_properties` table (`resourceId`, `propertyId`).
   On boot, `migrateResourcePropertiesFromJson` backfills it from the legacy `resources.propertyIds` JSON
   (empty stays global; stale property ids skipped), then drops the `propertyIds` column. Idempotent;
