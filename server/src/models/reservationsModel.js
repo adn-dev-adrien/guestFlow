@@ -26,7 +26,7 @@ function createReservationsModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE 1=1
+        WHERE r.kind = 'reservation'
       `;
       const params = [];
       if (propertyId) { sql += ' AND r.propertyId = ?'; params.push(propertyId); }
@@ -53,7 +53,8 @@ function createReservationsModel(database) {
       let sql = `
         SELECT id, startDate, endDate, checkInTime, checkOutTime
         FROM reservations
-        WHERE propertyId = ?
+        WHERE kind = 'reservation'
+          AND propertyId = ?
           AND endDate > ?
           AND startDate < ?
       `;
@@ -68,7 +69,7 @@ function createReservationsModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.id = ?
+        WHERE r.id = ? AND r.kind = 'reservation'
       `).get(id);
       if (!reservation) return null;
 
@@ -248,7 +249,8 @@ function createReservationsModel(database) {
       let overlapSql = `
         SELECT id
         FROM reservations
-        WHERE propertyId = ?
+        WHERE kind = 'reservation'
+          AND propertyId = ?
           AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
                     THEN date(startDate, '-1 day') ELSE startDate END) < ?
           AND (CASE WHEN CAST(SUBSTR(COALESCE(checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ${LATE_CHECKOUT_BLOCK_HOUR}
@@ -261,7 +263,7 @@ function createReservationsModel(database) {
         return { error: 'Ce logement est déjà réservé pour ces dates.' };
       }
 
-      let prevSql = 'SELECT checkOutTime FROM reservations WHERE propertyId = ? AND endDate = ?';
+      let prevSql = "SELECT checkOutTime FROM reservations WHERE kind = 'reservation' AND propertyId = ? AND endDate = ?";
       const prevParams = [propertyId, startDate];
       if (excludeId) { prevSql += ' AND id != ?'; prevParams.push(excludeId); }
       const prevRes = database.prepare(prevSql).get(...prevParams);
@@ -277,7 +279,7 @@ function createReservationsModel(database) {
         }
       }
 
-      let nextSql = 'SELECT checkInTime FROM reservations WHERE propertyId = ? AND startDate = ?';
+      let nextSql = "SELECT checkInTime FROM reservations WHERE kind = 'reservation' AND propertyId = ? AND startDate = ?";
       const nextParams = [propertyId, endDate];
       if (excludeId) { nextSql += ' AND id != ?'; nextParams.push(excludeId); }
       const nextRes = database.prepare(nextSql).get(...nextParams);
@@ -324,7 +326,7 @@ function createReservationsModel(database) {
         .filter((r) => r.scopedIds.length === 0 || (propertyIdNum != null && r.scopedIds.includes(propertyIdNum)));
       const babyTotal = babyResources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
       const babyHasGlobal = babyResources.some((r) => r.scopedIds.length === 0);
-      let babyReservedSql = 'SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE startDate < ? AND endDate > ?';
+      let babyReservedSql = "SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE kind = 'reservation' AND startDate < ? AND endDate > ?";
       const babyReservedParams = [endDate, startDate];
       if (excludeId) { babyReservedSql += ' AND id != ?'; babyReservedParams.push(excludeId); }
       if (!babyHasGlobal) { babyReservedSql += ' AND propertyId = ?'; babyReservedParams.push(propertyId); }
@@ -346,7 +348,7 @@ function createReservationsModel(database) {
         SELECT COALESCE(SUM(rr2.quantity), 0) as reserved
         FROM reservation_resources rr2
         JOIN reservations r2 ON r2.id = rr2.reservationId
-        WHERE rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ?
+        WHERE r2.kind = 'reservation' AND rr2.resourceId = ? AND r2.startDate < ? AND r2.endDate > ?
       `;
       const params = [resourceId, endDate, startDate];
       if (excludeId) { sql += ' AND rr2.reservationId != ?'; params.push(excludeId); }

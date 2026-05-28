@@ -34,7 +34,7 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.startDate <= ? AND r.endDate >= ?
+        WHERE r.kind = 'reservation' AND r.startDate <= ? AND r.endDate >= ?
         ORDER BY r.startDate
       `).all(end, start);
 
@@ -75,6 +75,7 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind = 'reservation'
         ORDER BY r.startDate
       `).all();
 
@@ -139,7 +140,8 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.finalPrice IS NOT NULL
+        WHERE r.kind = 'reservation'
+          AND r.finalPrice IS NOT NULL
           AND (r.depositPaid = 0
            OR r.balancePaid = 0
            OR (r.depositPaid = 1 AND r.balancePaid = 1 AND (
@@ -165,7 +167,7 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.endDate >= ?
+        WHERE r.kind = 'reservation' AND r.endDate >= ?
         ORDER BY r.startDate
       `).all(today);
 
@@ -266,7 +268,8 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN properties p ON p.id = r.propertyId
         JOIN clients c ON c.id = r.clientId
-        WHERE DATE(r.endDate, '-1 day') >= ?
+        WHERE r.kind = 'reservation'
+          AND DATE(r.endDate, '-1 day') >= ?
           AND DATE(r.endDate, '-1 day') < ?
           AND r.platform = 'direct'
         ORDER BY p.name, r.startDate, c.lastName, c.firstName

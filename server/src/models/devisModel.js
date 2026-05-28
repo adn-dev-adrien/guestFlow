@@ -1,11 +1,14 @@
 /**
- * Devis model — sole DB access for `devis*` (and the convert-flow `reservation*`) tables. Encapsulates
+ * Devis model — devis are now rows in the unified `reservations` table with `kind='devis'`
+ * (their lines live in the `reservation_*` children). This model is the sole devis-domain DB access:
  * list, enrich, CRUD (create + update share one persist helper), status, history/audit, the payment
  * schedule, and the two convert flows. Pricing comes from the shared engine (`calculateReservationQuote`).
  *
+ * The devis-specific `status` is stored in `reservations.devisStatus`; reads alias it back to `status`
+ * to keep the devis API contract unchanged. Every devis read/write is scoped to `kind='devis'`.
+ *
  * `create`/`update`/… return `{ ok, status?, data }` or `{ error, status }` so the controller stays thin.
- * Exports a default model bound to the production DB, and a `buildModel(db)` factory for tests (the
- * factory is NOT named `create` — that's a model method).
+ * Exports a default model bound to the production DB, and a `buildModel(db)` factory for tests.
  */
 
 const db = require('../database');
@@ -40,31 +43,31 @@ function createModel(database) {
   function enrichDevis(row) {
     if (!row) return null;
     const options = database.prepare(`
-      SELECT do.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
-        COALESCE(NULLIF(do.totalPrice, 0), NULLIF(round(COALESCE(do.unitPrice, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2), 0),
-          round(COALESCE(o.price, 0) * COALESCE(do.billedUnits, do.quantity, 0), 2)) as originalTotalPrice,
-        do.offered as offered
-      FROM devis_options do JOIN options o ON do.optionId = o.id WHERE do.devisId = ?
+      SELECT ro.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
+        COALESCE(NULLIF(ro.totalPrice, 0), NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
+          round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)) as originalTotalPrice,
+        ro.offered as offered
+      FROM reservation_options ro JOIN options o ON ro.optionId = o.id WHERE ro.reservationId = ?
     `).all(row.id);
     const customOptions = database.prepare(`
-      SELECT dco.id as customOptionId, dco.description as title, dco.description, 1 as quantity,
-        dco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
-        CASE WHEN COALESCE(dco.offered, 0) = 1 THEN 0 ELSE dco.amount END as totalPrice,
-        dco.amount as originalTotalPrice, COALESCE(dco.offered, 0) as offered, 1 as isCustom
-      FROM devis_custom_options dco WHERE dco.devisId = ? ORDER BY dco.sortOrder, dco.id
+      SELECT rco.id as customOptionId, rco.description as title, rco.description, 1 as quantity,
+        rco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
+        CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
+        rco.amount as originalTotalPrice, COALESCE(rco.offered, 0) as offered, 1 as isCustom
+      FROM reservation_custom_options rco WHERE rco.reservationId = ? ORDER BY rco.sortOrder, rco.id
     `).all(row.id);
     const resources = database.prepare(`
-      SELECT dr.*, r.name, r.priceType as resourcePriceType,
-        COALESCE(NULLIF(dr.totalPrice, 0), NULLIF(round(COALESCE(dr.unitPrice, 0) * COALESCE(dr.billedUnits, dr.quantity, 0), 2), 0),
-          round(COALESCE(r.price, 0) * COALESCE(dr.billedUnits, dr.quantity, 0), 2)) as originalTotalPrice,
-        dr.offered as offered
-      FROM devis_resources dr JOIN resources r ON dr.resourceId = r.id WHERE dr.devisId = ?
+      SELECT rr.*, r.name, r.priceType as resourcePriceType,
+        COALESCE(NULLIF(rr.totalPrice, 0), NULLIF(round(COALESCE(rr.unitPrice, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2), 0),
+          round(COALESCE(r.price, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2)) as originalTotalPrice,
+        rr.offered as offered
+      FROM reservation_resources rr JOIN resources r ON rr.resourceId = r.id WHERE rr.reservationId = ?
     `).all(row.id);
-    const nights = database.prepare('SELECT * FROM devis_nights WHERE devisId = ? ORDER BY date').all(row.id);
+    const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
     const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
     const schedule = resolvePaymentSchedule(row, property);
-    return { ...row, ...schedule, options: [...options, ...customOptions], resources, nights, client, property };
+    return { ...row, status: row.devisStatus, ...schedule, options: [...options, ...customOptions], resources, nights, client, property };
   }
 
   // ---- audit / history ----
@@ -75,7 +78,7 @@ function createModel(database) {
   }
 
   function snapshotFromDb(devisId) {
-    const row = database.prepare('SELECT * FROM devis WHERE id = ?').get(devisId);
+    const row = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(devisId);
     if (!row) return null;
     return {
       propertyId: Number(row.propertyId), clientId: Number(row.clientId),
@@ -90,7 +93,7 @@ function createModel(database) {
       discountPercent: Number(row.discountPercent || 0), finalPrice: Number(row.finalPrice || 0),
       depositAmount: Number(row.depositAmount || 0), depositDueDate: row.depositDueDate || null,
       balanceAmount: Number(row.balanceAmount || 0), balanceDueDate: row.balanceDueDate || null,
-      status: row.status || null, notes: row.notes || null,
+      status: row.devisStatus || null, notes: row.notes || null,
     };
   }
 
@@ -127,7 +130,7 @@ function createModel(database) {
   }
 
   function addHistoryEntry(devisId, eventType, changes) {
-    database.prepare('INSERT INTO devis_history (devisId, eventType, changedFields) VALUES (?, ?, ?)')
+    database.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, ?, ?)')
       .run(devisId, eventType, JSON.stringify(changes || []));
   }
 
@@ -176,28 +179,28 @@ function createModel(database) {
     });
   }
 
-  // ---- persist lines (shared by create/update) ----
+  // ---- persist lines (shared by create/update) — into the reservation_* children ----
   function persistLines(devisId, quote) {
-    database.prepare('DELETE FROM devis_options WHERE devisId = ?').run(devisId);
-    const insertOption = database.prepare('INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(devisId);
+    const insertOption = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const line of (quote.optionLines || []).filter((item) => !item.isCustom)) {
       insertOption.run(devisId, Number(line.optionId), Number(line.quantity || 1), roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0), line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
     }
-    database.prepare('DELETE FROM devis_custom_options WHERE devisId = ?').run(devisId);
-    const insertCustomOption = database.prepare('INSERT INTO devis_custom_options (devisId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
+    database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(devisId);
+    const insertCustomOption = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
     let customOrder = 0;
     for (const line of quote.optionLines || []) {
       if (!line.isCustom) continue;
       insertCustomOption.run(devisId, String(line.title || '').trim(), roundMoney(line.originalTotalPrice || line.totalPrice || 0), line.offered ? 1 : 0, customOrder);
       customOrder += 1;
     }
-    database.prepare('DELETE FROM devis_resources WHERE devisId = ?').run(devisId);
-    const insertResource = database.prepare('INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    database.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(devisId);
+    const insertResource = database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const line of quote.resourceLines || []) {
       insertResource.run(devisId, Number(line.resourceId), Number(line.quantity || 1), roundMoney(line.unitPrice), roundMoney(line.billedUnits || 0), line.priceType || 'per_stay', roundMoney(line.totalPrice), line.offered ? 1 : 0);
     }
-    database.prepare('DELETE FROM devis_nights WHERE devisId = ?').run(devisId);
-    const insertNight = database.prepare('INSERT INTO devis_nights (devisId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
+    database.prepare('DELETE FROM reservation_nights WHERE reservationId = ?').run(devisId);
+    const insertNight = database.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
     for (const night of quote.nightlyBreakdown || []) {
       insertNight.run(devisId, night.date, night.seasonLabel || 'Standard', night.pricingMode || 'fixed', roundMoney(night.price));
     }
@@ -206,14 +209,14 @@ function createModel(database) {
   // ---- public API ----
   function list({ propertyId, status, from, to } = {}) {
     let sql = `
-      SELECT d.*, c.firstName, c.lastName, p.name as propertyName
-      FROM devis d
+      SELECT d.*, d.devisStatus AS status, c.firstName, c.lastName, p.name as propertyName
+      FROM reservations d
       LEFT JOIN clients c ON d.clientId = c.id
       LEFT JOIN properties p ON d.propertyId = p.id
-      WHERE 1=1`;
+      WHERE d.kind = 'devis'`;
     const params = [];
     if (propertyId) { sql += ' AND d.propertyId = ?'; params.push(Number(propertyId)); }
-    if (status) { sql += ' AND d.status = ?'; params.push(status); }
+    if (status) { sql += ' AND d.devisStatus = ?'; params.push(status); }
     if (from) { sql += ' AND d.endDate >= ?'; params.push(from); }
     if (to) { sql += ' AND d.startDate <= ?'; params.push(to); }
     sql += ' ORDER BY d.createdAt DESC';
@@ -221,14 +224,14 @@ function createModel(database) {
   }
 
   function findById(id) {
-    const row = database.prepare('SELECT * FROM devis WHERE id = ?').get(Number(id));
+    const row = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     return row ? enrichDevis(row) : null;
   }
 
   function getHistory(id) {
-    const devis = database.prepare('SELECT id FROM devis WHERE id = ?').get(Number(id));
+    const devis = database.prepare("SELECT id FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!devis) return null;
-    return database.prepare('SELECT id, eventType, changedFields, createdAt FROM devis_history WHERE devisId = ? ORDER BY createdAt DESC').all(Number(id))
+    return database.prepare('SELECT id, eventType, changedFields, createdAt FROM reservation_history WHERE reservationId = ? ORDER BY createdAt DESC').all(Number(id))
       .map((row) => {
         let changes = [];
         try { changes = JSON.parse(row.changedFields || '[]'); } catch { changes = []; }
@@ -237,16 +240,16 @@ function createModel(database) {
   }
 
   function updateStatus(id, status) {
-    const existing = database.prepare('SELECT * FROM devis WHERE id = ?').get(Number(id));
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     const allowed = new Set(['draft', 'sent', 'accepted']);
     const next = String(status || '').trim();
     if (!allowed.has(next)) return { error: 'Statut invalide', status: 400 };
-    if (existing.status === 'converted') return { error: 'Un devis converti ne peut plus changer de statut', status: 400 };
+    if (existing.devisStatus === 'converted') return { error: 'Un devis converti ne peut plus changer de statut', status: 400 };
 
     const before = snapshotFromDb(Number(id));
-    before.status = existing.status;
-    database.prepare("UPDATE devis SET status = ?, updatedAt = datetime('now') WHERE id = ?").run(next, Number(id));
+    before.status = existing.devisStatus;
+    database.prepare("UPDATE reservations SET devisStatus = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(next, Number(id));
     const after = snapshotFromDb(Number(id));
     const changes = computeAuditChanges(before, after);
     if (changes.length > 0) addHistoryEntry(Number(id), 'update', changes);
@@ -264,11 +267,11 @@ function createModel(database) {
     const devisNumber = database.generateDevisNumber();
     const tx = database.transaction(() => {
       const info = database.prepare(`
-        INSERT INTO devis (
-          devisNumber, propertyId, clientId, status, startDate, endDate, adults, children, teens, babies,
+        INSERT INTO reservations (
+          kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
           discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil
-        ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         devisNumber, Number(payload.propertyId), Number(payload.clientId), payload.startDate, payload.endDate,
         Number(payload.adults || 1), Number(payload.children || 0), Number(payload.teens || 0), Number(payload.babies || 0),
@@ -296,7 +299,7 @@ function createModel(database) {
 
   function update(id, payload) {
     const numId = Number(id);
-    const existing = database.prepare('SELECT * FROM devis WHERE id = ?').get(numId);
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
@@ -306,16 +309,16 @@ function createModel(database) {
     const beforeSnapshot = snapshotFromDb(numId);
     const tx = database.transaction(() => {
       database.prepare(`
-        UPDATE devis SET
-          propertyId = ?, clientId = ?, status = ?, startDate = ?, endDate = ?,
+        UPDATE reservations SET
+          propertyId = ?, clientId = ?, devisStatus = ?, startDate = ?, endDate = ?,
           adults = ?, children = ?, teens = ?, babies = ?, singleBeds = ?, doubleBeds = ?, babyBeds = ?,
           checkInTime = ?, checkOutTime = ?, platform = ?, totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
           discountPercent = ?, customPrice = ?, finalPrice = ?, depositAmount = ?, depositDueDate = ?,
           balanceAmount = ?, balanceDueDate = ?, cautionAmount = ?, notes = ?, validUntil = ?, updatedAt = datetime('now')
-        WHERE id = ?
+        WHERE id = ? AND kind = 'devis'
       `).run(
         Number(payload.propertyId || existing.propertyId), Number(payload.clientId || existing.clientId),
-        payload.status || existing.status, payload.startDate || existing.startDate, payload.endDate || existing.endDate,
+        payload.status || existing.devisStatus, payload.startDate || existing.startDate, payload.endDate || existing.endDate,
         Number(payload.adults ?? existing.adults), Number(payload.children ?? existing.children),
         Number(payload.teens ?? existing.teens), Number(payload.babies ?? existing.babies),
         payload.singleBeds != null && payload.singleBeds !== '' ? Number(payload.singleBeds) : null,
@@ -342,15 +345,35 @@ function createModel(database) {
   }
 
   function remove(id) {
-    const existing = database.prepare('SELECT id FROM devis WHERE id = ?').get(Number(id));
+    const existing = database.prepare("SELECT id FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
-    database.prepare('DELETE FROM devis WHERE id = ?').run(Number(id));
+    database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
     return { ok: true, data: { success: true } };
+  }
+
+  // Copy a booking's line graph from one reservations row to another (used by both convert flows).
+  function copyLineGraph(fromId, toId) {
+    const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    for (const o of database.prepare('SELECT * FROM reservation_options WHERE reservationId = ?').all(fromId)) {
+      insertOpt.run(toId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice, o.offered ? 1 : 0);
+    }
+    const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
+    for (const o of database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(fromId)) {
+      insertCustomOpt.run(toId, o.description, o.amount, Number(o.offered || 0), o.sortOrder || 0);
+    }
+    const insertRsc = database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    for (const r of database.prepare('SELECT * FROM reservation_resources WHERE reservationId = ?').all(fromId)) {
+      insertRsc.run(toId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice, r.offered ? 1 : 0);
+    }
+    const insertNight = database.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
+    for (const n of database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(fromId)) {
+      insertNight.run(toId, n.date, n.seasonLabel, n.pricingMode, n.price);
+    }
   }
 
   function convertToReservation(id) {
     const numId = Number(id);
-    const devisRow = database.prepare('SELECT * FROM devis WHERE id = ?').get(numId);
+    const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!devisRow) return { error: 'Devis non trouvé', status: 404 };
     if (devisRow.convertedReservationId) return { error: 'Ce devis a déjà été converti en réservation', status: 400 };
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(devisRow.propertyId);
@@ -359,12 +382,12 @@ function createModel(database) {
     const tx = database.transaction(() => {
       const info = database.prepare(`
         INSERT INTO reservations (
-          propertyId, clientId, startDate, endDate, adults, children, teens, babies,
+          kind, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform,
           totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice,
           depositAmount, depositDueDate, depositPaid, balanceAmount, balanceDueDate, balancePaid,
           cautionAmount, notes, sourceType
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 'manual')
+        ) VALUES ('reservation', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 'manual')
       `).run(
         devisRow.propertyId, devisRow.clientId, devisRow.startDate, devisRow.endDate,
         devisRow.adults, devisRow.children, devisRow.teens, devisRow.babies,
@@ -373,28 +396,12 @@ function createModel(database) {
         devisRow.depositAmount, devisRow.depositDueDate, devisRow.balanceAmount, devisRow.balanceDueDate, devisRow.cautionAmount, devisRow.notes,
       );
       const reservationId = info.lastInsertRowid;
+      copyLineGraph(numId, reservationId);
 
-      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const o of database.prepare('SELECT * FROM devis_options WHERE devisId = ?').all(numId)) {
-        insertOpt.run(reservationId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice, o.offered ? 1 : 0);
-      }
-      const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
-      for (const o of database.prepare('SELECT * FROM devis_custom_options WHERE devisId = ? ORDER BY sortOrder, id').all(numId)) {
-        insertCustomOpt.run(reservationId, o.description, o.amount, Number(o.offered || 0), o.sortOrder || 0);
-      }
-      const insertRsc = database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const r of database.prepare('SELECT * FROM devis_resources WHERE devisId = ?').all(numId)) {
-        insertRsc.run(reservationId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice, r.offered ? 1 : 0);
-      }
-      const insertNight = database.prepare('INSERT INTO reservation_nights (reservationId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
-      for (const n of database.prepare('SELECT * FROM devis_nights WHERE devisId = ?').all(numId)) {
-        insertNight.run(reservationId, n.date, n.seasonLabel, n.pricingMode, n.price);
-      }
-
-      database.prepare("UPDATE devis SET status = 'converted', convertedReservationId = ?, updatedAt = datetime('now') WHERE id = ?").run(reservationId, numId);
+      database.prepare("UPDATE reservations SET devisStatus = 'converted', convertedReservationId = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(reservationId, numId);
 
       const insertHistory = database.prepare('INSERT INTO reservation_history (reservationId, eventType, changedFields, createdAt) VALUES (?, ?, ?, ?)');
-      for (const entry of database.prepare('SELECT id, eventType, changedFields, createdAt FROM devis_history WHERE devisId = ? ORDER BY createdAt ASC').all(numId)) {
+      for (const entry of database.prepare('SELECT id, eventType, changedFields, createdAt FROM reservation_history WHERE reservationId = ? ORDER BY createdAt ASC').all(numId)) {
         insertHistory.run(reservationId, entry.eventType, entry.changedFields, entry.createdAt);
       }
       return reservationId;
@@ -405,17 +412,17 @@ function createModel(database) {
 
   function convertFromReservation(reservationId) {
     const numId = Number(reservationId);
-    const reservation = database.prepare('SELECT * FROM reservations WHERE id = ?').get(numId);
+    const reservation = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'reservation'").get(numId);
     if (!reservation) return { error: 'Réservation introuvable', status: 404 };
 
     const devisNumber = database.generateDevisNumber();
     const tx = database.transaction(() => {
       const info = database.prepare(`
-        INSERT INTO devis (
-          devisNumber, propertyId, clientId, status, startDate, endDate, adults, children, teens, babies,
+        INSERT INTO reservations (
+          kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
           discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes
-        ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         devisNumber, reservation.propertyId, reservation.clientId, reservation.startDate, reservation.endDate,
         reservation.adults, reservation.children, reservation.teens, reservation.babies,
@@ -424,22 +431,7 @@ function createModel(database) {
         reservation.depositAmount, reservation.depositDueDate, reservation.balanceAmount, reservation.balanceDueDate, reservation.cautionAmount || 0, reservation.notes,
       );
       const devisId = info.lastInsertRowid;
-      const insertOpt = database.prepare('INSERT INTO devis_options (devisId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const o of database.prepare('SELECT * FROM reservation_options WHERE reservationId = ?').all(numId)) {
-        insertOpt.run(devisId, o.optionId, o.quantity, o.unitPrice, o.billedUnits, o.priceType, o.totalPrice, o.offered ? 1 : 0);
-      }
-      const insertCustomOption = database.prepare('INSERT INTO devis_custom_options (devisId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
-      for (const o of database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(numId)) {
-        insertCustomOption.run(devisId, o.description, o.amount, Number(o.offered || 0), o.sortOrder || 0);
-      }
-      const insertRsc = database.prepare('INSERT INTO devis_resources (devisId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const r of database.prepare('SELECT * FROM reservation_resources WHERE reservationId = ?').all(numId)) {
-        insertRsc.run(devisId, r.resourceId, r.quantity, r.unitPrice, r.billedUnits, r.priceType, r.totalPrice, r.offered ? 1 : 0);
-      }
-      const insertNight = database.prepare('INSERT INTO devis_nights (devisId, date, seasonLabel, pricingMode, price) VALUES (?, ?, ?, ?, ?)');
-      for (const n of database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(numId)) {
-        insertNight.run(devisId, n.date, n.seasonLabel, n.pricingMode, n.price);
-      }
+      copyLineGraph(numId, devisId);
       return devisId;
     });
     const devisId = tx();

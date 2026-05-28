@@ -109,7 +109,7 @@ function createModel(database) {
         r.platform, r.finalPrice, r.adults, r.children, r.teens, r.babies
       FROM reservations r
       LEFT JOIN properties p ON p.id = r.propertyId
-      WHERE r.clientId = ?
+      WHERE r.kind = 'reservation' AND r.clientId = ?
     `).all(Number(clientId));
     return rows
       .map((r) => ({ ...r, nights: computeNights(r.startDate, r.endDate) }))
@@ -118,11 +118,11 @@ function createModel(database) {
 
   function listDevisForClient(clientId) {
     const rows = database.prepare(`
-      SELECT d.id, d.clientId, d.propertyId, p.name AS propertyName, d.devisNumber, d.status,
+      SELECT d.id, d.clientId, d.propertyId, p.name AS propertyName, d.devisNumber, d.devisStatus AS status,
         d.startDate, d.endDate, d.finalPrice
-      FROM devis d
+      FROM reservations d
       LEFT JOIN properties p ON p.id = d.propertyId
-      WHERE d.clientId = ?
+      WHERE d.kind = 'devis' AND d.clientId = ?
     `).all(Number(clientId));
     return rows
       .map((d) => ({ ...d, nights: computeNights(d.startDate, d.endDate) }))
@@ -146,15 +146,16 @@ function createModel(database) {
 
   // Delete clients with neither a reservation nor a devis; report how many were kept for having a devis.
   function cleanupOrphans() {
+    // devis are now reservations(kind='devis'); a client with any booking row (reservation or devis)
+    // is kept. "Kept with devis" = no real reservation but at least one devis.
     const deletableRow = database.prepare(`
       SELECT COUNT(*) AS count FROM clients c
       WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
-        AND NOT EXISTS (SELECT 1 FROM devis d WHERE d.clientId = c.id)
     `).get();
     const keptRow = database.prepare(`
       SELECT COUNT(*) AS count FROM clients c
-      WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
-        AND EXISTS (SELECT 1 FROM devis d WHERE d.clientId = c.id)
+      WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id AND r.kind = 'reservation')
+        AND EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id AND r.kind = 'devis')
     `).get();
     const deletedCount = Number(deletableRow?.count || 0);
     const keptWithDevisCount = Number(keptRow?.count || 0);
@@ -162,7 +163,6 @@ function createModel(database) {
       database.prepare(`
         DELETE FROM clients
         WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = clients.id)
-          AND NOT EXISTS (SELECT 1 FROM devis d WHERE d.clientId = clients.id)
       `).run();
     }
     return { deletedCount, keptWithDevisCount };

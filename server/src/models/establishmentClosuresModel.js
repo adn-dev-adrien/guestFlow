@@ -102,7 +102,8 @@ function createModel(database) {
       SELECT r.id, r.propertyId, r.startDate, r.endDate, p.name AS propertyName
       FROM reservations r
       JOIN properties p ON p.id = r.propertyId
-      WHERE (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
+      WHERE r.kind = 'reservation'
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
                   THEN date(r.startDate, '-1 day') ELSE r.startDate END) < ?
         AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ${LATE_CHECKOUT_BLOCK_HOUR}
                   THEN date(r.endDate, '+1 day') ELSE r.endDate END) > ?

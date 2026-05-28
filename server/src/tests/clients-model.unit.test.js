@@ -23,17 +23,12 @@ const DDL = `
   );
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL DEFAULT 'reservation',
+    devisNumber TEXT, devisStatus TEXT,
     clientId INTEGER,
     propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT, finalPrice REAL,
     adults INTEGER DEFAULT 0, children INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, babies INTEGER DEFAULT 0
-  );
-  CREATE TABLE devis (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    clientId INTEGER,
-    propertyId INTEGER,
-    devisNumber TEXT, status TEXT,
-    startDate TEXT, endDate TEXT, finalPrice REAL
   );
 `;
 
@@ -54,8 +49,8 @@ function addReservation(db, clientId, startDate, endDate, extra = {}) {
 
 function addDevis(db, clientId, startDate, endDate, extra = {}) {
   return db.prepare(`
-    INSERT INTO devis (clientId, propertyId, devisNumber, status, startDate, endDate, finalPrice)
-    VALUES (?, 1, ?, ?, ?, ?, ?)
+    INSERT INTO reservations (kind, clientId, propertyId, devisNumber, devisStatus, startDate, endDate, finalPrice)
+    VALUES ('devis', ?, 1, ?, ?, ?, ?, ?)
   `).run(clientId, extra.devisNumber || 'D-1', extra.status || 'draft', startDate, endDate, extra.finalPrice || 0);
 }
 

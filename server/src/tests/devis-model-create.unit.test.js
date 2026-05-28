@@ -35,20 +35,22 @@ const DDL = `
   );
   CREATE TABLE property_resource_prices ( propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId) );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, phone TEXT);
-  CREATE TABLE devis (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, devisNumber TEXT, propertyId INTEGER, clientId INTEGER, status TEXT DEFAULT 'draft',
+  CREATE TABLE reservations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
+    devisNumber TEXT, devisStatus TEXT, validUntil TEXT, convertedReservationId INTEGER,
+    propertyId INTEGER, clientId INTEGER,
     startDate TEXT, endDate TEXT, adults INTEGER DEFAULT 1, children INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
     singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER, checkInTime TEXT, checkOutTime TEXT, platform TEXT,
     totalPrice REAL DEFAULT 0, touristTaxRate REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, discountPercent REAL DEFAULT 0,
-    customPrice REAL, finalPrice REAL DEFAULT 0, depositAmount REAL DEFAULT 0, depositDueDate TEXT, balanceAmount REAL DEFAULT 0,
-    balanceDueDate TEXT, cautionAmount REAL DEFAULT 0, notes TEXT, validUntil TEXT, convertedReservationId INTEGER,
+    customPrice REAL, finalPrice REAL DEFAULT 0, depositAmount REAL DEFAULT 0, depositDueDate TEXT, depositPaid INTEGER DEFAULT 0,
+    balanceAmount REAL DEFAULT 0, balanceDueDate TEXT, balancePaid INTEGER DEFAULT 0, cautionAmount REAL DEFAULT 0, notes TEXT, sourceType TEXT,
     createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
-  CREATE TABLE devis_options (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, optionId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
-  CREATE TABLE devis_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, description TEXT, amount REAL, offered INTEGER DEFAULT 0, sortOrder INTEGER DEFAULT 0);
-  CREATE TABLE devis_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, resourceId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
-  CREATE TABLE devis_nights (devisId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL);
-  CREATE TABLE devis_history (id INTEGER PRIMARY KEY AUTOINCREMENT, devisId INTEGER, eventType TEXT, changedFields TEXT, createdAt TEXT DEFAULT (datetime('now')));
+  CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, optionId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
+  CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL, offered INTEGER DEFAULT 0, sortOrder INTEGER DEFAULT 0);
+  CREATE TABLE reservation_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, resourceId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
+  CREATE TABLE reservation_nights (reservationId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL);
+  CREATE TABLE reservation_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, eventType TEXT, changedFields TEXT, createdAt TEXT DEFAULT (datetime('now')));
 `;
 
 function freshModel() {
@@ -73,9 +75,9 @@ test('create persists the devis + lines with engine prices (360 stay + 50 option
   assert.equal(full.devisNumber, 'D-TEST-001');
   assert.equal(full.totalPrice, 360);   // engine accommodation (120 × 3 nights)
   assert.equal(full.finalPrice, 410);   // 360 + 50 option
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM devis_options WHERE devisId = ?').get(full.id).c, 1);
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM devis_nights WHERE devisId = ?').get(full.id).c, 3);
-  assert.equal(db.prepare("SELECT COUNT(*) c FROM devis_history WHERE devisId = ? AND eventType = 'create'").get(full.id).c, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_options WHERE reservationId = ?').get(full.id).c, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_nights WHERE reservationId = ?').get(full.id).c, 3);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM reservation_history WHERE reservationId = ? AND eventType = 'create'").get(full.id).c, 1);
 });
 
 test('create honours a manual accommodation price (override 300 → final 350)', () => {
@@ -95,13 +97,13 @@ test('create validates required fields and property existence', () => {
 test('update recomputes, replaces lines and records a history entry (audit fix)', () => {
   const { model, db } = freshModel();
   const created = model.create({ ...BASE, selectedOptions: [{ optionId: 1, quantity: 1 }] }).data;
-  const historyBefore = db.prepare('SELECT COUNT(*) c FROM devis_history WHERE devisId = ?').get(created.id).c;
+  const historyBefore = db.prepare('SELECT COUNT(*) c FROM reservation_history WHERE reservationId = ?').get(created.id).c;
 
   // Drop the option and apply a manual price → final becomes 300, option line removed.
   const updated = model.update(created.id, { ...BASE, customPrice: 300, selectedOptions: [] }).data;
   assert.equal(updated.finalPrice, 300);
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM devis_options WHERE devisId = ?').get(created.id).c, 0);
-  const historyAfter = db.prepare('SELECT COUNT(*) c FROM devis_history WHERE devisId = ?').get(created.id).c;
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservation_options WHERE reservationId = ?').get(created.id).c, 0);
+  const historyAfter = db.prepare('SELECT COUNT(*) c FROM reservation_history WHERE reservationId = ?').get(created.id).c;
   assert.ok(historyAfter > historyBefore, 'an update history entry should be recorded'); // was always 0 before the fix
 });
 
