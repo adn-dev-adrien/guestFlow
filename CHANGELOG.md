@@ -100,6 +100,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Integrations — MVC extraction** (Bloc 6, spec `integrations-mvc.md`): `routes/ical.js`,
+  `googleCalendar.js`, `options.js`, `calendarNotes.js` become thin routes over controllers + models.
+  The iCal token lifecycle + `.ics` export move out of `database.js` into `icalModel`; the Google event
+  builders → `utils/googleCalendarEvents.js` (pure) with the reservations+options read in
+  `googleCalendarModel`; options + calendar-notes get their own model/controller. No API/UX change. New
+  unit tests (ical-model, options-model, calendar-notes-model); suite green (350).
 - **Devis ↔ Reservation table fusion** (spec `devis-reservation-fusion.md`): devis are now rows in the
   unified `reservations` table (`kind='devis'`), their lines in the `reservation_*` children — the parallel
   `devis_*` tables are gone. `devisModel` reads/writes `reservations WHERE kind='devis'` (status stored as
@@ -212,6 +218,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Public iCal export leaked devis (introduced by the devis↔reservation fusion):** the `.ics` feed
+  selected all `reservations` rows for a property without a `kind` filter, so after the fusion a devis was
+  exported as a booked event — external platforms would treat a tentative quote as unavailable and block
+  real bookings. The export now advertises only `kind='reservation'`. Regression-tested (`ical-model`).
 - **Selecting a non-hourly resource broke the quote (price + summary):** the pricing engine's
   resource-line builder referenced an undefined `priceType` (instead of `resource.priceType`) when a
   resource was **not** `per_hour`/complex/free-minutes, throwing `ReferenceError` and failing the whole

@@ -1019,85 +1019,6 @@ if (icalTokenCols.length > 0 && !icalTokenCols.includes('updatedAt')) {
   db.exec("ALTER TABLE ical_tokens ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
 }
 
-// Function to get or create iCal token for a property
-function getOrCreateIcalToken(propertyId) {
-  const existing = db.prepare('SELECT token FROM ical_tokens WHERE propertyId = ?').get(propertyId);
-  if (existing) {
-    return existing.token;
-  }
-  
-  // Generate unique token
-  const crypto = require('crypto');
-  const token = crypto.randomBytes(32).toString('hex');
-  
-  try {
-    db.prepare('INSERT INTO ical_tokens (propertyId, token) VALUES (?, ?)').run(propertyId, token);
-    return token;
-  } catch (err) {
-    // Token might already exist (race condition), try to fetch it
-    const retry = db.prepare('SELECT token FROM ical_tokens WHERE propertyId = ?').get(propertyId);
-    return retry ? retry.token : null;
-  }
-}
-
-// Function to export reservations as iCal format
-function exportPropertyAsIcal(propertyId) {
-  const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
-  if (!property) return null;
-  
-  const reservations = db.prepare(`
-    SELECT r.*, c.firstName, c.lastName, c.email
-    FROM reservations r
-    LEFT JOIN clients c ON r.clientId = c.id
-    WHERE r.propertyId = ?
-    ORDER BY r.startDate
-  `).all(propertyId);
-  
-  // Generate iCal format
-  const crypto = require('crypto');
-  const lines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//GuestFlow//EN',
-    `CALSCALE:GREGORIAN`,
-    `X-WR-CALNAME:${escapeIcalText(property.name)}`,
-    `X-WR-TIMEZONE:Europe/Paris`,
-  ];
-  
-  reservations.forEach(r => {
-    const clientName = r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : 'Réservation';
-    const eventUid = `reservation-${r.id}@guestflow.local`;
-    
-    lines.push('BEGIN:VEVENT');
-    lines.push(`UID:${eventUid}`);
-    lines.push(`DTSTAMP:${formatIcalDate(new Date())}`);
-    lines.push(`DTSTART:${formatIcalDate(new Date(r.startDate))}`);
-    lines.push(`DTEND:${formatIcalDate(new Date(r.endDate))}`);
-    lines.push(`SUMMARY:${escapeIcalText(clientName)}`);
-    lines.push(`DESCRIPTION:${escapeIcalText(`Plateforme: ${r.platform}\nAdultes: ${r.adults}, Enfants: ${r.children}`)}`);
-    if (r.email) {
-      lines.push(`ATTENDEE:mailto:${r.email}`);
-    }
-    lines.push('TRANSP:OPAQUE');
-    lines.push('END:VEVENT');
-  });
-  
-  lines.push('END:VCALENDAR');
-  return lines.join('\r\n');
-}
-
-// Helper functions for iCal format
-function formatIcalDate(date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}${month}${day}`;
-}
-
-function escapeIcalText(text) {
-  if (!text) return '';
-  return text.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
-}
 
 // Migrate app_settings columns if needed
 (function migrateAppSettings() {
@@ -1127,8 +1048,6 @@ function generateDevisNumber() {
   return `${prefix}${String(increment).padStart(3, '0')}`;
 }
 
-db.getOrCreateIcalToken = getOrCreateIcalToken;
-db.exportPropertyAsIcal = exportPropertyAsIcal;
 db.generateDevisNumber = generateDevisNumber;
 
 // Initialize default timed options for existing properties when schema supports it.

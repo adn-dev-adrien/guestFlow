@@ -1,15 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const googleCalendarRoute = require('../routes/googleCalendar');
-
 const {
   buildEventTitle,
   buildEventDescription,
   buildGoogleEventPayload,
   getGoogleEventIdForReservation,
   formatOptionQuantity,
-} = googleCalendarRoute.__test;
+} = require('../utils/googleCalendarEvents');
 
 test('buildEventTitle formats property and client names', () => {
   const title = buildEventTitle({
