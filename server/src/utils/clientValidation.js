@@ -18,16 +18,13 @@ function isValidPhone(value) {
 
 function validateClientPayload(payload) {
   const email = String(payload?.email || '').trim();
-  const phones = Array.isArray(payload?.phoneNumbers)
-    ? payload.phoneNumbers
-    : (payload?.phone ? [payload.phone] : []);
+  const phone = String(payload?.phone || '').trim();
 
   if (!isValidEmail(email)) {
     return 'Adresse email invalide.';
   }
 
-  const invalidPhone = phones.find((phone) => !isValidPhone(phone));
-  if (invalidPhone) {
+  if (!isValidPhone(phone)) {
     return 'Numéro de téléphone invalide.';
   }
 

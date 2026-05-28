@@ -979,10 +979,8 @@ router.get('/:id/pdf', (req, res) => {
   const vatOptions = Number(property?.vatPercentageOptions ?? 20);
   const vatResources = Number(property?.vatPercentageResources ?? 20);
 
-  // Parse phone numbers
-  let phones = [];
-  try { phones = JSON.parse(client.phoneNumbers || '[]'); } catch (e) { /* ignore */ }
-  if (!phones.length && client.phone) phones = [client.phone];
+  // Client phone (single column since the Clients bloc).
+  const phones = client.phone ? [String(client.phone).trim()] : [];
 
   const BRAND = '#1a3a5c';
   const LIGHT_GRAY = '#f5f5f5';

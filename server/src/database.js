@@ -22,7 +22,6 @@ db.exec(`
     city TEXT DEFAULT '',
     address TEXT DEFAULT '',
     phone TEXT DEFAULT '',
-    phoneNumbers TEXT DEFAULT '[]',
     email TEXT DEFAULT '',
     notes TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
@@ -462,9 +461,9 @@ if (!clientCols.includes('postalCode')) {
 if (!clientCols.includes('city')) {
   db.exec("ALTER TABLE clients ADD COLUMN city TEXT DEFAULT ''");
 }
-if (!clientCols.includes('phoneNumbers')) {
-  db.exec("ALTER TABLE clients ADD COLUMN phoneNumbers TEXT DEFAULT '[]'");
-}
+// Single-phone migration (Bloc 1 — Clients): collapse the legacy multi-number `phoneNumbers` JSON
+// column into the scalar `phone` (keep the first listed number), then drop it. Idempotent.
+require('./utils/clientPhoneMigration').migrateClientPhonesToSingle(db);
 
 const resourceCols = db.prepare("PRAGMA table_info(resources)").all().map(c => c.name);
 if (resourceCols.length > 0 && !resourceCols.includes('updatedAt')) {

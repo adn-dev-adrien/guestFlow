@@ -83,7 +83,6 @@ const EMPTY_CLIENT = {
   city: '',
   address: '',
   phone: '',
-  phoneNumbers: [''],
   email: '',
   notes: ''
 };
@@ -160,8 +159,7 @@ export default function ReservationPage() {
   });
 
   const newClientEmailError = !isValidEmail(newClient.email);
-  const newClientPhoneErrors = (newClient.phoneNumbers || []).map((phone) => !isValidPhone(phone));
-  const newClientPhoneError = newClientPhoneErrors.some(Boolean);
+  const newClientPhoneError = !isValidPhone(newClient.phone);
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
@@ -1119,14 +1117,10 @@ export default function ReservationPage() {
       return;
     }
 
-    const normalizedPhones = (newClient.phoneNumbers || [])
-      .map((phone) => String(phone || '').trim())
-      .filter((phone) => phone !== '');
     const payload = {
       ...newClient,
       address: [newClient.streetNumber, newClient.street].filter(Boolean).join(' ').trim(),
-      phoneNumbers: normalizedPhones,
-      phone: normalizedPhones[0] || '',
+      phone: String(newClient.phone || '').trim(),
     };
 
     const c = await api.createClient(payload);
@@ -2130,7 +2124,7 @@ export default function ReservationPage() {
           setForm={setNewClient}
           cityOptions={newClientCityOptions}
           emailError={newClientEmailError}
-          phoneErrors={newClientPhoneErrors}
+          phoneError={newClientPhoneError}
         />
       </FormDialog>
 

@@ -1,17 +1,15 @@
 import React from 'react';
-import { Box, TextField, IconButton, Button, Autocomplete } from '@mui/material';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import { Box, TextField, Autocomplete } from '@mui/material';
 import FormRow from './FormRow';
 
-export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneErrors = [] }) {
+export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneError = false }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
       <FormRow>
         <TextField label="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} fullWidth required />
         <TextField label="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} fullWidth required />
       </FormRow>
-    
+
       <FormRow>
         <TextField
           label="N°"
@@ -53,43 +51,14 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         helperText={emailError ? 'Format email invalide' : ''}
       />
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {(form.phoneNumbers || ['']).map((p, idx) => (
-          <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <TextField
-              label={idx === 0 ? 'Téléphone principal' : `Téléphone ${idx + 1}`}
-              value={p}
-              onChange={(e) => {
-                const next = [...(form.phoneNumbers || [])];
-                next[idx] = e.target.value;
-                setForm({ ...form, phoneNumbers: next });
-              }}
-              fullWidth
-              error={Boolean(phoneErrors[idx])}
-              helperText={phoneErrors[idx] ? 'Format téléphone invalide' : ''}
-            />
-            <IconButton
-              color="error"
-              onClick={() => {
-                const next = [...(form.phoneNumbers || [])];
-                next.splice(idx, 1);
-                setForm({ ...form, phoneNumbers: next.length ? next : [''] });
-              }}
-              disabled={(form.phoneNumbers || []).length <= 1}
-            >
-              <RemoveCircleOutlineIcon />
-            </IconButton>
-          </Box>
-        ))}
-        <Button
-          variant="text"
-          startIcon={<AddCircleOutlineIcon />}
-          onClick={() => setForm({ ...form, phoneNumbers: [...(form.phoneNumbers || []), ''] })}
-          sx={{ alignSelf: 'flex-start' }}
-        >
-          Ajouter un autre numéro
-        </Button>
-      </Box>
+      <TextField
+        label="Téléphone"
+        value={form.phone || ''}
+        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+        fullWidth
+        error={phoneError}
+        helperText={phoneError ? 'Format téléphone invalide' : ''}
+      />
 
       <TextField
         label="Adresse complète"

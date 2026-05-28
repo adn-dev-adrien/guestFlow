@@ -90,6 +90,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Clients — MVC refactor + single phone** (Bloc 1, spec `clients.md`): `routes/clients.js` is now a thin
+  route over `clientsController` + `clientsModel` (reusing `clientValidation`). A client now has a single
+  `phone` (the multi-number list is gone — see Migration); the client form shows one Téléphone field.
+  The deletion-impact endpoint is server-shaped (reservations sorted + `nights`) and now also surfaces the
+  **devis** that the cascade will delete — so a client with only devis is no longer deleted silently, and
+  the delete dialog lists both reservations and devis. The devis PDF reads the single `client.phone`.
+  New unit tests (model, controller, migration); server suite green (274).
 - **Devis editor — accept-to-convert flow + "Actualiser tarifs"** (spec `devis-accept-to-reservation.md`):
   removed the standalone "Passer en réservation" action; converting a devis to a reservation now happens
   by setting its status to **Accepté** in the dropdown, which asks for confirmation before, on confirm,
@@ -191,6 +198,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Clients single-phone (Bloc 1):** the legacy multi-number `clients.phoneNumbers` JSON column is
+  dropped. On boot, `migrateClientPhonesToSingle` keeps each client's **first** listed number in the
+  scalar `phone` (extras discarded) before the column is removed; idempotent (no-op once gone). Locally
+  lossless (0 clients had >1 number); in prod, multi-number clients keep only their first number.
 - **Users + sessions (Bloc S):** new `users` table (`CREATE TABLE IF NOT EXISTS` + `uniq_users_email`)
   seeded with the default admin on first launch (`mustChangePassword = 1`); a `sessions` table is
   created by `better-sqlite3-session-store`. Existing Google credentials in `app_settings` are
