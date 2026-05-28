@@ -87,6 +87,17 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **ReservationPage form split into section components via a form context** (Bloc 3 slice 3c-3, spec
+  `reservation-form-sections.md`) — the long left-column form JSX is decomposed into focused, feature-local
+  components under `client/src/components/reservation/`: `StaySection`, `GuestsBedsSection`, `ExtrasSection`
+  and `FinanceSection` (Client / Canal / Notes kept inline). A new `ReservationFormContext` +
+  `useReservationForm()` hook exposes the form bundle (state, derived capacity/pricing values, handlers,
+  catalogs, flags) so the sections consume what they need with **no prop-drilling**. ReservationPage keeps
+  owning all state, the pricing effect and every handler — it just assembles them into one context value
+  and renders `<ReservationFormProvider>…<StaySection/>…`. No behavior or visual change. Added React
+  Testing Library + `setupTests.js`; **19 component tests** (one suite per section + a context-guard test)
+  pin each feature against regressions. Verified by a clean `CI=true` build + in-browser (dates → quote
+  refreshes to 740.88€ total, 0 app console errors).
 - **PricingSummary extracted from ReservationPage** (Bloc 3 slice 3c-2, spec
   `pricing-summary-extraction.md`) — the ~525-LOC right-panel pricing summary moved to a presentational
   `client/src/components/PricingSummary.js`. Renders the server quote (accommodation struck/green,

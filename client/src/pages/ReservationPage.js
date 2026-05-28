@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
-  Box, TextField, Grid, Autocomplete, Button, Divider, FormControl, InputLabel, Select,
-  MenuItem, Typography, CircularProgress, Chip, FormControlLabel,
-  Switch, Stack, Card, CardContent, IconButton,
-  Dialog, DialogTitle, DialogContent, DialogActions, FormHelperText, useMediaQuery, Tooltip
+  Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
+  MenuItem, Typography, CircularProgress, Chip, Stack, Card, CardContent,
+  Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -14,24 +13,17 @@ import PageActionBar from '../components/PageActionBar';
 import PricingSummary from '../components/PricingSummary';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
-import FormRow from '../components/FormRow';
-import MiniPlanningStrip from '../components/MiniPlanningStrip';
-import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
-import { TIME_OPTIONS } from '../constants/timeOptions';
+import { ReservationFormProvider } from '../components/reservation/ReservationFormContext';
+import StaySection from '../components/reservation/StaySection';
+import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
+import ExtrasSection from '../components/reservation/ExtrasSection';
+import FinanceSection from '../components/reservation/FinanceSection';
+import { PLATFORMS } from '../constants/platforms';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
-
-const PRICE_TYPE_LABELS = {
-  per_stay: 'prix fixe',
-  per_person: 'par pers.',
-  per_night: 'par jour',
-  per_person_per_night: 'par pers./jour',
-  per_hour: 'par heure',
-  free: 'gratuit',
-};
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -893,7 +885,6 @@ export default function ReservationPage() {
   }, [createClientOpen, newClient.postalCode, newClient.city]);
 
   // ==================== CAPACITY & PRICING CALCULATIONS ====================
-  const cleaningHours = selectedProperty ? (selectedProperty.cleaningHours ?? 3) : 3;
   const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
   const maxDoubleBeds = selectedProperty ? Number(selectedProperty.doubleBeds ?? 0) : null;
   const maxAdultsAllowed = selectedProperty ? Number(selectedProperty.maxAdults ?? 0) : null;
@@ -1880,6 +1871,39 @@ export default function ReservationPage() {
       ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer le devis', onClick: handleDeleteDevis, color: 'error' }] : []),
   ];
 
+  // Single bundle exposed to the form section components (StaySection / GuestsBedsSection /
+  // ExtrasSection / FinanceSection) via ReservationFormContext. The page keeps owning all state,
+  // the pricing pipeline and the handlers — this object is only an exposure layer (no logic moved).
+  const formContextValue = {
+    // shared styles
+    formSectionCardSx, lockedSectionSx, formSectionContentSx, sectionGridSx,
+    // core
+    form, updateForm,
+    // catalogs
+    properties, propertyOptions, displayableResources,
+    // stay
+    selectedProp, handleReservationPropertyChange,
+    miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
+    editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange,
+    arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
+    datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
+    liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
+    isReservationLocked,
+    // guests / beds
+    maxAdultsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
+    exceedsAdultsCapacity, exceedsChildrenCapacity, exceedsBabiesCapacity, exceedsTotalCapacity,
+    exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
+    totalGuestsCount, totalGuestsMax, reservationBedCapacity, requiredRegularBeds,
+    maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
+    // extras
+    quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
+    setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
+    addCustomOption, updateCustomOption, removeCustomOption,
+    // finance
+    isDevisMode, reservationId, refreshToCurrentPricing,
+    accommodationBasePriceDisplay, pricingQuote,
+  };
+
   return (
     <Box sx={{ pb: 4 }}>
       <PageActionBar
@@ -1929,113 +1953,9 @@ export default function ReservationPage() {
           }}
         >
 
+        <ReservationFormProvider value={formContextValue}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
-            <CardContent sx={formSectionContentSx}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Séjour</Typography>
-          <Stack spacing={2.25}>
-            <FormControl fullWidth>
-              <InputLabel>Logement</InputLabel>
-              <Select
-                value={selectedProp}
-                label="Logement"
-                onChange={(e) => handleReservationPropertyChange(e.target.value)}
-              >
-                {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
-              </Select>
-            </FormControl>
-
-            <MiniPlanningStrip
-              miniCalendarStart={miniCalendarStart}
-              setMiniCalendarStart={setMiniCalendarStart}
-              miniVisibleDays={miniVisibleDays}
-              reservations={reservations}
-              selectedPropertyId={selectedProp}
-              currentReservation={form}
-              currentReservationId={editingReservationId}
-              onDateClick={handleMiniDateClick}
-              onRecenter={() => centerMiniCalendarOnRange(form.startDate, form.endDate)}
-              isLocked={isReservationLocked}
-            />
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-              <Box>
-                <TextField
-                  label="Date d'arrivée"
-                  type="date"
-                  value={form.startDate || ''}
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
-                  onChange={(e) => handleManualDateInputChange({ startDate: e.target.value })}
-                  error={datesUnavailableForProperty || minNightsState.breached}
-                  fullWidth
-                />
-              </Box>
-              <Box>
-                <TextField
-                  label="Date de départ"
-                  type="date"
-                  value={form.endDate || ''}
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
-                  onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
-                  error={datesUnavailableForProperty || minNightsState.breached}
-                  fullWidth
-                />
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-              <Box>
-                <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
-                  <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
-                  <Select
-                    value={form.checkInTime}
-                    label={`Heure d'arrivée (défaut ${defaultCheckInTime})`}
-                    onChange={(e) => updateForm({ checkInTime: e.target.value })}
-                  >
-                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Box>
-              <Box>
-                <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
-                  <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
-                  <Select
-                    value={form.checkOutTime}
-                    label={`Heure de départ (défaut ${defaultCheckOutTime})`}
-                    onChange={(e) => updateForm({ checkOutTime: e.target.value })}
-                  >
-                    {TIME_OPTIONS.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Box>
-            </Box>
-
-            {(liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
-              <Stack spacing={0.5}>
-                {liveTimeConflictMessage && (
-                  <FormHelperText error>
-                    {liveTimeConflictMessage}
-                  </FormHelperText>
-                )}
-
-                {datesUnavailableForProperty && (
-                  <Typography variant="body2" color="error">
-                    {datesUnavailableMessage}
-                  </Typography>
-                )}
-
-                {minNightsState.breached && (
-                  <Typography variant="body2" color="error">
-                    {minNightsWarning}
-                  </Typography>
-                )}
-              </Stack>
-            )}
-          </Stack>
-            </CardContent>
-          </Card>
+          <StaySection />
 
           <Card variant="outlined" sx={formSectionCardSx}>
             <CardContent sx={formSectionContentSx}>
@@ -2062,130 +1982,7 @@ export default function ReservationPage() {
             </CardContent>
           </Card>
 
-          <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
-            <CardContent sx={formSectionContentSx}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Voyageurs et couchages</Typography>
-              <Stack spacing={2.25}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
-            <Box>
-              <TextField
-                label={`Adultes${maxAdultsAllowed !== null ? ` (max ${maxAdultsAllowed})` : ''}`}
-                type="number"
-                value={form.adults}
-                onChange={(e) => updateForm({ adults: Number(e.target.value) })}
-                fullWidth
-                inputProps={{ min: 1, max: maxAdultsAllowed ?? undefined }}
-                error={exceedsAdultsCapacity}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label={`Enfants (2 à 12 ans)`}
-                type="number"
-                value={form.children}
-                onChange={(e) => updateForm({ children: Number(e.target.value) })}
-                fullWidth
-                inputProps={{ min: 0 }}
-                error={exceedsChildrenCapacity}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label={`Ados (12 à 18 ans)`}
-                type="number"
-                value={form.teens}
-                onChange={(e) => updateForm({ teens: Number(e.target.value) })}
-                fullWidth
-                inputProps={{ min: 0 }}
-                error={exceedsChildrenCapacity}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label={`Bébés (0 à 2 ans)`}
-                type="number"
-                value={form.babies}
-                onChange={(e) => updateForm({ babies: Number(e.target.value) })}
-                fullWidth
-                inputProps={{ min: 0, max: maxBabiesAllowed ?? undefined }}
-                error={exceedsBabiesCapacity}
-              />
-            </Box>
-          </Box>
-
-          {exceedsTotalCapacity && (
-            <Typography variant="body2" color="error">
-              Capacité totale dépassée: {totalGuestsCount}/{totalGuestsMax} personnes.
-            </Typography>
-          )}
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-            <Box>
-              <TextField
-                label="Lits doubles"
-                type="number"
-                value={form.doubleBeds}
-                onChange={(e) => updateForm({ doubleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
-                fullWidth
-                error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
-                helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
-                inputProps={{ min: 0, max: maxDoubleBeds ?? undefined }}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label="Lits simples"
-                type="number"
-                value={form.singleBeds}
-                onChange={(e) => updateForm({ singleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
-                fullWidth
-                error={bedsCapacityMismatch || exceedsSingleBedsLimit}
-                helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
-                inputProps={{ min: 0, max: maxSingleBeds ?? undefined }}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label="Lits bébé"
-                type="number"
-                value={form.babyBeds}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '') {
-                    updateForm({ babyBeds: '' });
-                    return;
-                  }
-                  const n = Math.max(0, Number(val));
-                  updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
-                }}
-                fullWidth
-                inputProps={{ min: 0, max: maxBabyBedsByRule }}
-                helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
-              />
-            </Box>
-          </Box>
-
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              size="small"
-              variant="text"
-              startIcon={<AutoFixHighIcon fontSize="small" />}
-              onClick={handleSuggestBeds}
-              disabled={!selectedProp || isReservationLocked}
-              sx={{ textTransform: 'none' }}
-            >
-              Suggérer les lits
-            </Button>
-          </Box>
-
-          {bedsCapacityMismatch && (
-            <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
-              Attention: la capacité des lits classiques saisis ({reservationBedCapacity}) est inférieure au besoin réel ({requiredRegularBeds}). Les enfants de 2 à 12 ans placés en lit bébé sont déduits automatiquement du calcul.
-            </Typography>
-          )}
-              </Stack>
-            </CardContent>
-          </Card>
+          <GuestsBedsSection />
 
           <Card variant="outlined" sx={formSectionCardSx}>
             <CardContent sx={formSectionContentSx}>
@@ -2199,483 +1996,9 @@ export default function ReservationPage() {
             </CardContent>
           </Card>
 
-          {hasExtrasSection && (
-            <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
-              <CardContent sx={formSectionContentSx}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Options et ressources</Typography>
-                <Stack spacing={2}>
-          {propertyOptions.length > 0 && (
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Options</Typography>
-              <Stack spacing={1.25}>
-                {propertyOptions.map((opt) => {
-                  const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
-                  const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                  const isAutoTimedOption = Boolean(opt.autoOptionType);
-                  let factorHint = '';
-                  if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
-                  else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
-                  else if (opt.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
-                  return (
-                    <Card
-                      key={opt.id}
-                      variant="outlined"
-                      sx={{
-                        borderColor: enabled ? '#2e7d32' : 'divider',
-                        bgcolor: '#fff',
-                        boxShadow: enabled ? '0 0 0 1px rgba(46, 125, 50, 0.12)' : 'none',
-                        transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-                      }}
-                    >
-                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
-                          <Box flex={1}>
-                            <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {isAutoTimedOption
-                                ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${opt.price}€ fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
-                                : `${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
-                            </Typography>
-                          </Box>
-                          <Stack alignItems="flex-end" spacing={0.5}>
-                            <FormControlLabel
-                              sx={{ m: 0 }}
-                              control={<Switch checked={enabled} disabled={isAutoTimedOption} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
-                            />
-                            {isAutoTimedOption && (
-                              <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
-                            )}
-                          </Stack>
-                        </Stack>
+          {hasExtrasSection && <ExtrasSection />}
 
-                        {enabled && !isAutoTimedOption && (
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
-                            <TextField
-                              size="small"
-                              type="number"
-                              label="Qté"
-                              value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
-                              onChange={(e) => setOptionQuantity(opt.id, toBaseQuantity(e.target.value, opt.priceType))}
-                              inputProps={{ min: 1 }}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                            />
-                            <Chip
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                              label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                            />
-                          </Stack>
-                        )}
-
-                        {enabled && isAutoTimedOption && (
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
-                            {selected?.autoFullNightApplied
-                              ? <Chip size="small" variant="outlined" label="Nuit complète appliquée" />
-                              : selected?.autoExtraHours > 0
-                                ? <Chip size="small" variant="outlined" label={`${Number(selected.autoExtraHours).toFixed(1).replace('.0', '')}h supplémentaire${selected.autoExtraHours >= 2 ? 's' : ''}`} />
-                                : null}
-                            <Chip
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                              label={`Total auto: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                            />
-                          </Stack>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            </Box>
-          )}
-
-          <>
-            {propertyOptions.length > 0 && <Divider />}
-            <Box>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
-                <Typography variant="subtitle2">Options personnalisées</Typography>
-                <Button size="small" variant="outlined" onClick={addCustomOption} disabled={isReservationLocked}>
-                  Ajouter une ligne
-                </Button>
-              </Stack>
-              {(form.customOptions || []).length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  Aucune option personnalisée.
-                </Typography>
-              ) : (
-                <Stack spacing={1.25}>
-                  {(form.customOptions || []).map((line) => (
-                    <Card key={line.customKey} variant="outlined" sx={{ bgcolor: '#fff' }}>
-                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack spacing={1.25}>
-                          <TextField
-                            size="small"
-                            label="Description"
-                            value={line.description || ''}
-                            onChange={(e) => updateCustomOption(line.customKey, { description: e.target.value })}
-                            fullWidth
-                          />
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                            <TextField
-                              size="small"
-                              type="number"
-                              label="Prix TTC"
-                              value={line.amount ?? 0}
-                              onChange={(e) => updateCustomOption(line.customKey, { amount: Math.max(0, Number(e.target.value || 0)) })}
-                              inputProps={{ min: 0, step: 0.01 }}
-                              sx={{ width: { xs: '100%', sm: 180 } }}
-                            />
-                            <Button color="error" variant="text" onClick={() => removeCustomOption(line.customKey)}>
-                              Supprimer
-                            </Button>
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          </>
-
-          {displayableResources.length > 0 && (
-            <>
-              {propertyOptions.length > 0 && <Divider />}
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>Ressources</Typography>
-                <Stack spacing={1.25}>
-                  {displayableResources.map(resource => {
-                      const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
-                      const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                      const isPerHour = Boolean(resource.isComplex) || resource.priceType === 'per_hour';
-                      const hasFreeFirstHour = isPerHour && Number(resource.freeMinutes || 0) >= 60;
-                      const unavailable = Number(resource.available || 0) <= 0;
-                      const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
-                      const resourceConflict = Boolean(selected) && !isPerHour && (unavailable || requestedTooMuch);
-                      let factorHint = '';
-                      if (resource.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
-                      else if (resource.priceType === 'per_night') factorHint = `×${quantityNights} j.`;
-                      else if (resource.priceType === 'per_person_per_night') factorHint = `×${quantityPersons} pers. ×${quantityNights} j.`;
-                      return (
-                        <Card
-                          key={resource.id}
-                          variant="outlined"
-                          sx={{
-                            borderColor: resourceConflict
-                              ? 'error.main'
-                              : unavailable
-                                ? 'grey.400'
-                                : enabled
-                                  ? '#1565c0'
-                                  : 'divider',
-                            bgcolor: '#fff',
-                            opacity: unavailable ? 0.72 : 1,
-                            boxShadow: enabled && !resourceConflict ? '0 0 0 1px rgba(21, 101, 192, 0.12)' : 'none',
-                            transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
-                          }}
-                        >
-                          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
-                              <Box flex={1}>
-                                <Typography sx={{ fontWeight: 600 }}>{resource.name}</Typography>
-                                <Typography variant="body2" color={resourceConflict ? 'error.main' : 'text.secondary'}>
-                                  {unavailable
-                                    ? 'Déjà réservée'
-                                    : `${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}${!isPerHour ? ` • ${resource.available} dispo` : ''}`}
-                                </Typography>
-                                {hasFreeFirstHour && (
-                                  <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
-                                    1ère heure offerte pour ce logement
-                                  </Typography>
-                                )}
-                              </Box>
-                              <Stack alignItems="flex-end" spacing={0.5}>
-                                <FormControlLabel
-                                  sx={{ m: 0 }}
-                                  control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable} />}
-                                  label={unavailable ? 'Indispo' : ''}
-                                />
-                              </Stack>
-                            </Stack>
-
-                            {enabled && (
-                              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
-                                <TextField
-                                  size="small"
-                                  type="number"
-                                  label={isPerHour ? 'Heures' : 'Qté'}
-                                  value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
-                                  onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
-                                  inputProps={isPerHour
-                                    ? { min: 1, step: 1 }
-                                    : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }}
-                                  error={resourceConflict}
-                                  helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
-                                  sx={{ width: { xs: '100%', sm: 'auto' } }}
-                                />
-                                <Chip
-                                  size="small"
-                                  color="primary"
-                                  variant="outlined"
-                                  label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                                  sx={{ width: { xs: '100%', sm: 'auto' } }}
-                                />
-                              </Stack>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                </Stack>
-              </Box>
-            </>
-          )}
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card variant="outlined" sx={formSectionCardSx}>
-            <CardContent sx={formSectionContentSx}>
-          <Box sx={{ position: 'relative', zIndex: 10 }}>
-          <Stack spacing={2.5}>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 700, mb: 0 }}>Finance</Typography>
-              {!isDevisMode && reservationId && (
-                <Button variant="outlined" color="warning" size="small" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
-                  Actualiser tarifs
-                </Button>
-              )}
-            </Box>
-
-            <Grid container spacing={2} alignItems="stretch" sx={sectionGridSx}>
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                      Prix hébergement brut
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
-                      {accommodationBasePriceDisplay ?? '—'}€
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Tarif calculé par le serveur
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card
-                  variant="outlined"
-                  sx={{
-                    height: '100%',
-                    borderColor: form.customPrice !== '' ? 'info.main' : 'divider',
-                    bgcolor: form.customPrice !== '' ? 'rgba(33, 150, 243, 0.08)' : '#fff',
-                  }}
-                >
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                      Prix hébergement ajusté
-                    </Typography>
-                    <TextField
-                      label="Prix ajusté"
-                      type="number"
-                      value={form.customPrice}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      fullWidth
-                      inputProps={{ min: 0, step: 0.01 }}
-                      sx={{
-                        mt: 1,
-                        '& input[type=number]': {
-                          MozAppearance: 'textfield',
-                        },
-                        '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                          WebkitAppearance: 'none',
-                          margin: 0,
-                        }
-                      }}
-                      size="small"
-                    />
-                    {form.customPrice !== '' && accommodationBasePriceDisplay && (
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          {pricingQuote?.accommodationDeltaType === 'reduction'
-                            ? `Réduction: ${Number(pricingQuote.accommodationDeltaAmount || 0).toFixed(2)}€`
-                            : pricingQuote?.accommodationDeltaType === 'increase'
-                              ? `Augmentation: ${Number(pricingQuote.accommodationDeltaAmount || 0).toFixed(2)}€`
-                              : 'Aucun écart'}
-                        </Typography>
-                      </Box>
-                    )}
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
-                      <TextField
-                        label="Réduction (%)"
-                        type="number"
-                        value={form.discountPercent}
-                        onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
-                        fullWidth
-                        inputProps={{ min: 0, max: 100 }}
-                        size="small"
-                      />
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Box>
-          
-          <Divider />
-            
-          <Box>
-            <Grid container spacing={2} sx={sectionGridSx}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Acompte</Typography>
-                <TextField
-                  label="Échéance acompte"
-                  type="date"
-                  value={form.depositDueDate}
-                  disabled={isReservationLocked}
-                  InputLabelProps={{ shrink: true }}
-                  onChange={(e) => updateForm({ depositDueDate: e.target.value })}
-                  fullWidth
-                />
-                <Button
-                  fullWidth
-                  variant={form.depositPaid ? 'contained' : 'outlined'}
-                  color={form.depositPaid ? 'success' : 'inherit'}
-                  onClick={async () => {
-                    const next = !form.depositPaid;
-                    if (isReservationLocked && editingReservationId) {
-                      await api.markPayment(editingReservationId, { depositPaid: next });
-                      setForm((prev) => ({ ...prev, depositPaid: next }));
-                    } else {
-                      updateForm({ depositPaid: next });
-                    }
-                  }}
-                  sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
-                >
-                  {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
-                </Button>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Solde</Typography>
-                <TextField
-                  label="Échéance solde"
-                  type="date"
-                  value={form.balanceDueDate}
-                  disabled={isReservationLocked}
-                  InputLabelProps={{ shrink: true }}
-                  onChange={(e) => updateForm({ balanceDueDate: e.target.value })}
-                  fullWidth
-                />
-                <Button
-                  fullWidth
-                  variant={form.balancePaid ? 'contained' : 'outlined'}
-                  color={form.balancePaid ? 'success' : 'inherit'}
-                  onClick={async () => {
-                    const next = !form.balancePaid;
-                    if (isReservationLocked && editingReservationId) {
-                      await api.markPayment(editingReservationId, { balancePaid: next });
-                      setForm((prev) => ({ ...prev, balancePaid: next }));
-                    } else {
-                      updateForm({ balancePaid: next });
-                    }
-                  }}
-                  sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
-                >
-                  {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
-                </Button>
-              </Grid>
-            </Grid>
-          </Box>
-
-          <Divider />
-
-          <Box>
-            <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Caution</Typography>
-            <Grid container spacing={1.5} sx={sectionGridSx}>
-              <Grid item xs={12} md={6}>
-                <Button
-                  fullWidth
-                  variant={form.cautionReceived ? 'contained' : 'outlined'}
-                  color={form.cautionReceived ? 'info' : 'inherit'}
-                  onClick={async () => {
-                    const next = !form.cautionReceived;
-                    const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-                    if (isReservationLocked && editingReservationId) {
-                      const date = next ? today : '';
-                      await api.markPayment(editingReservationId, { cautionReceived: next, cautionReceivedDate: date });
-                      setForm((prev) => ({ ...prev, cautionReceived: next, cautionReceivedDate: date }));
-                    } else {
-                      updateForm({ cautionReceived: next, cautionReceivedDate: next ? today : '' });
-                    }
-                  }}
-                  sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                >
-                  {form.cautionReceived ? 'Caution reçue' : 'Marquer caution reçue'}
-                </Button>
-                <TextField
-                  label="Date réception"
-                  type="date"
-                  value={form.cautionReceivedDate}
-                  InputLabelProps={{ shrink: true }}
-                  onChange={(e) => {
-                    const selectedDate = e.target.value;
-                    updateForm({
-                      cautionReceivedDate: selectedDate,
-                      cautionReceived: selectedDate ? true : form.cautionReceived,
-                    });
-                  }}
-                  fullWidth
-                  sx={{ mt: 2 }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Button
-                  fullWidth
-                  variant={form.cautionReturned ? 'contained' : 'outlined'}
-                  color={form.cautionReturned ? 'secondary' : 'inherit'}
-                  onClick={async () => {
-                    const next = !form.cautionReturned;
-                    const today = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-                    if (isReservationLocked && editingReservationId) {
-                      const date = next ? today : form.cautionReturnedDate;
-                      await api.markPayment(editingReservationId, { cautionReturned: next, cautionReturnedDate: date });
-                      setForm((prev) => ({ ...prev, cautionReturned: next, cautionReturnedDate: date }));
-                    } else {
-                      updateForm({ cautionReturned: next, cautionReturnedDate: next ? today : form.cautionReturnedDate });
-                    }
-                  }}
-                  sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                >
-                  {form.cautionReturned ? 'Caution restituée' : 'Marquer caution restituée'}
-                </Button>
-                <TextField
-                  label="Date restitution"
-                  type="date"
-                  value={form.cautionReturnedDate}
-                  InputLabelProps={{ shrink: true }}
-                  onChange={(e) => updateForm({ cautionReturnedDate: e.target.value })}
-                  fullWidth
-                  sx={{ mt: 2 }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-          </Stack>
-          </Box>{/* end zIndex Finance wrapper */}
-            </CardContent>
-          </Card>
+          <FinanceSection />
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>
@@ -2690,7 +2013,8 @@ export default function ReservationPage() {
               />
             </CardContent>
           </Card>
-          </Box>
+        </Box>
+        </ReservationFormProvider>
         </Box>
         </Box>
 
