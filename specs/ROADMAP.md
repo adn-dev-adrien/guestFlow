@@ -68,7 +68,7 @@ price denormalization → Bloc 2).
 
 ---
 
-## Bloc 1 — Clients & Resources 🟡
+## Bloc 1 — Clients & Resources ✅ DONE
 
 **Goal:** clean the people/resource domain; finish what Settings started (Settings was the first
 retro-spec of this bloc and ratified the shared component library).
@@ -141,7 +141,7 @@ duplicated pricing logic on the client.
 
 ---
 
-## Bloc 4 — Devis ⬜
+## Bloc 4 — Devis 🟡 (MVC + PDF done; table fusion deferred)
 
 **Goal:** untangle the largest route file and converge devis with reservations.
 

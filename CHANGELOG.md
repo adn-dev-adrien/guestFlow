@@ -90,6 +90,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Devis — MVC refactor + PDF service extraction** (Bloc 4, spec `devis.md`): `routes/devis.js` (1543 LOC)
+  is now a thin route over `devisController` + `devisModel` (CRUD with a single shared persist helper,
+  enrich, payment schedule, history/audit, both convert flows). The ~574-LOC inline `pdfkit` generator is
+  extracted **verbatim** into `utils/devisPdf.js` (`generateDevisPdf(devis, settings) → Buffer`); shared
+  money/date/format helpers moved to `utils/devisHelpers.js`. Pricing stays in the shared engine; no schema
+  change; the API contract is unchanged and the PDF layout is preserved **except one deliberate footer fix**
+  (see Fixed). New unit tests, including money-critical create/update persistence + the audit fix
+  (`devis-model-create.unit.test.js`); server suite green (315). The `devis_*`/`reservation_*` table fusion
+  remains a deferred follow-up.
 - **Resources — MVC refactor + applicability pivot + safe delete** (Bloc 1, spec `resources.md`):
   `routes/resources.js` and `routes/resourceBookings.js` are now thin routes over
   `resourcesController`/`resourcesModel` and `resourceBookingsController`/`resourceBookingsModel` (price
@@ -174,6 +183,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   `create(model)` factory as `.create`, overwriting the `create` request handler — so the route called the
   factory and never responded. The factory is now `.buildController` on the Bloc-1 controllers
   (clients/resources/resource-bookings), and POST/PUT handlers work again. Covered by the controller tests.
+- **Devis PDF footer wrapped SIRET/TVA onto two lines:** the per-page footer's center column was too narrow,
+  so `SIRET : … • N° TVA : …` could wrap. The column is now widened and set to a single line
+  (`lineBreak: false`), keeping SIRET and TVA on one line.
+- **Devis update history never recorded changes:** the audit "before" snapshot was captured *after* the
+  row was already updated, so update diffs were always empty. The devis MVC refactor captures the baseline
+  before persisting, so editing a devis now records a real history entry.
 - **False "Modifications non enregistrées" prompt on a freshly loaded reservation/devis:** the on-mount
   server pricing recalc reshaped the loaded form after the unsaved-changes baseline was captured, so a
   just-opened (or just-converted) record was wrongly flagged dirty and prompted on "Annuler"/navigation.
@@ -208,6 +223,8 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **Dead `client/src/pages/DevisForm.js` (501 LOC)** — unrouted and imported nowhere (all devis editing
+  goes through `ReservationPage ?mode=devis`). Removed during the devis MVC refactor.
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
