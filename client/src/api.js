@@ -152,6 +152,9 @@ const api = {
   updateSchoolHolidaysSyncSettings: ({ syncIntervalDays, syncHorizonMonths }) =>
     request('/school-holidays/sync-settings', { method: 'PUT', body: { syncIntervalDays, syncHorizonMonths } }),
 
+  // Public holidays — server-computed for the given years; returns [{ date, label }].
+  getPublicHolidays: (years) => request(`/public-holidays?years=${[...new Set(years)].join(',')}`),
+
   // Calendar notes
   getCalendarNotes: (propertyId, from, to) => {
     const params = new URLSearchParams();

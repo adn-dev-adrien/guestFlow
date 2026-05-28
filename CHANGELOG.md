@@ -5,6 +5,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Server-side French public holidays** — new `GET /api/public-holidays?years=2025,2026` endpoint
+  (`utils/frenchHolidays.js` Easter computation → `[{ date, label }]`, validated `?years=`, auth-gated).
+  The calendar and the pricing-seasons page now **fetch** their "férié" markers instead of computing
+  them client-side. Unit tests: `french-holidays` (5).
 - **Show/hide password toggle** — new reusable `PasswordField` component (MUI TextField + eye
   adornment) used on the login screen and the change-password form (forced first-login change +
   Settings). Lets the user verify what they type, which notably surfaces browser-autofilled values.
@@ -90,6 +94,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **CalendarPage — structural decomposition** (Bloc 3, spec `calendar-page-decomposition.md`):
+  `CalendarPage.js` drops from **1255 → ~430 LOC**, becoming a thin orchestrator (data loading + drag
+  selection + wiring). The intricate rendering moves **verbatim** into focused, page-specific pieces:
+  `utils/calendarVisuals.js` (pure date/%/colour/label helpers, unit-tested), `hooks/useInfiniteMonthScroll.js`
+  (months list + scroll/preload/focus machinery), and components `CalendarToolbar`, `CalendarDayCell`
+  (the occupancy gradients + click-zone hit-testing), `CalendarMonthGrid` (sticky header + cells→rows
+  assembly), `CalendarNoteDialog`. **No behaviour or visual change** (the pricing engine was already
+  removed with the dead reservation dialog — this is a readability refactor). Verified in-browser
+  (gradients, closures, holidays, 0 console errors) + clean `CI=true` build.
 - **Devis — MVC refactor + PDF service extraction** (Bloc 4, spec `devis.md`): `routes/devis.js` (1543 LOC)
   is now a thin route over `devisController` + `devisModel` (CRUD with a single shared persist helper,
   enrich, payment schedule, history/audit, both convert flows). The ~574-LOC inline `pdfkit` generator is
@@ -223,6 +236,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **Client-side public-holiday computation** (`getFrenchPublicHolidays` in `client/src/frenchHolidays.js`)
+  — moved server-side; the file now keeps only the `getSchoolHolidayInfo` lookup.
+- **Dead `PRICE_TYPE_LABELS` constant in `CalendarPage.js`** — leftover from the removed reservation
+  dialog, referenced nowhere.
 - **Dead `client/src/pages/DevisForm.js` (501 LOC)** — unrouted and imported nowhere (all devis editing
   goes through `ReservationPage ?mode=devis`). Removed during the devis MVC refactor.
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.

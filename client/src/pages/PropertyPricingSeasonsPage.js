@@ -20,7 +20,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
-import { getFrenchPublicHolidays, getSchoolHolidayInfo } from '../frenchHolidays';
+import { getSchoolHolidayInfo } from '../frenchHolidays';
 
 const DEFAULT_COLORS = ['#1976d2', '#2e7d32', '#f57c00', '#6a1b9a', '#00838f', '#d81b60', '#5d4037'];
 
@@ -103,6 +103,7 @@ export default function PropertyPricingSeasonsPage() {
   const [property, setProperty] = useState(null);
   const [allProperties, setAllProperties] = useState([]);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
+  const [publicHolidays, setPublicHolidays] = useState(() => new Set());
   const [displayStartYear, setDisplayStartYear] = useState(new Date().getFullYear());
   const [displayYears, setDisplayYears] = useState(1);
 
@@ -234,11 +235,17 @@ export default function PropertyPricingSeasonsPage() {
     return years;
   }, [displayStartYear, displayYears]);
 
-  const publicHolidayByYear = useMemo(() => {
-    const map = new Map();
-    yearsToDisplay.forEach((year) => map.set(year, getFrenchPublicHolidays(year)));
-    return map;
-  }, [yearsToDisplay]);
+  // Public holidays are now server-computed; fetch them for the displayed years.
+  const yearsKey = yearsToDisplay.join(',');
+  useEffect(() => {
+    let cancelled = false;
+    const years = yearsKey.split(',').filter(Boolean).map(Number);
+    if (years.length === 0) return undefined;
+    api.getPublicHolidays(years)
+      .then((list) => { if (!cancelled) setPublicHolidays(new Set((list || []).map((h) => h.date))); })
+      .catch(() => { if (!cancelled) setPublicHolidays(new Set()); });
+    return () => { cancelled = true; };
+  }, [yearsKey]);
 
   const getSeasonForDate = (dateStr) => {
     return seasons.find((s) => (s.dateRanges || []).some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) || null;
@@ -647,7 +654,7 @@ export default function PropertyPricingSeasonsPage() {
                       const dateStr = toIsoDate(d);
                       const inMonth = d.getMonth() === month;
                       const season = getSeasonForDate(dateStr);
-                      const isPublicHoliday = publicHolidayByYear.get(year)?.has(dateStr);
+                      const isPublicHoliday = publicHolidays.has(dateStr);
                       const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
                       cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo });
                     }
