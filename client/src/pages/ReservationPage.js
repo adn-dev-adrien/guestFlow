@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PageActionBar from '../components/PageActionBar';
 import PricingSummary from '../components/PricingSummary';
@@ -268,11 +267,17 @@ export default function ReservationPage() {
     });
   };
 
+  // Establish the "clean" baseline for the unsaved-changes guard. For an existing reservation/devis the
+  // server recalc reshapes the loaded form once on mount (offered flags, derived amounts) with no user
+  // action — so we wait until that first quote has applied before snapshotting. Otherwise a freshly
+  // loaded (or just-converted) record would be wrongly flagged dirty and prompt on leave. New/prefilled
+  // records snapshot immediately.
   useEffect(() => {
-    if (!loading && initialSnapshot === null) {
-      setInitialSnapshot(formSnapshot);
-    }
-  }, [loading, initialSnapshot, formSnapshot]);
+    if (loading || initialSnapshot !== null) return;
+    const isExistingRecord = Boolean(editingReservationId || editingDevisId);
+    if (isExistingRecord && !pricingQuote) return;
+    setInitialSnapshot(formSnapshot);
+  }, [loading, initialSnapshot, formSnapshot, editingReservationId, editingDevisId, pricingQuote]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -1244,10 +1249,13 @@ export default function ReservationPage() {
 
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {
-    if (!editingReservationId || isReservationLocked) return;
+    if (isReservationLocked) return;
+    if (!editingReservationId && !isDevisMode) return;
     const proceed = await confirm({
       title: 'Actualiser les tarifs',
-      message: 'Voulez-vous recalculer cette réservation avec les derniers tarifs en vigueur ? Tant que vous n\'enregistrez pas, les anciens prix restent conservés.',
+      message: isDevisMode
+        ? 'Voulez-vous recalculer ce devis avec les derniers tarifs en vigueur ? Le prix saisi manuellement sera réinitialisé.'
+        : 'Voulez-vous recalculer cette réservation avec les derniers tarifs en vigueur ? Tant que vous n\'enregistrez pas, les anciens prix restent conservés.',
       confirmLabel: 'Actualiser',
       cancelLabel: 'Annuler',
       confirmColor: 'warning',
@@ -1266,7 +1274,6 @@ export default function ReservationPage() {
         teens: form.teens,
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
-        customPrice: form.customPrice,
         depositPaid: form.depositPaid,
         balancePaid: form.balancePaid,
         depositAmount: form.depositAmount,
@@ -1276,7 +1283,7 @@ export default function ReservationPage() {
         selectedResources: buildSelectedResourcesPayload(),
         offeredOptionIds: Array.from(offeredOptionIds),
         platform: form.platform,
-        reservationId: editingReservationId,
+        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         forceCurrentPricing: true,
         customPrice: '',
       });
@@ -1716,9 +1723,7 @@ export default function ReservationPage() {
       const saved = await handleSaveReservation(() => {});
       if (!saved) return;
 
-      const res = await fetch(api.getDevisPdfUrl(editingDevisId));
-      if (!res.ok) throw new Error('Impossible de générer le PDF.');
-      const blob = await res.blob();
+      const blob = await api.getDevisPdfBlob(editingDevisId);
       const fileUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = fileUrl;
@@ -1732,25 +1737,38 @@ export default function ReservationPage() {
     }
   };
 
-  const handleConvertDevisToReservation = async () => {
-    if (!editingDevisId) return;
-    const ok = await confirm({
-      title: 'Passer en réservation',
-      message: 'Voulez-vous convertir ce devis en réservation ? Les dates seront bloquées.',
-      confirmLabel: 'Convertir',
-      confirmColor: 'warning',
-    });
-    if (!ok) return;
-    try {
-      const result = await api.convertDevisToReservation(editingDevisId);
-      if (result?.reservationId) {
-        navigate(`/reservations/${result.reservationId}`);
-      } else {
-        navigate('/reservations/new');
+  // Devis status change. Moving a saved devis to "Accepté" saves the current edits, converts the devis
+  // into a (persisted) reservation after confirmation, and lands on that reservation — this replaces the
+  // former standalone "Passer en réservation" action. Other status changes (draft/sent) just update the
+  // form. The landing reservation carries a back-target to the calendar centered on it, so "Annuler"
+  // returns there.
+  const handleDevisStatusChange = async (nextStatus) => {
+    if (nextStatus === 'accepted' && editingDevisId) {
+      const ok = await confirm({
+        title: 'Accepter le devis',
+        message: 'En acceptant ce devis, il sera enregistré puis converti en réservation (les dates seront bloquées). Voulez-vous continuer ?',
+        confirmLabel: 'Convertir en réservation',
+        cancelLabel: 'Annuler',
+        confirmColor: 'warning',
+      });
+      if (!ok) return;
+      try {
+        // Persist current devis edits first so the reservation reflects them, then convert.
+        const saved = await handleSaveReservation(() => {});
+        if (!saved) return;
+        const result = await api.convertDevisToReservation(editingDevisId);
+        if (result?.reservationId) {
+          // Land on the saved reservation; "Annuler"/retour goes back to the calendar centered on it.
+          navigate(`/reservations/${result.reservationId}?from=${encodeURIComponent('/calendar')}`);
+        } else {
+          navigate('/reservations/new');
+        }
+      } catch (e) {
+        await alert({ title: 'Erreur', message: e.message || 'Impossible de convertir le devis.' });
       }
-    } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible de convertir le devis.' });
+      return;
     }
+    updateForm({ status: nextStatus });
   };
 
   const handleDeleteDevis = async () => {
@@ -1850,7 +1868,7 @@ export default function ReservationPage() {
       node: (
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel>Statut</InputLabel>
-          <Select value={form.status || 'draft'} label="Statut" onChange={(e) => updateForm({ status: e.target.value })}>
+          <Select value={form.status || 'draft'} label="Statut" onChange={(e) => handleDevisStatusChange(e.target.value)}>
             {DEVIS_STATUS_OPTIONS.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
@@ -1860,8 +1878,6 @@ export default function ReservationPage() {
     }] : []),
     ...(isDevisMode
       ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
-    ...(isDevisMode && editingDevisId
-      ? [{ icon: <AutoFixHighIcon />, tooltip: 'Passer en réservation', onClick: handleConvertDevisToReservation, color: 'warning' }] : []),
   ];
 
   const actionBarAfter = [

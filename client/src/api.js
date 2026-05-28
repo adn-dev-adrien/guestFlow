@@ -181,6 +181,13 @@ const api = {
   convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
   getDevisPdfUrl: (id) => `${API}/devis/${id}/pdf`,
+  // Fetch the devis PDF as a blob. Uses credentials so the session cookie is sent — required because
+  // REACT_APP_API_URL can be absolute (cross-origin in dev), where a default fetch would omit the cookie.
+  getDevisPdfBlob: async (id) => {
+    const res = await fetch(`${API}/devis/${id}/pdf`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Impossible de générer le PDF.');
+    return res.blob();
+  },
   getDevisHistory: (id) => request(`/devis/${id}/history`),
 
   // Google Calendar sync

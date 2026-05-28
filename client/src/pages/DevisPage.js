@@ -104,9 +104,7 @@ export default function DevisPage() {
 
   const handleOpenPdf = async (devis) => {
     try {
-      const res = await fetch(api.getDevisPdfUrl(devis.id));
-      if (!res.ok) throw new Error('Impossible de générer le PDF.');
-      const blob = await res.blob();
+      const blob = await api.getDevisPdfBlob(devis.id);
       const fileUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = fileUrl;

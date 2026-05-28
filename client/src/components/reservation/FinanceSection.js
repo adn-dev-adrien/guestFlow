@@ -27,7 +27,7 @@ export default function FinanceSection() {
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 700, mb: 0 }}>Finance</Typography>
-                {!isDevisMode && reservationId && (
+                {(isDevisMode || reservationId) && (
                   <Button variant="outlined" color="warning" size="small" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
                     Actualiser tarifs
                   </Button>

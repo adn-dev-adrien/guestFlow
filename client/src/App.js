@@ -430,10 +430,13 @@ function AppShell() {
       .then((settings) => {
         if (!isMounted) return;
         if (settings?.companyLogoPath) {
-          const link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+          // Replace the default favicon (favicon.ico + favicon.svg from index.html) with the company
+          // logo. Remove the defaults first so an SVG-capable browser doesn't keep preferring favicon.svg.
+          document.querySelectorAll("link[rel~='icon']").forEach((el) => el.remove());
+          const link = document.createElement('link');
           link.rel = 'icon';
           link.href = settings.companyLogoPath;
-          if (!document.head.contains(link)) document.head.appendChild(link);
+          document.head.appendChild(link);
         }
       })
       .catch(() => {});

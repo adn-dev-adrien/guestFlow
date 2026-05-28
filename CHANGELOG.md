@@ -18,7 +18,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - **HTTP security headers** via `helmet`, including a CSP tuned for the SPA
     (`script-src 'self'` thanks to `INLINE_RUNTIME_CHUNK=false`; `style-src`/`font-src` allow MUI inline
     styles + Google Fonts; `img-src` allows uploaded images). Verified against a production build.
-  - **Rate limiting** (`express-rate-limit`): login 10 failed/15 min/IP, global API 300/15 min/IP
+  - **Rate limiting** (`express-rate-limit`): login 10 failed/15 min/IP, global API 3000/15 min/IP
     (`429`), env-configurable; public iCal export exempt. Replaces PR 1's minimal throttle.
   - **Upload hardening**: document upload gains a 10 MB limit + extension/MIME allowlist; logo extension
     is whitelisted; file deletion is path-contained (`safeUploadPath`). New pure util `utils/uploadSafety.js`.
@@ -90,6 +90,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **Devis editor — accept-to-convert flow + "Actualiser tarifs"** (spec `devis-accept-to-reservation.md`):
+  removed the standalone "Passer en réservation" action; converting a devis to a reservation now happens
+  by setting its status to **Accepté** in the dropdown, which asks for confirmation before, on confirm,
+  **saving the devis, converting it into a persisted reservation, and opening that reservation** —
+  whose "Annuler"/retour goes back to the **calendar centered on it** (`?from=/calendar`). The Finance
+  section's **"Actualiser tarifs"** button is now also available in devis mode (recompute with current
+  rates + clear any manual price).
 - **ReservationPage form split into section components via a form context** (Bloc 3 slice 3c-3, spec
   `reservation-form-sections.md`) — the long left-column form JSX is decomposed into focused, feature-local
   components under `client/src/components/reservation/`: `StaySection`, `GuestsBedsSection`, `ExtrasSection`
@@ -147,11 +154,30 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **False "Modifications non enregistrées" prompt on a freshly loaded reservation/devis:** the on-mount
+  server pricing recalc reshaped the loaded form after the unsaved-changes baseline was captured, so a
+  just-opened (or just-converted) record was wrongly flagged dirty and prompted on "Annuler"/navigation.
+  The baseline is now captured **after** the first quote applies for existing records (new/prefilled
+  records still baseline immediately); genuine edits still flag dirty. Spec `devis-accept-to-reservation.md`.
+- **Devis PDF ignored the manual accommodation price:** when a manual price (`customPrice`) overrode the
+  accommodation, the PDF still printed the engine-computed price on the accommodation line, so the HT and
+  TTC subtotals were wrong (only the grand total TTC, which uses `finalPrice`, was right). The PDF now
+  renders a single accommodation row at the manual amount with the original engine price struck through
+  (in either direction, like an offered line), so the rows sum to `finalPrice` and the HT/TTC subtotals
+  reconcile with the total.
+- **Devis PDF download returned 401 ("Impossible de générer le PDF"):** the PDF was fetched with a raw
+  `fetch` that didn't send credentials. With `REACT_APP_API_URL` absolute (cross-origin in dev), the
+  default fetch omits the session cookie → `401`. Added `api.getDevisPdfBlob(id)` (fetch with
+  `credentials: 'include'`) used by both the Devis list page and the reservation devis-mode download.
 - **Dev TLS error in Safari (page would not load over HTTP):** Helmet's default CSP includes
   `upgrade-insecure-requests` and HSTS pins the host to HTTPS, so a plain-HTTP dev session upgraded
   `http://localhost/main.<hash>.js` to `https://localhost` → "Une erreur TLS a provoqué l'échec de la
   connexion sécurisée". CSP and HSTS are now enforced in **production only** (`NODE_ENV === 'production'`,
   behind the HTTPS reverse proxy); they are disabled in development. Spec: `security-hardening.md`.
+- **Missing favicon (404) + default icon:** added a default GuestFlow favicon (`favicon.svg` + `favicon.ico`
+  for Safari/legacy) referenced from `index.html`, so the app shows a brand icon and stops requesting a
+  missing `/favicon.ico` even when no company logo is configured. When a company logo *is* set, it still
+  overrides the favicon (the default icon links are replaced in `App.js`).
 - **Offered options/resources price bug (Bloc 2):** an option/resource that was "offert" (billed 0) on a
   saved reservation, then made paid again, no longer stays at 0 — the real price is always recomputed and
   restored. The fragile `totalPrice = 0 → offered` inference (in `pricing.js`, plus the SQL fallbacks in

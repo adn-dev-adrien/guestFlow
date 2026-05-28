@@ -62,9 +62,11 @@ uploads, and authoritative money validation at every write boundary.
 **Rate limiting (`express-rate-limit`)**
 5. **Login**: max **10 attempts / 15 min / IP** on `POST /api/auth/login` → `429 TOO_MANY_ATTEMPTS`.
    Replaces the PR 1 in-memory throttle.
-6. **Global API**: max **300 requests / 15 min / IP** across `/api` → `429`. Both limits configurable via
-   env (`LOGIN_RATELIMIT_MAX`, `API_RATELIMIT_MAX`, window overrides). The public iCal export is exempt
-   from the global limit (external pollers) or given a generous separate allowance.
+6. **Global API**: max **3000 requests / 15 min / IP** across `/api` → `429`. The SPA fires many calls per
+   navigation (lists, pricing recalculations on each form change, …), so a lower cap throttled legitimate
+   active use; 3000 only catches abusive bursts. Both limits configurable via env (`LOGIN_RATELIMIT_MAX`,
+   `API_RATELIMIT_MAX`, window overrides). The public iCal export is exempt from the global limit (external
+   pollers) or given a generous separate allowance.
 
 **Upload hardening**
 7. **Document upload** gets a size limit (e.g. 10 MB) and an **extension + MIME allowlist**
