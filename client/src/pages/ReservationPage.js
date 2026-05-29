@@ -935,10 +935,6 @@ export default function ReservationPage() {
     }
   }, [form.babies, form.children, babyBedAvailability.available]);
 
-  const recalcPrice = (updatedForm) => {
-    return { ...updatedForm };
-  };
-
   const handleSuggestBeds = async () => {
     if (!selectedProp) return;
     try {
@@ -960,7 +956,7 @@ export default function ReservationPage() {
   };
 
   const updateForm = (changes) => {
-    setForm(prev => recalcPrice({ ...prev, ...changes }));
+    setForm(prev => ({ ...prev, ...changes }));
   };
 
   // ==================== OPTIONS & RESOURCES ====================
@@ -979,7 +975,7 @@ export default function ReservationPage() {
       } else {
         newOpts = [...prev.selectedOptions, { optionId, quantity: normalizedQty, totalPrice: 0 }];
       }
-      return recalcPrice({ ...prev, selectedOptions: newOpts });
+      return { ...prev, selectedOptions: newOpts };
     });
   };
 
@@ -1026,7 +1022,7 @@ export default function ReservationPage() {
         ];
       }
 
-      return recalcPrice({ ...prev, selectedResources: newResources });
+      return { ...prev, selectedResources: newResources };
     });
   };
 
@@ -1040,7 +1036,7 @@ export default function ReservationPage() {
   };
 
   const setResourceOffered = (resourceId, offered) => {
-    setForm((prev) => recalcPrice({
+    setForm((prev) => ({
       ...prev,
       selectedResources: (prev.selectedResources || []).map((sr) => (
         Number(sr.resourceId) === Number(resourceId)
@@ -1051,7 +1047,7 @@ export default function ReservationPage() {
   };
 
   const addCustomOption = () => {
-    setForm((prev) => recalcPrice({
+    setForm((prev) => ({
       ...prev,
       customOptions: [
         ...(prev.customOptions || []),
@@ -1061,7 +1057,7 @@ export default function ReservationPage() {
   };
 
   const updateCustomOption = (customKey, changes) => {
-    setForm((prev) => recalcPrice({
+    setForm((prev) => ({
       ...prev,
       customOptions: (prev.customOptions || []).map((line) => (
         line.customKey === customKey ? { ...line, ...changes } : line
@@ -1070,7 +1066,7 @@ export default function ReservationPage() {
   };
 
   const removeCustomOption = (customKey) => {
-    setForm((prev) => recalcPrice({
+    setForm((prev) => ({
       ...prev,
       customOptions: (prev.customOptions || []).filter((line) => line.customKey !== customKey),
     }));
@@ -1169,7 +1165,7 @@ export default function ReservationPage() {
     setPricingQuote(calc);
     applyQuoteMinNights(calc);
     setUseCurrentPricing(false);
-    setForm(prev => recalcPrice({
+    setForm(prev => ({
       ...prev,
       selectedOptions: [],
       customOptions: [],

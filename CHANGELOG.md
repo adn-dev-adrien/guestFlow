@@ -298,6 +298,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **Dead `recalcPrice` wrapper** in `ReservationPage.js` — a no-op (`return { ...updatedForm }`) left over
+  after the pricing engine moved server-side (Bloc 2). Its 9 call sites now spread the form directly.
+  Behavior-preserving; closes out the client-side pricing logic removal.
 - **`devis_*` tables** (`devis`, `devis_options`, `devis_custom_options`, `devis_resources`,
   `devis_nights`, `devis_history`) — folded into the `reservations` family (`kind='devis'`). Data migrated
   (see Migration).
