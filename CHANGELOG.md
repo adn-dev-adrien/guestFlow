@@ -113,6 +113,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   read (occupancy, availability, blocked-night/cleaning, baby beds, resource availability, finance
   summary/projection/operational/tourist-tax, Google Calendar push, client delete-impact/orphan cleanup)
   now filters `kind='reservation'`, so a devis never blocks a date or counts as revenue. No API/UX change.
+- **Properties — MVC extraction** (spec `properties-mvc.md`): `routes/properties.js` (**1260 LOC**, the
+  last CRITICAL monolith) becomes a thin route over `propertiesController` + `propertyIcalController` over
+  `propertiesModel` (CRUD + enriched detail + pricing rules/apply-to + documents + options + platform
+  colours) and `propertyIcalModel` (sources CRUD + the anti-overbooking **sync engine moved verbatim**).
+  Pure iCal parsing → `utils/icalParser.js`; upload plumbing → `utils/propertyUploads.js`. The iCal
+  source **status-update was triplicated** (the `/sync` route, `/sync-all`, and `scheduledTasks`) and is
+  now one `syncSourceAndRecord` method. API contract, payloads and behaviour unchanged; no schema change.
+  New tests: `property-ical-sync` (7, anti-overbooking) + `properties-model` (7); migrated
+  `properties-ical` to `utils/icalParser`. Server suite **346** green.
 - **Finance & Dashboard — server-owned money, MVC, render-only pages** (Bloc 5, spec
   `finance-dashboard-thin.md`): `routes/finance.js` (403 LOC) is now a thin route over `financeController`
   + `financeModel`, with pure helpers in `utils/financeCalcs.js`. All payment math + overdue derivation +
@@ -231,6 +240,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - **Non-hourly resources couldn't be offered:** the "Offrir" button in the pricing summary was gated
   behind `isPerHour`, so only complex/hourly resources could be comped. It now shows for **every**
   selected resource (like options) — the model/engine/persistence already supported it.
+- **iCal sync created an orphan client on a renamed-guest update:** the iCal client was resolved for
+  every event, but the update path never relinks `clientId`, so a changed guest name produced an unused
+  client row. The client is now resolved only in the insert branches (guarded by a new sync test).
 - **Client creation was broken (POST /api/clients hung):** the `clientsController` attached its
   `create(model)` factory as `.create`, overwriting the `create` request handler — so the route called the
   factory and never responded. The factory is now `.buildController` on the Bloc-1 controllers
