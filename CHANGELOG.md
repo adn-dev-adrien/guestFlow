@@ -5,6 +5,17 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **iCal import — cross-platform de-duplication** (`propertyIcalModel.syncSource`): the same booking
+  appearing in two platforms' feeds (same dates + guest name, different source + UID) now maps to the one
+  existing reservation instead of creating a duplicate. Stale removal is cross-source-safe — a shared
+  booking is only deleted once **every** feed drops it. Combined with the existing UID / per-source-fallback
+  matching and the `icalSyncLocked` guard, a re-import never duplicates or overwrites a (user-modified)
+  reservation. New `reservations.icalOriginalSummary` column stores the authoritative original guest name
+  at import time (hidden from the frontend), so the date-scan legacy match stays reliable even after the
+  user renames the client or edits the notes — instead of re-parsing the fragile `Résumé:` notes line.
+  Guards: `property-ical-dedup.unit.test.js` (7).
+  - **Migration:** `ALTER TABLE reservations ADD COLUMN icalOriginalSummary TEXT`; existing iCal rows are
+    best-effort backfilled from their notes' `Résumé:` line.
 - **Server-owned payment status** — new `utils/paymentStatus.js` (`computePaymentStatus`) is the single
   authority for `remainingDue` / `paymentComplete` / `depositOverdue` / `balanceOverdue` / `overdueAmount` /
   `oldestDueDate`, replacing two divergent client `getRemainingDue` copies. New

@@ -18,7 +18,7 @@ const DDL = `
     depositAmount REAL, depositDueDate TEXT, depositPaid INTEGER,
     balanceAmount REAL, balanceDueDate TEXT, balancePaid INTEGER,
     sourceType TEXT, sourcePlatformKey TEXT, sourceIcalSourceId INTEGER, sourceIcalEventUid TEXT, icalSyncLocked INTEGER,
-    notes TEXT, cautionAmount REAL, updatedAt TEXT
+    notes TEXT, cautionAmount REAL, icalOriginalSummary TEXT, updatedAt TEXT
   );
   CREATE TABLE ical_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, name TEXT, url TEXT, platformKey TEXT,

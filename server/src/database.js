@@ -379,6 +379,17 @@ if (!cols.includes('sourceIcalEventUid')) {
 if (!cols.includes('icalSyncLocked')) {
   db.exec("ALTER TABLE reservations ADD COLUMN icalSyncLocked INTEGER NOT NULL DEFAULT 0");
 }
+if (!cols.includes('icalOriginalSummary')) {
+  // Authoritative original iCal guest name (set at import, never changed when the user renames the
+  // client). Backed-fill best-effort from the legacy `Résumé:` line in notes. Not shown on the frontend.
+  db.exec("ALTER TABLE reservations ADD COLUMN icalOriginalSummary TEXT");
+  const { extractSummaryFromIcalReservationNotes } = require('./utils/icalParser');
+  const setSummary = db.prepare('UPDATE reservations SET icalOriginalSummary = ? WHERE id = ?');
+  for (const r of db.prepare("SELECT id, notes FROM reservations WHERE sourceType = 'ical' AND icalOriginalSummary IS NULL").all()) {
+    const original = extractSummaryFromIcalReservationNotes(r.notes);
+    if (original) setSummary.run(original, r.id);
+  }
+}
 if (!cols.includes('extraGuestSurchargeOffered')) {
   db.exec("ALTER TABLE reservations ADD COLUMN extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0");
 }
