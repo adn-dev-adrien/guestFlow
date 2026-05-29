@@ -390,6 +390,23 @@ if (!cols.includes('icalOriginalSummary')) {
     if (original) setSummary.run(original, r.id);
   }
 }
+if (!cols.includes('depositPaidDate')) {
+  // Real encaissement date for the deposit. Recorded when the deposit is marked paid (defaults to today,
+  // editable). Backfilled once from depositDueDate for rows already marked paid, so legacy data has a
+  // sensible accounting date. Drives the monthly accounting export (spec accountant-accounting-export.md).
+  db.exec("ALTER TABLE reservations ADD COLUMN depositPaidDate TEXT");
+  db.exec("UPDATE reservations SET depositPaidDate = depositDueDate WHERE depositPaid = 1 AND depositPaidDate IS NULL");
+}
+if (!cols.includes('balancePaidDate')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN balancePaidDate TEXT");
+  db.exec("UPDATE reservations SET balancePaidDate = balanceDueDate WHERE balancePaid = 1 AND balancePaidDate IS NULL");
+}
+if (!cols.includes('clientGrossAmount')) {
+  // For platform-sourced reservations, the gross amount the guest actually paid the platform (TTC).
+  // The owner's net (= finalPrice) stays in finalPrice; commission is derived (gross - finalPrice).
+  // Always NULL for direct bookings. Drives the platform columns of the accounting CSV (PR 3).
+  db.exec("ALTER TABLE reservations ADD COLUMN clientGrossAmount REAL");
+}
 if (!cols.includes('extraGuestSurchargeOffered')) {
   db.exec("ALTER TABLE reservations ADD COLUMN extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0");
 }

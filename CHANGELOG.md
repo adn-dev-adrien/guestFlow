@@ -5,6 +5,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Reservation payment dates + platform gross / commission** (spec
+  `accountant-accounting-export.md`, PR 2): each reservation now records the **real encaissement date**
+  for the deposit and the balance (`depositPaidDate`, `balancePaidDate`) — defaulted to today when the
+  user marks paid, editable in the FinanceSection ("Payé le"), cleared on un-pay. For
+  platform-sourced bookings, a new **"Prix payé par le client"** field (`clientGrossAmount`) captures
+  the TTC amount the guest paid the platform; the **commission** is derived (`gross − finalPrice`,
+  clamped at 0) and served alongside reservations as `commissionAmount`. Both the gross field and the
+  commission caption are **hidden** for direct bookings. The write boundary rejects a gross below the
+  net (`400 GROSS_BELOW_NET`). Unit tests: `client-gross-amount` (7), `reservations-commission` (7).
+  Foundation for the monthly accounting CSV (PR 3).
 - **iCal import — cross-platform de-duplication** (`propertyIcalModel.syncSource`): the same booking
   appearing in two platforms' feeds (same dates + guest name, different source + UID) now maps to the one
   existing reservation instead of creating a duplicate. Stale removal is cross-source-safe — a shared
@@ -324,6 +334,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Reservation payment dates + platform gross:** `reservations` gains `depositPaidDate TEXT`,
+  `balancePaidDate TEXT` and `clientGrossAmount REAL`. Paid-dates are backfilled once from the
+  corresponding due-dates for rows already marked paid (sensible accounting date for legacy data);
+  `clientGrossAmount` stays NULL on existing rows. Idempotent.
 - **Global VAT rates:** `app_settings` gains `vatRateAccommodation` (default 10) and `vatRateStandard`
   (default 20). Backfilled once from any existing property's `vatPercentageAccommodation` (→
   accommodation) and `vatPercentageOptions` (→ standard) so a single-gîte install keeps its configured

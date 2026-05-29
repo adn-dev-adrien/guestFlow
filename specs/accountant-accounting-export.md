@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved — implementing (PR 1 of 3: VAT 2-rate global ✅) |
-| **Branch** | `feature/vat-two-rate-global` (PR 1), then `feature/accountant-accounting-export` (PR 2–3) _(user-managed)_ |
+| **Status** | Approved — implementing (PR 1 ✅, PR 2 ✅, PR 3 pending §9) |
+| **Branch** | `feature/vat-two-rate-global` (PR 1), `feature/payment-dates-platform-gross` (PR 2), then `feature/accountant-accounting-export` (PR 3) _(user-managed)_ |
 | **Created** | 2026-05-29 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
@@ -285,7 +285,14 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
   removed from the property form, and the per-property `vatPercentage*` columns are **dropped** from
   the schema (`ALTER TABLE … DROP COLUMN`) after a defensive backfill. Reservation TVA summary verified
   (reads the quote, reflects the 2 rates). Tests: `pricing-vat-two-rates` (5).
-- **PR 2 — Payment dates + platform gross/commission ⬜.** `depositPaidDate`/`balancePaidDate`,
-  `clientGrossAmount`; FinanceSection fields (platform-only gross + computed commission).
+- **PR 2 — Payment dates + platform gross/commission ✅ (`feature/payment-dates-platform-gross`).**
+  New `reservations.depositPaidDate`, `balancePaidDate` (real encaissement dates, defaulted to today
+  on flip-to-paid, editable, cleared on un-pay), and `clientGrossAmount` (TTC amount the guest paid the
+  platform; only meaningful for non-direct bookings). `commissionAmount` derived in the shaped payload
+  as `gross − finalPrice` (clamped at 0). Write boundary rejects `gross < net` with
+  `400 GROSS_BELOW_NET`. FinanceSection shows a "Payé le" date input next to each paid toggle, and a
+  platform-only "Prix payé par le client" + computed "Commission plateforme" caption (hidden on direct).
+  Tests: `client-gross-amount` (7), `reservations-commission` (7). Verified live in the browser
+  (visibility toggling on platform change, commission auto-computed, paid-date defaults to today).
 - **PR 3 — Accountant role + read-only Comptabilité page + monthly CSV export ⬜.** Blocked on §9
   (example CSV format + platform turnover basis).

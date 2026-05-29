@@ -529,7 +529,10 @@ export default function ReservationPage() {
             endDate: res.endDate,
             propertyId: res.propertyId,
             depositPaid: res.depositPaid || false,
-            balancePaid: res.balancePaid || false
+            depositPaidDate: res.depositPaidDate || '',
+            balancePaid: res.balancePaid || false,
+            balancePaidDate: res.balancePaidDate || '',
+            clientGrossAmount: res.clientGrossAmount == null ? '' : res.clientGrossAmount,
           });
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
@@ -632,7 +635,10 @@ export default function ReservationPage() {
             endDate: devis.endDate,
             propertyId: devis.propertyId,
             depositPaid: false,
+            depositPaidDate: '',
             balancePaid: false,
+            balancePaidDate: '',
+            clientGrossAmount: '',
           });
 
           const offeredOpts = new Set((devis.options || [])
@@ -719,7 +725,10 @@ export default function ReservationPage() {
             endDate,
             propertyId: initialPropId,
             depositPaid: false,
-            balancePaid: false
+            depositPaidDate: '',
+            balancePaid: false,
+            balancePaidDate: '',
+            clientGrossAmount: '',
           });
 
           await loadResourcesAvailability(startDate, endDate, initialPropId);
@@ -1477,9 +1486,12 @@ export default function ReservationPage() {
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
           depositPaid: form.depositPaid,
+          depositPaidDate: form.depositPaidDate || null,
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
           balancePaid: form.balancePaid,
+          balancePaidDate: form.balancePaidDate || null,
+          clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
           cautionReceivedDate: form.cautionReceivedDate,
@@ -1526,6 +1538,7 @@ export default function ReservationPage() {
           depositDueDate: quote.depositDueDate,
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
+          clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,

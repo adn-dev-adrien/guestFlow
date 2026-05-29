@@ -6,7 +6,7 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { validateFinanceInputs } = require('../utils/financeValidation');
+const { validateFinanceInputs, validateClientGrossAmount } = require('../utils/financeValidation');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -211,6 +211,7 @@ function create(req, res) {
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
+    clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
@@ -245,6 +246,9 @@ function create(req, res) {
     });
   }
 
+  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
+  if (grossError) return res.status(400).json({ error: grossError });
+
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
   const validationError = model.validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks);
   if (validationError) return res.status(409).json(validationError);
@@ -277,6 +281,7 @@ function update(req, res) {
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
+    clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
@@ -321,6 +326,9 @@ function update(req, res) {
     lockedResourceLines: lockedPricing.lockedResourceLines,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+
+  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
+  if (grossError) return res.status(400).json({ error: grossError });
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
   if (pastReservationLocked) {
@@ -394,14 +402,24 @@ function updatePayment(req, res) {
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
 
-  const { depositPaid, balancePaid, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
+  const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
+    cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
   const id = req.params.id;
   if (depositPaid !== undefined) {
-    model.updatePaymentField('UPDATE reservations SET depositPaid = ?, updatedAt = datetime(\'now\') WHERE id = ?', depositPaid ? 1 : 0, id);
+    // Real encaissement date: defaults to today on flip-to-paid (editable), cleared on flip-to-unpaid.
+    const date = depositPaid ? (depositPaidDate || new Date().toISOString().split('T')[0]) : null;
+    model.updatePaymentField(
+      "UPDATE reservations SET depositPaid = ?, depositPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
+      depositPaid ? 1 : 0, date, id,
+    );
   }
   if (balancePaid !== undefined) {
-    model.updatePaymentField('UPDATE reservations SET balancePaid = ?, updatedAt = datetime(\'now\') WHERE id = ?', balancePaid ? 1 : 0, id);
+    const date = balancePaid ? (balancePaidDate || new Date().toISOString().split('T')[0]) : null;
+    model.updatePaymentField(
+      "UPDATE reservations SET balancePaid = ?, balancePaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
+      balancePaid ? 1 : 0, date, id,
+    );
   }
   if (cautionReceived !== undefined) {
     const date = cautionReceivedDate || (cautionReceived ? new Date().toISOString().split('T')[0] : null);
