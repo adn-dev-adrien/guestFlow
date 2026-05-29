@@ -418,15 +418,6 @@ if (!propCols.includes('doubleBeds')) {
 if (!propCols.includes('touristTaxPerDayPerPerson')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxPerDayPerPerson REAL DEFAULT 0");
 }
-if (!propCols.includes('vatPercentageAccommodation')) {
-  db.exec("ALTER TABLE properties ADD COLUMN vatPercentageAccommodation REAL DEFAULT 20");
-}
-if (!propCols.includes('vatPercentageOptions')) {
-  db.exec("ALTER TABLE properties ADD COLUMN vatPercentageOptions REAL DEFAULT 20");
-}
-if (!propCols.includes('vatPercentageResources')) {
-  db.exec("ALTER TABLE properties ADD COLUMN vatPercentageResources REAL DEFAULT 20");
-}
 if (!propCols.includes('touristTaxMode')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxMode TEXT DEFAULT 'per_day_per_person'");
 }
@@ -787,6 +778,34 @@ tryAddAppSettingsCol('companyIban', "ALTER TABLE app_settings ADD COLUMN company
 tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyBic TEXT DEFAULT ''");
 tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
 tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
+
+// Global VAT rates (2-rate model): accommodation vs everything else (options/resources). Replaces the
+// per-property vatPercentage* columns, which are then dropped. Defaults 10/20; backfilled once from any
+// existing property's old rates so a single-gîte install keeps its configured values.
+tryAddAppSettingsCol('vatRateAccommodation', "ALTER TABLE app_settings ADD COLUMN vatRateAccommodation REAL DEFAULT 10");
+tryAddAppSettingsCol('vatRateStandard', "ALTER TABLE app_settings ADD COLUMN vatRateStandard REAL DEFAULT 20");
+if (!appSettingsCols.includes('vatRateAccommodation')) {
+  const propColsNow = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
+  let acc = 10;
+  let std = 20;
+  if (propColsNow.includes('vatPercentageAccommodation') && propColsNow.includes('vatPercentageOptions')) {
+    const anyProp = db.prepare("SELECT vatPercentageAccommodation AS acc, vatPercentageOptions AS std FROM properties ORDER BY id LIMIT 1").get();
+    if (anyProp) {
+      acc = anyProp.acc != null ? anyProp.acc : 10;
+      std = anyProp.std != null ? anyProp.std : 20;
+    }
+  }
+  db.prepare("UPDATE app_settings SET vatRateAccommodation = ?, vatRateStandard = ? WHERE id = 1").run(acc, std);
+}
+// Drop the retired per-property VAT columns — the engine reads only the two globals from app_settings.
+{
+  const propColsForDrop = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
+  for (const col of ['vatPercentageAccommodation', 'vatPercentageOptions', 'vatPercentageResources']) {
+    if (propColsForDrop.includes(col)) {
+      db.exec(`ALTER TABLE properties DROP COLUMN ${col}`);
+    }
+  }
+}
 
 // ---------- DEVIS ↔ RESERVATION FUSION ----------
 // Devis are unified into `reservations` (kind='devis'); their lines live in the reservation_* children.

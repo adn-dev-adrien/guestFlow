@@ -26,6 +26,8 @@ const DDL = `
     quoteFooterText TEXT DEFAULT '',
     quoteValidityDays INTEGER DEFAULT 30,
     companyLogoPath TEXT DEFAULT '',
+    vatRateAccommodation REAL DEFAULT 10,
+    vatRateStandard REAL DEFAULT 20,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );

@@ -111,6 +111,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
+- **VAT — two global rates instead of three per-property** (spec `accountant-accounting-export.md`, PR 1):
+  VAT is now configured by two app-wide rates in **Paramètres → Taux de TVA** — **accommodation**
+  (`vatRateAccommodation`, default 10 %) and **standard** (`vatRateStandard`, default 20 %, used by
+  options, custom options and resources). The pricing engine, the reservation/devis quote, the devis PDF
+  and the reservation TVA summary read these globals; the per-property `vatPercentage*` columns have
+  been **dropped** entirely (not just dormant). TTC totals are unchanged (VAT is extracted from TTC).
+  New unit tests: `pricing-vat-two-rates` (5).
 - **Integrations — MVC extraction** (Bloc 6, spec `integrations-mvc.md`): `routes/ical.js`,
   `googleCalendar.js`, `options.js`, `calendarNotes.js` become thin routes over controllers + models.
   The iCal token lifecycle + `.ics` export move out of `database.js` into `icalModel`; the Google event
@@ -317,6 +324,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Global VAT rates:** `app_settings` gains `vatRateAccommodation` (default 10) and `vatRateStandard`
+  (default 20). Backfilled once from any existing property's `vatPercentageAccommodation` (→
+  accommodation) and `vatPercentageOptions` (→ standard) so a single-gîte install keeps its configured
+  values; the per-property `vatPercentage*` columns are then **dropped** via `ALTER TABLE … DROP COLUMN`.
+  Migration is defensive (skips backfill if old columns absent) and idempotent.
 - **Devis ↔ Reservation fusion (one-time, backed up):** on boot, `reservations` gains
   `kind`/`devisNumber`/`devisStatus`/`validUntil`/`convertedReservationId` (+ a unique index on
   `devisNumber` and a `kind` index). If the legacy `devis` table exists, the DB is first copied to a

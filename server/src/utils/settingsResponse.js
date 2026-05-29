@@ -88,6 +88,10 @@ function shapeResponse(row) {
       footerText: safeStr(row.quoteFooterText),
       validityDays: Number(row.quoteValidityDays) || 30,
     },
+    vat: {
+      accommodationRate: row.vatRateAccommodation == null ? 10 : Number(row.vatRateAccommodation),
+      standardRate: row.vatRateStandard == null ? 20 : Number(row.vatRateStandard),
+    },
     googleCalendar: {
       calendarId: safeStr(row.googleCalendarId).trim(),
       serviceAccountEmail,

@@ -107,8 +107,8 @@ function createPropertiesModel(database) {
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`
-        INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         sentenceCase(body.name),
         photo,
@@ -131,9 +131,6 @@ function createPropertiesModel(database) {
         body.touristTaxPercentage ?? 0,
         body.touristTaxDepartmentPercentage ?? 0,
         body.touristTaxFixedAmount ?? 0,
-        body.vatPercentageAccommodation ?? 20,
-        body.vatPercentageOptions ?? 20,
-        body.vatPercentageResources ?? 20,
       );
 
       const propertyId = result.lastInsertRowid;
@@ -167,7 +164,7 @@ function createPropertiesModel(database) {
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
       database.prepare(`
-        UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, vatPercentageAccommodation=?, vatPercentageOptions=?, vatPercentageResources=?, updatedAt=datetime('now')
+        UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
         sentenceCase(body.name),
@@ -191,9 +188,6 @@ function createPropertiesModel(database) {
         body.touristTaxPercentage ?? 0,
         body.touristTaxDepartmentPercentage ?? 0,
         body.touristTaxFixedAmount ?? 0,
-        body.vatPercentageAccommodation ?? 20,
-        body.vatPercentageOptions ?? 20,
-        body.vatPercentageResources ?? 20,
         id,
       );
 

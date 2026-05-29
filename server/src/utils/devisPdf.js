@@ -16,9 +16,11 @@ function generateDevisPdf(full, settings) {
   return new Promise((resolve, reject) => {
   const property = full.property;
   const client = full.client;
-  const vatAccommodation = Number(property?.vatPercentageAccommodation ?? 20);
-  const vatOptions = Number(property?.vatPercentageOptions ?? 20);
-  const vatResources = Number(property?.vatPercentageResources ?? 20);
+  // VAT rates are global (2-rate model): accommodation has its own; options and resources both use the
+  // standard rate. Sourced from app settings (read by the controller) — never from the property anymore.
+  const vatAccommodation = Number(settings?.vatRateAccommodation ?? 10);
+  const vatOptions = Number(settings?.vatRateStandard ?? 20);
+  const vatResources = Number(settings?.vatRateStandard ?? 20);
 
   // Client phone (single column since the Clients bloc).
   const phones = client.phone ? [String(client.phone).trim()] : [];

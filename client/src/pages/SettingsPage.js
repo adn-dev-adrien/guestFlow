@@ -6,6 +6,7 @@ import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
+import SettingsVatSection from '../components/SettingsVatSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import ChangePasswordForm from '../components/ChangePasswordForm';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
     logoPath: '',
   },
   quote: { footerText: '', validityDays: 30 },
+  vat: { accommodationRate: 10, standardRate: 20 },
   googleCalendar: {
     calendarId: '',
     serviceAccountEmail: '',
@@ -51,6 +53,9 @@ function buildPayloadFromDraft(draft, saved) {
   const quoteDirty = diffFields(draft.quote, saved.quote);
   if (Object.keys(quoteDirty).length > 0) payload.quote = quoteDirty;
 
+  const vatDirty = diffFields(draft.vat, saved.vat);
+  if (Object.keys(vatDirty).length > 0) payload.vat = vatDirty;
+
   const gcDirty = {};
   if (draft.googleCalendar.calendarId !== saved.googleCalendar.calendarId) {
     gcDirty.calendarId = draft.googleCalendar.calendarId;
@@ -72,6 +77,7 @@ function fromServer(settings) {
   return {
     company: { ...EMPTY_FORM.company, ...(settings.company || {}) },
     quote: { ...EMPTY_FORM.quote, ...(settings.quote || {}) },
+    vat: { ...EMPTY_FORM.vat, ...(settings.vat || {}) },
     googleCalendar: {
       ...EMPTY_FORM.googleCalendar,
       ...(settings.googleCalendar || {}),
@@ -258,6 +264,13 @@ export default function SettingsPage() {
           disabled={loading || saving}
         />
 
+        <SettingsVatSection
+          values={draft.vat}
+          errors={errors}
+          onChange={updateGroup('vat')}
+          disabled={loading || saving}
+        />
+
         <SettingsGoogleCalendarSection
           values={draft.googleCalendar}
           errors={errors}
@@ -324,6 +337,12 @@ function mapClientKeyToErrorKey(group, key) {
     return ({
       footerText: 'quoteFooterText',
       validityDays: 'quoteValidityDays',
+    })[key];
+  }
+  if (group === 'vat') {
+    return ({
+      accommodationRate: 'vatRateAccommodation',
+      standardRate: 'vatRateStandard',
     })[key];
   }
   if (group === 'googleCalendar') {

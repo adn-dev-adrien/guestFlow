@@ -65,7 +65,7 @@ function createModel(database) {
     `).all(row.id);
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
-    const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
+    const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, depositDaysBefore, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
     const schedule = resolvePaymentSchedule(row, property);
     return { ...row, status: row.devisStatus, ...schedule, options: [...options, ...customOptions], resources, nights, client, property };
   }

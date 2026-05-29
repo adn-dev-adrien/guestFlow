@@ -8,8 +8,7 @@ const devisModel = require('../models/devisModel');
 const DDL = `
   CREATE TABLE properties (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00',
-    defaultCautionAmount REAL DEFAULT 0, vatPercentageAccommodation REAL DEFAULT 20, vatPercentageOptions REAL DEFAULT 20,
-    vatPercentageResources REAL DEFAULT 20, depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 0, balanceDaysBefore INTEGER DEFAULT 0
+    defaultCautionAmount REAL DEFAULT 0, depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 0, balanceDaysBefore INTEGER DEFAULT 0
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, phone TEXT, address TEXT, email TEXT);
   CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, priceType TEXT, price REAL, autoOptionType TEXT, autoFullNightThreshold TEXT);

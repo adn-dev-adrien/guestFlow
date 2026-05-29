@@ -13,7 +13,6 @@ const DDL = `
     defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00', defaultCautionAmount REAL DEFAULT 500,
     touristTaxPerDayPerPerson REAL DEFAULT 0, touristTaxMode TEXT DEFAULT 'per_day_per_person',
     touristTaxPercentage REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0,
-    vatPercentageAccommodation REAL DEFAULT 20, vatPercentageOptions REAL DEFAULT 20, vatPercentageResources REAL DEFAULT 20,
     basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0
   );
   CREATE TABLE pricing_rules (

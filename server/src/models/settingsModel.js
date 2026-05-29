@@ -36,10 +36,14 @@ const COLUMNS = [
   'quoteFooterText',
   'quoteValidityDays',
   'companyLogoPath',
+  'vatRateAccommodation',
+  'vatRateStandard',
 ];
 
+const NUMERIC_DEFAULTS = { quoteValidityDays: 30, vatRateAccommodation: 10, vatRateStandard: 20 };
+
 const DEFAULTS = COLUMNS.reduce((acc, col) => {
-  acc[col] = col === 'quoteValidityDays' ? 30 : '';
+  acc[col] = Object.prototype.hasOwnProperty.call(NUMERIC_DEFAULTS, col) ? NUMERIC_DEFAULTS[col] : '';
   return acc;
 }, { createdAt: null, updatedAt: null });
 

@@ -100,6 +100,14 @@ function validateQuoteValidityDays(value) {
   return null;
 }
 
+function validateVatRate(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'Doit être un nombre entre 0 et 100.';
+  if (n < 0 || n > 100) return 'Doit être un nombre entre 0 et 100.';
+  return null;
+}
+
 module.exports = {
   validateEmail,
   validateSiret,
@@ -109,6 +117,7 @@ module.exports = {
   validatePrivateKey,
   validateCalendarId,
   validateQuoteValidityDays,
+  validateVatRate,
   // exported for tests
   __test: { trimOrEmpty, stripWhitespace },
 };

@@ -65,9 +65,10 @@ export default function PricingSummary({
   const rawTotalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
   const totalSejour = isIcalSource ? rawTotalSejour - touristTaxTotal : rawTotalSejour;
 
-  const vatPercentageAccommodation = Number(quote?.vatPercentageAccommodation ?? selectedProperty?.vatPercentageAccommodation ?? 20);
-  const vatPercentageOptions = Number(quote?.vatPercentageOptions ?? selectedProperty?.vatPercentageOptions ?? 20);
-  const vatPercentageResources = Number(quote?.vatPercentageResources ?? selectedProperty?.vatPercentageResources ?? 20);
+  // VAT rates come from the server quote (two global rates: accommodation + standard for options & resources).
+  const vatPercentageAccommodation = Number(quote?.vatPercentageAccommodation ?? 10);
+  const vatPercentageOptions = Number(quote?.vatPercentageOptions ?? 20);
+  const vatPercentageResources = Number(quote?.vatPercentageResources ?? 20);
   const accommodationVatAmount = Number(quote?.accommodationVatAmount || 0);
   const accommodationNetPrice = Number(quote?.accommodationNetPrice || 0);
   const optionsVatAmount = Number(quote?.optionsVatAmount || 0);

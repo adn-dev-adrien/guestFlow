@@ -42,6 +42,11 @@ const GOOGLE_FIELDS = [
   // privateKey is handled separately (3-way semantics).
 ];
 
+const VAT_FIELDS = [
+  { input: 'accommodationRate', column: 'vatRateAccommodation', validator: validation.validateVatRate },
+  { input: 'standardRate', column: 'vatRateStandard', validator: validation.validateVatRate },
+];
+
 function pickGroup(body, group) {
   const value = body && body[group];
   return value && typeof value === 'object' ? value : null;
@@ -57,6 +62,7 @@ function updateSettings(req, res) {
   const company = pickGroup(body, 'company');
   const quote = pickGroup(body, 'quote');
   const google = pickGroup(body, 'googleCalendar');
+  const vat = pickGroup(body, 'vat');
 
   const payload = {};
   const errors = {};
@@ -79,6 +85,7 @@ function updateSettings(req, res) {
   applyGroup(company, COMPANY_FIELDS);
   applyGroup(quote, QUOTE_FIELDS);
   applyGroup(google, GOOGLE_FIELDS);
+  applyGroup(vat, VAT_FIELDS);
 
   // Google Calendar private key — 3-way semantics.
   if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {
