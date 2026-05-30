@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
-  Box, Card, CardContent, Typography, MenuItem, TextField, Table, TableHead, TableRow,
+  Box, Card, CardContent, Typography, Table, TableHead, TableRow,
   TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -12,6 +12,7 @@ import EuroIcon from '@mui/icons-material/Euro';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
+import MonthYearPicker from '../components/MonthYearPicker';
 import { useAuth } from '../hooks/useAuth';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
@@ -32,11 +33,6 @@ const LINE_STYLES = {
  *   - GET /api/accounting/platforms?month=&year=  → preview JSON
  *   - GET /api/accounting/sales.csv?month=&year=  → CSV download
  */
-
-const MONTHS = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-];
 
 function formatEur(value) {
   if (value == null) return '—';
@@ -81,11 +77,6 @@ export default function AccountingPage() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(null);
-
-  const years = useMemo(() => {
-    const current = today.getFullYear();
-    return Array.from({ length: 5 }, (_, i) => current - i + 1).sort((a, b) => b - a);
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -145,39 +136,12 @@ export default function AccountingPage() {
           </Alert>
         )}
 
-        <Card variant="outlined" sx={{ mb: 3 }}>
-          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <TextField
-                select
-                label="Mois"
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                fullWidth
-                sx={{ maxWidth: { xs: '100%', sm: 200 } }}
-              >
-                {MONTHS.map((label, i) => (
-                  <MenuItem key={i} value={i + 1}>{label}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="Année"
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                fullWidth
-                sx={{ maxWidth: { xs: '100%', sm: 140 } }}
-              >
-                {years.map((y) => (
-                  <MenuItem key={y} value={y}>{y}</MenuItem>
-                ))}
-              </TextField>
-              <Typography variant="body2" color="text.secondary">
-                CSV mensuel des factures de vente (écritures comptables) + détail des commissions plateformes.
-              </Typography>
-            </Stack>
-          </CardContent>
-        </Card>
+        <MonthYearPicker
+          month={month}
+          year={year}
+          onChange={({ month: m, year: y }) => { if (m !== month) setMonth(m); if (y !== year) setYear(y); }}
+          description="CSV mensuel des factures de vente (écritures comptables) + détail des commissions plateformes."
+        />
 
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>

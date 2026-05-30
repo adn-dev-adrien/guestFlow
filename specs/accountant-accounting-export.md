@@ -230,7 +230,7 @@ standard).
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `PageActionBar`, `FormDialog`, `HelpedTextField`, `EmptyState`, `LoadingState`, `ErrorAlert`, `TableCard`/`DataPageScaffold`, `PasswordField` | The Comptabilité page and Settings additions render with existing generics. |
-| **Created (new generic)** | `MonthYearPicker` (if none exists) | Month+year selector reused by accounting and potentially finance/reporting. Justify at build time. |
+| **Created (new generic)** | `MonthYearPicker` | Shared month + year selector card. Created during the Suivi taxe de séjour visual-alignment pass (2026-05-30) — now used by both `/comptabilite` and `/finance/tourist-tax` for visual coherence. Both selectors share the same `180 px` width on `sm+`; the row is `alignItems: flex-start` so any `helperText` hangs below "Mois" without pushing "Année" down. Exposes `toYearMonth`/`fromYearMonth` helpers so callers hitting endpoints expecting `YYYY-MM` (tourist tax) can convert without owning the format logic. Supports `maxMonth` to disable forward months (tourist tax = past months only). |
 | **Specific (kept feature-local)** | `PlatformCommissionPreview` (table inside AccountingPage) | Tied to the accounting payload; a `TableCard` composition. |
 
 ### 4.3 API contract

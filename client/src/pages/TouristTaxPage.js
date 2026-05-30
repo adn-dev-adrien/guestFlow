@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Card, CardContent, TextField, Table, TableBody,
+  Box, Typography, Card, CardContent, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Alert, Grid
 } from '@mui/material';
 import PageHeader from '../components/PageHeader';
+import MonthYearPicker from '../components/MonthYearPicker';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
 
@@ -87,19 +88,18 @@ export default function TouristTaxPage() {
     <Box>
       <PageHeader title="Extraction taxe de séjour" />
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-          <TextField
-            label="Mois à extraire"
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ max: maxPastMonth }}
-            helperText="Uniquement les mois déjà passés"
+      {(() => {
+        const { month: m, year: y } = MonthYearPicker.fromYearMonth(month);
+        return (
+          <MonthYearPicker
+            month={m}
+            year={y}
+            onChange={({ month: nm, year: ny }) => setMonth(MonthYearPicker.toYearMonth({ month: nm, year: ny }))}
+            maxMonth={maxPastMonth}
+            helperText="Uniquement les mois déjà passés."
           />
-        </CardContent>
-      </Card>
+        );
+      })()}
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 

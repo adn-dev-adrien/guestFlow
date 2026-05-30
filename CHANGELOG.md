@@ -5,6 +5,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Shared `MonthYearPicker` component** (`client/src/components/MonthYearPicker.js`). Single source
+  of truth for the month + year selection card, with optional `description` caption,
+  `maxMonth = 'YYYY-MM'` to disable forward months, and `helperText` under the Mois field. Exposes
+  `toYearMonth({month,year})` / `fromYearMonth('YYYY-MM')` helpers so callers that hit endpoints
+  expecting the string format (tourist tax) can convert without owning the logic. Now used by
+  `/comptabilite` and `/finance/tourist-tax` — both pages look and read the same.
 - **Per-platform tourist tax collection** (spec `per-platform-tourist-tax-collection.md`).
   Each iCal source now carries a **`collectsTouristTax`** flag (default `1`, mirrors the previous
   hardcoded "non-direct = platform collects" rule). The pricing engine resolves it per reservation:
@@ -385,6 +391,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **"Extraction Taxe de séjour" navigation card on `/finance`** — the same page is reachable from
+  the sidebar (Suivi financier → Taxe de séjour), so the redundant card on the overview was just
+  noise. The Suivi page itself is unchanged.
 - **Dead `recalcPrice` wrapper** in `ReservationPage.js` — a no-op (`return { ...updatedForm }`) left over
   after the pricing engine moved server-side (Bloc 2). Its 9 call sites now spread the form directly.
   Behavior-preserving; closes out the client-side pricing logic removal.

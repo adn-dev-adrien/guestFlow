@@ -131,7 +131,9 @@ owner explicitly flips one to `0`.
 - **Fiche réservation** — no visible change unless the user flipped a source to `0`, in which case
   the right-side `PricingSummary` automatically starts charging the tourist tax for that platform.
 - **Suivi taxe de séjour** — same UI; only the underlying SQL filter expands to include non-direct
-  reservations whose platform was flipped to "owner collects".
+  reservations whose platform was flipped to "owner collects". *(Follow-up 2026-05-30: the month
+  picker on `/finance/tourist-tax` was migrated to the shared `MonthYearPicker` component for
+  visual coherence with `/comptabilite`.)*
 - **Responsive**: the `Switch` block and the new column stack on `xs` (MUI defaults are fine).
 
 ## 7. Test plan

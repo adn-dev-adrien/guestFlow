@@ -104,7 +104,7 @@ property with > 5 upcoming reservations (top 5 server-side); empty states for ea
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/` | `FinancePage.js` | T | Render-only: consumes enriched `/summary` + new `/operational`. Removes `getRemainingDue`, the overdue `map/filter/sort`, `overdueTotalAmount` reduce, `upcomingByProperty` grouping, inline `remainingDue`/`nights`. |
+| `pages/` | `FinancePage.js` | T | Render-only: consumes enriched `/summary` + new `/operational`. Removes `getRemainingDue`, the overdue `map/filter/sort`, `overdueTotalAmount` reduce, `upcomingByProperty` grouping, inline `remainingDue`/`nights`. **Update (2026-05-30):** the "Extraction Taxe de séjour" navigation card is removed; the page is reachable via the sidebar (Suivi financier → Taxe de séjour), so the redundant card on the overview was just noise. |
 | `pages/` | `Dashboard.js` | T | Removes `getRemainingDue`; arrivals/departures payment cells read `r.remainingDue` + `r.paymentComplete` from the enriched reservation detail. |
 | `services/` | `api.js` | T | Replace `getPendingPayments()` with `getFinanceOperational()`. `getFinanceSummary`/`getFinanceProjection`/`getTouristTaxExtraction`/`markPayment` unchanged. |
 
