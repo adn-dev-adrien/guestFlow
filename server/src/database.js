@@ -310,6 +310,7 @@ db.exec(`
     platformLabel TEXT NOT NULL,
     platformColor TEXT NOT NULL DEFAULT '#757575',
     isActive INTEGER NOT NULL DEFAULT 1,
+    collectsTouristTax INTEGER NOT NULL DEFAULT 1,
     lastSyncAt TEXT,
     lastSyncStatus TEXT,
     lastSyncMessage TEXT,
@@ -647,6 +648,12 @@ if (icalSourceCols.length > 0 && !icalSourceCols.includes('lastImportedCount')) 
 }
 if (icalSourceCols.length > 0 && !icalSourceCols.includes('updatedAt')) {
   db.exec("ALTER TABLE ical_sources ADD COLUMN updatedAt TEXT DEFAULT (datetime('now'))");
+}
+if (icalSourceCols.length > 0 && !icalSourceCols.includes('collectsTouristTax')) {
+  // Per-platform tourist-tax collection flag. Defaults to 1 (= the platform collects the tax on the
+  // owner's behalf, which matches the legacy hardcoded "non-direct → offered" rule). Set to 0 when
+  // the owner has to collect+pay the tax themselves (e.g. some Booking arrangements).
+  db.exec("ALTER TABLE ical_sources ADD COLUMN collectsTouristTax INTEGER NOT NULL DEFAULT 1");
 }
 
 const icalImportEventCols = db.prepare("PRAGMA table_info(ical_import_events)").all().map(c => c.name);

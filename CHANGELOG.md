@@ -5,6 +5,17 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Per-platform tourist tax collection** (spec `per-platform-tourist-tax-collection.md`).
+  Each iCal source now carries a **`collectsTouristTax`** flag (default `1`, mirrors the previous
+  hardcoded "non-direct = platform collects" rule). The pricing engine resolves it per reservation:
+  direct → owner always collects; non-direct → look up the property's iCal source for that platform
+  key (case-insensitive), follow its flag; no matching source → default to "collects" (legacy
+  safe). The **Suivi taxe de séjour** extraction now lists direct bookings **plus** non-direct
+  bookings whose platform was explicitly switched to "owner collects" — coherent with what's
+  charged on the quote. New UI: a `Switch` "La plateforme collecte la taxe de séjour" under the
+  iCal source form on the property page, plus a "Taxe collectée" column (`Plateforme` / `Vous`
+  chip) in the sources table. Unit tests: `pricing-tourist-tax-platform-collection` (6 cases).
+  Full server suite green at 446.
 - **Reservation: 3rd payment slot "Complément à percevoir"** (spec
   `accountant-accounting-export.md`, rule 28). When the deposit and the balance are marked paid and
   the total stay TTC has *since* grown — typical case: options or extras added after the payments
@@ -393,6 +404,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Per-platform tourist tax collection:** `ical_sources` gains
+  `collectsTouristTax INTEGER NOT NULL DEFAULT 1`. The default `1` preserves the prior
+  hardcoded behaviour (non-direct = platform collects = tax offered) until the owner explicitly
+  flips a source to `0` on the property page. Idempotent.
 - **Complément à percevoir columns:** `reservations` gains `complementAmount REAL NOT NULL DEFAULT 0`,
   `complementPaid INTEGER NOT NULL DEFAULT 0`, `complementPaidDate TEXT`. For existing fully-paid
   reservations (`depositPaid = 1 AND balancePaid = 1`), `complementAmount` is backfilled to

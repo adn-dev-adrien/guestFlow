@@ -800,6 +800,21 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
   };
 }
 
+// Per-platform tourist-tax resolver. Direct → never offered (owner charges). Otherwise look up the
+// property's iCal source matching the platform key; respect its `collectsTouristTax` flag (default 1
+// when the source is missing, to keep the legacy "non-direct = offered" behaviour as a safe fallback).
+function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
+  if (!platformKey || platformKey === 'direct') return false;
+  let row = null;
+  try {
+    row = db.prepare(
+      "SELECT collectsTouristTax FROM ical_sources WHERE propertyId = ? AND lower(platformKey) = ? LIMIT 1"
+    ).get(propertyId, String(platformKey).toLowerCase());
+  } catch (_) { /* table or column may be absent in minimal test DBs → fall back to default */ }
+  if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
+  return Number(row.collectsTouristTax) !== 0;
+}
+
 // Global VAT rates (2-rate model). Accommodation has its own rate; everything else billable
 // (options, custom options, resources) uses the standard rate. Defaults 10 / 20 if unset.
 function getGlobalVatRates(db) {
@@ -1217,9 +1232,14 @@ function calculateReservationQuote({
     accommodationAmountTtc: baseAccommodationAdjustedPrice,
     accommodationVatRate: vatPercentageAccommodation,
   });
-  // Tourist tax is offered (set to 0) when collected by non-direct platforms.
+  // Tourist tax — the platform may or may not collect it on the owner's behalf, configurable per
+  // iCal source on the property (column `ical_sources.collectsTouristTax`, default 1 = collects).
+  //   - direct       → owner always collects (never offered).
+  //   - non-direct   → look up the property's iCal source matching this platformKey; if found,
+  //                     follow its `collectsTouristTax` flag; if absent, default to "collects"
+  //                     (backwards-compatible with the legacy hardcoded rule).
   const normalizedPlatform = String(platform || 'direct').toLowerCase();
-  const isTouristTaxOfferedByPlatform = normalizedPlatform !== 'direct';
+  const isTouristTaxOfferedByPlatform = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
   let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
   if (isTouristTaxOfferedByPlatform) {
     touristTaxTotal = 0;

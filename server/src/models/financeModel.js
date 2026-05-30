@@ -271,7 +271,15 @@ function createFinanceModel(database) {
         WHERE r.kind = 'reservation'
           AND DATE(r.endDate, '-1 day') >= ?
           AND DATE(r.endDate, '-1 day') < ?
-          AND r.platform = 'direct'
+          AND (
+            r.platform = 'direct'
+            OR EXISTS (
+              SELECT 1 FROM ical_sources s
+              WHERE s.propertyId = r.propertyId
+                AND lower(s.platformKey) = lower(r.platform)
+                AND s.collectsTouristTax = 0
+            )
+          )
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
       `).all(bounds.start, bounds.endExclusive);
 

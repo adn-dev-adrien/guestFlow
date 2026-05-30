@@ -18,6 +18,7 @@ const {
 } = require('../utils/icalParser');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
+  collectsTouristTax,
   lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt`;
 
 function createPropertyIcalModel(database) {
@@ -82,11 +83,13 @@ function createPropertyIcalModel(database) {
       if (!property) return { error: 'Logement non trouvé', status: 404 };
       const input = resolveSourceInput(body);
       if (input.error) return { error: input.error, status: 400 };
+      // `collectsTouristTax` defaults to 1 (= platform collects, mirrors legacy behaviour). Explicit false → 0.
+      const collectsTouristTax = body.collectsTouristTax === false || body.collectsTouristTax === 0 ? 0 : 1;
       const result = database.prepare(`
         INSERT INTO ical_sources (
-          propertyId, name, url, platformKey, platformLabel, platformColor, isActive, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1);
+          propertyId, name, url, platformKey, platformLabel, platformColor, isActive, collectsTouristTax, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, collectsTouristTax);
       return { data: database.prepare('SELECT * FROM ical_sources WHERE id = ?').get(result.lastInsertRowid) };
     },
 
@@ -96,11 +99,15 @@ function createPropertyIcalModel(database) {
       const input = resolveSourceInput(body, existing);
       if (input.error) return { error: input.error, status: 400 };
       const isActive = body.isActive === undefined ? existing.isActive : (body.isActive ? 1 : 0);
+      const collectsTouristTax = body.collectsTouristTax === undefined
+        ? existing.collectsTouristTax
+        : (body.collectsTouristTax ? 1 : 0);
       database.prepare(`
         UPDATE ical_sources
-        SET name = ?, url = ?, platformKey = ?, platformLabel = ?, platformColor = ?, isActive = ?, updatedAt = datetime('now')
+        SET name = ?, url = ?, platformKey = ?, platformLabel = ?, platformColor = ?, isActive = ?,
+            collectsTouristTax = ?, updatedAt = datetime('now')
         WHERE id = ? AND propertyId = ?
-      `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, sourceId, propertyId);
+      `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, collectsTouristTax, sourceId, propertyId);
       return { data: database.prepare('SELECT * FROM ical_sources WHERE id = ?').get(sourceId) };
     },
 

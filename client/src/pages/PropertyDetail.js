@@ -50,6 +50,7 @@ const EMPTY_ICAL_FORM = {
   platformLabel: '',
   platformColor: PLATFORM_COLORS.airbnb || DEFAULT_ICAL_COLOR,
   isActive: true,
+  collectsTouristTax: true, // default true → mirrors legacy "non-direct platforms collect the tax"
 };
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -423,6 +424,7 @@ export default function PropertyDetail() {
       platformLabel: source.platformLabel || source.platformKey || '',
       platformColor: source.platformColor || PLATFORM_COLORS[source.platformKey] || DEFAULT_ICAL_COLOR,
       isActive: source.isActive !== 0,
+      collectsTouristTax: source.collectsTouristTax !== 0,
     });
   };
 
@@ -436,6 +438,7 @@ export default function PropertyDetail() {
       platformLabel: isOther ? (icalForm.platformLabel.trim() || icalForm.platformKey.trim()) : icalForm.platformOption,
       platformColor: isOther ? (icalForm.platformColor || DEFAULT_ICAL_COLOR) : (PLATFORM_COLORS[icalForm.platformOption] || DEFAULT_ICAL_COLOR),
       isActive: Boolean(icalForm.isActive),
+      collectsTouristTax: Boolean(icalForm.collectsTouristTax),
     };
     if (!payload.platformKey) return;
 
@@ -989,12 +992,41 @@ export default function PropertyDetail() {
                 </Box>
               </Box>
 
+              {/* La plateforme collecte-t-elle la taxe de séjour à votre place ?
+                  Activé par défaut (mirrors legacy "non-direct platforms collect"). Désactiver
+                  bascule la réservation comme "à percevoir/reverser" — apparaît alors dans le
+                  Suivi taxe de séjour avec les ventes directes. */}
+              <Box sx={{ mb: 1.5 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(icalForm.collectsTouristTax)}
+                      onChange={(e) => setIcalField('collectsTouristTax', e.target.checked)}
+                      disabled={!canManageExtras}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        La plateforme collecte la taxe de séjour
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {icalForm.collectsTouristTax
+                          ? 'Le client paie la taxe à la plateforme ; vous ne la facturez pas et elle n\'apparaît pas dans le Suivi taxe de séjour.'
+                          : 'Vous collectez la taxe vous-même ; elle s\'ajoute au total et apparaît dans le Suivi taxe de séjour.'}
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 900 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Plateforme</TableCell>
                       <TableCell>URL</TableCell>
+                      <TableCell>Taxe collectée</TableCell>
                       <TableCell>Dernière synchro</TableCell>
                       <TableCell>État</TableCell>
                       <TableCell align="right">Actions</TableCell>
@@ -1009,6 +1041,14 @@ export default function PropertyDetail() {
                             <Chip label={source.platformLabel || source.platformKey} size="small" sx={{ bgcolor: sourceColor, color: 'white' }} />
                           </TableCell>
                           <TableCell sx={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={source.url}>{source.url}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={Number(source.collectsTouristTax) === 0 ? 'Vous' : 'Plateforme'}
+                              size="small"
+                              variant="outlined"
+                              color={Number(source.collectsTouristTax) === 0 ? 'warning' : 'success'}
+                            />
+                          </TableCell>
                           <TableCell>{source.lastSyncAt ? displayDate(source.lastSyncAt.slice(0, 10)) : '-'}</TableCell>
                           <TableCell>
                             <Typography variant="caption" color={source.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
@@ -1036,7 +1076,7 @@ export default function PropertyDetail() {
                     })}
                     {(!property.icalSources || property.icalSources.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={5} align="center">Aucune connexion iCal configurée.</TableCell>
+                        <TableCell colSpan={6} align="center">Aucune connexion iCal configurée.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
