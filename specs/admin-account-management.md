@@ -46,6 +46,22 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 > (everyone) and `/comptes` (admin only). They were merged into a single `/account` page with
 > role-gated sections, so the sidebar no longer carries two near-identical entries. The legacy
 > paths `/settings/password` and `/comptes` redirect to `/account`.
+>
+> **2026-05-30 follow-up #2:** the unified page now lives **under "Paramètres" as a submenu item**
+> (alongside Logements, Options, Clients, etc.) rather than as a top-level sidebar entry. Same
+> route (`/account`), same content gating; only the sidebar entry-point moved. The accountant
+> minimal sidebar still surfaces it directly as "Gestion utilisateur" since accountants don't
+> have access to the Paramètres group.
+>
+> **2026-05-30 follow-up #3:** outgoing emails (welcome / reset / SMTP test) now sign with the
+> SMTP sender's display name (`smtpFromName`) instead of a hardcoded "GuestFlow", and carry an
+> "Ce message est généré automatiquement." notice above the signature.
+>
+> **2026-05-30 follow-up #4:** the SMTP password field strips ALL whitespace before encryption.
+> Gmail App Passwords are displayed by Google in a `abcd efgh ijkl mnop` 4-by-4 format and copy-
+> pasting it verbatim used to trigger `5.7.8 Username and Password not accepted` because the
+> transport sent the literal spaces. The strip is server-side (`settingsController.updateSettings`)
+> so it applies to any client that hits `PUT /api/settings`.
 
 ## 3. Functional rules
 
@@ -130,11 +146,13 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 ### 3.3 Temporary password + first-login flow
 
 14. The temporary password is sent by email via the new SMTP transport (see §3.4). Subject
-    *"Votre accès GuestFlow"* (welcome) or *"Réinitialisation de votre mot de passe GuestFlow"*
-    (reset). Body in French, plain text (no HTML), containing: the email used to log in, the
-    temporary password, the URL of the login page (`app_settings.publicUrl`, see §3.4), and a
-    one-line instruction *"Connectez-vous avec ce mot de passe puis suivez les instructions pour
-    en choisir un personnel."*
+    *"Votre accès GuestFlow"* (welcome) or *"Réinitialisation de votre mot de passe"* (reset).
+    Body in French, plain text (no HTML), containing: the email used to log in, the temporary
+    password, the URL of the login page (`app_settings.publicUrl`, see §3.4), and a one-line
+    instruction *"Connectez-vous avec ce mot de passe puis suivez les instructions pour en
+    choisir un personnel."* Every body **ends with two extra lines** (added 2026-05-30):
+    *"Ce message est généré automatiquement."* and a signature *"— {smtpFromName}"* (falls back
+    to `GuestFlow` when no display name is configured).
 15. On the next login the server detects `mustChangePassword=1` and the client (already wired,
     see [security-auth-encryption.md](specs/security-auth-encryption.md)) renders only
     `ChangePasswordPage`. After the user submits their new password successfully:
@@ -218,7 +236,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | `utils/emailService.js` | — | C | `createEmailService(settings) → { send(toEmail, subject, bodyPlain), sendTest(toEmail) }`. Wraps `nodemailer` (new dependency). Throws `EMAIL_NOT_CONFIGURED` when `settings.smtpHost` empty. Reads the decrypted password lazily. Pure plain-text emails (no HTML — keeps the code small and avoids the templating dependency for now). |
 | `utils/emailTemplates.js` | — | C | Two pure functions: `welcomeEmailBody({ firstName, email, temporaryPassword, publicUrl })` → `{ subject, body }` and `passwordResetEmailBody(...)`. Returns French plain-text. |
 | `controllers/usersController.js` | `usersController.js` | T | Extended: `list()` returns enriched users (with roles + lastLoginAt); `create({...})` orchestrates: validate → generate temp password → wrap in transaction → insert user + roles → send welcome email → on send failure, rollback; `update(id, payload)` (identity + roles); `resetPassword(id)` analogous to create (re-generate + email + rollback); `softDelete(id)` + `hardDelete(id)` with eligibility check + last-admin guard. All self-action checks reject `403 SELF_ACTION_FORBIDDEN`. |
-| `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` → calls `emailService.sendTest(req.user.email)`. SMTP field validation lives here (port range, email pattern). |
+| `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` (destination = `smtpFromEmail`, see rule 17). SMTP field validation lives here (port range, email pattern). **2026-05-30:** `updateSettings` strips ALL whitespace from `smtp.password` before passing it to `settingsModel.upsert` so Gmail App Passwords (4-by-4 format `abcd efgh ijkl mnop`) auth correctly without surfacing the cleanup to the user. |
 | `controllers/authController.js` | `authController.js` | T | `login` now calls `usersModel.touchLastLogin(user.id)` on success. `changePassword` now: if the *pre-change* session had `mustChangePassword=1`, **destroy the session** after the password update and return 204 (the client redirects to /login). Otherwise existing behaviour (session stays). |
 | `middleware/requireAuth.js` | `requireAuth.js` | T | `req.user.roles` is the new shape. Allowlist check stays identical. |
 | `middleware/enforceRoleAccess.js` | `enforceRoleAccess.js` | T | Multi-role aware: `userHasRole(req.user, 'admin')` rather than `req.user.role === 'admin'`. Allowlist for `accountant` extended to `/api/users/me` (read self). Admin-only group `/api/users` (except `/api/users/me`) gated here. |
@@ -242,7 +260,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | `components/AccountFormDialog.js` | — | C | FormDialog-based create/edit form. Fields: prénom, nom, email (disabled in edit mode), rôles (multi-select), société, note. Surface server validation errors inline. Lives next to the page since it's specifically about user identity; not a generification of FormDialog. |
 | `components/SettingsAccountantAccessSection.js` | — | **D** | Deleted (the section is gone; the file too). |
 | `components/AppSidebar.js` | `AppSidebar.js` | T | Adds the "Comptes" item (admin-only via `userHasRole(currentUser, 'admin')`). Inserted under "Paramètres" or near it. |
-| `App.js` | `App.js` | T | Registers the `/account` route; **2026-05-30:** redirects `/comptes` and `/settings/password` to `/account` via `<Navigate replace />`; renames the sidebar entry to "Gestion utilisateur" (visible to all roles, no `adminOnly` flag); removes the admin-side `Paramètres > Mot de passe` submenu; updates the accountant sidebar to point its single non-accounting item to `/account`; switches the accountant-confinement guard from `/settings/password` to `/account`. Multi-role check via `userHasRole`. |
+| `App.js` | `App.js` | T | Registers the `/account` route; **2026-05-30:** redirects `/comptes` and `/settings/password` to `/account` via `<Navigate replace />`; **renames the sidebar entry to "Gestion utilisateur" and moves it from a top-level item to a submenu of "Paramètres"** (alongside Logements, Options, Clients, Vacances scolaires, Fermetures); removes the admin-side `Paramètres > Mot de passe` submenu (redundant with the new merged page); updates the accountant sidebar to point its single non-accounting item to `/account`; switches the accountant-confinement guard from `/settings/password` to `/account`. The Paramètres open/select state and the menu-toggle handler include `/account` so the submenu auto-opens when the page is active. Multi-role check via `userHasRole`. |
 | `constants/roles.js` | — | C | Mirror of the server constants file. Imported by `AccountFormDialog`, `AppSidebar`, `App.js`. The two files must stay in sync — a unit test on each side checks the list (server self-check, client snapshot). |
 | `api.js` | `api.js` | T | Adds `updateUser`, `deleteUser(id, {hard})`, `sendSmtpTest()`, `getMe()`. Updates `listUsers` shape. |
 
@@ -417,6 +435,36 @@ SMTP fields start empty — the new account-creation endpoint returns
 - [ ] `enforce-role-access.unit.test.js` (extended) — multi-role admin reaches every route;
       a `[accountant]` user reaches only the existing accountant allowlist + `/api/users/me`;
       admin + accountant combined → admin wins.
+- [x] `settings-smtp-test.unit.test.js` (new, 2026-05-30) — `sendSmtpTest` sends to
+      `smtpFromEmail` (NOT `req.user.email`); SMTP-not-configured short-circuits; transport
+      rejection surfaces detail; succeeds without `req.user.email`.
+- [x] `settings-controller-smtp-password.unit.test.js` (new, 2026-05-30) — whitespace stripping
+      on `smtp.password`: Gmail 4-by-4 format, tabs/newlines/leading/trailing, no-whitespace
+      pass-through, empty/null clear, absent property preserve, whitespace-only → clear.
+- [x] `email-templates.unit.test.js` (extended, 2026-05-30) — every template signs with the
+      configured `fromName`; falls back to `GuestFlow` when missing; the auto-generated notice
+      is present on welcome / reset / test bodies.
+- [x] `users-controller.unit.test.js` (extended, 2026-05-30) — `create` and `resetPassword`
+      flow `fromName` from `settingsModel.decryptedSmtpSettings()` into the templates.
+
+### Client unit tests
+
+Stack: Jest + React Testing Library (CRA built-in).
+
+- [x] `client/src/constants/__tests__/roles.test.js` (new, 2026-05-30, 6 cases) — `ROLES` frozen
+      taxonomy; `roleLabel` returns French labels or echoes unknowns; `userHasRole` matches the
+      post-M2 array, falls back to the legacy `role` string (back-compat shim), array takes
+      precedence over the string, returns false for null/empty payloads.
+- [x] `client/src/pages/__tests__/UserManagementPage.test.js` (new, 2026-05-30, 6 cases) —
+      admin sees both sections + the list endpoint is called; accountant sees only
+      "Mon mot de passe" + listUsers is NOT called; legacy `role: 'admin'` session still admits
+      the admin section (back-compat shim); multi-role admin+accountant → admin wins; null user
+      shows the password section only and never calls listUsers; admin-side listUsers failure
+      surfaces an error Alert without crashing the page.
+- [x] `client/src/components/__tests__/AccountFormDialog.test.js` (new, 2026-05-30, 5 cases) —
+      email editable in create, disabled + lock caption in edit; self + admin role check is
+      locked with the protection caption; server-side `fieldErrors` land under the matching
+      input; submit forwards trimmed identity fields and the roles array.
 
 ### Manual UI verification
 

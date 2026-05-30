@@ -48,7 +48,7 @@ function createEmailService(settings, { transportFactory = nodemailer.createTran
   }
 
   async function sendTest(to) {
-    const { subject, text } = testEmailBody();
+    const { subject, text } = testEmailBody({ fromName });
     return send({ to, subject, text });
   }
 

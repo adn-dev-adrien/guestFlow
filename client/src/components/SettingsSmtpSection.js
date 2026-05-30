@@ -56,11 +56,10 @@ export default function SettingsSmtpSection({
         <Stack spacing={2.5}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Envoi d'emails (SMTP)
+              Envoi d'emails
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Identifiants utilisés pour envoyer les mots de passe provisoires lors de la création
-              ou de la réinitialisation d'un compte. Le mot de passe SMTP est chiffré en base.
+              Configuration pour l'envoie d'email depuis l'application.
             </Typography>
           </Box>
 
@@ -118,7 +117,7 @@ export default function SettingsSmtpSection({
             hasValue={Boolean(v.passwordSet)}
             value={v.passwordDraft}
             onChange={onChangePassword}
-            helperText="Stocké chiffré (AES-256-GCM). Pour Gmail, utilisez un mot de passe d'application."
+            helperText="Pour Gmail, utilisez un mot de passe d'application."
           />
 
           <TextField

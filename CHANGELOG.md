@@ -4,7 +4,40 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **"Gestion utilisateur" page moved under `Paramètres`** (spec
+  `admin-account-management.md`). Same route `/account`, same content gating — only the sidebar
+  entry-point moved: it's now a submenu of "Paramètres" alongside Logements / Options / Clients /
+  Vacances scolaires / Fermetures, with `<AdminPanelSettingsIcon />`. The Paramètres submenu
+  auto-opens when `/account` is the current path. For accountants (who don't have access to the
+  Paramètres group), the entry stays at the top level of their minimal sidebar.
+- **Outgoing emails sign with the SMTP sender's display name + carry an "auto-generated" notice.**
+  Welcome / reset / SMTP-test bodies now end with `Ce message est généré automatiquement.` followed
+  by `— {smtpFromName}` (falls back to `GuestFlow` when no name is configured). Replaces the
+  previous hardcoded "— GuestFlow" trailer.
+- **SMTP password input strips all whitespace before saving.** Gmail App Passwords are displayed in
+  a `abcd efgh ijkl mnop` 4-by-4 format; copy-pasting them verbatim used to bounce with
+  `5.7.8 Username and Password not accepted` because the transport sent the literal spaces. The
+  cleanup is server-side in `settingsController.updateSettings`, transparent to the user, and only
+  touches the password field. Adrien's reset / restore flow no longer needs the "tap each space"
+  ritual.
+
 ### Added
+- **Test coverage for the Gestion utilisateur feature** (Adrien feedback 2026-05-30):
+  - **Server** (`server/src/tests/`): new `settings-controller-smtp-password.unit.test.js`
+    (7 cases on the password whitespace strip — Gmail 4×4, tabs/newlines, no-whitespace
+    pass-through, empty/null clear, absent preserve, whitespace-only → clear); extended
+    `email-templates.unit.test.js` (every template signs with `fromName` + carries the
+    auto-generated notice + falls back to GuestFlow); extended `users-controller.unit.test.js`
+    (`fromName` flows from `settingsModel.decryptedSmtpSettings()` to the welcome + reset
+    templates). All M3 server suites: 88 / 88 green.
+  - **Client** (`client/src/`): new Jest + RTL tests — `constants/__tests__/roles.test.js`
+    (6 cases on `ROLES` / `roleLabel` / `userHasRole` including the legacy `role` string
+    back-compat shim and array-wins-over-string precedence); `pages/__tests__/UserManagementPage.test.js`
+    (6 cases on role-gated section visibility, listUsers fetch gating, multi-role admin+accountant,
+    null user, listUsers failure surfaced as Alert); `components/__tests__/AccountFormDialog.test.js`
+    (5 cases on email lock in edit, self-protection of own admin role, fieldErrors landing,
+    submit payload shape). 17 / 17 client tests green.
 - **Admin account management — unified "Gestion utilisateur" page** (spec
   `admin-account-management.md`). One page at `/account` (sidebar entry "Gestion utilisateur",
   available to every authenticated role). Top section "Mon mot de passe" lets the current user

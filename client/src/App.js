@@ -67,7 +67,6 @@ const navItems = [
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
-  { label: 'Gestion utilisateur', path: '/account', icon: <AdminPanelSettingsIcon /> },
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
@@ -158,6 +157,7 @@ function NavContent({ onItemClick }) {
       || location.pathname === '/clients'
       || location.pathname === '/school-holidays'
       || location.pathname === '/establishment-closures'
+      || location.pathname === '/account'
     ) {
       setSettingsMenuOpen(true);
       setCalendarMenuOpen(false);
@@ -192,6 +192,7 @@ function NavContent({ onItemClick }) {
                     || location.pathname === '/clients'
                     || location.pathname === '/school-holidays'
                     || location.pathname === '/establishment-closures'
+                    || location.pathname === '/account'
                     || location.pathname.startsWith('/properties')
                     ? true
                     : (prev) => !prev
@@ -220,6 +221,7 @@ function NavContent({ onItemClick }) {
                       || location.pathname === '/clients'
                       || location.pathname === '/school-holidays'
                       || location.pathname === '/establishment-closures'
+                      || location.pathname === '/account'
                       || location.pathname.startsWith('/properties')
                     )
                     : location.pathname === item.path
@@ -448,6 +450,16 @@ function NavContent({ onItemClick }) {
                 >
                   <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
+                <ListItemButton
+                  component={Link}
+                  to="/account"
+                  onClick={(e) => onItemClick && onItemClick(e, '/account')}
+                  selected={location.pathname === '/account'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 34 }}><AdminPanelSettingsIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Gestion utilisateur" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
               </List>
             </Collapse>

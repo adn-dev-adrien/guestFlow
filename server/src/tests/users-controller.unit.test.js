@@ -107,9 +107,13 @@ function fakeRes() {
   };
 }
 
+// Captures every argument the controller passes to the templates, so a test can assert that
+// `fromName` flows from settingsModel → controller → template (the signature change Adrien asked
+// for: emails now sign with the SMTP sender name + the auto-generated notice).
+const templateCalls = { welcome: [], reset: [] };
 const fakeEmailTemplates = {
-  welcomeEmailBody: ({ email, temporaryPassword }) => ({ subject: 'welcome', text: `${email}|${temporaryPassword}` }),
-  passwordResetEmailBody: ({ email, temporaryPassword }) => ({ subject: 'reset', text: `${email}|${temporaryPassword}` }),
+  welcomeEmailBody: (args) => { templateCalls.welcome.push(args); return { subject: 'welcome', text: `${args.email}|${args.temporaryPassword}|${args.fromName}` }; },
+  passwordResetEmailBody: (args) => { templateCalls.reset.push(args); return { subject: 'reset', text: `${args.email}|${args.temporaryPassword}|${args.fromName}` }; },
 };
 const fakePasswordGenerator = () => 'FakeTemp1234';
 
@@ -126,6 +130,7 @@ function buildSubject({ usersModel, settingsModel, emailService = makeFakeEmailS
 // ----- create -----
 
 test('create: sends the email then persists the user; response carries the safe user, no temp password', async () => {
+  templateCalls.welcome = [];
   const usersModel = makeFakeUsersModel();
   const emailService = makeFakeEmailService();
   const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel(), emailService });
@@ -147,6 +152,25 @@ test('create: sends the email then persists the user; response carries the safe 
   assert.equal(emailService.sent[0].to, 'marie@example.org');
   assert.deepEqual(usersModel.calls.map((c) => c.fn), ['createUser']);
   assert.equal(usersModel.calls[0].payload.password, 'FakeTemp1234');
+
+  // fromName flows from settingsModel.decryptedSmtpSettings() to the welcome template so the
+  // email signs with the configured sender name (Adrien feedback 2026-05-30).
+  assert.equal(templateCalls.welcome.length, 1);
+  assert.equal(templateCalls.welcome[0].fromName, 'GF');
+});
+
+test('resetPassword: passes fromName to the reset template (signature consistency)', async () => {
+  templateCalls.reset = [];
+  const usersModel = makeFakeUsersModel({ initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }] });
+  const emailService = makeFakeEmailService();
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel(), emailService });
+  const req = { params: { id: 7 }, body: {}, user: { id: 1, roles: ['admin'] } };
+  const res = fakeRes();
+  await c.resetPassword(req, res);
+
+  assert.equal(res.statusCode, 204);
+  assert.equal(templateCalls.reset.length, 1);
+  assert.equal(templateCalls.reset[0].fromName, 'GF');
 });
 
 test('create: email send failure → 502 EMAIL_SEND_FAILED, model NEVER called', async () => {

@@ -107,10 +107,12 @@ function buildController({
       }
 
       // Generate the temp password + prerender the welcome email. We send the email FIRST and only
-      // persist the user if delivery succeeds — no half-created accounts.
+      // persist the user if delivery succeeds — no half-created accounts. `fromName` is fed into the
+      // template so the signature line matches the SMTP "from" display name the recipient sees.
       const temporaryPassword = passwordGenerator();
+      const fromName = settingsModel.decryptedSmtpSettings().fromName;
       const { subject, text } = emailTemplates.welcomeEmailBody({
-        firstName, lastName, email, temporaryPassword, publicUrl, companyName,
+        firstName, lastName, email, temporaryPassword, publicUrl, companyName, fromName,
       });
 
       return Promise.resolve()
@@ -197,12 +199,14 @@ function buildController({
       if (!publicUrl) return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED' });
 
       const temporaryPassword = passwordGenerator();
+      const fromName = settingsModel.decryptedSmtpSettings().fromName;
       const { subject, text } = emailTemplates.passwordResetEmailBody({
         firstName: target.firstName,
         lastName: target.lastName,
         email: target.email,
         temporaryPassword,
         publicUrl,
+        fromName,
       });
 
       return Promise.resolve()
