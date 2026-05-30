@@ -9,6 +9,12 @@ const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
 const enforceRoleAccess = require('./middleware/enforceRoleAccess');
 const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
+const {
+  shouldEnforceHttps,
+  buildHelmetOptions,
+  buildSessionCookieOptions,
+} = require('./utils/securityConfig');
+const { buildServer } = require('./utils/httpsBootstrap');
 
 loadLocalEnv();
 const SqliteStore = require('better-sqlite3-session-store')(session);
@@ -32,34 +38,21 @@ const commitShaShort = commitSha ? commitSha.slice(0, 7) : null;
 const app = express();
 app.set('trust proxy', 1); // honor X-Forwarded-* behind the prod reverse proxy (secure cookies)
 
-// HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built with
-// INLINE_RUNTIME_CHUNK=false so script-src can stay 'self').
+// HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built
+// with INLINE_RUNTIME_CHUNK=false so script-src can stay 'self').
 //
-// CSP and HSTS are enforced in production only. Helmet's default CSP includes
-// `upgrade-insecure-requests`, and HSTS pins the host to HTTPS — both break a plain-HTTP dev session
-// (assets get upgraded to https://localhost → TLS error in Safari). Prod runs behind an HTTPS reverse
-// proxy where both are correct and desirable. The dev CRA server (:3000) is unaffected either way.
+// Two independent switches drive the policy (see utils/securityConfig.js + the regression test
+// alongside it for the full rule table). Conflating them in earlier code is exactly what broke the
+// first Raspberry Pi deploy (`NODE_ENV=production` without TLS at the edge → Safari upgraded every
+// asset URL to https:// → "Une erreur TLS a provoqué l'échec de la connexion sécurisée"):
+//   NODE_ENV=production   → run as prod (full CSP, JSON errors, prod-only branches elsewhere)
+//   HTTPS_ENABLED=true    → the network edge actually serves HTTPS → enable HSTS + CSP's
+//                            upgrade-insecure-requests + Secure cookies.
+// HTTPS_ENABLED must be explicitly turned on once TLS is in front of the app; leaving it off on a
+// prod deploy is safe (the app stays usable over plain HTTP).
 const isProduction = process.env.NODE_ENV === 'production';
-app.use(helmet({
-  contentSecurityPolicy: isProduction
-    ? {
-        useDefaults: true,
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-          imgSrc: ["'self'", 'data:', 'blob:'],
-          connectSrc: ["'self'"],
-          fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-          objectSrc: ["'none'"],
-          frameAncestors: ["'none'"],
-        },
-      }
-    : false,
-  strictTransportSecurity: isProduction,
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow the dev client (:3000) to load /uploads from :4000
-}));
+const httpsEnabled = shouldEnforceHttps(process.env);
+app.use(helmet(buildHelmetOptions({ isProduction, httpsEnabled })));
 
 // Strict CORS allowlist with credentials (session cookie). Cross-origin only matters in dev
 // (client :3000 → API :4000); prod is same-origin. Configure prod origins via CORS_ORIGINS.
@@ -68,7 +61,9 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
-// Server-side sessions persisted in SQLite (survive restarts). Cookie is httpOnly + sameSite; secure in prod.
+// Server-side sessions persisted in SQLite (survive restarts). Cookie is httpOnly + sameSite + Secure
+// when HTTPS is actually available — a Secure cookie over plain HTTP is silently dropped by the
+// browser, which would make every login round-trip fail without an obvious error.
 app.use(session({
   store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
   secret: getOrCreateSecret('GUESTFLOW_SESSION_SECRET', 32),
@@ -76,12 +71,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   rolling: true, // sliding 30-day expiration
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-  },
+  cookie: buildSessionCookieOptions({ httpsEnabled }),
 }));
 
 // One-time, idempotent: encrypt any legacy cleartext Google credentials at rest.
@@ -167,10 +157,26 @@ app.use('/api', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const server = app.listen(PORT, () => {
-  console.log(`GuestFlow API running on http://localhost:${PORT}`);
-  logErrorMarker(`=== SERVER BOOT COMPLETE (port ${PORT}) ===`);
-  
+// Picks plain HTTP or HTTPS based on HTTPS_ENABLED. When HTTPS is on but the cert/key are
+// missing, `buildServer` throws — better to refuse to boot than to silently downgrade and leak
+// a Secure session cookie over plain transport. See utils/httpsBootstrap.js for the rules.
+let serverHandle;
+let serverProtocol = 'http';
+try {
+  const built = buildServer({ httpsEnabled, app });
+  serverHandle = built.server;
+  serverProtocol = built.protocol;
+  if (built.tlsInfo) {
+    console.log(`TLS material loaded — cert: ${built.tlsInfo.certPath}, key: ${built.tlsInfo.keyPath}`);
+  }
+} catch (err) {
+  logErrorMarker(`Boot failed: ${err.message}`);
+  process.exit(1);
+}
+const server = serverHandle.listen(PORT, () => {
+  console.log(`GuestFlow API running on ${serverProtocol}://localhost:${PORT}`);
+  logErrorMarker(`=== SERVER BOOT COMPLETE (${serverProtocol}, port ${PORT}) ===`);
+
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
 });

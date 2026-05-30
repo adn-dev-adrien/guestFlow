@@ -150,10 +150,10 @@ jobs:
         run: |
           DEPLOY_DIR="$HOME/guestflow"
           PERSISTENT_DB="$HOME/guestflow/data/guestflow.db"
-          
+
           # Ensure the persistent DB directory and file exist
           mkdir -p "$(dirname "$PERSISTENT_DB")"
-          
+
           # Create empty DB if it doesn't exist
           if [ ! -f "$PERSISTENT_DB" ]; then
             touch "$PERSISTENT_DB"
@@ -161,15 +161,34 @@ jobs:
           else
             echo "✓ Using existing database"
           fi
-          
+
           # Remove old symlink if it exists
           rm -f "$DEPLOY_DIR/current/server/guestflow.db" 2>/dev/null || true
-          
+
           # Create symlink from deployment to persistent location
           ln -s "$PERSISTENT_DB" "$DEPLOY_DIR/current/server/guestflow.db"
-          
+
           echo "✓ Database symlink created"
           ls -la "$DEPLOY_DIR/current/server/guestflow.db"
+
+      - name: 🔒 Provision self-signed TLS cert (one-time, persistent across deploys)
+        run: |
+          CERTS_DIR="$HOME/guestflow/certs"
+          CERT_FILE="$CERTS_DIR/server.crt"
+          KEY_FILE="$CERTS_DIR/server.key"
+
+          mkdir -p "$CERTS_DIR"
+
+          if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+            echo "✓ TLS cert already provisioned at $CERTS_DIR — leaving it alone."
+            echo "  (regenerate manually with --force on the script if the cert nears expiry)"
+          else
+            echo "ℹ No TLS cert found — generating a fresh self-signed cert."
+            chmod +x "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
+            OUT_DIR="$CERTS_DIR" "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
+          fi
+
+          ls -la "$CERTS_DIR"
 
       - name: 📥 Restore uploads
         run: |
@@ -240,8 +259,15 @@ jobs:
           echo "✓ Database verified at: $PERSISTENT_DB"
           echo "✓ Service symlink verified"
           
-          # Start service with explicit DB_PATH (for extra safety)
+          # Start service with explicit DB_PATH + TLS material paths (persistent across deploys).
+          # HTTPS_ENABLED=true → Node serves directly on :4000 over TLS using the self-signed cert
+          # provisioned by the previous step. The browser warns once per device that the cert isn't
+          # signed by a known CA (expected for a LAN-only deploy); after the user accepts, HSTS
+          # makes HTTPS sticky from then on. See README §HTTPS for the cert-trust workflow.
           NODE_ENV=production \
+          HTTPS_ENABLED=true \
+          TLS_CERT_PATH="$HOME/guestflow/certs/server.crt" \
+          TLS_KEY_PATH="$HOME/guestflow/certs/server.key" \
           DB_PATH="$PERSISTENT_DB" \
           SKIP_MIGRATIONS=false \
           APP_COMMIT_SHA="${GITHUB_SHA}" \
