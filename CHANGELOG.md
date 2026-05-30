@@ -5,6 +5,67 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Self-service profile editor on `/account`** (spec `admin-account-management.md` follow-up #6).
+  A new "Mes informations" card sits **above** "Mon mot de passe" and lets every authenticated
+  user (admin or accountant) edit their own `firstName`, `lastName`, `companyName` and `notes`.
+  Email stays locked (same rule as the admin form in edit mode). **Roles are NOT exposed
+  anywhere** — neither in the UI nor accepted by the server. The new endpoint
+  `PUT /api/users/me` deliberately omits both `roles` and `email` from the model call so an
+  authenticated user cannot grant themselves admin via a hand-rolled payload (privilege guard,
+  asserted by 3 dedicated unit tests). On a successful save the page triggers `useAuth().refresh()`
+  so the sidebar + dialogs pick up the new name immediately. Field-level server errors
+  (`{ field, detail }`) land under the matching input; generic errors fall to the page snackbar.
+  Tests: 6 new server cases (`users-controller`), 7 new client cases (`SelfProfileSection`), and
+  4 new page cases (`UserManagementPage`). Full suite green at 63 / 63 server + 37 / 37 client.
+
+### Changed
+- **Sidebar is rendered by a single code path for every role** (spec
+  `admin-account-management.md` follow-up #5). The dedicated accountant branch is gone — there's
+  one `NavContent` tree, and each item (top-level + every submenu child) is conditionally rendered
+  via `canSeeRoute(user, path)`. Per-route allowlist lives in
+  `client/src/constants/roles.js#ROUTE_ROLES` (admin everywhere; accountant only on `/comptabilite`
+  + `/account`). Submenu **parents** survive iff at least one of their children is visible
+  (`canSeeAnyRoute`), so an accountant sees `Suivi financier > Comptabilité` and
+  `Paramètres > Gestion utilisateur` with the parent labels intact instead of a flattened
+  two-item list. When the parent's own path isn't reachable (accountant on `/settings`), the row
+  drops its `Link` props and only toggles the submenu — drawer-close is suppressed in that case
+  so the user can still pick their authorised child. New client tests pin the accountant scope
+  (8 cases on `canSeeRoute` / `canSeeAnyRoute`); a drift here will be caught before it ships.
+  Resolves Adrien's "afin de ne pas dupliquer le code du menu de gauche" feedback.
+- **"Gestion utilisateur" page moved under `Paramètres`** (spec
+  `admin-account-management.md`). Same route `/account`, same content gating — only the sidebar
+  entry-point moved: it's now a submenu of "Paramètres" alongside Logements / Options / Clients /
+  Vacances scolaires / Fermetures, with `<AdminPanelSettingsIcon />`. The Paramètres submenu
+  auto-opens when `/account` is the current path. For accountants, the entry is now also reachable
+  via `Paramètres > Gestion utilisateur` (follow-up #5 above unified the sidebar code so the
+  accountant sees the same shell with admin-only items hidden).
+- **Outgoing emails sign with the SMTP sender's display name + carry an "auto-generated" notice.**
+  Welcome / reset / SMTP-test bodies now end with `Ce message est généré automatiquement.` followed
+  by `— {smtpFromName}` (falls back to `GuestFlow` when no name is configured). Replaces the
+  previous hardcoded "— GuestFlow" trailer.
+- **SMTP password input strips all whitespace before saving.** Gmail App Passwords are displayed in
+  a `abcd efgh ijkl mnop` 4-by-4 format; copy-pasting them verbatim used to bounce with
+  `5.7.8 Username and Password not accepted` because the transport sent the literal spaces. The
+  cleanup is server-side in `settingsController.updateSettings`, transparent to the user, and only
+  touches the password field. Adrien's reset / restore flow no longer needs the "tap each space"
+  ritual.
+
+### Added
+- **Test coverage for the Gestion utilisateur feature** (Adrien feedback 2026-05-30):
+  - **Server** (`server/src/tests/`): new `settings-controller-smtp-password.unit.test.js`
+    (7 cases on the password whitespace strip — Gmail 4×4, tabs/newlines, no-whitespace
+    pass-through, empty/null clear, absent preserve, whitespace-only → clear); extended
+    `email-templates.unit.test.js` (every template signs with `fromName` + carries the
+    auto-generated notice + falls back to GuestFlow); extended `users-controller.unit.test.js`
+    (`fromName` flows from `settingsModel.decryptedSmtpSettings()` to the welcome + reset
+    templates). All M3 server suites: 88 / 88 green.
+  - **Client** (`client/src/`): new Jest + RTL tests — `constants/__tests__/roles.test.js`
+    (6 cases on `ROLES` / `roleLabel` / `userHasRole` including the legacy `role` string
+    back-compat shim and array-wins-over-string precedence); `pages/__tests__/UserManagementPage.test.js`
+    (6 cases on role-gated section visibility, listUsers fetch gating, multi-role admin+accountant,
+    null user, listUsers failure surfaced as Alert); `components/__tests__/AccountFormDialog.test.js`
+    (5 cases on email lock in edit, self-protection of own admin role, fieldErrors landing,
+    submit payload shape). 17 / 17 client tests green.
 - **Admin account management — unified "Gestion utilisateur" page** (spec
   `admin-account-management.md`). One page at `/account` (sidebar entry "Gestion utilisateur",
   available to every authenticated role). Top section "Mon mot de passe" lets the current user

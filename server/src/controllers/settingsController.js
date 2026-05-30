@@ -122,9 +122,13 @@ function updateSettings(req, res) {
   }
 
   // SMTP password — same 3-way semantics. Absent → preserve; '' → clear; non-empty → store.
+  // Strip ALL whitespace before storing. Google App Passwords are displayed as 4 groups of 4 chars
+  // separated by spaces (`abcd efgh ijkl mnop`); copy-pasting that verbatim breaks SMTP auth
+  // because the transport sends the literal string with spaces. Pre-cleaning saves the admin from
+  // a confusing "5.7.8 Username and Password not accepted" loop.
   if (smtp && Object.prototype.hasOwnProperty.call(smtp, 'password')) {
     const raw = smtp.password;
-    payload.smtpPasswordEncrypted = raw == null ? '' : String(raw);
+    payload.smtpPasswordEncrypted = raw == null ? '' : String(raw).replace(/\s+/g, '');
   }
 
   if (Object.keys(errors).length > 0) {

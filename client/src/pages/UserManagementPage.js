@@ -2,7 +2,10 @@
  * UserManagementPage — unified "Gestion utilisateur" page at `/account`
  * (specs/admin-account-management.md §6.1).
  *
- * Two sections:
+ * Three sections (in order on screen):
+ *   - "Mes informations" — every authenticated user edits their own identity fields
+ *     (firstName, lastName, companyName, notes). Email is locked. Roles are NOT exposed — the
+ *     server's PUT /api/users/me ignores any roles key in the payload (self-privilege guard).
  *   - "Mon mot de passe" — visible to every authenticated user (admin, accountant, any future role).
  *     Wraps ChangePasswordForm. On a forced first-login change, the server destroys the session and
  *     the page redirects to /login?reason=password-changed (same flow as the old /settings/password).
@@ -34,6 +37,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import StatusBadge from '../components/StatusBadge';
 import AccountFormDialog from '../components/AccountFormDialog';
 import ChangePasswordForm from '../components/ChangePasswordForm';
+import SelfProfileSection from '../components/SelfProfileSection';
 import { ROLE_LABELS, ADMIN, userHasRole } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
 
@@ -65,7 +69,7 @@ function fullName(user) {
 export default function UserManagementPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { user: me, changePassword } = useAuth();
+  const { user: me, changePassword, refresh: refreshAuth } = useAuth();
   const navigate = useNavigate();
   const isAdmin = userHasRole(me, ADMIN);
 
@@ -105,6 +109,29 @@ export default function UserManagementPage() {
     await changePassword(currentPassword, newPassword, { wasMustChange });
     if (wasMustChange) navigate('/login?reason=password-changed', { replace: true });
   }, [changePassword, navigate, wasMustChange]);
+
+  // "Mes informations" — self-service profile editor (specs/admin-account-management.md §6.1).
+  // Hits PUT /api/users/me; the server ignores any roles / email key in the payload (privilege
+  // guard). On success we refresh the auth state so the sidebar + dialogs pick up the new name.
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileErrors, setProfileErrors] = useState({});
+  const handleProfileSubmit = useCallback(async (payload) => {
+    setProfileBusy(true);
+    setProfileErrors({});
+    try {
+      await api.updateSelf(payload);
+      if (typeof refreshAuth === 'function') await refreshAuth();
+      setSnackbar({ severity: 'success', message: 'Vos informations ont été mises à jour.' });
+    } catch (err) {
+      if (err && err.field) {
+        setProfileErrors({ [err.field]: err.detail || err.error });
+      } else {
+        showError(err, 'Mise à jour impossible.');
+      }
+    } finally {
+      setProfileBusy(false);
+    }
+  }, []);
 
   const isSelf = (u) => me && u && Number(me.id) === Number(u.id);
 
@@ -243,7 +270,15 @@ export default function UserManagementPage() {
           </Alert>
         )}
 
-        {/* Section 1 — Mon mot de passe (tous les rôles). */}
+        {/* Section 1 — Mes informations (tous les rôles, profil personnel). */}
+        <SelfProfileSection
+          initialValues={me}
+          fieldErrors={profileErrors}
+          busy={profileBusy}
+          onSubmit={handleProfileSubmit}
+        />
+
+        {/* Section 2 — Mon mot de passe (tous les rôles). */}
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
@@ -271,7 +306,7 @@ export default function UserManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Section 2 — Gestion des comptes (admin uniquement). */}
+        {/* Section 3 — Gestion des comptes (admin uniquement). */}
         {isAdmin && (
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1.5, mt: 1 }}>

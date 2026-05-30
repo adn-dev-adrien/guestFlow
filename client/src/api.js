@@ -210,6 +210,10 @@ const api = {
   // generates the temp password and emails it (specs/admin-account-management.md M2).
   listUsers: () => request('/users'),
   getCurrentUser: () => request('/users/me'),
+  // Self-service profile update — every authenticated role can call this on their own row.
+  // Email + roles are NOT in the accepted payload server-side (privilege guard); the dialog only
+  // exposes firstName / lastName / companyName / notes.
+  updateSelf: (payload) => request('/users/me', { method: 'PUT', body: payload }),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

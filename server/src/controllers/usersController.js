@@ -80,6 +80,31 @@ function buildController({
       return res.json({ user: fresh });
     },
 
+    // PUT /api/users/me — any authenticated user updates their OWN identity fields. Email and
+    // roles are explicitly NOT editable from this endpoint:
+    //   - email is locked everywhere (matches the admin form + AccountFormDialog edit mode);
+    //   - roles must never be self-modifiable — a user could otherwise grant themselves admin.
+    // Validation mirrors `create` (firstName + lastName required). Returns the refreshed safe user
+    // so the caller can update its local auth state immediately.
+    updateSelf(req, res) {
+      if (!req.user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
+      const body = req.body || {};
+      const firstName = String(body.firstName || '').trim();
+      const lastName = String(body.lastName || '').trim();
+      if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
+      if (!lastName) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
+
+      const updated = usersModel.updateUser(req.user.id, {
+        firstName,
+        lastName,
+        companyName: String(body.companyName || '').trim(),
+        notes: String(body.notes || '').trim(),
+        // No `roles` key on purpose — the model preserves the existing roles when undefined.
+      });
+      if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      return res.json({ user: updated });
+    },
+
     // POST /api/users — create + email welcome with temporary password.
     create(req, res) {
       const body = req.body || {};
@@ -107,10 +132,12 @@ function buildController({
       }
 
       // Generate the temp password + prerender the welcome email. We send the email FIRST and only
-      // persist the user if delivery succeeds — no half-created accounts.
+      // persist the user if delivery succeeds — no half-created accounts. `fromName` is fed into the
+      // template so the signature line matches the SMTP "from" display name the recipient sees.
       const temporaryPassword = passwordGenerator();
+      const fromName = settingsModel.decryptedSmtpSettings().fromName;
       const { subject, text } = emailTemplates.welcomeEmailBody({
-        firstName, lastName, email, temporaryPassword, publicUrl, companyName,
+        firstName, lastName, email, temporaryPassword, publicUrl, companyName, fromName,
       });
 
       return Promise.resolve()
@@ -197,12 +224,14 @@ function buildController({
       if (!publicUrl) return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED' });
 
       const temporaryPassword = passwordGenerator();
+      const fromName = settingsModel.decryptedSmtpSettings().fromName;
       const { subject, text } = emailTemplates.passwordResetEmailBody({
         firstName: target.firstName,
         lastName: target.lastName,
         email: target.email,
         temporaryPassword,
         publicUrl,
+        fromName,
       });
 
       return Promise.resolve()

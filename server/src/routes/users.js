@@ -13,6 +13,9 @@ const controller = require('../controllers/usersController');
 
 router.get('/', controller.list);
 router.get('/me', controller.getMe);
+// PUT /api/users/me MUST be declared before PUT /api/users/:id so it's matched first (otherwise
+// :id would catch "me" as a string id and the admin guard in update() would 400 on the asInt).
+router.put('/me', controller.updateSelf);
 router.post('/', controller.create);
 router.put('/:id', controller.update);
 router.post('/:id/reset-password', controller.resetPassword);
