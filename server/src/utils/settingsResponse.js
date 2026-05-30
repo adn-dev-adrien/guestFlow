@@ -101,6 +101,19 @@ function shapeResponse(row) {
       configured: computeConfigured(row),
       statusLabel: computeStatusLabel(row),
     },
+    // SMTP block for the account-management flow (specs/admin-account-management.md). The password
+    // is masked: the row already comes from settingsModel.read() which substitutes
+    // smtpPasswordEncrypted with the boolean smtpPasswordSet. We never echo cleartext or ciphertext.
+    smtp: {
+      host: safeStr(row.smtpHost).trim(),
+      port: row.smtpPort == null ? 587 : Number(row.smtpPort),
+      secure: Number(row.smtpSecure) === 1,
+      username: safeStr(row.smtpUsername).trim(),
+      passwordSet: Boolean(row.smtpPasswordSet),
+      fromEmail: safeStr(row.smtpFromEmail).trim(),
+      fromName: safeStr(row.smtpFromName).trim() || 'GuestFlow',
+      publicUrl: safeStr(row.publicUrl).trim(),
+    },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),
   };

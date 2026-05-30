@@ -28,6 +28,14 @@ const DDL = `
     companyLogoPath TEXT DEFAULT '',
     vatRateAccommodation REAL DEFAULT 10,
     vatRateStandard REAL DEFAULT 20,
+    smtpHost TEXT DEFAULT '',
+    smtpPort INTEGER DEFAULT 587,
+    smtpSecure INTEGER NOT NULL DEFAULT 0,
+    smtpUsername TEXT DEFAULT '',
+    smtpPasswordEncrypted TEXT DEFAULT '',
+    smtpFromEmail TEXT DEFAULT '',
+    smtpFromName TEXT DEFAULT 'GuestFlow',
+    publicUrl TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -97,4 +105,55 @@ test('settingsModel.upsert: refreshes updatedAt', () => {
   model.upsert({ companyName: 'B' });
   const second = model.read().updatedAt;
   assert.notEqual(first, second);
+});
+
+// ----- SMTP wiring (specs/admin-account-management.md M3) -----
+
+test('settingsModel.read masks the SMTP password: smtpPasswordEncrypted gone, smtpPasswordSet boolean instead', () => {
+  const { model } = freshModel();
+  model.upsert({ smtpHost: 'smtp.example.com', smtpFromEmail: 'no-reply@example.com', smtpPasswordEncrypted: 'secret-pw' });
+  const r = model.read();
+  assert.equal(r.smtpHost, 'smtp.example.com');
+  assert.equal(r.smtpFromEmail, 'no-reply@example.com');
+  assert.equal(r.smtpPasswordSet, true, 'mask boolean present + true');
+  assert.equal(Object.prototype.hasOwnProperty.call(r, 'smtpPasswordEncrypted'), false, 'encrypted column never returned');
+});
+
+test('settingsModel.smtpConfigured: false until host + fromEmail are both set', () => {
+  const { model } = freshModel();
+  assert.equal(model.smtpConfigured(), false);
+  model.upsert({ smtpHost: 'smtp.example.com' });
+  assert.equal(model.smtpConfigured(), false, 'host alone is not enough');
+  model.upsert({ smtpFromEmail: 'no-reply@example.com' });
+  assert.equal(model.smtpConfigured(), true);
+});
+
+test('settingsModel.decryptedSmtpSettings returns the shape the email service expects', () => {
+  const { model } = freshModel();
+  model.upsert({
+    smtpHost: 'smtp.example.com',
+    smtpPort: 465,
+    smtpSecure: 1,
+    smtpUsername: 'noreply@example.com',
+    smtpPasswordEncrypted: 'real-secret',
+    smtpFromEmail: 'noreply@example.com',
+    smtpFromName: 'GuestFlow Team',
+  });
+  const s = model.decryptedSmtpSettings();
+  assert.deepEqual(s, {
+    host: 'smtp.example.com',
+    port: 465,
+    secure: true,
+    user: 'noreply@example.com',
+    password: 'real-secret',
+    fromEmail: 'noreply@example.com',
+    fromName: 'GuestFlow Team',
+  });
+});
+
+test('settingsModel.publicUrl returns the configured URL (trimmed)', () => {
+  const { model } = freshModel();
+  assert.equal(model.publicUrl(), '');
+  model.upsert({ publicUrl: '  https://guestflow.example.com  ' });
+  assert.equal(model.publicUrl(), 'https://guestflow.example.com');
 });

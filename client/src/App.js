@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 
@@ -13,9 +13,12 @@ import {
   CircularProgress, Card, CardContent
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { ADMIN, ACCOUNTANT, userHasRole } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
+import UserManagementPage from './pages/UserManagementPage';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
@@ -28,7 +31,6 @@ import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
-import LockIcon from '@mui/icons-material/Lock';
 import MenuIcon from '@mui/icons-material/Menu';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -56,7 +58,6 @@ import SettingsPage from './pages/SettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import AccountingPage from './pages/AccountingPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -66,15 +67,17 @@ const navItems = [
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
+  { label: 'Gestion utilisateur', path: '/account', icon: <AdminPanelSettingsIcon /> },
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
   const { user, logout } = useAuth();
-  // Accountants get a minimal sidebar — read-only, accounting-only. The only Paramètres item they
-  // can reach is the change-password page (the role guard 403s every other settings/business route).
-  if (user && user.role === 'accountant') {
+  // Accountants get a minimal sidebar — read-only, accounting-only + the unified "Gestion
+  // utilisateur" page (where they can change their own password). Admin trumps accountant for the
+  // sidebar — a user with both roles sees the full admin nav.
+  if (user && userHasRole(user, ACCOUNTANT) && !userHasRole(user, ADMIN)) {
     return (
       <List sx={{ pt: 2 }}>
         <ListItemButton
@@ -88,12 +91,12 @@ function NavContent({ onItemClick }) {
         </ListItemButton>
         <ListItemButton
           component={Link}
-          to="/settings/password"
+          to="/account"
           onClick={onItemClick}
-          selected={location.pathname === '/settings/password'}
+          selected={location.pathname === '/account'}
         >
-          <ListItemIcon><LockIcon /></ListItemIcon>
-          <ListItemText primary="Mot de passe" />
+          <ListItemIcon><AdminPanelSettingsIcon /></ListItemIcon>
+          <ListItemText primary="Gestion utilisateur" />
         </ListItemButton>
         <ListItemButton onClick={() => { logout(); onItemClick && onItemClick(); }}>
           <ListItemIcon><LogoutIcon /></ListItemIcon>
@@ -150,7 +153,6 @@ function NavContent({ onItemClick }) {
     }
     if (
       location.pathname === '/settings'
-      || location.pathname === '/settings/password'
       || location.pathname === '/options'
       || location.pathname === '/resources'
       || location.pathname === '/clients'
@@ -164,9 +166,11 @@ function NavContent({ onItemClick }) {
     }
   }, [location.pathname]);
 
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || userHasRole(user, ADMIN));
+
   return (
     <List sx={{ pt: 2 }}>
-      {navItems.map((item) => (
+      {visibleNavItems.map((item) => (
         <Box key={item.path}>
           <ListItemButton
             component={Link}
@@ -183,8 +187,7 @@ function NavContent({ onItemClick }) {
               } else if (item.path === '/settings') {
                 setSettingsMenuOpen(
                   location.pathname === '/settings'
-                    || location.pathname === '/settings/password'
-                    || location.pathname === '/options'
+                                  || location.pathname === '/options'
                     || location.pathname === '/resources'
                     || location.pathname === '/clients'
                     || location.pathname === '/school-holidays'
@@ -212,8 +215,7 @@ function NavContent({ onItemClick }) {
                   : item.path === '/settings'
                     ? (
                       location.pathname === '/settings'
-                      || location.pathname === '/settings/password'
-                      || location.pathname === '/options'
+                                      || location.pathname === '/options'
                       || location.pathname === '/resources'
                       || location.pathname === '/clients'
                       || location.pathname === '/school-holidays'
@@ -447,16 +449,6 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
-                <ListItemButton
-                  component={Link}
-                  to="/settings/password"
-                  onClick={(e) => onItemClick && onItemClick(e, '/settings/password')}
-                  selected={location.pathname === '/settings/password'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><LockIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Mot de passe" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
               </List>
             </Collapse>
           )}
@@ -480,11 +472,12 @@ function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [versionInfo, setVersionInfo] = useState(null);
 
-  // Accountants are confined to /comptabilite and /settings/password (the server already 403s every
-  // other endpoint, but we redirect at the client so they don't see empty shells).
+  // Accountants are confined to /comptabilite and /account (the server already 403s every other
+  // endpoint, but we redirect at the client so they don't see empty shells). Multi-role users who
+  // also hold admin keep the full app.
   useEffect(() => {
-    if (!user || user.role !== 'accountant') return;
-    const allowed = location.pathname === '/comptabilite' || location.pathname === '/settings/password';
+    if (!user || !userHasRole(user, ACCOUNTANT) || userHasRole(user, ADMIN)) return;
+    const allowed = location.pathname === '/comptabilite' || location.pathname === '/account';
     if (!allowed) navigate('/comptabilite', { replace: true });
   }, [user, location.pathname, navigate]);
 
@@ -626,7 +619,10 @@ function AppShell() {
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/password" element={<ChangePasswordPage />} />
+          {/* Legacy paths redirect to the unified "Gestion utilisateur" page. */}
+          <Route path="/settings/password" element={<Navigate to="/account" replace />} />
+          <Route path="/comptes" element={<Navigate to="/account" replace />} />
+          <Route path="/account" element={<UserManagementPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
         </Routes>
       </Box>

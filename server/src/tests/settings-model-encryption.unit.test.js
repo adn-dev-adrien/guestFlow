@@ -30,6 +30,14 @@ function makeDb() {
       companyLogoPath TEXT DEFAULT '',
       vatRateAccommodation REAL DEFAULT 10,
       vatRateStandard REAL DEFAULT 20,
+      smtpHost TEXT DEFAULT '',
+      smtpPort INTEGER DEFAULT 587,
+      smtpSecure INTEGER NOT NULL DEFAULT 0,
+      smtpUsername TEXT DEFAULT '',
+      smtpPasswordEncrypted TEXT DEFAULT '',
+      smtpFromEmail TEXT DEFAULT '',
+      smtpFromName TEXT DEFAULT 'GuestFlow',
+      publicUrl TEXT DEFAULT '',
       createdAt TEXT,
       updatedAt TEXT
     );

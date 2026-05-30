@@ -5,6 +5,37 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Admin account management — unified "Gestion utilisateur" page** (spec
+  `admin-account-management.md`). One page at `/account` (sidebar entry "Gestion utilisateur",
+  available to every authenticated role). Top section "Mon mot de passe" lets the current user
+  change their own password (same forced-first-login redirect-to-login flow as before). For admins,
+  a second section "Gestion des comptes" lists every user with full CRUD: create with first/last
+  name, email, multi-role (admin + accountant via a multi-select), optional company + free-form
+  note; edit; reset password; soft delete (deactivate) and hard delete (only when the user has
+  never logged in). Temporary passwords are generated server-side and **emailed via SMTP** — never
+  displayed or logged. The flow uses an "email first, persist second" ordering so a failed email
+  never leaves a half-created account behind. Self-protection guards on both client and server:
+  cannot delete self, cannot remove own `admin` role, cannot reset own password from the admin
+  table (use the "Mon mot de passe" section on the same page). A "last admin" guard rejects any
+  action that would leave zero active admins (`400 LAST_ADMIN`). The legacy paths
+  `/settings/password` and `/comptes` redirect to `/account`; the `Paramètres > Mot de passe`
+  submenu and the standalone `Comptes` sidebar entry have been removed.
+- **Forced first-login re-authentication.** When a user changes the temporary password they
+  received by email, the server now **destroys the session** and the client redirects to
+  `/login?reason=password-changed` with a one-shot snackbar. Voluntary password changes from
+  `/settings/password` (when `mustChangePassword` was already cleared) keep the session active —
+  unchanged UX.
+- **SMTP configuration in `/parametres`** (`Envoi d'emails (SMTP)` card). Fields: host, port,
+  STARTTLS/TLS implicit, username, password (encrypted at rest with AES-256-GCM, masked on read
+  via `passwordSet: boolean`), `fromEmail`, `fromName`, `publicUrl` (used in the welcome email).
+  "Envoyer un mail de test" button hits `POST /api/settings/smtp-test` which dispatches an
+  "Email de test GuestFlow" to the current admin's address; the response detail surfaces transport
+  errors verbatim for diagnosing creds.
+- **Multi-role users.** The single `users.role` column is replaced by a `user_roles(userId, role)`
+  join table with `ON DELETE CASCADE`. A user holds an array `roles` everywhere (safe shape,
+  session, JWT-like payload). The middleware (`enforceRoleAccess`) and the client now read from
+  this array; combined `admin + accountant` always wins as admin. `server/src/constants/roles.js`
+  is the new single source of truth (mirrored client-side as `client/src/constants/roles.js`).
 - **Shared `MonthYearPicker` component** (`client/src/components/MonthYearPicker.js`). Single source
   of truth for the month + year selection card, with optional `description` caption,
   `maxMonth = 'YYYY-MM'` to disable forward months, and `helperText` under the Mois field. Exposes
@@ -432,6 +463,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - The Google Calendar section now exposes a "Tester la synchronisation" button — no need to go to Réservations to verify credentials.
 
 ### Removed
+- **Legacy "Accès comptable" card** in `/parametres` (`SettingsAccountantAccessSection.js`). Its
+  single-purpose "create the accountant + show the temp password on screen" hack is canonicalized
+  by `/comptes` (admin only) where the temp password is emailed instead. The schema column
+  `users.role` is dropped in the same migration — see Migration below.
 - **"Extraction Taxe de séjour" navigation card on `/finance`** — the same page is reachable from
   the sidebar (Suivi financier → Taxe de séjour), so the redundant card on the overview was just
   noise. The Suivi page itself is unchanged.
@@ -454,6 +489,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Admin account management:** `users` gains `firstName`, `lastName`, `companyName`, `notes`
+  (all `TEXT NOT NULL DEFAULT ''`) and `lastLoginAt TEXT NULL`. New `user_roles(userId, role)`
+  table with `ON DELETE CASCADE`. On boot, existing single-role values are backfilled into the
+  join table and the legacy `users.role` column is dropped (native `ALTER TABLE DROP COLUMN`
+  supported by better-sqlite3 v11). `app_settings` gains 8 SMTP/public-URL columns
+  (`smtpHost`, `smtpPort` default 587, `smtpSecure` default 0, `smtpUsername`,
+  `smtpPasswordEncrypted` — AES-256-GCM at rest —, `smtpFromEmail`, `smtpFromName` default
+  `'GuestFlow'`, `publicUrl`). Idempotent; replaying the migration on an already-migrated DB is a
+  no-op.
 - **Per-platform tourist tax collection:** `ical_sources` gains
   `collectsTouristTax INTEGER NOT NULL DEFAULT 1`. The default `1` preserves the prior
   hardcoded behaviour (non-direct = platform collects = tax offered) until the owner explicitly

@@ -8,7 +8,7 @@ import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsVatSection from '../components/SettingsVatSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
-import SettingsAccountantAccessSection from '../components/SettingsAccountantAccessSection';
+import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -27,6 +27,14 @@ const EMPTY_FORM = {
     configured: false,
     statusLabel: 'Synchronisation non configurée',
     privateKeyDraft: undefined, // undefined = preserve; '' = clear; 'value' = store
+  },
+  smtp: {
+    host: '', port: 587, secure: false,
+    username: '',
+    passwordSet: false,
+    fromEmail: '', fromName: 'GuestFlow',
+    publicUrl: '',
+    passwordDraft: undefined, // same 3-way semantics as privateKeyDraft
   },
 };
 
@@ -68,6 +76,19 @@ function buildPayloadFromDraft(draft, saved) {
   }
   if (Object.keys(gcDirty).length > 0) payload.googleCalendar = gcDirty;
 
+  // SMTP — same per-field 3-way pattern as the other groups, with passwordDraft mirroring
+  // privateKeyDraft (specs/admin-account-management.md M3).
+  const smtpDirty = {};
+  for (const key of ['host', 'port', 'secure', 'username', 'fromEmail', 'fromName', 'publicUrl']) {
+    if (JSON.stringify(draft.smtp[key]) !== JSON.stringify(saved.smtp[key])) {
+      smtpDirty[key] = draft.smtp[key];
+    }
+  }
+  if (draft.smtp.passwordDraft !== undefined) {
+    smtpDirty.password = draft.smtp.passwordDraft;
+  }
+  if (Object.keys(smtpDirty).length > 0) payload.smtp = smtpDirty;
+
   return payload;
 }
 
@@ -81,6 +102,11 @@ function fromServer(settings) {
       ...EMPTY_FORM.googleCalendar,
       ...(settings.googleCalendar || {}),
       privateKeyDraft: undefined,
+    },
+    smtp: {
+      ...EMPTY_FORM.smtp,
+      ...(settings.smtp || {}),
+      passwordDraft: undefined,
     },
   };
 }
@@ -145,6 +171,37 @@ export default function SettingsPage() {
         delete next.googleServiceAccountPrivateKey;
         return next;
       });
+    }
+  };
+
+  const updateSmtpPassword = (value) => {
+    setDraft((prev) => ({
+      ...prev,
+      smtp: { ...prev.smtp, passwordDraft: value },
+    }));
+  };
+
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState(null);
+  const handleSmtpTest = async () => {
+    setSmtpTesting(true);
+    setSmtpTestResult(null);
+    try {
+      const out = await api.sendSmtpTest();
+      setSmtpTestResult({
+        severity: 'success',
+        message: `Email de test envoyé à ${out.recipient || 'votre adresse'}.`,
+        onClose: () => setSmtpTestResult(null),
+      });
+    } catch (err) {
+      const detail = err && (err.detail || err.message) || 'Échec du test.';
+      setSmtpTestResult({
+        severity: 'error',
+        message: `Échec : ${detail}`,
+        onClose: () => setSmtpTestResult(null),
+      });
+    } finally {
+      setSmtpTesting(false);
     }
   };
 
@@ -280,7 +337,16 @@ export default function SettingsPage() {
           disabled={loading || saving}
         />
 
-        <SettingsAccountantAccessSection />
+        <SettingsSmtpSection
+          values={draft.smtp}
+          errors={errors}
+          onChange={updateGroup('smtp')}
+          onChangePassword={updateSmtpPassword}
+          onSendTest={handleSmtpTest}
+          testing={smtpTesting}
+          testResult={smtpTestResult}
+          disabled={loading || saving}
+        />
       </Box>
 
       <ConfirmDialog
@@ -328,6 +394,14 @@ function mapClientKeyToErrorKey(group, key) {
     return ({
       calendarId: 'googleCalendarId',
       serviceAccountEmail: 'googleServiceAccountEmail',
+    })[key];
+  }
+  if (group === 'smtp') {
+    return ({
+      host: 'smtpHost',
+      port: 'smtpPort',
+      fromEmail: 'smtpFromEmail',
+      publicUrl: 'publicUrl',
     })[key];
   }
   return null;

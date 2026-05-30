@@ -10,6 +10,8 @@ const {
   validatePrivateKey,
   validateCalendarId,
   validateQuoteValidityDays,
+  validateSmtpPort,
+  validatePublicUrl,
 } = require('../utils/settingsValidation');
 
 const SAMPLE_PEM = [
@@ -119,4 +121,31 @@ test('validateQuoteValidityDays: 0, 366, non-int rejected', () => {
   assert.match(validateQuoteValidityDays(0), /entre 1 et 365/);
   assert.match(validateQuoteValidityDays(366), /entre 1 et 365/);
   assert.match(validateQuoteValidityDays(15.5), /entre 1 et 365/);
+});
+
+// SMTP-block validators (specs/admin-account-management.md M3).
+
+test('validateSmtpPort: 1..65535 ints accepted, empty/null pass through', () => {
+  assert.equal(validateSmtpPort(''), null);
+  assert.equal(validateSmtpPort(null), null);
+  assert.equal(validateSmtpPort(587), null);
+  assert.equal(validateSmtpPort(465), null);
+  assert.equal(validateSmtpPort(1), null);
+  assert.equal(validateSmtpPort(65535), null);
+});
+
+test('validateSmtpPort: 0, 65536, non-integers rejected', () => {
+  assert.match(validateSmtpPort(0), /entre 1 et 65535/);
+  assert.match(validateSmtpPort(65536), /entre 1 et 65535/);
+  assert.match(validateSmtpPort(587.5), /entre 1 et 65535/);
+  assert.match(validateSmtpPort('not-a-number'), /entre 1 et 65535/);
+});
+
+test('validatePublicUrl: empty/null pass; http(s) URLs pass; bad scheme + invalid → error', () => {
+  assert.equal(validatePublicUrl(''), null);
+  assert.equal(validatePublicUrl(null), null);
+  assert.equal(validatePublicUrl('https://guestflow.example.com'), null);
+  assert.equal(validatePublicUrl('http://localhost:3000'), null);
+  assert.match(validatePublicUrl('ftp://example.com'), /http/);
+  assert.match(validatePublicUrl('not a url'), /URL invalide/);
 });

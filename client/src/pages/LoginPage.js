@@ -1,18 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Card, CardContent, TextField, Button, Typography, Alert, Stack, CircularProgress } from '@mui/material';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import PasswordField from '../components/PasswordField';
 import { useAuth } from '../hooks/useAuth';
 
 /**
  * Pre-auth login screen. Shown by the AuthGate when there is no session.
  * On success, AuthContext updates and the app (or the forced password-change screen) renders.
+ *
+ * Reads ?reason=password-changed once after a forced first-login change
+ * (specs/admin-account-management.md §3.3 rule 15) and shows a green success Alert. The query
+ * param is cleared after rendering so a refresh doesn't re-show it.
  */
 export default function LoginPage() {
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    if (searchParams.get('reason') === 'password-changed') {
+      setNotice('Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe.');
+      // Strip the query so refresh doesn't re-fire the notice.
+      navigate('/login', { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -36,6 +52,7 @@ export default function LoginPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>Connectez-vous pour continuer.</Typography>
           <Box component="form" onSubmit={submit}>
             <Stack spacing={2}>
+              {notice && <Alert severity="success" onClose={() => setNotice(null)}>{notice}</Alert>}
               {error && <Alert severity="error">{error}</Alert>}
               <TextField
                 label="Email"

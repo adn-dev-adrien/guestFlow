@@ -793,14 +793,75 @@ db.exec(`
   )
 `);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uniq_users_email ON users(email)');
-// Seed the default admin on first launch. The default password only unlocks the
-// "set your password" screen (mustChangePassword = 1) — see specs/security-auth-encryption.md.
+
+// ----- USERS: identity columns + role join table migration (specs/admin-account-management.md) -----
+// 1. Idempotent ADD COLUMN for the 4 new identity fields + lastLoginAt (created tomorrow on first login).
+const usersCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+const tryAddUsersCol = (col, sql) => {
+  if (!usersCols.includes(col)) {
+    try { db.exec(sql); } catch (e) {
+      if (!String(e?.message || '').includes('duplicate column name')) throw e;
+    }
+  }
+};
+tryAddUsersCol('firstName',   "ALTER TABLE users ADD COLUMN firstName TEXT NOT NULL DEFAULT ''");
+tryAddUsersCol('lastName',    "ALTER TABLE users ADD COLUMN lastName TEXT NOT NULL DEFAULT ''");
+tryAddUsersCol('companyName', "ALTER TABLE users ADD COLUMN companyName TEXT NOT NULL DEFAULT ''");
+tryAddUsersCol('notes',       "ALTER TABLE users ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+tryAddUsersCol('lastLoginAt', 'ALTER TABLE users ADD COLUMN lastLoginAt TEXT');
+
+// 2. Join table for multi-role. FK cascade so hardDelete on users wipes the rows.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_roles (
+    userId INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    PRIMARY KEY (userId, role),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  )
+`);
+
+// 3. Seed the default admin on first launch (before backfilling roles, so the seed's row is also
+// migrated to user_roles in step 4). The default password only unlocks the "set your password" screen
+// (mustChangePassword = 1) — see specs/security-auth-encryption.md.
 if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0) {
   const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('./constants/authDefaults');
   const { hashPassword } = require('./utils/passwordHash');
-  db.prepare("INSERT INTO users (email, passwordHash, role, mustChangePassword) VALUES (?, ?, 'admin', 1)")
-    .run(DEFAULT_ADMIN_EMAIL, hashPassword(DEFAULT_ADMIN_PASSWORD));
+  // Insert with whatever set of columns currently exists. On a fresh install the legacy `role`
+  // column is still present (CREATE TABLE above defines it); we write 'admin' there and step 4
+  // moves it into the join table before step 5 drops the column.
+  const hasRole = db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'role');
+  if (hasRole) {
+    db.prepare("INSERT INTO users (email, passwordHash, role, mustChangePassword) VALUES (?, ?, 'admin', 1)")
+      .run(DEFAULT_ADMIN_EMAIL, hashPassword(DEFAULT_ADMIN_PASSWORD));
+  } else {
+    db.prepare('INSERT INTO users (email, passwordHash, mustChangePassword) VALUES (?, ?, 1)')
+      .run(DEFAULT_ADMIN_EMAIL, hashPassword(DEFAULT_ADMIN_PASSWORD));
+    const adminId = db.prepare('SELECT id FROM users WHERE email = ?').get(DEFAULT_ADMIN_EMAIL).id;
+    db.prepare('INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, ?)').run(adminId, 'admin');
+  }
   console.log('[Database] Seeded default admin user — change the password immediately on first login.');
+}
+
+// 4. Backfill user_roles from users.role for legacy installs. One-shot guard: only runs if the join
+// table is empty AND the legacy column is still present.
+{
+  const stillHasRole = db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'role');
+  const joinEmpty = db.prepare('SELECT COUNT(*) AS n FROM user_roles').get().n === 0;
+  if (stillHasRole && joinEmpty) {
+    db.exec(`
+      INSERT INTO user_roles (userId, role)
+      SELECT id, role FROM users WHERE role IS NOT NULL AND trim(role) <> ''
+    `);
+  }
+}
+
+// 5. Drop the legacy single-role column (better-sqlite3 v11 supports ALTER TABLE DROP COLUMN
+// natively — confirmed by utils/clientPhoneMigration.js and utils/resourcePropertyMigration.js).
+{
+  const stillHasRole = db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'role');
+  if (stillHasRole) {
+    db.exec('ALTER TABLE users DROP COLUMN role');
+  }
 }
 
 // Migrate app_settings company columns
@@ -828,6 +889,16 @@ tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quo
 // existing property's old rates so a single-gîte install keeps its configured values.
 tryAddAppSettingsCol('vatRateAccommodation', "ALTER TABLE app_settings ADD COLUMN vatRateAccommodation REAL DEFAULT 10");
 tryAddAppSettingsCol('vatRateStandard', "ALTER TABLE app_settings ADD COLUMN vatRateStandard REAL DEFAULT 20");
+// SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
+// Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
+tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");
+tryAddAppSettingsCol('smtpPort',              "ALTER TABLE app_settings ADD COLUMN smtpPort INTEGER DEFAULT 587");
+tryAddAppSettingsCol('smtpSecure',            "ALTER TABLE app_settings ADD COLUMN smtpSecure INTEGER NOT NULL DEFAULT 0");
+tryAddAppSettingsCol('smtpUsername',          "ALTER TABLE app_settings ADD COLUMN smtpUsername TEXT DEFAULT ''");
+tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLUMN smtpPasswordEncrypted TEXT DEFAULT ''");
+tryAddAppSettingsCol('smtpFromEmail',         "ALTER TABLE app_settings ADD COLUMN smtpFromEmail TEXT DEFAULT ''");
+tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT 'GuestFlow'");
+tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLUMN publicUrl TEXT DEFAULT ''");
 if (!appSettingsCols.includes('vatRateAccommodation')) {
   const propColsNow = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
   let acc = 10;

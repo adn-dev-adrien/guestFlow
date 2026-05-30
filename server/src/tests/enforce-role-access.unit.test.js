@@ -12,8 +12,11 @@ function fakeRes() {
   };
 }
 
-function call({ role, method = 'GET', path }) {
-  const req = { user: role ? { role } : null, method, path };
+function call({ role, roles, method = 'GET', path }) {
+  // Backwards-compat shim for the legacy single-role tests below: a `role` arg becomes a 1-item
+  // roles array (the production middleware now reads req.user.roles only).
+  const userRoles = roles || (role ? [role] : null);
+  const req = { user: userRoles ? { roles: userRoles } : null, method, path };
   const res = fakeRes();
   let nextCalled = false;
   enforceRoleAccess(req, res, () => { nextCalled = true; });
@@ -69,6 +72,25 @@ test('unknown role → 403 (fail-closed)', () => {
 
 test('no user object → 403 (fail-closed; requireAuth should have caught it but defense in depth)', () => {
   const { res, nextCalled } = call({ role: null, method: 'GET', path: '/accounting/sales.csv' });
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+});
+
+// Multi-role coverage (specs/admin-account-management.md): the middleware reads `req.user.roles`.
+test('multi-role: admin + accountant combined → admin wins (unrestricted)', () => {
+  assert.equal(call({ roles: ['admin', 'accountant'], method: 'DELETE', path: '/reservations/9' }).nextCalled, true);
+  assert.equal(call({ roles: ['accountant', 'admin'], method: 'POST', path: '/clients' }).nextCalled, true);
+});
+
+test('multi-role: empty roles array → 403 (fail-closed, treated like no known role)', () => {
+  const { res, nextCalled } = call({ roles: [], method: 'GET', path: '/accounting/sales.csv' });
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+});
+
+test('multi-role: accountant-only reaches /users/me (self route) but not /users', () => {
+  assert.equal(call({ roles: ['accountant'], method: 'GET', path: '/users/me' }).nextCalled, true);
+  const { res, nextCalled } = call({ roles: ['accountant'], method: 'GET', path: '/users' });
   assert.equal(nextCalled, false);
   assert.equal(res.statusCode, 403);
 });

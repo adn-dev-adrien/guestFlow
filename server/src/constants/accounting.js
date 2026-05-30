@@ -66,13 +66,6 @@ function buildClientAccount(lastName, { chars = CLIENT_ACCOUNT_NAME_CHARS } = {}
 // (`clientGrossAmount`). Wired here so the choice is explicit and one-place-changeable.
 const RECOGNISE_REVENUE_ON = 'net';
 
-// User roles. The accountant has read-only access to /api/accounting + self routes. Everything else
-// is admin-only (see middleware/enforceRoleAccess.js).
-const ROLES = Object.freeze({
-  ADMIN: 'admin',
-  ACCOUNTANT: 'accountant',
-});
-
 module.exports = {
   REVENUE_ACCOUNTS,
   VAT_ACCOUNTS,
@@ -83,5 +76,4 @@ module.exports = {
   CLIENT_ACCOUNT_NAME_CHARS,
   buildClientAccount,
   RECOGNISE_REVENUE_ON,
-  ROLES,
 };

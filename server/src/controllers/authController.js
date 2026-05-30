@@ -14,6 +14,9 @@ function createAuthController(users) {
     if (!email || !password) return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
     const user = users.verifyCredentials(email, password);
     if (!user) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
+    // Track the last login so the admin can see who's been actively using their account and so the
+    // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
+    if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
     req.session.user = user;
     return res.json(user);
   }
@@ -41,7 +44,23 @@ function createAuthController(users) {
     const verified = users.verifyCredentials(sessionUser.email, currentPassword);
     if (!verified) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
 
+    // Capture the "this was a forced first-login change" state BEFORE running the update — the safe
+    // user we just put in the session carries the boolean we need.
+    const wasMustChange = Boolean(sessionUser.mustChangePassword);
+
     users.updatePassword(sessionUser.id, newPassword);
+
+    if (wasMustChange) {
+      // First-login change: invalidate the session so the user has to log in again with the password
+      // they just set (specs/admin-account-management.md §3.3 rule 15). The client redirects to
+      // /login?reason=password-changed.
+      if (req.session && typeof req.session.destroy === 'function') {
+        return req.session.destroy(() => res.status(204).end());
+      }
+      return res.status(204).end();
+    }
+
+    // Voluntary change from /settings/password: keep the session active (current UX).
     req.session.user = { ...sessionUser, mustChangePassword: false };
     return res.status(204).end();
   }

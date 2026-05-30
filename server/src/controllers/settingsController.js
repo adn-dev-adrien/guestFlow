@@ -17,6 +17,7 @@ const settingsModel = require('../models/settingsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
+const { createEmailService } = require('../utils/emailService');
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
@@ -47,6 +48,19 @@ const VAT_FIELDS = [
   { input: 'standardRate', column: 'vatRateStandard', validator: validation.validateVatRate },
 ];
 
+// SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask
+// semantics, like the Google privateKey). `publicUrl` is part of the SMTP group on the client UX
+// even though it lives in its own DB column — it's "the URL we put in the welcome email".
+const SMTP_FIELDS = [
+  { input: 'host', column: 'smtpHost' },
+  { input: 'port', column: 'smtpPort', validator: validation.validateSmtpPort },
+  { input: 'secure', column: 'smtpSecure' },
+  { input: 'username', column: 'smtpUsername' },
+  { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
+  { input: 'fromName', column: 'smtpFromName' },
+  { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
+];
+
 function pickGroup(body, group) {
   const value = body && body[group];
   return value && typeof value === 'object' ? value : null;
@@ -63,6 +77,7 @@ function updateSettings(req, res) {
   const quote = pickGroup(body, 'quote');
   const google = pickGroup(body, 'googleCalendar');
   const vat = pickGroup(body, 'vat');
+  const smtp = pickGroup(body, 'smtp');
 
   const payload = {};
   const errors = {};
@@ -77,7 +92,12 @@ function updateSettings(req, res) {
           const err = validator(value);
           if (err) errors[column] = err;
         }
-        payload[column] = value;
+        // smtpSecure is a checkbox / select on the client; normalize to 0/1 for SQLite.
+        if (column === 'smtpSecure') {
+          payload[column] = (value === true || value === 1 || value === '1') ? 1 : 0;
+        } else {
+          payload[column] = value;
+        }
       }
     }
   }
@@ -86,6 +106,7 @@ function updateSettings(req, res) {
   applyGroup(quote, QUOTE_FIELDS);
   applyGroup(google, GOOGLE_FIELDS);
   applyGroup(vat, VAT_FIELDS);
+  applyGroup(smtp, SMTP_FIELDS);
 
   // Google Calendar private key — 3-way semantics.
   if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {
@@ -98,6 +119,12 @@ function updateSettings(req, res) {
       if (err) errors.googleServiceAccountPrivateKey = err;
       payload.googleServiceAccountPrivateKey = String(raw);
     }
+  }
+
+  // SMTP password — same 3-way semantics. Absent → preserve; '' → clear; non-empty → store.
+  if (smtp && Object.prototype.hasOwnProperty.call(smtp, 'password')) {
+    const raw = smtp.password;
+    payload.smtpPasswordEncrypted = raw == null ? '' : String(raw);
   }
 
   if (Object.keys(errors).length > 0) {
@@ -130,9 +157,33 @@ function deleteLogo(req, res) {
   return res.json({ company: { logoPath: '' } });
 }
 
+// POST /api/settings/smtp-test — sends "Email de test GuestFlow" to the current admin's email.
+// Returns 200 { ok: true } on transport success, 400 with a code on configuration / transport
+// failure. Used by the "Envoyer un mail de test" button on the SMTP card in /parametres.
+async function sendSmtpTest(req, res) {
+  if (!settingsModel.smtpConfigured()) {
+    return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+  }
+  const recipient = req.user && req.user.email;
+  if (!recipient) {
+    return res.status(400).json({ error: 'NO_RECIPIENT', detail: 'Aucune adresse email rattachée à votre compte.' });
+  }
+  try {
+    const svc = createEmailService(settingsModel.decryptedSmtpSettings());
+    await svc.sendTest(recipient);
+    return res.json({ ok: true, recipient });
+  } catch (err) {
+    if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
+      return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+    }
+    return res.status(400).json({ error: 'SMTP_TEST_FAILED', detail: String(err && err.message || err) });
+  }
+}
+
 module.exports = {
   getSettings,
   updateSettings,
   uploadLogo,
   deleteLogo,
+  sendSmtpTest,
 };

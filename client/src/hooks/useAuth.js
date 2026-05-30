@@ -53,9 +53,16 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const changePassword = useCallback(async (currentPassword, newPassword) => {
+  const changePassword = useCallback(async (currentPassword, newPassword, { wasMustChange = false } = {}) => {
     await api.changePassword(currentPassword, newPassword);
-    setUser((u) => (u ? { ...u, mustChangePassword: false } : u));
+    if (wasMustChange) {
+      // Server destroyed the session — drop the local auth state so the next render goes through
+      // the AuthGate again (specs/admin-account-management.md §3.3 rule 15). The caller
+      // (UserManagementPage) navigates to /login?reason=password-changed for the snackbar.
+      setUser(null);
+    } else {
+      setUser((u) => (u ? { ...u, mustChangePassword: false } : u));
+    }
   }, []);
 
   return (

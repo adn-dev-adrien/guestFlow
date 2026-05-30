@@ -15,4 +15,6 @@ router.post('/logo', (req, res) => {
 
 router.delete('/logo', settingsController.deleteLogo);
 
+router.post('/smtp-test', settingsController.sendSmtpTest);
+
 module.exports = router;

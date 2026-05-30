@@ -108,6 +108,26 @@ function validateVatRate(value) {
   return null;
 }
 
+// SMTP validators (specs/admin-account-management.md M3).
+function validateSmtpPort(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isInteger(n)) return 'Doit être un entier entre 1 et 65535.';
+  if (n < 1 || n > 65535) return 'Doit être un entier entre 1 et 65535.';
+  return null;
+}
+
+function validatePublicUrl(value) {
+  if (value == null || value === '') return null;
+  try {
+    const u = new URL(String(value));
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Doit commencer par http:// ou https://.';
+    return null;
+  } catch (_) {
+    return 'URL invalide.';
+  }
+}
+
 module.exports = {
   validateEmail,
   validateSiret,
@@ -118,6 +138,8 @@ module.exports = {
   validateCalendarId,
   validateQuoteValidityDays,
   validateVatRate,
+  validateSmtpPort,
+  validatePublicUrl,
   // exported for tests
   __test: { trimOrEmpty, stripWhitespace },
 };

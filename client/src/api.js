@@ -206,10 +206,18 @@ const api = {
     return res.blob();
   },
 
-  // User management (admin-only)
+  // User management (admin-only). resetUserPassword no longer takes a password — the server
+  // generates the temp password and emails it (specs/admin-account-management.md M2).
   listUsers: () => request('/users'),
+  getCurrentUser: () => request('/users/me'),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
-  resetUserPassword: (id, password) => request(`/users/${id}/reset-password`, { method: 'POST', body: { password } }),
+  updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
+  resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),
+  deleteUser: (id, { hard = false } = {}) => request(`/users/${id}${hard ? '?hard=1' : ''}`, { method: 'DELETE' }),
+
+  // SMTP test (specs/admin-account-management.md M3) — sends "Email de test GuestFlow" to the
+  // current admin so they can verify the SMTP block before inviting anyone.
+  sendSmtpTest: () => request('/settings/smtp-test', { method: 'POST' }),
 
   // Google Calendar sync
   getGoogleCalendarStatus: () => request('/google-calendar/status'),
