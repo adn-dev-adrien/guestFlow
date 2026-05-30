@@ -15,7 +15,7 @@ import {
 import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-import { ADMIN, ACCOUNTANT, userHasRole } from './constants/roles';
+import { ADMIN, ACCOUNTANT, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
 import UserManagementPage from './pages/UserManagementPage';
@@ -70,40 +70,27 @@ const navItems = [
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
+// Children-of-each-parent map — keeps the parent visibility decision in one place. Hard-coded
+// (matches the JSX below) instead of derived from ROUTE_ROLES because the JSX itself is hand-rolled
+// and the children's order matters for display.
+const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
+const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/account'];
+
 function NavContent({ onItemClick }) {
   const location = useLocation();
   const { user, logout } = useAuth();
-  // Accountants get a minimal sidebar — read-only, accounting-only + the unified "Gestion
-  // utilisateur" page (where they can change their own password). Admin trumps accountant for the
-  // sidebar — a user with both roles sees the full admin nav.
-  if (user && userHasRole(user, ACCOUNTANT) && !userHasRole(user, ADMIN)) {
-    return (
-      <List sx={{ pt: 2 }}>
-        <ListItemButton
-          component={Link}
-          to="/comptabilite"
-          onClick={onItemClick}
-          selected={location.pathname === '/comptabilite'}
-        >
-          <ListItemIcon><DescriptionIcon /></ListItemIcon>
-          <ListItemText primary="Comptabilité" />
-        </ListItemButton>
-        <ListItemButton
-          component={Link}
-          to="/account"
-          onClick={onItemClick}
-          selected={location.pathname === '/account'}
-        >
-          <ListItemIcon><AdminPanelSettingsIcon /></ListItemIcon>
-          <ListItemText primary="Gestion utilisateur" />
-        </ListItemButton>
-        <ListItemButton onClick={() => { logout(); onItemClick && onItemClick(); }}>
-          <ListItemIcon><LogoutIcon /></ListItemIcon>
-          <ListItemText primary="Se déconnecter" />
-        </ListItemButton>
-      </List>
-    );
-  }
+  // Single renderer for every role. Each item is conditionally rendered via canSeeRoute() — so an
+  // accountant logged in sees the same shell as an admin, with all admin-only items hidden. Parents
+  // (Calendrier, Suivi financier, Paramètres) survive as long as ANY of their children survive.
+  // When the parent itself isn't accessible (e.g. accountant + /settings) but a child is, clicking
+  // the parent only toggles the submenu — no navigation.
+  const can = (path) => canSeeRoute(user, path);
+  const canAnyOf = (paths) => canSeeAnyRoute(user, paths);
+  const showCalendar = canAnyOf(CALENDAR_CHILDREN);
+  const showFinance  = canAnyOf(FINANCE_CHILDREN);
+  const showSettings = canAnyOf(SETTINGS_CHILDREN);
+
   const [properties, setProperties] = useState([]);
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
   const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
@@ -166,15 +153,29 @@ function NavContent({ onItemClick }) {
     }
   }, [location.pathname]);
 
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || userHasRole(user, ADMIN));
+  // Top-level visibility: each item gets a "show if this path or any of its children visible" rule.
+  // Items without children appear iff their own path is allowed.
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.path === '/calendar') return showCalendar;
+    if (item.path === '/finance') return showFinance;
+    if (item.path === '/settings') return showSettings;
+    return can(item.path);
+  });
 
   return (
     <List sx={{ pt: 2 }}>
-      {visibleNavItems.map((item) => (
+      {visibleNavItems.map((item) => {
+        // When the user cannot navigate to the parent path itself (e.g. accountant on /settings),
+        // the top-level row stops being a Link — clicks only toggle the submenu so they can pick
+        // their authorised child. Drawer auto-close is also suppressed for these rows so the menu
+        // stays expanded on mobile.
+        const isParentReachable = can(item.path);
+        const isSubmenuParent = item.path === '/calendar' || item.path === '/finance' || item.path === '/settings';
+        const linkProps = isParentReachable ? { component: Link, to: item.path } : {};
+        return (
         <Box key={item.path}>
           <ListItemButton
-            component={Link}
-            to={item.path}
+            {...linkProps}
             onClick={(e) => {
               if (item.path === '/calendar') {
                 setCalendarMenuOpen((location.pathname.startsWith('/calendar') || location.pathname === '/resource-planning') ? true : (prev) => !prev);
@@ -206,7 +207,8 @@ function NavContent({ onItemClick }) {
                 setSettingsMenuOpen(false);
                 setSettingsPropertiesMenuOpen(false);
               }
-              if (onItemClick) onItemClick(e, item.path);
+              // Suppress the drawer-close on toggle-only parents so the user can pick their child.
+              if (onItemClick && (isParentReachable || !isSubmenuParent)) onItemClick(e, item.path);
             }}
             selected={
               item.path === '/properties'
@@ -274,6 +276,7 @@ function NavContent({ onItemClick }) {
           {item.path === '/calendar' && (
             <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
               <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                {can('/resource-planning') && (
                 <ListItemButton
                   component={Link}
                   to="/resource-planning"
@@ -286,6 +289,7 @@ function NavContent({ onItemClick }) {
                     primaryTypographyProps={{ variant: 'body2', fontStyle: 'italic' }}
                   />
                 </ListItemButton>
+                )}
                 {properties.map((p) => (
                   <ListItemButton
                     key={`calendar-${p.id}`}
@@ -311,6 +315,7 @@ function NavContent({ onItemClick }) {
           {item.path === '/finance' && (
             <Collapse in={financeMenuOpen} timeout="auto" unmountOnExit>
               <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                {can('/finance') && (
                 <ListItemButton
                   component={Link}
                   to="/finance"
@@ -320,6 +325,8 @@ function NavContent({ onItemClick }) {
                 >
                   <ListItemText primary="Vue générale" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/finance/tourist-tax') && (
                 <ListItemButton
                   component={Link}
                   to="/finance/tourist-tax"
@@ -329,6 +336,8 @@ function NavContent({ onItemClick }) {
                 >
                   <ListItemText primary="Taxe de séjour" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/comptabilite') && (
                 <ListItemButton
                   component={Link}
                   to="/comptabilite"
@@ -338,6 +347,7 @@ function NavContent({ onItemClick }) {
                 >
                   <ListItemText primary="Comptabilité" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
               </List>
             </Collapse>
           )}
@@ -345,6 +355,7 @@ function NavContent({ onItemClick }) {
           {item.path === '/settings' && (
             <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
               <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                {can('/settings') && (
                 <ListItemButton
                   component={Link}
                   to="/settings"
@@ -355,6 +366,8 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><SettingsIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Générale" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/properties') && (
                 <ListItemButton
                   component={Link}
                   to="/properties"
@@ -379,6 +392,8 @@ function NavContent({ onItemClick }) {
                     {settingsPropertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                   </Box>
                 </ListItemButton>
+                )}
+                {can('/properties') && (
                 <Collapse in={settingsPropertiesMenuOpen} timeout="auto" unmountOnExit>
                   <List disablePadding sx={{ px: 1, pb: 0.25 }}>
                     {properties.map((p) => (
@@ -401,6 +416,8 @@ function NavContent({ onItemClick }) {
                     ))}
                   </List>
                 </Collapse>
+                )}
+                {can('/options') && (
                 <ListItemButton
                   component={Link}
                   to="/options"
@@ -411,6 +428,8 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><ExtensionIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Options" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/resources') && (
                 <ListItemButton
                   component={Link}
                   to="/resources"
@@ -421,6 +440,8 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Ressources" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/clients') && (
                 <ListItemButton
                   component={Link}
                   to="/clients"
@@ -431,6 +452,8 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><PeopleIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Clients" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/school-holidays') && (
                 <ListItemButton
                   component={Link}
                   to="/school-holidays"
@@ -441,6 +464,8 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Vacances scolaires" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/establishment-closures') && (
                 <ListItemButton
                   component={Link}
                   to="/establishment-closures"
@@ -451,6 +476,8 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
+                {can('/account') && (
                 <ListItemButton
                   component={Link}
                   to="/account"
@@ -461,11 +488,13 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><AdminPanelSettingsIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Gestion utilisateur" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                )}
               </List>
             </Collapse>
           )}
         </Box>
-      ))}
+        );
+      })}
       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
         <ListItemButton onClick={() => logout()} sx={{ py: 0.75, borderRadius: 2, mx: 1 }}>
           <ListItemIcon sx={{ minWidth: 34 }}><LogoutIcon fontSize="small" /></ListItemIcon>

@@ -5,12 +5,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Changed
+- **Sidebar is rendered by a single code path for every role** (spec
+  `admin-account-management.md` follow-up #5). The dedicated accountant branch is gone — there's
+  one `NavContent` tree, and each item (top-level + every submenu child) is conditionally rendered
+  via `canSeeRoute(user, path)`. Per-route allowlist lives in
+  `client/src/constants/roles.js#ROUTE_ROLES` (admin everywhere; accountant only on `/comptabilite`
+  + `/account`). Submenu **parents** survive iff at least one of their children is visible
+  (`canSeeAnyRoute`), so an accountant sees `Suivi financier > Comptabilité` and
+  `Paramètres > Gestion utilisateur` with the parent labels intact instead of a flattened
+  two-item list. When the parent's own path isn't reachable (accountant on `/settings`), the row
+  drops its `Link` props and only toggles the submenu — drawer-close is suppressed in that case
+  so the user can still pick their authorised child. New client tests pin the accountant scope
+  (8 cases on `canSeeRoute` / `canSeeAnyRoute`); a drift here will be caught before it ships.
+  Resolves Adrien's "afin de ne pas dupliquer le code du menu de gauche" feedback.
 - **"Gestion utilisateur" page moved under `Paramètres`** (spec
   `admin-account-management.md`). Same route `/account`, same content gating — only the sidebar
   entry-point moved: it's now a submenu of "Paramètres" alongside Logements / Options / Clients /
   Vacances scolaires / Fermetures, with `<AdminPanelSettingsIcon />`. The Paramètres submenu
-  auto-opens when `/account` is the current path. For accountants (who don't have access to the
-  Paramètres group), the entry stays at the top level of their minimal sidebar.
+  auto-opens when `/account` is the current path. For accountants, the entry is now also reachable
+  via `Paramètres > Gestion utilisateur` (follow-up #5 above unified the sidebar code so the
+  accountant sees the same shell with admin-only items hidden).
 - **Outgoing emails sign with the SMTP sender's display name + carry an "auto-generated" notice.**
   Welcome / reset / SMTP-test bodies now end with `Ce message est généré automatiquement.` followed
   by `— {smtpFromName}` (falls back to `GuestFlow` when no name is configured). Replaces the

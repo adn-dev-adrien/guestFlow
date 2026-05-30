@@ -62,8 +62,18 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 > pasting it verbatim used to trigger `5.7.8 Username and Password not accepted` because the
 > transport sent the literal spaces. The strip is server-side (`settingsController.updateSettings`)
 > so it applies to any client that hits `PUT /api/settings`.
-
-## 3. Functional rules
+>
+> **2026-05-30 follow-up #5:** the sidebar is now rendered by a **single code path for every role**
+> (no more separate accountant branch). A per-route role allowlist in
+> `client/src/constants/roles.js#ROUTE_ROLES` drives `canSeeRoute(user, path)` / `canSeeAnyRoute`;
+> each `<ListItemButton>` (top-level + submenu child) is wrapped with the corresponding check.
+> Submenu **parents** (Calendrier, Suivi financier, Paramètres) survive iff at least one of their
+> children is visible — so an accountant sees `Suivi financier > Comptabilité` and
+> `Paramètres > Gestion utilisateur` with the parent labels intact (no nav structure flattening).
+> When the parent's own path isn't reachable by the user (accountant on `/settings`), the parent
+> row stops being a `<Link>` and only toggles the submenu open/closed; the drawer-close callback
+> is also suppressed so the user can pick their authorised child. Accountant scope is pinned by
+> the client unit test (`canSeeRoute` returns only `/comptabilite` + `/account` for that role).
 
 ### 3.1 Schema & roles
 
@@ -260,8 +270,8 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | `components/AccountFormDialog.js` | — | C | FormDialog-based create/edit form. Fields: prénom, nom, email (disabled in edit mode), rôles (multi-select), société, note. Surface server validation errors inline. Lives next to the page since it's specifically about user identity; not a generification of FormDialog. |
 | `components/SettingsAccountantAccessSection.js` | — | **D** | Deleted (the section is gone; the file too). |
 | `components/AppSidebar.js` | `AppSidebar.js` | T | Adds the "Comptes" item (admin-only via `userHasRole(currentUser, 'admin')`). Inserted under "Paramètres" or near it. |
-| `App.js` | `App.js` | T | Registers the `/account` route; **2026-05-30:** redirects `/comptes` and `/settings/password` to `/account` via `<Navigate replace />`; **renames the sidebar entry to "Gestion utilisateur" and moves it from a top-level item to a submenu of "Paramètres"** (alongside Logements, Options, Clients, Vacances scolaires, Fermetures); removes the admin-side `Paramètres > Mot de passe` submenu (redundant with the new merged page); updates the accountant sidebar to point its single non-accounting item to `/account`; switches the accountant-confinement guard from `/settings/password` to `/account`. The Paramètres open/select state and the menu-toggle handler include `/account` so the submenu auto-opens when the page is active. Multi-role check via `userHasRole`. |
-| `constants/roles.js` | — | C | Mirror of the server constants file. Imported by `AccountFormDialog`, `AppSidebar`, `App.js`. The two files must stay in sync — a unit test on each side checks the list (server self-check, client snapshot). |
+| `App.js` | `App.js` | T | Registers the `/account` route; **2026-05-30 round 1:** redirects `/comptes` and `/settings/password` to `/account` via `<Navigate replace />`; renames the sidebar entry to "Gestion utilisateur" and moves it from a top-level item to a submenu of "Paramètres"; removes the admin-side `Paramètres > Mot de passe` submenu; switches the accountant-confinement guard to allow `/account`. **2026-05-30 round 2 (follow-up #5):** the dedicated accountant sidebar branch is **removed**. `NavContent` now renders a single tree for all roles; each `<ListItemButton>` is wrapped with `canSeeRoute(user, path)` (top-level + every submenu child). Submenu parents (Calendrier, Suivi financier, Paramètres) are gated by `canSeeAnyRoute(user, children)` so they survive when at least one child is visible. When the parent's own path isn't reachable (accountant on `/settings`), the row drops its `Link` props (no navigation) and the drawer-close callback is suppressed — clicking it only toggles the submenu. The `CALENDAR_CHILDREN` / `FINANCE_CHILDREN` / `SETTINGS_CHILDREN` constants list the children authoritatively next to the JSX. |
+| `constants/roles.js` | — | C | Mirror of the server constants file. Imported by `AccountFormDialog`, `AppSidebar`, `App.js`. The two files must stay in sync — a unit test on each side checks the list (server self-check, client snapshot). **2026-05-30 follow-up #5:** also exports `ROUTE_ROLES` (per-route allowlist), `canSeeRoute(user, path)` and `canSeeAnyRoute(user, paths)` — the helpers driving the unified sidebar filter in `App.js`. Server `enforceRoleAccess` remains the authoritative gate; the client map is the UI projection (a drift test pins the accountant scope to exactly `/comptabilite` + `/account`). |
 | `api.js` | `api.js` | T | Adds `updateUser`, `deleteUser(id, {hard})`, `sendSmtpTest()`, `getMe()`. Updates `listUsers` shape. |
 
 **Component reuse declaration:**
@@ -451,10 +461,14 @@ SMTP fields start empty — the new account-creation endpoint returns
 
 Stack: Jest + React Testing Library (CRA built-in).
 
-- [x] `client/src/constants/__tests__/roles.test.js` (new, 2026-05-30, 6 cases) — `ROLES` frozen
+- [x] `client/src/constants/__tests__/roles.test.js` (new, 2026-05-30, 14 cases) — `ROLES` frozen
       taxonomy; `roleLabel` returns French labels or echoes unknowns; `userHasRole` matches the
       post-M2 array, falls back to the legacy `role` string (back-compat shim), array takes
-      precedence over the string, returns false for null/empty payloads.
+      precedence over the string, returns false for null/empty payloads. **Follow-up #5:**
+      `canSeeRoute` admits every registered route for admin, accountant sees ONLY
+      `/comptabilite` + `/account` (drift pinned), multi-role admin+accountant wins admin scope,
+      unknown route → false (deny by default), null user → false; `canSeeAnyRoute` returns true
+      iff at least one path is visible (parent submenu visibility predicate).
 - [x] `client/src/pages/__tests__/UserManagementPage.test.js` (new, 2026-05-30, 6 cases) —
       admin sees both sections + the list endpoint is called; accountant sees only
       "Mon mot de passe" + listUsers is NOT called; legacy `role: 'admin'` session still admits
