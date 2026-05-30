@@ -10,7 +10,12 @@
  * - Only `kind='reservation'` rows (devis never exported).
  * - Caution is excluded entirely (handled by ignoring `caution*` fields).
  * - Tourist tax is excluded from the revenue accounts (kept out of the export — accountant doesn't ask
- *   for it; it's collected for the commune).
+ *   for it; it's collected for the commune). Two routing modes:
+ *     • direct + platform-collect: tax (if any) is silently absorbed into the rounding residue of the
+ *       deposit + balance entries, as the export engine balances Σ credits to debit.
+ *     • owner-collect non-direct (`touristTaxCollectedOnArrival` from the quote): pro-rate against
+ *       `finalPrice` (not `totalStayTtc`); the complement entry has its tax portion carved out and
+ *       the entry is dropped entirely if it is pure tax (see `buildEntry`).
  *
  * Factory `create(db)` (+ a default bound to the production DB), mirroring the other models.
  */
@@ -65,7 +70,10 @@ function createAccountingModel(database) {
         if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, quote, 'deposit'));
         if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, quote, 'balance'));
         if (inMonth(row.complementPaid, row.complementPaidDate)) entries.push(buildEntry(row, quote, 'complement'));
-        return entries;
+        // When the owner collects the tax on a non-direct platform, the complement that exactly
+        // equals the tourist tax is excluded from the export (the tax is reported via Suivi taxe de
+        // séjour, not via the accountant journal). `buildEntry` returns null in that case.
+        return entries.filter(Boolean);
       });
     },
   };
@@ -109,11 +117,26 @@ function computeQuoteForReservation(database, row) {
 
 // Shape an entry the export engine consumes. Buckets carry the HT, VAT amount and VAT rate
 // (the engine has already extracted them from TTC).
+//
+// Two pro-rata modes coexist (driven by the quote's `touristTaxCollectedOnArrival` flag):
+//   1. Legacy (direct + platform-collect): tax is baked into deposit + balance amounts. We pro-rate
+//      against `totalStayTtc` (= finalPrice + tax). The tax portion of each encaissement is silently
+//      absorbed by the export engine's rounding residue. complement-as-options-late case also lands
+//      here (no tax involvement).
+//   2. Owner-collect non-direct (touristTaxCollectedOnArrival = true): deposit + balance amounts
+//      cover finalPrice only (no tax). Pro-rate against `finalPrice`. The complement amount carries
+//      the tourist tax — which the spec excludes from the accountant journal (it's reported via
+//      Suivi taxe de séjour). We carve out the tax portion from the complement encaissement; if
+//      what remains is 0, the entry is dropped (returns null). If extras were added after balance
+//      was paid, the residual revenue portion is still emitted.
+//
+// Returns `null` when the entry boils down to pure tourist tax (excluded from the export).
 function buildEntry(row, quote, kind) {
-  // Pro-rata is computed against the *total stay TTC* (finalPrice + tourist tax) so the 3 encaissement
-  // kinds sum back to 100 % of the stay: deposit + balance + complement = totalStayPrice.
   const finalPriceTtc = Number(quote.finalPrice || row.finalPrice || 0);
-  const totalStayTtc = finalPriceTtc + Number(row.touristTaxTotal || 0);
+  const touristTaxTotal = Number(row.touristTaxTotal || 0);
+  const totalStayTtc = finalPriceTtc + touristTaxTotal;
+  const collectedOnArrival = Boolean(quote.touristTaxCollectedOnArrival);
+
   const amountByKind = {
     deposit:    Number(row.depositAmount)    || 0,
     balance:    Number(row.balanceAmount)    || 0,
@@ -124,8 +147,20 @@ function buildEntry(row, quote, kind) {
     balance:    row.balancePaidDate,
     complement: row.complementPaidDate,
   };
-  const encaissementTtc = amountByKind[kind] || 0;
-  const fraction = totalStayTtc > 0 ? encaissementTtc / totalStayTtc : 0;
+
+  let encaissementTtc = amountByKind[kind] || 0;
+  let denominator = totalStayTtc;
+
+  if (collectedOnArrival) {
+    denominator = finalPriceTtc;
+    if (kind === 'complement') {
+      // Strip the tax portion (excluded from the accountant journal); keep any extras-added-after gap.
+      encaissementTtc = Math.max(0, encaissementTtc - touristTaxTotal);
+      if (encaissementTtc === 0) return null;
+    }
+  }
+
+  const fraction = denominator > 0 ? encaissementTtc / denominator : 0;
   return {
     reservationId: row.id,
     kind,

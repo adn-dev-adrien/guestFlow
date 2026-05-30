@@ -62,8 +62,9 @@ export default function PricingSummary({
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
-  const rawTotalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
-  const totalSejour = isIcalSource ? rawTotalSejour - touristTaxTotal : rawTotalSejour;
+  // Engine-authoritative total: the server already netted out the platform-collected tax (= 0 in
+  // `touristTaxTotal`) and kept it in for owner-collected / direct cases. No client-side stripping.
+  const totalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
 
   // VAT rates come from the server quote (two global rates: accommodation + standard for options & resources).
   const vatPercentageAccommodation = Number(quote?.vatPercentageAccommodation ?? 10);
@@ -78,7 +79,18 @@ export default function PricingSummary({
   const totalVatAmount = Number(quote?.totalVatAmount || 0);
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
 
-  const isTouristTaxOffered = isIcalSource || (String(form.platform || '').toLowerCase() !== 'direct');
+  // The engine resolves who collects the tax (per-platform flag on `ical_sources`, see
+  // `pricing.js#isPlatformCollectingTouristTax`). The summary mirrors that decision:
+  //   - offered by platform → strike-through display + "Offert" / "Collectée par la plateforme".
+  //   - owner-collected non-direct → not crossed out, shown as "À collecter à l'arrivée" and
+  //     scheduled in the complement (engine wires this through `touristTaxCollectedOnArrival`).
+  //   - direct → not crossed out, kept in the balance (legacy behaviour).
+  // Before the first quote comes back, fall back to the legacy heuristic so the panel does not
+  // visually flicker on initial render.
+  const isTouristTaxOffered = quote
+    ? Boolean(quote.touristTaxOfferedByPlatform)
+    : (isIcalSource || (String(form.platform || '').toLowerCase() !== 'direct'));
+  const isTouristTaxCollectedOnArrival = Boolean(quote?.touristTaxCollectedOnArrival);
   const touristTaxDisplayedAmount = isTouristTaxOffered ? touristTaxOriginalTotal : touristTaxTotal;
 
   return (
@@ -380,6 +392,11 @@ export default function PricingSummary({
               {isTouristTaxOffered && (
                 <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
                   Collectée par la plateforme
+                </Typography>
+              )}
+              {!isTouristTaxOffered && isTouristTaxCollectedOnArrival && (
+                <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>
+                  À collecter à l'arrivée (incluse dans le complément)
                 </Typography>
               )}
             </Box>

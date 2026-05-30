@@ -14,7 +14,9 @@ const DDL = `
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
   CREATE TABLE ical_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, name TEXT, url TEXT, platformKey TEXT,
-    platformLabel TEXT, platformColor TEXT, isActive INTEGER, lastSyncAt TEXT, lastSyncStatus TEXT,
+    platformLabel TEXT, platformColor TEXT, isActive INTEGER,
+    collectsTouristTax INTEGER NOT NULL DEFAULT 1,
+    lastSyncAt TEXT, lastSyncStatus TEXT,
     lastSyncMessage TEXT, lastImportedCount INTEGER, createdAt TEXT, updatedAt TEXT
   );
 `;
@@ -95,4 +97,20 @@ test('getByIdWithDetails returns enriched payload; setOptions links options', ()
   assert.deepEqual(detail.optionIds.sort(), [7, 9]);
   assert.deepEqual(detail.icalSources, []);
   assert.equal(model.getByIdWithDetails(999), null);
+});
+
+test('getByIdWithDetails exposes collectsTouristTax on each iCal source', () => {
+  const { db, model } = freshModel();
+  db.prepare(`
+    INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive, collectsTouristTax)
+    VALUES
+      (1, 'Airbnb', 'http://example.test/a.ics', 'airbnb', 'Airbnb', 1, 1),
+      (1, 'Gîtes de France', 'http://example.test/g.ics', 'gitedefrance', 'Gîtes de France', 1, 0)
+  `).run();
+
+  const detail = model.getByIdWithDetails(1);
+  assert.equal(detail.icalSources.length, 2);
+  const byKey = Object.fromEntries(detail.icalSources.map((s) => [s.platformKey, s]));
+  assert.equal(byKey.airbnb.collectsTouristTax, 1);
+  assert.equal(byKey.gitedefrance.collectsTouristTax, 0);
 });

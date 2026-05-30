@@ -96,6 +96,7 @@ function createPropertiesModel(database) {
       property.optionIds = database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id).map((r) => r.optionId);
       property.icalSources = database.prepare(`
         SELECT id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
+          collectsTouristTax,
           lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt
         FROM ical_sources
         WHERE propertyId = ?

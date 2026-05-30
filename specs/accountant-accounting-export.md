@@ -169,6 +169,25 @@ standard).
     `finalPrice`. This was a quiet inaccuracy on prior runs (the deposit/balance percentages drifted
     by the tourist-tax ratio); with this change Deposit + Balance + Complement = 100 % of
     `totalStayPrice` exactly, and the per-bucket lines balance to the cent.
+30. **Per-platform tourist tax — accountant journal carve-out (added 2026-05-30).** When the pricing
+    engine resolves the booking as **owner-collect non-direct** (`touristTaxCollectedOnArrival =
+    true`, i.e. a non-direct iCal source whose `collectsTouristTax = 0` flag means Adrien collects
+    the tax himself at check-in — see `per-platform-tourist-tax-collection.md`), the export bends
+    rule 29 in two ways:
+    - **Deposit + Balance pro-rate against `finalPrice`**, not `totalStayTtc`. The deposit + balance
+      amounts already exclude the tourist tax (engine schedules it in the complement instead), so
+      using `totalStayTtc` as the denominator would under-count HT/VAT in every line and dump the
+      mismatch into the rounding residue (= an inflated last VAT line, wrong by the tourist-tax
+      ratio).
+    - **The complement entry has its tourist-tax portion carved out** (`encaissementTtc -=
+      touristTaxTotal`). If the residual is `0` (= the complement is pure tax), the entry is
+      **dropped entirely** — consistent with the long-standing rule "tourist tax is excluded from
+      the revenue accounts; it's reported via Suivi taxe de séjour". If extras were added after the
+      balance was paid (complement = tax + extras), only the extras portion is emitted, pro-rated
+      against `finalPrice`.
+    Direct + platform-collect cases are NOT changed — rule 29 still applies (tax silently absorbed
+    via residue, or no tax at all when the platform collects). Covered by
+    `accounting-model-tourist-tax.unit.test.js` (7 cases).
 
 **Edge cases:**
 - Encaissement marked paid but no real date yet (legacy rows) → backfilled to the **due date** on

@@ -1245,10 +1245,21 @@ function calculateReservationQuote({
     touristTaxTotal = 0;
   }
 
-  // Payment schedule is based on the full stay amount, including tourist tax.
   const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
-  const autoDepositAmount = roundMoney(totalStayPrice * (Number(property.depositPercent || 0) / 100));
-  const autoBalanceAmount = roundMoney(totalStayPrice - autoDepositAmount);
+
+  // Owner-collected tax on a non-direct platform is collected at check-in, not pre-paid via the
+  // deposit/balance schedule (Adrien collects it in person). So the pre-arrival schedule is built
+  // on `finalPrice` (stay excl. tax), and the tax lands in the "Complément à percevoir" bucket.
+  // Direct bookings keep the historic behaviour (tax in the balance) — unchanged.
+  const isTouristTaxCollectedOnArrival = (
+    !isTouristTaxOfferedByPlatform
+    && normalizedPlatform !== 'direct'
+    && touristTaxTotal > 0
+  );
+  const preArrivalAmount = isTouristTaxCollectedOnArrival ? finalPrice : totalStayPrice;
+
+  const autoDepositAmount = roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
+  const autoBalanceAmount = roundMoney(preArrivalAmount - autoDepositAmount);
   let resolvedDepositAmount = autoDepositAmount;
   let resolvedBalanceAmount = autoBalanceAmount;
 
@@ -1257,18 +1268,24 @@ function calculateReservationQuote({
     resolvedBalanceAmount = roundMoney(balanceAmount);
   } else if (depositPaid) {
     resolvedDepositAmount = roundMoney(depositAmount);
-    resolvedBalanceAmount = roundMoney(Math.max(0, totalStayPrice - resolvedDepositAmount));
+    resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - resolvedDepositAmount));
   }
 
-  // Complément à percevoir: the leftover when deposit + balance are frozen-paid and the stay total
-  // has since grown (typical case: options/extras added after-the-fact). Auto-derived while unpaid;
-  // frozen once `complementPaid = 1` so any further total change creates a new gap (= a 2nd complement),
-  // not an erosion of what was actually received. Always 0 unless both deposit and balance are paid.
+  // Complément à percevoir: leftover after the pre-arrival schedule is settled. Two contributors:
+  //   1. The owner-collected tourist tax (when applicable) — visible from save 1, not gated on
+  //      deposit/balance being paid, because it represents money to be collected on check-in.
+  //   2. The legacy "options/extras added after deposit+balance were paid" gap — only shows once
+  //      both pre-arrival amounts are frozen-paid.
+  // Frozen once `complementPaid = 1` so any further total change creates a new gap (= a 2nd
+  // complement), not an erosion of what was actually received.
   const rawComplement = roundMoney(Math.max(0, totalStayPrice - resolvedDepositAmount - resolvedBalanceAmount));
-  let resolvedComplementAmount = depositPaid && balancePaid ? rawComplement : 0;
+  let resolvedComplementAmount;
   if (complementPaid) {
-    // Once the user has marked the complement paid, freeze the stored amount (mirrors deposit/balance).
     resolvedComplementAmount = roundMoney(complementAmount);
+  } else if (isTouristTaxCollectedOnArrival) {
+    resolvedComplementAmount = rawComplement;
+  } else {
+    resolvedComplementAmount = depositPaid && balancePaid ? rawComplement : 0;
   }
 
   return {
@@ -1305,6 +1322,7 @@ function calculateReservationQuote({
     touristTaxOriginalTotal: Number(touristTaxBreakdown.touristTaxTotal || 0),
     touristTaxTotal,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
+    touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,
     totalStayPrice,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
