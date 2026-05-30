@@ -326,6 +326,39 @@ The script includes:
 
 The application will be available on port 4000 by default.
 
+#### 🔒 HTTPS at the network edge — opt-in via `HTTPS_ENABLED`
+
+`NODE_ENV=production` only controls the build mode and CSP. **HSTS** + CSP's
+`upgrade-insecure-requests` + the `Secure` flag on the session cookie are **off by default** and
+must be opted into by setting `HTTPS_ENABLED=true` in the server env.
+
+| Deployment | `NODE_ENV` | `HTTPS_ENABLED` | Result |
+|---|---|---|---|
+| Local dev | `development` (or unset) | unset | Plain HTTP, no CSP, no HSTS. |
+| Prod, plain HTTP (Raspberry Pi behind a LAN, dev tunnel, etc.) | `production` | unset | Full SPA CSP, **no HSTS**, **no upgrade-insecure-requests**, session cookie sent over HTTP. |
+| Prod, HTTPS at the edge (Nginx / Caddy / Cloudflare with valid cert) | `production` | `true` | Full SPA CSP **+ HSTS (1 year, includeSubDomains)** + upgrade-insecure-requests + `Secure` cookie. |
+
+Turning HSTS on when the network edge is plain HTTP makes Safari (and any compliant browser)
+refuse to load the SPA assets (`"Une erreur TLS a provoqué l'échec de la connexion sécurisée"`)
+and the symptom **persists until HSTS expires or is cleared from the browser** — that's the
+whole point of HSTS. The rule pairs are pinned by
+[`server/src/tests/security-config.unit.test.js`](server/src/tests/security-config.unit.test.js).
+
+##### Clearing HSTS from a browser that already cached the wrong policy
+
+- **Safari macOS** : Develop menu (enable in *Préférences → Avancées → Show Develop menu*) →
+  *Empty Caches*, OR *Réglages → Confidentialité → Gérer les données de sites web* → chercher
+  votre domaine → *Supprimer*. If that's not enough, in Terminal:
+  ```bash
+  rm ~/Library/Cookies/HSTS.plist
+  killall Safari
+  ```
+- **Safari iOS** : *Réglages → Safari → Effacer historique, données de site*.
+- **Chrome** : ouvrir `chrome://net-internals/#hsts`, section *Delete domain security policies*,
+  taper le domaine, cliquer *Delete*.
+- **Firefox** : *Réglages → Vie privée → Cookies et données de sites → Gérer les données* →
+  chercher le domaine → *Supprimer*. HSTS state is bundled with that.
+
 **Note:**
 The SQLite database file (`guestflow.db`) will be created automatically on first launch. If you want to migrate an existing database, copy it into `server/` before starting.
 

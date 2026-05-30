@@ -240,7 +240,11 @@ jobs:
           echo "✓ Database verified at: $PERSISTENT_DB"
           echo "✓ Service symlink verified"
           
-          # Start service with explicit DB_PATH (for extra safety)
+          # Start service with explicit DB_PATH (for extra safety).
+          # HTTPS_ENABLED is left unset on purpose — this deploy serves plain HTTP from the Pi.
+          # Setting HTTPS_ENABLED=true here without TLS in front of the app re-creates the original
+          # "Une erreur TLS" symptom (HSTS + CSP upgrade-insecure-requests). See README §HTTPS for
+          # the full rule table + the regression test pinning the behaviour.
           NODE_ENV=production \
           DB_PATH="$PERSISTENT_DB" \
           SKIP_MIGRATIONS=false \

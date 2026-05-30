@@ -423,6 +423,31 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Production deploy over plain HTTP hit "Une erreur TLS a provoqué l'échec de la connexion
+  sécurisée".** When the Helmet config was introduced (V02.00.00), HSTS + CSP's
+  `upgrade-insecure-requests` + the `Secure` flag on the session cookie were all gated on
+  `NODE_ENV === 'production'`. That conflates "this is a production build" with "TLS is available
+  at the network edge" — fine when the prod stack runs behind an HTTPS reverse proxy, fatal on a
+  Raspberry Pi serving plain HTTP (Safari upgraded every asset URL to `https://`, TLS handshake
+  failed, the SPA never loaded). Worse, the symptom is sticky: once HSTS was emitted by the prior
+  deploy, the browser keeps refusing HTTP for the host up to the `max-age` (Helmet's default = 1
+  year) until cleared by hand. Fix:
+  - New env var `HTTPS_ENABLED` is the explicit switch for the network-edge TLS policy. `true` →
+    HSTS on + CSP `upgrade-insecure-requests` on + session cookie `Secure`. Anything else (incl.
+    `NODE_ENV=production` alone) → all three off.
+  - Helmet + cookie options extracted to `server/src/utils/securityConfig.js` (pure builders, no
+    side effects) so the rules are testable and version-controlled in one place.
+  - Helmet's `useDefaults: true` is replaced with `useDefaults: false` — Helmet's default CSP
+    directives include `upgrade-insecure-requests`, exactly what we are trying NOT to emit when
+    HTTPS isn't available. Listing the directives ourselves makes it impossible for a future
+    Helmet release to silently turn the upgrade back on.
+  - GitHub Actions deploy workflow leaves `HTTPS_ENABLED` unset so the Pi serves plain HTTP without
+    HSTS — turning it on is now a deliberate one-line edit once TLS lands at the edge.
+  - README §HTTPS gets the full rule table + per-browser HSTS-clearing instructions (Safari macOS
+    + iOS, Chrome `chrome://net-internals/#hsts`, Firefox).
+  - Regression test `server/src/tests/security-config.unit.test.js` (11 cases) pins the entire
+    rule table; the explicit "NODE_ENV=production alone does NOT re-enable HTTPS enforcement"
+    case will turn red if anyone reverts to the conflated logic.
 - **"Nouveau devis" button was invisible on the Devis page.** `DevisPage` was passing an
   `actions={<Button>}` prop to the legacy `PageHeader` component, which expects
   `actionLabel` / `actionIcon` / `onAction` instead — the button (and the page subtitle) were
