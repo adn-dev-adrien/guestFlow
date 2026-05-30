@@ -362,6 +362,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **"Envoyer un mail de test" SMTP button now sends to the configured sender, not the logged-in
+  admin.** The seeded default admin is `admin@guestflow.local`, a non-routable `.local` TLD, so
+  every first-run test bounced (`DNS Error: NXDOMAIN`) before Adrien had the chance to change his
+  own email. The configured `smtpFromEmail` is always a real, deliverable address (otherwise the
+  upstream provider would reject the send), making it the natural self-loopback target. Test
+  added in `settings-smtp-test.unit.test.js` (4 cases). Spec
+  `admin-account-management.md` rules 17 + 30 + UI/UX + test plan updated.
 - **Per-platform tourist tax (owner-collect) leaked into the accountant journal:** with the new
   "tax in complement" schedule, the accounting export still pro-rated deposit + balance against
   `totalStayTtc` and pro-rated the complement (= pure tax) as if it were stay revenue. Result on

@@ -162,9 +162,12 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
       `https://guestflow.adn-dev.fr`; injected into the welcome email).
 17. A new **Envoi d'emails (SMTP)** section appears in `/parametres`, with form fields for the
     above + a button **"Envoyer un mail de test"** that sends *"Email de test GuestFlow"* to the
-    admin's own email and returns 200 on success or 400 + `{error: 'SMTP_TEST_FAILED', detail:
-    '<message>'}` on transport failure. The detail is displayed to the user (helpful for
-    diagnosing creds).
+    **SMTP sender address** (`smtpFromEmail`) and returns 200 on success or 400 +
+    `{error: 'SMTP_TEST_FAILED', detail: '<message>'}` on transport failure. The detail is
+    displayed to the user (helpful for diagnosing creds). *(Updated 2026-05-30: the destination
+    used to be `req.user.email` — the seeded default admin is `admin@guestflow.local`, a
+    non-routable `.local` TLD, so every test bounced before the admin could change the address.
+    The sender is real by definition, so we use it as the loopback target.)*
 18. The account-creation / reset flow **rejects the action with 400 `SMTP_NOT_CONFIGURED`** if
     `smtpHost` is empty (the user would otherwise never get their password). The page surfaces
     this as a snackbar *"Configurez SMTP dans Paramètres avant de créer un compte."* with a
@@ -218,7 +221,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | `utils/emailService.js` | — | C | `createEmailService(settings) → { send(toEmail, subject, bodyPlain), sendTest(toEmail) }`. Wraps `nodemailer` (new dependency). Throws `EMAIL_NOT_CONFIGURED` when `settings.smtpHost` empty. Reads the decrypted password lazily. Pure plain-text emails (no HTML — keeps the code small and avoids the templating dependency for now). |
 | `utils/emailTemplates.js` | — | C | Two pure functions: `welcomeEmailBody({ firstName, email, temporaryPassword, publicUrl })` → `{ subject, body }` and `passwordResetEmailBody(...)`. Returns French plain-text. |
 | `controllers/usersController.js` | `usersController.js` | T | Extended: `list()` returns enriched users (with roles + lastLoginAt); `create({...})` orchestrates: validate → generate temp password → wrap in transaction → insert user + roles → send welcome email → on send failure, rollback; `update(id, payload)` (identity + roles); `resetPassword(id)` analogous to create (re-generate + email + rollback); `softDelete(id)` + `hardDelete(id)` with eligibility check + last-admin guard. All self-action checks reject `403 SELF_ACTION_FORBIDDEN`. |
-| `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` → calls `emailService.sendTest(req.user.email)`. SMTP field validation lives here (port range, email pattern). |
+| `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` → calls `emailService.sendTest(smtpFromEmail)` (the configured sender). SMTP field validation lives here (port range, email pattern). |
 | `controllers/authController.js` | `authController.js` | T | `login` now calls `usersModel.touchLastLogin(user.id)` on success. `changePassword` now: if the *pre-change* session had `mustChangePassword=1`, **destroy the session** after the password update and return 204 (the client redirects to /login). Otherwise existing behaviour (session stays). |
 | `middleware/requireAuth.js` | `requireAuth.js` | T | `req.user.roles` is the new shape. Allowlist check stays identical. |
 | `middleware/enforceRoleAccess.js` | `enforceRoleAccess.js` | T | Multi-role aware: `userHasRole(req.user, 'admin')` rather than `req.user.role === 'admin'`. Allowlist for `accountant` extended to `/api/users/me` (read self). Admin-only group `/api/users` (except `/api/users/me`) gated here. |
@@ -269,7 +272,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | POST | `/api/auth/login` | (unchanged) | (unchanged) | Touches `users.lastLoginAt` on success. |
 | GET | `/api/settings` | — | (extended) returns SMTP fields + `smtpPasswordSet: boolean` + `publicUrl` | admin only. |
 | PUT | `/api/settings` | (extended) `{ ..., smtpHost?, smtpPort?, smtpSecure?, smtpUsername?, smtpPassword?, smtpFromEmail?, smtpFromName?, publicUrl? }` | 200 (extended) | admin only. `smtpPassword` omitted → preserves existing. |
-| POST | `/api/settings/smtp-test` | — | 200 `{ ok: true }` or 400 `{ error: 'SMTP_TEST_FAILED', detail }` | admin only. Sends a test mail to the current admin's email. |
+| POST | `/api/settings/smtp-test` | — | 200 `{ ok: true, recipient }` or 400 `{ error: 'SMTP_TEST_FAILED', detail }` | admin only. Sends a test mail **to the configured `smtpFromEmail` (sender)** — see rule 17. |
 
 Error shapes (consistent with existing routes): `{ error: <ERROR_CODE>, message?: string, field?: string }`.
 
@@ -372,7 +375,7 @@ SMTP fields start empty — the new account-creation endpoint returns
 - New card titled **Envoi d'emails (SMTP)**, in the same column flow as the other settings cards, *above* the "Sauvegarde" group.
 - Fields: SMTP Host, Port (number), Sécurité (`Select` with options *Aucun (STARTTLS)* / *TLS implicite*), Utilisateur, Mot de passe (MaskedTextField), Adresse expéditeur, Nom expéditeur, URL publique.
 - A help caption under URL publique: *"Cette URL est insérée dans les emails envoyés aux utilisateurs (ex. https://guestflow.adn-dev.fr)."*
-- "Envoyer un mail de test" button, disabled while any required SMTP field is empty. On click: calls `POST /api/settings/smtp-test`, shows success (*"Mail de test envoyé à <adminEmail>."*) or the error detail in a snackbar.
+- "Envoyer un mail de test" button, disabled while any required SMTP field is empty. On click: calls `POST /api/settings/smtp-test`, shows success (*"Mail de test envoyé à <smtpFromEmail>."*) or the error detail in a snackbar. The destination is the configured sender (rule 17) — i.e. the test is a self-loopback to prove the credentials work end-to-end.
 
 ### 6.5 Login + ChangePassword flow
 
@@ -417,6 +420,10 @@ SMTP fields start empty — the new account-creation endpoint returns
 - [ ] `enforce-role-access.unit.test.js` (extended) — multi-role admin reaches every route;
       a `[accountant]` user reaches only the existing accountant allowlist + `/api/users/me`;
       admin + accountant combined → admin wins.
+- [x] `settings-smtp-test.unit.test.js` (new, 2026-05-30) — `sendSmtpTest` sends to
+      `smtpFromEmail` (NOT `req.user.email`), even when the session has the seeded default admin;
+      400 `SMTP_NOT_CONFIGURED` when unconfigured (no send attempted); 400 `SMTP_TEST_FAILED`
+      with the transport detail on rejection; succeeds when `req.user.email` is absent.
 
 ### Manual UI verification
 

@@ -157,19 +157,29 @@ function deleteLogo(req, res) {
   return res.json({ company: { logoPath: '' } });
 }
 
-// POST /api/settings/smtp-test — sends "Email de test GuestFlow" to the current admin's email.
-// Returns 200 { ok: true } on transport success, 400 with a code on configuration / transport
-// failure. Used by the "Envoyer un mail de test" button on the SMTP card in /parametres.
+// POST /api/settings/smtp-test — sends "Email de test GuestFlow" to the SMTP sender address
+// (`smtpFromEmail`). Returns 200 { ok: true } on transport success, 400 with a code on
+// configuration / transport failure. Used by the "Envoyer un mail de test" button on the SMTP
+// card in /parametres.
+//
+// Why the sender, not `req.user.email`? The sender is a real, deliverable address by definition
+// (otherwise Google/anyone would reject the send upstream). The currently-logged-in admin can be
+// the seeded default (`admin@guestflow.local`, non-routable .local TLD) which bounces every test
+// — exactly the pitfall Adrien hit on first run. Using the sender as the destination is also the
+// canonical "send-to-self loopback" pattern other SMTP testers use; it proves both outbound
+// (authentication, TLS, DNS) and the configured sender is reachable.
 async function sendSmtpTest(req, res) {
   if (!settingsModel.smtpConfigured()) {
     return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
   }
-  const recipient = req.user && req.user.email;
+  const smtp = settingsModel.decryptedSmtpSettings();
+  const recipient = smtp.fromEmail;
+  // `smtpConfigured()` already requires a non-empty fromEmail, so this guard is defensive.
   if (!recipient) {
-    return res.status(400).json({ error: 'NO_RECIPIENT', detail: 'Aucune adresse email rattachée à votre compte.' });
+    return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
   }
   try {
-    const svc = createEmailService(settingsModel.decryptedSmtpSettings());
+    const svc = createEmailService(smtp);
     await svc.sendTest(recipient);
     return res.json({ ok: true, recipient });
   } catch (err) {
