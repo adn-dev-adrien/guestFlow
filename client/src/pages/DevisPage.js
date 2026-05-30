@@ -10,7 +10,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PageHeader from '../components/PageHeader';
+import PageActionBar from '../components/PageActionBar';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 
@@ -119,21 +119,32 @@ export default function DevisPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <PageHeader
+    <Box>
+      {/*
+        The legacy PageHeader was silently dropping the "Nouveau devis" button on this page —
+        it expects (actionLabel + actionIcon + onAction), not the `actions` node prop that was
+        being passed. Migrated to PageActionBar (the standard per CLAUDE.md §7); the create
+        button now lives in `actionsBefore` as a custom node so it can carry its label inline
+        rather than collapsing to an icon-only IconButton.
+      */}
+      <PageActionBar
         title="Devis"
-        subtitle="Gérez vos devis clients"
-        actions={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateDevis}
-          >
-            Nouveau devis
-          </Button>
-        }
+        actionsBefore={[
+          { node: (
+            <Button
+              key="create-devis"
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={handleCreateDevis}
+            >
+              Nouveau devis
+            </Button>
+          ) },
+        ]}
       />
 
+      <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 1, sm: 2 } }}>
       <Card variant="outlined" sx={{ bgcolor: '#fff', mt: 2 }}>
         <CardContent>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
@@ -244,6 +255,7 @@ export default function DevisPage() {
           )}
         </CardContent>
       </Card>
+      </Box>
     </Box>
   );
 }

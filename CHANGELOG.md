@@ -423,6 +423,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **"Nouveau devis" button was invisible on the Devis page.** `DevisPage` was passing an
+  `actions={<Button>}` prop to the legacy `PageHeader` component, which expects
+  `actionLabel` / `actionIcon` / `onAction` instead — the button (and the page subtitle) were
+  silently dropped. Migrated `DevisPage` to the standard `<PageActionBar>` per CLAUDE.md §7;
+  the create button now lives in `actionsBefore` as a custom node so it keeps its full label
+  ("Nouveau devis") rather than collapsing to an icon-only IconButton. Click navigates to
+  `/reservations/new?mode=devis` (the existing devis editor). New regression test
+  `DevisPage.test.js` (3 cases: button visible, navigation target, button reachable while the
+  list is still loading).
 - **Per-platform tourist tax (owner-collect) leaked into the accountant journal:** with the new
   "tax in complement" schedule, the accounting export still pro-rated deposit + balance against
   `totalStayTtc` and pro-rated the complement (= pure tax) as if it were stay revenue. Result on
