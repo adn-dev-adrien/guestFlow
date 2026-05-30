@@ -367,17 +367,106 @@ The cert is valid for **1 year**. When it nears expiry, regenerate (`--force`) a
 
 ##### Trusting the cert in the browser
 
-The cert is self-signed so browsers will warn on the first visit. Two paths:
+The cert is self-signed so browsers will warn on the first visit. Three paths in increasing
+"clean" / decreasing operational overhead:
 
 - **Easy path — accept once per device**. Open `https://192.168.0.196:4000`, Safari shows
   *"Cette connexion n'est pas privée"*, click *Détails* → *Afficher ce site web*. Chrome:
   *Avancé* → *Continuer vers...*. After acceptance, HSTS (issued by the server) pins HTTPS on
   that hostname for 1 year, so the warning is gone until the cert is regenerated.
 
-- **Clean path — install the cert as trusted on each device** (no warning at all). Copy
+- **Middle path — install the cert as trusted on each device** (no warning at all). Copy
   `~/guestflow/certs/server.crt` from the Pi to your Mac / iPhone, double-click to import into
   the Keychain (Mac) / Profil installé (iPhone), then mark it as *Toujours approuver* for SSL.
-  More involved but no per-device click-through.
+  Per-device, redo at every cert rotation (1 year). Useful for shared / kiosk devices.
+
+- **Best path — real Let's Encrypt cert via your domain (no warning ever, anywhere)**. See the
+  next subsection.
+
+##### Real Let's Encrypt cert via Cloudflare DNS-01 (no warning on any device)
+
+This is the only path that **completely removes** the browser warning, including for visitors who
+haven't pre-installed anything. The cert is signed by a public CA, trusted out of the box
+everywhere. Renewal is automatic every 60 days via acme.sh.
+
+**Why DNS-01?** Let's Encrypt's HTTP-01 / TLS-ALPN-01 challenges need to reach your server from
+the public Internet. GuestFlow's Pi is on a LAN behind your router (RFC1918 IP), unreachable
+from outside. DNS-01 proves domain ownership via a TXT record instead — works for any host,
+public or not.
+
+**Why Cloudflare?** Adrien's domain `domainesolio.com` is registered at Squarespace, which
+doesn't expose a DNS API. We migrate the DNS *hosting* to Cloudflare (free) while keeping the
+*registrar* at Squarespace, then acme.sh uses Cloudflare's API to automate the TXT record. The
+yearly renewal fee stays at Squarespace — Cloudflare's free plan covers the DNS hosting.
+
+**Setup (one-time, ~30 min)** — manual operator steps, then a single CLI run on the Pi:
+
+1. **Cloudflare account + domain**
+   1. Create a free account at <https://dash.cloudflare.com/sign-up>.
+   2. *Add a site* → enter `domainesolio.com` → pick the *Free* plan.
+   3. Cloudflare scans your existing DNS records — review them, click *Continuer*.
+   4. Cloudflare displays **2 nameservers** (e.g. `lara.ns.cloudflare.com` and
+      `walter.ns.cloudflare.com`). Keep this page open — you need them in step 2.
+
+2. **Repoint Squarespace to Cloudflare's nameservers**
+   1. Log into <https://account.squarespace.com/> → *Domains* → `domainesolio.com` →
+      *DNS Settings* → *Use Custom Nameservers*.
+   2. Replace the existing nameservers with the two Cloudflare ones from step 1.4.
+   3. Save. Propagation typically takes 30 min — 2 h. You can check with
+      `dig NS domainesolio.com +short` from anywhere; once it returns the Cloudflare names,
+      you're good.
+
+3. **Add the GuestFlow A record in Cloudflare**
+   1. Cloudflare panel → *DNS* → *Records* → *Add record*.
+   2. **Type** A, **Name** `guestflow` (gives `guestflow.domainesolio.com`),
+      **IPv4** `192.168.0.196`, **Proxy status** *DNS only* (gray cloud — the orange
+      *Proxied* doesn't work with private RFC1918 IPs).
+   3. Save.
+
+4. **Generate a Cloudflare API token** for acme.sh
+   1. Cloudflare panel → *My Profile* (top-right) → *API Tokens* → *Create Token*.
+   2. Use the **Edit zone DNS** template.
+   3. Restrict *Zone Resources* to *Include / Specific zone / domainesolio.com*.
+   4. *Continue to summary* → *Create Token* → copy the token (shown once — paste it into
+      something safe immediately).
+
+5. **Issue the cert on the Pi**
+   ```bash
+   cd ~/guestflow/current/server
+   ./scripts/issue-letsencrypt-cert.sh \
+     --hostname guestflow.domainesolio.com \
+     --email contact@domainesolio.com \
+     --cf-token <CLOUDFLARE_API_TOKEN>
+   ```
+   The script installs acme.sh on first run, validates DNS-01, drops the cert + key into
+   `~/guestflow/certs/server.{crt,key}` (where PM2 already reads them from), reloads PM2 via
+   `--reloadcmd`, and registers itself in cron for daily renewal checks.
+
+6. **Restart PM2 + test**
+   ```bash
+   pm2 restart guestflow --update-env
+   ```
+   Open `https://guestflow.domainesolio.com:4000` in any browser. The lock icon should be
+   solid (no warning) and the cert chain should show *DST Root CA X3 → ISRG Root X1 →
+   Let's Encrypt R3 → guestflow.domainesolio.com*.
+
+   ⚠️ Access via the hostname, NOT the IP — Let's Encrypt signed for `guestflow.domainesolio.com`,
+   not `192.168.0.196`. The IP URL will still trigger a hostname-mismatch warning.
+
+**Renewal**: acme.sh's cron entry runs daily at 00:27. Renewal happens at the 60-day mark
+(Let's Encrypt issues 90-day certs); the `--reloadcmd` in the install line restarts PM2
+automatically. Force-renew on demand with:
+```bash
+./scripts/issue-letsencrypt-cert.sh --hostname guestflow.domainesolio.com \
+  --email contact@domainesolio.com --cf-token <TOK> --force
+```
+
+**Caveat: DNS rebinding protection**. Some routers / DNS resolvers (Pi-hole's default, certain
+Fritz!Box / NETGEAR firmware) strip RFC1918 addresses from public-DNS responses, treating it as
+a rebinding attack. If your devices can resolve `guestflow.domainesolio.com` from outside the
+LAN (e.g. via `nslookup` on a phone using mobile data) but get *no result* on the LAN, that's
+your router. Whitelist the hostname in the router's rebind-protection settings, or add an entry
+to your local DNS / `/etc/hosts`.
 
 ##### Clearing HSTS if the browser cached the wrong policy
 

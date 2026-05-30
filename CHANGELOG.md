@@ -5,6 +5,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Let's Encrypt cert option for production via Cloudflare DNS-01** (`server/scripts/issue-letsencrypt-cert.sh`).
+  Removes the browser "connexion non sécurisée" warning entirely (the cert is signed by a public
+  CA, trusted out of the box on any device — no per-device install needed). The script wraps
+  `acme.sh` with the Cloudflare DNS-01 plugin: installs acme.sh on first run, persists the
+  Cloudflare API token in `~/.acme.sh/account.conf`, issues a 90-day cert via DNS-01 (the only
+  ACME challenge that works for a LAN-only host behind a private RFC1918 IP), installs cert + key
+  into the same `~/guestflow/certs/server.{crt,key}` paths PM2 already reads, registers itself in
+  cron for daily renewal checks, and reloads PM2 via `--reloadcmd` when a renewed cert lands.
+  Idempotent (re-running with the same hostname is a no-op until the 60-day mark; `--force`
+  bypasses). README §HTTPS gets a full Cloudflare migration walkthrough — *because Squarespace
+  (the registrar for `domainesolio.com`) doesn't expose a DNS API, the DNS hosting moves to
+  Cloudflare free plan; the registrar + yearly renewal billing stay at Squarespace.* 6 manual
+  steps (account → nameservers → A record with proxy OFF → API token → script run → PM2 restart)
+  then everything is automated; renewal is hands-off via the acme.sh cron at the 60-day mark.
+  Caveat documented: hostname-based access only (`https://guestflow.domainesolio.com:4000`, not
+  the IP), and DNS-rebinding protection on certain routers can strip RFC1918 responses (whitelist
+  in the router or use a local `/etc/hosts` entry as a fallback). Deploy workflow
+  `🔒 Provision TLS cert` step now distinguishes self-signed vs. Let's Encrypt via the issuer
+  field and logs which one is active, so the operator can tell at a glance whether acme.sh is on
+  duty or the fallback self-signed is still in play.
 - **Self-service profile editor on `/account`** (spec `admin-account-management.md` follow-up #6).
   A new "Mes informations" card sits **above** "Mon mot de passe" and lets every authenticated
   user (admin or accountant) edit their own `firstName`, `lastName`, `companyName` and `notes`.

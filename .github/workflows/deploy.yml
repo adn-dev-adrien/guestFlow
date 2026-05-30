@@ -171,8 +171,11 @@ jobs:
           echo "✓ Database symlink created"
           ls -la "$DEPLOY_DIR/current/server/guestflow.db"
 
-      - name: 🔒 Provision self-signed TLS cert (one-time, persistent across deploys)
+      - name: 🔒 Provision TLS cert (persistent across deploys)
         run: |
+          # The deploy keeps existing certs intact — that's how Let's Encrypt-issued certs
+          # (refreshed every ~60 days by the acme.sh cron) survive deploys. The fallback only
+          # fires on a brand-new install where no cert has ever been provisioned.
           CERTS_DIR="$HOME/guestflow/certs"
           CERT_FILE="$CERTS_DIR/server.crt"
           KEY_FILE="$CERTS_DIR/server.key"
@@ -180,10 +183,21 @@ jobs:
           mkdir -p "$CERTS_DIR"
 
           if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+            # Distinguish self-signed vs. Let's Encrypt for the log so the operator can tell
+            # which one is currently active.
+            ISSUER=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null | sed 's/^issuer=//')
             echo "✓ TLS cert already provisioned at $CERTS_DIR — leaving it alone."
-            echo "  (regenerate manually with --force on the script if the cert nears expiry)"
+            echo "  Issuer: ${ISSUER:-unknown}"
+            if echo "$ISSUER" | grep -qi "Let's Encrypt"; then
+              echo "  (acme.sh cron handles auto-renewal at the 60-day mark)"
+            else
+              echo "  (regenerate self-signed manually with --force when nearing expiry,"
+              echo "   or migrate to Let's Encrypt via server/scripts/issue-letsencrypt-cert.sh)"
+            fi
           else
-            echo "ℹ No TLS cert found — generating a fresh self-signed cert."
+            echo "ℹ No TLS cert found — generating a fresh self-signed cert as a fallback."
+            echo "  To switch to a Let's Encrypt cert (no browser warning), run on the Pi:"
+            echo "    server/scripts/issue-letsencrypt-cert.sh --hostname <fqdn> --email <e> --cf-token <tok>"
             chmod +x "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
             OUT_DIR="$CERTS_DIR" "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
           fi
