@@ -86,7 +86,13 @@ export default function PricingSummary({
       sx={{
         position: { xs: 'static', md: 'sticky' },
         top: { md: 148 },
-        height: 'fit-content',
+        // Desktop: the summary becomes its own scroll area so the wheel/trackpad scrolls inside the
+        // panel rather than the page when the cursor sits over it. We leave the mobile flow alone
+        // (`xs` keeps the natural page scroll).
+        maxHeight: { md: 'calc(100vh - 148px - 16px)' },
+        overflowY: { md: 'auto' },
+        // Hint browsers/scroll-snap engines to keep the inner scroll independent of the page.
+        overscrollBehavior: 'contain',
       }}
     >
       <Card variant="outlined" sx={{ bgcolor: '#fff', p: 2 }}>

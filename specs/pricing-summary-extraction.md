@@ -98,6 +98,14 @@ unchanged (it already stacks below the form on `xs`, sticky on `md+`). The compo
 sticky panel wrapper styling (or the page keeps the wrapper and renders `<PricingSummary>` inside — to
 be decided in implementation, whichever preserves the current layout exactly).
 
+**Sticky scroll trap (md+, added 2026-05-30):** when the summary content overflows the viewport,
+the panel becomes its own scroll area so the wheel/trackpad scrolls **inside** the panel rather than
+the page when the cursor sits over it. Implemented on the root `<Box>` of `PricingSummary` with
+`maxHeight: { md: 'calc(100vh - 148px - 16px)' }` (148 px sticky top + 16 px breathing room),
+`overflowY: { md: 'auto' }`, and `overscrollBehavior: 'contain'` to keep the inner scroll independent.
+The `xs` flow is untouched (page-natural scroll). Verified mechanically: `panel.scrollTop = 200`
+moves the panel while `window.scrollY` stays at 0.
+
 ## 7. Test plan
 
 ### Server unit tests
