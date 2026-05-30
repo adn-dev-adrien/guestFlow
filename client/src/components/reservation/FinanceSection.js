@@ -114,6 +114,55 @@ export default function FinanceSection() {
               </Grid>
             </Box>
 
+            {String(form.platform || 'direct').toLowerCase() !== 'direct' && (() => {
+              const grossRaw = form.clientGrossAmount;
+              const grossNumber = grossRaw === '' || grossRaw == null ? null : Number(grossRaw);
+              const net = Number(pricingQuote?.finalPrice || 0);
+              const commission = grossNumber != null && Number.isFinite(grossNumber)
+                ? Math.max(0, Math.round((grossNumber - net) * 100) / 100)
+                : null;
+              const grossBelowNet = grossNumber != null && Number.isFinite(grossNumber) && grossNumber < net;
+              return (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Plateforme</Typography>
+                    <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="Prix payé par le client"
+                          type="number"
+                          value={form.clientGrossAmount ?? ''}
+                          onChange={(e) => updateForm({ clientGrossAmount: e.target.value === '' ? '' : Number(e.target.value) })}
+                          onFocus={(e) => e.target.select()}
+                          fullWidth
+                          size="small"
+                          inputProps={{ min: 0, step: 0.01 }}
+                          error={grossBelowNet}
+                          helperText={grossBelowNet
+                            ? `Doit être ≥ ${net.toFixed(2)}€ (montant net que tu touches).`
+                            : 'Montant TTC réellement payé par le client sur la plateforme.'}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Box sx={{ p: 1.5, bgcolor: '#f7fafc', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                            Commission plateforme
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
+                            {commission == null ? '—' : `${commission.toFixed(2)}€`}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Calculée automatiquement : prix payé client − net encaissé ({net.toFixed(2)}€).
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </>
+              );
+            })()}
+
             <Divider />
 
             <Box>
@@ -135,17 +184,34 @@ export default function FinanceSection() {
                     color={form.depositPaid ? 'success' : 'inherit'}
                     onClick={async () => {
                       const next = !form.depositPaid;
+                      const today = todayStr();
+                      const date = next ? (form.depositPaidDate || today) : '';
                       if (isReservationLocked && editingReservationId) {
-                        await api.markPayment(editingReservationId, { depositPaid: next });
-                        updateForm({ depositPaid: next });
-                      } else {
-                        updateForm({ depositPaid: next });
+                        await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
                       }
+                      updateForm({ depositPaid: next, depositPaidDate: date });
                     }}
                     sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
                   >
                     {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
                   </Button>
+                  {form.depositPaid && (
+                    <TextField
+                      label="Payé le"
+                      type="date"
+                      value={form.depositPaidDate || ''}
+                      InputLabelProps={{ shrink: true }}
+                      onChange={async (e) => {
+                        const v = e.target.value;
+                        updateForm({ depositPaidDate: v });
+                        if (isReservationLocked && editingReservationId) {
+                          await api.markPayment(editingReservationId, { depositPaid: true, depositPaidDate: v || null });
+                        }
+                      }}
+                      fullWidth
+                      sx={{ mt: 1.5 }}
+                    />
+                  )}
                 </Grid>
 
                 <Grid item xs={12} md={6}>
@@ -165,20 +231,100 @@ export default function FinanceSection() {
                     color={form.balancePaid ? 'success' : 'inherit'}
                     onClick={async () => {
                       const next = !form.balancePaid;
+                      const today = todayStr();
+                      const date = next ? (form.balancePaidDate || today) : '';
                       if (isReservationLocked && editingReservationId) {
-                        await api.markPayment(editingReservationId, { balancePaid: next });
-                        updateForm({ balancePaid: next });
-                      } else {
-                        updateForm({ balancePaid: next });
+                        await api.markPayment(editingReservationId, { balancePaid: next, balancePaidDate: date || null });
                       }
+                      updateForm({ balancePaid: next, balancePaidDate: date });
                     }}
                     sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
                   >
                     {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
                   </Button>
+                  {form.balancePaid && (
+                    <TextField
+                      label="Payé le"
+                      type="date"
+                      value={form.balancePaidDate || ''}
+                      InputLabelProps={{ shrink: true }}
+                      onChange={async (e) => {
+                        const v = e.target.value;
+                        updateForm({ balancePaidDate: v });
+                        if (isReservationLocked && editingReservationId) {
+                          await api.markPayment(editingReservationId, { balancePaid: true, balancePaidDate: v || null });
+                        }
+                      }}
+                      fullWidth
+                      sx={{ mt: 1.5 }}
+                    />
+                  )}
                 </Grid>
               </Grid>
             </Box>
+
+            {Number(pricingQuote?.complementAmount || 0) > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Grid container spacing={2} sx={sectionGridSx}>
+                    <Grid item xs={12} md={6}>
+                      {/* Red border tant qu'impayé pour signaler le reste à percevoir ; bascule en visuel
+                          neutre (= Acompte/Solde payé) une fois le complément encaissé. */}
+                      <Box
+                        sx={{
+                          border: form.complementPaid ? 'none' : '1px solid',
+                          borderColor: form.complementPaid ? 'transparent' : 'error.main',
+                          borderRadius: 1,
+                          p: form.complementPaid ? 0 : 1.5,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>
+                          Complément à percevoir
+                          <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
+                            ({Number(pricingQuote.complementAmount).toFixed(2).replace('.', ',')} €)
+                          </Typography>
+                        </Typography>
+                        <Button
+                          fullWidth
+                          variant={form.complementPaid ? 'contained' : 'outlined'}
+                          color={form.complementPaid ? 'success' : 'inherit'}
+                          onClick={async () => {
+                            const next = !form.complementPaid;
+                            const today = todayStr();
+                            const date = next ? (form.complementPaidDate || today) : '';
+                            if (isReservationLocked && editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
+                            }
+                            updateForm({ complementPaid: next, complementPaidDate: date });
+                          }}
+                          sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                        >
+                          {form.complementPaid ? 'Complément payé' : 'Marquer complément payé'}
+                        </Button>
+                        {form.complementPaid && (
+                          <TextField
+                            label="Payé le"
+                            type="date"
+                            value={form.complementPaidDate || ''}
+                            InputLabelProps={{ shrink: true }}
+                            onChange={async (e) => {
+                              const v = e.target.value;
+                              updateForm({ complementPaidDate: v });
+                              if (isReservationLocked && editingReservationId) {
+                                await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
+                              }
+                            }}
+                            fullWidth
+                            sx={{ mt: 1.5 }}
+                          />
+                        )}
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </>
+            )}
 
             <Divider />
 

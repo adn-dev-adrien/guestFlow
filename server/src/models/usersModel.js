@@ -56,6 +56,34 @@ function createUsersModel(databaseInstance) {
       updatePasswordStmt.run(hashPassword(String(newPassword)), Number(id));
     },
 
+    // List all users (safe shape), ordered by id. Used by the admin "Accès comptable" UI.
+    list() {
+      return databaseInstance.prepare('SELECT id, email, role, isActive, mustChangePassword FROM users ORDER BY id').all().map(toSafeUser);
+    },
+
+    // Insert a new user with a hashed password and a forced first-login change.
+    // Throws on duplicate email (UNIQUE constraint).
+    createUser({ email, password, role = 'admin' }) {
+      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const hash = hashPassword(String(password || ''));
+      const result = databaseInstance
+        .prepare("INSERT INTO users (email, passwordHash, role, mustChangePassword, isActive) VALUES (?, ?, ?, 1, 1)")
+        .run(normalizedEmail, hash, String(role));
+      return toSafeUser(findByIdStmt.get(Number(result.lastInsertRowid)));
+    },
+
+    // Admin-side reset: set a new temporary password and re-force the change on next login. Returns
+    // null if the user is missing; otherwise the safe user.
+    resetUserPassword(id, newPassword) {
+      const row = findByIdStmt.get(Number(id));
+      if (!row) return null;
+      const hash = hashPassword(String(newPassword || ''));
+      databaseInstance
+        .prepare("UPDATE users SET passwordHash = ?, mustChangePassword = 1, isActive = 1, updatedAt = datetime('now') WHERE id = ?")
+        .run(hash, Number(id));
+      return toSafeUser(findByIdStmt.get(Number(id)));
+    },
+
     // Recovery: restore the default admin account to the documented default password with a forced
     // change, re-activating (or recreating) it. Used by the `reset-admin` CLI when access is lost.
     resetAdminToDefault() {

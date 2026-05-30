@@ -5,6 +5,75 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Reservation: 3rd payment slot "Complément à percevoir"** (spec
+  `accountant-accounting-export.md`, rule 28). When the deposit and the balance are marked paid and
+  the total stay TTC has *since* grown — typical case: options or extras added after the payments
+  were recorded — the pricing engine now surfaces the leftover as `complementAmount =
+  max(0, totalStayPrice − depositAmount − balanceAmount)`. The FinanceSection renders a 3rd block
+  (orange-tinted) under Solde with a single "Marquer complément payé" button + a "Payé le" date,
+  visible **only** when the complement is > 0. Once paid the amount is frozen in the DB like
+  deposit/balance — the engine never erodes received money. Typically settled at end of stay for
+  on-site extras. The accounting export treats it as a 3rd encaissement type alongside deposit and
+  balance (same balanced double-entry shape, dated at `complementPaidDate`). Migration backfills
+  the column on existing fully-paid reservations so any silent gap (e.g. production res #12087:
+  240 € unbilled) becomes immediately visible. Unit tests: `pricing-complement` (7). Full suite
+  green at 440. Also fixes a quiet inaccuracy: the export now pro-rates against `totalStayPrice`
+  (= finalPrice + tourist tax) instead of `finalPrice`, so D + B + C = 100 % exactly.
+- **Accountant access + monthly accounting CSV export** (spec
+  `accountant-accounting-export.md`, PR 3 — closes the feature):
+  - New **`accountant`** user role and a dedicated **`/comptabilite`** page (nested under "Suivi
+    financier" in the admin sidebar). The accountant logs in, picks a month + year, downloads the
+    sales CSV, and changes their own password — and can do **nothing else** (read-only by construction).
+  - **Sales CSV** (`GET /api/accounting/sales.csv?month=&year=`) — one row per double-entry journal
+    line, balanced: client auxiliary account `C<NAME>` debited TTC, revenue accounts (`70600000` /
+    `70600010` / `70601000`) credited HT pro-rated per encaissement, VAT accounts (`44571100` /
+    `44571200`) credited per rate. One entry **per encaissement** (deposit or balance) whose
+    `depositPaidDate` / `balancePaidDate` falls in the month, so a reservation paid across two months
+    appears in both. Caution and tourist tax are excluded; `kind='devis'` rows never exported.
+    Trailing info columns (`Plateforme`, `Prix payé client`, `Commission`) carry the platform data on
+    the debit row only. **Format:** `;` separator, UTF-8 BOM, comma decimals, FR-Excel friendly.
+  - **Platform commissions preview** (`GET /api/accounting/platforms?month=&year=`) — JSON used by
+    the page table.
+  - **Turnover basis = net** (the owner-received `finalPrice`) — chosen as the simple default; the
+    brut + commission appear only in info columns. One-line switch in
+    `constants/accounting.js::RECOGNISE_REVENUE_ON` when the accountant's example CSV arrives.
+  - **Role enforcement** — new `middleware/enforceRoleAccess.js` (fail-closed): accountants reach
+    only `GET /api/accounting/*` + self routes (`me`, `logout`, `change-password`, `version`); every
+    other endpoint returns **`403 FORBIDDEN_ROLE`**. Admin keeps full access.
+  - **Admin can create / reset the accountant** from **Paramètres → Accès comptable** (new
+    `SettingsAccountantAccessSection`). The accountant must change the temporary password on first
+    login (reuses `mustChangePassword`).
+  - **Client account format:** `C` + first 6 chars of the last name, uppercased, accent-stripped,
+    padded with `X` if shorter — a common French convention. Trivially tunable in `accounting.js`.
+  - **Visual journal preview** above the platforms table — one card per encaissement mirroring
+    exactly what will be in the CSV, with the per-line account number paired with its human label
+    (`Location gîte`, `TVA 10 %`, `Compte client`…), coloured by type (client/amber, revenue/green,
+    VAT/blue), balanced badge per card and `Tout équilibré` chip in the header. Backed by a new
+    `GET /api/accounting/sales` JSON endpoint (strict mirror of the CSV via
+    `buildStructuredEntries`). For **admin only**, the client name is a link to the reservation file
+    (accountant sees plain text).
+  - **Dedicated change-password page** at `/settings/password`, accessible to every authenticated
+    role (admin and accountant). Replaces the previous duplicate "Sécurité" cards on `SettingsPage`
+    and `AccountingPage`. Admin sees a "Mot de passe" sub-item at the bottom of the Paramètres
+    group; accountant has a minimal sidebar (Comptabilité, Mot de passe, Se déconnecter) and is
+    client-side-redirected to `/comptabilite` from anywhere outside the two allowed paths.
+  - New files: `constants/accounting.js`, `middleware/enforceRoleAccess.js`, `models/accountingModel.js`,
+    `models/usersModel.js` (extended), `controllers/{accountingController, usersController}.js`,
+    `routes/{accounting, users}.js`, `utils/{csv, accountingExport}.js`,
+    `pages/AccountingPage.js`, `pages/ChangePasswordPage.js`,
+    `components/SettingsAccountantAccessSection.js`.
+  - Unit tests: `csv` (6), `accounting-export` (19), `enforce-role-access` (8), `users-model-admin` (7) —
+    full server suite green (433).
+- **Reservation payment dates + platform gross / commission** (spec
+  `accountant-accounting-export.md`, PR 2): each reservation now records the **real encaissement date**
+  for the deposit and the balance (`depositPaidDate`, `balancePaidDate`) — defaulted to today when the
+  user marks paid, editable in the FinanceSection ("Payé le"), cleared on un-pay. For
+  platform-sourced bookings, a new **"Prix payé par le client"** field (`clientGrossAmount`) captures
+  the TTC amount the guest paid the platform; the **commission** is derived (`gross − finalPrice`,
+  clamped at 0) and served alongside reservations as `commissionAmount`. Both the gross field and the
+  commission caption are **hidden** for direct bookings. The write boundary rejects a gross below the
+  net (`400 GROSS_BELOW_NET`). Unit tests: `client-gross-amount` (7), `reservations-commission` (7).
+  Foundation for the monthly accounting CSV (PR 3).
 - **iCal import — cross-platform de-duplication** (`propertyIcalModel.syncSource`): the same booking
   appearing in two platforms' feeds (same dates + guest name, different source + UID) now maps to the one
   existing reservation instead of creating a duplicate. Stale removal is cross-source-safe — a shared
@@ -324,6 +393,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Complément à percevoir columns:** `reservations` gains `complementAmount REAL NOT NULL DEFAULT 0`,
+  `complementPaid INTEGER NOT NULL DEFAULT 0`, `complementPaidDate TEXT`. For existing fully-paid
+  reservations (`depositPaid = 1 AND balancePaid = 1`), `complementAmount` is backfilled to
+  `max(0, finalPrice + touristTaxTotal − depositAmount − balanceAmount)` so any silent gap from
+  before this fix is visible the moment the migration runs.
+- **Reservation payment dates + platform gross:** `reservations` gains `depositPaidDate TEXT`,
+  `balancePaidDate TEXT` and `clientGrossAmount REAL`. Paid-dates are backfilled once from the
+  corresponding due-dates for rows already marked paid (sensible accounting date for legacy data);
+  `clientGrossAmount` stays NULL on existing rows. Idempotent.
 - **Global VAT rates:** `app_settings` gains `vatRateAccommodation` (default 10) and `vatRateStandard`
   (default 20). Backfilled once from any existing property's `vatPercentageAccommodation` (→
   accommodation) and `vatPercentageOptions` (→ standard) so a single-gîte install keeps its configured

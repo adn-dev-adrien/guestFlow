@@ -7,6 +7,7 @@ const session = require('express-session');
 const { startScheduledTasks } = require('./scheduledTasks');
 const { loadLocalEnv, getOrCreateSecret } = require('./utils/localEnv');
 const requireAuth = require('./middleware/requireAuth');
+const enforceRoleAccess = require('./middleware/enforceRoleAccess');
 const { apiLimiter, loginLimiter } = require('./middleware/rateLimiters');
 
 loadLocalEnv();
@@ -114,6 +115,15 @@ app.use('/api', (req, res, next) => {
   return requireAuth(req, res, next);
 });
 
+// Role-based access (runs after auth): accountants reach only `/api/accounting/*` (GET) + self routes;
+// every other business endpoint is admin-only.
+app.use('/api', (req, res, next) => {
+  if (req.path === '/version') return next();
+  if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
+  if (!req.user) return next(); // requireAuth above already 401'd if no session
+  return enforceRoleAccess(req, res, next);
+});
+
 // Routes
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/properties', require('./routes/properties'));
@@ -130,6 +140,8 @@ app.use('/api/google-calendar', require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/accounting', require('./routes/accounting'));
 
 app.get('/api/version', (req, res) => {
   res.json({

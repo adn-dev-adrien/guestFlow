@@ -482,6 +482,24 @@ export default function PricingSummary({
             <Chip size="small" label="Solde payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
           )}
 
+          {/* Complément à percevoir — only when the total has grown after deposit + balance were paid. */}
+          {Number(quote?.complementAmount || 0) > 0 && (
+            <>
+              <Divider />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
+                  Complément à percevoir
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {Number(quote.complementAmount).toFixed(2)}€
+                </Typography>
+              </Box>
+              {form.complementPaid && (
+                <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+              )}
+            </>
+          )}
+
           {/* Caution */}
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

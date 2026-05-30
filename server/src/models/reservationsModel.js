@@ -14,6 +14,19 @@ const { getOptionsSignature, getResourcesSignature } = require('../utils/reserva
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
+// Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
+// The owner's net stays in `finalPrice`. Commission = gross − net (clipped to 0). Null on direct bookings
+// and on platform bookings without a recorded gross.
+function deriveCommissionAmount(row) {
+  if (!row) return null;
+  if (String(row.platform || '').toLowerCase() === 'direct') return null;
+  if (row.clientGrossAmount == null) return null;
+  const gross = Number(row.clientGrossAmount);
+  if (!Number.isFinite(gross)) return null;
+  const net = Number(row.finalPrice || 0);
+  return Math.max(0, Math.round((gross - net) * 100) / 100);
+}
+
 function createReservationsModel(database) {
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
@@ -43,6 +56,11 @@ function createReservationsModel(database) {
         return {
           ...reservation,
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
+          clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
+          commissionAmount: deriveCommissionAmount(row),
+          complementAmount: Number(row.complementAmount || 0),
+          complementPaid: Number(row.complementPaid || 0),
+          complementPaidDate: row.complementPaidDate || null,
           remainingDue: payment.remainingDue,
           paymentComplete: payment.paymentComplete,
         };
@@ -120,6 +138,11 @@ function createReservationsModel(database) {
       `).all(id);
 
       reservation.customPrice = reservation.customPrice == null ? '' : Number(reservation.customPrice);
+      reservation.clientGrossAmount = reservation.clientGrossAmount == null ? null : Number(reservation.clientGrossAmount);
+      reservation.commissionAmount = deriveCommissionAmount(reservation);
+      reservation.complementAmount = Number(reservation.complementAmount || 0);
+      reservation.complementPaid = Number(reservation.complementPaid || 0);
+      reservation.complementPaidDate = reservation.complementPaidDate || null;
       const payment = computePaymentStatus(reservation);
       reservation.remainingDue = payment.remainingDue;
       reservation.paymentComplete = payment.paymentComplete;
@@ -189,8 +212,14 @@ function createReservationsModel(database) {
         finalPrice: Number(row.finalPrice || 0),
         depositAmount: Number(row.depositAmount || 0),
         depositDueDate: row.depositDueDate || null,
+        depositPaidDate: row.depositPaidDate || null,
         balanceAmount: Number(row.balanceAmount || 0),
         balanceDueDate: row.balanceDueDate || null,
+        balancePaidDate: row.balancePaidDate || null,
+        complementAmount: Number(row.complementAmount || 0),
+        complementPaid: Number(row.complementPaid || 0),
+        complementPaidDate: row.complementPaidDate || null,
+        clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
         notes: row.notes || null,
         cautionAmount: Number(row.cautionAmount || 0),
         cautionReceived: Number(row.cautionReceived || 0),
@@ -364,15 +393,20 @@ function createReservationsModel(database) {
     insertReservation(payload, quote, nightBlocks) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
-        depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered } = payload;
+        depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
+        clientGrossAmount } = payload;
+      // gross is meaningful only for platform-sourced bookings (rule 7 of the spec).
+      const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
+        ? Number(clientGrossAmount)
+        : null;
       const result = database.prepare(`
         INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds,
           checkInTime, checkOutTime,
           platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-          notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?)
+          notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -385,6 +419,7 @@ function createReservationsModel(database) {
         extraGuestSurchargeOffered ? 1 : 0,
         nightBlocks.blocksPreviousNight,
         nightBlocks.blocksNextNight,
+        grossForPlatform,
       );
       return result.lastInsertRowid;
     },
@@ -392,17 +427,21 @@ function createReservationsModel(database) {
     updateReservation(reservationId, payload, quote, nightBlocks, nextIcalSyncLocked) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
-        depositDueDate, depositPaid, balanceDueDate, balancePaid, notes,
+        depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
-        extraGuestSurchargeOffered } = payload;
+        extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate } = payload;
+      const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
+        ? Number(clientGrossAmount)
+        : null;
       database.prepare(`
         UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
           singleBeds=?, doubleBeds=?, babyBeds=?,
           checkInTime=?, checkOutTime=?,
           platform=?, totalPrice=?, touristTaxRate=?, touristTaxTotal=?, discountPercent=?, customPrice=?, finalPrice=?, depositAmount=?, depositDueDate=?,
-          depositPaid=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, notes=?,
+          depositPaid=?, depositPaidDate=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, balancePaidDate=?,
+          complementAmount=?, complementPaid=?, complementPaidDate=?, notes=?,
           cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, extraGuestSurchargeOffered=?, icalSyncLocked=?,
-          blocksPreviousNight=?, blocksNextNight=?,
+          blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
           updatedAt=datetime('now')
         WHERE id=?
       `).run(
@@ -412,11 +451,15 @@ function createReservationsModel(database) {
         platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
-        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, depositPaid ? 1 : 0,
-        quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, balancePaid ? 1 : 0, sentenceCase(notes),
+        quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null,
+        depositPaid ? 1 : 0, depositPaid ? (depositPaidDate || null) : null,
+        quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null,
+        balancePaid ? 1 : 0, balancePaid ? (balancePaidDate || null) : null,
+        Number(quote.complementAmount || 0), complementPaid ? 1 : 0, complementPaid ? (complementPaidDate || null) : null,
+        sentenceCase(notes),
         cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
         cautionReturned ? 1 : 0, cautionReturnedDate || null, extraGuestSurchargeOffered ? 1 : 0, nextIcalSyncLocked,
-        nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight,
+        nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight, grossForPlatform,
         reservationId,
       );
     },
@@ -490,5 +533,6 @@ function createReservationsModel(database) {
 
 const defaultModel = createReservationsModel(db);
 defaultModel.create = createReservationsModel;
+defaultModel.__test = { deriveCommissionAmount };
 
 module.exports = defaultModel;

@@ -390,6 +390,43 @@ if (!cols.includes('icalOriginalSummary')) {
     if (original) setSummary.run(original, r.id);
   }
 }
+if (!cols.includes('depositPaidDate')) {
+  // Real encaissement date for the deposit. Recorded when the deposit is marked paid (defaults to today,
+  // editable). Backfilled once from depositDueDate for rows already marked paid, so legacy data has a
+  // sensible accounting date. Drives the monthly accounting export (spec accountant-accounting-export.md).
+  db.exec("ALTER TABLE reservations ADD COLUMN depositPaidDate TEXT");
+  db.exec("UPDATE reservations SET depositPaidDate = depositDueDate WHERE depositPaid = 1 AND depositPaidDate IS NULL");
+}
+if (!cols.includes('balancePaidDate')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN balancePaidDate TEXT");
+  db.exec("UPDATE reservations SET balancePaidDate = balanceDueDate WHERE balancePaid = 1 AND balancePaidDate IS NULL");
+}
+if (!cols.includes('complementAmount')) {
+  // Third payment slot — "Complément à percevoir". Surfaces the silent gap when the total stay TTC
+  // grows after the deposit + balance were marked paid (e.g. options added after the fact). Auto-
+  // derived by the pricing engine as max(0, totalStayPrice − depositAmount − balanceAmount) while
+  // unpaid; frozen once `complementPaid = 1`, like deposit/balance. Typically settled at end of stay
+  // for on-site extras. Drives a 3rd encaissement type in the monthly accounting export.
+  db.exec("ALTER TABLE reservations ADD COLUMN complementAmount REAL NOT NULL DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN complementPaid INTEGER NOT NULL DEFAULT 0");
+  db.exec("ALTER TABLE reservations ADD COLUMN complementPaidDate TEXT");
+  // Backfill the stored complement for reservations whose deposit + balance no longer match the
+  // total stay TTC — so the gap is immediately visible on the form for existing rows.
+  db.exec(`
+    UPDATE reservations
+    SET complementAmount = ROUND(
+      MAX(0, COALESCE(finalPrice, 0) + COALESCE(touristTaxTotal, 0) - COALESCE(depositAmount, 0) - COALESCE(balanceAmount, 0)),
+      2
+    )
+    WHERE depositPaid = 1 AND balancePaid = 1
+  `);
+}
+if (!cols.includes('clientGrossAmount')) {
+  // For platform-sourced reservations, the gross amount the guest actually paid the platform (TTC).
+  // The owner's net (= finalPrice) stays in finalPrice; commission is derived (gross - finalPrice).
+  // Always NULL for direct bookings. Drives the platform columns of the accounting CSV (PR 3).
+  db.exec("ALTER TABLE reservations ADD COLUMN clientGrossAmount REAL");
+}
 if (!cols.includes('extraGuestSurchargeOffered')) {
   db.exec("ALTER TABLE reservations ADD COLUMN extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0");
 }

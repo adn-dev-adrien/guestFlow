@@ -197,6 +197,20 @@ const api = {
   },
   getDevisHistory: (id) => request(`/devis/${id}/history`),
 
+  // Accounting (read-only; admin + accountant)
+  getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
+  getAccountingPlatforms: (month, year) => request(`/accounting/platforms?month=${month}&year=${year}`),
+  downloadAccountingSalesCsv: async (month, year) => {
+    const res = await fetch(`${API}/accounting/sales.csv?month=${month}&year=${year}`, { credentials: 'include' });
+    if (!res.ok) throw new Error("Impossible de générer le CSV.");
+    return res.blob();
+  },
+
+  // User management (admin-only)
+  listUsers: () => request('/users'),
+  createUser: (payload) => request('/users', { method: 'POST', body: payload }),
+  resetUserPassword: (id, password) => request(`/users/${id}/reset-password`, { method: 'POST', body: { password } }),
+
   // Google Calendar sync
   getGoogleCalendarStatus: () => request('/google-calendar/status'),
   syncGoogleCalendarReservations: (payload = {}) => request('/google-calendar/sync-reservations', { method: 'POST', body: payload }),

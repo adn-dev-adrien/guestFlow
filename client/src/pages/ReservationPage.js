@@ -178,8 +178,10 @@ export default function ReservationPage() {
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
+    complementPaid: Boolean(form.complementPaid),
     depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
     balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
+    complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
     selectedOptions: (form.selectedOptions || [])
       .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
       .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) }))
@@ -529,7 +531,12 @@ export default function ReservationPage() {
             endDate: res.endDate,
             propertyId: res.propertyId,
             depositPaid: res.depositPaid || false,
-            balancePaid: res.balancePaid || false
+            depositPaidDate: res.depositPaidDate || '',
+            balancePaid: res.balancePaid || false,
+            balancePaidDate: res.balancePaidDate || '',
+            complementPaid: Boolean(res.complementPaid),
+            complementPaidDate: res.complementPaidDate || '',
+            clientGrossAmount: res.clientGrossAmount == null ? '' : res.clientGrossAmount,
           });
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
@@ -632,7 +639,12 @@ export default function ReservationPage() {
             endDate: devis.endDate,
             propertyId: devis.propertyId,
             depositPaid: false,
+            depositPaidDate: '',
             balancePaid: false,
+            balancePaidDate: '',
+            complementPaid: false,
+            complementPaidDate: '',
+            clientGrossAmount: '',
           });
 
           const offeredOpts = new Set((devis.options || [])
@@ -719,7 +731,12 @@ export default function ReservationPage() {
             endDate,
             propertyId: initialPropId,
             depositPaid: false,
-            balancePaid: false
+            depositPaidDate: '',
+            balancePaid: false,
+            balancePaidDate: '',
+            complementPaid: false,
+            complementPaidDate: '',
+            clientGrossAmount: '',
           });
 
           await loadResourcesAvailability(startDate, endDate, initialPropId);
@@ -820,6 +837,8 @@ export default function ReservationPage() {
           customPrice: form.customPrice,
           depositPaid: form.depositPaid,
           balancePaid: form.balancePaid,
+        complementPaid: form.complementPaid,
+          complementPaid: form.complementPaid,
           depositAmount: form.depositAmount,
           balanceAmount: form.balanceAmount,
           selectedOptions: buildSelectedOptionsPayload(),
@@ -1266,6 +1285,7 @@ export default function ReservationPage() {
         discountPercent: form.discountPercent,
         depositPaid: form.depositPaid,
         balancePaid: form.balancePaid,
+        complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
         selectedOptions: buildSelectedOptionsPayload(),
@@ -1372,6 +1392,7 @@ export default function ReservationPage() {
         customPrice: form.customPrice,
         depositPaid: form.depositPaid,
         balancePaid: form.balancePaid,
+        complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
         selectedOptions: buildSelectedOptionsPayload(),
@@ -1477,9 +1498,17 @@ export default function ReservationPage() {
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
           depositPaid: form.depositPaid,
+          depositPaidDate: form.depositPaidDate || null,
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
           balancePaid: form.balancePaid,
+        complementPaid: form.complementPaid,
+          complementPaid: form.complementPaid,
+          balancePaidDate: form.balancePaidDate || null,
+          complementPaid: form.complementPaid,
+          complementPaidDate: form.complementPaidDate || null,
+          complementAmount: quote.complementAmount,
+          clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
           cautionReceivedDate: form.cautionReceivedDate,
@@ -1526,6 +1555,7 @@ export default function ReservationPage() {
           depositDueDate: quote.depositDueDate,
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
+          clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,

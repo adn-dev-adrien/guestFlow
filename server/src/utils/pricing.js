@@ -831,8 +831,10 @@ function calculateReservationQuote({
   selectedResources,
   depositPaid,
   balancePaid,
+  complementPaid,
   depositAmount,
   balanceAmount,
+  complementAmount,
   offeredOptionIds,
   extraGuestSurchargeOffered,
   lockedOptionUnits,
@@ -878,6 +880,7 @@ function calculateReservationQuote({
       priceOverridden: false,
       depositAmount: 0,
       balanceAmount: 0,
+      complementAmount: 0,
       depositDueDate: null,
       balanceDueDate: null,
       touristTaxRate: Number(property.touristTaxPerDayPerPerson || 0),
@@ -1237,6 +1240,17 @@ function calculateReservationQuote({
     resolvedBalanceAmount = roundMoney(Math.max(0, totalStayPrice - resolvedDepositAmount));
   }
 
+  // Complément à percevoir: the leftover when deposit + balance are frozen-paid and the stay total
+  // has since grown (typical case: options/extras added after-the-fact). Auto-derived while unpaid;
+  // frozen once `complementPaid = 1` so any further total change creates a new gap (= a 2nd complement),
+  // not an erosion of what was actually received. Always 0 unless both deposit and balance are paid.
+  const rawComplement = roundMoney(Math.max(0, totalStayPrice - resolvedDepositAmount - resolvedBalanceAmount));
+  let resolvedComplementAmount = depositPaid && balancePaid ? rawComplement : 0;
+  if (complementPaid) {
+    // Once the user has marked the complement paid, freeze the stored amount (mirrors deposit/balance).
+    resolvedComplementAmount = roundMoney(complementAmount);
+  }
+
   return {
     property,
     nights,
@@ -1263,6 +1277,7 @@ function calculateReservationQuote({
     priceOverridden,
     depositAmount: resolvedDepositAmount,
     balanceAmount: resolvedBalanceAmount,
+    complementAmount: resolvedComplementAmount,
     depositDueDate,
     balanceDueDate,
     baseAccommodationAdjustedPrice,

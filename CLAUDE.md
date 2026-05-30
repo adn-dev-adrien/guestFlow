@@ -90,6 +90,17 @@ Applies to *all* of these situations:
 
 If a feedback proves the spec was *wrong* (vs. *incomplete*), the spec fix is even more important than the code fix — write down what the right behavior is so it doesn't drift back later.
 
+**Pre-commit checklist — must run for EVERY user-requested change, no matter how small:**
+
+1. Is there a `/specs/<name>.md` that covers this feature? → If yes, the spec MUST be updated in the same commit (or a follow-up commit on the same PR before push). If no, write one even retroactively.
+2. Did this change add / move / remove a route, an endpoint, a page, a sidebar item, a column, a field, a button, a behavior? → Add it to the Functional rules, Architecture, API contract, or UI / UX section as appropriate.
+3. Did this change resolve an Open Question? → Move it from §9 to a "Resolved" answer with the date + the actual choice.
+4. Did the test count change? → Update the Test plan counts (and the Implementation progress §10).
+
+**This rule has no size threshold.** A 3-line URL-params tweak, a one-icon change, a copy edit, a tooltip — all count. The spec is the single durable record of *why* the UI looks like it does; every "small" tweak ungrounds it a little more if it doesn't land in the spec.
+
+**If you catch yourself committing code without touching the spec for a user-requested change, stop, amend the commit (or push a follow-up) before moving on.** Apologising about it later doesn't recover the spec — only an immediate fix does.
+
 ---
 
 ## 5. Git & branches
