@@ -521,6 +521,14 @@ the Freebox port forward stays in place.
   echo | openssl s_client -servername guestflow.domainesolio.com -connect localhost:4000 2>/dev/null \
     | openssl x509 -noout -subject -issuer
   ```
+- *Cert file on disk is the new one but `openssl s_client` shows the old one.* PM2 / Node
+  didn't actually reload. Root cause when `acme.sh` runs `--reloadcmd`: it inherits the cron
+  root context, but PM2 was registered under `pi`, so `pm2 restart guestflow` from root hits
+  root's empty PM2 daemon and silently does nothing. The script now wraps the reload in
+  `sudo -u <user>` for non-root `CERT_OWNER`. Manual fix on a Pi where the previous install
+  persisted the wrong reloadcmd: re-run the script with `--force` once (it overwrites the
+  persisted `--reloadcmd` via `--install-cert`), or just do an immediate `pm2 restart
+  guestflow` as the right user — the cert file is already correct.
 - *After the cert install, PM2 reports `errored` with `NODE_MODULE_VERSION 127 ... 137` in the
   logs.* Unrelated to the cert — your Pi's Node binary got bumped (apt unattended-upgrades or
   manual update) since the last `npm install`, and the precompiled `better-sqlite3` ABI no

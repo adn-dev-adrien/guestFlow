@@ -96,8 +96,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   ritual.
 
 ### Fixed
-- **`issue-letsencrypt-cert-http01.sh` — three bugs uncovered during the 2026-05-31 prod
-  bringup that previously needed manual workarounds on every run.**
+- **`issue-letsencrypt-cert-http01.sh` (6 bugs) + `.github/workflows/deploy.yml` (CI Node
+  alignment + native rebuild) — everything caught during the 2026-05-31 prod bringup that
+  previously needed manual workarounds on every run.**
   - *acme.sh installer flag dropped upstream* (`Unknown parameter: ----install-online`): the
     legacy `sh -s -- --install-online --email <addr> --home <path>` form was rejected by the
     current `get.acme.sh`. Switched to the documented key=value form
@@ -119,6 +120,56 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     previously-hardcoded `adrien` — works on Adrien's Pi where the deploy user is `pi`. As
     a side-effect, the daily renewal cron now writes to the same path because acme.sh
     persists `--install-cert` targets in its per-domain conf.
+  - *`--reloadcmd` ran as root, didn't reach the `pi`-owned PM2 daemon* (caught right after
+    the first prod-cert install: cert file on disk was the real Let's Encrypt one, but
+    `openssl s_client -connect localhost:4000` kept showing the previous staging cert). The
+    reloadcmd was `pm2 restart guestflow --update-env >/dev/null 2>&1 || true` — invoked
+    from acme.sh's root context, root's PM2 doesn't know the `guestflow` process and the
+    call silently no-op'd; the `|| true` then masked the failure. The script now wraps the
+    reload in `sudo -u $CERT_OWNER` when CERT_OWNER is non-root, and removes the noise
+    suppression so any failure surfaces in acme.sh's output (and in cron emails at renewal
+    time). acme.sh persists `--reloadcmd` per-domain, so re-running `--install-cert` (which
+    this script does on every invocation) updates the value for all future renewals.
+  - *Staging cert silently re-installed when re-running against prod* (the trap that left
+    Adrien's Node serving `O=Let's Encrypt, CN=YE2` — a staging intermediate — even after
+    a prod re-issue with `--force`): acme.sh keeps per-domain state in
+    `<acme_home>/<domain>_ecc/` regardless of CA endpoint. When you iterate with
+    `--staging` then switch to prod, the stale staging leaf sometimes survives
+    `--install-cert` and Node ends up serving it. Browsers reject; `openssl verify` fails
+    with `error 20 at 0 depth lookup: unable to get local issuer certificate`. The script
+    now reads `Le_API` from the per-domain conf BEFORE the issue step; if it points at
+    `acme-staging-v02` while the script is about to issue against `acme-v02` (or vice
+    versa), the per-domain dir is wiped via `--remove -d <host> --ecc` + `rm -rf`. The
+    acme.sh install and the account stay intact — only the per-domain cert tracking is
+    reset. Idempotent: a same-endpoint re-run does nothing.
+  - *No post-install sanity check, so a bad install was silent*: after `--install-cert`
+    the script now prints `subject / issuer / dates` of the installed cert and runs
+    `openssl verify -CAfile <system bundle>` against the leaf. For a prod cert,
+    verification MUST pass (otherwise the script `exit 1`s with the exact recovery
+    command). For a staging cert (intermediates not in any OS trust store), verification
+    failure is tolerated. System CA bundle is auto-detected across the three common paths
+    (Debian, RHEL, Alpine). Catches the staging-survives-prod scenario above + any other
+    silent install corruption before the operator has to discover it via a browser warning.
+- **`.github/workflows/deploy.yml` — CI Node version aligned with the Pi's runtime + force
+  rebuild of native modules after install.** Every release deploy was leaving the
+  `better-sqlite3` native compiled for the wrong Node ABI, then PM2 silently crashed on
+  next restart (`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION 127 ... 137`). Two compounding
+  causes:
+  - `actions/setup-node@v4` was pinned to `node-version: '22'`, but the Pi's system Node
+    (which the PM2 daemon runs under) had been bumped by apt unattended-upgrades to v24.
+    The deploy built `better-sqlite3` against the v22 ABI; PM2 spawned Node v24 → load
+    refused. Pin bumped to `'24'` to match the current system. Comment added explaining
+    that bumping the Pi's Node requires bumping this pin in the same PR.
+  - Even with the right pin, `npm ci` happily downloads `better-sqlite3`'s prebuilt
+    binaries from GitHub releases (matching the pinned major), which historically have
+    drifted from the running Node's exact ABI. Added an explicit `npm rebuild
+    --build-from-source better-sqlite3` step right after `npm ci` and a `require()` smoke
+    test — a broken rebuild fails the deploy loudly here, rather than later via the PM2
+    errored / crash-loop state. Plus a `Sanity-check Node + npm versions` step at the top
+    that prints `node -v`, `npm -v`, `NODE_MODULE_VERSION` and warns if the existing PM2
+    daemon's Node major differs from the runner's — surfaces drift in the deploy log.
+  Manual recovery on a Pi that hit the bad state: `cd ~/guestflow/current/server && npm
+  rebuild --build-from-source better-sqlite3 && pm2 restart guestflow --update-env`.
   README §HTTPS — *Real Let's Encrypt cert via Freebox port-forward* — gains the operator
   walkthrough split into staging-first + `--force` for prod, plus a *Troubleshooting* block
   covering the four pitfalls actually hit on 2026-05-31: the `.com` vs `.fr` DDNS suffix

@@ -170,6 +170,34 @@ FORCE_FLAG=""
 SERVER_FLAG="--server letsencrypt"
 [ "$STAGING" -eq 1 ] && SERVER_FLAG="--server letsencrypt_test"
 
+# If the previous run was against a different CA endpoint (typical staging → prod transition
+# the morning after iterating with --staging), acme.sh sometimes leaves the old leaf in
+# `<acme_home>/<domain>_ecc/` and `--install-cert` silently re-installs THAT instead of the
+# freshly-issued one — even with `--force`. End result: cert file on disk is the staging
+# cert, browsers refuse, and `openssl verify` fails with `error 20`. The fix is to wipe the
+# per-domain dir when we detect a mismatch between the conf's Le_API and the SERVER_FLAG
+# we're about to use. Always safe — only the per-domain cert data is removed; the acme.sh
+# install + the production account stay intact.
+DOMAIN_DIR="${ACME_HOME}/${HOSTNAME}_ecc"
+DOMAIN_CONF="${DOMAIN_DIR}/${HOSTNAME}.conf"
+if [ -f "$DOMAIN_CONF" ]; then
+  PREV_API=$(grep -E "^Le_API=" "$DOMAIN_CONF" | head -1 | cut -d"'" -f2 || true)
+  if [ "$STAGING" -eq 1 ]; then
+    WANT_API_PATTERN="acme-staging-v02"
+  else
+    WANT_API_PATTERN="acme-v02"
+  fi
+  if [ -n "$PREV_API" ] && ! echo "$PREV_API" | grep -q "$WANT_API_PATTERN"; then
+    echo "ℹ Previous issue used a different CA endpoint:" >&2
+    echo "    previous: $PREV_API" >&2
+    echo "    requested: $WANT_API_PATTERN" >&2
+    echo "  Wiping per-domain acme.sh data ($DOMAIN_DIR) to force a clean re-issue against" >&2
+    echo "  the requested CA. The acme.sh install and the production account are untouched." >&2
+    "$ACME_BIN" --remove -d "$HOSTNAME" --ecc >/dev/null 2>&1 || true
+    rm -rf "$DOMAIN_DIR"
+  fi
+fi
+
 echo "→ Requesting cert via HTTP-01 standalone (acme.sh briefly binds port $HTTP_PORT)..."
 
 # acme.sh refuses to run when it detects `sudo` semantics (SUDO_USER set + HOME still
@@ -209,11 +237,22 @@ fi
 CERT_OUT="$CERTS_DIR/server.crt"
 KEY_OUT="$CERTS_DIR/server.key"
 
+# `pm2 restart` must run as the user PM2 was registered under (e.g. `pi`) — when run from
+# the cron-as-root context that acme.sh inherits, root's PM2 daemon doesn't know about the
+# `pi`-owned guestflow process and the call is a silent no-op. So if we have a non-root
+# CERT_OWNER, wrap the reload in `sudo -u <user>`. We also drop the `>/dev/null 2>&1 || true`
+# noise-suppression: when the reload fails, we WANT acme.sh to surface the error (and cron
+# to email it on the next renewal) rather than carry on with Node still serving the old cert.
+RELOAD_CMD="pm2 restart guestflow --update-env"
+if [ "$CERT_OWNER" != "root" ] && id "$CERT_OWNER" >/dev/null 2>&1; then
+  RELOAD_CMD="sudo -u $CERT_OWNER pm2 restart guestflow --update-env"
+fi
+
 echo "→ Installing cert into $CERTS_DIR (where PM2 already reads from)..."
 "$ACME_BIN" --install-cert -d "$HOSTNAME" \
   --fullchain-file "$CERT_OUT" \
   --key-file "$KEY_OUT" \
-  --reloadcmd "pm2 restart guestflow --update-env >/dev/null 2>&1 || true"
+  --reloadcmd "$RELOAD_CMD"
 
 # Adrien's PM2 process runs under the regular user, not root. Make the cert files readable by
 # everyone on the host (the key still has its acme.sh-set mode 0600 by default — we relax just
@@ -229,6 +268,44 @@ fi
 
 echo "✓ Cert installed:"
 ls -la "$CERT_OUT" "$KEY_OUT"
+
+# ----- 3b. Sanity-check the cert we just installed -----
+# Always print the subject/issuer/validity so deploy logs make the cert state visible at a
+# glance. Then run `openssl verify` against the system trust store: for a prod cert this
+# MUST succeed (otherwise browsers will warn). For a staging cert it WILL fail, which is
+# expected — staging intermediates aren't in any OS trust store. We tolerate that case but
+# fail the script when prod was requested and verify still fails (= the cert silently came
+# from staging, the bug Adrien hit on 2026-05-31).
+echo
+echo "→ Sanity-checking the installed cert..."
+openssl x509 -in "$CERT_OUT" -noout -subject -issuer -dates
+echo
+SYSTEM_CA_BUNDLE=""
+for candidate in \
+  /etc/ssl/certs/ca-certificates.crt \
+  /etc/pki/tls/certs/ca-bundle.crt \
+  /etc/ssl/cert.pem; do
+  [ -f "$candidate" ] && SYSTEM_CA_BUNDLE="$candidate" && break
+done
+
+if [ -z "$SYSTEM_CA_BUNDLE" ]; then
+  echo "ℹ No system CA bundle found at the usual paths — skipping the verify step." >&2
+elif openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >/dev/null 2>&1; then
+  echo "✓ openssl verify against $SYSTEM_CA_BUNDLE: OK (publicly trusted)."
+else
+  if [ "$STAGING" -eq 1 ]; then
+    echo "ℹ openssl verify failed — expected for a staging cert (intermediates not in the system trust store)."
+  else
+    echo "❌ openssl verify against $SYSTEM_CA_BUNDLE FAILED for a cert requested in PRODUCTION mode." >&2
+    openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >&2 || true
+    echo "   This usually means the install step silently re-used a stale STAGING cert from a" >&2
+    echo "   previous run. Recover with:" >&2
+    echo "     sudo $ACME_BIN --remove -d $HOSTNAME --ecc" >&2
+    echo "     sudo rm -rf $DOMAIN_DIR" >&2
+    echo "     sudo $0 --hostname $HOSTNAME --email $EMAIL    # (re-run, no --staging)" >&2
+    exit 1
+  fi
+fi
 
 # ----- 4. Verify cron entry -----
 if ! crontab -l 2>/dev/null | grep -q "acme.sh"; then

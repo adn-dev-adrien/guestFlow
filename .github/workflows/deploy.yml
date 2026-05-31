@@ -26,8 +26,31 @@ jobs:
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # Must match the Node major installed on the Pi (`node -v`). The PM2 daemon on the
+          # Pi was launched with the system Node, and any native module (notably
+          # better-sqlite3) compiled against a different `NODE_MODULE_VERSION` will refuse to
+          # load at runtime (`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION N ... M`). If you bump
+          # the Pi's Node via apt, bump this pin in the same PR.
+          node-version: '24'
           cache: 'npm'
+
+      - name: 🔎 Sanity-check Node + npm versions
+        run: |
+          echo "Node:     $(node -v)"
+          echo "npm:      $(npm -v)"
+          echo "ABI:      NODE_MODULE_VERSION $(node -p 'process.versions.modules')"
+          echo "PATH:     $PATH" | head -c 400; echo
+          # If the system PM2 daemon was started with a different Node, alert loudly — the
+          # native modules we're about to build won't be loadable.
+          if command -v pm2 >/dev/null 2>&1; then
+            DAEMON_NODE=$(pm2 prettylist 2>/dev/null | grep -m1 -oE '"node_version":"[^"]+"' | cut -d'"' -f4 || true)
+            if [ -n "$DAEMON_NODE" ]; then
+              echo "PM2 daemon Node: $DAEMON_NODE"
+              if [ "${DAEMON_NODE%%.*}" != "$(node -v | tr -d v | cut -d. -f1)" ]; then
+                echo "⚠ PM2 daemon major Node version differs from the workflow's Node — restart the PM2 daemon to align."
+              fi
+            fi
+          fi
 
       - name: 📚 Install root dependencies
         run: npm install
@@ -207,13 +230,29 @@ jobs:
         run: |
           DEPLOY_DIR="$HOME/guestflow"
           cd "$DEPLOY_DIR/current/server"
-          
+
           if [ -f package-lock.json ]; then
             npm ci --omit=dev || npm install --omit=dev
           else
             npm install --omit=dev
           fi
           echo "✓ Server dependencies installed"
+
+      - name: 🔧 Force-rebuild native modules against the runtime Node
+        # Defense in depth: even with the right `node-version` pin above, npm sometimes pulls
+        # a prebuilt binary from the package's GitHub releases (better-sqlite3 ships those).
+        # Force a rebuild from source so the ABI is guaranteed to match the Node we're about
+        # to start PM2 with. Cheap on the Pi (~30 s for better-sqlite3); avoids the silent
+        # ABI-mismatch crash loop entirely.
+        run: |
+          DEPLOY_DIR="$HOME/guestflow"
+          cd "$DEPLOY_DIR/current/server"
+          echo "Rebuilding native modules against Node $(node -v) (ABI v$(node -p 'process.versions.modules'))..."
+          npm rebuild --build-from-source better-sqlite3
+          echo "✓ Native modules rebuilt against the runtime Node ABI"
+          # Verify it actually loads — a broken rebuild here is much better than discovering
+          # it via the PM2 errored state right after `pm2 start`.
+          node -e "require('better-sqlite3'); console.log('✓ better-sqlite3 loads OK')"
 
       - name: 🗄️ Run database migrations
         run: |
