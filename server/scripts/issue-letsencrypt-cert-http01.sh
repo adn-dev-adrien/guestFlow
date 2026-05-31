@@ -182,17 +182,28 @@ DOMAIN_DIR="${ACME_HOME}/${HOSTNAME}_ecc"
 DOMAIN_CONF="${DOMAIN_DIR}/${HOSTNAME}.conf"
 if [ -f "$DOMAIN_CONF" ]; then
   PREV_API=$(grep -E "^Le_API=" "$DOMAIN_CONF" | head -1 | cut -d"'" -f2 || true)
-  if [ "$STAGING" -eq 1 ]; then
-    WANT_API_PATTERN="acme-staging-v02"
-  else
-    WANT_API_PATTERN="acme-v02"
+  # CARE: don't compare against "acme-v02" as a substring — it also matches
+  # "acme-staging-v02". Distinguish by the presence of the literal word "staging" in the URL
+  # (LE prod is `acme-v02.api.letsencrypt.org`, staging is `acme-staging-v02.api...`).
+  PREV_IS_STAGING=0
+  if [ -n "$PREV_API" ] && echo "$PREV_API" | grep -q "staging"; then
+    PREV_IS_STAGING=1
   fi
-  if [ -n "$PREV_API" ] && ! echo "$PREV_API" | grep -q "$WANT_API_PATTERN"; then
-    echo "ℹ Previous issue used a different CA endpoint:" >&2
-    echo "    previous: $PREV_API" >&2
-    echo "    requested: $WANT_API_PATTERN" >&2
+  if [ -n "$PREV_API" ] && [ "$PREV_IS_STAGING" -ne "$STAGING" ]; then
+    if [ "$STAGING" -eq 1 ]; then
+      WANT_LABEL="staging"
+    else
+      WANT_LABEL="production"
+    fi
+    if [ "$PREV_IS_STAGING" -eq 1 ]; then
+      PREV_LABEL="staging"
+    else
+      PREV_LABEL="production"
+    fi
+    echo "ℹ Previous issue used the $PREV_LABEL CA endpoint, this run targets $WANT_LABEL:" >&2
+    echo "    previous Le_API: $PREV_API" >&2
     echo "  Wiping per-domain acme.sh data ($DOMAIN_DIR) to force a clean re-issue against" >&2
-    echo "  the requested CA. The acme.sh install and the production account are untouched." >&2
+    echo "  the $WANT_LABEL CA. The acme.sh install and the production account stay intact." >&2
     "$ACME_BIN" --remove -d "$HOSTNAME" --ecc >/dev/null 2>&1 || true
     rm -rf "$DOMAIN_DIR"
   fi
@@ -288,21 +299,75 @@ for candidate in \
   [ -f "$candidate" ] && SYSTEM_CA_BUNDLE="$candidate" && break
 done
 
-if [ -z "$SYSTEM_CA_BUNDLE" ]; then
-  echo "ℹ No system CA bundle found at the usual paths — skipping the verify step." >&2
-elif openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >/dev/null 2>&1; then
-  echo "✓ openssl verify against $SYSTEM_CA_BUNDLE: OK (publicly trusted)."
+verify_installed_cert() {
+  # Returns 0 if OK, 1 if not publicly trusted. Always prints what it ran.
+  if [ -z "$SYSTEM_CA_BUNDLE" ]; then
+    echo "ℹ No system CA bundle found at the usual paths — skipping the verify step." >&2
+    return 0  # Can't verify, can't say it's bad; let the operator decide.
+  fi
+  if openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >/dev/null 2>&1; then
+    echo "✓ openssl verify against $SYSTEM_CA_BUNDLE: OK (publicly trusted)."
+    return 0
+  fi
+  openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >&2 || true
+  return 1
+}
+
+if verify_installed_cert; then
+  : # all good
+elif [ "$STAGING" -eq 1 ]; then
+  echo "ℹ openssl verify failed — expected for a staging cert (intermediates not in the system trust store)."
 else
-  if [ "$STAGING" -eq 1 ]; then
-    echo "ℹ openssl verify failed — expected for a staging cert (intermediates not in the system trust store)."
+  # AUTO-RECOVERY: the freshly-installed cert isn't publicly trusted while production mode
+  # was requested. The most common cause is a stale-state bug in acme.sh where after a
+  # previous staging issue, `--issue --force` against prod downloads the prod cert but
+  # `--install-cert` ends up copying the OLD staging files (exact mechanism unclear — could
+  # be a caching layer or a partial write). The robust fix: wipe everything under the
+  # per-domain dir + acme.sh's tracking, then re-issue. Only one retry; if it still fails
+  # we exit 1 with the manual recovery hints. We deliberately don't auto-retry in staging
+  # mode (verify failure there is expected and means nothing).
+  echo "⚠ openssl verify failed for a production cert. Auto-recovering — wipe + re-issue + re-verify (one attempt)..." >&2
+  "$ACME_BIN" --remove -d "$HOSTNAME" --ecc >/dev/null 2>&1 || true
+  rm -rf "$DOMAIN_DIR"
+
+  echo "→ Re-issuing cert from a clean state..."
+  set +e
+  "$ACME_BIN" --issue \
+    --standalone \
+    --httpport "$HTTP_PORT" \
+    -d "$HOSTNAME" \
+    $SERVER_FLAG
+  ACME_RC=$?
+  set -e
+  if [ "$ACME_RC" -ne 0 ]; then
+    echo "❌ acme.sh --issue failed during auto-recovery (rc=$ACME_RC). Check the output above." >&2
+    exit 1
+  fi
+
+  echo "→ Re-installing cert..."
+  "$ACME_BIN" --install-cert -d "$HOSTNAME" \
+    --fullchain-file "$CERT_OUT" \
+    --key-file "$KEY_OUT" \
+    --reloadcmd "$RELOAD_CMD"
+
+  chmod 644 "$CERT_OUT"
+  chmod 640 "$KEY_OUT"
+  if [ "$CERT_OWNER" != "root" ] && id "$CERT_OWNER" >/dev/null 2>&1; then
+    chown "$CERT_OWNER:$CERT_OWNER" "$CERT_OUT" "$KEY_OUT" 2>/dev/null || true
+  fi
+
+  echo
+  echo "→ Re-verifying the freshly re-issued cert..."
+  openssl x509 -in "$CERT_OUT" -noout -subject -issuer -dates
+  echo
+  if verify_installed_cert; then
+    echo "✓ Auto-recovery succeeded. Cert is now publicly trusted."
   else
-    echo "❌ openssl verify against $SYSTEM_CA_BUNDLE FAILED for a cert requested in PRODUCTION mode." >&2
-    openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >&2 || true
-    echo "   This usually means the install step silently re-used a stale STAGING cert from a" >&2
-    echo "   previous run. Recover with:" >&2
-    echo "     sudo $ACME_BIN --remove -d $HOSTNAME --ecc" >&2
-    echo "     sudo rm -rf $DOMAIN_DIR" >&2
-    echo "     sudo $0 --hostname $HOSTNAME --email $EMAIL    # (re-run, no --staging)" >&2
+    echo "❌ Verification STILL failed after auto-recovery. Something is wrong upstream of acme.sh." >&2
+    echo "   Inspect the cert manually:" >&2
+    echo "     openssl x509 -in $CERT_OUT -noout -text" >&2
+    echo "   And the acme.sh conf:" >&2
+    echo "     cat ${DOMAIN_DIR}/${HOSTNAME}.conf" >&2
     exit 1
   fi
 fi
