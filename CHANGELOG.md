@@ -4,6 +4,23 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **`issue-letsencrypt-cert-http01.sh` — `openssl verify` post-install was missing
+  `-untrusted` and triggered a false-negative on the new LE intermediates.** When a
+  fullchain file is passed to `openssl verify -CAfile <bundle> <fullchain>`, openssl
+  validates ONLY the leaf and looks for its issuer in the trust bundle. Since the
+  leaf's issuer is an intermediate (Let's Encrypt's `YE1` introduced in late 2025),
+  not a root, verify failed with `error 20: unable to get local issuer certificate`
+  even when the cert was perfectly valid. The script then triggered the (correct)
+  auto-recovery wipe → re-issue → install → re-verify — same wrong verify command,
+  same false negative — and exit'd 1 telling the operator the cert was broken.
+  Adrien's 2026-06-01 cert (chain: leaf → YE1 → ISRG Root YE → ISRG Root X2 →
+  ISRG Root X1, the last of which is in every browser trust store since 2017) was
+  100 % valid and Node was already serving it correctly with a green padlock in
+  browsers — the script was the bug. Fix: pass the same fullchain file via
+  `-untrusted` too, so openssl walks the chain (leaf → intermediates → root) before
+  consulting the trust store. Verify now matches what browsers actually do.
+
 ### Added
 - **Let's Encrypt cert via Freebox port-forward + HTTP-01** (`server/scripts/issue-letsencrypt-cert-http01.sh`).
   The path Adrien's prod actually uses to make `https://guestflow.domainesolio.com` reach the Pi

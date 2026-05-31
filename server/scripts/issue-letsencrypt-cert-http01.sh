@@ -305,11 +305,22 @@ verify_installed_cert() {
     echo "ℹ No system CA bundle found at the usual paths — skipping the verify step." >&2
     return 0  # Can't verify, can't say it's bad; let the operator decide.
   fi
-  if openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >/dev/null 2>&1; then
+  # `openssl verify <fullchain.crt>` validates ONLY the first cert (the leaf) and looks for
+  # its issuer in the -CAfile (system roots). Since the leaf's issuer is an intermediate
+  # (e.g. Let's Encrypt's YE1 introduced in late 2025), and intermediates aren't in the
+  # system trust store, this naively fails with `error 20: unable to get local issuer
+  # certificate` even when the cert is fine. The right invocation feeds the same fullchain
+  # back via `-untrusted` so openssl can walk leaf → intermediates → root. Took Adrien's
+  # 2026-06-01 prod cert (signed by YE1 → ISRG Root YE → ISRG Root X2 → ISRG Root X1) to
+  # surface this — the cert was valid all along, only my verify command was wrong.
+  if openssl verify \
+      -CAfile "$SYSTEM_CA_BUNDLE" \
+      -untrusted "$CERT_OUT" \
+      "$CERT_OUT" >/dev/null 2>&1; then
     echo "✓ openssl verify against $SYSTEM_CA_BUNDLE: OK (publicly trusted)."
     return 0
   fi
-  openssl verify -CAfile "$SYSTEM_CA_BUNDLE" "$CERT_OUT" >&2 || true
+  openssl verify -CAfile "$SYSTEM_CA_BUNDLE" -untrusted "$CERT_OUT" "$CERT_OUT" >&2 || true
   return 1
 }
 
