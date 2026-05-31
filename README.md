@@ -449,30 +449,46 @@ challenge. Renewal is the same path, automatic.
 
 4. **Pi — issue the Let's Encrypt cert (1 min, one-time)**
 
-   SSH into the Pi, then **always** validate the whole chain in staging first (no rate-limit
-   pain if the Freebox config is still off):
+   **SSH the Pi as the user that runs PM2** (e.g. `pi` on the prod Pi — NOT `root`; the
+   script reads `$SUDO_USER` to derive the install paths and the chown target), then:
    ```bash
-   cd ~/guestflow/current/server
-   sudo ./scripts/issue-letsencrypt-cert-http01.sh \
+   sudo ~/guestflow/current/server/scripts/issue-letsencrypt-cert-http01.sh \
      --hostname guestflow.domainesolio.com \
-     --email contact@domainesolio.com \
-     --staging
+     --email contact@domainesolio.com
    ```
 
-   On success, re-run **without** `--staging` and **with** `--force` (acme.sh otherwise sees
-   the staging cert as still-valid and skips):
-   ```bash
-   sudo ./scripts/issue-letsencrypt-cert-http01.sh \
-     --hostname guestflow.domainesolio.com \
-     --email contact@domainesolio.com \
-     --force
-   ```
+   That's it. No `--force`, no special second pass. The script:
+   - installs `acme.sh` on first run,
+   - briefly binds port 80 to answer the ACME challenge,
+   - drops the cert + key into `$SUDO_USER`'s `~/guestflow/certs/server.{crt,key}` (the
+     path PM2 reads from),
+   - chowns them to `$SUDO_USER`,
+   - sets a daily renewal cron at 00:27,
+   - reloads PM2 via `sudo -u $SUDO_USER pm2 restart guestflow --update-env`,
+   - runs `openssl verify -CAfile <system-bundle> -untrusted <chain> <chain>` against the
+     installed cert and **exits 1 if the cert isn't publicly trusted**, so a botched
+     install is impossible to miss.
 
-   The script installs `acme.sh` on first run, briefly binds port 80 to answer the ACME
-   challenge, drops the cert + key into `$SUDO_USER`'s `~/guestflow/certs/server.{crt,key}`
-   (i.e. the path PM2 reads from for the user it runs Node as), chowns to that same user,
-   sets a daily renewal cron, and reloads PM2 via `--reloadcmd`. All later renewals re-use
-   the same install paths automatically — they're persisted by acme.sh's per-domain conf.
+   If you want a dry run first (no Let's Encrypt rate-limit risk, untrusted cert good for
+   smoke-testing the Freebox forward + DNS chain), add `--staging`. Then re-run **without**
+   any flag — the script detects the previous staging endpoint in acme.sh's per-domain
+   conf, wipes the stale state, and re-issues clean against prod. No `--force` needed.
+
+   The script is also **self-recovering** for a couple of acme.sh state-corruption
+   scenarios that have bitten this codebase: when post-install `openssl verify` fails on a
+   prod request, it wipes the per-domain dir (`acme.sh --remove -d <host> --ecc` +
+   `rm -rf <domain>_ecc`), re-runs `--issue` from a clean conf, re-installs, and
+   re-verifies. Exactly one retry; a second failure exits 1 with the manual inspection
+   commands. All later renewals re-use the same install paths automatically — they're
+   persisted by acme.sh's per-domain conf.
+
+   On success the last lines of output should look like:
+   ```
+   subject=CN=guestflow.domainesolio.com
+   issuer=C=US, O=Let's Encrypt, CN=...    ← any LE prod intermediate (R10, R11, E5, E6, YE1, ...)
+   notBefore=... notAfter=...
+   ✓ openssl verify against /etc/ssl/certs/ca-certificates.crt: OK (publicly trusted).
+   ```
 
 5. **Test**
 
