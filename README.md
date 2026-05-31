@@ -379,6 +379,107 @@ The cert is self-signed so browsers will warn on the first visit. Two paths:
   the Keychain (Mac) / Profil installé (iPhone), then mark it as *Toujours approuver* for SSL.
   More involved but no per-device click-through.
 
+##### Real Let's Encrypt cert via Freebox port-forward + HTTP-01 (Adrien's actual prod)
+
+This is the path Adrien's prod uses. The setup answers a specific question: *make
+`https://guestflow.domainesolio.com` reach the Pi at home with a publicly-trusted cert (no
+warning) and a hands-off auto-renewal.*
+
+**Why HTTP-01 and not DNS-01?** The domain registrar (Squarespace) doesn't expose a DNS API.
+DNS-01 would need either a Cloudflare migration (heavy, see the abandoned PR
+`feat/letsencrypt-cert-via-cloudflare`) or a TXT record edited by hand on every renewal. HTTP-01
+sidesteps the registrar entirely — Let's Encrypt resolves the hostname → reaches the Freebox →
+the Freebox port-forwards 80 to the Pi → acme.sh's standalone HTTP server answers the
+challenge. Renewal is the same path, automatic.
+
+**Architecture**
+
+```
+  Browser                 Squarespace DNS                Freebox                       Pi (192.168.0.196)
+  ─────────               ─────────────────              ──────────                    ──────────────────
+  https://guestflow…  →   CNAME: guestflow              WAN :80   → forward → :80   acme.sh standalone
+                          → maisonadrisoph.freeboxos    WAN :443  → forward → :4000 Node (HTTPS, port 4000)
+                          (Free's DDNS, IP-tracking)
+```
+
+**Operator steps — do these once, then renewal is automatic**
+
+1. **Squarespace — add the CNAME (1 min)**
+   1. <https://account.squarespace.com/> → *Domains* → `domainesolio.com` → *DNS Settings* →
+      *Add Record*.
+   2. **Type** CNAME, **Host** `guestflow`, **Data** `maisonadrisoph.freeboxos.com`.
+   3. Save. Propagation usually <10 min; verify from a phone on mobile data:
+      ```
+      dig guestflow.domainesolio.com +short
+      ```
+      should chain to `maisonadrisoph.freeboxos.com` then return your current Freebox public IP.
+
+2. **Freebox — DHCP reservation for the Pi (5 min, one-time)**
+
+   Pin the Pi at `192.168.0.196` so the port forwards never break on the next lease renewal.
+   1. Open <http://mafreebox.freebox.fr/> from your home network.
+   2. *Paramètres de la Freebox* → *Mode avancé* → *DHCP*.
+   3. In the *Baux DHCP statiques* section, *Ajouter*: select the Pi by its current LAN IP /
+      MAC address, set the *adresse IP* to `192.168.0.196`. Save.
+   4. Reboot the Pi (or release/renew its DHCP lease) so it picks up the static IP.
+
+3. **Freebox — port forwarding (5 min, one-time)**
+   1. *Paramètres de la Freebox* → *Mode avancé* → *Gestion des ports* → *Redirections de ports*.
+   2. *Ajouter une redirection*:
+      | IP source | Protocole | Port début | Port fin | IP destination | Port destination | Activée |
+      |---|---|---|---|---|---|---|
+      | All | TCP | 80 | 80 | 192.168.0.196 | 80 | ✓ |
+      | All | TCP | 443 | 443 | 192.168.0.196 | 4000 | ✓ |
+   3. Save.
+   4. **Test from outside the LAN** (phone mobile data is the easiest):
+      ```
+      curl -v http://maisonadrisoph.freeboxos.com/
+      ```
+      The TCP connection should at least open (then probably 404, since nothing is listening
+      on :80 right now — that's expected). If it times out, the port forward is wrong.
+
+4. **Pi — issue the Let's Encrypt cert (1 min, one-time)**
+
+   SSH into the Pi, then:
+   ```bash
+   cd ~/guestflow/current/server
+   sudo ./scripts/issue-letsencrypt-cert-http01.sh \
+     --hostname guestflow.domainesolio.com \
+     --email contact@domainesolio.com
+   ```
+
+   The script installs `acme.sh` on first run, briefly binds port 80 to answer the ACME
+   challenge, drops the cert + key into `~/guestflow/certs/server.{crt,key}`, sets a daily
+   renewal cron, and reloads PM2 via `--reloadcmd`. If something looks off, run it once with
+   `--staging` first — Let's Encrypt's staging server has no rate limits and you can iterate
+   on the Freebox config without bombing the production rate limit.
+
+5. **Test**
+
+   ```
+   pm2 restart guestflow --update-env    # only if --reloadcmd didn't already do it
+   ```
+   Open `https://guestflow.domainesolio.com` from any device, anywhere. The lock icon is solid
+   green, no warning. The cert chain (click the lock → details) should show
+   *Let's Encrypt R3 → guestflow.domainesolio.com*.
+
+**Renewal** is fully automatic via the acme.sh daily cron. Every ~60 days the cert is
+re-issued, acme.sh briefly binds port 80, installs the new fullchain into the same paths PM2
+already reads, and runs `pm2 restart guestflow`. You don't have to do anything for as long as
+the Freebox port forward stays in place.
+
+**Caveats / failure modes**
+- *Free changes your public IP.* The Freebox DDNS `maisonadrisoph.freeboxos.com` updates
+  automatically; the CNAME chain takes care of the rest. No action needed.
+- *Port 80 ever bound to another service on the Pi.* acme.sh's standalone mode fails to bind.
+  Fix: switch to webroot mode (point acme.sh at a directory under Node's static serve). For
+  now, GuestFlow's Node listens only on 4000, so port 80 is free.
+- *ISP blocks inbound port 80.* Rare on Free; verify with `curl -v` from outside the LAN. If
+  blocked, you'd have to fall back to DNS-01 (Cloudflare migration path).
+- *URL access via IP only.* The cert is signed for the hostname; opening
+  `https://192.168.0.196:4000` would trigger a hostname-mismatch warning. Always use the
+  hostname URL.
+
 ##### Clearing HSTS if the browser cached the wrong policy
 
 If a previous deploy emitted HSTS and the current deploy is plain HTTP (or the cert changed),

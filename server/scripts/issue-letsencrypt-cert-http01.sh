@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+# Issues / renews a Let's Encrypt cert for the GuestFlow server using acme.sh + HTTP-01 challenge.
+#
+# Why HTTP-01 (not DNS-01)?
+#   - Adrien's domainesolio.com is registered at Squarespace, which doesn't expose a DNS API.
+#     DNS-01 would need either a Cloudflare migration or manual TXT records on every renewal.
+#   - HTTP-01 is simpler: Let's Encrypt resolves the hostname → reaches the Freebox public IP →
+#     the Freebox port-forwards 80 → the Pi → acme.sh's standalone HTTP server responds → cert
+#     issued. No DNS provider involvement.
+#   - The trade-off: port 80 must be reachable from the Internet during issuance + every renewal.
+#     The Freebox port-forward (operator step 3) keeps this true permanently; acme.sh briefly
+#     binds port 80 only during the validation handshake (a few seconds, every ~60 days).
+#
+# Prerequisites (operator-side, see README §HTTPS):
+#   1. Squarespace DNS — CNAME `guestflow` → `maisonadrisoph.freeboxos.com`.
+#   2. Freebox — DHCP reservation pinning the Pi at 192.168.0.196 (so the port forward never
+#      breaks on the next lease renewal).
+#   3. Freebox — port-forwarding:
+#         WAN 80/TCP  → 192.168.0.196:80    (used only during cert issuance / renewal)
+#         WAN 443/TCP → 192.168.0.196:4000  (the user-facing HTTPS traffic)
+#   4. The Pi is otherwise not listening on port 80 (GuestFlow's Node binds 4000 — fine).
+#
+# Then run this script ON THE PI as root (port 80 is privileged):
+#   sudo ./server/scripts/issue-letsencrypt-cert-http01.sh \
+#     --hostname guestflow.domainesolio.com \
+#     --email contact@domainesolio.com
+#
+# What it does:
+#   - Installs acme.sh if missing.
+#   - Issues a 90-day cert via HTTP-01 standalone.
+#   - Installs cert + key into ~/guestflow/certs/server.{crt,key} (the paths PM2 already reads).
+#   - Sets the daily renewal cron — acme.sh handles renewal at the 60-day mark + reloads PM2.
+#
+# Re-running with the same hostname is a no-op until the 60-day mark (acme.sh detects the still-
+# valid cert and skips). Pass --force to issue early. Pass --staging to test against Let's
+# Encrypt's staging server first (rate-limit friendly, untrusted cert).
+
+set -euo pipefail
+
+HOSTNAME=""
+EMAIL=""
+FORCE=0
+STAGING=0
+HTTP_PORT="${HTTP_PORT:-80}"
+CERTS_DIR="${HOME}/guestflow/certs"
+
+usage() {
+  cat <<EOF
+Usage: $0 --hostname <fqdn> --email <addr> [--staging] [--force]
+
+  --hostname FQDN  hostname the cert should be valid for (e.g. guestflow.domainesolio.com)
+  --email ADDR     contact email for Let's Encrypt expiry notices
+  --staging        use Let's Encrypt staging (untrusted cert, no rate limits — for testing)
+  --force          force re-issue even if a valid cert already exists
+  -h, --help       show this help
+
+Environment overrides:
+  HTTP_PORT        port acme.sh's standalone server binds during HTTP-01 (default 80)
+  CERTS_DIR        target directory for server.crt / server.key (default: ~/guestflow/certs)
+
+The script needs root for the privileged port 80. The Pi-side prerequisites (Freebox port
+forwards + DHCP reservation + Squarespace CNAME) are documented in README §HTTPS.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --hostname) HOSTNAME="$2"; shift 2 ;;
+    --email) EMAIL="$2"; shift 2 ;;
+    --staging) STAGING=1; shift ;;
+    --force) FORCE=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+if [ -z "$HOSTNAME" ] || [ -z "$EMAIL" ]; then
+  echo "❌ Missing required arguments." >&2
+  usage
+  exit 2
+fi
+
+# Sanity check the hostname looks like one.
+if ! [[ "$HOSTNAME" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+  echo "❌ '$HOSTNAME' doesn't look like a valid FQDN." >&2
+  exit 2
+fi
+
+# Root check (binding port 80 requires it).
+if [ "$HTTP_PORT" -lt 1024 ] && [ "$(id -u)" -ne 0 ]; then
+  echo "❌ This script needs root to bind port $HTTP_PORT (HTTP-01 standalone)." >&2
+  echo "   Re-run with sudo." >&2
+  exit 1
+fi
+
+# Pre-flight: confirm port 80 is reachable on the LAN (the operator might've forgotten the
+# Freebox port forward; better to fail with a clear message than to time out on the ACME side).
+if ! command -v ss >/dev/null 2>&1 && ! command -v netstat >/dev/null 2>&1; then
+  echo "ℹ Neither ss nor netstat available — skipping port-busy check."
+else
+  if command -v ss >/dev/null 2>&1; then
+    LISTENER=$(ss -ltn "( sport = :$HTTP_PORT )" 2>/dev/null | tail -n +2 | head -n 1)
+  else
+    LISTENER=$(netstat -ltn 2>/dev/null | awk -v p=":$HTTP_PORT$" '$4 ~ p {print; exit}')
+  fi
+  if [ -n "${LISTENER:-}" ]; then
+    echo "❌ Port $HTTP_PORT is already bound on this host:" >&2
+    echo "    $LISTENER" >&2
+    echo "   acme.sh's standalone server can't listen. Stop the other process or use --httpport." >&2
+    exit 1
+  fi
+fi
+
+echo "→ Hostname:       $HOSTNAME"
+echo "→ Contact email:  $EMAIL"
+echo "→ HTTP port:      $HTTP_PORT"
+echo "→ Output dir:     $CERTS_DIR"
+echo "→ ACME server:    $([ "$STAGING" -eq 1 ] && echo 'letsencrypt_test (STAGING)' || echo 'letsencrypt (production)')"
+
+mkdir -p "$CERTS_DIR"
+
+# ----- 1. Install acme.sh if missing -----
+ACME_HOME="${ACME_HOME:-/root/.acme.sh}"
+ACME_BIN="$ACME_HOME/acme.sh"
+
+if [ ! -x "$ACME_BIN" ]; then
+  echo "→ Installing acme.sh into $ACME_HOME..."
+  curl -fsSL https://get.acme.sh | sh -s -- --install-online --email "$EMAIL" --home "$ACME_HOME"
+  echo "✓ acme.sh installed."
+else
+  echo "✓ acme.sh already installed."
+fi
+
+# ----- 2. Issue the cert via HTTP-01 standalone -----
+FORCE_FLAG=""
+[ "$FORCE" -eq 1 ] && FORCE_FLAG="--force"
+SERVER_FLAG="--server letsencrypt"
+[ "$STAGING" -eq 1 ] && SERVER_FLAG="--server letsencrypt_test"
+
+echo "→ Requesting cert via HTTP-01 standalone (acme.sh briefly binds port $HTTP_PORT)..."
+set +e
+"$ACME_BIN" --issue \
+  --standalone \
+  --httpport "$HTTP_PORT" \
+  -d "$HOSTNAME" \
+  $SERVER_FLAG \
+  $FORCE_FLAG
+ACME_RC=$?
+set -e
+
+if [ "$ACME_RC" -eq 2 ]; then
+  echo "ℹ acme.sh reports the cert is still valid (skipped). Pass --force to renew early."
+elif [ "$ACME_RC" -ne 0 ]; then
+  cat >&2 <<EOF
+❌ acme.sh failed (rc=$ACME_RC). Common causes:
+  - Freebox port 80 forward missing or pointing at the wrong LAN IP.
+  - DNS not propagated yet: \`dig $HOSTNAME +short\` should return your Freebox public IP
+    (via the chained CNAME → maisonadrisoph.freeboxos.com → public IP).
+  - ISP blocks inbound port 80 (rare on Free, but check with the Freebox admin UI's port test).
+  - HTTPS_ENABLED=true on Node but with cert/key missing → Node would refuse to boot but the
+    HTTP-01 test would still work since acme.sh binds port 80 only briefly.
+Check the output above for the precise Let's Encrypt error message.
+EOF
+  exit "$ACME_RC"
+fi
+
+# ----- 3. Install cert into the paths PM2 reads -----
+CERT_OUT="$CERTS_DIR/server.crt"
+KEY_OUT="$CERTS_DIR/server.key"
+
+echo "→ Installing cert into $CERTS_DIR (where PM2 already reads from)..."
+"$ACME_BIN" --install-cert -d "$HOSTNAME" \
+  --fullchain-file "$CERT_OUT" \
+  --key-file "$KEY_OUT" \
+  --reloadcmd "pm2 restart guestflow --update-env >/dev/null 2>&1 || true"
+
+# Adrien's PM2 process runs under the regular user, not root. Make the cert files readable by
+# everyone on the host (the key still has its acme.sh-set mode 0600 by default — we relax just
+# enough for the unprivileged Node process to read).
+chmod 644 "$CERT_OUT"
+chmod 640 "$KEY_OUT"
+# If PM2 runs under a known user (adrien is the standard one here), chown explicitly so even if
+# someone tightens permissions later the Node user can still read.
+if id adrien >/dev/null 2>&1; then
+  chown adrien:adrien "$CERT_OUT" "$KEY_OUT" 2>/dev/null || true
+fi
+
+echo "✓ Cert installed:"
+ls -la "$CERT_OUT" "$KEY_OUT"
+
+# ----- 4. Verify cron entry -----
+if ! crontab -l 2>/dev/null | grep -q "acme.sh"; then
+  echo "ℹ No acme.sh cron entry found — adding the standard daily one."
+  ( crontab -l 2>/dev/null; echo "27 0 * * * \"$ACME_BIN\" --cron --home \"$ACME_HOME\" > /dev/null" ) | crontab -
+  echo "✓ Cron entry added (daily renewal check at 00:27)."
+else
+  echo "✓ acme.sh cron entry already present."
+fi
+
+cat <<EOF
+
+✓ Done.
+
+Next:
+  1. Restart the server so it picks up the new cert (if PM2 wasn't already reloaded):
+       pm2 restart guestflow --update-env
+  2. From any device, open https://$HOSTNAME
+     The lock icon should be solid (real Let's Encrypt cert — no warning).
+     Hostname-mismatch warning instead? You're hitting the cert via IP — use the hostname.
+
+Renewal:
+  acme.sh's cron checks every day at 00:27 and renews at the 60-day mark. No action needed.
+  Renewal silently re-binds port $HTTP_PORT for a few seconds. If you ever bind another service
+  to port 80, switch acme.sh to webroot mode (out of scope here).
+
+Troubleshooting:
+  - Test the Freebox is forwarding correctly:
+      curl -v http://$HOSTNAME/ from any device OUTSIDE your LAN (your phone on mobile data
+      is the easiest). You should reach acme.sh's empty 404 response (when no validation is
+      running) or Node's 4000 service if anything is listening.
+  - DNS not propagated: dig $HOSTNAME +short — should chain through maisonadrisoph.freeboxos.com
+    then return your Freebox's current public IP.
+  - Re-run with --staging first if you're worried about Let's Encrypt's rate limits while
+    iterating on the Freebox config.
+EOF

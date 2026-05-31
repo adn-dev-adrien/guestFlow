@@ -5,6 +5,25 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Let's Encrypt cert via Freebox port-forward + HTTP-01** (`server/scripts/issue-letsencrypt-cert-http01.sh`).
+  The path Adrien's prod actually uses to make `https://guestflow.domainesolio.com` reach the Pi
+  with a publicly-trusted cert (no browser warning) and a hands-off auto-renewal — without
+  migrating DNS hosting (Squarespace stays as registrar + DNS host). The architecture is a chain
+  of three boring steps: a CNAME `guestflow → maisonadrisoph.freeboxos.com` at Squarespace, two
+  Freebox port-forwards (WAN 80 → Pi:80 for ACME, WAN 443 → Pi:4000 for HTTPS), and a single
+  acme.sh standalone invocation on the Pi. acme.sh's daily cron re-issues at the 60-day mark,
+  briefly re-binds port 80 to answer the ACME challenge, drops the renewed fullchain into
+  `~/guestflow/certs/server.{crt,key}`, and triggers `pm2 restart guestflow` via `--reloadcmd`.
+  The script defensively pre-flights (cert + key file paths, root requirement for port 80,
+  port-busy check via ss / netstat, FQDN format) and surfaces a self-contained troubleshooting
+  cheatsheet on failure (DNS propagation, Freebox forward, ISP port-80 blocking, staging fallback).
+  README §HTTPS gets a full operator walkthrough — DHCP reservation pinning the Pi at
+  192.168.0.196, the exact Freebox port-forwarding table, the `dig`-based DNS verification, and
+  caveats (CNAME chain self-updates via Free's DDNS so the dynamic public IP is a non-issue;
+  hostname-only access since the cert SAN is the FQDN). Complements the earlier
+  `feat/prod-https-self-signed` (still ships the script + behaviour for offline / LAN-only
+  deploys) and supersedes the abandoned `feat/letsencrypt-cert-via-cloudflare` branch (the
+  Cloudflare migration was a heavier path Adrien chose not to take).
 - **Dynamic favicon from the company logo (works in dev AND prod).** When the admin has
   uploaded a logo via Settings → *Informations sur votre activité*, the browser tab favicon
   becomes that logo on every page. Two cooperating layers:
