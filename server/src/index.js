@@ -142,6 +142,19 @@ app.get('/api/version', (req, res) => {
   });
 });
 
+// Dynamic favicon: when the admin has uploaded a company logo via Settings, serve that as the
+// favicon on `/favicon.ico` and `/favicon.svg`. Falls through (next()) to the static middleware
+// below, which serves the bundled defaults when no logo is configured. Must be mounted BEFORE
+// `express.static(clientBuildDir)` to win the route race.
+const settingsModelForFavicon = require('./models/settingsModel');
+const { uploadsDir: faviconUploadsDir } = require('./middleware/multerLogoUpload');
+const { buildFaviconHandler } = require('./middleware/dynamicFavicon');
+const dynamicFavicon = buildFaviconHandler({
+  settingsModel: settingsModelForFavicon,
+  uploadsDir: faviconUploadsDir,
+});
+app.get(['/favicon.ico', '/favicon.svg'], dynamicFavicon);
+
 // In production, serve the built React app for non-API routes.
 const clientBuildDir = path.join(__dirname, '..', '..', 'client', 'build');
 const clientIndexPath = path.join(clientBuildDir, 'index.html');

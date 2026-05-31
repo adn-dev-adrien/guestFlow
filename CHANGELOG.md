@@ -5,6 +5,32 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Dynamic favicon from the company logo (works in dev AND prod).** When the admin has
+  uploaded a logo via Settings → *Informations sur votre activité*, the browser tab favicon
+  becomes that logo on every page. Two cooperating layers:
+  - **Server-side middleware** (`server/src/middleware/dynamicFavicon.js`, mounted BEFORE
+    `express.static(clientBuildDir)` in `index.js`) serves the logo on `/favicon.ico` AND
+    `/favicon.svg` whenever the page is served by Node — covers the production build, bookmarks,
+    initial tab load, and any client that ignores JS. Path-safety pinned by 7 traversal test
+    cases (`/etc/passwd`, `..`, URL-encoded payloads, etc. all caught), and transient
+    `settingsModel.read()` failures (SQLITE_BUSY during a hot migration) are swallowed → the
+    favicon endpoint never turns into a 500. 5-minute `Cache-Control`.
+  - **Client-side hook** (`client/src/hooks/useDynamicFavicon.js` + `utils/setFavicon.js`)
+    fetches `/api/settings` on AppShell mount + every user change and rewrites the document's
+    `<link rel="icon">` directly. **This is what makes the favicon update in DEV** (CRA's
+    :3000 dev server serves `public/favicon.ico` from disk and never proxies it to Node, so the
+    server middleware can't fire there), and it also defeats the browser's aggressive favicon
+    cache via a `?v=<updatedAt>` buster on the href. `SettingsPage.handleUploadLogo` /
+    `handleDeleteLogo` push a new icon directly via `setFavicon` after the API resolves, so the
+    tab updates the very second the upload completes — no reload needed. The setter strips
+    every prior `<link rel~="icon">` so Firefox (which picks the FIRST declaration) honours the
+    dynamic one, and it sets the correct `type` attribute from the extension. 23 unit tests
+    across `setFavicon.test.js` (idempotency, default-restore, cache buster, MIME mapping,
+    null-doc no-op, etc.) and `useDynamicFavicon.test.js` (initial fetch, no-logo restore,
+    silent failure on pre-login 401, refresh on key change, stale-fetch-after-unmount guard).
+  Result: drop in your logo via Settings, the tab favicon updates immediately in dev, and the
+  next prod deploy serves it on `/favicon.ico` for every visitor including new tabs and
+  bookmarks.
 - **Self-service profile editor on `/account`** (spec `admin-account-management.md` follow-up #6).
   A new "Mes informations" card sits **above** "Mon mot de passe" and lets every authenticated
   user (admin or accountant) edit their own `firstName`, `lastName`, `companyName` and `notes`.

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Alert } from '@mui/material';
 import api from '../api';
+import { setFavicon } from '../utils/setFavicon';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SettingsCompanySection from '../components/SettingsCompanySection';
@@ -259,6 +260,11 @@ export default function SettingsPage() {
     if (newPath != null) {
       setSavedForm((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath } }));
       setDraft((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath } }));
+      // Push the new logo into the browser tab favicon immediately. The boot-time
+      // `useDynamicFavicon` hook only re-runs on auth changes; here we want the favicon to update
+      // the very second the upload succeeds. Version-bust with Date.now() so even repeated
+      // re-uploads of the same filename surface a fresh icon.
+      setFavicon({ href: newPath, version: String(Date.now()) });
     }
   };
 
@@ -267,6 +273,8 @@ export default function SettingsPage() {
     const newPath = res && res.company && res.company.logoPath;
     setSavedForm((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath || '' } }));
     setDraft((prev) => ({ ...prev, company: { ...prev.company, logoPath: newPath || '' } }));
+    // Symmetric: clearing the logo restores the bundled default favicon right away.
+    setFavicon({ href: null });
   };
 
   const subtitle = isDirty ? (

@@ -15,6 +15,7 @@ import {
 import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
@@ -512,6 +513,12 @@ function AppShell() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [versionInfo, setVersionInfo] = useState(null);
+
+  // Push the configured company logo into the document's <link rel="icon"> at runtime. Server-side
+  // middleware also serves the logo on /favicon.ico in prod, but the CRA dev server :3000 serves
+  // public/favicon.ico directly without proxying — this hook covers both modes + sidesteps the
+  // browser's aggressive favicon cache via a version-keyed buster.
+  useDynamicFavicon({ refreshKey: user && user.id });
 
   // Accountants are confined to /comptabilite and /account (the server already 403s every other
   // endpoint, but we redirect at the client so they don't see empty shells). Multi-role users who
