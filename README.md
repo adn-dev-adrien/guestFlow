@@ -398,7 +398,7 @@ challenge. Renewal is the same path, automatic.
   Browser                 Squarespace DNS                Freebox                       Pi (192.168.0.196)
   ─────────               ─────────────────              ──────────                    ──────────────────
   https://guestflow…  →   CNAME: guestflow              WAN :80   → forward → :80   acme.sh standalone
-                          → maisonadrisoph.freeboxos    WAN :443  → forward → :4000 Node (HTTPS, port 4000)
+                          → maisonadrisoph.freeboxos.fr WAN :443  → forward → :4000 Node (HTTPS, port 4000)
                           (Free's DDNS, IP-tracking)
 ```
 
@@ -407,12 +407,19 @@ challenge. Renewal is the same path, automatic.
 1. **Squarespace — add the CNAME (1 min)**
    1. <https://account.squarespace.com/> → *Domains* → `domainesolio.com` → *DNS Settings* →
       *Add Record*.
-   2. **Type** CNAME, **Host** `guestflow`, **Data** `maisonadrisoph.freeboxos.com`.
-   3. Save. Propagation usually <10 min; verify from a phone on mobile data:
+   2. **Type** CNAME, **Host** `guestflow`, **Data** `maisonadrisoph.freeboxos.fr`. ⚠️
+      Free's DDNS lives under `.fr`, **not** `.com`. `.com` resolves to NXDOMAIN and
+      everything downstream (browsers, acme.sh challenge) silently fails — checked
+      against this exact mistake on 2026-05-31.
+   3. Save. Propagation usually <10 min; verify against a public resolver to bypass
+      stale negative caches on your ISP / mobile carrier:
       ```
-      dig guestflow.domainesolio.com +short
+      dig @8.8.8.8 guestflow.domainesolio.com +short
       ```
-      should chain to `maisonadrisoph.freeboxos.com` then return your current Freebox public IP.
+      should chain through `maisonadrisoph.freeboxos.fr.` then return your current
+      Freebox public IP. If your home / phone resolver still returns NXDOMAIN while
+      `8.8.8.8` resolves correctly, it's just a cached negative TTL — wait it out or
+      pin `8.8.8.8` as the active resolver in `System Settings → Network → DNS`.
 
 2. **Freebox — DHCP reservation for the Pi (5 min, one-time)**
 
@@ -433,26 +440,39 @@ challenge. Renewal is the same path, automatic.
    3. Save.
    4. **Test from outside the LAN** (phone mobile data is the easiest):
       ```
-      curl -v http://maisonadrisoph.freeboxos.com/
+      curl -v http://maisonadrisoph.freeboxos.fr/
       ```
-      The TCP connection should at least open (then probably 404, since nothing is listening
-      on :80 right now — that's expected). If it times out, the port forward is wrong.
+      The TCP connection should at least open (then probably 404 or `Connection reset by peer`,
+      since nothing listens on :80 outside cert issuance — that's expected). A pure timeout
+      means the port forward is wrong; a `Connection refused` means the forward exists but
+      points at the wrong LAN IP / port.
 
 4. **Pi — issue the Let's Encrypt cert (1 min, one-time)**
 
-   SSH into the Pi, then:
+   SSH into the Pi, then **always** validate the whole chain in staging first (no rate-limit
+   pain if the Freebox config is still off):
    ```bash
    cd ~/guestflow/current/server
    sudo ./scripts/issue-letsencrypt-cert-http01.sh \
      --hostname guestflow.domainesolio.com \
-     --email contact@domainesolio.com
+     --email contact@domainesolio.com \
+     --staging
+   ```
+
+   On success, re-run **without** `--staging` and **with** `--force` (acme.sh otherwise sees
+   the staging cert as still-valid and skips):
+   ```bash
+   sudo ./scripts/issue-letsencrypt-cert-http01.sh \
+     --hostname guestflow.domainesolio.com \
+     --email contact@domainesolio.com \
+     --force
    ```
 
    The script installs `acme.sh` on first run, briefly binds port 80 to answer the ACME
-   challenge, drops the cert + key into `~/guestflow/certs/server.{crt,key}`, sets a daily
-   renewal cron, and reloads PM2 via `--reloadcmd`. If something looks off, run it once with
-   `--staging` first — Let's Encrypt's staging server has no rate limits and you can iterate
-   on the Freebox config without bombing the production rate limit.
+   challenge, drops the cert + key into `$SUDO_USER`'s `~/guestflow/certs/server.{crt,key}`
+   (i.e. the path PM2 reads from for the user it runs Node as), chowns to that same user,
+   sets a daily renewal cron, and reloads PM2 via `--reloadcmd`. All later renewals re-use
+   the same install paths automatically — they're persisted by acme.sh's per-domain conf.
 
 5. **Test**
 
@@ -469,7 +489,7 @@ already reads, and runs `pm2 restart guestflow`. You don't have to do anything f
 the Freebox port forward stays in place.
 
 **Caveats / failure modes**
-- *Free changes your public IP.* The Freebox DDNS `maisonadrisoph.freeboxos.com` updates
+- *Free changes your public IP.* The Freebox DDNS `maisonadrisoph.freeboxos.fr` updates
   automatically; the CNAME chain takes care of the rest. No action needed.
 - *Port 80 ever bound to another service on the Pi.* acme.sh's standalone mode fails to bind.
   Fix: switch to webroot mode (point acme.sh at a directory under Node's static serve). For
@@ -479,6 +499,39 @@ the Freebox port forward stays in place.
 - *URL access via IP only.* The cert is signed for the hostname; opening
   `https://192.168.0.196:4000` would trigger a hostname-mismatch warning. Always use the
   hostname URL.
+
+**Troubleshooting — issues caught during the 2026-05-31 bringup**
+
+- *Browsers say `DNS_PROBE_FINISHED_BAD_CONFIG` while `dig @8.8.8.8` resolves fine.* Your local /
+  carrier resolver has a stale **negative** cache from before the CNAME was added (or while it
+  pointed at the wrong DDNS suffix). Public resolvers picked the change up; lazy ones haven't.
+  Either wait the negative TTL out (≤24 h) or pin `8.8.8.8` / `1.1.1.1` as the active resolver
+  on macOS in *System Settings → Network → Details → DNS*, then
+  `sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder`.
+- *acme.sh refuses to issue: "It seems that you are using sudo".* The script handles this
+  automatically (clears `SUDO_*` and pins `HOME=/root` before invoking `acme.sh --issue`). If
+  you ever run `acme.sh` directly, do it from an actual root shell (`sudo -i`), not `sudo
+  acme.sh ...`.
+- *Cert issued but the browser still sees the old self-signed.* The script writes the cert to
+  `$SUDO_USER`'s home (e.g. `/home/pi/guestflow/certs/`), which is what PM2 reads. Earlier
+  versions used `$HOME` which became `/root/guestflow/certs/` under sudo — written but never
+  read. Pinned by the auto-detection block at the top of the script; override with
+  `CERTS_DIR=...` if your install is non-standard. To verify what Node is actually serving:
+  ```
+  echo | openssl s_client -servername guestflow.domainesolio.com -connect localhost:4000 2>/dev/null \
+    | openssl x509 -noout -subject -issuer
+  ```
+- *After the cert install, PM2 reports `errored` with `NODE_MODULE_VERSION 127 ... 137` in the
+  logs.* Unrelated to the cert — your Pi's Node binary got bumped (apt unattended-upgrades or
+  manual update) since the last `npm install`, and the precompiled `better-sqlite3` ABI no
+  longer matches. Fix:
+  ```bash
+  cd ~/guestflow/current/server
+  npm rebuild better-sqlite3
+  pm2 restart guestflow --update-env
+  ```
+  If `npm rebuild` itself fails with `gyp` errors, install the build toolchain first:
+  `sudo apt-get install -y build-essential python3`, then re-run with `--build-from-source`.
 
 ##### Clearing HSTS if the browser cached the wrong policy
 

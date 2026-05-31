@@ -95,6 +95,42 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   touches the password field. Adrien's reset / restore flow no longer needs the "tap each space"
   ritual.
 
+### Fixed
+- **`issue-letsencrypt-cert-http01.sh` — three bugs uncovered during the 2026-05-31 prod
+  bringup that previously needed manual workarounds on every run.**
+  - *acme.sh installer flag dropped upstream* (`Unknown parameter: ----install-online`): the
+    legacy `sh -s -- --install-online --email <addr> --home <path>` form was rejected by the
+    current `get.acme.sh`. Switched to the documented key=value form
+    `sh -s email=<addr>`; acme.sh now installs into `/root/.acme.sh` automatically. A
+    re-anchor step picks up the actual install path so a non-standard `ACME_HOME` doesn't
+    bite, and the script bails with a clear error if the binary still isn't where expected.
+  - *acme.sh refusal under sudo* (`It seems that you are using sudo`): when invoked via
+    `sudo ./script.sh`, `SUDO_USER` is set + `HOME` is preserved, which acme.sh treats as a
+    misuse pattern and refuses to issue. The script now wipes `SUDO_USER/SUDO_UID/SUDO_GID/
+    SUDO_COMMAND` and pins `HOME=/root` immediately before the `--issue` call — the
+    pre-flight `id -u` check already guarantees we're effectively root.
+  - *Cert installed where Node doesn't read it* (the silent killer): `CERTS_DIR` defaulted
+    to `$HOME/guestflow/certs`. Under sudo that's `/root/guestflow/certs/`, while PM2 runs
+    Node as the calling user (e.g. `pi`) and reads `/home/pi/guestflow/certs/server.{crt,key}`.
+    Result: the cert was issued and installed perfectly, but Node kept serving the old
+    self-signed one because the two paths never intersected. The script now derives
+    `CERTS_DIR` from `$SUDO_USER`'s home (or honours an explicit `CERTS_DIR=...` env
+    override), and the `chown` step targets `$SUDO_USER:$SUDO_USER` instead of the
+    previously-hardcoded `adrien` — works on Adrien's Pi where the deploy user is `pi`. As
+    a side-effect, the daily renewal cron now writes to the same path because acme.sh
+    persists `--install-cert` targets in its per-domain conf.
+  README §HTTPS — *Real Let's Encrypt cert via Freebox port-forward* — gains the operator
+  walkthrough split into staging-first + `--force` for prod, plus a *Troubleshooting* block
+  covering the four pitfalls actually hit on 2026-05-31: the `.com` vs `.fr` DDNS suffix
+  (Free's Freebox DDNS lives under `.fr` — Squarespace CNAMEs pointing at
+  `maisonadrisoph.freeboxos.com` return NXDOMAIN), the cached-NXDOMAIN behavior on
+  carrier resolvers (browser sees `DNS_PROBE_FINISHED_BAD_CONFIG` while `dig @8.8.8.8`
+  resolves fine), the sudo-HOME / CERTS_DIR mismatch (and the `openssl s_client` one-liner
+  to verify which cert Node is **actually** serving on `localhost:4000`), and the
+  unrelated-but-co-occurring `NODE_MODULE_VERSION 127 ... 137` PM2 crash after a Pi-side
+  Node bump (fix: `cd ~/guestflow/current/server && npm rebuild better-sqlite3 && pm2
+  restart guestflow --update-env`).
+
 ### Added
 - **Test coverage for the Gestion utilisateur feature** (Adrien feedback 2026-05-30):
   - **Server** (`server/src/tests/`): new `settings-controller-smtp-password.unit.test.js`

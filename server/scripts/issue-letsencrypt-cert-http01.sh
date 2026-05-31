@@ -12,7 +12,8 @@
 #     binds port 80 only during the validation handshake (a few seconds, every ~60 days).
 #
 # Prerequisites (operator-side, see README §HTTPS):
-#   1. Squarespace DNS — CNAME `guestflow` → `maisonadrisoph.freeboxos.com`.
+#   1. Squarespace DNS — CNAME `guestflow` → `maisonadrisoph.freeboxos.fr` (Free's DDNS lives
+#      under `.fr`, NOT `.com`; pointing at `.com` returns NXDOMAIN and the cert won't issue).
 #   2. Freebox — DHCP reservation pinning the Pi at 192.168.0.196 (so the port forward never
 #      breaks on the next lease renewal).
 #   3. Freebox — port-forwarding:
@@ -42,7 +43,23 @@ EMAIL=""
 FORCE=0
 STAGING=0
 HTTP_PORT="${HTTP_PORT:-80}"
-CERTS_DIR="${HOME}/guestflow/certs"
+
+# Where the cert lands must match where Node (under PM2) reads it from. When the script is
+# run via `sudo`, $HOME points to /root — but Node typically runs as the calling user (pi /
+# adrien / ...), so a default of $HOME/guestflow/certs would write to /root and Node would
+# silently keep serving the old cert. Fix: prefer $SUDO_USER's home when sudo is in play.
+# Override entirely with CERTS_DIR env var if your setup is non-standard.
+if [ -n "${CERTS_DIR:-}" ]; then
+  : # explicit override wins
+elif [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
+  CALLER_HOME=$(eval echo "~${SUDO_USER}")
+  CERTS_DIR="${CALLER_HOME}/guestflow/certs"
+else
+  CERTS_DIR="${HOME}/guestflow/certs"
+fi
+
+# Capture the calling user before we wipe SUDO_* for acme.sh (used later for chown).
+CERT_OWNER="${SUDO_USER:-root}"
 
 usage() {
   cat <<EOF
@@ -125,10 +142,26 @@ ACME_BIN="$ACME_HOME/acme.sh"
 
 if [ ! -x "$ACME_BIN" ]; then
   echo "→ Installing acme.sh into $ACME_HOME..."
-  curl -fsSL https://get.acme.sh | sh -s -- --install-online --email "$EMAIL" --home "$ACME_HOME"
+  # acme.sh's documented installer uses key=value pairs piped to `sh -s`. The legacy
+  # `--install-online` / `--home` flags were dropped — the installer now infers the home
+  # directory from the running user ($HOME, here /root since we're under sudo).
+  curl -fsSL https://get.acme.sh | sh -s email="$EMAIL"
   echo "✓ acme.sh installed."
 else
   echo "✓ acme.sh already installed."
+fi
+
+# The installer might have placed acme.sh under $HOME/.acme.sh — re-anchor ACME_BIN now
+# that we know where it actually landed (covers sudo invocations where HOME=/root).
+if [ ! -x "$ACME_BIN" ] && [ -x "/root/.acme.sh/acme.sh" ]; then
+  ACME_HOME="/root/.acme.sh"
+  ACME_BIN="$ACME_HOME/acme.sh"
+fi
+
+if [ ! -x "$ACME_BIN" ]; then
+  echo "❌ acme.sh was supposed to be installed at $ACME_BIN but isn't executable." >&2
+  echo "   Check the installer output above for the actual install path, then re-run." >&2
+  exit 1
 fi
 
 # ----- 2. Issue the cert via HTTP-01 standalone -----
@@ -138,6 +171,14 @@ SERVER_FLAG="--server letsencrypt"
 [ "$STAGING" -eq 1 ] && SERVER_FLAG="--server letsencrypt_test"
 
 echo "→ Requesting cert via HTTP-01 standalone (acme.sh briefly binds port $HTTP_PORT)..."
+
+# acme.sh refuses to run when it detects `sudo` semantics (SUDO_USER set + HOME still
+# pointing at the calling user's home). We're genuinely root at this point (the script's
+# pre-flight `id -u` check ensures it) and we want acme.sh's data under /root/.acme.sh.
+# Clear the sudo-related env so acme.sh stops worrying, and pin HOME to /root.
+unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND
+export HOME="/root"
+
 set +e
 "$ACME_BIN" --issue \
   --standalone \
@@ -155,7 +196,7 @@ elif [ "$ACME_RC" -ne 0 ]; then
 ❌ acme.sh failed (rc=$ACME_RC). Common causes:
   - Freebox port 80 forward missing or pointing at the wrong LAN IP.
   - DNS not propagated yet: \`dig $HOSTNAME +short\` should return your Freebox public IP
-    (via the chained CNAME → maisonadrisoph.freeboxos.com → public IP).
+    (via the chained CNAME → maisonadrisoph.freeboxos.fr → public IP).
   - ISP blocks inbound port 80 (rare on Free, but check with the Freebox admin UI's port test).
   - HTTPS_ENABLED=true on Node but with cert/key missing → Node would refuse to boot but the
     HTTP-01 test would still work since acme.sh binds port 80 only briefly.
@@ -179,10 +220,11 @@ echo "→ Installing cert into $CERTS_DIR (where PM2 already reads from)..."
 # enough for the unprivileged Node process to read).
 chmod 644 "$CERT_OUT"
 chmod 640 "$KEY_OUT"
-# If PM2 runs under a known user (adrien is the standard one here), chown explicitly so even if
-# someone tightens permissions later the Node user can still read.
-if id adrien >/dev/null 2>&1; then
-  chown adrien:adrien "$CERT_OUT" "$KEY_OUT" 2>/dev/null || true
+# PM2 runs Node as the user who invoked us via sudo (captured up top as CERT_OWNER, e.g. pi
+# on the production Pi, adrien on a dev box). chown so the unprivileged Node process can
+# read the cert + key. If we're genuinely running as root (no sudo), the files stay root-owned.
+if [ "$CERT_OWNER" != "root" ] && id "$CERT_OWNER" >/dev/null 2>&1; then
+  chown "$CERT_OWNER:$CERT_OWNER" "$CERT_OUT" "$KEY_OUT" 2>/dev/null || true
 fi
 
 echo "✓ Cert installed:"
@@ -218,8 +260,9 @@ Troubleshooting:
       curl -v http://$HOSTNAME/ from any device OUTSIDE your LAN (your phone on mobile data
       is the easiest). You should reach acme.sh's empty 404 response (when no validation is
       running) or Node's 4000 service if anything is listening.
-  - DNS not propagated: dig $HOSTNAME +short — should chain through maisonadrisoph.freeboxos.com
-    then return your Freebox's current public IP.
+  - DNS not propagated: dig $HOSTNAME +short — should chain through maisonadrisoph.freeboxos.fr
+    then return your Freebox's current public IP. If you see NXDOMAIN, double-check that the
+    Squarespace CNAME points at the .fr Free DDNS, NOT .com (a common copy-paste mistake).
   - Re-run with --staging first if you're worried about Let's Encrypt's rate limits while
     iterating on the Freebox config.
 EOF
