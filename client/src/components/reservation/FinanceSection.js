@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
 import api from '../../api';
 import { useReservationForm } from './ReservationFormContext';
 
@@ -294,6 +294,35 @@ export default function FinanceSection() {
                 </Grid>
               </Grid>
             </Box>
+
+            {/* Per-item routing for the tourist tax (spec force-item-to-complement.md §6.4).
+                When ON, the tax bypasses the auto deposit/balance split and lives 100 % in the
+                Complément entry. Hidden when there is no tax to route. */}
+            {Number(pricingQuote?.touristTaxTotal || 0) > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Tooltip title="Lorsque cette option est activée, la taxe de séjour n'est pas comprise dans l'acompte ni le solde : elle est intégralement perçue dans le Complément à percevoir (par exemple, encaissée à l'arrivée)." arrow>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={Boolean(form.touristTaxInComplement)}
+                          onChange={(e) => updateForm({ touristTaxInComplement: e.target.checked })}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2">
+                          Taxe de séjour en complément
+                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                            ({Number(pricingQuote.touristTaxTotal).toFixed(2).replace('.', ',')} €)
+                          </Typography>
+                        </Typography>
+                      }
+                    />
+                  </Tooltip>
+                </Box>
+              </>
+            )}
 
             {Number(pricingQuote?.complementAmount || 0) > 0 && (
               <>
