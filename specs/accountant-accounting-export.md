@@ -93,15 +93,51 @@ standard).
       10% → `44571100`; 20% → `44571200`.
     - Bucket/VAT amounts are **pro-rated** by the encaissement fraction (`payment / total TTC`); rounding
       residue is absorbed so **Σ credits == debit** to the cent.
-13. **Columns** (final layout pending the accountant's example, see §9): `Jour`, `Mois`, `Année`,
-    `Compte`, `Libellé`, `Débit`, `Crédit`, then platform-info columns `Plateforme`, `Prix payé client`,
-    `Commission` (populated only on the client-debit line of platform sales; blank for direct).
-14. **Client account** = `C` + start of the client's name, formatted per the accountant's convention
-    (char count / casing **pending the example**, see §9). `Libellé` = client name.
-15. **Excluded from the export:** the **caution/garantie** (never revenue) and the **taxe de séjour**
-    (collected for the commune, outside the gîte's VAT/turnover). Devis (`kind='devis'`) are never exported.
-16. The CSV is French-Excel friendly: `;` separator, UTF-8 BOM, decimal comma — **pending example
-    confirmation** (§9).
+13. **Columns** (pinned 2026-06-01 from Adrien's accountant `Exemple export ventes SOLIO.csv`):
+    9 mandatory columns matching the example byte-for-byte, then 3 GuestFlow-specific
+    info columns the accountant can ignore.
+
+    ```
+    Jour ; Mois  ; Année ; Journal ; Pièce ; Libellé de l'écriture ; Compte ; Débit ; Crédit
+      └─ trailing space in header is intentional (byte-for-byte)
+    + Plateforme ; Prix payé client ; Commission   (GuestFlow extension, debit row only)
+    ```
+
+    - `Journal` is constant `VT` (Ventes).
+    - `Pièce` is **empty** for now — left blank until Adrien settles a numbering scheme with the
+      accountant (see §9 / §10). The column stays in the header so the structure is stable.
+    - `Libellé de l'écriture` = "FIRSTNAME LASTNAME" uppercased (matches the example style:
+      `CLAIRE NOTIN`, `RELAIS PETITE ENFANCE TOURNON`). Falls back to `RÉSERVATION #ID` if names are empty.
+    - `Débit` / `Crédit`: counter-side cells render as literal `0` (not empty) — accountant's
+      software ingests these as numeric. Whole numbers render bare (`144`, `0`); fractions render
+      with French-style comma decimal at 2 places (`519,17`). Per the accountant's example.
+
+13b. **`Pièce` numbering — open.** The accountant hasn't communicated a scheme; the SOLIO example
+    uses `F-YYYY-NNN` (sequential per year). When Adrien decides (auto-generated at export time
+    deterministic-by-paidDate, or persisted on each encaissement at first export), update
+    `entryToRows` in `accountingExport.js` to fill the column.
+
+14. **Client account** = `C` + first 6 chars of last name, uppercased, accent-stripped,
+    non-alphanumerics removed, **no padding** (matches SOLIO `CNOTIN` 6 chars, `CCAGGUI` 7 chars
+    variable width). Empty / unknown names → literal placeholder `CXXXXX`.
+
+15. **Excluded from the export:** the **caution/garantie** (never revenue). Devis (`kind='devis'`)
+    are never exported.
+
+15b. **Tourist tax — included as a pass-through line** (policy change 2026-06-01 from the SOLIO
+    example). The tax is part of the encaissement TTC (the customer paid it) so it MUST appear on
+    the customer debit; the credit goes on the **`46710000`** "compte d'attente" pass-through
+    account (the owner owes the tax to the commune, it's not turnover). The previous policy
+    "tax stripped from journal, reported via Suivi taxe de séjour only" is RETIRED — the SOLIO
+    example shows the tax credited on `46710000`, and the accountant needs both sides of every
+    encaissement balanced. The Suivi taxe de séjour page stays — it's the operational view.
+
+16. **CSV encoding**: **ISO-8859-1 (latin1)** without BOM. French accounting software
+    (Sage/EBP/Cegid, and Excel French defaults) reads latin1 natively and chokes on UTF-8 BOMs.
+    `serializeCsv(..., { bom: false })` produces the string; the controller re-encodes it with
+    `Buffer.from(csv, 'latin1')` and serves with `Content-Type: text/csv; charset=ISO-8859-1`.
+    Characters outside the latin1 range (rare for French customer names) get truncated to their
+    low byte — acceptable for this use case.
 
 ### 3.5 Accountant access (role + page)
 
@@ -364,10 +400,14 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 
 (Resolved before Status → Approved.)
 - Q: **Accountant's example CSV** — exact columns/order, separator, encoding, and **client-account format**
-  (`C` + how many chars of which name, casing).  → A: **shipped with sensible defaults** (Adrien, 2026-05-30) —
-  columns `Jour;Mois;Année;Compte;Libellé;Débit;Crédit;Plateforme;Prix payé client;Commission`, `;`
-  separator, UTF-8 BOM, comma decimals; client account = `C` + 6 chars of last name (uppercased,
-  accent-stripped, `X`-padded). Trivially tunable in `constants/accounting.js` once the example arrives.
+  (`C` + how many chars of which name, casing).  → A: **resolved 2026-06-01** after Adrien received the
+  `Exemple export ventes SOLIO.csv` file. Columns: 9 SOLIO columns
+  (`Jour;Mois ;Année;Journal;Pièce;Libellé de l'écriture;Compte;Débit;Crédit`) + 3 GuestFlow extension
+  columns (`Plateforme;Prix payé client;Commission`). Encoding: **ISO-8859-1 (latin1)** without BOM.
+  `Journal` = `VT` constant. `Pièce` empty for now (numbering scheme TBD with the accountant, see §13b).
+  Client account = `C` + first 6 chars of last name (uppercased, accent-stripped, no padding —
+  matches SOLIO's variable-width codes `CNOTIN` / `CCAGGUI`). Empty money cells render as literal `0`;
+  whole numbers render bare. Tourist tax now flows on `46710000` pass-through (see §15b — policy change).
 - Q: **Platform turnover basis** — for a platform sale, are the revenue accounts (70xxx) + VAT recognised on
   the **gross** (guest-paid) with commission booked as a **charge** line, or on the **net** the owner
   receives, with gross/commission shown only as info columns?  → A: **net** by default (Adrien, 2026-05-30) —
