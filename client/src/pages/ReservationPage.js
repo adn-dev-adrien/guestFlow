@@ -376,21 +376,46 @@ export default function ReservationPage() {
       depositDueDate: quote.depositDueDate || '',
       balanceAmount: Number(quote.balanceAmount || 0),
       balanceDueDate: quote.balanceDueDate || '',
-      selectedOptions: (quote.optionLines || []).filter((line) => !line.isCustom).map((line) => ({
-        optionId: Number(line.optionId),
-        quantity: Number(line.quantity || 0),
-        totalPrice: Number(line.totalPrice || 0),
-        originalTotalPrice: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
-        offered: Boolean(line.offered),
-        ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
-        ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
-      })),
-      customOptions: (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => ({
-        customKey: String(line.customKey || `custom_${index + 1}`),
-        description: String(line.title || line.description || '').trim(),
-        amount: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
-        offered: Boolean(line.offered),
-      })),
+      // CRITICAL: preserve `inComplement` + per-line contribs from the quote, otherwise the
+      // next recompute cycle erases the flag the user just toggled (spec
+      // force-item-to-complement.md §3.1). Same fix below for customOptions + resources.
+      // For non-auto manual options we trust `prev.selectedOptions[i].inComplement` (the user
+      // just toggled it locally) — the quote round-trip may not have reached the server yet.
+      // For auto-options we don't keep `inComplement` on selectedOptions at all (it lives in
+      // `form.autoOptionsInComplement`); we still surface the engine value here for the chip.
+      selectedOptions: (quote.optionLines || []).filter((line) => !line.isCustom).map((line) => {
+        const prevLine = (prev.selectedOptions || []).find((s) => Number(s.optionId) === Number(line.optionId));
+        return {
+          optionId: Number(line.optionId),
+          quantity: Number(line.quantity || 0),
+          totalPrice: Number(line.totalPrice || 0),
+          originalTotalPrice: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
+          offered: Boolean(line.offered),
+          inComplement: prevLine && prevLine.inComplement !== undefined
+            ? Boolean(prevLine.inComplement)
+            : Boolean(line.inComplement),
+          acompteContribTtc: line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
+          soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
+          ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
+          ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
+        };
+      }),
+      customOptions: (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => {
+        const customKey = String(line.customKey || `custom_${index + 1}`);
+        const prevLine = (prev.customOptions || []).find((c) => String(c.customKey) === customKey);
+        return {
+          customKey,
+          customOptionId: prevLine?.customOptionId,
+          description: String(line.title || line.description || '').trim(),
+          amount: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
+          offered: Boolean(line.offered),
+          inComplement: prevLine && prevLine.inComplement !== undefined
+            ? Boolean(prevLine.inComplement)
+            : Boolean(line.inComplement),
+          acompteContribTtc: line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
+          soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
+        };
+      }),
       selectedResources: (prev.selectedResources || []).map((item) => {
         const line = resourceLinesById.get(Number(item.resourceId));
         return {
@@ -398,6 +423,11 @@ export default function ReservationPage() {
           unitPrice: Number(line?.unitPrice ?? item.unitPrice ?? 0),
           totalPrice: Number(line?.totalPrice || 0),
           offered: Boolean(line?.offered ?? item.offered),
+          // `item.inComplement` is the source of truth (user's local toggle); fall back to
+          // the engine value only when the resource wasn't in the previous form state.
+          inComplement: item.inComplement !== undefined ? Boolean(item.inComplement) : Boolean(line?.inComplement),
+          acompteContribTtc: line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
+          soldeContribTtc: line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
         };
       }),
     };
