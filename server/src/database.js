@@ -422,6 +422,15 @@ if (!cols.includes('complementAmount')) {
     WHERE depositPaid = 1 AND balancePaid = 1
   `);
 }
+if (!cols.includes('depositDisabled')) {
+  // Per-reservation opt-out of the standard deposit/balance split. When 1, the pricing engine
+  // collapses depositAmount to 0 and lets the balance absorb the whole pre-arrival total — so
+  // the monthly accounting export emits a single journal entry for the reservation instead of
+  // two. Use case: bookings where the platform (Airbnb, Booking…) collects the deposit on the
+  // owner's behalf and it never appears on the owner's accounts. See
+  // specs/disable-deposit-per-reservation.md.
+  db.exec("ALTER TABLE reservations ADD COLUMN depositDisabled INTEGER NOT NULL DEFAULT 0");
+}
 if (!cols.includes('clientGrossAmount')) {
   // For platform-sourced reservations, the gross amount the guest actually paid the platform (TTC).
   // The owner's net (= finalPrice) stays in finalPrice; commission is derived (gross - finalPrice).

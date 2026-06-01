@@ -5,6 +5,64 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Per-reservation "Désactiver l'acompte" toggle** (spec
+  `disable-deposit-per-reservation.md`). A new `Switch` next to the "Acompte" title in
+  `ReservationPage → FinanceSection` lets the admin declare that a given reservation
+  has no deposit concept at all — typical case: bookings where the platform
+  (Airbnb / Booking) collects the deposit on the owner's behalf and it never transits
+  through the owner's accounts. When ON, the pricing engine collapses `depositAmount`
+  to 0, `balanceAmount` absorbs the whole pre-arrival total, and the controller
+  force-zeroes `depositPaid` + `depositPaidDate` before persisting. Net result for the
+  accountant: the reservation produces **one journal entry** (the balance) instead of
+  two — the existing accounting export logic at
+  [accountingModel.js:54-56](server/src/models/accountingModel.js#L54-L56) emits a
+  deposit row only when `depositPaid=1`, so no extra accounting code was needed; the
+  upstream pipeline does all the work.
+
+  Wired through:
+  - New column `reservations.depositDisabled INTEGER NOT NULL DEFAULT 0` added via the
+    existing `if (!cols.includes(...))` migration pattern in `database.js`. Default 0
+    for every existing reservation, so behaviour is opt-in per reservation.
+  - `reservationsModel.insertReservation` + `updateReservation` carry the column;
+    `getAuditSnapshotFromDb` includes it so toggle changes show up in
+    `reservation_history` like any other field edit. `reservationAudit` declares the
+    label `Acompte désactivé` so the history viewer renders it readably.
+  - `pricing.js` (`calculateReservationQuote`): when `depositDisabled` is truthy,
+    short-circuit `resolvedDepositAmount = 0` + `resolvedBalanceAmount =
+    preArrivalAmount` + `depositDueDate = null`. The branch sits BEFORE the existing
+    `depositPaid/balancePaid` ladder so the flag always wins. Critical: this means the
+    toggle survives every recompute — the previous design idea ("just mutate
+    `depositAmount=0` in the body") was rejected because the engine would re-derive
+    `autoDepositAmount = preArrivalAmount × depositPercent / 100` on the next save and
+    silently restore the deposit.
+  - `reservationsController.update` + `.create`: read `req.body.depositDisabled`, pass
+    the flag to `calculateReservationQuote`, and on `update` build a derived
+    `modelPayload` that force-zeroes `depositPaid` + `depositPaidDate` whenever the
+    flag is ON. `depositDisabled` is also added to the 14-field past-lock allowlist
+    so an admin can flip it on a past reservation (typical retroactive correction
+    after spotting a platform booking that had been treated as direct).
+  - `FinanceSection.js` renders a small `Switch` next to the "Acompte" title. OFF =
+    standard deposit UI as today. ON = the entire deposit block (montant +
+    échéance + bouton "Marquer payé" + date paiement) collapses to a single muted line
+    *"Acompte désactivé — ajouté au solde."* The Switch stays visible for re-toggle.
+    The Solde block is unchanged visually; its amount is just higher because the
+    engine has already consolidated the split.
+  - `ReservationPage.js`: `depositDisabled` added to the form state, the live
+    `formSnapshot` memo deps, the 4 payload-build sites (calc preview ×3 + final
+    save), and the load-from-server step (`res.depositDisabled → form`). The final
+    save also force-zeroes `depositPaid` / `depositPaidDate` client-side when the
+    toggle is ON — server enforces the same; the client mirror keeps the UI
+    consistent immediately.
+
+  **Lossiness on flip-back** (documented in the spec, Adrien's call 2026-06-01):
+  flipping ON → OFF doesn't restore the original deposit value. The engine recomputes
+  from `property.depositPercent` — same as for a fresh reservation. Acceptable for the
+  platform-handles-deposit use case where the original split was irrelevant anyway.
+
+  Tests: 7 new cases in `pricing-deposit-disabled.unit.test.js` (default regression,
+  ON collapses deposit/absorbs balance, boolean variant accepted, survives repeated
+  recompute calls, depositPercent=0 edge case, flag wins over a stale `depositPaid=true`,
+  every falsy variant is a no-op). All 7 pass at first run.
 - **Admin-only escape hatch for editing past reservations** (spec
   `admin-unlock-past-reservations.md`). The server-side lock that gates `PUT
   /api/reservations/:id` to a 14-field allowlist once `startDate <= today`, and the

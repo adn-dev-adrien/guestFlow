@@ -227,6 +227,8 @@ function createReservationsModel(database) {
         cautionReturned: Number(row.cautionReturned || 0),
         cautionReturnedDate: row.cautionReturnedDate || null,
         extraGuestSurchargeOffered: Number(row.extraGuestSurchargeOffered || 0),
+        // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
+        depositDisabled: Number(row.depositDisabled || 0),
         optionsSignature: getOptionsSignature([
           ...options,
           ...customOptions.map((line, idx) => ({ optionId: 1000000 + idx, quantity: 1, totalPrice: Number(line.offered ? 0 : (line.amount || 0)) })),
@@ -404,7 +406,7 @@ function createReservationsModel(database) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
-        clientGrossAmount } = payload;
+        clientGrossAmount, depositDisabled } = payload;
       // gross is meaningful only for platform-sourced bookings (rule 7 of the spec).
       const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
         ? Number(clientGrossAmount)
@@ -415,8 +417,8 @@ function createReservationsModel(database) {
           checkInTime, checkOutTime,
           platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-          notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?)
+          notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount, depositDisabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -430,6 +432,7 @@ function createReservationsModel(database) {
         nightBlocks.blocksPreviousNight,
         nightBlocks.blocksNextNight,
         grossForPlatform,
+        depositDisabled ? 1 : 0,
       );
       return result.lastInsertRowid;
     },
@@ -439,7 +442,8 @@ function createReservationsModel(database) {
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
-        extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate } = payload;
+        extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate,
+        depositDisabled } = payload;
       const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
         ? Number(clientGrossAmount)
         : null;
@@ -451,7 +455,7 @@ function createReservationsModel(database) {
           depositPaid=?, depositPaidDate=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, balancePaidDate=?,
           complementAmount=?, complementPaid=?, complementPaidDate=?, notes=?,
           cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, extraGuestSurchargeOffered=?, icalSyncLocked=?,
-          blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
+          blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?, depositDisabled=?,
           updatedAt=datetime('now')
         WHERE id=?
       `).run(
@@ -470,6 +474,7 @@ function createReservationsModel(database) {
         cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
         cautionReturned ? 1 : 0, cautionReturnedDate || null, extraGuestSurchargeOffered ? 1 : 0, nextIcalSyncLocked,
         nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight, grossForPlatform,
+        depositDisabled ? 1 : 0,
         reservationId,
       );
     },
