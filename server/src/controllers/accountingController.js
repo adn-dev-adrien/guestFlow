@@ -23,11 +23,18 @@ function createAccountingController(accountingModel) {
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = accountingModel.encaissementsByMonth(params);
       const rows = buildRows(entries);
-      const csv = serializeCsv(CSV_HEADERS, rows);
+      // ISO-8859-1 (latin1) without BOM — matches the accountant's `Exemple export ventes
+      // SOLIO.csv` byte-for-byte. French accounting software (Sage/EBP/Cegid) defaults to
+      // latin1 and chokes on the UTF-8 BOM, so we drop it via `{ bom: false }` and re-encode
+      // the string into a latin1 Buffer. Characters outside the latin1 range (rare for French
+      // customer names) get truncated to their low byte — acceptable for the accountant
+      // export's use case.
+      const csv = serializeCsv(CSV_HEADERS, rows, { bom: false });
+      const buffer = Buffer.from(csv, 'latin1');
       const mm = String(params.month).padStart(2, '0');
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Type', 'text/csv; charset=ISO-8859-1');
       res.setHeader('Content-Disposition', `attachment; filename="ventes-${params.year}-${mm}.csv"`);
-      return res.send(csv);
+      return res.send(buffer);
     },
 
     // JSON mirror of the CSV — same encaissements, same lines, but grouped per entry and pre-classified

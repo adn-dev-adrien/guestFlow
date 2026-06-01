@@ -220,10 +220,14 @@ function buildEntry(row, quote, kind, perLineData) {
   // ── Contrib-driven path ─────────────────────────────────────────────────
   if (hasContribs) {
     const ttcByBucket = computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComplement);
+    // Tourist tax for this kind — captured at flip time for deposit/balance; at complement
+    // time it's "what's left of the tax after the two prior buckets took their share". The
+    // tax is part of the encaissement TTC (the customer paid it) but credited to the
+    // pass-through account 46710000 in the export, NOT to a 70xxx revenue line.
+    const taxTtc = computeTaxTtcForKind(row, kind);
 
-    // Strip tax portion: it never reaches the accountant journal.
-    const revenueTtcSum = round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources);
-    if (revenueTtcSum === 0) return null;
+    const totalTtc = round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc);
+    if (totalTtc === 0) return null;
 
     const buckets = [
       bucketFromTtc('accommodation', ttcByBucket.accommodation, Number(quote.vatPercentageAccommodation || 0)),
@@ -239,25 +243,31 @@ function buildEntry(row, quote, kind, perLineData) {
       platform: row.platform || 'direct',
       clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
       finalPrice: finalPriceTtc,
-      // Encaissement TTC = revenue TTC for the contrib-driven path (the tax part has already
-      // been stripped above). The export engine balances against this.
-      encaissementTtc: revenueTtcSum,
+      // Encaissement TTC = revenue TTC + tax TTC (the customer paid both). The export engine
+      // emits a credit on the tax pass-through account so Σ credits == debit holds.
+      encaissementTtc: totalTtc,
+      taxTtc: round2(taxTtc),
       fraction: 1,
       buckets,
     };
   }
 
   // ── Legacy fallback (pre-feature reservations, no contribs) ─────────────
-  let legacyEncaissement = encaissementTtc;
-  let denominator = totalStayTtc;
+  // We keep the historic fraction-based pro-rating BUT we no longer strip the tax: the tax
+  // portion of the encaissement now rides on the `46710000` pass-through line so the
+  // accountant has a complete picture (post-2026-06-01 policy change, see spec §3.4 rule 14).
+  const fraction = totalStayTtc > 0 ? encaissementTtc / totalStayTtc : 0;
+  // What portion of the encaissement is tax? In the legacy path we don't have per-bucket
+  // contribs — we pro-rate against the total stay TTC. When collectedOnArrival, the deposit
+  // and balance carry no tax (their TTC is finalPrice-relative); the tax all lands in
+  // complement.
+  let legacyTaxTtc;
   if (collectedOnArrival) {
-    denominator = finalPriceTtc;
-    if (kind === 'complement') {
-      legacyEncaissement = Math.max(0, legacyEncaissement - touristTaxTotal);
-      if (legacyEncaissement === 0) return null;
-    }
+    legacyTaxTtc = kind === 'complement' ? Math.min(touristTaxTotal, encaissementTtc) : 0;
+  } else {
+    legacyTaxTtc = round2(touristTaxTotal * fraction);
   }
-  const fraction = denominator > 0 ? legacyEncaissement / denominator : 0;
+
   return {
     reservationId: row.id,
     kind,
@@ -266,14 +276,32 @@ function buildEntry(row, quote, kind, perLineData) {
     platform: row.platform || 'direct',
     clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
     finalPrice: finalPriceTtc,
-    encaissementTtc: legacyEncaissement,
-    fraction,
+    encaissementTtc,
+    taxTtc: legacyTaxTtc,
+    // Legacy path keeps `fraction` so the export engine pro-rates the bucket HT/VAT, and
+    // surfaces the tax separately so it can emit a 46710000 credit on top.
+    fraction: collectedOnArrival && totalStayTtc > 0
+      ? (encaissementTtc - legacyTaxTtc) / finalPriceTtc
+      : fraction,
     buckets: [
       bucket('accommodation', quote.accommodationNetPrice, quote.accommodationVatAmount, quote.vatPercentageAccommodation),
       bucket('options', Number(quote.optionsNetPrice || 0), Number(quote.optionsVatAmount || 0), quote.vatPercentageOptions),
       bucket('resources', quote.resourcesNetPrice, quote.resourcesVatAmount, quote.vatPercentageResources),
     ].filter((b) => b.ht > 0 || b.vat > 0),
   };
+}
+
+// Tax TTC for a given encaissement kind, read from the per-bucket capture columns. Returns 0
+// when the tax was either routed to complement (and this kind isn't 'complement') or
+// already-captured-as-zero (e.g. collectedOnArrival path).
+function computeTaxTtcForKind(row, kind) {
+  if (kind === 'deposit') return round2(nz(row.touristTaxAcompteContribTtc));
+  if (kind === 'balance') return round2(nz(row.touristTaxSoldeContribTtc));
+  // complement → remainder: full tax minus what's already in deposit + balance.
+  const total = nz(row.touristTaxTotal);
+  const inDeposit = nz(row.touristTaxAcompteContribTtc);
+  const inBalance = nz(row.touristTaxSoldeContribTtc);
+  return round2(Math.max(0, total - inDeposit - inBalance));
 }
 
 // Aggregate the per-line/per-portion TTCs for a single entry kind. Tax is always excluded.

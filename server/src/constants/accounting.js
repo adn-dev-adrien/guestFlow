@@ -21,6 +21,14 @@ const VAT_ACCOUNTS = {
   REDUCED_10:  '44571100', // TVA 10%
 };
 
+// Pass-through accounts — money on the customer's debit that isn't owner revenue. The
+// `TOURIST_TAX` (46710000) mirrors the SOLIO export style: the tax is part of the
+// encaissement TTC (so the customer's debit covers it), but credited to a "compte d'attente"
+// because the owner owes it to the commune rather than recognising it as turnover.
+const PASS_THROUGH_ACCOUNTS = {
+  TOURIST_TAX: '46710000',
+};
+
 // Human label per account number — drives the "intitulé" column in the visual journal preview on the
 // Comptabilité page (not in the CSV itself, which keeps to the accountant's column list).
 const ACCOUNT_LABELS = {
@@ -29,6 +37,7 @@ const ACCOUNT_LABELS = {
   [REVENUE_ACCOUNTS.ACTIVITIES]:    'Activité diverse',
   [VAT_ACCOUNTS.REDUCED_10]:  'TVA 10 %',
   [VAT_ACCOUNTS.STANDARD_20]: 'TVA 20 %',
+  [PASS_THROUGH_ACCOUNTS.TOURIST_TAX]: 'Taxe de séjour',
 };
 
 function accountLabel(account) {
@@ -36,6 +45,10 @@ function accountLabel(account) {
   if (String(account || '').startsWith('C')) return 'Compte client';
   return '';
 }
+
+// Journal de ventes — fixed in the column layout decided 2026-06-01 from Adrien's accountant
+// example. Constant lives here so the column-set lives next to the other accounting bridges.
+const SALES_JOURNAL_CODE = 'VT';
 
 // Which revenue account each GuestFlow bucket lands in. See spec §3.4 rule 12.
 const BUCKET_TO_ACCOUNT = {
@@ -51,15 +64,18 @@ function vatAccountForRate(ratePercent) {
 }
 
 // Auxiliary client-account format: `C` + first N chars of the last name, uppercased, accent-stripped,
-// non-alphanumerics removed. N = 6 by default (common French convention; trivial to tweak when Adrien's
-// accountant sends their example). Pads with `X` if shorter, so the suffix length is stable.
+// non-alphanumerics removed. N = 6 (matches the accountant's example: `CNOTIN`, `CCAGGUI`).
+// No X-padding — the accountant's example uses variable-width codes (`CNOTIN` = 6 chars,
+// `CCAGGUI` = 7 chars). Empty / unknown names fall back to `CXXXXX` so the column is never
+// blank (the accountant's import requires a non-empty customer code).
 const CLIENT_ACCOUNT_NAME_CHARS = 6;
+const CLIENT_ACCOUNT_FALLBACK = 'CXXXXX';
 
 function buildClientAccount(lastName, { chars = CLIENT_ACCOUNT_NAME_CHARS } = {}) {
   const raw = String(lastName || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
   const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const padded = (cleaned + 'X'.repeat(chars)).slice(0, chars);
-  return `C${padded}`;
+  if (!cleaned) return CLIENT_ACCOUNT_FALLBACK;
+  return `C${cleaned.slice(0, chars)}`;
 }
 
 // How a sale's amounts are sourced. 'net' = owner-received (`finalPrice`); 'gross' = guest-paid
@@ -69,6 +85,7 @@ const RECOGNISE_REVENUE_ON = 'net';
 module.exports = {
   REVENUE_ACCOUNTS,
   VAT_ACCOUNTS,
+  PASS_THROUGH_ACCOUNTS,
   ACCOUNT_LABELS,
   BUCKET_TO_ACCOUNT,
   vatAccountForRate,
@@ -76,4 +93,5 @@ module.exports = {
   CLIENT_ACCOUNT_NAME_CHARS,
   buildClientAccount,
   RECOGNISE_REVENUE_ON,
+  SALES_JOURNAL_CODE,
 };
