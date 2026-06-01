@@ -233,6 +233,8 @@ Each row in the options / resources / custom options editor gets a new compact c
 
 Tourist tax sub-section gets a `Switch` *"Taxe de séjour en complément"* + helper text *"Le montant de la taxe est ajouté au complément à percevoir au lieu d'être réparti dans l'acompte / solde."*
 
+**Hidden when the engine already auto-routes the tax** (added 2026-06-01): on a non-direct platform configured to NOT collect the tax (`ical_sources.collectsTouristTax = 0`), the pricing engine sets `touristTaxCollectedOnArrival = true` and the tax always lands in Complément regardless of the manual flag. Rendering the Switch in that case would be confusing — the user clicks it, nothing changes (the override + the auto-routing both point to the same bucket), and they may think it's broken. The corresponding chip in PricingSummary stays visible in **read-only** state so the user still sees the routing.
+
 ### 6.2 Reservation page → PricingSummary — discreet chip + line duplication
 
 Worked example (stay 200 €, option B 50 € pré-acompte, depositPercent 30 %, option A 30 € ajoutée entre acompte et solde, B qty doublée à 100 € après les deux paiements) :
