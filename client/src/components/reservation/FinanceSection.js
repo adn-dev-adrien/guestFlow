@@ -297,8 +297,15 @@ export default function FinanceSection() {
 
             {/* Per-item routing for the tourist tax (spec force-item-to-complement.md §6.4).
                 When ON, the tax bypasses the auto deposit/balance split and lives 100 % in the
-                Complément entry. Hidden when there is no tax to route. */}
-            {Number(pricingQuote?.touristTaxTotal || 0) > 0 && (
+                Complément entry. Hidden when:
+                  - no tax to route (touristTaxTotal === 0), OR
+                  - the engine already routes the tax to Complément on its own — i.e. the
+                    booking is on a non-direct platform configured to NOT collect the tax
+                    (`touristTaxCollectedOnArrival = true`). In that case the toggle is moot:
+                    the tax always lands in Complément, the user can't change it, showing the
+                    Switch would only be confusing. */}
+            {Number(pricingQuote?.touristTaxTotal || 0) > 0
+              && !Boolean(pricingQuote?.touristTaxCollectedOnArrival) && (
               <>
                 <Divider />
                 <Box>
