@@ -48,6 +48,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   "legacy mode" → no behavioural change for existing reservations until they receive a fresh
   payment flip under the new code.
 
+  **Follow-up on 2026-06-01 (Adrien feedback):**
+  - Auto-options (arrivée anticipée / départ tardif) can now also be routed to Complément via
+    the same `Compl.` checkbox in the editor. Wired through a new `autoOptionsInComplement`
+    array on the form / payload / engine (auto-options aren't in `selectedOptions`, so they
+    need a parallel channel). The engine writes their `inComplement` to `reservation_options`
+    on save; loads back from there. Backward-compat: a locked snapshot with `inComplement = 1`
+    keeps the routing even without the array.
+  - The PricingSummary chip is now **clickable** — the user can flip a line in/out of
+    Complément directly from the summary, mirroring the FinanceSection checkbox. Two states:
+    bold outlined `compl.` when active, faded `+ compl.` when inactive (discoverable). The
+    `delta` row of a split (post-payment growth) stays read-only — flipping it would break
+    conservation against the encaissements already recorded. Same for the tourist-tax row —
+    the chip there mirrors the Switch in FinanceSection.
+
 - **Per-reservation "Désactiver l'acompte" toggle** (spec
   `disable-deposit-per-reservation.md`). A new `Switch` next to the "Acompte" title in
   `ReservationPage → FinanceSection` lets the admin declare that a given reservation

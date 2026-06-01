@@ -867,6 +867,12 @@ function calculateReservationQuote({
   // .inComplement` / `selectedResources[i].inComplement` / `customOptions[i].inComplement` drive
   // the same routing per line.
   touristTaxInComplement,
+  // Override list (array of optionId) for auto-options (early check-in, late check-out, ...).
+  // Auto-options are not part of `selectedOptions` (the engine derives them from
+  // `option.autoEnabled = 1`), so their `inComplement` flag travels through this parallel
+  // signal. The client builds it from a dedicated form field; on load, it's hydrated by
+  // reading the auto-options that already have `inComplement = 1` in `reservation_options`.
+  autoOptionsInComplement,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -966,6 +972,9 @@ function calculateReservationQuote({
     acompteContribTtc: locked && locked.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null,
     soldeContribTtc: locked && locked.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null,
   });
+  // Override set for auto-option routing (parallel signal to selectedOptions[i].inComplement,
+  // see the function-level comment on `autoOptionsInComplement`).
+  const autoInComplementSet = new Set((Array.isArray(autoOptionsInComplement) ? autoOptionsInComplement : []).map(Number));
 
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
@@ -1091,14 +1100,19 @@ function calculateReservationQuote({
         targetBilledUnits: 1,
         currentUnitPrice: line.unitPrice,
       });
+      // Auto-options can be flipped to Complément too (early check-in / late check-out are a
+      // common case: Adrien sometimes wants the surcharge to land in the post-arrival bucket
+      // because it's collected on site). The override list wins; falls back to the locked
+      // snapshot for already-saved reservations.
+      const forced = autoInComplementSet.has(optionId) || Boolean(locked?.inComplement);
       return {
         ...line,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
-        // Auto-options never receive an `inComplement` flag from the payload (they aren't even
-        // shown in the editor), so the locked DB value is the only source of truth.
-        ...pickContribsAndForce(null, locked),
+        inComplement: forced ? 1 : 0,
+        acompteContribTtc: forced ? null : (locked?.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null),
+        soldeContribTtc: forced ? null : (locked?.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null),
       };
     })
     .filter((line) => !selectedOptionIds.has(Number(line.optionId)));
