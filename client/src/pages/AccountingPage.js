@@ -14,6 +14,7 @@ import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import MonthYearPicker from '../components/MonthYearPicker';
 import { useAuth } from '../hooks/useAuth';
+import { userHasRole, ADMIN } from '../constants/roles';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
 // VAT (44571xxx) = blue. Used to colour rows and the per-line chip in the journal preview.
@@ -49,7 +50,13 @@ export default function AccountingPage() {
   const { user } = useAuth();
   // Only admins may navigate to a reservation file — the accountant role is read-only-accounting and
   // the server already 403s `/api/reservations/*` for them. The link is hidden at the UI layer too.
-  const canOpenReservation = user?.role === 'admin';
+  // Uses the central `userHasRole` helper (constants/roles.js) so this stays consistent with the
+  // sidebar's gating and survives the legacy `user.role` (string) vs new `user.roles` (array)
+  // shape — the helper has a back-compat shim. Direct `user.role === 'admin'` reads silently broke
+  // post admin-account-management refactor (sessions carry `roles: ['admin']`, not `role: 'admin'`),
+  // and that's exactly what made the client name in the journal entry cease to be a clickable link.
+  // Pinned by `__tests__/AccountingPage.regression.test.js`.
+  const canOpenReservation = userHasRole(user, ADMIN);
   const today = new Date();
   // Default to the previous month — accounting work is typically retrospective.
   const defaultDate = useMemo(() => {
