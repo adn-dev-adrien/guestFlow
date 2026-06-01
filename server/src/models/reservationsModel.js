@@ -91,8 +91,13 @@ function createReservationsModel(database) {
       `).get(id);
       if (!reservation) return null;
 
+      // `ro.*` already brings the new force-item-to-complement fields
+      // (inComplement, acompteContribTtc, soldeContribTtc) — no need to enumerate.
+      // `autoOptionType` is included so the client can tell apart manual vs auto options on load
+      // (auto-options use a separate `autoOptionsInComplement` channel — spec §3.1).
       reservation.options = database.prepare(`
         SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice,
+          o.autoOptionType as autoOptionType,
           COALESCE(
             NULLIF(ro.totalPrice, 0),
             NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
@@ -110,6 +115,9 @@ function createReservationsModel(database) {
           CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
           rco.amount as originalTotalPrice,
           COALESCE(rco.offered, 0) as offered,
+          COALESCE(rco.inComplement, 0) as inComplement,
+          rco.acompteContribTtc as acompteContribTtc,
+          rco.soldeContribTtc as soldeContribTtc,
           1 as isCustom
         FROM reservation_custom_options rco
         WHERE rco.reservationId = ?
@@ -117,6 +125,7 @@ function createReservationsModel(database) {
       `).all(id);
       reservation.options = [...reservation.options, ...customOptions];
 
+      // `rr.*` already brings the new force-item-to-complement fields — see options above.
       reservation.resources = database.prepare(`
         SELECT rr.*, rs.name, rs.note, rs.propertyId, rs.priceType,
           COALESCE(
@@ -172,12 +181,18 @@ function createReservationsModel(database) {
         SELECT date, seasonLabel, pricingMode, price
         FROM reservation_nights WHERE reservationId = ? ORDER BY date
       `).all(reservationId);
+      // `inComplement` / `acompteContribTtc` / `soldeContribTtc` are surfaced so the engine can
+      // thread them into the returned `quote.optionLines[i]` for the client + accounting model.
       const lockedOptionLines = database.prepare(`
-        SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered
+        SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+          COALESCE(inComplement, 0) as inComplement,
+          acompteContribTtc, soldeContribTtc
         FROM reservation_options WHERE reservationId = ?
       `).all(reservationId);
       const lockedResourceLines = database.prepare(`
-        SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered
+        SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+          COALESCE(inComplement, 0) as inComplement,
+          acompteContribTtc, soldeContribTtc
         FROM reservation_resources WHERE reservationId = ?
       `).all(reservationId);
       return { lockedNightlyBreakdown, lockedOptionLines, lockedResourceLines };
@@ -186,9 +201,9 @@ function createReservationsModel(database) {
     getAuditSnapshotFromDb(reservationId) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
-      const options = database.prepare('SELECT optionId, quantity, totalPrice FROM reservation_options WHERE reservationId = ?').all(reservationId);
-      const customOptions = database.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId);
-      const resources = database.prepare('SELECT resourceId, quantity, totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(reservationId);
+      const options = database.prepare('SELECT optionId, quantity, totalPrice, COALESCE(inComplement, 0) as inComplement FROM reservation_options WHERE reservationId = ?').all(reservationId);
+      const customOptions = database.prepare('SELECT description, amount, offered, COALESCE(inComplement, 0) as inComplement FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId);
+      const resources = database.prepare('SELECT resourceId, quantity, totalPrice, offered, COALESCE(inComplement, 0) as inComplement FROM reservation_resources WHERE reservationId = ?').all(reservationId);
       return {
         propertyId: Number(row.propertyId),
         clientId: Number(row.clientId),
@@ -229,9 +244,15 @@ function createReservationsModel(database) {
         extraGuestSurchargeOffered: Number(row.extraGuestSurchargeOffered || 0),
         // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
         depositDisabled: Number(row.depositDisabled || 0),
+        touristTaxInComplement: Number(row.touristTaxInComplement || 0),
         optionsSignature: getOptionsSignature([
           ...options,
-          ...customOptions.map((line, idx) => ({ optionId: 1000000 + idx, quantity: 1, totalPrice: Number(line.offered ? 0 : (line.amount || 0)) })),
+          ...customOptions.map((line, idx) => ({
+            optionId: 1000000 + idx,
+            quantity: 1,
+            totalPrice: Number(line.offered ? 0 : (line.amount || 0)),
+            inComplement: Number(line.inComplement || 0),
+          })),
         ]),
         resourcesSignature: getResourcesSignature(resources),
       };
@@ -259,6 +280,12 @@ function createReservationsModel(database) {
 
     getBasic(reservationId) {
       return database.prepare('SELECT id FROM reservations WHERE id = ?').get(reservationId);
+    },
+
+    // Full reservation row, used by the contrib-capture path (force-item-to-complement.md)
+    // to feed `calculateReservationQuote` with the latest persisted state at flip time.
+    getRow(reservationId) {
+      return database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
     },
 
     // ── Availability / capacity ──────────────────────────────────────────
@@ -406,7 +433,7 @@ function createReservationsModel(database) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
-        clientGrossAmount, depositDisabled } = payload;
+        clientGrossAmount, depositDisabled, touristTaxInComplement } = payload;
       // gross is meaningful only for platform-sourced bookings (rule 7 of the spec).
       const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
         ? Number(clientGrossAmount)
@@ -417,8 +444,9 @@ function createReservationsModel(database) {
           checkInTime, checkOutTime,
           platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-          notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount, depositDisabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?)
+          notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
+          depositDisabled, touristTaxInComplement)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -433,6 +461,7 @@ function createReservationsModel(database) {
         nightBlocks.blocksNextNight,
         grossForPlatform,
         depositDisabled ? 1 : 0,
+        touristTaxInComplement ? 1 : 0,
       );
       return result.lastInsertRowid;
     },
@@ -443,7 +472,7 @@ function createReservationsModel(database) {
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
         extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate,
-        depositDisabled } = payload;
+        depositDisabled, touristTaxInComplement } = payload;
       const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
         ? Number(clientGrossAmount)
         : null;
@@ -455,7 +484,8 @@ function createReservationsModel(database) {
           depositPaid=?, depositPaidDate=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, balancePaidDate=?,
           complementAmount=?, complementPaid=?, complementPaidDate=?, notes=?,
           cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, extraGuestSurchargeOffered=?, icalSyncLocked=?,
-          blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?, depositDisabled=?,
+          blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
+          depositDisabled=?, touristTaxInComplement=?,
           updatedAt=datetime('now')
         WHERE id=?
       `).run(
@@ -475,24 +505,38 @@ function createReservationsModel(database) {
         cautionReturned ? 1 : 0, cautionReturnedDate || null, extraGuestSurchargeOffered ? 1 : 0, nextIcalSyncLocked,
         nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight, grossForPlatform,
         depositDisabled ? 1 : 0,
+        touristTaxInComplement ? 1 : 0,
         reservationId,
       );
     },
 
+    // `inComplement` is carried on every write. `acompteContribTtc`/`soldeContribTtc` are
+    // owned by the payment-flip code path (`updatePayment` → `captureContribsOnFlip`); regular
+    // saves preserve them by passing through the values the engine returned (which it reads
+    // from the locked DB snapshot). Forced lines (`inComplement = 1`) always get NULL contribs
+    // — they live 100 % in the Complément entry, never in Acompte/Solde.
     replaceOptions(reservationId, optionLines) {
       database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(reservationId);
-      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
+        const forced = opt.inComplement ? 1 : 0;
         insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
-          Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0);
+          Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
+          forced,
+          forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
+          forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null));
       }
     },
 
     insertOptions(reservationId, optionLines) {
-      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
+        const forced = opt.inComplement ? 1 : 0;
         insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
-          Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0);
+          Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
+          forced,
+          forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
+          forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null));
       }
     },
 
@@ -501,12 +545,16 @@ function createReservationsModel(database) {
     },
 
     insertCustomOptions(reservationId, optionLines) {
-      const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder) VALUES (?, ?, ?, ?, ?)');
+      const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
       let sortOrder = 0;
       for (const line of optionLines || []) {
         if (!line.isCustom) continue;
+        const forced = line.inComplement ? 1 : 0;
         insertCustomOpt.run(reservationId, String(line.title || line.description || '').trim(),
-          Number(line.originalTotalPrice || line.totalPrice || 0), line.offered ? 1 : 0, sortOrder);
+          Number(line.originalTotalPrice || line.totalPrice || 0), line.offered ? 1 : 0, sortOrder,
+          forced,
+          forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
+          forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null));
         sortOrder += 1;
       }
     },
@@ -529,9 +577,13 @@ function createReservationsModel(database) {
     },
 
     insertResourceLine(reservationId, rr, unitPrice, qty, priceType) {
-      database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      const forced = rr.inComplement ? 1 : 0;
+      database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(reservationId, rr.resourceId, qty, unitPrice, Number(rr.billedUnits || qty),
-          priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0);
+          priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0,
+          forced,
+          forced ? null : (rr.acompteContribTtc != null ? Number(rr.acompteContribTtc) : null),
+          forced ? null : (rr.soldeContribTtc != null ? Number(rr.soldeContribTtc) : null));
     },
 
     updatePaymentField(sql, ...params) {

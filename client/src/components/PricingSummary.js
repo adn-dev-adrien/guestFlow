@@ -1,6 +1,54 @@
 import React, { useState } from 'react';
 import { Box, Card, Stack, Typography, Divider, Button, Chip } from '@mui/material';
 
+// Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
+// (spec force-item-to-complement.md §6.2). When `onClick` is provided, the chip becomes a
+// toggle the user can click to flip the line in/out of Complément directly from the summary.
+// `active=false` renders a faded "+ compl." hint instead of the bold "compl." chip so the
+// user discovers the affordance without it being visually loud.
+function ComplementChip({ active = true, onClick, readOnly = false }) {
+  const clickable = Boolean(onClick) && !readOnly;
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      label={active ? 'compl.' : '+ compl.'}
+      clickable={clickable}
+      onClick={clickable ? (e) => { e.stopPropagation(); onClick(!active); } : undefined}
+      sx={{
+        ml: 0.5,
+        height: 18,
+        fontSize: 10,
+        fontStyle: 'italic',
+        color: active ? 'text.secondary' : 'text.disabled',
+        borderColor: active ? 'divider' : 'transparent',
+        opacity: active ? 1 : 0.55,
+        cursor: clickable ? 'pointer' : 'default',
+        '& .MuiChip-label': { px: 0.75 },
+        '&:hover': clickable ? { opacity: 1, borderColor: 'divider', bgcolor: 'action.hover' } : undefined,
+      }}
+    />
+  );
+}
+
+// Compute the split contributions of a line for PricingSummary rendering. Three outcomes:
+//   - `forced`: the line lives 100 % in Complément → single row with chip + full total.
+//   - `split`:  the line grew after payment(s) → two rows (snapshot portion without chip,
+//               delta with chip).
+//   - `simple`: current behaviour (no chip, single row).
+function getLineSplit(line, totalPrice) {
+  if (Number(line?.inComplement || 0) === 1) {
+    return { kind: 'forced', snapshot: 0, delta: Number(totalPrice || 0) };
+  }
+  const acompte = Number(line?.acompteContribTtc || 0);
+  const solde = Number(line?.soldeContribTtc || 0);
+  const snapshot = acompte + solde;
+  if (snapshot > 0 && Number(totalPrice || 0) - snapshot > 0.005) {
+    return { kind: 'split', snapshot, delta: Number(totalPrice || 0) - snapshot };
+  }
+  return { kind: 'simple', snapshot: Number(totalPrice || 0), delta: 0 };
+}
+
 /**
  * PricingSummary — presentational right-panel pricing summary for the reservation/devis editor.
  *
@@ -23,6 +71,11 @@ import { Box, Card, Stack, Typography, Divider, Button, Chip } from '@mui/materi
  *   onToggleOptionOffered(optionId, next)
  *   onToggleCustomOptionOffered(customKey, next)
  *   onToggleResourceOffered(resourceId, next)
+ *   onToggleOptionInComplement(optionId, isAuto, next)   — flip a regular OR auto option in/out
+ *                                                          of Complément directly from the summary
+ *   onToggleCustomOptionInComplement(customKey, next)
+ *   onToggleResourceInComplement(resourceId, next)
+ *   onToggleTouristTaxInComplement(next)
  */
 export default function PricingSummary({
   quote,
@@ -39,6 +92,10 @@ export default function PricingSummary({
   onToggleOptionOffered,
   onToggleCustomOptionOffered,
   onToggleResourceOffered,
+  onToggleOptionInComplement,
+  onToggleCustomOptionInComplement,
+  onToggleResourceInComplement,
+  onToggleTouristTaxInComplement,
 }) {
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [showVatDetail, setShowVatDetail] = useState(false);
@@ -242,36 +299,65 @@ export default function PricingSummary({
                   if (so.autoFullNightApplied) autoHint = 'nuit complète';
                   else if (so.autoExtraHours > 0) autoHint = `${Number(so.autoExtraHours).toFixed(1).replace('.0', '')}h suppl.`;
                 }
-                return (
-                  <Box key={so.optionId || so.customKey || `custom_${index}`} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                    <Box sx={{ flex: 1 }}>
+                // Per-item routing split (spec force-item-to-complement.md §6.2):
+                //   forced → 1 row + (clickable) chip
+                //   split  → 2 rows (snapshot without chip + delta with READ-ONLY chip, because
+                //            the snapshot reflects encaissements that already happened — flipping
+                //            them would break conservation against those payment buckets)
+                //   simple → 1 row + faded "+ compl." toggle so the user can route this line.
+                const split = isOffered ? { kind: 'simple', snapshot: total, delta: 0 } : getLineSplit(so, total);
+                const baseLabel = `${so.title || opt?.title || '—'}${Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}`;
+                const baseKey = so.optionId || so.customKey || `custom_${index}`;
+
+                // Single callback unifies regular / auto / custom — the page knows which channel
+                // to update; the summary just signals "the user clicked compl. on THIS line".
+                const handleInComplementToggle = (next) => {
+                  if (isCustom) {
+                    if (typeof onToggleCustomOptionInComplement === 'function') {
+                      onToggleCustomOptionInComplement(String(so.customKey || ''), next);
+                    }
+                    return;
+                  }
+                  if (typeof onToggleOptionInComplement === 'function') {
+                    onToggleOptionInComplement(so.optionId, isAuto, next);
+                  }
+                };
+
+                const renderRow = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                       <Typography variant="body2" color="text.secondary">
-                        {so.title || opt?.title || '—'}{Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}
+                        {label}
                       </Typography>
+                      {chip === 'on' && <ComplementChip active onClick={handleInComplementToggle} />}
+                      {chip === 'off' && <ComplementChip active={false} onClick={handleInComplementToggle} />}
+                      {chip === 'readonly' && <ComplementChip active readOnly />}
                       {autoHint && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', width: '100%' }}>
                           {autoHint}
                         </Typography>
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Button
-                        size="small"
-                        variant={isOffered ? 'contained' : 'outlined'}
-                        color={isOffered ? 'success' : 'inherit'}
-                        onClick={() => {
-                          if (isCustom) {
-                            const targetKey = String(so.customKey || '');
-                            if (!targetKey) return;
-                            onToggleCustomOptionOffered(targetKey, !isOffered);
-                            return;
-                          }
-                          onToggleOptionOffered(so.optionId, !isOffered);
-                        }}
-                        sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
-                      >
-                        {isOffered ? '✓ Offert' : 'Offrir'}
-                      </Button>
+                      {withOfferedToggle && (
+                        <Button
+                          size="small"
+                          variant={isOffered ? 'contained' : 'outlined'}
+                          color={isOffered ? 'success' : 'inherit'}
+                          onClick={() => {
+                            if (isCustom) {
+                              const targetKey = String(so.customKey || '');
+                              if (!targetKey) return;
+                              onToggleCustomOptionOffered(targetKey, !isOffered);
+                              return;
+                            }
+                            onToggleOptionOffered(so.optionId, !isOffered);
+                          }}
+                          sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                        >
+                          {isOffered ? '✓ Offert' : 'Offrir'}
+                        </Button>
+                      )}
                       <Typography
                         variant="body2"
                         sx={{
@@ -282,9 +368,30 @@ export default function PricingSummary({
                           color: isOffered ? 'text.secondary' : 'inherit',
                         }}
                       >
-                        {total.toFixed(2)}€
+                        {amount.toFixed(2)}€
                       </Typography>
                     </Box>
+                  </Box>
+                );
+
+                if (split.kind === 'forced') {
+                  return (
+                    <Box key={baseKey}>
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: 'on', withOfferedToggle: true })}
+                    </Box>
+                  );
+                }
+                if (split.kind === 'split') {
+                  return (
+                    <Stack key={baseKey} spacing={0.5}>
+                      {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
+                    </Stack>
+                  );
+                }
+                return (
+                  <Box key={baseKey}>
+                    {renderRow({ label: baseLabel, amount: total, chip: isOffered ? null : 'off', withOfferedToggle: true })}
                   </Box>
                 );
               })}
@@ -309,28 +416,44 @@ export default function PricingSummary({
                 const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
                 const displayedOriginalTotal = isOffered ? originalTotal : total;
                 const resourceHint = hasFreeFirstHour ? '1ère heure offerte' : '';
-                return (
-                  <Box key={sr.resourceId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                const split = isOffered
+                  ? { kind: 'simple', snapshot: displayedOriginalTotal, delta: 0 }
+                  : getLineSplit(sr, total);
+                const baseLabel = `${sr.name || res?.name || '—'}${Number(sr.quantity) > 1 ? ` ×${sr.quantity}${isPerHour ? 'h' : ''}` : ''}`;
+
+                const handleInComplementToggle = (next) => {
+                  if (typeof onToggleResourceInComplement === 'function') {
+                    onToggleResourceInComplement(sr.resourceId, next);
+                  }
+                };
+
+                const renderRow = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                       <Typography variant="body2" color="text.secondary">
-                        {sr.name || res?.name || '—'}{Number(sr.quantity) > 1 ? ` ×${sr.quantity}${isPerHour ? 'h' : ''}` : ''}
+                        {baseLabel}
                       </Typography>
+                      {chip === 'on' && <ComplementChip active onClick={handleInComplementToggle} />}
+                      {chip === 'off' && <ComplementChip active={false} onClick={handleInComplementToggle} />}
+                      {chip === 'readonly' && <ComplementChip active readOnly />}
                       {resourceHint && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', width: '100%' }}>
                           {resourceHint}
                         </Typography>
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Button
-                        size="small"
-                        variant={isOffered ? 'contained' : 'outlined'}
-                        color={isOffered ? 'success' : 'inherit'}
-                        onClick={() => onToggleResourceOffered(sr.resourceId, !isOffered)}
-                        sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
-                      >
-                        {isOffered ? '✓ Offert' : 'Offrir'}
-                      </Button>
+                      {withOfferedToggle && (
+                        <Button
+                          size="small"
+                          variant={isOffered ? 'contained' : 'outlined'}
+                          color={isOffered ? 'success' : 'inherit'}
+                          onClick={() => onToggleResourceOffered(sr.resourceId, !isOffered)}
+                          sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
+                        >
+                          {isOffered ? '✓ Offert' : 'Offrir'}
+                        </Button>
+                      )}
                       <Typography
                         variant="body2"
                         sx={{
@@ -341,11 +464,24 @@ export default function PricingSummary({
                           color: isOffered ? 'text.secondary' : 'inherit',
                         }}
                       >
-                        {displayedOriginalTotal.toFixed(2)}€
+                        {amount.toFixed(2)}€
                       </Typography>
                     </Box>
                   </Box>
                 );
+
+                if (split.kind === 'forced') {
+                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: true })}</Box>;
+                }
+                if (split.kind === 'split') {
+                  return (
+                    <Stack key={sr.resourceId} spacing={0.5}>
+                      {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: true })}
+                      {renderRow({ amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
+                    </Stack>
+                  );
+                }
+                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: true })}</Box>;
               })}
             </>
           )}
@@ -356,7 +492,18 @@ export default function PricingSummary({
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                 <Box>
-                  <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
+                    {/* Manual routing to Complément (spec force-item-to-complement.md §6.2).
+                        Clickable here too, mirroring the Switch in FinanceSection. Hidden when
+                        the tax is offered (no money to route). */}
+                    {!isTouristTaxOffered && Number(touristTaxTotal) > 0 && (
+                      <ComplementChip
+                        active={Boolean(quote?.touristTaxInComplement)}
+                        onClick={onToggleTouristTaxInComplement}
+                      />
+                    )}
+                  </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Button
                       size="small"

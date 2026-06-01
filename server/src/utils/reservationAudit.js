@@ -41,6 +41,7 @@ const HISTORY_FIELD_LABELS = {
   cautionReturnedDate: 'Date restitution caution',
   extraGuestSurchargeOffered: 'Surcoût voyageurs offert',
   depositDisabled: 'Acompte désactivé',
+  touristTaxInComplement: 'Taxe en complément',
   optionsSignature: 'Options',
   resourcesSignature: 'Ressources',
 };
@@ -57,9 +58,10 @@ function getOptionsSignature(lines) {
       optionId: Number(line.optionId),
       quantity: Number(line.quantity || 0),
       totalPrice: Number(line.totalPrice || 0),
+      inComplement: Number(line.inComplement || 0),
     }))
     .sort((a, b) => a.optionId - b.optionId)
-    .map((line) => `${line.optionId}:${line.quantity}:${line.totalPrice.toFixed(2)}`)
+    .map((line) => `${line.optionId}:${line.quantity}:${line.totalPrice.toFixed(2)}:c${line.inComplement}`)
     .join('|');
 }
 
@@ -70,9 +72,10 @@ function getResourcesSignature(lines) {
       quantity: Number(line.quantity || 0),
       totalPrice: Number(line.totalPrice || 0),
       offered: Number(line.offered || 0),
+      inComplement: Number(line.inComplement || 0),
     }))
     .sort((a, b) => a.resourceId - b.resourceId)
-    .map((line) => `${line.resourceId}:${line.quantity}:${line.totalPrice.toFixed(2)}:${line.offered}`)
+    .map((line) => `${line.resourceId}:${line.quantity}:${line.totalPrice.toFixed(2)}:${line.offered}:c${line.inComplement}`)
     .join('|');
 }
 
@@ -112,10 +115,13 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md). Tracked
     // here so a toggle change shows up in `reservation_history` like any other field edit.
     depositDisabled: payload.depositDisabled ? 1 : 0,
+    // Per-item routing of the tourist tax to Complément (specs/force-item-to-complement.md).
+    touristTaxInComplement: payload.touristTaxInComplement ? 1 : 0,
     optionsSignature: getOptionsSignature((quote.optionLines || []).map((line, idx) => ({
       optionId: line.optionId != null ? Number(line.optionId) : (2000000 + idx),
       quantity: Number(line.quantity || 1),
       totalPrice: Number(line.totalPrice || 0),
+      inComplement: Number(line.inComplement || 0),
     }))),
     resourcesSignature: getResourcesSignature(quote.resourceLines || []),
   };
