@@ -495,13 +495,23 @@ export default function PricingSummary({
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
                     {/* Manual routing to Complément (spec force-item-to-complement.md §6.2).
-                        Clickable here too, mirroring the Switch in FinanceSection. Hidden when
-                        the tax is offered (no money to route). */}
+                        Two render paths:
+                          - `collectedOnArrival = true` (engine auto-routes — non-direct platform
+                            that doesn't collect the tax): the chip is shown read-only as a hint
+                            that the tax is in Complément. The user can't toggle this — the
+                            routing is determined by the platform's `collectsTouristTax` setting.
+                          - otherwise (direct or platform-collect): the chip is clickable,
+                            mirrors the Switch in FinanceSection.
+                        Hidden when the tax is offered (no money to route). */}
                     {!isTouristTaxOffered && Number(touristTaxTotal) > 0 && (
-                      <ComplementChip
-                        active={Boolean(quote?.touristTaxInComplement)}
-                        onClick={onToggleTouristTaxInComplement}
-                      />
+                      isTouristTaxCollectedOnArrival ? (
+                        <ComplementChip active readOnly />
+                      ) : (
+                        <ComplementChip
+                          active={Boolean(quote?.touristTaxInComplement)}
+                          onClick={onToggleTouristTaxInComplement}
+                        />
+                      )
                     )}
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
