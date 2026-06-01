@@ -93,8 +93,11 @@ function createReservationsModel(database) {
 
       // `ro.*` already brings the new force-item-to-complement fields
       // (inComplement, acompteContribTtc, soldeContribTtc) — no need to enumerate.
+      // `autoOptionType` is included so the client can tell apart manual vs auto options on load
+      // (auto-options use a separate `autoOptionsInComplement` channel — spec §3.1).
       reservation.options = database.prepare(`
         SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice,
+          o.autoOptionType as autoOptionType,
           COALESCE(
             NULLIF(ro.totalPrice, 0),
             NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),

@@ -28,8 +28,11 @@ export default function ExtrasSection() {
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
-    setOptionInComplement, setResourceInComplement,
+    setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
   } = useReservationForm();
+  // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
+  // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
+  const autoOptionsInComplementSet = new Set((form?.autoOptionsInComplement || []).map(Number));
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
@@ -118,19 +121,37 @@ export default function ExtrasSection() {
                         )}
 
                         {enabled && isAutoTimedOption && (
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between" flexWrap="wrap">
                             {selected?.autoFullNightApplied
                               ? <Chip size="small" variant="outlined" label="Nuit complète appliquée" />
                               : selected?.autoExtraHours > 0
                                 ? <Chip size="small" variant="outlined" label={`${Number(selected.autoExtraHours).toFixed(1).replace('.0', '')}h supplémentaire${selected.autoExtraHours >= 2 ? 's' : ''}`} />
                                 : null}
-                            <Chip
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                              label={`Total auto: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                            />
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                              {/* Force-to-complement override for auto-options (spec force-item-to-complement.md §3.1).
+                                  Common case: late check-out surcharge collected at check-out → belongs in
+                                  the Complément entry, not in the deposit/balance split. */}
+                              <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                <FormControlLabel
+                                  sx={{ m: 0 }}
+                                  control={
+                                    <Checkbox
+                                      size="small"
+                                      checked={autoOptionsInComplementSet.has(Number(opt.id))}
+                                      onChange={(e) => setAutoOptionInComplement(opt.id, e.target.checked)}
+                                    />
+                                  }
+                                  label={<Typography variant="caption">Compl.</Typography>}
+                                />
+                              </Tooltip>
+                              <Chip
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                                label={`Total auto: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                sx={{ flexGrow: 1 }}
+                              />
+                            </Stack>
                           </Stack>
                         )}
                       </CardContent>

@@ -203,6 +203,7 @@ function calculatePrice(req, res) {
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
+    autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -247,6 +248,7 @@ function create(req, res) {
     offeredOptionIds: req.body.offeredOptionIds,
     depositDisabled: depositDisabledFlag,
     touristTaxInComplement: req.body.touristTaxInComplement,
+    autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -357,6 +359,7 @@ function update(req, res) {
     depositDisabled: depositDisabledFlag,
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
+    autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 

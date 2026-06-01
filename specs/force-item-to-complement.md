@@ -48,6 +48,17 @@ Result: every accounting entry (Acompte / Solde / Complément) shows a per-bucke
 4. Toggling the flag in the UI mutates `form` → triggers the live recompute → PricingSummary updates without manual save.
 5. Tourist tax forced flag composes with the existing `touristTaxCollectedOnArrival` (platform auto-routing) via OR: `taxRoutedToComplement = touristTaxInComplement || touristTaxCollectedOnArrival`. No double-count.
 
+#### 3.1.bis Auto-options (early check-in / late check-out / …)
+
+Auto-options (`option.autoOptionType ∈ {early_check_in, late_check_out, …}` + `autoEnabled = 1`) are derived by the engine — they aren't part of `form.selectedOptions` on the client. To still allow routing them to Complément (typical case: a late check-out fee Adrien collects on site), the routing flag travels through a parallel signal:
+
+- **Form state**: `form.autoOptionsInComplement: number[]` — array of optionIds.
+- **Payload**: same name, every payload-build site forwards it.
+- **Engine input**: `autoOptionsInComplement` parameter on `calculateReservationQuote`. The `autoOptionLines` builder reads it: an auto-option whose id is in the set is flagged `inComplement = 1`, with `acompteContribTtc` / `soldeContribTtc` cleared to NULL (forced lines never carry contribs — §3.2 rule 10).
+- **Persistence**: the engine writes `inComplement = 1` on the corresponding `reservation_options` row when the quote is saved, so on load-from-server the array is hydrated from `res.options.filter(o => o.autoOptionType && o.inComplement === 1)`.
+- **Backward compat**: if the array is missing but the locked snapshot still has `inComplement = 1`, the engine keeps the line forced — so a reservation saved before the feature shipped doesn't lose its routing.
+- **UI**: the same `Compl.` checkbox style as regular options, rendered in the `enabled && isAutoTimedOption` branch of `ExtrasSection`. Membership is read from `form.autoOptionsInComplement`, toggled via `setAutoOptionInComplement(optionId, next)`.
+
 ### 3.2 Per-line per-bucket contributions
 
 6. Six new per-line columns store each item's locked contribution to acompte and solde (one set per child table):
@@ -241,9 +252,16 @@ Worked example (stay 200 €, option B 50 € pré-acompte, depositPercent 30 %,
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Chip styling: `<Chip variant="outlined" size="small" label="compl." sx={{ fontStyle: 'italic', ml: 1, fontSize: '0.7rem', height: '18px', color: 'text.secondary' }} />`. Read-only.
+Chip styling: outlined italic gray chip, 18 px height, label `compl.` (active state) or `+ compl.` (inactive/discoverability state).
 
-When `offered = 1`: no chip even if `inComplement = 1` (zero amount). When no delta and not forced: single line, no chip (current behaviour).
+**Clickable in the summary (2026-06-01 update):** the chip is the same UX surface as the FinanceSection checkbox — clicking it flips the line in / out of Complément directly from the summary. Three states:
+- **Active** (`inComplement = 1`): bold outlined chip `compl.`, on click → flips to off.
+- **Inactive** (`inComplement = 0`, not offered, no snapshot delta): faded `+ compl.` chip, on hover the outline appears, on click → flips to on.
+- **Read-only**: shown on the `delta` row of a split (post-payment growth) — the snapshot portion reflects encaissements that already happened, so the chip is informational; clicking it would break conservation against those payment buckets.
+
+Callbacks plumbed: `onToggleOptionInComplement(optionId, isAuto, next)` (the summary passes `isAuto` so the page can route to `setOptionInComplement` for manual options or `setAutoOptionInComplement` for auto-options — see §3.1.bis), `onToggleCustomOptionInComplement(customKey, next)`, `onToggleResourceInComplement(resourceId, next)`, `onToggleTouristTaxInComplement(next)`.
+
+When `offered = 1`: no chip even if `inComplement = 1` (zero amount). When no delta and not forced: single line + the inactive `+ compl.` chip (so the user discovers the affordance) — clicking it routes the line.
 
 For the duplicated line label (`Option B (+1)`), the engine returns the `quantityAtBalancePaid` per line (computed at payment flip from the qty at that moment) so the client can render `+<delta_qty>`. Falls back to just the amount split if the field is missing (legacy reservation).
 

@@ -271,3 +271,75 @@ test('payload `inComplement` always wins over locked snapshot (operator can re-r
   assert.equal(q.forcedItemsTotal, 0);
   assert.equal(q.preArrivalAmount, 250);
 });
+
+// Auto-options (early check-in / late check-out) live in a parallel channel because they
+// aren't part of `selectedOptions` — the engine derives them from `option.autoEnabled = 1`.
+// The user routes them to Complément by listing their optionId in `autoOptionsInComplement`.
+
+function createDbWithAutoOption() {
+  const db = createDb();
+  // Late check-out option that auto-fires on every reservation, fixed 25 €.
+  db.prepare("INSERT INTO options (id, title, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold) VALUES (20, 'Départ tardif', 'per_stay', 25, 'late_check_out', 1, 'fixed', '17:00')").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 20)').run();
+  return db;
+}
+
+test('auto-option not in autoOptionsInComplement → stays in the deposit/balance split', () => {
+  const db = createDbWithAutoOption();
+  const q = calculateReservationQuote({ ...BASE_INPUTS, db, checkOutTime: '18:00' });
+  const lateLine = q.optionLines.find((l) => l.optionId === 20);
+  assert.ok(lateLine, 'late check-out auto-option must appear in optionLines');
+  assert.equal(lateLine.inComplement, 0);
+  assert.equal(q.forcedItemsTotal, 0);
+});
+
+test('auto-option in autoOptionsInComplement → routed to Complément (preArrival drops it)', () => {
+  const db = createDbWithAutoOption();
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    checkOutTime: '18:00',
+    autoOptionsInComplement: [20],
+  });
+  const lateLine = q.optionLines.find((l) => l.optionId === 20);
+  assert.equal(lateLine.inComplement, 1);
+  // Stay 200 + 25 auto = 225. Forced → preArrival = 200 (excluding late check-out).
+  assert.equal(q.forcedItemsTotal, 25);
+  assert.equal(q.preArrivalAmount, 200);
+  assert.equal(q.complementAmount, 25);
+});
+
+test('auto-option locked with inComplement=1 in DB is still forced even without the payload signal', () => {
+  // Backward-compat: a reservation saved with the auto-option already flagged in `reservation_options`
+  // (e.g. from a previous payment) keeps its routing even if the client forgets to send the array.
+  const db = createDbWithAutoOption();
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    checkOutTime: '18:00',
+    lockedOptionLines: [{
+      optionId: 20, quantity: 1, unitPrice: 25, billedUnits: 1, priceType: 'per_stay',
+      totalPrice: 25, offered: 0, inComplement: 1,
+    }],
+  });
+  const lateLine = q.optionLines.find((l) => l.optionId === 20);
+  assert.equal(lateLine.inComplement, 1);
+  assert.equal(q.forcedItemsTotal, 25);
+});
+
+test('auto-option forced → contribs are cleared to NULL (line lives 100 % in Complément)', () => {
+  const db = createDbWithAutoOption();
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    checkOutTime: '18:00',
+    autoOptionsInComplement: [20],
+    lockedOptionLines: [{
+      optionId: 20, quantity: 1, unitPrice: 25, billedUnits: 1, priceType: 'per_stay',
+      totalPrice: 25, offered: 0, inComplement: 0,
+      acompteContribTtc: 7, soldeContribTtc: 18,
+    }],
+  });
+  const lateLine = q.optionLines.find((l) => l.optionId === 20);
+  // Forced override → contribs cleared so the legacy split is no longer applicable.
+  assert.equal(lateLine.inComplement, 1);
+  assert.equal(lateLine.acompteContribTtc, null);
+  assert.equal(lateLine.soldeContribTtc, null);
+});
