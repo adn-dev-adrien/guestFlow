@@ -110,6 +110,10 @@ function createFinanceModel(database) {
             depositAmount: r.depositAmount,
             depositPaid: !!r.depositPaid,
             depositDueDate: r.depositDueDate,
+            // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
+            // Propagate so the projection table renders "Désactivé" instead of "0€ Dû [null]"
+            // when the deposit is intentionally absent on this reservation.
+            depositDisabled: !!r.depositDisabled,
             balanceAmount: r.balanceAmount,
             balancePaid: !!r.balancePaid,
             balanceDueDate: r.balanceDueDate,

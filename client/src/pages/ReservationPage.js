@@ -153,6 +153,7 @@ export default function ReservationPage() {
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
+    depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
     startDate: '', endDate: '', propertyId: null
@@ -182,6 +183,7 @@ export default function ReservationPage() {
     depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
     balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
     complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
+    depositDisabled: Boolean(form.depositDisabled),
     selectedOptions: (form.selectedOptions || [])
       .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
       .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) }))
@@ -200,7 +202,7 @@ export default function ReservationPage() {
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -542,6 +544,7 @@ export default function ReservationPage() {
             propertyId: res.propertyId,
             depositPaid: res.depositPaid || false,
             depositPaidDate: res.depositPaidDate || '',
+            depositDisabled: Boolean(res.depositDisabled),
             balancePaid: res.balancePaid || false,
             balancePaidDate: res.balancePaidDate || '',
             complementPaid: Boolean(res.complementPaid),
@@ -851,6 +854,7 @@ export default function ReservationPage() {
           complementPaid: form.complementPaid,
           depositAmount: form.depositAmount,
           balanceAmount: form.balanceAmount,
+          depositDisabled: Boolean(form.depositDisabled),
           selectedOptions: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
           selectedResources: buildSelectedResourcesPayload(),
@@ -1298,6 +1302,7 @@ export default function ReservationPage() {
         complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
+        depositDisabled: Boolean(form.depositDisabled),
         selectedOptions: buildSelectedOptionsPayload(),
         customOptions: buildCustomOptionsPayload(),
         selectedResources: buildSelectedResourcesPayload(),
@@ -1405,6 +1410,7 @@ export default function ReservationPage() {
         complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
         balanceAmount: form.balanceAmount,
+        depositDisabled: Boolean(form.depositDisabled),
         selectedOptions: buildSelectedOptionsPayload(),
         customOptions: buildCustomOptionsPayload(),
         selectedResources: buildSelectedResourcesPayload(),
@@ -1507,8 +1513,12 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
-          depositPaid: form.depositPaid,
-          depositPaidDate: form.depositPaidDate || null,
+          // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
+          // When ON, depositPaid + depositPaidDate are force-zeroed both client-side here
+          // and server-side in reservationsController.update.
+          depositDisabled: Boolean(form.depositDisabled),
+          depositPaid: form.depositDisabled ? false : form.depositPaid,
+          depositPaidDate: form.depositDisabled ? null : (form.depositPaidDate || null),
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
           balancePaid: form.balancePaid,

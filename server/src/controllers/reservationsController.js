@@ -224,6 +224,11 @@ function create(req, res) {
     options: reservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
+  // Per-reservation opt-out of the deposit/balance split — when 1, the engine collapses the
+  // deposit to 0 and lets the balance absorb the whole pre-arrival total. See
+  // specs/disable-deposit-per-reservation.md.
+  const depositDisabledFlag = req.body.depositDisabled ? 1 : 0;
+
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(propertyId),
@@ -238,6 +243,7 @@ function create(req, res) {
     depositAmount: req.body.depositAmount,
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds: req.body.offeredOptionIds,
+    depositDisabled: depositDisabledFlag,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -251,7 +257,13 @@ function create(req, res) {
   if (grossError) return res.status(400).json({ error: grossError });
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
-  const validationError = model.validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks);
+  // The model rejects `startDate < today` by default. When the admin escape hatch is ON
+  // (Paramètres → Réservations passées), that single guard is lifted so backfilling /
+  // correcting a past reservation is possible. Overlap / capacity / closures still apply.
+  const validationError = model.validateAvailability(
+    propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks,
+    { allowPastDates: settingsModel.allowEditPastReservations() },
+  );
   if (validationError) return res.status(409).json(validationError);
 
   const capacityError = checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity });
@@ -310,6 +322,14 @@ function update(req, res) {
     ? model.getPricingSnapshot(id)
     : { lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] };
 
+  // Per-reservation opt-out of the deposit/balance split. When ON, force-zero the deposit-
+  // paid fields too so the accounting export emits a single journal entry. The pricing
+  // engine reads depositDisabled directly to short-circuit the deposit math.
+  // See specs/disable-deposit-per-reservation.md.
+  const depositDisabledFlag = req.body.depositDisabled ? 1 : 0;
+  const effectiveDepositPaid = depositDisabledFlag ? false : req.body.depositPaid;
+  const effectiveDepositPaidDate = depositDisabledFlag ? null : req.body.depositPaidDate;
+
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(propertyId),
@@ -321,7 +341,7 @@ function update(req, res) {
     customOptions: reservationCustomOptions,
     selectedResources: reservationResources,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
-    depositPaid: req.body.depositPaid,
+    depositPaid: effectiveDepositPaid,
     balancePaid: req.body.balancePaid,
     complementPaid: req.body.complementPaid,
     depositAmount: req.body.depositAmount,
@@ -331,6 +351,7 @@ function update(req, res) {
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
+    depositDisabled: depositDisabledFlag,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
@@ -343,6 +364,10 @@ function update(req, res) {
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
       'extraGuestSurchargeOffered', 'depositAmount', 'balanceAmount', 'depositPaid', 'balancePaid',
       'cautionReceived', 'cautionReceivedDate', 'cautionReturned', 'cautionReturnedDate',
+      // `depositDisabled` is allowed on past reservations too — an admin may realise after
+      // the fact that a booking was platform-handled and should never have had a deposit.
+      // See specs/disable-deposit-per-reservation.md §3.6.
+      'depositDisabled',
     ]);
     const forbiddenChanges = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
       .filter((change) => !allowedLockedFields.has(change.field));
@@ -364,7 +389,13 @@ function update(req, res) {
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
 
   if (!pastReservationLocked) {
-    const validationError = model.validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks);
+    // Same logic as the `create` flow: lift the model-level "no past startDate" guard when
+    // the admin escape hatch is ON, so the user can keep a past startDate while editing
+    // unrelated fields. See specs/admin-unlock-past-reservations.md.
+    const validationError = model.validateAvailability(
+      propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks,
+      { allowPastDates: settingsModel.allowEditPastReservations() },
+    );
     if (validationError) return res.status(409).json(validationError);
 
     const capacityError = checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity });
@@ -375,7 +406,15 @@ function update(req, res) {
   }
 
   const nextIcalSyncLocked = computeNextIcalSyncLocked(existingReservation);
-  model.updateReservation(id, req.body, quote, nightBlocks, nextIcalSyncLocked);
+  // Build the model payload — same as req.body, but with the depositPaid* fields force-
+  // zeroed when depositDisabled is on. The pricing engine already collapsed depositAmount
+  // to 0 above; this prevents an inconsistent persisted state where the deposit is
+  // "disabled" yet still flagged paid (which would re-emit a phantom journal entry).
+  // See specs/disable-deposit-per-reservation.md.
+  const modelPayload = depositDisabledFlag
+    ? { ...req.body, depositPaid: false, depositPaidDate: null }
+    : req.body;
+  model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked);
 
   if (!pastReservationLocked && reservationOptions) model.replaceOptions(id, quote.optionLines);
   if (!pastReservationLocked) {

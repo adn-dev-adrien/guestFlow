@@ -40,6 +40,7 @@ const HISTORY_FIELD_LABELS = {
   cautionReturned: 'Caution restituée',
   cautionReturnedDate: 'Date restitution caution',
   extraGuestSurchargeOffered: 'Surcoût voyageurs offert',
+  depositDisabled: 'Acompte désactivé',
   optionsSignature: 'Options',
   resourcesSignature: 'Ressources',
 };
@@ -108,6 +109,9 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     cautionReturned: payload.cautionReturned ? 1 : 0,
     cautionReturnedDate: payload.cautionReturnedDate || null,
     extraGuestSurchargeOffered: payload.extraGuestSurchargeOffered ? 1 : 0,
+    // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md). Tracked
+    // here so a toggle change shows up in `reservation_history` like any other field edit.
+    depositDisabled: payload.depositDisabled ? 1 : 0,
     optionsSignature: getOptionsSignature((quote.optionLines || []).map((line, idx) => ({
       optionId: line.optionId != null ? Number(line.optionId) : (2000000 + idx),
       quantity: Number(line.quantity || 1),

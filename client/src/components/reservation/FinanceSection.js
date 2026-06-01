@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel } from '@mui/material';
 import api from '../../api';
 import { useReservationForm } from './ReservationFormContext';
 
@@ -168,49 +168,81 @@ export default function FinanceSection() {
             <Box>
               <Grid container spacing={2} sx={sectionGridSx}>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Acompte</Typography>
-                  <TextField
-                    label="Échéance acompte"
-                    type="date"
-                    value={form.depositDueDate}
-                    disabled={isReservationLocked}
-                    InputLabelProps={{ shrink: true }}
-                    onChange={(e) => updateForm({ depositDueDate: e.target.value })}
-                    fullWidth
-                  />
-                  <Button
-                    fullWidth
-                    variant={form.depositPaid ? 'contained' : 'outlined'}
-                    color={form.depositPaid ? 'success' : 'inherit'}
-                    onClick={async () => {
-                      const next = !form.depositPaid;
-                      const today = todayStr();
-                      const date = next ? (form.depositPaidDate || today) : '';
-                      if (isReservationLocked && editingReservationId) {
-                        await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ mb: 0 }}>Acompte</Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          checked={Boolean(form.depositDisabled)}
+                          onChange={(e) => updateForm({
+                            depositDisabled: e.target.checked,
+                            // When the operator disables the deposit, also clear the paid flags
+                            // so the next save doesn't persist an inconsistent (disabled + paid)
+                            // state. The server enforces the same on its side; the client mirror
+                            // keeps the UI consistent immediately. See
+                            // specs/disable-deposit-per-reservation.md.
+                            ...(e.target.checked ? { depositPaid: false, depositPaidDate: '' } : {}),
+                          })}
+                          disabled={isReservationLocked && !editingReservationId}
+                        />
                       }
-                      updateForm({ depositPaid: next, depositPaidDate: date });
-                    }}
-                    sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
-                  >
-                    {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
-                  </Button>
-                  {form.depositPaid && (
-                    <TextField
-                      label="Payé le"
-                      type="date"
-                      value={form.depositPaidDate || ''}
-                      InputLabelProps={{ shrink: true }}
-                      onChange={async (e) => {
-                        const v = e.target.value;
-                        updateForm({ depositPaidDate: v });
-                        if (isReservationLocked && editingReservationId) {
-                          await api.markPayment(editingReservationId, { depositPaid: true, depositPaidDate: v || null });
-                        }
-                      }}
-                      fullWidth
-                      sx={{ mt: 1.5 }}
+                      label={<Typography variant="caption" color="text.secondary">Désactiver</Typography>}
+                      labelPlacement="start"
+                      sx={{ mr: 0, ml: 0 }}
                     />
+                  </Box>
+
+                  {form.depositDisabled ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
+                      Acompte désactivé — ajouté au solde.
+                    </Typography>
+                  ) : (
+                    <>
+                      <TextField
+                        label="Échéance acompte"
+                        type="date"
+                        value={form.depositDueDate}
+                        disabled={isReservationLocked}
+                        InputLabelProps={{ shrink: true }}
+                        onChange={(e) => updateForm({ depositDueDate: e.target.value })}
+                        fullWidth
+                      />
+                      <Button
+                        fullWidth
+                        variant={form.depositPaid ? 'contained' : 'outlined'}
+                        color={form.depositPaid ? 'success' : 'inherit'}
+                        onClick={async () => {
+                          const next = !form.depositPaid;
+                          const today = todayStr();
+                          const date = next ? (form.depositPaidDate || today) : '';
+                          if (isReservationLocked && editingReservationId) {
+                            await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
+                          }
+                          updateForm({ depositPaid: next, depositPaidDate: date });
+                        }}
+                        sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
+                      >
+                        {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
+                      </Button>
+                      {form.depositPaid && (
+                        <TextField
+                          label="Payé le"
+                          type="date"
+                          value={form.depositPaidDate || ''}
+                          InputLabelProps={{ shrink: true }}
+                          onChange={async (e) => {
+                            const v = e.target.value;
+                            updateForm({ depositPaidDate: v });
+                            if (isReservationLocked && editingReservationId) {
+                              await api.markPayment(editingReservationId, { depositPaid: true, depositPaidDate: v || null });
+                            }
+                          }}
+                          fullWidth
+                          sx={{ mt: 1.5 }}
+                        />
+                      )}
+                    </>
                   )}
                 </Grid>
 

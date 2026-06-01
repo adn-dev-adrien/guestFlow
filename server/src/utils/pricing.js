@@ -858,6 +858,10 @@ function calculateReservationQuote({
   lockedOptionLines,
   lockedResourceLines,
   platform,
+  // Admin opt-out of the deposit/balance split (see specs/disable-deposit-per-reservation.md).
+  // When truthy, the engine forces depositAmount=0 and lets the balance absorb the whole
+  // pre-arrival total — survives every recompute as long as the caller keeps passing it.
+  depositDisabled,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1217,7 +1221,12 @@ function calculateReservationQuote({
   const totalVatAmount = roundMoney(accommodationVatAmount + optionsVatAmount + resourcesVatAmount);
   const totalNetPrice = roundMoney(accommodationNetPrice + optionsNetPrice + resourcesNetPrice);
 
-  const depositDueDate = addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
+  // When `depositDisabled` is on, drop the deposit due date too — keeping a deadline for a
+  // €0 line would just confuse the UI. The balance due date stays at the standard derivation
+  // because the full pre-arrival total is now owed by that date instead.
+  const depositDueDate = depositDisabled
+    ? null
+    : addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
   const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
   const touristTaxBreakdown = computeTouristTaxBreakdown({
@@ -1263,7 +1272,16 @@ function calculateReservationQuote({
   let resolvedDepositAmount = autoDepositAmount;
   let resolvedBalanceAmount = autoBalanceAmount;
 
-  if (depositPaid && balancePaid) {
+  // `depositDisabled` opt-out wins over every other branch below — it's the explicit
+  // "this reservation has no deposit concept, the platform handled it" toggle. See
+  // specs/disable-deposit-per-reservation.md. We force-zero the deposit and let the
+  // balance absorb the pre-arrival total. The controller is responsible for also forcing
+  // depositPaid = 0 + depositPaidDate = NULL on the way in, so accountingModel emits a
+  // single journal entry instead of two.
+  if (depositDisabled) {
+    resolvedDepositAmount = 0;
+    resolvedBalanceAmount = roundMoney(preArrivalAmount);
+  } else if (depositPaid && balancePaid) {
     resolvedDepositAmount = roundMoney(depositAmount);
     resolvedBalanceAmount = roundMoney(balanceAmount);
   } else if (depositPaid) {
