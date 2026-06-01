@@ -23,6 +23,7 @@ import api from '../api';
 import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
+import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -357,81 +358,12 @@ export default function ReservationPage() {
     if (form.startDate !== miniSelectionAnchor) setMiniSelectionAnchor('');
   }, [form.startDate, miniSelectionAnchor]);
 
-  const applyQuoteToForm = useCallback((prev, quote, preserveBlankPrice = false) => {
-    const resourceLinesById = new Map((quote.resourceLines || []).map((line) => [Number(line.resourceId), line]));
-
-    // Preserve user-manually-set customPrice: if prev.customPrice is not empty, keep it
-    // totalPrice comes from quote (server-calculated)
-    const shouldPreserveCustomPrice = prev.customPrice !== '';
-
-    return {
-      ...prev,
-      totalPrice: quote.totalPrice == null ? '' : Number(quote.totalPrice || 0),
-      touristTaxRate: Number(quote.touristTaxRate || 0),
-      touristTaxTotal: Number(quote.touristTaxTotal || 0),
-      finalPrice: shouldPreserveCustomPrice && prev.customPrice !== ''
-        ? Number(prev.customPrice)
-        : (quote.finalPrice == null ? '' : Number(quote.finalPrice || 0)),
-      depositAmount: Number(quote.depositAmount || 0),
-      depositDueDate: quote.depositDueDate || '',
-      balanceAmount: Number(quote.balanceAmount || 0),
-      balanceDueDate: quote.balanceDueDate || '',
-      // CRITICAL: preserve `inComplement` + per-line contribs from the quote, otherwise the
-      // next recompute cycle erases the flag the user just toggled (spec
-      // force-item-to-complement.md §3.1). Same fix below for customOptions + resources.
-      // For non-auto manual options we trust `prev.selectedOptions[i].inComplement` (the user
-      // just toggled it locally) — the quote round-trip may not have reached the server yet.
-      // For auto-options we don't keep `inComplement` on selectedOptions at all (it lives in
-      // `form.autoOptionsInComplement`); we still surface the engine value here for the chip.
-      selectedOptions: (quote.optionLines || []).filter((line) => !line.isCustom).map((line) => {
-        const prevLine = (prev.selectedOptions || []).find((s) => Number(s.optionId) === Number(line.optionId));
-        return {
-          optionId: Number(line.optionId),
-          quantity: Number(line.quantity || 0),
-          totalPrice: Number(line.totalPrice || 0),
-          originalTotalPrice: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
-          offered: Boolean(line.offered),
-          inComplement: prevLine && prevLine.inComplement !== undefined
-            ? Boolean(prevLine.inComplement)
-            : Boolean(line.inComplement),
-          acompteContribTtc: line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
-          soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
-          ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
-          ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
-        };
-      }),
-      customOptions: (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => {
-        const customKey = String(line.customKey || `custom_${index + 1}`);
-        const prevLine = (prev.customOptions || []).find((c) => String(c.customKey) === customKey);
-        return {
-          customKey,
-          customOptionId: prevLine?.customOptionId,
-          description: String(line.title || line.description || '').trim(),
-          amount: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
-          offered: Boolean(line.offered),
-          inComplement: prevLine && prevLine.inComplement !== undefined
-            ? Boolean(prevLine.inComplement)
-            : Boolean(line.inComplement),
-          acompteContribTtc: line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
-          soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
-        };
-      }),
-      selectedResources: (prev.selectedResources || []).map((item) => {
-        const line = resourceLinesById.get(Number(item.resourceId));
-        return {
-          ...item,
-          unitPrice: Number(line?.unitPrice ?? item.unitPrice ?? 0),
-          totalPrice: Number(line?.totalPrice || 0),
-          offered: Boolean(line?.offered ?? item.offered),
-          // `item.inComplement` is the source of truth (user's local toggle); fall back to
-          // the engine value only when the resource wasn't in the previous form state.
-          inComplement: item.inComplement !== undefined ? Boolean(item.inComplement) : Boolean(line?.inComplement),
-          acompteContribTtc: line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
-          soldeContribTtc: line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
-        };
-      }),
-    };
-  }, []);
+  // Thin wrapper over the pure helper (src/utils/applyQuoteToForm.js). Kept as a useCallback so
+  // setForm closures don't re-create the dependency on every render.
+  const applyQuoteToForm = useCallback(
+    (prev, quote, preserveBlankPrice = false) => applyQuoteToFormPure(prev, quote, { preserveBlankPrice }),
+    [],
+  );
 
   const applyQuoteMinNights = useCallback((quote) => {
     setMinNightsState({
