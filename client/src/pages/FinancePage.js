@@ -193,9 +193,17 @@ export default function FinancePage() {
                         <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
                         <TableCell>{d.finalPrice}€</TableCell>
                         <TableCell>
-                          {d.depositAmount}€
-                          {d.depositPaid ? <Chip label="Payé" size="small" color="success" sx={{ ml: 1 }} /> :
-                            <Chip label={`Dû ${displayDate(d.depositDueDate)}`} size="small" color="warning" sx={{ ml: 1 }} />}
+                          {d.depositDisabled ? (
+                            <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.disabled' }}>
+                              Désactivé
+                            </Typography>
+                          ) : (
+                            <>
+                              {d.depositAmount}€
+                              {d.depositPaid ? <Chip label="Payé" size="small" color="success" sx={{ ml: 1 }} /> :
+                                <Chip label={`Dû ${displayDate(d.depositDueDate)}`} size="small" color="warning" sx={{ ml: 1 }} />}
+                            </>
+                          )}
                         </TableCell>
                         <TableCell>
                           {d.balanceAmount}€
@@ -317,13 +325,19 @@ export default function FinancePage() {
                             {Math.round(remainingDue * 100) / 100}€
                           </TableCell>
                           <TableCell align="center">
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                              <Checkbox checked={!!r.depositPaid} onChange={() => handleTogglePayment(r, 'depositPaid')} size="small" />
-                              <Box>
-                                <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>{r.depositAmount}€</Typography>
-                                {r.depositDueDate && <Typography variant="caption" sx={{ color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
+                            {r.depositDisabled ? (
+                              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.disabled' }}>
+                                Désactivé
+                              </Typography>
+                            ) : (
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                <Checkbox checked={!!r.depositPaid} onChange={() => handleTogglePayment(r, 'depositPaid')} size="small" />
+                                <Box>
+                                  <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>{r.depositAmount}€</Typography>
+                                  {r.depositDueDate && <Typography variant="caption" sx={{ color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
+                                </Box>
                               </Box>
-                            </Box>
+                            )}
                           </TableCell>
                           <TableCell align="center">
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
@@ -416,12 +430,22 @@ export default function FinancePage() {
                           <TableCell>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
                               <Chip label={remainingDue > 0 ? `Reste ${remainingDue}€` : 'Complet'} size="small" color={remainingDue > 0 ? 'warning' : 'success'} />
-                              <Chip
-                                label={`Acompte ${r.depositPaid ? 'payé' : 'non payé'}${r.depositDueDate && !r.depositPaid ? ` (${displayDate(r.depositDueDate)})` : ''}`}
-                                size="small"
-                                color={r.depositPaid ? 'success' : 'default'}
-                                variant={r.depositPaid ? 'filled' : 'outlined'}
-                              />
+                              {r.depositDisabled ? (
+                                <Chip
+                                  label="Acompte désactivé"
+                                  size="small"
+                                  color="default"
+                                  variant="outlined"
+                                  sx={{ fontStyle: 'italic' }}
+                                />
+                              ) : (
+                                <Chip
+                                  label={`Acompte ${r.depositPaid ? 'payé' : 'non payé'}${r.depositDueDate && !r.depositPaid ? ` (${displayDate(r.depositDueDate)})` : ''}`}
+                                  size="small"
+                                  color={r.depositPaid ? 'success' : 'default'}
+                                  variant={r.depositPaid ? 'filled' : 'outlined'}
+                                />
+                              )}
                               <Chip
                                 label={`Solde ${r.balancePaid ? 'payé' : 'non payé'}${r.balanceDueDate && !r.balancePaid ? ` (${displayDate(r.balanceDueDate)})` : ''}`}
                                 size="small"

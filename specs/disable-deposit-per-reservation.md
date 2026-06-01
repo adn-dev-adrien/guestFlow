@@ -61,6 +61,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 | `models/` | `reservationsModel.js` | T | Add `depositDisabled` to the `INSERT` + `UPDATE` field lists and the `SELECT` shapes. Include it in `getAuditSnapshotFromDb`. |
 | `utils/` | `pricing.js` | T | When `depositDisabled === 1`, short-circuit `resolvedDepositAmount = 0` + `resolvedBalanceAmount = preArrivalAmount` (still subject to the existing `depositPaid/balancePaid` lock semantics, but `depositPaid` is forced to `0` upstream by the controller). |
 | `controllers/` | `reservationsController.js` | T | Read `req.body.depositDisabled`. When `1`, force `req.body.depositPaid = 0` + `req.body.depositPaidDate = null` + `req.body.depositDueDate = null` before pricing runs. Pass `depositDisabled` to `calculateReservationQuote`. Add `depositDisabled` to the 14-field allowlist (line ~338) so an admin can flip it on a past reservation even without the global unlock. |
+| `models/` | `financeModel.js` | T | `getProjection` propagates `depositDisabled` in the per-reservation detail object so the FinancePage projection table can render the disabled state. Other endpoints (`getSummary`, `getOperational`) already pass the column through via the existing `SELECT r.*` + spread. |
 | `utils/` | `reservationAudit.js` | T | Add `depositDisabled` to `buildAuditSnapshotFromPayload` + the diff fields so the reservation history surfaces toggles. |
 | `models/` | `accountingModel.js` | — | No change — the existing `WHERE depositPaid = 1 AND depositPaidDate ...` filter is exactly what we need (no `depositPaid=1` → no journal entry). |
 | `tests/` | `pricing-deposit-disabled.unit.test.js` | C | New unit test file covering: `depositDisabled=0` (regression), `=1` (deposit collapses to 0, balance absorbs), the engine respects the flag across multiple recomputes (regression for the bug Variant A would have produced), the override doesn't break `complementAmount` math. |
@@ -72,6 +73,9 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 |---|---|---|---|
 | `pages/` | `ReservationPage.js` | T | Add `depositDisabled: 0` to the initial form state; carry it through the existing payload shape. |
 | `components/reservation/` | `FinanceSection.js` | T | Render the `Switch` next to the "Acompte" title. When ON, collapse the deposit block to a single muted line + keep the Switch visible. When OFF, render the existing deposit UI as today. The Switch is fully controlled: on toggle, it updates `form.depositDisabled` and the parent component re-renders. |
+| `components/` | `PricingSummary.js` | T | The Acompte row reads `form.depositDisabled`. When ON, the amount is replaced by an italic muted `Désactivé (ajouté au solde)` line, and the due-date caption + "Acompte payé" chip are hidden. Keeps the summary visually consistent with FinanceSection. |
+| `pages/` | `Dashboard.js` | T | Line ~248 status text: the "Acompte ${depositPaid ? OK : NON}" check becomes "Acompte ${depositPaid \|\| depositDisabled ? OK : NON}" — for a depositDisabled reservation there's nothing to chase. |
+| `pages/` | `FinancePage.js` | T | Three display surfaces patched (projection table, pending-payments table, summary chip line): show italic "Désactivé" / "Acompte désactivé" chip instead of "0€" + "Dû [null]" / checkbox + 0€ / "Acompte non payé" chip. |
 | `api.js` | `api.js` | — | No change — the existing reservation update/create endpoints carry arbitrary body fields. |
 
 **Component reuse declaration:**

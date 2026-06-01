@@ -245,7 +245,11 @@ export default function Dashboard() {
                             <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
                               {paymentOk
                                 ? 'OK'
-                                : `Manquant ${remaining}€ • Acompte ${r.depositPaid ? 'OK' : 'NON'} • Solde ${r.balancePaid ? 'OK' : 'NON'}`}
+                                /* Per-reservation depositDisabled (specs/disable-deposit-per-reservation.md):
+                                   when the deposit is opted out for this reservation, "Acompte NON" would
+                                   be misleading — there is literally nothing to collect. Render the row as
+                                   if the deposit was already OK so only the Solde line drives the alert. */
+                                : `Manquant ${remaining}€ • Acompte ${r.depositPaid || r.depositDisabled ? 'OK' : 'NON'} • Solde ${r.balancePaid ? 'OK' : 'NON'}`}
                             </TableCell>
                             <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
                               {Number(r.cautionAmount || 0) > 0

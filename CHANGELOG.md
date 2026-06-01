@@ -63,6 +63,27 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   ON collapses deposit/absorbs balance, boolean variant accepted, survives repeated
   recompute calls, depositPercent=0 edge case, flag wins over a stale `depositPaid=true`,
   every falsy variant is a no-op). All 7 pass at first run.
+
+  **Follow-up on 2026-06-01 (Adrien feedback):** the toggle was visible in
+  `FinanceSection` but the rest of the UI kept showing "Acompte: 0€ Dû [null]" or
+  "Acompte non payé" for depositDisabled reservations — visually inconsistent with
+  the toggle's intent. Patched the four remaining surfaces:
+  - `PricingSummary` (the recap card next to the reservation form): the Acompte row
+    now renders an italic muted `Désactivé (ajouté au solde)` instead of `0.00€`,
+    and the due-date caption + "Acompte payé" chip are hidden.
+  - `Dashboard.js` line 248 status line: the `Acompte NON` part now reads `OK` when
+    `r.depositDisabled` is on — there's nothing to chase. The Solde part is
+    unchanged.
+  - `FinancePage.js` projection table (line ~195): the Acompte cell now shows
+    `Désactivé` italicised instead of `0€ + chip "Dû [null date]"`.
+  - `FinancePage.js` pending-payments table (line ~319): the Acompte cell now shows
+    `Désactivé` instead of the unchecked checkbox + `0€` + null due-date.
+  - `FinancePage.js` summary chip line (line ~433): the per-reservation chip row
+    renders `Acompte désactivé` (italic) instead of `Acompte non payé`.
+  Server propagation: `financeModel.getProjection` now includes `depositDisabled` in
+  the per-reservation detail it returns (the projection used to omit the flag, so
+  the projection table didn't see it). All other endpoints already passed the column
+  through via the existing `SELECT r.*` patterns.
 - **Admin-only escape hatch for editing past reservations** (spec
   `admin-unlock-past-reservations.md`). The server-side lock that gates `PUT
   /api/reservations/:id` to a 14-field allowlist once `startDate <= today`, and the

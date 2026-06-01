@@ -475,18 +475,28 @@ export default function PricingSummary({
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
           </Box>
 
-          {/* Acompte */}
+          {/* Acompte — when `depositDisabled` is on (per-reservation opt-out, see
+              specs/disable-deposit-per-reservation.md), the row stays so the operator can
+              see the deposit was considered and explicitly removed, but the amount + due
+              date + "payé" chip are replaced by a single muted "Désactivé" line so the
+              summary stays consistent with FinanceSection. */}
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">Acompte</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.depositAmount.toFixed(2)}€</Typography>
+            {form.depositDisabled ? (
+              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.disabled' }}>
+                Désactivé (ajouté au solde)
+              </Typography>
+            ) : (
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.depositAmount.toFixed(2)}€</Typography>
+            )}
           </Box>
-          {form.depositDueDate && (
+          {!form.depositDisabled && form.depositDueDate && (
             <Typography variant="caption" color="text.secondary">
               À payer avant : {new Date(form.depositDueDate).toLocaleDateString('fr-FR')}
             </Typography>
           )}
-          {form.depositPaid && (
+          {!form.depositDisabled && form.depositPaid && (
             <Chip size="small" label="Acompte payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
           )}
 
