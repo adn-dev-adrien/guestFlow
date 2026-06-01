@@ -17,10 +17,16 @@ test('option/resource signatures are order-independent and stable', () => {
   const a = getOptionsSignature([{ optionId: 2, quantity: 1, totalPrice: 10 }, { optionId: 1, quantity: 2, totalPrice: 5 }]);
   const b = getOptionsSignature([{ optionId: 1, quantity: 2, totalPrice: 5 }, { optionId: 2, quantity: 1, totalPrice: 10 }]);
   assert.equal(a, b);
-  assert.equal(a, '1:2:5.00|2:1:10.00');
+  // The trailing `:c0` segment encodes the `inComplement` flag (spec force-item-to-complement.md);
+  // unset lines default to 0 so legacy reservations produce a stable, additive-only signature.
+  assert.equal(a, '1:2:5.00:c0|2:1:10.00:c0');
 
   const r = getResourcesSignature([{ resourceId: 3, quantity: 1, totalPrice: 20, offered: 1 }]);
-  assert.equal(r, '3:1:20.00:1');
+  assert.equal(r, '3:1:20.00:1:c0');
+
+  // Toggling `inComplement` flips the signature so the audit history records it.
+  const forced = getOptionsSignature([{ optionId: 1, quantity: 1, totalPrice: 10, inComplement: 1 }]);
+  assert.equal(forced, '1:1:10.00:c1');
 });
 
 test('computeAuditChanges reports only changed labeled fields', () => {

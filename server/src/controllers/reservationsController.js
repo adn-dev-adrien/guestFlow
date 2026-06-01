@@ -11,6 +11,7 @@ const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require(
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
+const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
@@ -201,6 +202,8 @@ function calculatePrice(req, res) {
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
     platform: req.body.platform,
+    touristTaxInComplement: req.body.touristTaxInComplement,
+    autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -244,6 +247,8 @@ function create(req, res) {
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     depositDisabled: depositDisabledFlag,
+    touristTaxInComplement: req.body.touristTaxInComplement,
+    autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -352,6 +357,9 @@ function update(req, res) {
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
     depositDisabled: depositDisabledFlag,
+    platform: req.body.platform,
+    touristTaxInComplement: req.body.touristTaxInComplement,
+    autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
@@ -368,6 +376,11 @@ function update(req, res) {
       // the fact that a booking was platform-handled and should never have had a deposit.
       // See specs/disable-deposit-per-reservation.md §3.6.
       'depositDisabled',
+      // Force-item routing toggles can still be flipped on a past-locked reservation: they only
+      // shuffle money between buckets (Acompte/Solde/Complément), not the underlying total. The
+      // accounting export needs them to stay editable so the operator can correct miscategories
+      // discovered later. See specs/force-item-to-complement.md §7.
+      'touristTaxInComplement',
     ]);
     const forbiddenChanges = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
       .filter((change) => !allowedLockedFields.has(change.field));
@@ -453,20 +466,52 @@ function updatePayment(req, res) {
     cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
   const id = req.params.id;
+
+  // Contribs capture (spec force-item-to-complement.md): on `*Paid` 0→1 flips we freeze the
+  // per-bucket attribution across every child line + accommodation/tax portion, inside a single
+  // transaction so capture + payment update commit or roll back together. The conservation
+  // invariant is asserted inside `captureContribsOnFlip` → throw aborts the txn.
   if (depositPaid !== undefined) {
-    // Real encaissement date: defaults to today on flip-to-paid (editable), cleared on flip-to-unpaid.
-    const date = depositPaid ? (depositPaidDate || new Date().toISOString().split('T')[0]) : null;
-    model.updatePaymentField(
-      "UPDATE reservations SET depositPaid = ?, depositPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
-      depositPaid ? 1 : 0, date, id,
-    );
+    const beforeRow = model.getRow(Number(id));
+    const wasDepositPaid = Number(beforeRow?.depositPaid || 0) === 1;
+    const willBeDepositPaid = Boolean(depositPaid);
+    const date = willBeDepositPaid ? (depositPaidDate || new Date().toISOString().split('T')[0]) : null;
+    try {
+      db.transaction(() => {
+        if (!wasDepositPaid && willBeDepositPaid) {
+          captureContribsOnFlip({ db, reservation: beforeRow, bucket: 'deposit' });
+        } else if (wasDepositPaid && !willBeDepositPaid) {
+          clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'deposit' });
+        }
+        model.updatePaymentField(
+          "UPDATE reservations SET depositPaid = ?, depositPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
+          willBeDepositPaid ? 1 : 0, date, id,
+        );
+      })();
+    } catch (err) {
+      return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
+    }
   }
   if (balancePaid !== undefined) {
-    const date = balancePaid ? (balancePaidDate || new Date().toISOString().split('T')[0]) : null;
-    model.updatePaymentField(
-      "UPDATE reservations SET balancePaid = ?, balancePaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
-      balancePaid ? 1 : 0, date, id,
-    );
+    const beforeRow = model.getRow(Number(id));
+    const wasBalancePaid = Number(beforeRow?.balancePaid || 0) === 1;
+    const willBeBalancePaid = Boolean(balancePaid);
+    const date = willBeBalancePaid ? (balancePaidDate || new Date().toISOString().split('T')[0]) : null;
+    try {
+      db.transaction(() => {
+        if (!wasBalancePaid && willBeBalancePaid) {
+          captureContribsOnFlip({ db, reservation: beforeRow, bucket: 'balance' });
+        } else if (wasBalancePaid && !willBeBalancePaid) {
+          clearContribsOnUnflip({ db, reservationId: Number(id), bucket: 'balance' });
+        }
+        model.updatePaymentField(
+          "UPDATE reservations SET balancePaid = ?, balancePaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
+          willBeBalancePaid ? 1 : 0, date, id,
+        );
+      })();
+    } catch (err) {
+      return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
+    }
   }
   if (complementPaid !== undefined) {
     // Same model as deposit / balance — defaults to today on flip-to-paid, cleared on flip-to-unpaid.

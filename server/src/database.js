@@ -452,6 +452,26 @@ if (!cols.includes('touristTaxRate')) {
 if (!cols.includes('touristTaxTotal')) {
   db.exec("ALTER TABLE reservations ADD COLUMN touristTaxTotal REAL DEFAULT 0");
 }
+// Per-item routing to Complément (spec force-item-to-complement.md).
+// Tourist tax forced-to-complément flag + per-bucket TTC contribution snapshots for the
+// accommodation portion and the tourist tax, captured at each `*Paid` 0→1 flip in
+// reservationsController.updatePayment. NULL means "no snapshot yet" → the accounting engine
+// falls back to the legacy pro-rating logic so existing reservations keep their current numbers.
+if (!cols.includes('touristTaxInComplement')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN touristTaxInComplement INTEGER NOT NULL DEFAULT 0");
+}
+if (!cols.includes('accommodationAcompteContribTtc')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN accommodationAcompteContribTtc REAL DEFAULT NULL");
+}
+if (!cols.includes('accommodationSoldeContribTtc')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN accommodationSoldeContribTtc REAL DEFAULT NULL");
+}
+if (!cols.includes('touristTaxAcompteContribTtc')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN touristTaxAcompteContribTtc REAL DEFAULT NULL");
+}
+if (!cols.includes('touristTaxSoldeContribTtc')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN touristTaxSoldeContribTtc REAL DEFAULT NULL");
+}
 const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
 if (!propCols.includes('defaultCautionAmount')) {
   db.exec("ALTER TABLE properties ADD COLUMN defaultCautionAmount REAL DEFAULT 500");
@@ -545,6 +565,20 @@ if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('priceTy
 if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('offered')) {
   db.exec("ALTER TABLE reservation_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
 }
+// Per-item routing to Complément (spec force-item-to-complement.md).
+// `inComplement` is the manual override: when 1, the line lives 100 % in the complément entry.
+// `acompteContribTtc` / `soldeContribTtc` are snapshots taken on `depositPaid` / `balancePaid`
+// 0→1 flips so the accounting attribution stays exact even if the line price grows afterwards.
+// NULL = "no snapshot yet" (legacy reservations + un-flipped payments).
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('inComplement')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN inComplement INTEGER NOT NULL DEFAULT 0");
+}
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('acompteContribTtc')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN acompteContribTtc REAL DEFAULT NULL");
+}
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('soldeContribTtc')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN soldeContribTtc REAL DEFAULT NULL");
+}
 
 const reservationResourceCols = db.prepare("PRAGMA table_info(reservation_resources)").all().map(c => c.name);
 if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('billedUnits')) {
@@ -562,10 +596,30 @@ if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('off
     }
   }
 }
+// Per-item routing to Complément (spec force-item-to-complement.md) — see reservation_options block.
+if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('inComplement')) {
+  db.exec("ALTER TABLE reservation_resources ADD COLUMN inComplement INTEGER NOT NULL DEFAULT 0");
+}
+if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('acompteContribTtc')) {
+  db.exec("ALTER TABLE reservation_resources ADD COLUMN acompteContribTtc REAL DEFAULT NULL");
+}
+if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('soldeContribTtc')) {
+  db.exec("ALTER TABLE reservation_resources ADD COLUMN soldeContribTtc REAL DEFAULT NULL");
+}
 
 const reservationCustomOptionCols = db.prepare("PRAGMA table_info(reservation_custom_options)").all().map(c => c.name);
 if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('offered')) {
   db.exec("ALTER TABLE reservation_custom_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
+}
+// Per-item routing to Complément (spec force-item-to-complement.md) — see reservation_options block.
+if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('inComplement')) {
+  db.exec("ALTER TABLE reservation_custom_options ADD COLUMN inComplement INTEGER NOT NULL DEFAULT 0");
+}
+if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('acompteContribTtc')) {
+  db.exec("ALTER TABLE reservation_custom_options ADD COLUMN acompteContribTtc REAL DEFAULT NULL");
+}
+if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('soldeContribTtc')) {
+  db.exec("ALTER TABLE reservation_custom_options ADD COLUMN soldeContribTtc REAL DEFAULT NULL");
 }
 
 const devisCols = db.prepare("PRAGMA table_info(devis)").all().map(c => c.name);

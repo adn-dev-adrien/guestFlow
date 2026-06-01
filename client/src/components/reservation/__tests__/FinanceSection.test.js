@@ -40,7 +40,11 @@ test('the deposit-paid toggle calls updateForm when the reservation is not locke
   const user = userEvent.setup();
   const ctx = renderFinance();
   await user.click(screen.getByRole('button', { name: 'Marquer acompte payé' }));
-  expect(ctx.updateForm).toHaveBeenCalledWith({ depositPaid: true });
+  // The toggle records today's date as `depositPaidDate` alongside the flip, so the accounting
+  // export has an encaissement date to pin against (see FinanceSection.js).
+  expect(ctx.updateForm).toHaveBeenCalledWith(
+    expect.objectContaining({ depositPaid: true, depositPaidDate: expect.any(String) }),
+  );
 });
 
 test('the caution-received toggle calls updateForm with a reception date', async () => {
