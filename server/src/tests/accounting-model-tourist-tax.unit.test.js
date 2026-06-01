@@ -5,16 +5,15 @@ const { __test: { buildEntry } } = require('../models/accountingModel');
 
 // Regression tests for the accounting export's handling of the tourist tax across the three flows:
 //   1. Direct booking — tax baked into deposit + balance; export pro-rates against totalStayTtc.
-//      The export engine's residue logic silently absorbs the tax portion.
 //   2. Platform-collect (e.g. Airbnb default) — tax = 0; nothing to do, schedule is finalPrice-only.
-//   3. Owner-collect non-direct (`collectsTouristTax = 0`) — tax routed to the complement bucket by
-//      the pricing engine. The export must:
-//        - pro-rate deposit + balance against `finalPrice` (not totalStayTtc),
-//        - carve the tax portion out of the complement entry,
-//        - drop the complement entry entirely if it boils down to pure tax (excluded from journal,
-//          reported via Suivi taxe de séjour instead),
-//        - keep emitting the residual portion when extras were added after balance was paid.
-// Spec: per-platform-tourist-tax-collection.md §3 rule 7 + §4.1.
+//   3. Owner-collect non-direct (`collectsTouristTax = 0`) — tax routed to the complement bucket.
+//
+// **Policy change 2026-06-01** (from the accountant's `Exemple export ventes SOLIO.csv`): the
+// tourist tax is now surfaced on every entry via `taxTtc` and the export engine credits it on
+// the `46710000` pass-through account. The entry is no longer dropped when revenue is 0 — a
+// pure-tax encaissement is a valid 1-debit / 1-credit row. Tests below pin the new behaviour;
+// the historical "drop pure-tax entry" cases now expect a 46710000-only entry instead.
+// Spec: accountant-accounting-export.md §3.4 rule 14.
 
 // Stay: 2 nights × 100€ = 200€ finalPrice + 4.80€ tourist tax. depositPercent = 30 %.
 // Buckets pre-set so the test focuses on the entry shaping (no engine math here).
@@ -83,7 +82,9 @@ test('owner-collect non-direct — deposit + balance pro-rate against finalPrice
   assert.equal(bal.encaissementTtc, 140);
 });
 
-test('owner-collect non-direct — complement that IS the tax → entry dropped (returns null)', () => {
+test('owner-collect non-direct — complement that IS the tax → entry kept with taxTtc surfaced', () => {
+  // Policy 2026-06-01: a pure-tax complement is no longer dropped — the tax is credited on
+  // the `46710000` pass-through account by the export engine.
   const row = makeRow({
     platform: 'gitedefrance',
     depositAmount: 60, balanceAmount: 140,
@@ -92,10 +93,12 @@ test('owner-collect non-direct — complement that IS the tax → entry dropped 
   const quote = makeQuote({ touristTaxCollectedOnArrival: true });
 
   const c = buildEntry(row, quote, 'complement');
-  assert.equal(c, null);
+  assert.ok(c, 'pure-tax complement entry is kept, not dropped');
+  assert.equal(c.encaissementTtc, 4.80);
+  assert.equal(c.taxTtc, 4.80);
 });
 
-test('owner-collect non-direct — complement with tax + extras → emit ONLY the extras portion', () => {
+test('owner-collect non-direct — complement with tax + extras → emit BOTH revenue + tax pass-through', () => {
   // Extras added after balance was paid: complement = tax (4.80) + extras (20) = 24.80.
   const row = makeRow({
     platform: 'gitedefrance',
@@ -105,9 +108,11 @@ test('owner-collect non-direct — complement with tax + extras → emit ONLY th
   const quote = makeQuote({ touristTaxCollectedOnArrival: true });
 
   const c = buildEntry(row, quote, 'complement');
-  assert.ok(c, 'complement entry should not be dropped when revenue portion > 0');
-  // Tax carved out: 24.80 − 4.80 = 20 of revenue, pro-rated against finalPrice (200) → 0.10.
-  assert.equal(c.encaissementTtc, 20);
+  assert.ok(c);
+  // Full encaissement TTC; the tax portion rides on `46710000` in the export.
+  assert.equal(c.encaissementTtc, 24.80);
+  assert.equal(c.taxTtc, 4.80);
+  // Revenue fraction (used for the 70xxx pro-rata in the legacy path) = 20 / finalPrice (200) = 0.10.
   assert.equal(round4(c.fraction), 0.10);
 });
 
@@ -126,9 +131,9 @@ test('direct complement (legacy options-added-late) — unchanged, pro-rates aga
   assert.equal(round4(c.fraction), round4(50 / 204.80));
 });
 
-test('owner-collect non-direct + complement = pure tax — Σ emitted encaissements equals finalPrice', () => {
-  // Without extras, deposit + balance = finalPrice and the complement (= pure tax) is dropped.
-  // The accountant journal therefore covers exactly the revenue side; the tax flows to the Suivi page.
+test('owner-collect non-direct + complement = pure tax — Σ emitted encaissements equals totalStayTtc', () => {
+  // Policy 2026-06-01: the pure-tax complement is kept; Σ encaissements now sums the full
+  // amount the customer paid (revenue + tax), not just revenue.
   const row = makeRow({
     platform: 'gitedefrance',
     depositAmount: 60, balanceAmount: 140,
@@ -140,9 +145,9 @@ test('owner-collect non-direct + complement = pure tax — Σ emitted encaisseme
   const bal = buildEntry(row, quote, 'balance');
   const c = buildEntry(row, quote, 'complement');
 
-  assert.equal(c, null);
-  assert.equal(round4(dep.encaissementTtc + bal.encaissementTtc), 200);
-  assert.equal(round4(dep.fraction + bal.fraction), 1);
+  assert.ok(c, 'pure-tax complement is kept with the new 46710000 line policy');
+  assert.equal(round4(dep.encaissementTtc + bal.encaissementTtc + c.encaissementTtc), 204.80);
+  assert.equal(c.taxTtc, 4.80);
 });
 
 function round4(n) { return Math.round(n * 10000) / 10000; }

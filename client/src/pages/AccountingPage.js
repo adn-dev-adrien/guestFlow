@@ -17,11 +17,13 @@ import { useAuth } from '../hooks/useAuth';
 import { userHasRole, ADMIN } from '../constants/roles';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
-// VAT (44571xxx) = blue. Used to colour rows and the per-line chip in the journal preview.
+// VAT (44571xxx) = blue, tourist-tax pass-through (46710000) = purple. Used to colour rows and
+// the per-line chip in the journal preview.
 const LINE_STYLES = {
   client:  { label: 'Client',  color: 'warning', bg: 'rgba(255, 152, 0, 0.08)' },
   revenue: { label: 'Produit', color: 'success', bg: 'rgba(76, 175, 80, 0.08)' },
   vat:     { label: 'TVA',     color: 'info',    bg: 'rgba(33, 150, 243, 0.08)' },
+  tax_pass_through: { label: 'Taxe', color: 'secondary', bg: 'rgba(156, 39, 176, 0.08)' },
   other:   { label: 'Autre',   color: 'default', bg: 'rgba(0, 0, 0, 0.04)' },
 };
 
