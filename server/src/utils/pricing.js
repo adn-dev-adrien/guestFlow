@@ -862,6 +862,11 @@ function calculateReservationQuote({
   // When truthy, the engine forces depositAmount=0 and lets the balance absorb the whole
   // pre-arrival total — survives every recompute as long as the caller keeps passing it.
   depositDisabled,
+  // Per-item routing to Complément (spec force-item-to-complement.md). When 1, the tax bypasses
+  // the auto deposit/balance split and lands 100 % in the complément bucket. `selectedOptions[i]
+  // .inComplement` / `selectedResources[i].inComplement` / `customOptions[i].inComplement` drive
+  // the same routing per line.
+  touristTaxInComplement,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -950,6 +955,18 @@ function calculateReservationQuote({
   const extraGuestSurcharge = isExtraGuestSurchargeOffered ? 0 : extraGuestSurchargeOriginal;
   const totalPrice = roundMoney(baseAccommodationPrice);
 
+  // Per-item routing (spec force-item-to-complement.md):
+  //   `inComplement` flag → returned in each line so the client renders the chip and the
+  //     accounting model attributes the line 100 % to the complément entry.
+  //   `acompteContribTtc` / `soldeContribTtc` → snapshots captured by reservationsController
+  //     .updatePayment on `*Paid` 0→1 flips, surfaced from the DB-side locked line. They drive
+  //     the per-bucket attribution in accounting (no recomputation here — pure pass-through).
+  const pickContribsAndForce = (selected, locked) => ({
+    inComplement: Number((selected && selected.inComplement != null ? selected.inComplement : locked?.inComplement) || 0) ? 1 : 0,
+    acompteContribTtc: locked && locked.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null,
+    soldeContribTtc: locked && locked.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null,
+  });
+
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
       const quantity = Math.max(0, Number(selected?.quantity || 0));
@@ -958,6 +975,7 @@ function calculateReservationQuote({
       const option = optionsById.get(optionId);
       if (!option) return null;
       const priceType = option.priceType || 'per_stay';
+      const locked = lockedOptionsById.get(optionId);
 
       if (priceType === 'per_participant_progressive') {
         const fallbackUnitPrice = Number(option.price || 0);
@@ -967,7 +985,7 @@ function calculateReservationQuote({
           progressiveTiers,
           fallbackUnitPrice
         );
-        const lockedLine = reconstructLockedRealTotal(lockedOptionsById.get(optionId));
+        const lockedLine = reconstructLockedRealTotal(locked);
         const lockedUnits = normalizeBilledUnits(
           lockedLine?.billedUnits !== undefined
             ? lockedLine.billedUnits
@@ -993,6 +1011,7 @@ function calculateReservationQuote({
           optionProgressiveTiers: progressiveTiers,
           progressiveLastUnitPrice: computed.lastUnitPrice,
           ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
+          ...pickContribsAndForce(selected, locked),
         };
       }
 
@@ -1001,7 +1020,7 @@ function calculateReservationQuote({
         : Number(option.price || 0);
       const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(lockedOptionsById.get(optionId)),
+        lockedLine: reconstructLockedRealTotal(locked),
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });
@@ -1013,10 +1032,15 @@ function calculateReservationQuote({
         billedUnits: merged.billedUnits,
         priceType,
         ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
+        ...pickContribsAndForce(selected, locked),
       };
     })
     .filter(Boolean);
 
+  // Custom option lines never have a persisted locked row keyed by optionId (their id rolls each
+  // save), so the only source of `inComplement` / contribs is the payload itself. The contribs
+  // come pre-populated by the controller (it reads them from the DB by customOptionId before
+  // calling the engine).
   const customOptionLines = (Array.isArray(customOptions) ? customOptions : [])
     .map((line, index) => {
       const description = String(line?.description || '').trim();
@@ -1025,6 +1049,7 @@ function calculateReservationQuote({
       if (!description || amount <= 0) return null;
       return {
         isCustom: true,
+        customOptionId: line?.customOptionId != null ? Number(line.customOptionId) : undefined,
         customKey: line?.customKey || `custom_${index + 1}`,
         title: description,
         offered,
@@ -1034,6 +1059,9 @@ function calculateReservationQuote({
         priceType: 'per_stay',
         originalTotalPrice: amount,
         totalPrice: offered ? 0 : amount,
+        inComplement: Number(line?.inComplement || 0) ? 1 : 0,
+        acompteContribTtc: line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
+        soldeContribTtc: line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
       };
     })
     .filter(Boolean);
@@ -1057,8 +1085,9 @@ function calculateReservationQuote({
     .filter(Boolean)
     .map((line) => {
       const optionId = Number(line.optionId);
+      const locked = lockedOptionsById.get(optionId);
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(lockedOptionsById.get(optionId)),
+        lockedLine: reconstructLockedRealTotal(locked),
         targetBilledUnits: 1,
         currentUnitPrice: line.unitPrice,
       });
@@ -1067,6 +1096,9 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
+        // Auto-options never receive an `inComplement` flag from the payload (they aren't even
+        // shown in the editor), so the locked DB value is the only source of truth.
+        ...pickContribsAndForce(null, locked),
       };
     })
     .filter((line) => !selectedOptionIds.has(Number(line.optionId)));
@@ -1154,6 +1186,7 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         ...applyOfferedToLine(merged.totalPrice, offered),
+        ...pickContribsAndForce(selected, lockedLine),
       };
 
       debugResourceLine('pricing.output_line', {
@@ -1265,7 +1298,20 @@ function calculateReservationQuote({
     && normalizedPlatform !== 'direct'
     && touristTaxTotal > 0
   );
-  const preArrivalAmount = isTouristTaxCollectedOnArrival ? finalPrice : totalStayPrice;
+
+  // Per-item routing (spec force-item-to-complement.md): forced lines + a forced-to-complément
+  // tax don't participate in the pre-arrival deposit/balance split — they live exclusively in
+  // the Complément bucket. Forced lines that are also `offered` contribute 0 in both buckets.
+  const forcedItemsTotal = roundMoney(
+    [...finalOptionLines, ...resourceLines].reduce(
+      (sum, line) => sum + (Number(line.inComplement || 0) ? Number(line.totalPrice || 0) : 0),
+      0,
+    )
+  );
+  const isTouristTaxForcedToComplement = Boolean(touristTaxInComplement);
+  const taxInPreArrival = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? 0 : touristTaxTotal;
+  const taxInComplement = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? touristTaxTotal : 0;
+  const preArrivalAmount = roundMoney(Math.max(0, finalPrice - forcedItemsTotal + taxInPreArrival));
 
   const autoDepositAmount = roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
   const autoBalanceAmount = roundMoney(preArrivalAmount - autoDepositAmount);
@@ -1289,21 +1335,25 @@ function calculateReservationQuote({
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - resolvedDepositAmount));
   }
 
-  // Complément à percevoir: leftover after the pre-arrival schedule is settled. Two contributors:
-  //   1. The owner-collected tourist tax (when applicable) — visible from save 1, not gated on
-  //      deposit/balance being paid, because it represents money to be collected on check-in.
-  //   2. The legacy "options/extras added after deposit+balance were paid" gap — only shows once
-  //      both pre-arrival amounts are frozen-paid.
-  // Frozen once `complementPaid = 1` so any further total change creates a new gap (= a 2nd
-  // complement), not an erosion of what was actually received.
-  const rawComplement = roundMoney(Math.max(0, totalStayPrice - resolvedDepositAmount - resolvedBalanceAmount));
+  // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)
+  // + auto-gap when the total stay TTC drifted past the frozen deposit+balance. The auto-gap
+  // appears once both `*Paid` flags are 1 (legacy behavior) OR when the tax is collected on
+  // arrival (visible immediately as a check-in collection target). Frozen once `complementPaid`.
+  const autoGapBetweenDepositAndBalance = roundMoney(Math.max(
+    0,
+    totalStayPrice - resolvedDepositAmount - resolvedBalanceAmount - forcedItemsTotal - taxInComplement,
+  ));
+  const rawComplement = roundMoney(forcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   let resolvedComplementAmount;
   if (complementPaid) {
     resolvedComplementAmount = roundMoney(complementAmount);
-  } else if (isTouristTaxCollectedOnArrival) {
-    resolvedComplementAmount = rawComplement;
+  } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || forcedItemsTotal > 0) {
+    // Forced contributions are visible from save 1, regardless of payment state.
+    resolvedComplementAmount = depositPaid && balancePaid
+      ? rawComplement
+      : roundMoney(forcedItemsTotal + taxInComplement);
   } else {
-    resolvedComplementAmount = depositPaid && balancePaid ? rawComplement : 0;
+    resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
 
   return {
@@ -1341,6 +1391,9 @@ function calculateReservationQuote({
     touristTaxTotal,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,
+    touristTaxInComplement: isTouristTaxForcedToComplement,
+    forcedItemsTotal,
+    preArrivalAmount,
     totalStayPrice,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',

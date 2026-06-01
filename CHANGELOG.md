@@ -5,6 +5,49 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Per-item routing to Complément à percevoir** (spec
+  `force-item-to-complement.md`). The reservation form now exposes two layers of control over
+  which payment bucket each line lands in:
+  1. **Manual override** via a discreet `Compl.` checkbox on every option, resource and custom
+     option in the reservation editor, plus a `Taxe de séjour en complément` switch in the
+     Finance card. When ON, the line (or the tax) bypasses the auto deposit/balance split and
+     lives 100 % in the Complément entry — both in the live PricingSummary (italic gray
+     `compl.` chip next to the libellé) and in the accounting export.
+  2. **Per-line per-bucket snapshots** captured on every `depositPaid` / `balancePaid` 0→1
+     flip — `acompteContribTtc` + `soldeContribTtc` on each option / resource / custom-option
+     row, plus `accommodation*ContribTtc` / `touristTax*ContribTtc` on the reservation row.
+     These freeze the exact attribution of each encaissement at its moment of capture, so the
+     monthly accounting journal keeps reading the original numbers even if a line's price
+     grows afterwards. Conservation is asserted inside a transaction: if the sum of contribs
+     ≠ the encaissement amount within ±0.01 €, the capture rolls back together with the
+     payment flip. The accounting model reads the contribs directly; when a reservation has no
+     contribs (pre-feature data), it falls back to the historic pro-rating logic so existing
+     exports stay byte-identical.
+  Wired through:
+  - 14 new DB columns added via the existing idempotent ALTER-pattern in `database.js`
+    (4 forced flags + 6 per-line per-bucket contribs + 4 reservation-level per-bucket contribs).
+  - A new helper `server/src/utils/forceItemContribsCapture.js` driving the capture, the
+    conservation invariant assertion and the un-flip clearing.
+  - The pricing engine (`server/src/utils/pricing.js`) subtracts forced lines + a
+    complement-routed tax from `preArrivalAmount` and returns per-line `inComplement` /
+    contribs in `quote.optionLines[i]` / `quote.resourceLines[i]` so the client can render the
+    split.
+  - `accountingModel.buildEntry` reads per-line contribs to populate exact per-bucket TTCs
+    per entry kind; legacy reservations keep the pro-rating fallback.
+  - Client: form state + 4 payload-build sites in `ReservationPage.js`, Compl. checkbox in
+    `ExtrasSection.js`, tax Switch in `FinanceSection.js`, line-duplication logic + chip in
+    `PricingSummary.js`. The chip styling per spec §6.2 (italic gray outlined chip,
+    `compl.` label, 18 px height).
+  Tests: 37 new cases across 3 files — `pricing-force-and-snapshot` (15), `payment-contrib-
+  capture` (13), `accounting-per-line-contribs` (9). Existing 530+ tests stay green; in
+  particular the legacy-fallback test pins the accounting export at byte-identical output for
+  any reservation with NULL contribs.
+
+  Migration note: idempotent ALTER TABLE for every new column. No existing data touched. New
+  contribs columns default to NULL on every row; the accounting model treats "all NULL" as
+  "legacy mode" → no behavioural change for existing reservations until they receive a fresh
+  payment flip under the new code.
+
 - **Per-reservation "Désactiver l'acompte" toggle** (spec
   `disable-deposit-per-reservation.md`). A new `Switch` next to the "Acompte" title in
   `ReservationPage → FinanceSection` lets the admin declare that a given reservation

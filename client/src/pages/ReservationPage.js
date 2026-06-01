@@ -156,7 +156,11 @@ export default function ReservationPage() {
     depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
-    startDate: '', endDate: '', propertyId: null
+    startDate: '', endDate: '', propertyId: null,
+    // Per-item routing to Complément (spec force-item-to-complement.md). The flag is binary:
+    // ON = the tourist tax lives 100 % in the Complément entry; OFF = it follows the auto
+    // deposit/balance split. Per-line `inComplement` lives inside each selected* entry.
+    touristTaxInComplement: false,
   });
 
   const newClientEmailError = !isValidEmail(newClient.email);
@@ -186,7 +190,7 @@ export default function ReservationPage() {
     depositDisabled: Boolean(form.depositDisabled),
     selectedOptions: (form.selectedOptions || [])
       .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
-      .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0) }))
+      .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: item.inComplement ? 1 : 0 }))
       .sort((a, b) => a.optionId - b.optionId),
     customOptions: (form.customOptions || [])
       .map((line, index) => ({
@@ -194,15 +198,17 @@ export default function ReservationPage() {
         description: String(line.description || '').trim(),
         amount: Number(line.amount || 0),
         offered: Boolean(line.offered),
+        inComplement: line.inComplement ? 1 : 0,
       }))
       .filter((line) => line.description && Number(line.amount || 0) > 0)
       .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
-      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered) }))
+      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: item.inComplement ? 1 : 0 }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled]);
+    touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -525,8 +531,26 @@ export default function ReservationPage() {
             cautionReturned: res.cautionReturned || false,
             cautionReturnedDate: res.cautionReturnedDate || '',
             notes: res.notes || '',
-            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({ optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice, offered: Boolean(o.offered) })),
-            customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({ customKey: String(o.customOptionId || `custom_${index + 1}`), description: o.title || o.description || '', amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0), offered: Boolean(o.offered) })),
+            // Per-item routing (spec force-item-to-complement.md): hydrate `inComplement` +
+            // captured contribs so PricingSummary can render `[compl.]` chips and split lines
+            // where current totalPrice > acompteContribTtc + soldeContribTtc.
+            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({
+              optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice,
+              offered: Boolean(o.offered),
+              inComplement: Number(o.inComplement || 0) === 1,
+              acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
+              soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
+            })),
+            customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({
+              customKey: String(o.customOptionId || `custom_${index + 1}`),
+              customOptionId: o.customOptionId != null ? Number(o.customOptionId) : undefined,
+              description: o.title || o.description || '',
+              amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0),
+              offered: Boolean(o.offered),
+              inComplement: Number(o.inComplement || 0) === 1,
+              acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
+              soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
+            })),
             selectedResources: (res.resources || []).map(r => ({
               resourceId: r.resourceId,
               quantity: r.quantity,
@@ -536,6 +560,9 @@ export default function ReservationPage() {
               totalPrice: r.totalPrice,
               originalTotalPrice: Number(r.originalTotalPrice ?? r.totalPrice ?? 0),
               offered: Boolean(r.offered),
+              inComplement: Number(r.inComplement || 0) === 1,
+              acompteContribTtc: r.acompteContribTtc != null ? Number(r.acompteContribTtc) : null,
+              soldeContribTtc: r.soldeContribTtc != null ? Number(r.soldeContribTtc) : null,
             })),
             checkInTime: res.checkInTime || '15:00',
             checkOutTime: res.checkOutTime || '10:00',
@@ -550,6 +577,7 @@ export default function ReservationPage() {
             complementPaid: Boolean(res.complementPaid),
             complementPaidDate: res.complementPaidDate || '',
             clientGrossAmount: res.clientGrossAmount == null ? '' : res.clientGrossAmount,
+            touristTaxInComplement: Boolean(res.touristTaxInComplement),
           });
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
@@ -863,6 +891,7 @@ export default function ReservationPage() {
           lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
           forceCurrentPricing: useCurrentPricing,
           platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         });
 
@@ -1079,6 +1108,31 @@ export default function ReservationPage() {
     }));
   };
 
+  // Per-item routing toggles (spec force-item-to-complement.md). Each helper mutates the
+  // line's `inComplement` flag — the engine then drops the line from the auto deposit/balance
+  // split + routes it 100 % into the Complément entry.
+  const setOptionInComplement = (optionId, inComplement) => {
+    setForm((prev) => ({
+      ...prev,
+      selectedOptions: (prev.selectedOptions || []).map((so) => (
+        Number(so.optionId) === Number(optionId)
+          ? { ...so, inComplement: Boolean(inComplement) }
+          : so
+      )),
+    }));
+  };
+
+  const setResourceInComplement = (resourceId, inComplement) => {
+    setForm((prev) => ({
+      ...prev,
+      selectedResources: (prev.selectedResources || []).map((sr) => (
+        Number(sr.resourceId) === Number(resourceId)
+          ? { ...sr, inComplement: Boolean(inComplement) }
+          : sr
+      )),
+    }));
+  };
+
   const addCustomOption = () => {
     setForm((prev) => ({
       ...prev,
@@ -1105,19 +1159,24 @@ export default function ReservationPage() {
     }));
   };
 
+  // Payload builders thread `inComplement` (spec force-item-to-complement.md) to the server so
+  // the engine routes the line correctly. They never send the captured contribs — those are
+  // owned by the payment-flip code path; the server re-reads them from the DB-side snapshot.
   const buildSelectedOptionsPayload = () => {
     return (form.selectedOptions || [])
       .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
-      .map((item) => ({ optionId: item.optionId, quantity: item.quantity }));
+      .map((item) => ({ optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement ? 1 : 0 }));
   };
 
   const buildCustomOptionsPayload = () => {
     return (form.customOptions || [])
       .map((line, index) => ({
         customKey: String(line.customKey || `custom_${index + 1}`),
+        customOptionId: line.customOptionId != null ? Number(line.customOptionId) : undefined,
         description: String(line.description || '').trim(),
         amount: Number(line.amount || 0),
         offered: Boolean(line.offered),
+        inComplement: line.inComplement ? 1 : 0,
       }))
       .filter((line) => line.description && Number(line.amount || 0) > 0);
   };
@@ -1129,6 +1188,7 @@ export default function ReservationPage() {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         offered: Boolean(item.offered),
+        inComplement: item.inComplement ? 1 : 0,
       }))
       .filter((item) => Number(item.quantity || 0) > 0);
   };
@@ -1178,6 +1238,7 @@ export default function ReservationPage() {
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         offeredOptionIds: Array.from(offeredOptionIds),
         platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       }),
       api.getReservations({ propertyId: nextPropertyId }),
@@ -1308,6 +1369,7 @@ export default function ReservationPage() {
         selectedResources: buildSelectedResourcesPayload(),
         offeredOptionIds: Array.from(offeredOptionIds),
         platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         forceCurrentPricing: true,
         customPrice: '',
@@ -1419,6 +1481,7 @@ export default function ReservationPage() {
         lockedResourceUnits: shouldLockExistingPricing ? frozenResourceUnitByQuantityRef.current : {},
         forceCurrentPricing: useCurrentPricing,
         platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       });
       setPricingQuote(quote);
@@ -1452,6 +1515,7 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
           status: form.status || 'draft',
           totalPrice: quote.totalPrice,
           touristTaxRate: quote.touristTaxRate || 0,
@@ -1506,6 +1570,7 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
@@ -1566,6 +1631,7 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
+        touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
@@ -1955,6 +2021,7 @@ export default function ReservationPage() {
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption,
+    setOptionInComplement, setResourceInComplement,
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
     accommodationBasePriceDisplay, pricingQuote,

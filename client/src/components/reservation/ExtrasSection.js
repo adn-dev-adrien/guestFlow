@@ -1,9 +1,12 @@
 import React from 'react';
 import {
   Box, Card, CardContent, Typography, Stack, Divider, Button, TextField, Chip,
-  FormControlLabel, Switch
+  FormControlLabel, Switch, Checkbox, Tooltip
 } from '@mui/material';
 import { useReservationForm } from './ReservationFormContext';
+
+// Tooltip text shared by every "Compl." checkbox (spec §6.4).
+const COMPLEMENT_TOOLTIP = 'Cette ligne sera comptabilisée intégralement dans le Complément à percevoir, jamais dans l\'acompte ou le solde.';
 
 const PRICE_TYPE_LABELS = {
   per_stay: 'prix fixe',
@@ -25,6 +28,7 @@ export default function ExtrasSection() {
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
+    setOptionInComplement, setResourceInComplement,
   } = useReservationForm();
 
   return (
@@ -87,13 +91,29 @@ export default function ExtrasSection() {
                               inputProps={{ min: 1 }}
                               sx={{ width: { xs: '100%', sm: 'auto' } }}
                             />
-                            <Chip
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                              label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                            />
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                              {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
+                              <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                <FormControlLabel
+                                  sx={{ m: 0 }}
+                                  control={
+                                    <Checkbox
+                                      size="small"
+                                      checked={Boolean(selected?.inComplement)}
+                                      onChange={(e) => setOptionInComplement(opt.id, e.target.checked)}
+                                    />
+                                  }
+                                  label={<Typography variant="caption">Compl.</Typography>}
+                                />
+                              </Tooltip>
+                              <Chip
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                                label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                sx={{ flexGrow: 1 }}
+                              />
+                            </Stack>
                           </Stack>
                         )}
 
@@ -157,6 +177,20 @@ export default function ExtrasSection() {
                               inputProps={{ min: 0, step: 0.01 }}
                               sx={{ width: { xs: '100%', sm: 180 } }}
                             />
+                            {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
+                            <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                              <FormControlLabel
+                                sx={{ m: 0 }}
+                                control={
+                                  <Checkbox
+                                    size="small"
+                                    checked={Boolean(line.inComplement)}
+                                    onChange={(e) => updateCustomOption(line.customKey, { inComplement: e.target.checked })}
+                                  />
+                                }
+                                label={<Typography variant="caption">Compl.</Typography>}
+                              />
+                            </Tooltip>
                             <Button color="error" variant="text" onClick={() => removeCustomOption(line.customKey)}>
                               Supprimer
                             </Button>
@@ -245,13 +279,29 @@ export default function ExtrasSection() {
                                 helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
                                 sx={{ width: { xs: '100%', sm: 'auto' } }}
                               />
-                              <Chip
-                                size="small"
-                                color="primary"
-                                variant="outlined"
-                                label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                                sx={{ width: { xs: '100%', sm: 'auto' } }}
-                              />
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                                {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
+                                <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                  <FormControlLabel
+                                    sx={{ m: 0 }}
+                                    control={
+                                      <Checkbox
+                                        size="small"
+                                        checked={Boolean(selected?.inComplement)}
+                                        onChange={(e) => setResourceInComplement(resource.id, e.target.checked)}
+                                      />
+                                    }
+                                    label={<Typography variant="caption">Compl.</Typography>}
+                                  />
+                                </Tooltip>
+                                <Chip
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                  label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                  sx={{ flexGrow: 1 }}
+                                />
+                              </Stack>
                             </Stack>
                           )}
                         </CardContent>
