@@ -13,6 +13,7 @@ const {
   shouldEnforceHttps,
   buildHelmetOptions,
   buildSessionCookieOptions,
+  PERMISSIONS_POLICY_VALUE,
 } = require('./utils/securityConfig');
 const { buildServer } = require('./utils/httpsBootstrap');
 
@@ -54,12 +55,26 @@ const isProduction = process.env.NODE_ENV === 'production';
 const httpsEnabled = shouldEnforceHttps(process.env);
 app.use(helmet(buildHelmetOptions({ isProduction, httpsEnabled })));
 
+// Helmet doesn't ship Permissions-Policy (it's a newer header that superseded Feature-Policy).
+// We set it ourselves: deny camera/mic/geoloc/payment/etc. to every origin. The app doesn't
+// use any of these and the header tells the browser to refuse them even if a future XSS or
+// embedded iframe ever asks. Spotted in the 2026-06-01 security audit (finding L1).
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', PERMISSIONS_POLICY_VALUE);
+  next();
+});
+
 // Strict CORS allowlist with credentials (session cookie). Cross-origin only matters in dev
 // (client :3000 → API :4000); prod is same-origin. Configure prod origins via CORS_ORIGINS.
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
   .split(',').map((s) => s.trim()).filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
+// Explicit JSON body size cap. Default Express limit is 100 KB which is plenty for our CRUD
+// payloads (the biggest user-driven object is a reservation with options + notes, well under
+// 50 KB). Pinning the limit ourselves keeps a runaway client (or an attacker who got past
+// auth) from eating the Pi's RAM via a multi-MB body. 256 KB leaves headroom for future
+// growth without inviting abuse. Spotted in the 2026-06-01 security audit (finding M1).
+app.use(express.json({ limit: '256kb' }));
 
 // Server-side sessions persisted in SQLite (survive restarts). Cookie is httpOnly + sameSite + Secure
 // when HTTPS is actually available — a Secure cookie over plain HTTP is silently dropped by the

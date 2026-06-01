@@ -272,3 +272,67 @@ test('FK_INDEXES catalog covers the iCal anti-overbooking lookups', () => {
   assert.ok(names.includes('idx_reservations_ical_source'));
   assert.ok(names.includes('idx_ical_import_events_reservationId'));
 });
+
+// ---------- Defense-in-depth identifier validation (security audit M6, 2026-06-01) ----------
+
+const { __test: hygieneInternals } = require('../utils/dbHygiene');
+
+test('assertSafeIdentifier accepts every name in FK_INDEXES / UNIQUE_INDEXES', () => {
+  // Real catalog must pass the validator — otherwise a future entry could be silently
+  // rejected only at applyHygiene time.
+  for (const [name, table, cols] of FK_INDEXES) {
+    hygieneInternals.assertSafeIdentifier(name, 'index name');
+    hygieneInternals.assertSafeIdentifier(table, 'table name');
+    hygieneInternals.assertSafeColumnList(cols, 'column list');
+  }
+  for (const { name, table, columns } of UNIQUE_INDEXES) {
+    hygieneInternals.assertSafeIdentifier(name, 'unique index name');
+    hygieneInternals.assertSafeIdentifier(table, 'table name');
+    columns.forEach((c) => hygieneInternals.assertSafeIdentifier(c, 'column name'));
+  }
+});
+
+test('assertSafeIdentifier rejects DDL injection payloads', () => {
+  // If a future refactor lets an external value reach the interpolation, the validator
+  // must abort the migration before anything is executed.
+  const malicious = [
+    'foo; DROP TABLE users;--',
+    'foo`',
+    '"foo"',
+    "'foo'",
+    'foo bar',           // whitespace
+    'foo-bar',           // hyphen not allowed
+    'foo.bar',           // dot not allowed (would let someone target a different schema)
+    '',                  // empty
+    '1foo',              // leading digit not allowed
+    'foo'.repeat(30),    // > 64 chars
+    null,
+    undefined,
+    42,
+    {},
+    [],
+  ];
+  for (const payload of malicious) {
+    assert.throws(
+      () => hygieneInternals.assertSafeIdentifier(payload, 'test'),
+      /Unsafe SQL test/,
+      `expected validator to reject ${JSON.stringify(payload)}`,
+    );
+  }
+});
+
+test('assertSafeColumnList rejects a single bad segment in a CSV list', () => {
+  // A multi-column index spec ('propertyId, date') is split and validated piece by piece.
+  // Verify one bad segment trips the validator even if the rest looks fine.
+  assert.throws(
+    () => hygieneInternals.assertSafeColumnList('propertyId, date; DROP TABLE x;--', 'test'),
+    /Unsafe SQL test/,
+  );
+  assert.throws(
+    () => hygieneInternals.assertSafeColumnList('', 'test'),
+    /Empty SQL test/,
+  );
+  // Sanity: valid CSV passes.
+  hygieneInternals.assertSafeColumnList('propertyId, date', 'test');
+  hygieneInternals.assertSafeColumnList('sourceIcalSourceId, sourceIcalEventUid', 'test');
+});

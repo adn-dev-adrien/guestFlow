@@ -4,6 +4,57 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Security
+- **Hardening pass — follow-up to the 2026-06-01 security audit.** Eight defense-in-depth
+  fixes touching the request path, build pipeline, and database layer. Closes the audit's
+  H1, M1-3, M5-6, L1 findings; no audit-level critical was found.
+  - **H1 — Source maps no longer shipped to prod.** CI step `⚛️ Build React client`
+    sets `GENERATE_SOURCEMAP=false` before `npm run build`, so
+    `/static/js/main.*.js.map` is never generated. Previously it was publicly fetchable
+    on `guestflow.domainesolio.com` and leaked the full un-minified bundle (module
+    tree, original variable names, compile-time constants).
+  - **M1 — Explicit JSON body size limit (256kb).** `express.json()` was using the
+    Express default of 100 KB without an explicit cap. Pinned to 256 KB so a runaway
+    client or post-auth attacker can't eat the Pi's RAM via a multi-MB body.
+  - **M2 — Server `npm audit` to zero vulnerabilities.** `npm audit fix` cleared the
+    3 moderate `qs` advisories (reaches via `body-parser`/`express`). The remaining
+    `uuid@9` advisory was sidestepped by `npm uninstall uuid` — it was a direct dep
+    with no callers in `server/src/` (orphan from an earlier refactor). Final:
+    `found 0 vulnerabilities`.
+  - **M3 — `err.message` no longer echoed back to API clients.** Seven controller
+    branches returned raw library error messages in the response body (SMTP transport
+    rejects, Google API stack hints, Sharp/Multer file-path crumbs — gratis
+    fingerprinting for an attacker). Replaced with stable error codes; the full
+    detail is logged server-side via `console.error`. Touched:
+    `googleCalendarController` (testConnection, syncReservations),
+    `settingsController.sendSmtpTest`, `usersController.create + resetPassword`,
+    `icalController` (3 handlers), `propertiesController` (create + update). Test
+    `users-controller.unit.test.js` updated to assert the absence of any leak
+    (`assert.equal(res.body.detail, undefined)`).
+  - **L1 — `Permissions-Policy` header added.** Helmet 7 doesn't ship this header so
+    we set it ourselves in [`server/src/index.js`](server/src/index.js), denying
+    `camera`, `microphone`, `geolocation`, `payment`, `usb`, `accelerometer`,
+    `gyroscope`, `magnetometer` to every origin; `fullscreen` locked to `self`. Value
+    lives as a named export of
+    [`server/src/utils/securityConfig.js`](server/src/utils/securityConfig.js).
+  - **M5 — SQL constants are bind parameters now.** `validateAvailability` in
+    `reservationsModel.js` and `findReservationOverlap` in
+    `establishmentClosuresModel.js` built their overlap WHERE via template literals
+    `${EARLY_CHECKIN_BLOCK_HOUR}` / `${LATE_CHECKOUT_BLOCK_HOUR}`. Runtime risk was
+    nil (compile-time integers) but the pattern violated parameterization and tripped
+    every SAST scan. Replaced with `?` placeholders + bind params; semantics identical.
+  - **M6 — Defense-in-depth identifier validator in `dbHygiene.js`.** DDL
+    interpolation (`CREATE INDEX ${name} ON ${table}(${cols})`) is unavoidable since
+    SQL identifiers can't be bound. Today every value comes from the trusted
+    `FK_INDEXES`/`UNIQUE_INDEXES` catalog in the same file. Added a
+    `SAFE_SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/` regex + `assertSafeIdentifier`
+    helper called for every index/table/column name before interpolation. The migration
+    now throws loudly with `Unsafe SQL ...` if any future entry doesn't match the
+    expected shape — catches a future refactor that lets external input reach the
+    pass before any DDL runs. Pinned by a new test (`db-hygiene.unit.test.js`) with
+    15 injection payloads (`'foo; DROP TABLE x;--'`, embedded quotes, hyphens, dots,
+    leading digit, over-length, non-string types) — each must throw.
+
 ### Fixed
 - **`issue-letsencrypt-cert-http01.sh` — `openssl verify` post-install was missing
   `-untrusted` and triggered a false-negative on the new LE intermediates.** When a

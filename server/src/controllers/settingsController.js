@@ -180,7 +180,11 @@ async function sendSmtpTest(req, res) {
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
       return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
     }
-    return res.status(400).json({ error: 'SMTP_TEST_FAILED', detail: String(err && err.message || err) });
+    // Don't echo the raw transport error back (it can include hostnames, library versions,
+    // file paths). Log server-side for diagnosis, send a stable error code to the client.
+    // Spotted in the 2026-06-01 security audit (finding M3).
+    console.error('[settingsController.sendSmtpTest]', err);
+    return res.status(400).json({ error: 'SMTP_TEST_FAILED' });
   }
 }
 

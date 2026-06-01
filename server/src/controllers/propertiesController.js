@@ -37,7 +37,11 @@ async function create(req, res) {
   try {
     res.json(await model.create(req.body, req.file));
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Erreur lors de la création du logement' });
+    // Don't echo the raw error message back — it may include file paths, library internals
+    // or sharp/multer details that aren't useful to the user but help an attacker fingerprint
+    // the stack. Spotted in the 2026-06-01 security audit (finding M3).
+    console.error('[propertiesController.create]', err);
+    res.status(500).json({ error: 'Erreur lors de la création du logement' });
   }
 }
 
@@ -45,7 +49,8 @@ async function update(req, res) {
   try {
     res.json(await model.update(req.params.id, req.body, req.file));
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Erreur lors de la mise à jour du logement' });
+    console.error('[propertiesController.update]', err);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du logement' });
   }
 }
 

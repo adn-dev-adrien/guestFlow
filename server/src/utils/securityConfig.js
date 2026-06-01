@@ -102,9 +102,32 @@ function buildSessionCookieOptions({ httpsEnabled }) {
   };
 }
 
+/**
+ * Permissions-Policy header — instructs the browser to deny powerful APIs that the app
+ * doesn't use. Defense-in-depth against future XSS or an embedded iframe trying to access
+ * camera/mic/geoloc/payment. The empty `=()` syntax denies the feature to every origin
+ * (including self). Spotted in the 2026-06-01 security audit (finding L1).
+ *
+ * Helmet 7 doesn't ship a built-in middleware for this header (it was previously
+ * `Feature-Policy`, renamed and re-spec'd), so we set it ourselves alongside the helmet
+ * middleware in index.js.
+ */
+const PERMISSIONS_POLICY_VALUE = [
+  'accelerometer=()',
+  'camera=()',
+  'geolocation=()',
+  'gyroscope=()',
+  'magnetometer=()',
+  'microphone=()',
+  'payment=()',
+  'usb=()',
+  'fullscreen=(self)', // allow only self, in case a future modal uses it
+].join(', ');
+
 module.exports = {
   envFlag,
   shouldEnforceHttps,
   buildHelmetOptions,
   buildSessionCookieOptions,
+  PERMISSIONS_POLICY_VALUE,
 };

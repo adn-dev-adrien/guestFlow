@@ -98,17 +98,19 @@ function createModel(database) {
    * ANY property. For a per-property closure, restricts to that property.
    */
   function findReservationOverlap(propertyId, startDate, endDate) {
+    // Bind the block-hour constants as parameters instead of interpolating — same rationale
+    // as reservationsModel.validateAvailability. Cleaned up in the 2026-06-01 security audit (M5).
     let sql = `
       SELECT r.id, r.propertyId, r.startDate, r.endDate, p.name AS propertyName
       FROM reservations r
       JOIN properties p ON p.id = r.propertyId
       WHERE r.kind = 'reservation'
-        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkInTime, '15:00'), 1, 2) AS INTEGER) <= ?
                   THEN date(r.startDate, '-1 day') ELSE r.startDate END) < ?
-        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ${LATE_CHECKOUT_BLOCK_HOUR}
+        AND (CASE WHEN CAST(SUBSTR(COALESCE(r.checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ?
                   THEN date(r.endDate, '+1 day') ELSE r.endDate END) > ?
     `;
-    const params = [endDate, startDate];
+    const params = [EARLY_CHECKIN_BLOCK_HOUR, endDate, LATE_CHECKOUT_BLOCK_HOUR, startDate];
     if (propertyId != null) {
       sql += ' AND r.propertyId = ?';
       params.push(Number(propertyId));

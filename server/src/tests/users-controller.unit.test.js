@@ -173,7 +173,7 @@ test('resetPassword: passes fromName to the reset template (signature consistenc
   assert.equal(templateCalls.reset[0].fromName, 'GF');
 });
 
-test('create: email send failure → 502 EMAIL_SEND_FAILED, model NEVER called', async () => {
+test('create: email send failure → 502 EMAIL_SEND_FAILED, model NEVER called, NO transport detail leaked', async () => {
   const usersModel = makeFakeUsersModel();
   const emailService = makeFakeEmailService({ failWith: new Error('5.7.8 auth failed') });
   const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel(), emailService });
@@ -182,7 +182,12 @@ test('create: email send failure → 502 EMAIL_SEND_FAILED, model NEVER called',
   await c.create(req, res);
   assert.equal(res.statusCode, 502);
   assert.equal(res.body.error, 'EMAIL_SEND_FAILED');
-  assert.ok(/auth failed/.test(res.body.detail));
+  // 2026-06-01 security audit (M3): the raw transport error message — which may include
+  // SMTP server hostnames, library versions, credentials hints (`5.7.8 auth failed`) —
+  // must NOT be echoed back to the API client. Only the stable error code goes out;
+  // the full error is logged server-side via console.error for diagnosis.
+  assert.equal(res.body.detail, undefined, 'no detail field with raw transport message');
+  assert.ok(!/auth failed/.test(JSON.stringify(res.body)), 'no fragment of transport message leaks');
   assert.equal(usersModel.calls.length, 0, 'no user persisted');
 });
 

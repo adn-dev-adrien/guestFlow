@@ -56,10 +56,14 @@ jobs:
         run: npm install
 
       - name: ⚛️ Build React client
+        # `GENERATE_SOURCEMAP=false` keeps the un-minified bundle off the prod server. A
+        # publicly-fetched .map file leaks the full module tree, original variable names
+        # and any compile-time constants — gratis recon for any visitor. Spotted in the
+        # 2026-06-01 security audit (finding H1).
         run: |
           cd client
           npm install
-          npm run build
+          GENERATE_SOURCEMAP=false npm run build
           cd ..
 
       - name: 📦 Create release archive

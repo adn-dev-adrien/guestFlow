@@ -275,17 +275,22 @@ function createReservationsModel(database) {
       const newEffStart = newBLocksPrev ? addIsoDays(startDate, -1) : startDate;
       const newEffEnd = newBlocksNext ? addIsoDays(endDate, 1) : endDate;
 
+      // Bind EARLY_CHECKIN_BLOCK_HOUR and LATE_CHECKOUT_BLOCK_HOUR as parameters rather than
+      // interpolating them. Even though they're trusted integer constants today, the previous
+      // ${...} form triggered SQL-injection static-analysis warnings every time the file got
+      // grep'd, and any future refactor that turned them into user-controlled values would
+      // have produced a silent injection. Cleaned up in the 2026-06-01 security audit (M5).
       let overlapSql = `
         SELECT id
         FROM reservations
         WHERE kind = 'reservation'
           AND propertyId = ?
-          AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) <= ${EARLY_CHECKIN_BLOCK_HOUR}
+          AND (CASE WHEN CAST(SUBSTR(COALESCE(checkInTime,  '15:00'), 1, 2) AS INTEGER) <= ?
                     THEN date(startDate, '-1 day') ELSE startDate END) < ?
-          AND (CASE WHEN CAST(SUBSTR(COALESCE(checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ${LATE_CHECKOUT_BLOCK_HOUR}
+          AND (CASE WHEN CAST(SUBSTR(COALESCE(checkOutTime, '10:00'), 1, 2) AS INTEGER) >= ?
                     THEN date(endDate,   '+1 day') ELSE endDate   END) > ?
       `;
-      const overlapParams = [propertyId, newEffEnd, newEffStart];
+      const overlapParams = [propertyId, EARLY_CHECKIN_BLOCK_HOUR, newEffEnd, LATE_CHECKOUT_BLOCK_HOUR, newEffStart];
       if (excludeId) { overlapSql += ' AND id != ?'; overlapParams.push(excludeId); }
       const strictOverlaps = database.prepare(overlapSql).all(...overlapParams);
       if (strictOverlaps.length > 0) {

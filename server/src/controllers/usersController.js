@@ -162,12 +162,12 @@ function buildController({
           if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
             return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
           }
-          // Any other failure (transport reject, model crash) → 502 EMAIL_SEND_FAILED with the
-          // transport message so the admin can diagnose. The user has NOT been persisted.
-          return res.status(502).json({
-            error: 'EMAIL_SEND_FAILED',
-            detail: String(err && err.message || err),
-          });
+          // Any other failure (transport reject, model crash) → 502 EMAIL_SEND_FAILED. The
+          // raw error (which may include the SMTP server hostname, library version, etc.)
+          // stays in the server log; the client only sees the stable code. The user has NOT
+          // been persisted. Spotted in the 2026-06-01 security audit (finding M3).
+          console.error('[usersController.create] email send failed:', err);
+          return res.status(502).json({ error: 'EMAIL_SEND_FAILED' });
         });
     },
 
@@ -244,7 +244,10 @@ function buildController({
           if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
             return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
           }
-          return res.status(502).json({ error: 'EMAIL_SEND_FAILED', detail: String(err && err.message || err) });
+          // Same rule as create: keep the raw error server-side, return a stable code.
+          // Spotted in the 2026-06-01 security audit (finding M3).
+          console.error('[usersController.resetPassword] email send failed:', err);
+          return res.status(502).json({ error: 'EMAIL_SEND_FAILED' });
         });
     },
 

@@ -77,12 +77,35 @@ function tableExists(db, table) {
   ).get(table));
 }
 
+// SQL identifiers (table, column, index names) cannot be bound as `?` parameters — they
+// have to be interpolated. Today the FK_INDEXES / UNIQUE_INDEXES arrays above are the only
+// callers and they're trusted compile-time constants. But a future refactor could plug an
+// external value here without thinking, and the interpolation would become a trivial DDL
+// injection. The check below is a defense-in-depth tripwire that aborts the migration if any
+// supposedly-internal value somehow doesn't match the expected identifier shape.
+// Added in the 2026-06-01 security audit (finding M6).
+const SAFE_SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+function assertSafeIdentifier(value, label) {
+  if (typeof value !== 'string' || !SAFE_SQL_IDENTIFIER.test(value)) {
+    throw new Error(`[Hygiene] Unsafe SQL ${label}: ${JSON.stringify(value)}`);
+  }
+}
+function assertSafeColumnList(colsCsv, label) {
+  // `cols` may be a comma-separated list ("propertyId, date") — validate each segment.
+  const parts = String(colsCsv).split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) throw new Error(`[Hygiene] Empty SQL ${label}`);
+  for (const part of parts) assertSafeIdentifier(part, label);
+}
+
 function applyHygiene(db, opts = {}) {
   const logger = opts.logger || console;
 
   // 1) Plain (non-unique) indexes — safe and additive.
   for (const [name, table, cols] of FK_INDEXES) {
     if (!tableExists(db, table)) continue;
+    assertSafeIdentifier(name, 'index name');
+    assertSafeIdentifier(table, 'table name');
+    assertSafeColumnList(cols, 'column list');
     try {
       db.exec(`CREATE INDEX IF NOT EXISTS ${name} ON ${table}(${cols})`);
     } catch (err) {
@@ -93,6 +116,9 @@ function applyHygiene(db, opts = {}) {
   // 2) UNIQUE indexes with duplicate pre-check.
   for (const { name, table, columns, friendly } of UNIQUE_INDEXES) {
     if (!tableExists(db, table)) continue;
+    assertSafeIdentifier(name, 'unique index name');
+    assertSafeIdentifier(table, 'table name');
+    columns.forEach((c) => assertSafeIdentifier(c, 'column name'));
     const cols = columns.join(', ');
     try {
       const dup = db.prepare(`
@@ -138,4 +164,10 @@ function applyHygiene(db, opts = {}) {
   logger.log('[Hygiene] Index et contraintes appliqués.');
 }
 
-module.exports = { applyHygiene, FK_INDEXES, UNIQUE_INDEXES };
+module.exports = {
+  applyHygiene,
+  FK_INDEXES,
+  UNIQUE_INDEXES,
+  // Exported only for the dedicated security-audit unit tests.
+  __test: { SAFE_SQL_IDENTIFIER, assertSafeIdentifier, assertSafeColumnList },
+};

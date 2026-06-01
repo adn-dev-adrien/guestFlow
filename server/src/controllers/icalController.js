@@ -13,7 +13,10 @@ function token(req, res) {
     const value = model.getOrCreateToken(propertyId);
     res.json({ token: value, url: exportUrl(value) });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // Don't leak the raw error to the client (it may include file paths or library internals).
+    // Server-side log is the source of truth. Spotted in the 2026-06-01 security audit (M3).
+    console.error('[icalController]', error);
+    res.status(500).json({ error: 'Erreur interne' });
   }
 }
 
@@ -27,7 +30,10 @@ function exportIcal(req, res) {
     res.setHeader('Content-Disposition', 'attachment; filename="calendar.ics"');
     res.send(icalData);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // Don't leak the raw error to the client (it may include file paths or library internals).
+    // Server-side log is the source of truth. Spotted in the 2026-06-01 security audit (M3).
+    console.error('[icalController]', error);
+    res.status(500).json({ error: 'Erreur interne' });
   }
 }
 
@@ -38,7 +44,10 @@ function regenerate(req, res) {
     const value = model.regenerateToken(propertyId);
     res.json({ token: value, url: exportUrl(value) });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // Don't leak the raw error to the client (it may include file paths or library internals).
+    // Server-side log is the source of truth. Spotted in the 2026-06-01 security audit (M3).
+    console.error('[icalController]', error);
+    res.status(500).json({ error: 'Erreur interne' });
   }
 }
 

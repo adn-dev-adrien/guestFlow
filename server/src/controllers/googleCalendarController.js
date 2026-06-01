@@ -24,7 +24,11 @@ async function testConnectionAction(req, res) {
     const httpStatus = result.code === 'UNKNOWN' ? 500 : 400;
     return res.status(httpStatus).json(result);
   } catch (err) {
-    return res.status(500).json({ ok: false, code: 'UNKNOWN', error: `Erreur serveur : ${err.message}` });
+    // Don't leak raw transport / library error messages to the client (file paths, internal
+    // module names, version disclosure). Log the detail server-side, return a generic message.
+    // Spotted in the 2026-06-01 security audit (finding M3).
+    console.error('[googleCalendarController.testConnection]', err);
+    return res.status(500).json({ ok: false, code: 'UNKNOWN', error: 'Erreur serveur lors du test de connexion Google Calendar.' });
   }
 }
 
@@ -57,8 +61,10 @@ async function syncReservations(req, res) {
       message: `Synchronisation terminee: ${reservations.length} reservation(s) envoyee(s) vers Google Calendar.`,
     });
   } catch (error) {
-    const message = error?.response?.data?.error?.message || error?.message || 'Erreur Google Calendar';
-    return res.status(500).json({ error: message, code: 'GOOGLE_CALENDAR_SYNC_FAILED' });
+    // Same rule as testConnection above: detailed errors stay in the server log.
+    // Spotted in the 2026-06-01 security audit (finding M3).
+    console.error('[googleCalendarController.syncReservations]', error?.response?.data || error);
+    return res.status(500).json({ error: 'Erreur lors de la synchronisation Google Calendar.', code: 'GOOGLE_CALENDAR_SYNC_FAILED' });
   }
 }
 
