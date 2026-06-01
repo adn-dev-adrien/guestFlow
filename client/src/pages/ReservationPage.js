@@ -462,9 +462,19 @@ export default function ReservationPage() {
 
         // Load reservation details if editing
         if (reservationId) {
-          const res = await api.getReservation(reservationId);
+          // Fetch the reservation AND the global settings in parallel — we need
+          // `settings.reservations.allowEditPastReservations` to know whether the past-edition
+          // lock applies (specs/admin-unlock-past-reservations.md). The setting is small and
+          // cached server-side; an extra parallel fetch is cheaper than threading it through
+          // an app-wide context for a feature only one page consumes.
+          const [res, settings] = await Promise.all([
+            api.getReservation(reservationId),
+            api.getSettings(),
+          ]);
           const todayStr = formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-          setExistingReservationLocked(Boolean(res.startDate && res.startDate <= todayStr));
+          const isPast = Boolean(res.startDate && res.startDate <= todayStr);
+          const adminUnlock = Boolean(settings?.reservations?.allowEditPastReservations);
+          setExistingReservationLocked(isPast && !adminUnlock);
           const prop = props.find(p => p.id === res.propertyId);
           const propDetails = await api.getProperty(res.propertyId);
           setSelectedProp(res.propertyId);

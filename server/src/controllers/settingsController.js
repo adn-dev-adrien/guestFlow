@@ -61,6 +61,16 @@ const SMTP_FIELDS = [
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
 ];
 
+// Reservations group — single admin escape-hatch toggle for past reservations.
+// See specs/admin-unlock-past-reservations.md.
+const RESERVATIONS_FIELDS = [
+  { input: 'allowEditPastReservations', column: 'allowEditPastReservations' },
+];
+
+// Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
+// coerce them consistently — any new BOOL column should go in here.
+const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations']);
+
 function pickGroup(body, group) {
   const value = body && body[group];
   return value && typeof value === 'object' ? value : null;
@@ -78,6 +88,7 @@ function updateSettings(req, res) {
   const google = pickGroup(body, 'googleCalendar');
   const vat = pickGroup(body, 'vat');
   const smtp = pickGroup(body, 'smtp');
+  const reservations = pickGroup(body, 'reservations');
 
   const payload = {};
   const errors = {};
@@ -92,8 +103,9 @@ function updateSettings(req, res) {
           const err = validator(value);
           if (err) errors[column] = err;
         }
-        // smtpSecure is a checkbox / select on the client; normalize to 0/1 for SQLite.
-        if (column === 'smtpSecure') {
+        // Boolean-shaped columns (smtpSecure, allowEditPastReservations…) come from a
+        // Switch on the client; normalize to 0/1 for SQLite.
+        if (BOOLEAN_INT_COLUMNS.has(column)) {
           payload[column] = (value === true || value === 1 || value === '1') ? 1 : 0;
         } else {
           payload[column] = value;
@@ -107,6 +119,7 @@ function updateSettings(req, res) {
   applyGroup(google, GOOGLE_FIELDS);
   applyGroup(vat, VAT_FIELDS);
   applyGroup(smtp, SMTP_FIELDS);
+  applyGroup(reservations, RESERVATIONS_FIELDS);
 
   // Google Calendar private key — 3-way semantics.
   if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {

@@ -899,6 +899,10 @@ tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLU
 tryAddAppSettingsCol('smtpFromEmail',         "ALTER TABLE app_settings ADD COLUMN smtpFromEmail TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT 'GuestFlow'");
 tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLUMN publicUrl TEXT DEFAULT ''");
+// Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
+// wrong property assigned). OFF by default; the existing server-side lock keeps holding.
+// See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
+tryAddAppSettingsCol('allowEditPastReservations', "ALTER TABLE app_settings ADD COLUMN allowEditPastReservations INTEGER NOT NULL DEFAULT 0");
 if (!appSettingsCols.includes('vatRateAccommodation')) {
   const propColsNow = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
   let acc = 10;

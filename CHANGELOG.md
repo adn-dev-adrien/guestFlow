@@ -4,6 +4,43 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Admin-only escape hatch for editing past reservations** (spec
+  `admin-unlock-past-reservations.md`). The server-side lock that gates `PUT
+  /api/reservations/:id` to a 14-field allowlist once `startDate <= today`, and the
+  one that returns 403 on `DELETE /api/reservations/:id` once `endDate < today`, both
+  drop to a no-op when the new `Paramètres → Réservations passées` toggle is ON. OFF
+  by default — every existing install and every fresh deploy keeps the current
+  behaviour. Wired through:
+  - A new boolean column `app_settings.allowEditPastReservations`
+    (`INTEGER NOT NULL DEFAULT 0`) added via the existing idempotent
+    `tryAddAppSettingsCol` helper in `database.js`.
+  - A new helper `settingsModel.allowEditPastReservations()` returning a boolean; both
+    lock check sites in `reservationsController.update` and `.remove` now read it
+    before applying their guard.
+  - A new `reservations` group in the GET/PUT settings payload — exposed verbatim by
+    `settingsResponse.shapeResponse` and accepted by `settingsController.updateSettings`
+    via `RESERVATIONS_FIELDS` + `BOOLEAN_INT_COLUMNS` (the same INTEGER coercion path
+    that already handles `smtpSecure`).
+  - A new client component `SettingsReservationLockSection.js` (Card → Stack → h6 →
+    caption → Switch, mirrors `SettingsVatSection`'s shape) mounted in `SettingsPage`
+    between the VAT and Google Calendar cards.
+  - In `ReservationPage.js`, the existing `setExistingReservationLocked` call now also
+    consults the setting (`api.getSettings()` is loaded in parallel with the reservation
+    itself); when ON, `isReservationLocked` is `false`, so the banner, the opacity / no-
+    pointer-events grey-out on Stay+Notes, and the Delete-button disabling all
+    short-circuit on their existing checks. **No new visual indicator on
+    ReservationPage when ON** (Adrien's choice, 2026-06-01) — the toggle state lives
+    only in Paramètres.
+  Restricted to admin: settings endpoints are already admin-gated by
+  `enforceRoleAccess`, so an accountant never sees the card or can write the column.
+  Tests: 5 new cases in `settings-model.unit.test.js` (default value, round-trip,
+  coercion table, preservation through unrelated upserts). Controller-side coverage
+  is deliberately scoped to the model helper — the boolean composition
+  `isPast && !allowEdit` in the controller is a 2-line change and the helper is
+  fully exercised at the model level; a controller integration test would require
+  refactoring for DI (out of scope for this small change).
+
 ### Security
 - **Hardening pass — follow-up to the 2026-06-01 security audit.** Eight defense-in-depth
   fixes touching the request path, build pipeline, and database layer. Closes the audit's

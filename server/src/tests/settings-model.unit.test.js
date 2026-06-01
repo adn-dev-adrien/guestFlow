@@ -36,6 +36,7 @@ const DDL = `
     smtpFromEmail TEXT DEFAULT '',
     smtpFromName TEXT DEFAULT 'GuestFlow',
     publicUrl TEXT DEFAULT '',
+    allowEditPastReservations INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -156,4 +157,63 @@ test('settingsModel.publicUrl returns the configured URL (trimmed)', () => {
   assert.equal(model.publicUrl(), '');
   model.upsert({ publicUrl: '  https://guestflow.example.com  ' });
   assert.equal(model.publicUrl(), 'https://guestflow.example.com');
+});
+
+// ---------- allowEditPastReservations toggle (specs/admin-unlock-past-reservations.md) ----------
+
+test('settingsModel.allowEditPastReservations: false by default on a fresh row', () => {
+  const { model } = freshModel();
+  assert.equal(model.allowEditPastReservations(), false);
+  // The raw column is also exposed via read() as an integer (mirrors smtpSecure shape).
+  assert.equal(model.read().allowEditPastReservations, 0);
+});
+
+test('settingsModel: upsert({ allowEditPastReservations: true }) → 1 → helper returns true', () => {
+  const { model } = freshModel();
+  model.upsert({ allowEditPastReservations: true });
+  assert.equal(model.read().allowEditPastReservations, 1);
+  assert.equal(model.allowEditPastReservations(), true);
+});
+
+test('settingsModel: upsert({ allowEditPastReservations: false }) flips back to 0 → helper returns false', () => {
+  const { model } = freshModel();
+  model.upsert({ allowEditPastReservations: true });
+  assert.equal(model.allowEditPastReservations(), true);
+  model.upsert({ allowEditPastReservations: false });
+  assert.equal(model.read().allowEditPastReservations, 0);
+  assert.equal(model.allowEditPastReservations(), false);
+});
+
+test('settingsModel: upsert coerces truthy/falsy variants via the numeric-default coercion', () => {
+  // The upsert path runs Number(v) for any NUMERIC_DEFAULTS column. Confirm the coercion
+  // table matches what the client may send (booleans straight from a Switch, or 0/1 from
+  // a hand-rolled curl).
+  const cases = [
+    { input: true, expected: 1, expectedBool: true },
+    { input: 1, expected: 1, expectedBool: true },
+    { input: false, expected: 0, expectedBool: false },
+    { input: 0, expected: 0, expectedBool: false },
+  ];
+  for (const c of cases) {
+    const { model } = freshModel();
+    model.upsert({ allowEditPastReservations: c.input });
+    assert.equal(
+      model.read().allowEditPastReservations,
+      c.expected,
+      `expected raw=${c.expected} for input=${JSON.stringify(c.input)}`,
+    );
+    assert.equal(
+      model.allowEditPastReservations(),
+      c.expectedBool,
+      `expected helper=${c.expectedBool} for input=${JSON.stringify(c.input)}`,
+    );
+  }
+});
+
+test('settingsModel: upsert({}) preserves allowEditPastReservations through unrelated updates', () => {
+  const { model } = freshModel();
+  model.upsert({ allowEditPastReservations: true });
+  // A subsequent upsert touching other fields must not reset the toggle.
+  model.upsert({ companyName: 'Acme' });
+  assert.equal(model.allowEditPastReservations(), true);
 });

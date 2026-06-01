@@ -13,6 +13,7 @@ const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const reservationsModel = require('../models/reservationsModel');
+const settingsModel = require('../models/settingsModel');
 
 const model = reservationsModel;
 
@@ -295,7 +296,11 @@ function update(req, res) {
   } = req.body;
 
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
-  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= getTodayIsoDate());
+  // `pastReservationLocked` gates the 14-field allowlist below. An admin can drop this
+  // lock by toggling `allowEditPastReservations` in Paramètres (see
+  // specs/admin-unlock-past-reservations.md). Default is OFF — the lock holds as before.
+  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= getTodayIsoDate())
+    && !settingsModel.allowEditPastReservations();
 
   const existingReservation = model.getForUpdate(id);
   const canReuseLockedPricing = !refreshPricingToCurrent
@@ -456,7 +461,9 @@ function remove(req, res) {
   const existing = model.getForArchiveCheck(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
   const today = new Date().toISOString().split('T')[0];
-  if (existing.endDate < today) {
+  // Same admin escape hatch as `update`: when `allowEditPastReservations` is ON the past-end
+  // rejection is dropped. See specs/admin-unlock-past-reservations.md.
+  if (existing.endDate < today && !settingsModel.allowEditPastReservations()) {
     return res.status(403).json({ error: 'Cette réservation est archivée (terminée) et ne peut plus être modifiée.' });
   }
   model.remove(req.params.id);

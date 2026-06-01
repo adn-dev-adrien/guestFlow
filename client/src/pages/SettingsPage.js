@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsVatSection from '../components/SettingsVatSection';
+import SettingsReservationLockSection from '../components/SettingsReservationLockSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
@@ -36,6 +37,10 @@ const EMPTY_FORM = {
     fromEmail: '', fromName: 'GuestFlow',
     publicUrl: '',
     passwordDraft: undefined, // same 3-way semantics as privateKeyDraft
+  },
+  // Admin escape hatch (specs/admin-unlock-past-reservations.md). OFF by default.
+  reservations: {
+    allowEditPastReservations: false,
   },
 };
 
@@ -90,6 +95,10 @@ function buildPayloadFromDraft(draft, saved) {
   }
   if (Object.keys(smtpDirty).length > 0) payload.smtp = smtpDirty;
 
+  // Reservations escape hatch — single boolean, no draft semantics.
+  const reservationsDirty = diffFields(draft.reservations, saved.reservations);
+  if (Object.keys(reservationsDirty).length > 0) payload.reservations = reservationsDirty;
+
   return payload;
 }
 
@@ -108,6 +117,10 @@ function fromServer(settings) {
       ...EMPTY_FORM.smtp,
       ...(settings.smtp || {}),
       passwordDraft: undefined,
+    },
+    reservations: {
+      ...EMPTY_FORM.reservations,
+      ...(settings.reservations || {}),
     },
   };
 }
@@ -330,6 +343,12 @@ export default function SettingsPage() {
           values={draft.vat}
           errors={errors}
           onChange={updateGroup('vat')}
+          disabled={loading || saving}
+        />
+
+        <SettingsReservationLockSection
+          value={draft.reservations.allowEditPastReservations}
+          onChange={(next) => updateGroup('reservations')('allowEditPastReservations', next)}
           disabled={loading || saving}
         />
 

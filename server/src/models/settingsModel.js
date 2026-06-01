@@ -55,6 +55,11 @@ const COLUMNS = [
   'smtpFromEmail',
   'smtpFromName',
   'publicUrl',
+  // Admin-only escape hatch for past reservations (see specs/admin-unlock-past-reservations.md).
+  // Stored as INTEGER (0/1) to mirror smtpSecure; the model's `allowEditPastReservations()`
+  // helper casts to boolean for the controller, but read() returns the raw integer for the
+  // API payload — consistent with smtpSecure (no surprise cast at the boundary).
+  'allowEditPastReservations',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -63,6 +68,7 @@ const NUMERIC_DEFAULTS = {
   vatRateStandard: 20,
   smtpPort: 587,
   smtpSecure: 0,
+  allowEditPastReservations: 0,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
@@ -150,6 +156,13 @@ function createSettingsModel(databaseInstance) {
 
     publicUrl() {
       return String(readRaw().publicUrl || '').trim();
+    },
+
+    // Admin escape hatch — when true, both reservation-controller locks (PUT field allowlist
+    // + DELETE 403) are dropped for past reservations. Default-driven by the column's NOT NULL
+    // DEFAULT 0 (see database.js migration). See specs/admin-unlock-past-reservations.md.
+    allowEditPastReservations() {
+      return Number(readRaw().allowEditPastReservations) === 1;
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.

@@ -114,6 +114,11 @@ function shapeResponse(row) {
       fromName: safeStr(row.smtpFromName).trim() || 'GuestFlow',
       publicUrl: safeStr(row.publicUrl).trim(),
     },
+    // Reservations block — admin escape hatch for past-reservation editing.
+    // See specs/admin-unlock-past-reservations.md.
+    reservations: {
+      allowEditPastReservations: Number(row.allowEditPastReservations) === 1,
+    },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),
   };
