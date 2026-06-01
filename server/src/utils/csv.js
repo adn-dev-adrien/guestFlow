@@ -11,10 +11,14 @@ const SEPARATOR = ';';
 const UTF8_BOM = '﻿';
 
 function formatNumber(value) {
-  // Two-decimal fixed for money cells. Comma decimal (French). Keep '' for null/undefined.
+  // French CSV convention (matches Adrien's accountant `Exemple export ventes SOLIO.csv`):
+  //   - Whole numbers render bare (`144`, `0`, `17`) — no `,00` tail.
+  //   - Fractional numbers render with 2 decimals and a comma (`519,17`).
+  //   - Keep `''` for null / undefined / non-finite.
   if (value == null) return '';
   if (typeof value !== 'number') return String(value);
   if (!Number.isFinite(value)) return '';
+  if (Number.isInteger(value)) return String(value);
   return value.toFixed(2).replace('.', ',');
 }
 
@@ -28,7 +32,17 @@ function escapeCell(value) {
   return str;
 }
 
-function serializeCsv(headers, rows) {
+/**
+ * @param {Array<string>} headers
+ * @param {Array<Array<any>>} rows
+ * @param {object} [opts]
+ * @param {boolean} [opts.bom=true]  prepend the UTF-8 BOM. Set false when the caller will
+ *                                    re-encode the string into a non-UTF-8 buffer (e.g.
+ *                                    ISO-8859-1 for French accounting software that doesn't
+ *                                    understand BOMs).
+ */
+function serializeCsv(headers, rows, opts = {}) {
+  const { bom = true } = opts;
   const lines = [];
   if (headers && headers.length) {
     lines.push(headers.map(escapeCell).join(SEPARATOR));
@@ -37,7 +51,8 @@ function serializeCsv(headers, rows) {
     lines.push(row.map(escapeCell).join(SEPARATOR));
   }
   // Excel wants CRLF on Windows; both work on macOS. Use \r\n for max compatibility.
-  return UTF8_BOM + lines.join('\r\n') + (lines.length ? '\r\n' : '');
+  const body = lines.join('\r\n') + (lines.length ? '\r\n' : '');
+  return bom ? UTF8_BOM + body : body;
 }
 
 module.exports = {

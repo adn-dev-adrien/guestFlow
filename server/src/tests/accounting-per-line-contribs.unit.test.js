@@ -171,7 +171,9 @@ test('complement entry sums forced + delta correctly', () => {
   assert.equal(opt.ht, round2(130 / 1.20));
 });
 
-test('tax routed to complement (touristTaxInComplement=1) → drops from all buckets', () => {
+test('tax routed to complement (touristTaxInComplement=1) → kept with taxTtc surfaced for the 46710000 line', () => {
+  // Policy 2026-06-01 (accountant SOLIO format): the tax now rides on the `46710000` pass-
+  // through account; a pure-tax complement is a valid 1-debit / 1-credit row.
   const perLineData = {
     optionLines: [], customOptionLines: [], resourceLines: [],
     hasContribs: true, accommodationTtcCurrent: 200,
@@ -183,8 +185,11 @@ test('tax routed to complement (touristTaxInComplement=1) → drops from all buc
     touristTaxAcompteContribTtc: 0, touristTaxSoldeContribTtc: 0,
   });
   const complement = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 0, resourcesTtc: 0 }), 'complement', perLineData);
-  // Pure-tax complement → null (excluded from accountant journal).
-  assert.equal(complement, null);
+  assert.ok(complement, 'pure-tax complement is kept');
+  // Revenue buckets are all 0 (tax-only), but the entry carries the tax via taxTtc.
+  assert.equal(complement.encaissementTtc, 10);
+  assert.equal(complement.taxTtc, 10);
+  assert.equal(complement.buckets.length, 0);
 });
 
 test('resource contribs follow the same per-bucket attribution', () => {

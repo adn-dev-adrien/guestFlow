@@ -19,10 +19,14 @@ test('rows are separated by CRLF; cells by ";"', () => {
   assert.equal(SEPARATOR, ';');
 });
 
-test('numbers are formatted with a comma decimal, fixed to 2 places', () => {
+test('numbers: integers render bare, non-integers use comma decimal at 2 places', () => {
+  // French accountant CSV convention (Adrien's `Exemple export ventes SOLIO.csv`):
+  // whole numbers like `144` or `0` carry no `,00` tail; only fractional values do.
   assert.equal(formatNumber(12.3), '12,30');
-  assert.equal(formatNumber(0), '0,00');
+  assert.equal(formatNumber(0), '0');
+  assert.equal(formatNumber(144), '144');
   assert.equal(formatNumber(-1.234), '-1,23');
+  assert.equal(formatNumber(519.17), '519,17');
 });
 
 test('null / undefined / empty string render as empty cells', () => {

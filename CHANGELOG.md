@@ -4,6 +4,54 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Accountant CSV export aligned with the SOLIO example** (spec
+  `accountant-accounting-export.md` §3.4 rules 13–16, resolves §9 Q1). After Adrien received the
+  `Exemple export ventes SOLIO.csv` reference file, the accountant CSV now matches it column-for-
+  column on the 9 mandatory columns:
+
+  ```
+  Jour ; Mois  ; Année ; Journal ; Pièce ; Libellé de l'écriture ; Compte ; Débit ; Crédit
+  ```
+
+  - Header `Mois ` carries a trailing space byte-for-byte from the example file.
+  - `Journal` constant `VT` (Ventes).
+  - `Pièce` empty for now — left blank until Adrien settles a numbering scheme with the
+    accountant. The column stays in the header.
+  - `Libellé de l'écriture` uppercased "FIRSTNAME LASTNAME" (`CLAIRE NOTIN`).
+  - `Débit` / `Crédit`: counter-side cells render as literal `0` (the accountant's software
+    ingests these numeric); whole numbers render bare (`144`, `0`); fractions render with French
+    comma decimal at 2 places (`519,17`).
+  - Client account format relaxed: `C` + first 6 chars of last name, **no padding** (matches
+    SOLIO's variable-width codes `CNOTIN`, `CCAGGUI`). Empty / unknown → literal `CXXXXX`.
+  - GuestFlow extension columns kept: `Plateforme;Prix payé client;Commission` — appear after the
+    9 SOLIO columns on the debit row only. The accountant ignores them; Adrien still sees the
+    platform info in the same file. (Per Adrien's choice over a separate file or dropping them.)
+  - **Encoding**: switched from UTF-8 BOM to **ISO-8859-1 (latin1)** without BOM. French
+    accounting software defaults to latin1 and chokes on the BOM. The controller now serves
+    `Content-Type: text/csv; charset=ISO-8859-1` with a `Buffer.from(csv, 'latin1')` body.
+
+- **Tourist tax re-included in the journal as a `46710000` pass-through line** (policy change
+  2026-06-01 from the SOLIO example). Previously, the tax was stripped from the accountant
+  journal entirely ("tax reported via Suivi taxe de séjour, not the journal"). The SOLIO example
+  credits the tax on `46710000` ("compte d'attente" — the owner owes it to the commune, not
+  turnover), and the accountant needs both sides of every encaissement balanced. Each entry now
+  carries a `taxTtc` field surfaced from the per-bucket capture columns
+  (`touristTax{Acompte,Solde}ContribTtc`); when > 0, the export emits a credit on `46710000`.
+  The Suivi taxe de séjour page stays — it's the operational view. The full encaissement TTC
+  (revenue + tax) is now the debit, where previously the debit was revenue-only.
+
+  - Pure-tax encaissements (the complement entry on an owner-collected non-direct booking with
+    no extras) are no longer dropped — they emit as a valid 1-debit + 1-credit row on `46710000`.
+
+  Tests: `accounting-csv-solio-format.unit.test.js` (7 new pinned-format cases byte-comparing
+  the produced CSV to the SOLIO example) + updates to `accounting-export.unit.test.js` (10
+  tests rewritten for the new column layout), `accounting-model-tourist-tax.unit.test.js` (3
+  tests rewritten for the new policy), `accounting-per-line-contribs.unit.test.js` (1 test
+  rewritten), `csv.unit.test.js` (integer-render rule).
+
+  Migration: no DB change. Existing reservations re-export with the new format automatically.
+
 ### Added
 - **Per-item routing to Complément à percevoir** (spec
   `force-item-to-complement.md`). The reservation form now exposes two layers of control over
