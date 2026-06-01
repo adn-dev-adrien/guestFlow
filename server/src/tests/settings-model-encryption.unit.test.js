@@ -38,6 +38,7 @@ function makeDb() {
       smtpFromEmail TEXT DEFAULT '',
       smtpFromName TEXT DEFAULT 'GuestFlow',
       publicUrl TEXT DEFAULT '',
+      allowEditPastReservations INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT,
       updatedAt TEXT
     );
