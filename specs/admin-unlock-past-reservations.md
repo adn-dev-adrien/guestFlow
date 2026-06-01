@@ -12,10 +12,11 @@
 
 ## 1. Context
 
-Today GuestFlow refuses most modifications on a reservation as soon as its check-in date is reached. The check is implemented in two places:
+Today GuestFlow refuses most modifications on a reservation as soon as its check-in date is reached. The check is implemented in three places (the third one only surfaced during implementation on 2026-06-01):
 
 - [reservationsController.js:298](server/src/controllers/reservationsController.js#L298) — `pastReservationLocked = startDate <= today` gates `PUT /api/reservations/:id`. Only a curated allowlist of 14 fields (clientId, platform, tourist tax, discount, final price, deposit/balance/caution amounts + paid flags + dates) goes through; everything else triggers a 400 with `error: 'PAST_RESERVATION_LOCKED'`.
 - [reservationsController.js:455-464](server/src/controllers/reservationsController.js#L455) — `DELETE /api/reservations/:id` returns 403 when `endDate < today`.
+- [reservationsModel.js:269](server/src/models/reservationsModel.js#L269) — `validateAvailability` hard-rejects any incoming payload with `startDate < today` (`'Impossible de réserver dans le passé.'`). Called by both create and update flows. This one bites EVEN when the controller's `pastReservationLocked` has been cleared by the toggle, because the typical edit of a past reservation keeps its existing (past) startDate unchanged.
 
 The mirror UI lives in [ReservationPage.js](client/src/pages/ReservationPage.js): a warning banner ("Cette réservation est passée ou en cours…"), the Stay + Notes sections rendered at `opacity: 0.55; pointer-events: none`, and the delete button disabled with the same tooltip.
 
@@ -27,7 +28,7 @@ The admin can flip a single toggle in `Paramètres` to make every past reservati
 
 ## 3. Functional rules
 
-1. A new boolean setting `allowEditPastReservations` (default `0`) is stored in `app_settings`. When `1`, both server-side locks (PUT field allowlist + DELETE 403) are bypassed; when `0`, current behaviour is preserved.
+1. A new boolean setting `allowEditPastReservations` (default `0`) is stored in `app_settings`. When `1`, **all three** server-side locks are bypassed (PUT field allowlist + DELETE 403 + the model-level `startDate < today` guard in `validateAvailability`); when `0`, current behaviour is preserved.
 2. The toggle is **admin-only** at every layer:
    - Read (`GET /api/settings`): any authenticated user receives the field (it changes the UI banner state for them too, even if they can't flip it).
    - Write (`PUT /api/settings`): `enforceRoleAccess` already restricts settings to admins; no new check needed — but `usersController.updateSelf` must keep stripping unknown fields (already true).
@@ -35,8 +36,9 @@ The admin can flip a single toggle in `Paramètres` to make every past reservati
 3. The toggle has **no expiry**: once set to `1`, it stays `1` until an admin explicitly flips it back. There is no auto-relock on session end, no time limit, no countdown.
 4. The toggle has **no audit trail beyond Express access logs**: no extra row in `reservation_history` to flag a modification done while unlocked. Adrien's call — keep the implementation tight; if regret-driven audit becomes a need later, add a follow-up.
 5. When `allowEditPastReservations = 1`:
-   - `PUT /api/reservations/:id` accepts the full body, runs the same validation as a future reservation (date overlap, etc.).
+   - `PUT /api/reservations/:id` accepts the full body, runs the same validation as a future reservation (date overlap, capacity, closures…).
    - `DELETE /api/reservations/:id` returns 200 regardless of `endDate`.
+   - `validateAvailability` in the model accepts `startDate < today` (the only guard lifted at this layer — overlap / capacity / closure checks remain). Both `create` and `update` flows benefit, so an admin can also backfill a historical reservation if needed.
    - The client banner "Cette réservation est passée ou en cours…" is hidden.
    - The `opacity: 0.55; pointer-events: none` on Stay + Notes sections is dropped.
    - The delete button is enabled.
@@ -66,7 +68,8 @@ The admin can flip a single toggle in `Paramètres` to make every past reservati
 |---|---|---|---|
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE app_settings ADD COLUMN allowEditPastReservations INTEGER NOT NULL DEFAULT 0` (mirror existing `smtpSecure` shape). |
 | `models/` | `settingsModel.js` | T | Add `allowEditPastReservations` to `COLUMNS` list + cast to boolean on read (`Boolean(row.allowEditPastReservations)`). Add helper `allowEditPastReservations()` for controllers that don't need the whole settings object. |
-| `controllers/` | `reservationsController.js` | T | Both the `update` (line ~298) and `remove` (line ~455) read `settingsModel.allowEditPastReservations()`. When `true`, skip the lock entirely. The 14-field allowlist remains used only when the setting is `false` AND `pastReservationLocked` is `true`. |
+| `controllers/` | `reservationsController.js` | T | Both the `update` (line ~298) and `remove` (line ~455) read `settingsModel.allowEditPastReservations()`. When `true`, skip the lock entirely. The 14-field allowlist remains used only when the setting is `false` AND `pastReservationLocked` is `true`. Both `validateAvailability` call sites (create line ~254 + update line ~367) pass `{ allowPastDates: settingsModel.allowEditPastReservations() }` so the model's `startDate < today` rejection is lifted in the same conditions. |
+| `models/` | `reservationsModel.js` | T | `validateAvailability` gains an 8th `options = {}` parameter; the `startDate < today` rejection is now gated on `!options.allowPastDates`. All other availability checks (overlap, capacity, closures) are unchanged. |
 | `controllers/` | `settingsController.js` | T | Add `allowEditPastReservations` to the validated update body (boolean coercion). |
 | `routes/` | — | — | No route change; existing `GET /api/settings` + `PUT /api/settings` carry the new field automatically once `COLUMNS` is updated. |
 | `middleware/` | `enforceRoleAccess.js` | — | No change — settings is already admin-only. |

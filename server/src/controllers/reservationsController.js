@@ -251,7 +251,13 @@ function create(req, res) {
   if (grossError) return res.status(400).json({ error: grossError });
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
-  const validationError = model.validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks);
+  // The model rejects `startDate < today` by default. When the admin escape hatch is ON
+  // (Paramètres → Réservations passées), that single guard is lifted so backfilling /
+  // correcting a past reservation is possible. Overlap / capacity / closures still apply.
+  const validationError = model.validateAvailability(
+    propertyId, startDate, endDate, checkInTime, checkOutTime, null, nightBlocks,
+    { allowPastDates: settingsModel.allowEditPastReservations() },
+  );
   if (validationError) return res.status(409).json(validationError);
 
   const capacityError = checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity });
@@ -364,7 +370,13 @@ function update(req, res) {
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
 
   if (!pastReservationLocked) {
-    const validationError = model.validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks);
+    // Same logic as the `create` flow: lift the model-level "no past startDate" guard when
+    // the admin escape hatch is ON, so the user can keep a past startDate while editing
+    // unrelated fields. See specs/admin-unlock-past-reservations.md.
+    const validationError = model.validateAvailability(
+      propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks,
+      { allowPastDates: settingsModel.allowEditPastReservations() },
+    );
     if (validationError) return res.status(409).json(validationError);
 
     const capacityError = checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity });

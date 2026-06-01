@@ -261,12 +261,17 @@ function createReservationsModel(database) {
 
     // ── Availability / capacity ──────────────────────────────────────────
     // Authoritative availability check (verbatim from the former route). Returns an error object or null.
-    validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, excludeId, nightBlocks = {}) {
+    //
+    // `options.allowPastDates` (default false) lifts ONLY the "startDate < today" guard. The
+    // overlap/conflict/capacity/closure rules below are untouched — they remain correctness
+    // checks even when the admin has flipped the past-reservation unlock in Paramètres.
+    // See specs/admin-unlock-past-reservations.md §3.5 + §3.6.
+    validateAvailability(propertyId, startDate, endDate, checkInTime, checkOutTime, excludeId, nightBlocks = {}, options = {}) {
       const property = database.prepare('SELECT cleaningHours FROM properties WHERE id = ?').get(propertyId);
       const cleaning = property ? (property.cleaningHours ?? 3) : 3;
 
       const today = new Date().toISOString().split('T')[0];
-      if (startDate < today) {
+      if (startDate < today && !options.allowPastDates) {
         return { error: 'Impossible de réserver dans le passé.' };
       }
 

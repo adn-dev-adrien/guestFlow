@@ -32,6 +32,17 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     short-circuit on their existing checks. **No new visual indicator on
     ReservationPage when ON** (Adrien's choice, 2026-06-01) — the toggle state lives
     only in Paramètres.
+  - **Follow-up on 2026-06-01 (Adrien feedback):** a third lock surfaced during the
+    first test, in `reservationsModel.validateAvailability` (line ~269), which hard-
+    rejected any payload with `startDate < today` and `'Impossible de réserver dans le
+    passé.'` That guard fires inside both create and update flows, so even with the
+    controller-level lock lifted by the toggle, editing a past reservation that kept
+    its (past) startDate still failed. Fixed: `validateAvailability` gains an 8th
+    `options = {}` parameter; the past-date guard is now
+    `if (startDate < today && !options.allowPastDates)`. Both controller call sites
+    pass `{ allowPastDates: settingsModel.allowEditPastReservations() }`. Overlap /
+    capacity / closure checks are unchanged. Spec §1, §3.1 + §3.5, and §4.1 updated to
+    reflect three lock sites instead of two.
   Restricted to admin: settings endpoints are already admin-gated by
   `enforceRoleAccess`, so an accountant never sees the card or can write the column.
   Tests: 5 new cases in `settings-model.unit.test.js` (default value, round-trip,
