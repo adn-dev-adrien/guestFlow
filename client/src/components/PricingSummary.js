@@ -500,11 +500,23 @@ export default function PricingSummary({
             <Chip size="small" label="Acompte payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
           )}
 
-          {/* Solde */}
+          {/* Solde — when `depositDisabled` is on, the displayed amount is the SUM of the
+              two form fields so the operator sees the consolidated total immediately on
+              toggle, without waiting for the live recompute round-trip. After save and after
+              every subsequent recompute, `form.depositAmount` is 0 and `form.balanceAmount`
+              already holds the full pre-arrival total, so the sum stays the right number
+              (0 + total = total). Defensive against the transient window where the click has
+              flipped the flag but the recomputed quote hasn't landed yet. See
+              specs/disable-deposit-per-reservation.md §6. */}
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">Solde</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.balanceAmount.toFixed(2)}€</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {form.depositDisabled
+                ? (Number(form.depositAmount || 0) + Number(form.balanceAmount || 0)).toFixed(2)
+                : form.balanceAmount.toFixed(2)}
+              €
+            </Typography>
           </Box>
           {form.balanceDueDate && (
             <Typography variant="caption" color="text.secondary">
