@@ -872,6 +872,10 @@ tryAddUsersCol('lastName',    "ALTER TABLE users ADD COLUMN lastName TEXT NOT NU
 tryAddUsersCol('companyName', "ALTER TABLE users ADD COLUMN companyName TEXT NOT NULL DEFAULT ''");
 tryAddUsersCol('notes',       "ALTER TABLE users ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
 tryAddUsersCol('lastLoginAt', 'ALTER TABLE users ADD COLUMN lastLoginAt TEXT');
+// 2026-06-02 — stamped by `updateUser` when the email is changed. Compared to `lastLoginAt` to know
+// if the operator has logged in with the new address at least once (drives the persistent
+// "vérifier votre nouvelle adresse" banner; clears the banner once `lastLoginAt > emailChangedAt`).
+tryAddUsersCol('emailChangedAt', 'ALTER TABLE users ADD COLUMN emailChangedAt TEXT');
 
 // 2. Join table for multi-role. FK cascade so hardDelete on users wipes the rows.
 db.exec(`
