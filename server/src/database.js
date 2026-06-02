@@ -649,6 +649,29 @@ tryAddOptionColumn('autoEnabled', "ALTER TABLE options ADD COLUMN autoEnabled IN
 tryAddOptionColumn('autoPricingMode', "ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed'");
 tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
 tryAddOptionColumn('optionProgressiveTiers', "ALTER TABLE options ADD COLUMN optionProgressiveTiers TEXT NOT NULL DEFAULT '[]'");
+// 2026-06-02 — bed-linen tracking (specs/weekly-bed-linen-tracking.md). Flags an option as
+// counting towards the weekly laundry batch on the Planning page. Pure metadata, no pricing
+// impact — the laundry endpoint joins reservation_options to this column to know which
+// reservations consumed sheets.
+tryAddOptionColumn('countsAsBedLinen', "ALTER TABLE options ADD COLUMN countsAsBedLinen INTEGER NOT NULL DEFAULT 0");
+// 2026-06-02 — bathroom-linen tracking (specs/weekly-bed-linen-tracking.md §3.5). Same shape as
+// `countsAsBedLinen` but counts large + medium + small towels per guest (adults + teens +
+// children — babies excluded). Per-type per-person multipliers live on dedicated columns below.
+tryAddOptionColumn('countsAsBathroomLinen', "ALTER TABLE options ADD COLUMN countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0");
+
+// 2026-06-02 — fine-grained linen configuration (specs/weekly-bed-linen-tracking.md §3.5.ter).
+// Bed-linen option: which bed types are brought to the laundry (per-option toggles, default ON to
+// match the previous always-include-all behaviour). The aggregation gates each bed-type sum on
+// these flags so an operator can untick e.g. "Bébé" if their laundry service doesn't handle it.
+tryAddOptionColumn('linenIncludesSingle', "ALTER TABLE options ADD COLUMN linenIncludesSingle INTEGER NOT NULL DEFAULT 1");
+tryAddOptionColumn('linenIncludesDouble', "ALTER TABLE options ADD COLUMN linenIncludesDouble INTEGER NOT NULL DEFAULT 1");
+tryAddOptionColumn('linenIncludesBaby',   "ALTER TABLE options ADD COLUMN linenIncludesBaby INTEGER NOT NULL DEFAULT 1");
+// Bathroom-linen option: per-person count of each towel size (defaults preserve the previous
+// 1 large + 0 medium + 1 small per person semantic). A zero on any size hides that line in the
+// PlanningPage card (rule 13.bis).
+tryAddOptionColumn('towelLargePerPerson',  "ALTER TABLE options ADD COLUMN towelLargePerPerson INTEGER NOT NULL DEFAULT 1");
+tryAddOptionColumn('towelMediumPerPerson', "ALTER TABLE options ADD COLUMN towelMediumPerPerson INTEGER NOT NULL DEFAULT 0");
+tryAddOptionColumn('towelSmallPerPerson',  "ALTER TABLE options ADD COLUMN towelSmallPerPerson INTEGER NOT NULL DEFAULT 1");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
@@ -966,6 +989,10 @@ tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLU
 tryAddAppSettingsCol('smtpFromEmail',         "ALTER TABLE app_settings ADD COLUMN smtpFromEmail TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT 'GuestFlow'");
 tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLUMN publicUrl TEXT DEFAULT ''");
+// 2026-06-02 — bed-linen tracking (specs/weekly-bed-linen-tracking.md). Day of week (0=Sun..6=Sat)
+// when Adrien drops the dirty linen at the laundry. Drives the LaundryDayCard on PlanningPage.
+// Default 2 (Tuesday) reflects current practice.
+tryAddAppSettingsCol('laundryWeekday',        "ALTER TABLE app_settings ADD COLUMN laundryWeekday INTEGER NOT NULL DEFAULT 2");
 // Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
@@ -1283,6 +1310,30 @@ try {
 }
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
+
+// ---------- Default "Linge de lit" auto-option (specs/weekly-bed-linen-tracking.md) ----------
+// Unlike early_check_in / late_check_out (which are seeded per-property and linked through
+// property_options), the bed-linen option is a GLOBAL toggleable option Adrien adds manually
+// to a reservation. It also carries `countsAsBedLinen = 1` so it drives the LaundryDayCard
+// out of the box.
+//
+// Non-destructive rules — both must hold for the seed to insert:
+//   1. No option already carries `autoOptionType = 'bed_linen'` (idempotency across boots).
+//   2. No option already carries `countsAsBedLinen = 1` (some prod servers have an existing
+//      manual "Linge de lit" option Adrien already adopted by ticking the new flag — we must
+//      NOT add a duplicate alongside it).
+//
+// If only the manual option exists (countsAsBedLinen=1 without the autoOptionType marker), the
+// seed is skipped on purpose: the operator's customised option keeps priority. They can later
+// either: rename it to keep working as-is, or delete it + run `npm run reset-admin`-style
+// cleanup (out of scope here — manual edit suffices). Documented in the spec.
+const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
+ensureDefaultBedLinenOption(db);
+db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;
+
+const { ensureDefaultBathroomLinenOption } = require('./utils/bathroomLinenSeed');
+ensureDefaultBathroomLinenOption(db);
+db.ensureDefaultBathroomLinenOption = ensureDefaultBathroomLinenOption;
 
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.

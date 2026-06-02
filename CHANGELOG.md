@@ -5,6 +5,51 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Weekly bed-linen tracking on the Planning page** (spec
+  `weekly-bed-linen-tracking.md`, 2026-06-02). Each laundry day (configurable weekday, default
+  Tuesday) now surfaces a small card under the day header of the Planning view showing the
+  number of sheet sets to bring (single + double + baby, summed across every checkout since the
+  previous laundry day on reservations that include a linen-flagged option) and to pick up (the
+  previous laundry day's drop-off). Both sides are independent — a quiet week renders nothing.
+  - New per-option flag `countsAsBedLinen` (and `countsAsBathroomLinen` for the towels
+    counterpart). Pure metadata — zero pricing impact. Both flags are **invisible in the UI**
+    (the OptionsPage form does not show a control for them): the typed seeds + title-alias
+    promotion guarantee the flags are set on the right rows automatically.
+  - **Default "Linge de lit" option seeded at boot** — undeletable in the UI via
+    `autoOptionType='bed_linen'` (same pattern as the early/late check-in options). The seed
+    has three branches: idempotent skip when the typed row exists; **promote in place** when
+    an existing option already carries `countsAsBedLinen=1` OR has a title in the short
+    `KNOWN_TITLE_ALIASES` list (`'linge de lit'`, `'linge de lits'` — case-insensitive +
+    trim-tolerant), so legacy prod rows are picked up transparently with no manual cleanup;
+    fresh insert otherwise. The promotion keeps Adrien's name / price / description and just
+    adds the `autoOptionType` marker + `countsAsBedLinen=1`. Same shape for the bathroom-linen
+    seed with `KNOWN_TITLE_ALIASES = ['linge de toilette']`.
+  - **Bathroom-linen tracking (towels) — §3.5.bis follow-up.** Strict mirror of the bed-linen
+    feature: a second independent flag `countsAsBathroomLinen`, a default **"Linge de toilette"**
+    seed (`autoOptionType = 'bathroom_linen'`, same non-destructive contract), and a second
+    sub-line *"Serviettes: N grandes · N moyennes · N petites"* under the same "À apporter /
+    À récupérer" headers in the LaundryDayCard. **The towel count SCALES by
+    `reservation_options.quantity`** (asymmetric with bed-linen which ignores quantity) — the
+    seed is `priceType = per_person` and the operator uses the quantity field as a
+    sub-occupation factor (e.g. `0.6667` on a 3-person stay = "2 of 3 want towels").
+  - **§3.5.ter — per-type linen configuration on the option.** Six new columns on `options`:
+    `linenIncludesSingle / Double / Baby` (1/0, default 1 — drive 3 checkboxes shown in the
+    option form when `countsAsBedLinen=1`) and `towelLargePerPerson / Medium / Small`
+    (integers ≥ 0, defaults 1 / 0 / 1 — drive 3 number inputs shown when
+    `countsAsBathroomLinen=1`). Bed-linen formula now gates each bed-type sum on its include
+    flag; bathroom-linen formula becomes
+    `ROUND(persons × Σ quantity × MAX(towel<Size>PerPerson))` per size. A multiplier at 0
+    silences that size in the LaundryDayCard (rule 13.bis). Defaults preserve the previous
+    "all bed types ON, 1 large + 1 small per person" semantic — no migration needed for
+    existing installs.
+  - New global setting `laundryWeekday` (0 = Sunday … 6 = Saturday, default 2 = Tuesday)
+    configurable in *Paramètres → Linge & blanchisserie*.
+  - New endpoint `GET /api/planning/laundry?from=…&to=…` returning every laundry-day occurrence
+    in the range with its `dropOff` + `pickUp` payloads. The client filters silent days.
+  - Server-side aggregation honours: `kind='reservation'` only, `offered=true` still counts,
+    option `quantity` is ignored (1 reservation = 1 set per bed), multiple linen-flagged options
+    on the same reservation still count once, window is `(L-7d, L]` (a check-out the laundry
+    morning joins that day's batch).
 - **Self-service email edit on `/account` with a persistent anti-lockout safety net** (spec
   `admin-account-management.md` follow-up #7, 2026-06-02). The "Mes informations" email field is
   now editable for every authenticated user — the bootstrap admin can replace the
@@ -32,8 +77,29 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   `server/src/database.js`. Stamped by `updateUser` whenever the email column is rewritten.
   Existing users see `NULL` → no banner, no behaviour change until they actually change their
   email.
+- **`options.countsAsBedLinen`**, **`options.countsAsBathroomLinen`** (both `INTEGER NOT NULL
+  DEFAULT 0`) and **`app_settings.laundryWeekday`** (`INTEGER NOT NULL DEFAULT 2`) added by
+  idempotent ALTER TABLE in `server/src/database.js`. Existing options default to "not a linen
+  option" on both flags (the feature stays silent until Adrien ticks them). Default weekday =
+  Tuesday.
+- **§3.5.ter** adds six more columns on `options`, all idempotent ALTER TABLE:
+  - `linenIncludesSingle`, `linenIncludesDouble`, `linenIncludesBaby` (INT 0/1, default 1)
+  - `towelLargePerPerson`, `towelMediumPerPerson`, `towelSmallPerPerson` (INT ≥ 0, defaults
+    1 / 0 / 1)
+
+  Defaults match the pre-existing semantic so no row needs backfill.
 
 ### Changed
+- **PlanningPage day-card colour palette** (spec `weekly-bed-linen-tracking.md` §6.1, follow-up
+  2026-06-02). Replaced the flat white default on every day-cell card to give a clearer visual
+  hierarchy at a glance:
+  - **LaundryDayCard**: laundry-themed cyan (`cyan[50]` bg + `cyan[200]` border + `cyan[800]`
+    icon/title) — visually the most prominent of the three card types.
+  - **ReservationCard (arrivée)**: warm peach background (`orange[50]`) when no alert is firing —
+    welcoming, attention-grabbing without being flashy. Alert (orange / red / blue) and "done"
+    (green) overlays still take priority.
+  - **DepartureMiniRow (départ)**: very pale grey (`grey[100]`) — deliberately quieter than the
+    arrival peach so arrivals dominate the eye at a glance.
 - **Accountant CSV export aligned with the SOLIO example** (spec
   `accountant-accounting-export.md` §3.4 rules 13–16, resolves §9 Q1). After Adrien received the
   `Exemple export ventes SOLIO.csv` reference file, the accountant CSV now matches it column-for-
