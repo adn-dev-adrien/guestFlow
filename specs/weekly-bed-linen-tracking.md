@@ -138,6 +138,26 @@ neither.
 17. The flag is purely a metadata tag — it does **not** affect pricing,
     invoicing, accounting, or any existing logic. The engine ignores it.
 
+17.bis. **Discriminator change in client UI (2026-06-02 follow-up).** Before this feature,
+    `autoOptionType` was set only on engine-derived options (early/late check-in/out) and the
+    client used `Boolean(option.autoOptionType)` as the proxy for "auto-added by the engine".
+    The linen seeds repurpose `autoOptionType` as a **typed-default / undeletability marker**
+    (the seeded "Linge de lit" + "Linge de toilette" are NOT engine-derived — `autoEnabled = 0`,
+    Adrien toggles them per reservation like any manual option). The two concepts are now
+    decoupled:
+
+    | Marker | Meaning | Set by | Read by |
+    |---|---|---|---|
+    | `autoOptionType` (truthy) | Typed default; undeletable in the catalog | early/late seed + linen seeds | `OptionsPage.isDeleteDisabled` |
+    | `autoEnabled === 1` | Auto-added by the pricing engine; not in `selectedOptions` | early/late seed only | `ExtrasSection.isAutoTimedOption`, `ReservationPage` payload filters, `PricingSummary.isAuto` |
+
+    Every client site that previously used `Boolean(autoOptionType)` as the "auto-added" proxy
+    (`ExtrasSection.js`, `ReservationPage.js` payload + autoOptionsInComplement loader,
+    `PricingSummary.js`) was moved to `Number(autoEnabled || 0) === 1`. Without this change, a
+    Switch on the linen options was rendered **disabled** in the reservation form + the option
+    was silently stripped from the payload — making the feature non-functional from the UI.
+    Pinned by `ExtrasSection.test.js` regression case (2026-06-02).
+
 ### 3.5.bis Bathroom-linen tracking (towels) — 2026-06-02 follow-up
 
 18. The Option entity gains a **second** independent boolean flag
