@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Box, Button, Checkbox, FormControlLabel, FormHelperText, IconButton, TextField, Typography,
+  Box, Button, IconButton, TextField, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -23,14 +23,11 @@ const emptyOption = {
   price: 0,
   propertyIds: [],
   optionProgressiveTiers: [],
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Pure metadata flag — does
-  // not affect pricing. When true, this option's presence on a reservation makes that
-  // reservation's bed counts feed the Planning page's LaundryDayCard.
+  // Linen flags (specs/weekly-bed-linen-tracking.md). Kept on the form state for the round-trip
+  // via toPayload but no UI control — these are set by the server-side seeds (`autoOptionType =
+  // 'bed_linen'` / `'bathroom_linen'`) and are invisible to the operator. A brand-new custom
+  // option always starts unflagged.
   countsAsBedLinen: false,
-  // Bathroom-linen tracking (same spec, §3.5). Independent of the bed-linen flag; an option
-  // can carry either, both, or neither. When true, the reservation's `adults + teens +
-  // children` feeds the bathroom sub-line of the LaundryDayCard (1 large + 1 small towel per
-  // person; babies excluded).
   countsAsBathroomLinen: false,
 };
 
@@ -151,7 +148,9 @@ export default function OptionsPage() {
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
         optionProgressiveTiers: normalizeProgressiveTiers(item.optionProgressiveTiers),
-        // SQLite returns the boolean columns as int 0/1 — normalise for the Checkboxes.
+        // The linen flags are hidden from the UI (see note below the component) but still
+        // round-tripped via fromItem + toPayload so the seed values aren't accidentally
+        // cleared when the operator edits a typed-default option's price/description.
         countsAsBedLinen: Boolean(item.countsAsBedLinen),
         countsAsBathroomLinen: Boolean(item.countsAsBathroomLinen),
       })}
@@ -170,40 +169,16 @@ export default function OptionsPage() {
       showQuantity={false}
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
       renderExtraFormFields={(form, setForm) => (
-        <>
-          <ProgressivePricingFields form={form} setForm={setForm} />
-          {/* Linen flags — drive the PlanningPage LaundryDayCard. Independent of pricing.
-              Two independent checkboxes: an option can carry either, both, or neither. */}
-          <Box sx={{ mt: 1 }}>
-            <FormControlLabel
-              control={(
-                <Checkbox
-                  checked={Boolean(form.countsAsBedLinen)}
-                  onChange={(e) => setForm({ ...form, countsAsBedLinen: e.target.checked })}
-                />
-              )}
-              label="Cette option compte des parures de draps"
-            />
-            <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
-              Permet de calculer automatiquement les parures à apporter à la blanchisserie.
-            </FormHelperText>
-          </Box>
-          <Box sx={{ mt: 1.5 }}>
-            <FormControlLabel
-              control={(
-                <Checkbox
-                  checked={Boolean(form.countsAsBathroomLinen)}
-                  onChange={(e) => setForm({ ...form, countsAsBathroomLinen: e.target.checked })}
-                />
-              )}
-              label="Cette option compte des serviettes de toilette"
-            />
-            <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
-              Une grande et une petite serviette par personne (adultes, ados et enfants — bébés exclus).
-            </FormHelperText>
-          </Box>
-        </>
+        <ProgressivePricingFields form={form} setForm={setForm} />
       )}
     />
   );
 }
+
+// 2026-06-02 follow-up — the `countsAsBedLinen` / `countsAsBathroomLinen` flags used to render as
+// two checkboxes in this form. Adrien's call: hide them entirely. The two typed seeds
+// (`autoOptionType = 'bed_linen'` / `'bathroom_linen'`) are always present on every install (with
+// the title-alias promotion picking up legacy prod rows automatically), so the operator never
+// needs to flag a third option as "compte le linge". The columns stay on the server-side schema
+// + `fromItem` / `toPayload` still round-trip them so the seed values are never accidentally
+// cleared on save — they're just invisible from the UI.

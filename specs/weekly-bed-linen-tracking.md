@@ -125,15 +125,18 @@ neither.
 
 ### 3.5 Option marking
 
-15. The Option entity gains a boolean flag `countsAsBedLinen`. Default `false`.
-    The `OptionFormDialog` shows it as a checkbox with the label *"Cette option
-    compte des parures de draps"* and a helper text *"Permet de calculer
-    automatiquement les parures à apporter à la blanchisserie."*.
+15. The Option entity gains a boolean flag `countsAsBedLinen`. Default `false`. **The flag is
+    NOT exposed in the UI** (2026-06-02 follow-up — Adrien's call: the two typed seeds
+    "Linge de lit" + "Linge de toilette" are always present on every install with the
+    title-alias promotion picking up legacy rows, so the operator never needs to flag a third
+    option). The flag is set exclusively by `utils/bedLinenSeed.js` (at boot on a fresh
+    install or during a promotion) and round-tripped through `OptionsPage.fromItem` /
+    `toPayload` so it isn't accidentally cleared when the operator edits the option's
+    price/description.
 
-16. There is no constraint on how many options carry the flag. Adrien may flag
-    zero (feature dormant), one (typical case), or several (e.g. "Linge de lit
-    Premium" and "Linge de lit Standard"). The reservation-level boolean is
-    "ANY of the reservation's options is flagged" (rule 4).
+16. **One seeded option per flag.** The bed-linen typed seed (`autoOptionType = 'bed_linen'`)
+    is the sole carrier of `countsAsBedLinen = 1` in steady state. Same for the bathroom-linen
+    seed. A brand-new custom option created from the form always starts with both flags off.
 
 17. The flag is purely a metadata tag — it does **not** affect pricing,
     invoicing, accounting, or any existing logic. The engine ignores it.
@@ -307,15 +310,21 @@ duplicate beside it. It runs on every boot and resolves in three branches:
 
 1. **Typed seed already exists** (`SELECT 1 FROM options WHERE autoOptionType = 'bed_linen'`
    returns a row) → idempotent no-op. Common case on every boot after the first.
-2. **Operator-adopted option → PROMOTION** (2026-06-02 follow-up). An option already carries
-   `countsAsBedLinen = 1` but has no `autoOptionType`. The earlier behaviour was to skip — but
-   that left the operator's option **deletable** in the UI (the `isDeleteDisabled` rule reads
+2. **Operator-adopted OR title-aliased option → PROMOTION** (2026-06-02 follow-up). An option
+   already carries `countsAsBedLinen = 1` but has no `autoOptionType` — OR — its title is in
+   the small `KNOWN_TITLE_ALIASES` list (currently `'linge de lit'`, `'linge de lits'`;
+   case-insensitive + trim-tolerant). The earlier behaviour was to skip — but that left the
+   operator's option **deletable** in the UI (the `isDeleteDisabled` rule reads
    `autoOptionType`, not `countsAsBedLinen`), which contradicted the "default, always present"
-   contract. New behaviour: the seeder **promotes the row in place** with
-   `UPDATE options SET autoOptionType = 'bed_linen' WHERE countsAsBedLinen = 1 AND
-   (autoOptionType IS NULL OR autoOptionType = '')`. The operator's name, price, and
-   description are preserved; only the type marker is added. Multiple matching rows are all
-   promoted in one statement (consistent with rule 16's "may flag several").
+   contract. New behaviour: the seeder **promotes the row in place**:
+   `UPDATE options SET autoOptionType = 'bed_linen', countsAsBedLinen = 1
+   WHERE (countsAsBedLinen = 1 OR LOWER(TRIM(title)) IN (?, ?))
+   AND (autoOptionType IS NULL OR autoOptionType = '')`. The operator's name, price, and
+   description are preserved; only the type marker and the flag are added. Multiple matching
+   rows are all promoted in one statement. Title aliases are intentionally narrow (no fuzzy
+   match) — only the exact list, so legitimately-different options like "Drap supplémentaire"
+   are not swallowed. The bathroom-linen seed uses the same shape with
+   `KNOWN_TITLE_ALIASES = ['linge de toilette']`.
 3. **Fresh install** (no typed seed, no adopted option) → insert a brand-new row with:
 
 | Column | Value |
@@ -416,16 +425,15 @@ visual rhythm:
 
 Empty side (e.g. zero pick-up) reads "—" so the visual symmetry is preserved.
 
-### 6.2 OptionFormDialog — the "compte parures" checkbox
+### 6.2 OptionFormDialog — no UI control for the linen flags
 
-A new `Checkbox` row at the bottom of the option form, just above the Save
-button:
-
-```
-[ ] Cette option compte des parures de draps
-    Permet de calculer automatiquement les parures à apporter
-    à la blanchisserie.
-```
+The initial design exposed a `Checkbox` *"Cette option compte des parures de draps"* (and a
+second one for towels). Those were **removed in the 2026-06-02 follow-up** at Adrien's
+request: the typed seeds + title-alias promotion guarantee the flags are set on the right
+rows, and exposing them in the UI was over-engineering (an unflagged option created from this
+dialog can never become a linen option except through a server-side seed change). The flags
+are still round-tripped via `OptionsPage.fromItem` / `toPayload` so editing an existing
+seeded option from this form does not clear them.
 
 ### 6.3 SettingsPage — Linge & blanchisserie section
 

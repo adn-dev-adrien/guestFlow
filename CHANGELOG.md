@@ -11,15 +11,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   number of sheet sets to bring (single + double + baby, summed across every checkout since the
   previous laundry day on reservations that include a linen-flagged option) and to pick up (the
   previous laundry day's drop-off). Both sides are independent — a quiet week renders nothing.
-  - New per-option flag `countsAsBedLinen` exposed as a checkbox in the option form: *"Cette
-    option compte des parures de draps"*. Pure metadata — zero pricing impact.
+  - New per-option flag `countsAsBedLinen` (and `countsAsBathroomLinen` for the towels
+    counterpart). Pure metadata — zero pricing impact. Both flags are **invisible in the UI**
+    (the OptionsPage form does not show a control for them): the typed seeds + title-alias
+    promotion guarantee the flags are set on the right rows automatically.
   - **Default "Linge de lit" option seeded at boot** — undeletable in the UI via
     `autoOptionType='bed_linen'` (same pattern as the early/late check-in options). The seed
     has three branches: idempotent skip when the typed row exists; **promote in place** when
-    an existing option already carries `countsAsBedLinen=1` (the row keeps Adrien's name /
-    price / description and just gains the `autoOptionType` marker so it becomes
-    undeletable); fresh insert otherwise. Earlier behaviour (skip) left the operator's
-    adopted option deletable — this follow-up makes it default in all three branches.
+    an existing option already carries `countsAsBedLinen=1` OR has a title in the short
+    `KNOWN_TITLE_ALIASES` list (`'linge de lit'`, `'linge de lits'` — case-insensitive +
+    trim-tolerant), so legacy prod rows are picked up transparently with no manual cleanup;
+    fresh insert otherwise. The promotion keeps Adrien's name / price / description and just
+    adds the `autoOptionType` marker + `countsAsBedLinen=1`. Same shape for the bathroom-linen
+    seed with `KNOWN_TITLE_ALIASES = ['linge de toilette']`.
   - **Bathroom-linen tracking (towels) — §3.5.bis follow-up.** Strict mirror of the bed-linen
     feature: a second independent flag `countsAsBathroomLinen` + checkbox *"Cette option compte
     des serviettes de toilette"*, a default **"Linge de toilette"** seed (`autoOptionType =

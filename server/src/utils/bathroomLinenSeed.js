@@ -21,6 +21,11 @@ const SEED_DEFINITION = Object.freeze({
   autoOptionType: 'bathroom_linen',
 });
 
+// Title aliases promoted into the typed seed at boot (2026-06-02 follow-up). See
+// utils/bedLinenSeed.js for the rationale. Adrien confirmed his prod uses the exact title
+// "Linge de toilette" — we keep the alias list short and exact for safety.
+const KNOWN_TITLE_ALIASES = Object.freeze(['linge de toilette']);
+
 function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
   try {
     const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
@@ -34,15 +39,18 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
     if (hasTypedSeed) {
       return { action: 'skipped-already-seeded' };
     }
-    // PROMOTION PATH (2026-06-02 follow-up) — see utils/bedLinenSeed.js for the rationale.
-    // Same shape: any adopted row without `autoOptionType` is promoted in place to make it
-    // undeletable while preserving the operator's title / price / description.
+    // PROMOTION PATH (2026-06-02 follow-up) — strict mirror of utils/bedLinenSeed.js. Two match
+    // channels OR'd: explicit `countsAsBathroomLinen=1` flag OR title in `KNOWN_TITLE_ALIASES`.
+    const aliasPlaceholders = KNOWN_TITLE_ALIASES.map(() => '?').join(', ');
     const promotion = database.prepare(`
       UPDATE options
-         SET autoOptionType = 'bathroom_linen'
-       WHERE countsAsBathroomLinen = 1
+         SET autoOptionType = 'bathroom_linen', countsAsBathroomLinen = 1
+       WHERE (
+               countsAsBathroomLinen = 1
+               OR LOWER(TRIM(title)) IN (${aliasPlaceholders})
+             )
          AND (autoOptionType IS NULL OR autoOptionType = '')
-    `).run();
+    `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
       logger.log(`[Database] ✅ Bathroom-linen seed promoted ${promotion.changes} existing option(s) to the typed bathroom_linen marker (kept name/price/description).`);
       return { action: 'promoted-adopted', count: promotion.changes };
@@ -77,4 +85,5 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
 module.exports = {
   ensureDefaultBathroomLinenOption,
   SEED_DEFINITION,
+  KNOWN_TITLE_ALIASES,
 };

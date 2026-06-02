@@ -96,6 +96,60 @@ test('seed PROMOTES multiple adopted options if Adrien runs several flagged vari
   assert.deepEqual(all.map((r) => r.title), ['Linge de lit Standard', 'Linge de lit Premium']);
 });
 
+test('seed PROMOTES by title alias too: "Linge de lit" exact match (case-insensitive)', () => {
+  // Prod scenario Adrien confirmed: he created "Linge de lit" by hand before the feature,
+  // never ticked the new flag (the checkbox is hidden in the UI now). The seed must still
+  // recognise the option and promote it transparently — no manual cleanup required.
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('Linge de lit', 'per_stay', 5)"
+  ).run();
+
+  const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'promoted-adopted');
+  assert.equal(result.count, 1);
+  const row = db.prepare("SELECT * FROM options WHERE title = 'Linge de lit'").get();
+  assert.equal(row.autoOptionType, 'bed_linen', 'undeletable marker added');
+  assert.equal(Number(row.countsAsBedLinen), 1, 'flag also set so the LaundryDayCard picks it up');
+  assert.equal(Number(row.price), 5, 'operator price preserved');
+});
+
+test('seed PROMOTES by title alias: "Linge de lits" (plural) — covers Adrien\'s exact prod row', () => {
+  // The plural was the specific edge case Adrien flagged — must be promoted without a duplicate.
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('Linge de lits', 'per_stay', 8)"
+  ).run();
+
+  const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'promoted-adopted');
+  const row = db.prepare("SELECT * FROM options WHERE title = 'Linge de lits'").get();
+  assert.equal(row.autoOptionType, 'bed_linen');
+  assert.equal(Number(row.countsAsBedLinen), 1);
+  // Title is NOT rewritten — Adrien's spelling is preserved, only the marker is added.
+  assert.equal(row.title, 'Linge de lits');
+});
+
+test('seed promotion by title is case-insensitive + trim-tolerant', () => {
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('  LINGE DE LIT  ', 'per_stay', 0)"
+  ).run();
+  const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'promoted-adopted');
+});
+
+test('seed does NOT promote an unrelated title (no fuzzy match — only the exact alias list)', () => {
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('Drap supplémentaire', 'per_stay', 7)"
+  ).run();
+  // No countsAsBedLinen flag + title not in aliases → seed inserts a fresh row alongside.
+  const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'seeded');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM options").get().n, 2);
+});
+
 test('seed does NOT overwrite an adopted option that already has a different autoOptionType', () => {
   // Defensive: a manual `autoOptionType` set to some other value (e.g. a typo or a future
   // type we don't know about yet) MUST be preserved. The promotion only touches NULL / empty.

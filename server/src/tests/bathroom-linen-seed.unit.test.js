@@ -72,6 +72,42 @@ test('seed PROMOTES an operator-customised option in place (keeps title/price, a
   assert.equal(all[0].autoOptionType, 'bathroom_linen', 'now undeletable in the UI');
 });
 
+test('seed PROMOTES by title alias: "Linge de toilette" exact match (case-insensitive)', () => {
+  // Adrien's prod scenario: exact title "Linge de toilette" exists without the flag (the
+  // checkbox is hidden in the UI now). Must be promoted transparently.
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('Linge de toilette', 'per_stay', 6)"
+  ).run();
+
+  const result = ensureDefaultBathroomLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'promoted-adopted');
+  assert.equal(result.count, 1);
+  const row = db.prepare("SELECT * FROM options WHERE title = 'Linge de toilette'").get();
+  assert.equal(row.autoOptionType, 'bathroom_linen');
+  assert.equal(Number(row.countsAsBathroomLinen), 1);
+  assert.equal(Number(row.price), 6);
+});
+
+test('seed promotion by title is case-insensitive + trim-tolerant (bathroom)', () => {
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES (' Linge De Toilette ', 'per_stay', 0)"
+  ).run();
+  const result = ensureDefaultBathroomLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'promoted-adopted');
+});
+
+test('seed does NOT promote an unrelated title (no fuzzy match — only the exact alias list)', () => {
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('Serviette piscine', 'per_stay', 4)"
+  ).run();
+  const result = ensureDefaultBathroomLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'seeded');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM options").get().n, 2);
+});
+
 test('seed and bed-linen seed do NOT conflict: each only checks its own flag', () => {
   // Prod where Adrien already adopted the bed-linen flag but NOT the bathroom-linen one yet
   // (typical upgrade path): the bathroom seed must still insert because countsAsBedLinen=1 is

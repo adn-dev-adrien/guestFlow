@@ -30,6 +30,13 @@ const SEED_DEFINITION = Object.freeze({
   autoOptionType: 'bed_linen',
 });
 
+// Title aliases promoted into the typed seed at boot (2026-06-02 follow-up). Adrien confirmed
+// his prod has a "Linge de lits" (plural) row that's the same option semantically — auto-promote
+// it transparently rather than ask the operator to clean up by hand. Matched case-insensitive
+// + trimmed. Keep the list intentionally short and exact — broad fuzzy matching could swallow
+// legitimately-different options (e.g. "Drap supplémentaire").
+const KNOWN_TITLE_ALIASES = Object.freeze(['linge de lit', 'linge de lits']);
+
 function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
   try {
     const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
@@ -51,13 +58,25 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
     // undeletability rule). Instead of skipping, we now PROMOTE every adopted row in place:
     // set `autoOptionType = 'bed_linen'` so the UI treats it as the default linen option. The
     // operator's customisations (title, price, description) are preserved — only the type
-    // marker is added. After promotion, subsequent boots short-circuit via `hasTypedSeed`.
+    // marker is added (and `countsAsBedLinen` set to 1 if it wasn't, so the LaundryDayCard
+    // picks it up immediately).
+    //
+    // Two match channels OR'd in the WHERE:
+    //   - `countsAsBedLinen = 1` → operator explicitly opted in via the (now hidden) flag.
+    //   - title in `KNOWN_TITLE_ALIASES` → covers the "I named it 'Linge de lits' before the
+    //     feature existed" prod scenario (transparent migration, no manual cleanup).
+    //
+    // After promotion, subsequent boots short-circuit via `hasTypedSeed`.
+    const aliasPlaceholders = KNOWN_TITLE_ALIASES.map(() => '?').join(', ');
     const promotion = database.prepare(`
       UPDATE options
-         SET autoOptionType = 'bed_linen'
-       WHERE countsAsBedLinen = 1
+         SET autoOptionType = 'bed_linen', countsAsBedLinen = 1
+       WHERE (
+               countsAsBedLinen = 1
+               OR LOWER(TRIM(title)) IN (${aliasPlaceholders})
+             )
          AND (autoOptionType IS NULL OR autoOptionType = '')
-    `).run();
+    `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
       logger.log(`[Database] ✅ Bed-linen seed promoted ${promotion.changes} existing option(s) to the typed bed_linen marker (kept name/price/description).`);
       return { action: 'promoted-adopted', count: promotion.changes };
@@ -91,4 +110,5 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
 module.exports = {
   ensureDefaultBedLinenOption,
   SEED_DEFINITION,
+  KNOWN_TITLE_ALIASES,
 };
