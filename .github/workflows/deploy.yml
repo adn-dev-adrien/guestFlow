@@ -193,6 +193,50 @@ jobs:
           echo "✓ Files extracted:"
           ls -la current/
 
+      - name: 🔐 Persist .env.local across deploys (session secret + encryption key)
+        # Problem the step solves: the release archive does NOT carry `.env.local` (gitignored).
+        # On every deploy the new `current/server/` directory starts without one, so
+        # `getOrCreateSecret(GUESTFLOW_SESSION_SECRET)` regenerates a fresh secret on first
+        # request — invalidating every persisted SQLite session in the process. Adrien hit
+        # this 2026-06-02 on prod: every API call returned 401 right after the deploy because
+        # the cookies were signed with the old secret. Same hazard for the encryption key
+        # (`GUESTFLOW_ENCRYPTION_KEY`) used to crypt Google credentials at rest — a fresh key
+        # would break decryption of every previously-stored secret.
+        #
+        # Fix: store `.env.local` next to the DB in `~/guestflow/data/` (already persistent +
+        # backed up) and symlink it into the new deployment. First run after this step ships
+        # picks up the most recent `backup-*/server/.env.local` so the existing secrets carry
+        # over and no user has to re-log.
+        run: |
+          DEPLOY_DIR="$HOME/guestflow"
+          PERSISTENT_ENV="$DEPLOY_DIR/data/.env.local"
+          DEPLOY_ENV="$DEPLOY_DIR/current/server/.env.local"
+
+          mkdir -p "$(dirname "$PERSISTENT_ENV")"
+
+          if [ ! -f "$PERSISTENT_ENV" ]; then
+            # One-time migration: bring the most recent backup's `.env.local` over so the
+            # session secret + encryption key stay stable across this transition deploy.
+            LATEST_BACKUP_ENV=$(ls -1dt "$DEPLOY_DIR"/backup-*/server/.env.local 2>/dev/null | head -1 || true)
+            if [ -n "$LATEST_BACKUP_ENV" ] && [ -f "$LATEST_BACKUP_ENV" ]; then
+              cp "$LATEST_BACKUP_ENV" "$PERSISTENT_ENV"
+              chmod 600 "$PERSISTENT_ENV"
+              echo "✓ Migrated existing secrets from $LATEST_BACKUP_ENV"
+            else
+              echo "ℹ No previous .env.local found — the server will generate fresh secrets on first run"
+              echo "  (this is normal on the very first deploy; future deploys will reuse them)"
+            fi
+          else
+            echo "✓ Persistent .env.local already in place"
+          fi
+
+          # Replace any file the release zip might have included (shouldn't, but defensive) +
+          # symlink the new deploy's path to the persistent file. Subsequent `getOrCreateSecret`
+          # calls write through the symlink, so reads on the next restart hit the same file.
+          rm -f "$DEPLOY_ENV"
+          ln -s "$PERSISTENT_ENV" "$DEPLOY_ENV"
+          echo "✓ Symlinked $DEPLOY_ENV → $PERSISTENT_ENV"
+
       - name: 🔗 Create symlink for persistent database
         run: |
           DEPLOY_DIR="$HOME/guestflow"
