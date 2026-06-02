@@ -11,7 +11,8 @@ const DDL = `
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
     finalPrice REAL, depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositDueDate TEXT,
-    balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT
+    balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT,
+    complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT
   );
 `;
 
@@ -31,10 +32,16 @@ function freshModel() {
 
 const insertRes = (db, r) => db.prepare(`
   INSERT INTO reservations (id, clientId, propertyId, startDate, endDate, finalPrice,
-    depositAmount, depositPaid, depositDueDate, balanceAmount, balancePaid, balanceDueDate)
+    depositAmount, depositPaid, depositDueDate, balanceAmount, balancePaid, balanceDueDate,
+    complementAmount, complementPaid)
   VALUES (@id, @clientId, @propertyId, @startDate, @endDate, @finalPrice,
-    @depositAmount, @depositPaid, @depositDueDate, @balanceAmount, @balancePaid, @balanceDueDate)
-`).run({ depositPaid: 0, balancePaid: 0, depositDueDate: null, balanceDueDate: null, ...r });
+    @depositAmount, @depositPaid, @depositDueDate, @balanceAmount, @balancePaid, @balanceDueDate,
+    @complementAmount, @complementPaid)
+`).run({
+  depositPaid: 0, balancePaid: 0, depositDueDate: null, balanceDueDate: null,
+  complementAmount: 0, complementPaid: 0,
+  ...r,
+});
 
 test('getSummary enriches reservations with remainingDue + paymentComplete and totals', () => {
   const { db, model } = freshModel();
@@ -45,12 +52,77 @@ test('getSummary enriches reservations with remainingDue + paymentComplete and t
   assert.equal(summary.totalRevenue, 800);
   assert.equal(summary.totalCollected, 150 + 100 + 200); // 450
   assert.equal(summary.totalPending, 350); // only res1 balance unpaid
+  // The 3 cards add up by construction (regression: pre-2026-06-02 totalRevenue used
+  // `finalPrice` so it diverged from collected + pending as soon as tax / complement
+  // entered the picture).
+  assert.equal(summary.totalRevenue, summary.totalCollected + summary.totalPending);
   const r1 = summary.reservations.find((r) => r.id === 1);
   assert.equal(r1.remainingDue, 350);
   assert.equal(r1.paymentComplete, false);
   const r2 = summary.reservations.find((r) => r.id === 2);
   assert.equal(r2.remainingDue, 0);
   assert.equal(r2.paymentComplete, true);
+});
+
+test('getSummary: complementAmount + complementPaid feed totalCollected + totalPending too', () => {
+  // Regression: prior to 2026-06-02 the 3rd payment bucket (complément) was ignored. A stay
+  // with a paid complement showed up in the operational tables but didn't move the Encaissé
+  // card — Adrien noticed "les montants ne sont pas cohérents".
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4),
+    finalPrice: 500,
+    depositAmount: 150, depositPaid: 1,
+    balanceAmount: 350, balancePaid: 1,
+    complementAmount: 20, complementPaid: 1,
+  });
+  insertRes(db, {
+    id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(5),
+    finalPrice: 300,
+    depositAmount: 90,  depositPaid: 0,
+    balanceAmount: 210, balancePaid: 0,
+    complementAmount: 30, complementPaid: 0,
+  });
+
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  // Collected = res1 (deposit + balance + complement) = 520.
+  assert.equal(summary.totalCollected, 150 + 350 + 20);
+  // Pending = res2 (deposit + balance + complement) = 330.
+  assert.equal(summary.totalPending,   90 + 210 + 30);
+  // Revenue is driven by encaissements, NOT finalPrice — so collected + pending == revenue.
+  assert.equal(summary.totalRevenue, summary.totalCollected + summary.totalPending);
+});
+
+test('getSummary returns revenueByProperty aggregated per logement, sorted desc', () => {
+  // Drives the "Revenus par logement" chart on FinancePage (replaces the per-reservation bar
+  // chart which became unreadable at scale).
+  const { db, model } = freshModel();
+  // Property 1 (Gite) — two reservations. Res1: deposit 100 paid + balance 200 unpaid (=300).
+  // Res2: deposit 100 paid + balance 100 unpaid (=200). Sum: collected 200, pending 300, rev 500.
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(3), finalPrice: 300, depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 0 });
+  insertRes(db, { id: 2, clientId: 1, propertyId: 1, startDate: iso(4), endDate: iso(6), finalPrice: 300, depositAmount: 100, depositPaid: 1, balanceAmount: 100, balancePaid: 0 });
+  // Property 2 (Tente) — one fully paid reservation: collected 200, pending 0, rev 200.
+  insertRes(db, { id: 3, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(4), finalPrice: 200, depositAmount: 60, depositPaid: 1, balanceAmount: 140, balancePaid: 1 });
+
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.revenueByProperty.length, 2);
+
+  // Sorted descending by revenue → Gite (500) first, Tente (200) second.
+  const [gite, tente] = summary.revenueByProperty;
+  assert.equal(gite.propertyName, 'Gite');
+  assert.equal(gite.revenue,   500);
+  assert.equal(gite.collected, 200);
+  assert.equal(gite.pending,   300);
+  assert.equal(tente.propertyName, 'Tente');
+  assert.equal(tente.revenue,   200);
+  assert.equal(tente.collected, 200);
+  assert.equal(tente.pending,   0);
+});
+
+test('getSummary revenueByProperty: empty range → empty list (no crash, no zero placeholder)', () => {
+  const { model } = freshModel();
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.deepEqual(summary.revenueByProperty, []);
 });
 
 test('getOperational shapes overdue (sorted + totals), pending and upcoming', () => {
