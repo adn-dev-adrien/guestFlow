@@ -34,26 +34,36 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
-      - name: 🔎 Sanity-check Node + npm versions
-        run: |
-          echo "Node:     $(node -v)"
-          echo "npm:      $(npm -v)"
-          echo "ABI:      NODE_MODULE_VERSION $(node -p 'process.versions.modules')"
-          echo "PATH:     $PATH" | head -c 400; echo
-          # If the system PM2 daemon was started with a different Node, alert loudly — the
-          # native modules we're about to build won't be loadable.
-          if command -v pm2 >/dev/null 2>&1; then
-            DAEMON_NODE=$(pm2 prettylist 2>/dev/null | grep -m1 -oE '"node_version":"[^"]+"' | cut -d'"' -f4 || true)
-            if [ -n "$DAEMON_NODE" ]; then
-              echo "PM2 daemon Node: $DAEMON_NODE"
-              if [ "${DAEMON_NODE%%.*}" != "$(node -v | tr -d v | cut -d. -f1)" ]; then
-                echo "⚠ PM2 daemon major Node version differs from the workflow's Node — restart the PM2 daemon to align."
-              fi
-            fi
-          fi
+      # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
+      # Pure diagnostic step (echoes Node / npm / ABI / PM2 daemon version). Useful when a
+      # deploy mysteriously fails with an ABI-mismatch crash loop — reactivate then and
+      # re-trigger via `workflow_dispatch` to surface the version mismatch.
+      # Reactivate by uncommenting the block below up to the next `- name:`.
+      # - name: 🔎 Sanity-check Node + npm versions
+      #   run: |
+      #     echo "Node:     $(node -v)"
+      #     echo "npm:      $(npm -v)"
+      #     echo "ABI:      NODE_MODULE_VERSION $(node -p 'process.versions.modules')"
+      #     echo "PATH:     $PATH" | head -c 400; echo
+      #     # If the system PM2 daemon was started with a different Node, alert loudly — the
+      #     # native modules we're about to build won't be loadable.
+      #     if command -v pm2 >/dev/null 2>&1; then
+      #       DAEMON_NODE=$(pm2 prettylist 2>/dev/null | grep -m1 -oE '"node_version":"[^"]+"' | cut -d'"' -f4 || true)
+      #       if [ -n "$DAEMON_NODE" ]; then
+      #         echo "PM2 daemon Node: $DAEMON_NODE"
+      #         if [ "${DAEMON_NODE%%.*}" != "$(node -v | tr -d v | cut -d. -f1)" ]; then
+      #           echo "⚠ PM2 daemon major Node version differs from the workflow's Node — restart the PM2 daemon to align."
+      #         fi
+      #       fi
+      #     fi
 
-      - name: 📚 Install root dependencies
-        run: npm install
+      # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
+      # The root package.json only has `concurrently` as a devDependency (used by
+      # `npm run dev` for the local server+client dual-run). Production deploys never run
+      # the dev script, so installing those root deps is pure cost (~30-60 s on the Pi).
+      # Reactivate if the root package.json ever grows a runtime-needed dep.
+      # - name: 📚 Install root dependencies
+      #   run: npm install
 
       - name: ⚛️ Build React client
         # `GENERATE_SOURCEMAP=false` keeps the un-minified bundle off the prod server. A
@@ -78,25 +88,35 @@ jobs:
           pm2 delete guestflow 2>/dev/null || true
           echo "✓ Previous service stopped"
 
-      - name: 💾 Create persistent data directory
-        run: |
-          PERSISTENT_DB_DIR="$HOME/guestflow/data"
-          PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
-          mkdir -p "$PERSISTENT_DB_DIR"
-          echo "✓ Persistent data directory created: $PERSISTENT_DB_DIR"
+      # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
+      # Redundant — the "🔗 Create symlink for persistent database" step further down also
+      # runs `mkdir -p "$(dirname "$PERSISTENT_DB")"` before symlinking, so creating the
+      # directory here is duplicate work. Reactivate if the symlink step is ever split.
+      # - name: 💾 Create persistent data directory
+      #   run: |
+      #     PERSISTENT_DB_DIR="$HOME/guestflow/data"
+      #     PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
+      #     mkdir -p "$PERSISTENT_DB_DIR"
+      #     echo "✓ Persistent data directory created: $PERSISTENT_DB_DIR"
 
-      - name: 🔄 Migrate legacy database location
-        run: |
-          PERSISTENT_DB_DIR="$HOME/guestflow/data"
-          PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
-          LEGACY_DB="$HOME/guestflow/current/server/guestflow.db"
-          
-          if [ ! -f "$PERSISTENT_DB" ] && [ -f "$LEGACY_DB" ]; then
-            cp "$LEGACY_DB" "$PERSISTENT_DB"
-            echo "✓ Database migrated from legacy location"
-          else
-            echo "ℹ Database already at persistent location or doesn't exist yet"
-          fi
+      # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
+      # One-time migration: copies the DB from the legacy in-deployment path
+      # (`current/server/guestflow.db`) to the persistent `~/guestflow/data/guestflow.db`
+      # the first time after that layout change shipped. Long done in prod; every subsequent
+      # deploy just printed "ℹ Database already at persistent location". Reactivate ONLY if
+      # the persistent layout is reset (rare — would need to wipe `~/guestflow/data/`).
+      # - name: 🔄 Migrate legacy database location
+      #   run: |
+      #     PERSISTENT_DB_DIR="$HOME/guestflow/data"
+      #     PERSISTENT_DB="$PERSISTENT_DB_DIR/guestflow.db"
+      #     LEGACY_DB="$HOME/guestflow/current/server/guestflow.db"
+      #
+      #     if [ ! -f "$PERSISTENT_DB" ] && [ -f "$LEGACY_DB" ]; then
+      #       cp "$LEGACY_DB" "$PERSISTENT_DB"
+      #       echo "✓ Database migrated from legacy location"
+      #     else
+      #       echo "ℹ Database already at persistent location or doesn't exist yet"
+      #     fi
 
       - name: 💾 Backup database before deploy
         run: |
@@ -198,24 +218,30 @@ jobs:
           echo "✓ Database symlink created"
           ls -la "$DEPLOY_DIR/current/server/guestflow.db"
 
-      - name: 🔒 Provision self-signed TLS cert (one-time, persistent across deploys)
-        run: |
-          CERTS_DIR="$HOME/guestflow/certs"
-          CERT_FILE="$CERTS_DIR/server.crt"
-          KEY_FILE="$CERTS_DIR/server.key"
-
-          mkdir -p "$CERTS_DIR"
-
-          if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
-            echo "✓ TLS cert already provisioned at $CERTS_DIR — leaving it alone."
-            echo "  (regenerate manually with --force on the script if the cert nears expiry)"
-          else
-            echo "ℹ No TLS cert found — generating a fresh self-signed cert."
-            chmod +x "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
-            OUT_DIR="$CERTS_DIR" "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
-          fi
-
-          ls -la "$CERTS_DIR"
+      # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
+      # The TLS cert is already provisioned in `~/guestflow/certs/` and persists across
+      # deploys. This step self-skips once the cert exists, but still loads the script and
+      # echoes its check — pure cost for a long-resolved one-time setup. Reactivate before
+      # the cert expires (run on demand via `workflow_dispatch`) OR regenerate manually
+      # with `OUT_DIR=~/guestflow/certs bash server/scripts/generate-self-signed-cert.sh --force`.
+      # - name: 🔒 Provision self-signed TLS cert (one-time, persistent across deploys)
+      #   run: |
+      #     CERTS_DIR="$HOME/guestflow/certs"
+      #     CERT_FILE="$CERTS_DIR/server.crt"
+      #     KEY_FILE="$CERTS_DIR/server.key"
+      #
+      #     mkdir -p "$CERTS_DIR"
+      #
+      #     if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+      #       echo "✓ TLS cert already provisioned at $CERTS_DIR — leaving it alone."
+      #       echo "  (regenerate manually with --force on the script if the cert nears expiry)"
+      #     else
+      #       echo "ℹ No TLS cert found — generating a fresh self-signed cert."
+      #       chmod +x "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
+      #       OUT_DIR="$CERTS_DIR" "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
+      #     fi
+      #
+      #     ls -la "$CERTS_DIR"
 
       - name: 📥 Restore uploads
         run: |
