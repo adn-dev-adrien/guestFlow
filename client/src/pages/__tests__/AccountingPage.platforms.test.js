@@ -139,8 +139,38 @@ describe('AccountingPage — platforms commission table', () => {
     });
     setAuth({ id: 1, roles: ['admin'] });
     renderPage();
-    // Wait for the table to render, then check the cell.
     await screen.findByText('Jean Dupont');
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  test('direct bookings appear in the table too (gross + commission empty as "—")', async () => {
+    // Regression: prior to 2026-06-02 the platforms preview filtered out direct bookings, so
+    // the table only ever showed non-direct rows — making it diverge from the journal cards
+    // below (which always show ALL encaissements). The table now lists every encaissement;
+    // direct rows show `—` for the platform-specific columns (gross + commission).
+    api.getAccountingPlatforms.mockResolvedValue({
+      rows: [
+        {
+          reservationId: 51,
+          propertyName: 'Le Petit Gîte',
+          date: '2026-08-12',
+          kind: 'balance',
+          client: 'Alice Direct',
+          platform: 'direct',
+          gross: null,
+          encaissement: 300,
+          commission: null,
+        },
+      ],
+      totalCommission: 0,
+    });
+    setAuth({ id: 1, roles: ['admin'] });
+    renderPage();
+
+    expect(await screen.findByText('Alice Direct')).toBeInTheDocument();
+    // The row exists with the platform = "direct" label visible.
+    expect(screen.getByText('direct')).toBeInTheDocument();
+    // Two `—` placeholders: one for gross, one for commission. Use getAllByText to count.
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -208,10 +208,10 @@ export default function AccountingPage() {
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Commissions plateformes</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>Encaissements du mois</Typography>
               {preview && (
                 <Typography variant="body2" color="text.secondary">
-                  Total commissions du mois : <strong>{formatEur(preview.totalCommission)}</strong>
+                  Total commissions plateformes : <strong>{formatEur(preview.totalCommission)}</strong>
                 </Typography>
               )}
             </Stack>
@@ -220,7 +220,7 @@ export default function AccountingPage() {
 
             {!loading && preview && preview.rows.length === 0 && (
               <Typography variant="body2" color="text.secondary">
-                Aucun encaissement plateforme ce mois-là.
+                Aucun encaissement ce mois-là.
               </Typography>
             )}
 

@@ -44,6 +44,32 @@ function makeQuote(overrides = {}) {
   };
 }
 
+test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" entry)', () => {
+  // Regression for the dev-server bug Adrien spotted 2026-06-02: a reservation appeared twice
+  // in the AccountingPage table (and as two journal cards) — once with real numbers, once with
+  // every column at 0. Root cause: `depositDisabled = ON` after the user had clicked
+  // "Marquer acompte payé" → depositPaid stayed 1, depositAmount collapsed to 0, the entry
+  // was still emitted. Same shape for an accidentally-flipped complementPaid with no
+  // complement amount. Both code paths must return null when the kind's amount is 0.
+  const row = makeRow({ depositAmount: 0, balanceAmount: 0, complementAmount: 0 });
+  const quote = makeQuote();
+
+  // Legacy path.
+  assert.equal(buildEntry(row, quote, 'deposit'),    null);
+  assert.equal(buildEntry(row, quote, 'balance'),    null);
+  assert.equal(buildEntry(row, quote, 'complement'), null);
+
+  // Contrib-driven path (perLineData provided).
+  const perLineData = {
+    hasContribs: true,
+    optionLines: [], customOptionLines: [], resourceLines: [],
+    accommodationTtcCurrent: 0,
+  };
+  assert.equal(buildEntry(row, quote, 'deposit', perLineData),    null);
+  assert.equal(buildEntry(row, quote, 'balance', perLineData),    null);
+  assert.equal(buildEntry(row, quote, 'complement', perLineData), null);
+});
+
 test('every entry exposes propertyName, on BOTH the contrib-driven path AND the legacy fallback', () => {
   // Regression: the propertyName field was only added to the contrib-driven return shape on
   // first pass (2026-06-02 fix). Legacy reservations (no captured contribs) fall through to
