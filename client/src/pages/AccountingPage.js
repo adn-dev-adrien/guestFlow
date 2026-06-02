@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link,
+  TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link, Tooltip,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -233,7 +233,9 @@ export default function AccountingPage() {
                       <TableCell>Logement</TableCell>
                       <TableCell>Client</TableCell>
                       <TableCell>Plateforme</TableCell>
-                      <TableCell>Encaissement</TableCell>
+                      {/* Small badge column with no header label (the badges speak for themselves). */}
+                      <TableCell sx={{ width: 32, p: 0.5 }} />
+                      <TableCell sx={{ fontWeight: 700, bgcolor: 'primary.50' }}>Encaissement</TableCell>
                       <TableCell>Commission</TableCell>
                       <TableCell>Brut payé client</TableCell>
                     </TableRow>
@@ -256,7 +258,14 @@ export default function AccountingPage() {
                           <TableCell>{row.propertyName || '—'}</TableCell>
                           <TableCell>{row.client}</TableCell>
                           <TableCell>{row.platform}</TableCell>
-                          <TableCell>{formatEur(row.encaissement)}</TableCell>
+                          <TableCell sx={{ width: 32, p: 0.5 }}>
+                            <KindBadge kind={row.kind} />
+                          </TableCell>
+                          {/* Encaissement: highlighted column — bold + tinted background so the
+                              eye lands on it first when scanning the table. */}
+                          <TableCell sx={{ fontWeight: 700, bgcolor: 'primary.50' }}>
+                            {formatEur(row.encaissement)}
+                          </TableCell>
                           <TableCell>{formatEur(row.commission)}</TableCell>
                           <TableCell>{formatEur(row.gross)}</TableCell>
                         </TableRow>
@@ -278,6 +287,41 @@ export default function AccountingPage() {
 // and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
 
 const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde', complement: 'Complément' };
+
+// Tight single-letter badge so the encaissements table can show the kind without eating a
+// full column. Same colour palette as the journal cards' kind chip (amber / blue / purple).
+const KIND_BADGE_STYLES = {
+  deposit:    { letter: 'A', color: 'warning.contrastText', bgcolor: 'warning.main' },
+  balance:    { letter: 'S', color: 'info.contrastText',    bgcolor: 'info.main' },
+  complement: { letter: 'C', color: 'secondary.contrastText', bgcolor: 'secondary.main' },
+};
+
+function KindBadge({ kind }) {
+  const style = KIND_BADGE_STYLES[kind];
+  if (!style) return null;
+  return (
+    <Tooltip title={KIND_LABELS[kind] || ''} arrow>
+      <Box
+        component="span"
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          fontSize: 11,
+          fontWeight: 700,
+          color: style.color,
+          bgcolor: style.bgcolor,
+          lineHeight: 1,
+        }}
+      >
+        {style.letter}
+      </Box>
+    </Tooltip>
+  );
+}
 
 function JournalEntryCard({ entry, canOpenReservation = false }) {
   const isPlatform = Boolean(entry.platform.platform);

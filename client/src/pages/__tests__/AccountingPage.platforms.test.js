@@ -86,6 +86,26 @@ describe('AccountingPage — platforms commission table', () => {
     expect(await screen.findByText('Le Petit Gîte')).toBeInTheDocument();
   });
 
+  test('kind badge: each row carries a single-letter A/S/C badge derived from row.kind', async () => {
+    // Compact badge between Plateforme and Encaissement so the user can tell apart
+    // acompte / solde / complément without eating a full column. Adrien's preference.
+    api.getAccountingPlatforms.mockResolvedValue({
+      rows: [
+        { ...SAMPLE_PLATFORMS.rows[0], kind: 'deposit', client: 'Acompte Client' },
+        { ...SAMPLE_PLATFORMS.rows[0], reservationId: 78, kind: 'balance', client: 'Solde Client' },
+        { ...SAMPLE_PLATFORMS.rows[0], reservationId: 79, kind: 'complement', client: 'Complément Client' },
+      ],
+      totalCommission: 60,
+    });
+    setAuth({ id: 1, roles: ['admin'] });
+    renderPage();
+    await screen.findByText('Acompte Client');
+    // Each kind's single-letter badge appears exactly once on its row.
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('S')).toBeInTheDocument();
+    expect(screen.getByText('C')).toBeInTheDocument();
+  });
+
   test('admin: clicking a row navigates to the reservation file', async () => {
     setAuth({ id: 1, roles: ['admin'] });
     renderPage();
