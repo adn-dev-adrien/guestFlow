@@ -11,7 +11,14 @@ function createEmailService(settings, { transportFactory = nodemailer.createTran
   const host = String(settings && settings.host || '').trim();
   const fromEmail = String(settings && settings.fromEmail || '').trim();
   const fromName = String(settings && settings.fromName || '').trim() || 'GuestFlow';
-  const isConfigured = Boolean(host) && Boolean(fromEmail);
+  // `passwordDecryptFailed` (set by settingsModel.decryptedSmtpSettings) signals that an
+  // SMTP password IS persisted in the DB but the current `GUESTFLOW_ENCRYPTION_KEY` can't
+  // unlock it (typical cause: a deploy regenerated `.env.local` — fixed at the workflow
+  // level by PR #96). Treating the service as not-configured surfaces the actionable
+  // `EMAIL_NOT_CONFIGURED` code to the caller, instead of letting nodemailer try to auth
+  // with an empty password and crash with an opaque transport error.
+  const passwordDecryptFailed = Boolean(settings && settings.passwordDecryptFailed);
+  const isConfigured = Boolean(host) && Boolean(fromEmail) && !passwordDecryptFailed;
 
   let transport = null;
 
