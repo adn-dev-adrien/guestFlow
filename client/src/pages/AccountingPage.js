@@ -230,8 +230,8 @@ export default function AccountingPage() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Date</TableCell>
-                      <TableCell>Client</TableCell>
                       <TableCell>Logement</TableCell>
+                      <TableCell>Client</TableCell>
                       <TableCell>Plateforme</TableCell>
                       <TableCell>Encaissement</TableCell>
                       <TableCell>Net total séjour</TableCell>
@@ -254,8 +254,8 @@ export default function AccountingPage() {
                           sx={clickable ? { cursor: 'pointer' } : undefined}
                         >
                           <TableCell>{formatDate(row.date)}</TableCell>
-                          <TableCell>{row.client}</TableCell>
                           <TableCell>{row.propertyName || '—'}</TableCell>
+                          <TableCell>{row.client}</TableCell>
                           <TableCell>{row.platform}</TableCell>
                           <TableCell>{formatEur(row.encaissement)}</TableCell>
                           <TableCell>{formatEur(row.net)}</TableCell>

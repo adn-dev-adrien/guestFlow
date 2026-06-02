@@ -22,6 +22,7 @@ function makeRow(overrides = {}) {
     id: 7,
     firstName: 'Jean',
     lastName: 'Dupont',
+    propertyName: 'Le Petit Gîte',
     finalPrice: 200,
     touristTaxTotal: 4.80,
     clientGrossAmount: null,
@@ -42,6 +43,33 @@ function makeQuote(overrides = {}) {
     ...overrides,
   };
 }
+
+test('every entry exposes propertyName, on BOTH the contrib-driven path AND the legacy fallback', () => {
+  // Regression: the propertyName field was only added to the contrib-driven return shape on
+  // first pass (2026-06-02 fix). Legacy reservations (no captured contribs) fall through to
+  // the second return path which was missing it — producing empty "Logement" cells in the
+  // platforms-commission table on AccountingPage. Pin both code paths here.
+  const row = makeRow({ propertyName: 'La Maison du Lac' });
+  const quote = makeQuote();
+
+  // Legacy path (no perLineData → hasContribs = false).
+  const legacy = buildEntry(row, quote, 'deposit');
+  assert.equal(legacy.propertyName, 'La Maison du Lac');
+
+  // Contrib-driven path — feed a non-zero accommodation contrib so the entry isn't dropped
+  // for being "all-zero" (the contrib path's null-return guard).
+  const contribRow = makeRow({
+    propertyName: 'La Maison du Lac',
+    accommodationAcompteContribTtc: 60,
+    accommodationSoldeContribTtc: 140,
+  });
+  const contribDriven = buildEntry(contribRow, quote, 'deposit', {
+    hasContribs: true,
+    optionLines: [], customOptionLines: [], resourceLines: [],
+    accommodationTtcCurrent: 200,
+  });
+  assert.equal(contribDriven.propertyName, 'La Maison du Lac');
+});
 
 test('direct booking — deposit + balance pro-rate against totalStayTtc (legacy unchanged)', () => {
   const row = makeRow({ platform: 'direct', depositAmount: 61.44, balanceAmount: 143.36 });
