@@ -61,10 +61,17 @@ export default function FinancePage() {
     { name: 'Restant', value: summary.totalPending },
   ] : [];
 
-  const barData = summary ? summary.reservations.map(r => ({
-    name: `${r.firstName} ${r.lastName}`,
-    montant: r.finalPrice,
-  })) : [];
+  // Replaces the legacy "Revenus par réservation" bar chart (one bar per stay) — that view
+  // got unreadable as soon as the period covered more than a handful of reservations, and
+  // Adrien rightly pointed out it didn't say much beyond a long list of names. The per-
+  // property aggregation answers the actually-interesting question: "quel logement génère
+  // le plus de revenu sur la période sélectionnée ?". Stacked: collected (paid in) + pending
+  // (still due) so the bar height = total expected revenue for that logement on the period.
+  const barData = summary?.revenueByProperty?.map((p) => ({
+    name: p.propertyName,
+    encaissé: p.collected,
+    enAttente: p.pending,
+  })) || [];
 
   // The server (financeModel.getOperational) owns all overdue/pending/upcoming derivation.
   const overduePayments = operational?.overdue.reservations || [];
@@ -119,16 +126,31 @@ export default function FinancePage() {
         <Grid item xs={12} md={7}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Revenus par réservation</Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="montant" fill="#1565c0" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <Typography variant="h6" gutterBottom>Revenus par logement</Typography>
+              {barData.length === 0 ? (
+                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Aucun encaissement sur la période sélectionnée.
+                  </Typography>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={barData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value) => `${Number(value).toLocaleString('fr-FR')} €`}
+                    />
+                    <Legend />
+                    {/* Stacked: bar height = total revenue (collected + pending) per logement.
+                        Green = already in the bank, orange = still expected. Same palette as
+                        the cards above so the visual mapping carries over. */}
+                    <Bar dataKey="encaissé"  stackId="rev" fill="#4CAF50" name="Encaissé" />
+                    <Bar dataKey="enAttente" stackId="rev" fill="#f57c00" name="En attente" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </Grid>
