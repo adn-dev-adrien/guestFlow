@@ -195,7 +195,16 @@ function buildPerLineData(database, row, quote) {
 //
 // Returns `null` when the entry boils down to pure tourist tax (excluded from the export).
 function buildEntry(row, quote, kind, perLineData) {
-  const finalPriceTtc = Number(quote.finalPrice || row.finalPrice || 0);
+  // Use the STORED `row.finalPrice` (= the price the user actually committed to and what every
+  // other GuestFlow surface displays — fiche réservation, projections, finance summary) and
+  // fall back to the engine's recompute only when the stored value is missing (iCal imports
+  // with blank prices). Regression 2026-06-02: Adrien spotted a transaction in the platforms
+  // table whose commission was 0 € while the fiche showed it correctly. Cause: the engine
+  // recomputed `quote.finalPrice` from the current pricing rules + options, which had drifted
+  // upwards from the stored `row.finalPrice` since the booking was paid. The commission
+  // (`gross − finalPrice`) collapsed to 0 because `quote.finalPrice ≥ gross`. Preferring the
+  // stored value makes both surfaces show the same number for the same money flow.
+  const finalPriceTtc = Number(row.finalPrice || quote.finalPrice || 0);
   const touristTaxTotal = Number(row.touristTaxTotal || 0);
   const totalStayTtc = finalPriceTtc + touristTaxTotal;
   const collectedOnArrival = Boolean(quote.touristTaxCollectedOnArrival);
