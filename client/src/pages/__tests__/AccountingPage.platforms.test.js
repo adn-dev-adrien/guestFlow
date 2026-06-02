@@ -44,7 +44,6 @@ const SAMPLE_PLATFORMS = {
       client: 'Jean Dupont',
       platform: 'airbnb',
       gross: 220,
-      net: 200,
       encaissement: 200,
       commission: 20,
     },

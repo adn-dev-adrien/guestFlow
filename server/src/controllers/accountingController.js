@@ -75,7 +75,6 @@ function createAccountingController(accountingModel) {
           client: `${e.client.firstName || ''} ${e.client.lastName || ''}`.trim() || `Réservation #${e.reservationId}`,
           platform: e.platform,
           gross: e.clientGrossAmount == null ? null : Number(e.clientGrossAmount),
-          net: Number(e.finalPrice),
           encaissement: Number(e.encaissementTtc),
           commission: e.clientGrossAmount == null ? null : Math.max(0, Math.round((Number(e.clientGrossAmount) - Number(e.finalPrice)) * 100) / 100),
         }));
