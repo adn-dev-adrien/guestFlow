@@ -147,6 +147,7 @@ app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/accounting', require('./routes/accounting'));
+app.use('/api/planning', require('./routes/planning'));
 
 app.get('/api/version', (req, res) => {
   res.json({

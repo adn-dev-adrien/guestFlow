@@ -37,6 +37,7 @@ const DDL = `
     smtpFromName TEXT DEFAULT 'GuestFlow',
     publicUrl TEXT DEFAULT '',
     allowEditPastReservations INTEGER NOT NULL DEFAULT 0,
+    laundryWeekday INTEGER NOT NULL DEFAULT 2,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );

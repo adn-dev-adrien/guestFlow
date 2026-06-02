@@ -54,8 +54,8 @@ function createOptionsModel(database) {
 
     create(payload = {}) {
       const insertOption = database.prepare(`
-        INSERT INTO options (title, description, priceType, price, optionProgressiveTiers, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO options (title, description, priceType, price, optionProgressiveTiers, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold, countsAsBedLinen)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       const optionId = database.transaction(() => {
@@ -69,6 +69,7 @@ function createOptionsModel(database) {
           payload.autoEnabled ? 1 : 0,
           payload.autoPricingMode || 'fixed',
           payload.autoFullNightThreshold || null,
+          payload.countsAsBedLinen ? 1 : 0,
         );
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
@@ -80,7 +81,7 @@ function createOptionsModel(database) {
     update(id, payload = {}) {
       const updateOption = database.prepare(`
         UPDATE options
-        SET title=?, description=?, priceType=?, price=?, optionProgressiveTiers=?, autoOptionType=?, autoEnabled=?, autoPricingMode=?, autoFullNightThreshold=?
+        SET title=?, description=?, priceType=?, price=?, optionProgressiveTiers=?, autoOptionType=?, autoEnabled=?, autoPricingMode=?, autoFullNightThreshold=?, countsAsBedLinen=?
         WHERE id=?
       `);
       const deleteLinks = database.prepare('DELETE FROM property_options WHERE optionId = ?');
@@ -96,6 +97,7 @@ function createOptionsModel(database) {
           payload.autoEnabled ? 1 : 0,
           payload.autoPricingMode || 'fixed',
           payload.autoFullNightThreshold || null,
+          payload.countsAsBedLinen ? 1 : 0,
           id,
         );
         deleteLinks.run(id);

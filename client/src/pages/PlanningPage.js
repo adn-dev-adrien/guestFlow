@@ -15,6 +15,7 @@ import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
+import LaundryDayCard from '../components/LaundryDayCard';
 import { displayDate } from '../utils/formatters';
 import api from '../api';
 
@@ -378,6 +379,10 @@ export default function PlanningPage() {
   const [properties, setProperties] = useState([]);
   const [resourceBookingsMap, setResourceBookingsMap] = useState({});
   const [departuresMap, setDeparturesMap] = useState({});
+  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Map ISO date → laundry-day
+  // payload `{ dropOff, pickUp }`. Server emits zero-everywhere days too; LaundryDayCard hides
+  // them silently so we don't need to filter here.
+  const [laundryByDate, setLaundryByDate] = useState({});
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -478,9 +483,11 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
+      // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
+      api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
     ]);
     const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
     const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -521,6 +528,14 @@ export default function PlanningPage() {
       rbByDate[rb.date].push(rb);
     }
     setResourceBookingsMap(rbByDate);
+
+    // Build laundryByDate from the new endpoint. Keys are ISO dates → LaundryDayCard props.
+    const lByDate = {};
+    for (const ld of (laundrySummary?.laundryDays || [])) {
+      lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
+    }
+    setLaundryByDate(lByDate);
+
     detectAlerts(days, properties);
     lastLoadedRef.current = to;
     setLoading(false);
@@ -540,6 +555,20 @@ export default function PlanningPage() {
       if (scrollHeight - scrollTop - clientHeight < 200 && !loading && lastLoadedRef.current) {
         const nextStart = addDays(lastLoadedRef.current, 1);
         const nextEnd = addDays(nextStart, DAYS_AHEAD - 1);
+        // Pull the next-window laundry summary alongside the reservations so the new days
+        // surface their LaundryDayCard right after they scroll into view. Non-blocking; an
+        // error here must not stop the infinite scroll.
+        api.getLaundryPlanningSummary({ from: nextStart, to: nextEnd })
+          .then((summary) => {
+            setLaundryByDate((prev) => {
+              const merged = { ...prev };
+              for (const ld of (summary?.laundryDays || [])) {
+                merged[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
+              }
+              return merged;
+            });
+          })
+          .catch(() => {});
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
           if (newReservations.length === 0) {
             lastLoadedRef.current = null;
@@ -758,6 +787,10 @@ export default function PlanningPage() {
                   />
                 </Box>
               </Box>
+
+              {/* Weekly bed-linen card (specs/weekly-bed-linen-tracking.md). Renders only on
+                  laundry days that actually have something to bring or pick up. */}
+              <LaundryDayCard data={laundryByDate[date]} />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>

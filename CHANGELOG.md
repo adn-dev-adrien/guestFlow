@@ -5,6 +5,22 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Weekly bed-linen tracking on the Planning page** (spec
+  `weekly-bed-linen-tracking.md`, 2026-06-02). Each laundry day (configurable weekday, default
+  Tuesday) now surfaces a small card under the day header of the Planning view showing the
+  number of sheet sets to bring (single + double + baby, summed across every checkout since the
+  previous laundry day on reservations that include a linen-flagged option) and to pick up (the
+  previous laundry day's drop-off). Both sides are independent — a quiet week renders nothing.
+  - New per-option flag `countsAsBedLinen` exposed as a checkbox in the option form: *"Cette
+    option compte des parures de draps"*. Pure metadata — zero pricing impact.
+  - New global setting `laundryWeekday` (0 = Sunday … 6 = Saturday, default 2 = Tuesday)
+    configurable in *Paramètres → Linge & blanchisserie*.
+  - New endpoint `GET /api/planning/laundry?from=…&to=…` returning every laundry-day occurrence
+    in the range with its `dropOff` + `pickUp` payloads. The client filters silent days.
+  - Server-side aggregation honours: `kind='reservation'` only, `offered=true` still counts,
+    option `quantity` is ignored (1 reservation = 1 set per bed), multiple linen-flagged options
+    on the same reservation still count once, window is `(L-7d, L]` (a check-out the laundry
+    morning joins that day's batch).
 - **Self-service email edit on `/account` with a persistent anti-lockout safety net** (spec
   `admin-account-management.md` follow-up #7, 2026-06-02). The "Mes informations" email field is
   now editable for every authenticated user — the bootstrap admin can replace the
@@ -32,6 +48,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   `server/src/database.js`. Stamped by `updateUser` whenever the email column is rewritten.
   Existing users see `NULL` → no banner, no behaviour change until they actually change their
   email.
+- **`options.countsAsBedLinen`** (`INTEGER NOT NULL DEFAULT 0`) and
+  **`app_settings.laundryWeekday`** (`INTEGER NOT NULL DEFAULT 2`) added by idempotent
+  ALTER TABLE in `server/src/database.js`. Existing options default to "not a linen option"
+  (the feature stays silent until Adrien ticks the flag). Default weekday = Tuesday.
 
 ### Changed
 - **Accountant CSV export aligned with the SOLIO example** (spec

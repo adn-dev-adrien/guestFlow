@@ -12,6 +12,7 @@ const {
   validateQuoteValidityDays,
   validateSmtpPort,
   validatePublicUrl,
+  validateLaundryWeekday,
 } = require('../utils/settingsValidation');
 
 const SAMPLE_PEM = [
@@ -148,4 +149,20 @@ test('validatePublicUrl: empty/null pass; http(s) URLs pass; bad scheme + invali
   assert.equal(validatePublicUrl('http://localhost:3000'), null);
   assert.match(validatePublicUrl('ftp://example.com'), /http/);
   assert.match(validatePublicUrl('not a url'), /URL invalide/);
+});
+
+// Weekly bed-linen tracking — laundry weekday validator (specs/weekly-bed-linen-tracking.md §4.3).
+test('validateLaundryWeekday accepts 0..6 and null/empty as no-op', () => {
+  for (let i = 0; i <= 6; i++) {
+    assert.equal(validateLaundryWeekday(i), null, `weekday ${i} should be valid`);
+  }
+  assert.equal(validateLaundryWeekday(null), null);
+  assert.equal(validateLaundryWeekday(''), null);
+});
+
+test('validateLaundryWeekday rejects out-of-range and non-integer values', () => {
+  assert.match(validateLaundryWeekday(-1), /entre 0/);
+  assert.match(validateLaundryWeekday(7), /entre 0/);
+  assert.match(validateLaundryWeekday(2.5), /entre 0/);
+  assert.match(validateLaundryWeekday('mardi'), /entre 0/);
 });

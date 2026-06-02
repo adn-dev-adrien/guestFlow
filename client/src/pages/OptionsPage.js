@@ -1,5 +1,7 @@
 import React from 'react';
-import { Box, Button, IconButton, TextField, Typography } from '@mui/material';
+import {
+  Box, Button, Checkbox, FormControlLabel, FormHelperText, IconButton, TextField, Typography,
+} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
@@ -21,6 +23,10 @@ const emptyOption = {
   price: 0,
   propertyIds: [],
   optionProgressiveTiers: [],
+  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Pure metadata flag — does
+  // not affect pricing. When true, this option's presence on a reservation makes that
+  // reservation's bed counts feed the Planning page's LaundryDayCard.
+  countsAsBedLinen: false,
 };
 
 function normalizeProgressiveTiers(raw) {
@@ -140,6 +146,8 @@ export default function OptionsPage() {
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
         optionProgressiveTiers: normalizeProgressiveTiers(item.optionProgressiveTiers),
+        // SQLite returns the boolean column as int 0/1 — normalise for the Checkbox.
+        countsAsBedLinen: Boolean(item.countsAsBedLinen),
       })}
       toPayload={(form) => ({
         title: form.title,
@@ -148,13 +156,31 @@ export default function OptionsPage() {
         priceType: form.priceType || 'per_stay',
         optionProgressiveTiers: normalizeProgressiveTiers(form.optionProgressiveTiers),
         propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
+        countsAsBedLinen: Boolean(form.countsAsBedLinen),
       })}
       formNameKey="title"
       formDescriptionKey="description"
       showQuantity={false}
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
       renderExtraFormFields={(form, setForm) => (
-        <ProgressivePricingFields form={form} setForm={setForm} />
+        <>
+          <ProgressivePricingFields form={form} setForm={setForm} />
+          {/* Bed-linen flag — drives the PlanningPage LaundryDayCard. Independent of pricing. */}
+          <Box sx={{ mt: 1 }}>
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={Boolean(form.countsAsBedLinen)}
+                  onChange={(e) => setForm({ ...form, countsAsBedLinen: e.target.checked })}
+                />
+              )}
+              label="Cette option compte des parures de draps"
+            />
+            <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
+              Permet de calculer automatiquement les parures à apporter à la blanchisserie.
+            </FormHelperText>
+          </Box>
+        </>
       )}
     />
   );

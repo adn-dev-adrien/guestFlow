@@ -649,6 +649,11 @@ tryAddOptionColumn('autoEnabled', "ALTER TABLE options ADD COLUMN autoEnabled IN
 tryAddOptionColumn('autoPricingMode', "ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT 'fixed'");
 tryAddOptionColumn('autoFullNightThreshold', "ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT");
 tryAddOptionColumn('optionProgressiveTiers', "ALTER TABLE options ADD COLUMN optionProgressiveTiers TEXT NOT NULL DEFAULT '[]'");
+// 2026-06-02 — bed-linen tracking (specs/weekly-bed-linen-tracking.md). Flags an option as
+// counting towards the weekly laundry batch on the Planning page. Pure metadata, no pricing
+// impact — the laundry endpoint joins reservation_options to this column to know which
+// reservations consumed sheets.
+tryAddOptionColumn('countsAsBedLinen', "ALTER TABLE options ADD COLUMN countsAsBedLinen INTEGER NOT NULL DEFAULT 0");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
@@ -966,6 +971,10 @@ tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLU
 tryAddAppSettingsCol('smtpFromEmail',         "ALTER TABLE app_settings ADD COLUMN smtpFromEmail TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT 'GuestFlow'");
 tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLUMN publicUrl TEXT DEFAULT ''");
+// 2026-06-02 — bed-linen tracking (specs/weekly-bed-linen-tracking.md). Day of week (0=Sun..6=Sat)
+// when Adrien drops the dirty linen at the laundry. Drives the LaundryDayCard on PlanningPage.
+// Default 2 (Tuesday) reflects current practice.
+tryAddAppSettingsCol('laundryWeekday',        "ALTER TABLE app_settings ADD COLUMN laundryWeekday INTEGER NOT NULL DEFAULT 2");
 // Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).

@@ -8,7 +8,8 @@ const DDL = `
   CREATE TABLE options (
     id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, priceType TEXT, price REAL,
     optionProgressiveTiers TEXT DEFAULT '[]', autoOptionType TEXT, autoEnabled INTEGER DEFAULT 0,
-    autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT
+    autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT,
+    countsAsBedLinen INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
 `;

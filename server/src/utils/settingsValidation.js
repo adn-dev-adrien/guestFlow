@@ -128,6 +128,16 @@ function validatePublicUrl(value) {
   }
 }
 
+// Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sunday … 6=Saturday,
+// JavaScript Date.getDay() convention. Returns a French error message on out-of-range.
+function validateLaundryWeekday(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isInteger(n)) return 'Doit être un entier entre 0 (dimanche) et 6 (samedi).';
+  if (n < 0 || n > 6) return 'Doit être un entier entre 0 (dimanche) et 6 (samedi).';
+  return null;
+}
+
 module.exports = {
   validateEmail,
   validateSiret,
@@ -140,6 +150,7 @@ module.exports = {
   validateVatRate,
   validateSmtpPort,
   validatePublicUrl,
+  validateLaundryWeekday,
   // exported for tests
   __test: { trimOrEmpty, stripWhitespace },
 };
