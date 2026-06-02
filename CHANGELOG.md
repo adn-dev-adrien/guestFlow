@@ -58,6 +58,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   (the feature stays silent until Adrien ticks the flag). Default weekday = Tuesday.
 
 ### Changed
+- **PlanningPage day-card colour palette** (spec `weekly-bed-linen-tracking.md` §6.1, follow-up
+  2026-06-02). Replaced the flat white default on every day-cell card to give a clearer visual
+  hierarchy at a glance:
+  - **LaundryDayCard**: laundry-themed cyan (`cyan[50]` bg + `cyan[200]` border + `cyan[800]`
+    icon/title) — visually the most prominent of the three card types.
+  - **ReservationCard (arrivée)**: warm peach background (`orange[50]`) when no alert is firing —
+    welcoming, attention-grabbing without being flashy. Alert (orange / red / blue) and "done"
+    (green) overlays still take priority.
+  - **DepartureMiniRow (départ)**: very pale grey (`grey[100]`) — deliberately quieter than the
+    arrival peach so arrivals dominate the eye at a glance.
 - **Accountant CSV export aligned with the SOLIO example** (spec
   `accountant-accounting-export.md` §3.4 rules 13–16, resolves §9 Q1). After Adrien received the
   `Exemple export ventes SOLIO.csv` reference file, the accountant CSV now matches it column-for-

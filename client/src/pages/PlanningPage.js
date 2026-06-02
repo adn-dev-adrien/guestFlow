@@ -3,6 +3,7 @@ import {
   Box, Typography, Card, CardContent, Checkbox, Chip, Divider,
   LinearProgress, TextField, Button, Tooltip, IconButton, Table, TableBody, TableCell, TableRow
 } from '@mui/material';
+import { orange, grey } from '@mui/material/colors';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PersonIcon from '@mui/icons-material/Person';
@@ -20,6 +21,15 @@ import { displayDate } from '../utils/formatters';
 import api from '../api';
 
 const DAYS_AHEAD = 14;
+
+// Day-card palette (PlanningPage). Tuned 2026-06-02 to make arrivals stand out from departures
+// without going flashy, with the laundry card carrying its own laundry-themed tone (see the
+// matching constant in LaundryDayCard).
+//   - Arrivals: warm peach (MUI orange[50]) — welcoming, attention-grabbing.
+//   - Departures: very pale grey (MUI grey[100]) — fades into the page on purpose.
+//   - "Done" green + alert overlays still take priority (see ReservationCard sx).
+const ARRIVAL_BG = orange[50];   // #FFF3E0
+const DEPARTURE_BG = grey[100];  // #F5F5F5
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr);
@@ -139,7 +149,9 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
     return Number.isInteger(value) ? value : Number(value.toFixed(2));
   };
 
-  let alertBgColor = 'background.paper';
+  // Default bg = ARRIVAL_BG (warm peach so the arrival card stands out from the page).
+  // Alert overlays still override — kept identical for visual continuity with prior screenshots.
+  let alertBgColor = ARRIVAL_BG;
   if (alertInfo?.type === 'orange') {
     alertBgColor = 'rgba(244, 67, 54, 0.10)';
   } else if (alertInfo?.type === 'red') {
@@ -292,7 +304,9 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
         mb: 1.5,
         borderRadius: 2,
         borderColor: done ? 'success.main' : 'divider',
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : 'background.paper',
+        // Default bg = DEPARTURE_BG (very soft grey — quieter than the arrival peach on purpose,
+        // departures need less visual pull than incoming bookings).
+        bgcolor: done ? 'rgba(76,175,80,0.06)' : DEPARTURE_BG,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
       }}

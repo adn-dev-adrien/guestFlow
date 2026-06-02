@@ -15,7 +15,15 @@
  */
 import React from 'react';
 import { Card, CardContent, Box, Typography, Stack } from '@mui/material';
+import { cyan } from '@mui/material/colors';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
+
+// Laundry-themed palette (2026-06-02). Cyan reads as "fresh / water / linen" without leaning
+// clinical or flashy. Three tones cascade — bg subtle → border just defined enough to pop off
+// the page → icon + title saturated enough to draw the eye to the actionable info.
+const LAUNDRY_BG = cyan[50];      // #E0F7FA
+const LAUNDRY_BORDER = cyan[200]; // #80DEEA
+const LAUNDRY_ACCENT = cyan[800]; // #00838F
 
 function totalSheets(side) {
   if (!side) return 0;
@@ -57,11 +65,11 @@ export default function LaundryDayCard({ data }) {
   if (dropTotal === 0 && pickTotal === 0) return null;
 
   return (
-    <Card variant="outlined" sx={{ mb: 1.25, bgcolor: 'grey.50', borderColor: 'divider' }}>
+    <Card variant="outlined" sx={{ mb: 1.25, bgcolor: LAUNDRY_BG, borderColor: LAUNDRY_BORDER }}>
       <CardContent sx={{ py: 1.25, px: 2, '&:last-child': { pb: 1.25 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <LocalLaundryServiceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          <LocalLaundryServiceIcon fontSize="small" sx={{ color: LAUNDRY_ACCENT }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: LAUNDRY_ACCENT }}>
             Linge à la blanchisserie
           </Typography>
         </Box>

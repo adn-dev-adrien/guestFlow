@@ -329,8 +329,22 @@ that fall on `laundryWeekday`, only when at least one side is non-zero.
 │ Arrival cards…                                               │
 ```
 
-Colour: a soft neutral background (e.g. `grey.50` with a `divider` border) — not
-warning-coloured, not success-coloured. It's information, not an alert.
+**Colour (post follow-up 2026-06-02).** Laundry-themed cyan palette tuned in `LaundryDayCard.js`:
+- Background: MUI `cyan[50]` (`#E0F7FA`) — fresh / water / linen, not flashy.
+- Border: MUI `cyan[200]` (`#80DEEA`) — just defined enough to pop off the page.
+- Icon + title accent: MUI `cyan[800]` (`#00838F`) — draws the eye to the actionable info.
+
+These three tones give the laundry card the **highest visual weight** of any per-day element on
+the Planning page (more visible than arrival peach, much more visible than departure grey), in
+line with Adrien's "this is operational info I must not miss" mental model.
+
+**Adjacent palette change (same follow-up):** ReservationCard (arrival) and DepartureMiniRow
+also moved away from the flat `background.paper` (white) default to give the day-cell its own
+visual rhythm:
+- Arrivals: warm peach (MUI `orange[50]` / `#FFF3E0`) — welcoming, attention-grabbing.
+- Departures: very pale grey (MUI `grey[100]` / `#F5F5F5`) — quieter than arrivals on purpose.
+- Existing overrides (alert orange/red/blue, "done" green) still take priority over these
+  base tones; the change is only the no-alert + not-done default.
 
 Empty side (e.g. zero pick-up) reads "—" so the visual symmetry is preserved.
 
