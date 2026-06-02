@@ -177,9 +177,11 @@ neither.
 | `controllers/planningController.js` | `planningController.js` | C | New controller. Action `laundrySummary(req, res)` — reads `from`, `to` query params, the `laundryWeekday` from settings, iterates the laundry days in range, queries `laundryModel.dropOffForWindow` for both each laundry day AND its `prev` day (for pick-up). Returns the payload. |
 | `routes/planning.js` | `planning.js` | C | New file. Mounts `GET /api/planning/laundry`. Uses `requireAuth`. |
 | `index.js` | `index.js` | T | Wires the new router. |
+| `utils/bedLinenSeed.js` | `bedLinenSeed.js` | C | **Follow-up §4.4**. Boot-time seed of the default "Linge de lit" option. Non-destructive: short-circuits if the typed row already exists OR if any operator-adopted option already carries `countsAsBedLinen=1`. |
 | `tests/` | `laundry-window.unit.test.js` | C | Pure helpers: weekday math, range iteration, edge of month / year, DST-safe ISO arithmetic. |
 | `tests/` | `laundry-model.unit.test.js` | C | In-memory DB. Covers: only flagged options count; offered flag ignored; quantity ignored; multiple flagged options on one reservation count once; kind='devis' excluded; window half-openness (`(start, end]`); empty results return zeros. |
 | `tests/` | `planning-laundry-controller.unit.test.js` | C | Fake models. Covers: drop-off and pick-up per laundry day in range; weekday change in settings is honoured; empty days are still listed with zero (the client filters the no-op cards, not the controller — keeps the contract uniform). |
+| `tests/` | `bed-linen-seed.unit.test.js` | C | **Follow-up §4.4**. 6 cases: fresh DB inserts the typed seed; idempotency on second boot; operator-adopted option already with `countsAsBedLinen=1` skipped; unrelated options don't prevent seed; schema missing the new column degrades gracefully; SQLite error caught + returned as `{ action: 'error' }`. |
 
 **Notes:**
 - `routes/planning.js` is new. The current `/api/reservations` endpoint is **not**
@@ -229,6 +231,48 @@ the current value (typical PATCH-style merge already in place).
 
 The settings resource (`GET / PUT /api/settings`) gains `laundryWeekday`
 (integer 0..6). Reject out-of-range values with `400 INVALID_WEEKDAY`.
+
+### 4.4 Default "Linge de lit" option (follow-up, 2026-06-02)
+
+Per Adrien's request: the feature must ship with a default linen option already in place so
+the operator doesn't have to manually create one. The seed mirrors the
+`early_check_in` / `late_check_out` typed-option pattern (carries `autoOptionType =
+'bed_linen'` → undeletable in the OptionsPage UI via the existing
+`isDeleteDisabled={(item) => Boolean(item.autoOptionType)}` rule).
+
+**Non-destructive seed rules.** Some prod servers already have a manually-created linen
+option from before this feature existed. The seeder must NOT overwrite it nor create a
+duplicate beside it. It runs on every boot and short-circuits in two branches:
+
+1. **Typed seed already exists** (`SELECT 1 FROM options WHERE autoOptionType = 'bed_linen'`
+   returns a row) → idempotent no-op. Common case on every boot after the first.
+2. **Operator-adopted option** (`SELECT 1 FROM options WHERE countsAsBedLinen = 1` returns a
+   row, even without the `autoOptionType` marker) → seed skipped. The operator's
+   customised option keeps its identity (name, price, description).
+
+Only when **both** branches return zero does the seed insert a row with:
+
+| Column | Value |
+|---|---|
+| `title` | `Linge de lit` |
+| `description` | `Parure complète (drap, drap-housse, taie d'oreiller). Compte les parures à apporter / récupérer à la blanchisserie.` |
+| `priceType` | `per_stay` |
+| `price` | `0` (Adrien sets the actual price via the OptionsPage form) |
+| `autoOptionType` | `bed_linen` (drives undeletability) |
+| `autoEnabled` | `0` (no automatic add; Adrien picks the option per reservation) |
+| `countsAsBedLinen` | `1` (drives the LaundryDayCard out of the box) |
+
+**Trade-off**: on a prod server where Adrien had a manual "Linge de lit" option but never
+ticked the new flag, the seed will run and insert the typed version alongside the manual
+one. He then has two options. The fix is manual: either delete the manual one (the typed
+one stays undeletable) or tick the flag on the manual one before the next migration boot.
+This is intentional — auto-detecting the "right" pre-existing option by fuzzy title match
+would be brittle and could pick the wrong row.
+
+**Boot-time logging:** the seed logs one of `[Database] ✅ Default bed-linen option
+seeded.`, `[Database] Bed-linen seed skipped: an option with countsAsBedLinen=1 already
+exists (operator-customised)`, or stays silent on the already-seeded path. Errors
+(SQLite busy, missing schema) are caught + logged, never crash the boot.
 
 ---
 

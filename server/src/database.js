@@ -1293,6 +1293,26 @@ try {
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 
+// ---------- Default "Linge de lit" auto-option (specs/weekly-bed-linen-tracking.md) ----------
+// Unlike early_check_in / late_check_out (which are seeded per-property and linked through
+// property_options), the bed-linen option is a GLOBAL toggleable option Adrien adds manually
+// to a reservation. It also carries `countsAsBedLinen = 1` so it drives the LaundryDayCard
+// out of the box.
+//
+// Non-destructive rules — both must hold for the seed to insert:
+//   1. No option already carries `autoOptionType = 'bed_linen'` (idempotency across boots).
+//   2. No option already carries `countsAsBedLinen = 1` (some prod servers have an existing
+//      manual "Linge de lit" option Adrien already adopted by ticking the new flag — we must
+//      NOT add a duplicate alongside it).
+//
+// If only the manual option exists (countsAsBedLinen=1 without the autoOptionType marker), the
+// seed is skipped on purpose: the operator's customised option keeps priority. They can later
+// either: rename it to keep working as-is, or delete it + run `npm run reset-admin`-style
+// cleanup (out of scope here — manual edit suffices). Documented in the spec.
+const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
+ensureDefaultBedLinenOption(db);
+db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

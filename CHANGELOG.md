@@ -13,6 +13,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   previous laundry day's drop-off). Both sides are independent — a quiet week renders nothing.
   - New per-option flag `countsAsBedLinen` exposed as a checkbox in the option form: *"Cette
     option compte des parures de draps"*. Pure metadata — zero pricing impact.
+  - **Default "Linge de lit" option seeded at boot** — undeletable in the UI via
+    `autoOptionType='bed_linen'` (same pattern as the early/late check-in options). The seed
+    is non-destructive: skipped when an option already carries `countsAsBedLinen=1`
+    (operator-customised setup) or when the typed seed is already in place (idempotent boots).
   - New global setting `laundryWeekday` (0 = Sunday … 6 = Saturday, default 2 = Tuesday)
     configurable in *Paramètres → Linge & blanchisserie*.
   - New endpoint `GET /api/planning/laundry?from=…&to=…` returning every laundry-day occurrence
