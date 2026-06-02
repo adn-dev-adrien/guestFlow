@@ -233,9 +233,9 @@ export default function AccountingPage() {
                       <TableCell>Logement</TableCell>
                       <TableCell>Client</TableCell>
                       <TableCell>Plateforme</TableCell>
-                      <TableCell>Brut payé client</TableCell>
                       <TableCell>Encaissement</TableCell>
                       <TableCell>Commission</TableCell>
+                      <TableCell>Brut payé client</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -256,9 +256,9 @@ export default function AccountingPage() {
                           <TableCell>{row.propertyName || '—'}</TableCell>
                           <TableCell>{row.client}</TableCell>
                           <TableCell>{row.platform}</TableCell>
-                          <TableCell>{formatEur(row.gross)}</TableCell>
                           <TableCell>{formatEur(row.encaissement)}</TableCell>
                           <TableCell>{formatEur(row.commission)}</TableCell>
+                          <TableCell>{formatEur(row.gross)}</TableCell>
                         </TableRow>
                       );
                     })}
