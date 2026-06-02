@@ -15,8 +15,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     option compte des parures de draps"*. Pure metadata — zero pricing impact.
   - **Default "Linge de lit" option seeded at boot** — undeletable in the UI via
     `autoOptionType='bed_linen'` (same pattern as the early/late check-in options). The seed
-    is non-destructive: skipped when an option already carries `countsAsBedLinen=1`
-    (operator-customised setup) or when the typed seed is already in place (idempotent boots).
+    has three branches: idempotent skip when the typed row exists; **promote in place** when
+    an existing option already carries `countsAsBedLinen=1` (the row keeps Adrien's name /
+    price / description and just gains the `autoOptionType` marker so it becomes
+    undeletable); fresh insert otherwise. Earlier behaviour (skip) left the operator's
+    adopted option deletable — this follow-up makes it default in all three branches.
   - **Bathroom-linen tracking (towels) — §3.5.bis follow-up.** Strict mirror of the bed-linen
     feature: a second independent flag `countsAsBathroomLinen` + checkbox *"Cette option compte
     des serviettes de toilette"*, a default **"Linge de toilette"** seed (`autoOptionType =

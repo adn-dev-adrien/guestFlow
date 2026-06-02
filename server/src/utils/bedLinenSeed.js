@@ -45,12 +45,22 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
       // common path on every restart after the first.
       return { action: 'skipped-already-seeded' };
     }
-    const hasAdoptedOption = database.prepare(
-      'SELECT COUNT(*) AS n FROM options WHERE countsAsBedLinen = 1'
-    ).get().n > 0;
-    if (hasAdoptedOption) {
-      logger.log('[Database] Bed-linen seed skipped: an option with countsAsBedLinen=1 already exists (operator-customised)');
-      return { action: 'skipped-already-adopted' };
+    // PROMOTION PATH (2026-06-02 follow-up). When a prior version of this seeder skipped on
+    // "operator-customised" detection, the operator's option stayed deletable because it never
+    // got the `autoOptionType` marker (the only signal `OptionsPage` reads for the
+    // undeletability rule). Instead of skipping, we now PROMOTE every adopted row in place:
+    // set `autoOptionType = 'bed_linen'` so the UI treats it as the default linen option. The
+    // operator's customisations (title, price, description) are preserved — only the type
+    // marker is added. After promotion, subsequent boots short-circuit via `hasTypedSeed`.
+    const promotion = database.prepare(`
+      UPDATE options
+         SET autoOptionType = 'bed_linen'
+       WHERE countsAsBedLinen = 1
+         AND (autoOptionType IS NULL OR autoOptionType = '')
+    `).run();
+    if (promotion.changes > 0) {
+      logger.log(`[Database] ✅ Bed-linen seed promoted ${promotion.changes} existing option(s) to the typed bed_linen marker (kept name/price/description).`);
+      return { action: 'promoted-adopted', count: promotion.changes };
     }
     database.prepare(`
       INSERT INTO options (

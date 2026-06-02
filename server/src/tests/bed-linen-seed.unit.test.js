@@ -56,21 +56,62 @@ test('seed is idempotent: second call inserts nothing', () => {
   assert.equal(n, 1, 'no duplicate row');
 });
 
-test('seed skips when an operator-customised option already carries countsAsBedLinen=1', () => {
-  // Models the prod scenario: Adrien had a "Linge" option BEFORE the feature shipped, then
-  // upgraded + ticked the new countsAsBedLinen flag. The seeder must not duplicate it.
+test('seed PROMOTES an operator-customised option in place (keeps title/price, adds autoOptionType)', () => {
+  // Prod scenario: Adrien had a "Linge personnel" option BEFORE the feature shipped, then
+  // upgraded + ticked the new countsAsBedLinen flag. Earlier the seed would skip and leave it
+  // deletable; now it promotes the row in place — the operator's customisations stay, but the
+  // option becomes undeletable in the UI thanks to the `autoOptionType` marker.
   const db = makeDb();
   db.prepare(
     "INSERT INTO options (title, priceType, price, countsAsBedLinen) VALUES ('Linge personnel', 'per_stay', 12, 1)"
   ).run();
 
   const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
-  assert.equal(result.action, 'skipped-already-adopted');
-  // The pre-existing option is untouched + no typed-seed row was added.
+  assert.equal(result.action, 'promoted-adopted');
+  assert.equal(result.count, 1);
+  // The pre-existing option still has Adrien's name + price, and is now typed.
   const all = db.prepare('SELECT * FROM options ORDER BY id').all();
-  assert.equal(all.length, 1);
+  assert.equal(all.length, 1, 'no duplicate row inserted');
   assert.equal(all[0].title, 'Linge personnel');
-  assert.equal(all[0].autoOptionType, null);
+  assert.equal(Number(all[0].price), 12);
+  assert.equal(all[0].autoOptionType, 'bed_linen', 'now undeletable in the UI');
+});
+
+test('seed PROMOTES multiple adopted options if Adrien runs several flagged variants', () => {
+  // Edge case from spec rule 16: nothing forbids carrying the flag on multiple options
+  // ("Standard" + "Premium"). All matching rows should be promoted in one pass.
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price, countsAsBedLinen) VALUES ('Linge de lit Standard', 'per_stay', 0, 1)"
+  ).run();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price, countsAsBedLinen) VALUES ('Linge de lit Premium', 'per_stay', 25, 1)"
+  ).run();
+
+  const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(result.action, 'promoted-adopted');
+  assert.equal(result.count, 2);
+  const all = db.prepare("SELECT * FROM options WHERE autoOptionType = 'bed_linen' ORDER BY id").all();
+  assert.equal(all.length, 2);
+  assert.deepEqual(all.map((r) => r.title), ['Linge de lit Standard', 'Linge de lit Premium']);
+});
+
+test('seed does NOT overwrite an adopted option that already has a different autoOptionType', () => {
+  // Defensive: a manual `autoOptionType` set to some other value (e.g. a typo or a future
+  // type we don't know about yet) MUST be preserved. The promotion only touches NULL / empty.
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price, autoOptionType, countsAsBedLinen) VALUES ('Custom typed', 'per_stay', 0, 'custom_marker', 1)"
+  ).run();
+
+  const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  // No bed_linen row exists → fresh seed path (the "Custom typed" row's marker isn't bed_linen),
+  // so the seeder INSERTS a brand-new typed seed alongside. The custom row is left alone.
+  assert.equal(result.action, 'seeded');
+  const customRow = db.prepare("SELECT * FROM options WHERE title = 'Custom typed'").get();
+  assert.equal(customRow.autoOptionType, 'custom_marker', 'custom marker preserved');
+  const seedRow = db.prepare("SELECT * FROM options WHERE autoOptionType = 'bed_linen'").get();
+  assert.equal(seedRow.title, 'Linge de lit');
 });
 
 test('seed inserts even when other unrelated options exist, none flagged', () => {

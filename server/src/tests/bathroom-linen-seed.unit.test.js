@@ -55,18 +55,21 @@ test('seed is idempotent: second call inserts nothing', () => {
   assert.equal(n, 1, 'no duplicate row');
 });
 
-test('seed skips when an operator-customised option already carries countsAsBathroomLinen=1', () => {
+test('seed PROMOTES an operator-customised option in place (keeps title/price, adds autoOptionType)', () => {
+  // Strict mirror of the bed-linen promotion behaviour.
   const db = makeDb();
   db.prepare(
     "INSERT INTO options (title, priceType, price, countsAsBathroomLinen) VALUES ('Accès SPA + serviettes', 'per_stay', 25, 1)"
   ).run();
 
   const result = ensureDefaultBathroomLinenOption(db, { logger: NULL_LOGGER });
-  assert.equal(result.action, 'skipped-already-adopted');
+  assert.equal(result.action, 'promoted-adopted');
+  assert.equal(result.count, 1);
   const all = db.prepare('SELECT * FROM options ORDER BY id').all();
   assert.equal(all.length, 1);
   assert.equal(all[0].title, 'Accès SPA + serviettes');
-  assert.equal(all[0].autoOptionType, null);
+  assert.equal(Number(all[0].price), 25);
+  assert.equal(all[0].autoOptionType, 'bathroom_linen', 'now undeletable in the UI');
 });
 
 test('seed and bed-linen seed do NOT conflict: each only checks its own flag', () => {

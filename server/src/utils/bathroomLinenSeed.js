@@ -34,12 +34,18 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
     if (hasTypedSeed) {
       return { action: 'skipped-already-seeded' };
     }
-    const hasAdoptedOption = database.prepare(
-      'SELECT COUNT(*) AS n FROM options WHERE countsAsBathroomLinen = 1'
-    ).get().n > 0;
-    if (hasAdoptedOption) {
-      logger.log('[Database] Bathroom-linen seed skipped: an option with countsAsBathroomLinen=1 already exists (operator-customised)');
-      return { action: 'skipped-already-adopted' };
+    // PROMOTION PATH (2026-06-02 follow-up) — see utils/bedLinenSeed.js for the rationale.
+    // Same shape: any adopted row without `autoOptionType` is promoted in place to make it
+    // undeletable while preserving the operator's title / price / description.
+    const promotion = database.prepare(`
+      UPDATE options
+         SET autoOptionType = 'bathroom_linen'
+       WHERE countsAsBathroomLinen = 1
+         AND (autoOptionType IS NULL OR autoOptionType = '')
+    `).run();
+    if (promotion.changes > 0) {
+      logger.log(`[Database] ✅ Bathroom-linen seed promoted ${promotion.changes} existing option(s) to the typed bathroom_linen marker (kept name/price/description).`);
+      return { action: 'promoted-adopted', count: promotion.changes };
     }
     database.prepare(`
       INSERT INTO options (
