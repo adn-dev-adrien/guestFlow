@@ -4,6 +4,34 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Self-service email edit on `/account` with a persistent anti-lockout safety net** (spec
+  `admin-account-management.md` follow-up #7, 2026-06-02). The "Mes informations" email field is
+  now editable for every authenticated user — the bootstrap admin can replace the
+  `admin@guestflow.local` seed with a real address (the same one that's used to log in). To make
+  this safe given that the email IS the login identifier:
+  - `PUT /api/users/me` accepts an optional `email` key — normalised, validated, unique-checked
+    (`400 INVALID_EMAIL`, `409 EMAIL_ALREADY_EXISTS`). Same-value is a no-op. `roles` still
+    stripped server-side (privilege guard unchanged).
+  - `GET /api/users/me/email-status` now returns
+    `{ myEmail, defaultStillUsed, mustVerifyNewEmail, emailChangedAt }`. `defaultStillUsed`
+    drives the red highlight on the email field in SelfProfileSection when the operator is still
+    on the seed; `mustVerifyNewEmail` drives the new persistent banner.
+  - **`EmailVerifyBanner`** mounted in `AppShell` — visible on every page until the operator has
+    logged out and logged back in once with the new email (closes the typo-then-logout lockout).
+    Self-clearing: the login flow updates `lastLoginAt`, the banner detects it on the next poll
+    and disappears.
+  - **`npm run reset-admin` recovery extended** — now handles the case where the operator
+    changed their email and forgot it: the OLDEST admin row is renamed back to
+    `admin@guestflow.local` instead of silently creating a second admin row. `emailChangedAt` is
+    also cleared on reset so the recovered account doesn't show the verification banner.
+
+### Migration
+- **`users.emailChangedAt`** (`TEXT NULL`) added by an idempotent ALTER TABLE in
+  `server/src/database.js`. Stamped by `updateUser` whenever the email column is rewritten.
+  Existing users see `NULL` → no banner, no behaviour change until they actually change their
+  email.
+
 ### Changed
 - **Accountant CSV export aligned with the SOLIO example** (spec
   `accountant-accounting-export.md` §3.4 rules 13–16, resolves §9 Q1). After Adrien received the

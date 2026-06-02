@@ -17,6 +17,7 @@ function renderSection(props = {}) {
   return render(
     <SelfProfileSection
       initialValues={initialValues}
+      emailStatus={props.emailStatus}
       fieldErrors={props.fieldErrors ?? {}}
       busy={props.busy ?? false}
       onSubmit={props.onSubmit ?? jest.fn()}
@@ -25,7 +26,7 @@ function renderSection(props = {}) {
 }
 
 describe('SelfProfileSection', () => {
-  test('pre-fills every editable field from initialValues + locks the email', () => {
+  test('pre-fills every editable field from initialValues + email is editable (2026-06-02)', () => {
     renderSection();
 
     expect(screen.getByLabelText(/Prénom/)).toHaveValue('Adrien');
@@ -34,8 +35,30 @@ describe('SelfProfileSection', () => {
     expect(screen.getByLabelText(/Note/)).toHaveValue('');
     const email = screen.getByLabelText(/Email/);
     expect(email).toHaveValue('adrien@example.com');
-    expect(email).toBeDisabled();
-    expect(screen.getByText(/L'email n'est pas modifiable depuis ce formulaire/)).toBeInTheDocument();
+    expect(email).not.toBeDisabled();
+    // Neutral helper text when the email is not the bootstrap seed.
+    expect(screen.getByText(/C'est l'adresse utilisée pour vous connecter/)).toBeInTheDocument();
+  });
+
+  test('red default-email warning fires when the user still has the bootstrap seed + the server confirms it', () => {
+    renderSection({
+      initialValues: { ...BASE, email: 'admin@guestflow.local' },
+      emailStatus: { defaultStillUsed: true },
+    });
+    const email = screen.getByLabelText(/Email/);
+    expect(email).toHaveValue('admin@guestflow.local');
+    // MUI's `error` prop adds Mui-error on both the input AND the helper text wrapper.
+    expect(screen.getByText(/Vous utilisez encore l'adresse par défaut/)).toBeInTheDocument();
+  });
+
+  test('default-email warning stays silent when the server says the seed has already been replaced', () => {
+    // Edge case: the local draft still reads `admin@guestflow.local` only because the parent has not
+    // yet refreshed (server confirmed it's gone). We rely on `defaultStillUsed` to gate the warning.
+    renderSection({
+      initialValues: { ...BASE, email: 'admin@guestflow.local' },
+      emailStatus: { defaultStillUsed: false },
+    });
+    expect(screen.queryByText(/Vous utilisez encore l'adresse par défaut/)).not.toBeInTheDocument();
   });
 
   test('Save + Cancel are disabled until the user modifies a field, re-disabled on Cancel', async () => {
@@ -58,7 +81,7 @@ describe('SelfProfileSection', () => {
     expect(cancel).toBeDisabled();
   });
 
-  test('submit forwards a trimmed payload containing only the editable fields (no email, no roles)', async () => {
+  test('submit forwards a trimmed payload including email (editable since 2026-06-02), never roles', async () => {
     const user = userEvent.setup();
     const onSubmit = jest.fn();
     renderSection({ onSubmit });
@@ -74,12 +97,12 @@ describe('SelfProfileSection', () => {
     expect(payload).toEqual({
       firstName: 'Marie',
       lastName: 'Jouve',
+      email: 'adrien@example.com',
       companyName: 'Domaine Solio',
       notes: 'Nouveau bureau',
     });
-    // The payload must never carry email / roles — the server already strips them defensively, but
-    // the client should not even send them so the contract stays clean.
-    expect(payload.email).toBeUndefined();
+    // Roles must never leak from this form — the server's PUT /api/users/me strips them
+    // defensively, but the client should not even send the key (self-privilege guard).
     expect(payload.roles).toBeUndefined();
   });
 
@@ -87,6 +110,7 @@ describe('SelfProfileSection', () => {
     renderSection({ busy: true });
     expect(screen.getByLabelText(/Prénom/)).toBeDisabled();
     expect(screen.getByLabelText(/Nom/)).toBeDisabled();
+    expect(screen.getByLabelText(/Email/)).toBeDisabled();
     expect(screen.getByLabelText(/Société/)).toBeDisabled();
     expect(screen.getByLabelText(/Note/)).toBeDisabled();
     expect(screen.getByRole('button', { name: /Enregistrer/i })).toBeDisabled();

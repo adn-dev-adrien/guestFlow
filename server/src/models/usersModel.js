@@ -7,7 +7,11 @@
  *
  * Safe user shape (returned everywhere):
  *   { id, email, firstName, lastName, companyName, notes, roles: string[], isActive,
- *     mustChangePassword, lastLoginAt }
+ *     mustChangePassword, lastLoginAt, emailChangedAt }
+ *
+ * `emailChangedAt` (added 2026-06-02): ISO timestamp of the last `updateUser` call that mutated
+ * the email column. Lets the client surface the "vérifier votre nouvelle adresse" banner until the
+ * operator has logged in once with the new address (i.e. `lastLoginAt > emailChangedAt`).
  *
  * Roles are stored in `user_roles(userId, role)` with ON DELETE CASCADE. Every user MUST have at
  * least one role; setRoles + createUser reject empty role arrays.
@@ -54,6 +58,22 @@ function buildModel(database) {
     UPDATE users SET firstName = ?, lastName = ?, companyName = ?, notes = ?, updatedAt = datetime('now')
     WHERE id = ?
   `);
+  // Separate statement for the email so the existing updateUser callers that don't touch
+  // the email (the common path — name + company + notes) keep their atomic write. Email
+  // change is rarer and carries its own validation + uniqueness handling above the SQL.
+  // Also stamps `emailChangedAt` so the client knows the operator hasn't logged in with the new
+  // address yet — the persistent verification banner clears once `lastLoginAt > emailChangedAt`.
+  const updateEmailStmt = database.prepare(`
+    UPDATE users
+       SET email = ?, emailChangedAt = datetime('now'), updatedAt = datetime('now')
+     WHERE id = ?
+  `);
+  // Clears the verification banner without changing the email — used by the recovery path
+  // (`resetAdminToDefault`) so a freshly-restored seed account doesn't carry the banner from the
+  // pre-reset session.
+  const clearEmailChangedStmt = database.prepare(
+    "UPDATE users SET emailChangedAt = NULL, updatedAt = datetime('now') WHERE id = ?"
+  );
   const softDeleteStmt = database.prepare("UPDATE users SET isActive = 0, updatedAt = datetime('now') WHERE id = ?");
   const hardDeleteStmt = database.prepare('DELETE FROM users WHERE id = ?');
   const touchLastLoginStmt = database.prepare("UPDATE users SET lastLoginAt = datetime('now') WHERE id = ?");
@@ -81,6 +101,7 @@ function buildModel(database) {
       isActive: Number(row.isActive) === 1,
       mustChangePassword: Number(row.mustChangePassword) === 1,
       lastLoginAt: row.lastLoginAt || null,
+      emailChangedAt: row.emailChangedAt || null,
     };
   }
 
@@ -172,10 +193,28 @@ function buildModel(database) {
     },
 
     // Update identity + roles (atomic when both touched). Email is NOT editable here.
-    updateUser(id, { firstName, lastName, companyName, notes, roles }) {
+    updateUser(id, { firstName, lastName, companyName, notes, roles, email }) {
       const numericId = Number(id);
       const existing = findByIdStmt.get(numericId);
       if (!existing) return null;
+
+      // Optional email change — normalize, check it's actually different, then enforce
+      // uniqueness BEFORE the write so we don't have to map a SQLite unique-constraint
+      // exception back to a meaningful error code. Returns the same `EMAIL_ALREADY_EXISTS`
+      // sentinel as `createUser` so the controller can branch on err.code uniformly.
+      let normalizedEmail;
+      if (email !== undefined && email !== null) {
+        normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail && normalizedEmail !== existing.email) {
+          const conflict = findByEmailStmt.get(normalizedEmail);
+          if (conflict && Number(conflict.id) !== numericId) {
+            const err = new Error('EMAIL_ALREADY_EXISTS');
+            err.code = 'EMAIL_ALREADY_EXISTS';
+            throw err;
+          }
+        }
+      }
+
       const tx = database.transaction(() => {
         updateUserStmt.run(
           firstName === undefined ? existing.firstName : String(firstName || '').trim(),
@@ -184,10 +223,22 @@ function buildModel(database) {
           notes === undefined ? existing.notes : String(notes || '').trim(),
           numericId,
         );
+        if (normalizedEmail && normalizedEmail !== existing.email) {
+          updateEmailStmt.run(normalizedEmail, numericId);
+        }
         if (roles !== undefined) setRoles(numericId, roles);
       });
       tx();
       return toSafeUser(findByIdStmt.get(numericId));
+    },
+
+    // True iff at least one user row STILL holds the bootstrap seed email
+    // (`admin@guestflow.local`). The Mes informations card flags it in red so the operator
+    // gets prompted to set a real address; the bootstrap email is a default placeholder,
+    // not something to keep using in prod.
+    isDefaultAdminEmailStillUsed() {
+      const row = findByEmailStmt.get(DEFAULT_ADMIN_EMAIL);
+      return Boolean(row);
     },
 
     setRoles,
@@ -244,19 +295,54 @@ function buildModel(database) {
       return activeAdminCountStmt.get(ADMIN).n;
     },
 
-    // Recovery: restore the default admin account to the documented default password with a forced
-    // change, re-activating (or recreating) it. Used by the `reset-admin` CLI when access is lost.
+    // Recovery: restore an admin account to the documented default email + password with a forced
+    // change, re-activating it. Used by the `reset-admin` CLI when access is lost.
+    //
+    // Three cases handled (in priority order):
+    //   1. A row already holds `admin@guestflow.local` → reset its password + roles (statu quo).
+    //   2. No row holds the seed email BUT at least one admin row exists (typical post-2026-06-02
+    //      scenario: the operator changed their email and lost it) → restore the OLDEST admin's
+    //      email to `admin@guestflow.local`, reset password + roles, clear `emailChangedAt`. This is
+    //      what makes the recovery script actually fix the "I changed my email and forgot it"
+    //      lockout instead of silently piling up a second admin row beside an unreachable one.
+    //   3. No admin row at all → create the seed from scratch (statu quo).
     resetAdminToDefault() {
       const hash = hashPassword(DEFAULT_ADMIN_PASSWORD);
       const existing = findByEmailStmt.get(DEFAULT_ADMIN_EMAIL);
+      // Case 2 fallback target: the oldest admin row (id ASC), if any.
+      const findOldestAdminStmt = database.prepare(`
+        SELECT u.* FROM users u
+        JOIN user_roles r ON r.userId = u.id
+        WHERE r.role = ?
+        ORDER BY u.id ASC
+        LIMIT 1
+      `);
       const tx = database.transaction(() => {
         if (existing) {
           resetPasswordStmt.run(hash, existing.id);
+          clearEmailChangedStmt.run(existing.id);
           setRoles(existing.id, [ADMIN]);
-        } else {
-          const result = insertUserStmt.run(DEFAULT_ADMIN_EMAIL, hash, '', '', '', '');
-          setRoles(Number(result.lastInsertRowid), [ADMIN]);
+          return;
         }
+        const fallbackAdmin = findOldestAdminStmt.get(ADMIN);
+        if (fallbackAdmin) {
+          // Make sure the seed email isn't held by some non-admin row (unlikely but defensive — the
+          // UNIQUE index would reject the rename otherwise).
+          const seedHolder = findByEmailStmt.get(DEFAULT_ADMIN_EMAIL);
+          if (seedHolder && Number(seedHolder.id) !== Number(fallbackAdmin.id)) {
+            throw new Error('SEED_EMAIL_HELD_BY_OTHER_USER');
+          }
+          updateEmailStmt.run(DEFAULT_ADMIN_EMAIL, fallbackAdmin.id);
+          // updateEmailStmt re-stamps emailChangedAt — clear it so the recovered account doesn't
+          // surface the verification banner on first login.
+          clearEmailChangedStmt.run(fallbackAdmin.id);
+          resetPasswordStmt.run(hash, fallbackAdmin.id);
+          setRoles(fallbackAdmin.id, [ADMIN]);
+          return;
+        }
+        // Case 3 — bootstrap a brand-new admin from nothing.
+        const result = insertUserStmt.run(DEFAULT_ADMIN_EMAIL, hash, '', '', '', '');
+        setRoles(Number(result.lastInsertRowid), [ADMIN]);
       });
       tx();
       return DEFAULT_ADMIN_EMAIL;

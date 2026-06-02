@@ -22,6 +22,7 @@ function makeDb() {
       mustChangePassword INTEGER NOT NULL DEFAULT 0,
       isActive INTEGER NOT NULL DEFAULT 1,
       lastLoginAt TEXT,
+      emailChangedAt TEXT,
       createdAt TEXT, updatedAt TEXT
     );
     CREATE UNIQUE INDEX uniq_users_email ON users(email);
@@ -140,4 +141,93 @@ test('resetAdminToDefault recreates the admin (with the admin role) when the row
   assert.ok(user);
   assert.equal(user.mustChangePassword, true);
   assert.deepEqual(user.roles, ['admin']);
+});
+
+// 2026-06-02 — email is editable for the self-service profile. These tests pin the safeguards
+// that keep the admin's login path safe across the change: emailChangedAt tracking, the
+// "operator forgot their custom email" recovery path in resetAdminToDefault, and the model's
+// uniqueness enforcement on the new email.
+
+test('updateUser stamps emailChangedAt iff the email actually changes', () => {
+  const db = makeDb();
+  seedUser(db, { email: 'old@example.org' });
+  const model = usersModel.buildModel(db);
+  const id = model.findByEmail('old@example.org').id;
+
+  // No email key → no stamp.
+  let updated = model.updateUser(id, { firstName: 'A', lastName: 'B' });
+  assert.equal(updated.emailChangedAt, null, 'no email touch → no stamp');
+
+  // Same email (case-insensitive) → no stamp.
+  updated = model.updateUser(id, { firstName: 'A', lastName: 'B', email: 'OLD@example.ORG' });
+  assert.equal(updated.emailChangedAt, null, 'same email → no stamp');
+
+  // Real change → stamp.
+  updated = model.updateUser(id, { firstName: 'A', lastName: 'B', email: 'new@example.org' });
+  assert.equal(updated.email, 'new@example.org');
+  assert.ok(updated.emailChangedAt, 'real email change → emailChangedAt set');
+});
+
+test('updateUser rejects an email already used by another user (EMAIL_ALREADY_EXISTS)', () => {
+  const db = makeDb();
+  seedUser(db, { email: 'first@example.org' });
+  seedUser(db, { email: 'second@example.org', roles: ['accountant'] });
+  const model = usersModel.buildModel(db);
+  const firstId = model.findByEmail('first@example.org').id;
+
+  assert.throws(
+    () => model.updateUser(firstId, { email: 'second@example.org' }),
+    (err) => err.code === 'EMAIL_ALREADY_EXISTS'
+  );
+});
+
+test('isDefaultAdminEmailStillUsed flips when the seed gets replaced', () => {
+  const db = makeDb();
+  seedUser(db); // seeded as admin@guestflow.local
+  const model = usersModel.buildModel(db);
+  assert.equal(model.isDefaultAdminEmailStillUsed(), true);
+
+  const id = model.findByEmail('admin@guestflow.local').id;
+  model.updateUser(id, { email: 'real@example.org' });
+  assert.equal(model.isDefaultAdminEmailStillUsed(), false);
+});
+
+test('resetAdminToDefault recovers an admin who changed their email and forgot it', () => {
+  // Critical anti-lockout path: the operator left the seed AND lost the new email.
+  // resetAdminToDefault should rename the existing admin row back to admin@guestflow.local
+  // instead of creating a SECOND admin row that leaves the orphan locked in DB.
+  const db = makeDb();
+  seedUser(db, { email: 'forgotten@example.org', password: 'SomePassword', mustChange: 0 });
+  const model = usersModel.buildModel(db);
+
+  // Pre-state: no admin@guestflow.local row.
+  assert.equal(model.findByEmail('admin@guestflow.local'), null);
+  assert.equal(model.findByEmail('forgotten@example.org').roles[0], 'admin');
+
+  const email = model.resetAdminToDefault();
+  assert.equal(email, 'admin@guestflow.local');
+
+  // Post-state: the original row was renamed, no extra row was created.
+  const user = model.verifyCredentials('admin@guestflow.local', 'ChangeMe!2026');
+  assert.ok(user, 'admin reachable with default credentials again');
+  assert.equal(user.mustChangePassword, true);
+  assert.deepEqual(user.roles, ['admin']);
+  assert.equal(user.emailChangedAt, null, 'verification banner is cleared on reset');
+  assert.equal(model.findByEmail('forgotten@example.org'), null, 'orphan removed (same row reused)');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM users').get().n, 1, 'exactly one admin row, no duplicate');
+});
+
+test('resetAdminToDefault clears emailChangedAt when the seed row already exists', () => {
+  // Regression: if the seed is still in use, the legacy path runs — make sure it ALSO clears
+  // emailChangedAt so the banner doesn't survive a recovery.
+  const db = makeDb();
+  seedUser(db);
+  const id = db.prepare("SELECT id FROM users WHERE email = 'admin@guestflow.local'").get().id;
+  // Stamp emailChangedAt manually as if the operator had toggled their email and reverted.
+  db.prepare("UPDATE users SET emailChangedAt = datetime('now') WHERE id = ?").run(id);
+  const model = usersModel.buildModel(db);
+  assert.ok(model.findById(id).emailChangedAt, 'precondition: banner stamp present');
+
+  model.resetAdminToDefault();
+  assert.equal(model.findById(id).emailChangedAt, null, 'reset clears the verification stamp');
 });
