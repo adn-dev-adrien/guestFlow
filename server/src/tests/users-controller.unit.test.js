@@ -440,6 +440,52 @@ test('updateSelf: a roles field in the body is IGNORED — user cannot grant the
   assert.deepEqual(res.body.user.roles, ['accountant']);
 });
 
+test('updateSelf: refreshes req.session.user so the next /me + middleware reads see the new values', () => {
+  // Regression 2026-06-02: pre-fix, `/api/users/me` PUT updated the DB but left
+  // `req.session.user` carrying the OLD values. The next `/auth/me` GET returned the stale
+  // session snapshot (sessions are persisted across requests in the SQLite store), so the
+  // /account form stayed pre-filled with the pre-edit values until the next /me + DB
+  // re-read in authController.me catches up. Refreshing the session inline avoids a
+  // window where the sidebar greeting, dialogs, etc. still show the stale name.
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const session = { user: { id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c' } };
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, roles: ['accountant'] },
+    body: { firstName: 'Marie', lastName: 'Dupont', companyName: 'Solio', notes: 'Comptable principal' },
+    session,
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  // Session has been updated with the fresh safe user — same shape the response carries.
+  assert.equal(session.user.firstName, 'Marie');
+  assert.equal(session.user.lastName, 'Dupont');
+  assert.equal(session.user.companyName, 'Solio');
+  assert.equal(session.user.notes, 'Comptable principal');
+});
+
+test('updateSelf: handler tolerates a missing session (sessionless callers / fail-open default)', () => {
+  // Defensive: the session refresh is wrapped in `if (req.session)`. A request that somehow
+  // reaches updateSelf without a session (in practice: never, requireAuth would 401 first)
+  // should still succeed instead of crashing on `undefined.user = …`.
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  assert.doesNotThrow(() => {
+    c.updateSelf({
+      user: { id: 7, roles: ['accountant'] },
+      body: { firstName: 'X', lastName: 'Y' },
+      // session intentionally undefined
+    }, res);
+  });
+  assert.equal(res.statusCode, 200);
+});
+
 test('updateSelf: an email field in the body is IGNORED — email stays locked', () => {
   const usersModel = makeFakeUsersModel({
     initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
