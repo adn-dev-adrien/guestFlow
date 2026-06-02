@@ -102,6 +102,10 @@ function buildController({
         // No `roles` key on purpose — the model preserves the existing roles when undefined.
       });
       if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      // Sync the persisted session so the next /me + every downstream `req.user` read
+      // (sidebar greeting, dialogs, future navigation) sees the new values immediately,
+      // without waiting for the next /me round-trip to refresh from the DB.
+      if (req.session) req.session.user = updated;
       return res.json({ user: updated });
     },
 

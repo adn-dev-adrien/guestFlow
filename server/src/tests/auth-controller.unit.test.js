@@ -4,16 +4,27 @@ const assert = require('node:assert/strict');
 const authController = require('../controllers/authController');
 
 // Fake users model. Tracks touchLastLogin calls so the test for the new behaviour can assert it.
-function fakeUsers() {
+// Each user row is stored under its id so tests can mutate the "DB" between calls and verify
+// that `me` re-reads from it (regression 2026-06-02 — the "Mes informations" form on /account
+// was returning the stale session snapshot instead of the fresh row).
+function fakeUsers(initialRows = null) {
   const passwords = { 1: 'ChangeMe!2026' };
   const flags = { 1: { mustChangePassword: true } };
-  const calls = { touchLastLogin: [] };
+  const calls = { touchLastLogin: [], findById: [] };
+  const rows = initialRows || {
+    1: { id: 1, email: 'admin@guestflow.local', firstName: '', lastName: '', companyName: '', notes: '', roles: ['admin'], mustChangePassword: true },
+  };
   return {
     calls,
+    rows, // tests can mutate this between calls to simulate side-channel updates
     verifyCredentials(email, pw) {
       if (email !== 'admin@guestflow.local') return null;
       if (pw !== passwords[1]) return null;
-      return { id: 1, email, roles: ['admin'], mustChangePassword: flags[1].mustChangePassword };
+      return { ...rows[1], mustChangePassword: flags[1].mustChangePassword };
+    },
+    findById(id) {
+      calls.findById.push(id);
+      return rows[id] ? { ...rows[id] } : null;
     },
     updatePassword(id, newPw) {
       passwords[id] = newPw;
@@ -87,14 +98,55 @@ test('login: missing fields → 400', () => {
   assert.equal(res.statusCode, 400);
 });
 
-test('me: returns session user or 401', () => {
+test('me: returns the fresh DB row (NOT the stale session snapshot) — 2026-06-02 regression', () => {
+  // Regression: pre-2026-06-02, `me` returned `req.session.user` verbatim. Because sessions
+  // are persisted in SQLite across deploys, long-lived sessions held a snapshot of the user
+  // taken at LOGIN time — any subsequent edit (admin updating the user, the user's own
+  // companyName/notes being filled later, even the addition of new safe-user fields after
+  // a schema migration) wouldn't reach the response. The "Mes informations" form on
+  // /account stayed pre-filled with the stale values. Now `me` always re-reads from DB and
+  // refreshes `req.session.user` so the next middleware pass sees the new shape too.
+  const users = fakeUsers();
+  // Session was set at login when the user had no companyName / notes; an admin then
+  // edited the row in the DB (or the columns were added later). Without the fix the form
+  // would render empty fields.
+  users.rows[1].companyName = 'Adn Dev SARL';
+  users.rows[1].notes = 'Note ajoutée par l\'admin après la connexion.';
+  const c = authController.create(users);
+
+  const session = { user: { id: 1, email: 'admin@guestflow.local' /* stale, no companyName */ } };
+  const res = fakeRes();
+  c.me({ session }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.companyName, 'Adn Dev SARL', 'response must reflect the fresh DB row');
+  assert.equal(res.body.notes, 'Note ajoutée par l\'admin après la connexion.');
+  // Side-effect: session refreshed inline so next request reads the fresh shape too.
+  assert.equal(session.user.companyName, 'Adn Dev SARL');
+  // findById was called exactly once with the session user's id.
+  assert.deepEqual(users.calls.findById, [1]);
+});
+
+test('me: no session → 401 UNAUTHENTICATED', () => {
   const c = authController.create(fakeUsers());
-  const ok = fakeRes();
-  c.me({ session: { user: { id: 1, email: 'a@b.c' } } }, ok);
-  assert.equal(ok.body.email, 'a@b.c');
-  const no = fakeRes();
-  c.me({ session: {} }, no);
-  assert.equal(no.statusCode, 401);
+  const res = fakeRes();
+  c.me({ session: {} }, res);
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.error, 'UNAUTHENTICATED');
+});
+
+test('me: session user has been deleted in DB → destroy session + 401', () => {
+  // Defense in depth: if the underlying user was hard-deleted by an admin while the session
+  // was still live, the session becomes stale + invalid. We tear it down so the next
+  // request lands on the login screen instead of churning on a phantom session.
+  const users = fakeUsers();
+  delete users.rows[1];
+  const c = authController.create(users);
+  const session = fakeSession({ id: 1, email: 'gone@x.com' });
+  const res = fakeRes();
+  c.me({ session }, res);
+  assert.equal(res.statusCode, 401);
+  assert.equal(session.destroyed, true, 'session must be destroyed when the user is gone');
 });
 
 // ----- change-password: forced first-login flow (new in M2) -----
