@@ -24,6 +24,16 @@ function nightsBetween(startDate, endDate) {
 function createFinanceModel(database) {
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
+    //
+    // All amounts are driven by the **encaissement** schedule (depositAmount + balanceAmount +
+    // complementAmount), NEVER `finalPrice`. Rationale: `finalPrice` excludes the tourist tax
+    // and the 3rd-bucket complement, so summing it produces `totalRevenue ≠ totalCollected +
+    // totalPending` and the cards lose coherence. The encaissement amounts capture what the
+    // customer actually owes (tax included where applicable) and add up by construction.
+    //
+    // `revenueByProperty` (added 2026-06-02) aggregates per logement so the FinancePage's
+    // overview chart can render "revenu par logement" instead of "revenu par réservation"
+    // (which was unreadable when many reservations stacked up). Sorted descending by revenue.
     getSummary({ from, to } = {}) {
       const today = todayIso();
       const start = from || today;
@@ -38,16 +48,40 @@ function createFinanceModel(database) {
         ORDER BY r.startDate
       `).all(end, start);
 
-      let totalRevenue = 0;
       let totalCollected = 0;
       let totalPending = 0;
+      const byProperty = new Map(); // propertyId → { propertyName, revenue, collected, pending }
 
       const enriched = reservations.map((r) => {
-        totalRevenue += Number(r.finalPrice || 0);
-        if (r.depositPaid) totalCollected += Number(r.depositAmount || 0);
-        if (r.balancePaid) totalCollected += Number(r.balanceAmount || 0);
-        if (!r.depositPaid) totalPending += Number(r.depositAmount || 0);
-        if (!r.balancePaid) totalPending += Number(r.balanceAmount || 0);
+        const deposit    = Number(r.depositAmount    || 0);
+        const balance    = Number(r.balanceAmount    || 0);
+        const complement = Number(r.complementAmount || 0);
+
+        const stayCollected = (r.depositPaid    ? deposit    : 0)
+                            + (r.balancePaid    ? balance    : 0)
+                            + (r.complementPaid ? complement : 0);
+        const stayPending   = (r.depositPaid    ? 0 : deposit)
+                            + (r.balancePaid    ? 0 : balance)
+                            + (r.complementPaid ? 0 : complement);
+
+        totalCollected += stayCollected;
+        totalPending   += stayPending;
+
+        const propId = r.propertyId;
+        if (!byProperty.has(propId)) {
+          byProperty.set(propId, {
+            propertyId: propId,
+            propertyName: r.propertyName,
+            revenue:   0,
+            collected: 0,
+            pending:   0,
+          });
+        }
+        const agg = byProperty.get(propId);
+        agg.collected += stayCollected;
+        agg.pending   += stayPending;
+        agg.revenue   += stayCollected + stayPending;
+
         const status = computePaymentStatus(r, today);
         return {
           ...r,
@@ -58,11 +92,23 @@ function createFinanceModel(database) {
         };
       });
 
+      const revenueByProperty = Array.from(byProperty.values())
+        .map((p) => ({
+          propertyId: p.propertyId,
+          propertyName: p.propertyName,
+          revenue:   round2(p.revenue),
+          collected: round2(p.collected),
+          pending:   round2(p.pending),
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
       return {
-        totalRevenue: round2(totalRevenue),
+        // Σ encaissements (collected + pending). By construction the three cards add up.
+        totalRevenue:   round2(totalCollected + totalPending),
         totalCollected: round2(totalCollected),
-        totalPending: round2(totalPending),
-        reservations: enriched,
+        totalPending:   round2(totalPending),
+        reservations:   enriched,
+        revenueByProperty,
       };
     },
 
