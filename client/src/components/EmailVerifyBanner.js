@@ -65,8 +65,7 @@ export default function EmailVerifyBanner() {
         </AlertTitle>
         Votre identifiant est désormais <strong>{newEmail}</strong>. Déconnectez-vous et
         reconnectez-vous au moins une fois avec cette adresse pour confirmer qu'elle fonctionne —
-        ce message disparaîtra automatiquement. Si vous l'avez saisie par erreur, exécutez{' '}
-        <code>npm run reset-admin</code> côté serveur pour rétablir l'accès par défaut.
+        ce message disparaîtra automatiquement.
       </Alert>
     </Box>
   );

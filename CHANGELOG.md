@@ -20,7 +20,8 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - **`EmailVerifyBanner`** mounted in `AppShell` — visible on every page until the operator has
     logged out and logged back in once with the new email (closes the typo-then-logout lockout).
     Self-clearing: the login flow updates `lastLoginAt`, the banner detects it on the next poll
-    and disappears.
+    and disappears. The CLI recovery command is documented in the README, not surfaced in the UI
+    (the banner is visible to every role, not just the admin).
   - **`npm run reset-admin` recovery extended** — now handles the case where the operator
     changed their email and forgot it: the OLDEST admin row is renamed back to
     `admin@guestflow.local` instead of silently creating a second admin row. `emailChangedAt` is
