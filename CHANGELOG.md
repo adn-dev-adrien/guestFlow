@@ -25,13 +25,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     adds the `autoOptionType` marker + `countsAsBedLinen=1`. Same shape for the bathroom-linen
     seed with `KNOWN_TITLE_ALIASES = ['linge de toilette']`.
   - **Bathroom-linen tracking (towels) — §3.5.bis follow-up.** Strict mirror of the bed-linen
-    feature: a second independent flag `countsAsBathroomLinen` + checkbox *"Cette option compte
-    des serviettes de toilette"*, a default **"Linge de toilette"** seed (`autoOptionType =
-    'bathroom_linen'`, same non-destructive contract), and a second sub-line *"Serviettes:
-    N grandes · N petites"* under the same "À apporter / À récupérer" headers in the
-    LaundryDayCard. The towel count is `adults + teens + children` per reservation (babies
-    excluded — no adult-sized towels); 1 large + 1 small towel per person. The two flags are
-    completely independent — an option can carry either, both, or neither.
+    feature: a second independent flag `countsAsBathroomLinen`, a default **"Linge de toilette"**
+    seed (`autoOptionType = 'bathroom_linen'`, same non-destructive contract), and a second
+    sub-line *"Serviettes: N grandes · N petites"* under the same "À apporter / À récupérer"
+    headers in the LaundryDayCard. **The towel count SCALES by `reservation_options.quantity`**
+    (asymmetric with bed-linen which ignores quantity) — the seed is `priceType = per_person`
+    and the operator uses the quantity field as a sub-occupation factor (e.g. `0.6667` on a
+    3-person stay = "2 of 3 want towels"). Formula:
+    `ROUND((adults + teens + children) × Σ reservation_options.quantity)` per reservation,
+    summed. Babies excluded (no adult-sized towels); 1 large + 1 small towel per effective
+    person.
   - New global setting `laundryWeekday` (0 = Sunday … 6 = Saturday, default 2 = Tuesday)
     configurable in *Paramètres → Linge & blanchisserie*.
   - New endpoint `GET /api/planning/laundry?from=…&to=…` returning every laundry-day occurrence

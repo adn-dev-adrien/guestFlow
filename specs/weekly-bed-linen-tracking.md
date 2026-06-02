@@ -173,29 +173,39 @@ neither.
     flag, both, or neither. The reservation-level booleans are computed per flag (one EXISTS query
     per flag in `laundryModel`).
 
-20. **Towel count per reservation = `adults + teens + children`** (babies excluded — they don't
-    use adult-sized towels). The server exposes the count as two equal counters
-    `largeTowels` + `smallTowels` (1 of each per person), because the laundry batch is sorted by
-    towel type even though the two are equal by construction. The two-key shape leaves room for a
-    future change in ratio without breaking the contract.
+20. **Towel count per reservation = `ROUND((adults + teens + children) × Σ reservation_options.quantity)`**
+    summed over the bathroom-flagged options on that reservation. Babies excluded (no
+    adult-sized towels). Server exposes two equal keys `largeTowels` + `smallTowels` (1 large
+    + 1 small per effective person) because the laundry batch is sorted by towel TYPE.
 
-21. Bathroom contributions follow the **same window** as bed contributions: half-open
-    `(L - 7 days, L]`, gated by `kind = 'reservation'`, the option's `offered` flag and
-    `quantity` field are ignored (rules 2 + 3 apply identically), multiple bathroom-flagged
-    options on a single reservation count the towels **once** (rule 4 via EXISTS).
+21. **Bathroom-linen quantity SCALES the person count** — asymmetric with bed-linen (which
+    ignores quantity). Rationale: the seeded "Linge de toilette" option is `priceType =
+    per_person`, and Adrien uses the per-reservation `reservation_options.quantity` as a
+    sub-occupation factor (e.g. `0.6667` on a 3-person stay = "2 of 3 want towels"). The
+    counter must honour this scaling, otherwise it over-reports. Verified end-to-end against
+    a prod window 2026-06-02 → 2026-06-09 (gite 12 × 1.0 + tente 3 × 0.6667 + gite 8 × 0.625
+    = 19 large + 19 small; pinned in `laundry-model.unit.test.js`).
 
-22. **Default "Linge de toilette" option seeded at boot** via `utils/bathroomLinenSeed.js`,
+22. Bathroom contributions follow the **same window + kind filter** as bed-linen: half-open
+    `(L - 7 days, L]`, `kind = 'reservation'` only, `offered` flag still ignored (rule 2). The
+    SQL aggregates quantities **per reservation** via an inner GROUP BY before joining the
+    parent, so a reservation carrying multiple bathroom-flagged options sees its quantities
+    **summed** (additive — useful for "Standard 0.6 + Premium 0.4 = full coverage"). In steady
+    state only the seeded option carries the flag (rule 16), so this edge case is informative
+    only.
+
+23. **Default "Linge de toilette" option seeded at boot** via `utils/bathroomLinenSeed.js`,
     strict mirror of the bed-linen seed (`autoOptionType = 'bathroom_linen'`, undeletable in the
     UI). Non-destructive: skipped when the typed seed already exists OR when any operator-
     adopted option already carries `countsAsBathroomLinen = 1`. The two seeds are independent —
     skipping one does not skip the other.
 
-23. The server emits the bathroom counts **inside the same dropOff / pickUp block** as the bed
+24. The server emits the bathroom counts **inside the same dropOff / pickUp block** as the bed
     counts. The block schema becomes
     `{ singleBeds, doubleBeds, babyBeds, largeTowels, smallTowels }`. Existing client code that
     only read the bed keys keeps working unchanged.
 
-24. The client renders the bathroom contribution as a **second sub-line** under the same
+25. The client renders the bathroom contribution as a **second sub-line** under the same
     "À apporter" / "À récupérer" headers, labelled *"Serviettes :"*, with the format
     `N grandes · N petites`. The card stays silent (rule 13) when both the bed totals and the
     towel totals are zero on both sides.

@@ -32,7 +32,7 @@ function makeDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       reservationId INTEGER NOT NULL,
       optionId INTEGER NOT NULL,
-      quantity INTEGER DEFAULT 1,
+      quantity REAL DEFAULT 1,
       offered INTEGER DEFAULT 0
     );
   `);
@@ -299,17 +299,58 @@ test('dropOffBathroomForWindow: aggregates across multiple qualifying reservatio
   assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 7, smallTowels: 7 });
 });
 
-test('dropOffBathroomForWindow: option with BOTH bed AND bathroom flags counts the towels once', () => {
-  // EXISTS guard ensures no row multiplication — same protection as the bed path.
+test('dropOffBathroomForWindow: quantity SCALES the person count (Adrien\'s prod scenario)', () => {
+  // The towel option is `priceType = per_person` and Adrien uses the reservation_options.quantity
+  // field as a sub-occupation factor — qty 0.6667 on a 3-person stay = "2 of the 3 want towels".
+  // Each reservation's contribution must be persons × qtySum then ROUND'ed.
+  //   Gite 1 (12 pers × 1.0) + Tente (3 pers × 0.6667) + Gite 2 (8 pers × 0.625) = 12 + 2 + 5 = 19.
+  // Pinned from the actual prod data 2026-06-02.
   const db = makeDb();
-  const optBoth = makeOption(db, { countsAsBedLinen: 1, countsAsBathroomLinen: 1 });
-  const optBathExtra = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
-  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', adults: 2, teens: 1 });
-  linkOption(db, r, optBoth);
-  linkOption(db, r, optBathExtra);
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+
+  const gite1 = makeReservation(db, { startDate: '2026-06-02', endDate: '2026-06-04', adults: 8, children: 4, babies: 1 });
+  linkOption(db, gite1, opt, { quantity: 1.0 });
+  const tente = makeReservation(db, { startDate: '2026-06-02', endDate: '2026-06-06', adults: 1, children: 2 });
+  linkOption(db, tente, opt, { quantity: 0.6667 });
+  const gite2 = makeReservation(db, { startDate: '2026-06-04', endDate: '2026-06-07', adults: 5, children: 3 });
+  linkOption(db, gite2, opt, { quantity: 0.625 });
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 3, smallTowels: 3 });
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-06-02', '2026-06-09'),
+    { largeTowels: 19, smallTowels: 19 }
+  );
+});
+
+test('dropOffBathroomForWindow: multiple bathroom-flagged options on one reservation → quantities ADD', () => {
+  // Edge case (out of steady-state — rule 16 says only one seeded option carries the flag).
+  // Pinned so the SQL subquery's SUM behaviour is documented. With quantities adding, two
+  // "fully active" bathroom options on a 3-person stay give person × 2 = 6 towels.
+  const db = makeDb();
+  const optA = makeOption(db, { title: 'Linge de toilette A', countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const optB = makeOption(db, { title: 'Linge de toilette B', countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', adults: 2, teens: 1 });
+  linkOption(db, r, optA, { quantity: 1.0 });
+  linkOption(db, r, optB, { quantity: 1.0 });
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 6, smallTowels: 6 });
+});
+
+test('dropOffBathroomForWindow: ROUND on each reservation\'s contribution, not on the global sum', () => {
+  // Per-reservation rounding gives integer towel counts per booking ("how many towels for
+  // THIS reservation"). Two reservations: 5 pers × 0.5 = 2.5 → ROUND = 3 (banker\'s, but
+  // SQLite ROUND rounds half away from zero → 3). Sum of rounded = 6.
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r1 = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-01', adults: 5 });
+  const r2 = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', adults: 5 });
+  linkOption(db, r1, opt, { quantity: 0.5 });
+  linkOption(db, r2, opt, { quantity: 0.5 });
+
+  const model = laundryModel.buildModel(db);
+  // 2.5 + 2.5 rounded per-reservation → 3 + 3 = 6 (verifies SQLite ROUND'd each, then summed).
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 6, smallTowels: 6 });
 });
 
 test('dropOffBathroomForWindow: empty DB returns zeros', () => {
