@@ -147,9 +147,34 @@ test('settingsModel.decryptedSmtpSettings returns the shape the email service ex
     secure: true,
     user: 'noreply@example.com',
     password: 'real-secret',
+    // Successful decrypt → flag is false (consumed by emailService for `isConfigured`,
+    // see PR fixing the post-deploy SMTP password decrypt crash).
+    passwordDecryptFailed: false,
     fromEmail: 'noreply@example.com',
     fromName: 'GuestFlow Team',
   });
+});
+
+test('settingsModel.decryptedSmtpSettings flags decrypt failures and returns an empty password', () => {
+  // Regression for the prod 500 Adrien hit 2026-06-02 right after a deploy that regenerated
+  // `.env.local`: the persisted SMTP password ciphertext could no longer be decrypted with
+  // the new key, crashing every call to `decryptedSmtpSettings` with
+  // `Error: Unsupported state or unable to authenticate data` from `Decipheriv.final`.
+  // Now we degrade gracefully: empty password + `passwordDecryptFailed: true` so the email
+  // service surfaces a clean EMAIL_NOT_CONFIGURED to the caller instead of crashing.
+  const { db, model } = freshModel();
+  // Inject a ciphertext signed with a DIFFERENT key — simulates the post-key-rotation state.
+  // The blob keeps the `enc:v1:` envelope so isEncrypted() routes it to decrypt() (which
+  // throws on auth-tag mismatch — the exact codepath that crashed in prod).
+  const tamperedBlob = 'enc:v1:AAECAwQFBgcICQoL:zzzzzzzzzzzzzzzzzzzzzz==:dGFtcGVyZWQ=';
+  db.prepare('UPDATE app_settings SET smtpHost = ?, smtpFromEmail = ?, smtpPasswordEncrypted = ? WHERE id = 1')
+    .run('smtp.example.com', 'noreply@example.com', tamperedBlob);
+  const s = model.decryptedSmtpSettings();
+  assert.equal(s.password, '');
+  assert.equal(s.passwordDecryptFailed, true);
+  // Other fields are still surfaced normally.
+  assert.equal(s.host, 'smtp.example.com');
+  assert.equal(s.fromEmail, 'noreply@example.com');
 });
 
 test('settingsModel.publicUrl returns the configured URL (trimmed)', () => {

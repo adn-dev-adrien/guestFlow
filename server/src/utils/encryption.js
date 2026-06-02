@@ -58,4 +58,24 @@ function decrypt(value) {
   return plaintext.toString('utf8');
 }
 
-module.exports = { encrypt, decrypt, isEncrypted };
+/**
+ * Best-effort decrypt: returns `{ ok: true, value }` on success, `{ ok: false, reason }`
+ * on any failure (bad key, tampered ciphertext, corrupted ciphertext, …). Used by callers
+ * that want graceful degradation when the encryption key has rotated and old ciphertexts
+ * can't be decrypted any more — typical case: a deploy regenerated `.env.local` and the
+ * blobs in the DB were encrypted with the previous key (fixed at the deploy-pipeline level
+ * by PR #96, but already-corrupted state survives until the secret is re-entered).
+ *
+ * Returning an object instead of throwing keeps the strict `decrypt` semantics intact for
+ * callers that explicitly want fail-loud behaviour (e.g. one-off migrations, tests).
+ */
+function safeDecrypt(value) {
+  if (!isEncrypted(value)) return { ok: true, value };
+  try {
+    return { ok: true, value: decrypt(value) };
+  } catch (err) {
+    return { ok: false, reason: err && err.message || 'decrypt-failed' };
+  }
+}
+
+module.exports = { encrypt, decrypt, isEncrypted, safeDecrypt };

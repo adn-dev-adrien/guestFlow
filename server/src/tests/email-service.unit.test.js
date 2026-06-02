@@ -36,6 +36,20 @@ test('isConfigured = false when fromEmail is missing → send/sendTest throw EMA
   await assert.rejects(svc.send({ to: 'x@y.z', subject: 's', text: 't' }), /EMAIL_NOT_CONFIGURED/);
 });
 
+test('isConfigured = false when passwordDecryptFailed is true → send throws EMAIL_NOT_CONFIGURED', async () => {
+  // Regression: the persisted SMTP password ciphertext can't be decrypted with the current
+  // GUESTFLOW_ENCRYPTION_KEY (typical cause: a deploy regenerated .env.local — fixed
+  // pipeline-side by PR #96). settingsModel sets `passwordDecryptFailed: true` and we
+  // honour it here so the caller gets a clean EMAIL_NOT_CONFIGURED instead of nodemailer
+  // trying to auth with an empty password against the SMTP server.
+  const svc = createEmailService({
+    host: 'smtp.example.com', fromEmail: 'a@b.c', user: 'a@b.c', password: '',
+    passwordDecryptFailed: true,
+  });
+  assert.equal(svc.isConfigured, false);
+  await assert.rejects(svc.send({ to: 'x@y.z', subject: 's', text: 't' }), /EMAIL_NOT_CONFIGURED/);
+});
+
 test('send builds the transport lazily and forwards from/to/subject/text correctly', async () => {
   const { transportFactory, calls } = makeFakeTransport();
   const svc = createEmailService({

@@ -16,7 +16,21 @@
  */
 
 const db = require('../database');
-const { encrypt, decrypt, isEncrypted } = require('../utils/encryption');
+const { encrypt, decrypt, isEncrypted, safeDecrypt } = require('../utils/encryption');
+
+// PM2-visible marker emitted when an encrypted value can't be decrypted with the current
+// `GUESTFLOW_ENCRYPTION_KEY` — typically because a previous deploy regenerated
+// `.env.local` (fixed at the workflow level by PR #96). We surface the column name so
+// the operator knows what to re-enter from Paramètres, and we throttle to one warning
+// per column per process lifetime so PM2 logs aren't drowned in repeats.
+const warnedDecryptCols = new Set();
+function warnDecryptFailure(col, reason) {
+  if (warnedDecryptCols.has(col)) return;
+  warnedDecryptCols.add(col);
+  // Single-line marker — easy to grep in PM2 logs.
+  // eslint-disable-next-line no-console
+  console.warn(`[settingsModel] decrypt failed for "${col}" (${reason}). The current GUESTFLOW_ENCRYPTION_KEY can't decrypt the stored blob. Re-saisis la valeur depuis Paramètres pour la re-chiffrer avec la clé courante.`);
+}
 
 // Columns encrypted at rest (AES-256-GCM). Google + SMTP credentials.
 const ENCRYPTED_COLUMNS = [
@@ -114,7 +128,17 @@ function createSettingsModel(databaseInstance) {
           out[HTTP_MASKED_COLUMNS[col]] = Boolean(row[col]);
           delete out[col];
         } else if (row[col]) {
-          out[col] = decrypt(row[col]);
+          // Graceful decrypt: on key mismatch (post-deploy regeneration) we log a marker
+          // and return an empty value rather than crashing every read of `/api/settings`.
+          // The admin then sees the field as empty in Paramètres → re-enters it → it gets
+          // re-encrypted with the current key, restoring decryption on the next read.
+          const r = safeDecrypt(row[col]);
+          if (r.ok) {
+            out[col] = r.value;
+          } else {
+            warnDecryptFailure(col, r.reason);
+            out[col] = '';
+          }
         }
       }
       return out;
@@ -166,16 +190,35 @@ function createSettingsModel(databaseInstance) {
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.
-    // The password is decrypted on the fly — caller must not log it.
+    // The password is decrypted on the fly — caller must not log it. On key mismatch (deploy
+    // regenerated `.env.local`, see PR #96) the password decodes to `''` and a marker fires
+    // in PM2 logs; downstream `getEmailService()` then surfaces `EMAIL_NOT_CONFIGURED` cleanly
+    // instead of crashing the request with `Error: Unsupported state or unable to authenticate data`.
     decryptedSmtpSettings() {
       const row = readRaw();
       const passEnc = row.smtpPasswordEncrypted || '';
+      let password = '';
+      let passwordDecryptFailed = false;
+      if (passEnc) {
+        const r = safeDecrypt(passEnc);
+        if (r.ok) {
+          password = r.value;
+        } else {
+          warnDecryptFailure('smtpPasswordEncrypted', r.reason);
+          passwordDecryptFailed = true;
+        }
+      }
       return {
         host: String(row.smtpHost || '').trim(),
         port: Number(row.smtpPort) || 587,
         secure: Number(row.smtpSecure) === 1,
         user: String(row.smtpUsername || '').trim(),
-        password: passEnc ? decrypt(passEnc) : '',
+        password,
+        // True when an encrypted blob exists in DB but can't be decrypted with the current
+        // GUESTFLOW_ENCRYPTION_KEY. Consumed by `utils/emailService` to mark the service
+        // as not configured (rather than crashing or silently sending without auth), and by
+        // the client to display an actionable "re-enter the SMTP password" hint.
+        passwordDecryptFailed,
         fromEmail: String(row.smtpFromEmail || '').trim(),
         fromName: String(row.smtpFromName || '').trim() || 'GuestFlow',
       };
