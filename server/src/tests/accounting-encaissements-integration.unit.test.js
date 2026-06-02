@@ -274,3 +274,33 @@ test('platformsPreview: empty month → empty rows + zero totalCommission (defen
   assert.deepEqual(res.body.rows, []);
   assert.equal(res.body.totalCommission, 0);
 });
+
+test('platformsPreview commission uses the STORED finalPrice, not the engine recompute', () => {
+  // Regression Adrien spotted 2026-06-02: a platform reservation's commission collapsed to 0
+  // in the platforms table while the fiche réservation still showed it correctly. Root cause:
+  // `buildEntry` was preferring `quote.finalPrice` (engine recompute from current pricing
+  // rules / options) over `row.finalPrice` (the value persisted at save time). After Adrien
+  // edited the reservation amounts post-payment, the recompute drifted higher than the stored
+  // value, making `gross − quote.finalPrice ≤ 0` and the commission display 0 €.
+  //
+  // The fix is to prefer `row.finalPrice` everywhere `e.finalPrice` is consumed downstream
+  // (commission calc, structured preview). The fiche réservation already uses `row.finalPrice`
+  // through `deriveCommissionAmount`; with this fix both surfaces show the same number.
+  //
+  // To simulate the drift here we set up a stay whose pricing rule (100 €/night × 2 nights =
+  // 200 € engine recompute) exceeds the stored `finalPrice = 180` (e.g. the user applied a
+  // post-payment manual override or discount). With clientGrossAmount = 220 the expected
+  // commission is `220 − 180 = 40` (matches the fiche), NOT `220 − 200 = 20` (engine drift).
+  const db = createDb();
+  insertReservation(db, {
+    propertyId: 1, clientId: 1, platform: 'airbnb',
+    finalPrice: 180, totalPrice: 180,        // stored — what the fiche shows
+    clientGrossAmount: 220,                  // gross paid by guest
+    balanceAmount: 180, balancePaid: 1, balancePaidDate: '2026-08-15',
+  });
+  const controller = createAccountingController(createAccountingModel(db));
+  const res = mockRes();
+  controller.platformsPreview({ query: { month: '8', year: '2026' } }, res);
+  assert.equal(res.body.rows.length, 1);
+  assert.equal(res.body.rows[0].commission, 40);
+});
