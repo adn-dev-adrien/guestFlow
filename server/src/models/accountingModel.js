@@ -213,6 +213,18 @@ function buildEntry(row, quote, kind, perLineData) {
   };
 
   const encaissementTtc = amountByKind[kind] || 0;
+
+  // Defensive null-return for the (rare) case of a `*Paid = 1 + *PaidDate in month` but
+  // `*Amount = 0`. Real-world cause: a reservation toggled `depositDisabled = ON` after the
+  // user had already clicked "Marquer acompte payé" — depositPaid stays 1 but depositAmount
+  // collapses to 0. Same idea for an accidentally-flipped complementPaid on a reservation
+  // with no actual complement to perceive. Without this guard the entry was still emitted
+  // (the legacy fallback path had no `null`-return for zero-revenue entries — only the
+  // contrib-driven path did), producing a phantom "tout à zéro" row in the platforms table
+  // + a balanced-but-empty card in the journal preview. See spec accountant-accounting-
+  // export.md §3.4 rule 12bis.
+  if (encaissementTtc === 0) return null;
+
   // `perLineData` is optional: when omitted (legacy callers / unit tests that don't model the
   // contrib columns) the fallback path runs unchanged.
   const hasContribs = Boolean(perLineData && perLineData.hasContribs);
@@ -240,6 +252,7 @@ function buildEntry(row, quote, kind, perLineData) {
       kind,
       paidDate: dateByKind[kind] || null,
       client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+      propertyName: row.propertyName || '',
       platform: row.platform || 'direct',
       clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
       finalPrice: finalPriceTtc,
@@ -273,6 +286,7 @@ function buildEntry(row, quote, kind, perLineData) {
     kind,
     paidDate: dateByKind[kind] || null,
     client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+    propertyName: row.propertyName || '',
     platform: row.platform || 'direct',
     clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
     finalPrice: finalPriceTtc,

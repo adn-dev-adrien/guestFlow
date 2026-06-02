@@ -63,15 +63,21 @@ function createAccountingController(accountingModel) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = accountingModel.encaissementsByMonth(params);
+      // 2026-06-02: the table no longer pre-filters out direct bookings — Adrien wants every
+      // encaissement of the month visible in one place. For direct bookings `gross` and
+      // `commission` are `null` (rendered as `—`); `totalCommission` below still aggregates
+      // only the rows where a commission is actually defined.
       const platformRows = entries
-        .filter((e) => e.platform && e.platform !== 'direct')
         .map((e) => ({
+          // `reservationId` + `propertyName` added 2026-06-02 so the AccountingPage table can
+          // link each row to its reservation file (admin only) and display the property.
+          reservationId: e.reservationId,
+          propertyName: e.propertyName || '',
           date: e.paidDate,
           kind: e.kind,
           client: `${e.client.firstName || ''} ${e.client.lastName || ''}`.trim() || `Réservation #${e.reservationId}`,
           platform: e.platform,
           gross: e.clientGrossAmount == null ? null : Number(e.clientGrossAmount),
-          net: Number(e.finalPrice),
           encaissement: Number(e.encaissementTtc),
           commission: e.clientGrossAmount == null ? null : Math.max(0, Math.round((Number(e.clientGrossAmount) - Number(e.finalPrice)) * 100) / 100),
         }));
