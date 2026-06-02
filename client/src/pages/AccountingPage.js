@@ -207,13 +207,31 @@ export default function AccountingPage() {
 
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              justifyContent="space-between"
+              spacing={1}
+              sx={{ mb: 2 }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 700 }}>Encaissements du mois</Typography>
-              {preview && (
-                <Typography variant="body2" color="text.secondary">
-                  Total commissions plateformes : <strong>{formatEur(preview.totalCommission)}</strong>
-                </Typography>
-              )}
+              <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={0.5}>
+                {/* Inline legend for the A/S/C badges shown on each row. Discreet — small font
+                    + the colour pastilles do the heavy lifting visually. */}
+                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                  {['deposit', 'balance', 'complement'].map((kind) => (
+                    <Stack key={kind} direction="row" spacing={0.5} alignItems="center">
+                      <KindBadge kind={kind} />
+                      <Typography variant="caption" color="text.secondary">{KIND_LABELS[kind]}</Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+                {preview && (
+                  <Typography variant="body2" color="text.secondary">
+                    Total commissions plateformes : <strong>{formatEur(preview.totalCommission)}</strong>
+                  </Typography>
+                )}
+              </Stack>
             </Stack>
 
             {loading && <Typography variant="body2" color="text.secondary">Chargement…</Typography>}

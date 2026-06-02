@@ -89,6 +89,8 @@ describe('AccountingPage — platforms commission table', () => {
   test('kind badge: each row carries a single-letter A/S/C badge derived from row.kind', async () => {
     // Compact badge between Plateforme and Encaissement so the user can tell apart
     // acompte / solde / complément without eating a full column. Adrien's preference.
+    // The header legend (top-right of the table) also renders the same three letters, so
+    // we assert ≥ 2 occurrences per kind: 1 in the legend + 1+ in the body rows.
     api.getAccountingPlatforms.mockResolvedValue({
       rows: [
         { ...SAMPLE_PLATFORMS.rows[0], kind: 'deposit', client: 'Acompte Client' },
@@ -100,10 +102,19 @@ describe('AccountingPage — platforms commission table', () => {
     setAuth({ id: 1, roles: ['admin'] });
     renderPage();
     await screen.findByText('Acompte Client');
-    // Each kind's single-letter badge appears exactly once on its row.
-    expect(screen.getByText('A')).toBeInTheDocument();
-    expect(screen.getByText('S')).toBeInTheDocument();
-    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getAllByText('A').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('S').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('C').length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('legend at the top-right of the table names each badge (Acompte / Solde / Complément)', async () => {
+    setAuth({ id: 1, roles: ['admin'] });
+    renderPage();
+    // Wait for the table to render, then check the legend's text labels.
+    await screen.findByText('Le Petit Gîte');
+    expect(screen.getByText('Acompte')).toBeInTheDocument();
+    expect(screen.getByText('Solde')).toBeInTheDocument();
+    expect(screen.getByText('Complément')).toBeInTheDocument();
   });
 
   test('admin: clicking a row navigates to the reservation file', async () => {
