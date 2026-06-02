@@ -27,6 +27,11 @@ const emptyOption = {
   // not affect pricing. When true, this option's presence on a reservation makes that
   // reservation's bed counts feed the Planning page's LaundryDayCard.
   countsAsBedLinen: false,
+  // Bathroom-linen tracking (same spec, §3.5). Independent of the bed-linen flag; an option
+  // can carry either, both, or neither. When true, the reservation's `adults + teens +
+  // children` feeds the bathroom sub-line of the LaundryDayCard (1 large + 1 small towel per
+  // person; babies excluded).
+  countsAsBathroomLinen: false,
 };
 
 function normalizeProgressiveTiers(raw) {
@@ -146,8 +151,9 @@ export default function OptionsPage() {
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
         optionProgressiveTiers: normalizeProgressiveTiers(item.optionProgressiveTiers),
-        // SQLite returns the boolean column as int 0/1 — normalise for the Checkbox.
+        // SQLite returns the boolean columns as int 0/1 — normalise for the Checkboxes.
         countsAsBedLinen: Boolean(item.countsAsBedLinen),
+        countsAsBathroomLinen: Boolean(item.countsAsBathroomLinen),
       })}
       toPayload={(form) => ({
         title: form.title,
@@ -157,6 +163,7 @@ export default function OptionsPage() {
         optionProgressiveTiers: normalizeProgressiveTiers(form.optionProgressiveTiers),
         propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
         countsAsBedLinen: Boolean(form.countsAsBedLinen),
+        countsAsBathroomLinen: Boolean(form.countsAsBathroomLinen),
       })}
       formNameKey="title"
       formDescriptionKey="description"
@@ -165,7 +172,8 @@ export default function OptionsPage() {
       renderExtraFormFields={(form, setForm) => (
         <>
           <ProgressivePricingFields form={form} setForm={setForm} />
-          {/* Bed-linen flag — drives the PlanningPage LaundryDayCard. Independent of pricing. */}
+          {/* Linen flags — drive the PlanningPage LaundryDayCard. Independent of pricing.
+              Two independent checkboxes: an option can carry either, both, or neither. */}
           <Box sx={{ mt: 1 }}>
             <FormControlLabel
               control={(
@@ -178,6 +186,20 @@ export default function OptionsPage() {
             />
             <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
               Permet de calculer automatiquement les parures à apporter à la blanchisserie.
+            </FormHelperText>
+          </Box>
+          <Box sx={{ mt: 1.5 }}>
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={Boolean(form.countsAsBathroomLinen)}
+                  onChange={(e) => setForm({ ...form, countsAsBathroomLinen: e.target.checked })}
+                />
+              )}
+              label="Cette option compte des serviettes de toilette"
+            />
+            <FormHelperText sx={{ ml: 4, mt: -0.5 }}>
+              Une grande et une petite serviette par personne (adultes, ados et enfants — bébés exclus).
             </FormHelperText>
           </Box>
         </>

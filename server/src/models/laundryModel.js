@@ -43,6 +43,28 @@ function buildModel(database) {
       )
   `);
 
+  // 2026-06-02 — bathroom-linen variant (specs §3.5). Sums (adults + teens + children) across
+  // reservations gated by EXISTS(option with countsAsBathroomLinen = 1). Babies are NOT counted
+  // — a baby doesn't get an adult-sized towel pair. The same half-open window + kind filter +
+  // EXISTS (no row multiplication) story as `dropOffForWindow` above.
+  const sumBathroomStmt = database.prepare(`
+    SELECT
+      COALESCE(
+        SUM(COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0)),
+        0
+      ) AS personCount
+    FROM reservations r
+    WHERE r.kind = 'reservation'
+      AND r.endDate > ?
+      AND r.endDate <= ?
+      AND EXISTS (
+        SELECT 1
+        FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        WHERE ro.reservationId = r.id AND o.countsAsBathroomLinen = 1
+      )
+  `);
+
   return {
     /**
      * Sum bed counts for reservations whose endDate is in `(startExclusiveIso, endInclusiveIso]`
@@ -56,6 +78,19 @@ function buildModel(database) {
         doubleBeds: Number(row.doubleBeds) || 0,
         babyBeds: Number(row.babyBeds) || 0,
       };
+    },
+
+    /**
+     * Sum the towel demand for reservations whose endDate is in
+     * `(startExclusiveIso, endInclusiveIso]` and that have the bathroom-linen option.
+     * Returns `{ largeTowels, smallTowels }` — both equal to the total person count by
+     * construction (Adrien's rule: 1 large + 1 small towel per person), exposed as separate
+     * keys because the laundry batch is sorted/billed by towel TYPE, not by aggregate.
+     */
+    dropOffBathroomForWindow(startExclusiveIso, endInclusiveIso) {
+      const row = sumBathroomStmt.get(String(startExclusiveIso), String(endInclusiveIso));
+      const persons = Number(row.personCount) || 0;
+      return { largeTowels: persons, smallTowels: persons };
     },
   };
 }

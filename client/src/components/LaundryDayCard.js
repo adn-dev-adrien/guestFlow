@@ -30,11 +30,15 @@ function totalSheets(side) {
   return Number(side.singleBeds || 0) + Number(side.doubleBeds || 0) + Number(side.babyBeds || 0);
 }
 
-function formatSide(side) {
+function totalTowels(side) {
+  if (!side) return 0;
+  return Number(side.largeTowels || 0) + Number(side.smallTowels || 0);
+}
+
+function formatSheets(side) {
   // Returns a human-readable summary: "2 doubles · 1 simple · 3 bébé" — keeps only non-zero
-  // segments so the line stays compact. Empty → "—" so the visual symmetry holds with the
-  // other side when only one count is non-zero.
-  if (!side) return '—';
+  // segments so the line stays compact.
+  if (!side) return null;
   const parts = [];
   const dbl = Number(side.doubleBeds || 0);
   const sgl = Number(side.singleBeds || 0);
@@ -42,26 +46,59 @@ function formatSide(side) {
   if (dbl > 0) parts.push(`${dbl} double${dbl > 1 ? 's' : ''}`);
   if (sgl > 0) parts.push(`${sgl} simple${sgl > 1 ? 's' : ''}`);
   if (bby > 0) parts.push(`${bby} bébé`);
-  return parts.length > 0 ? parts.join(' · ') : '—';
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function formatTowels(side) {
+  // 1 large + 1 small per person; the server exposes both because the laundry batch is sorted
+  // by type. Even though they're always equal by construction, surface both so Adrien can
+  // confirm each pile at the counter.
+  if (!side) return null;
+  const lg = Number(side.largeTowels || 0);
+  const sm = Number(side.smallTowels || 0);
+  if (lg === 0 && sm === 0) return null;
+  const parts = [];
+  if (lg > 0) parts.push(`${lg} grande${lg > 1 ? 's' : ''}`);
+  if (sm > 0) parts.push(`${sm} petite${sm > 1 ? 's' : ''}`);
+  return parts.join(' · ');
 }
 
 function SideBlock({ title, side }) {
+  const sheetsLine = formatSheets(side);
+  const towelsLine = formatTowels(side);
+  // Both null → render the em-dash placeholder so the visual symmetry holds when only the
+  // other side has something to show.
+  const hasAny = sheetsLine || towelsLine;
   return (
     <Box sx={{ flex: 1, minWidth: 0 }}>
       <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {title}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.25 }}>
-        {formatSide(side)}
-      </Typography>
+      {!hasAny && (
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.25 }}>—</Typography>
+      )}
+      {sheetsLine && (
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.25 }}>
+          <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>Draps :</Box>
+          {sheetsLine}
+        </Typography>
+      )}
+      {towelsLine && (
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.25 }}>
+          <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>Serviettes :</Box>
+          {towelsLine}
+        </Typography>
+      )}
     </Box>
   );
 }
 
 export default function LaundryDayCard({ data }) {
   if (!data) return null;
-  const dropTotal = totalSheets(data.dropOff);
-  const pickTotal = totalSheets(data.pickUp);
+  // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
+  // spec rule 13 — keeps a quiet week silent.
+  const dropTotal = totalSheets(data.dropOff) + totalTowels(data.dropOff);
+  const pickTotal = totalSheets(data.pickUp) + totalTowels(data.pickUp);
   if (dropTotal === 0 && pickTotal === 0) return null;
 
   return (

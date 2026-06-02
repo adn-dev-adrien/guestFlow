@@ -17,6 +17,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     `autoOptionType='bed_linen'` (same pattern as the early/late check-in options). The seed
     is non-destructive: skipped when an option already carries `countsAsBedLinen=1`
     (operator-customised setup) or when the typed seed is already in place (idempotent boots).
+  - **Bathroom-linen tracking (towels) — §3.5.bis follow-up.** Strict mirror of the bed-linen
+    feature: a second independent flag `countsAsBathroomLinen` + checkbox *"Cette option compte
+    des serviettes de toilette"*, a default **"Linge de toilette"** seed (`autoOptionType =
+    'bathroom_linen'`, same non-destructive contract), and a second sub-line *"Serviettes:
+    N grandes · N petites"* under the same "À apporter / À récupérer" headers in the
+    LaundryDayCard. The towel count is `adults + teens + children` per reservation (babies
+    excluded — no adult-sized towels); 1 large + 1 small towel per person. The two flags are
+    completely independent — an option can carry either, both, or neither.
   - New global setting `laundryWeekday` (0 = Sunday … 6 = Saturday, default 2 = Tuesday)
     configurable in *Paramètres → Linge & blanchisserie*.
   - New endpoint `GET /api/planning/laundry?from=…&to=…` returning every laundry-day occurrence
@@ -52,10 +60,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   `server/src/database.js`. Stamped by `updateUser` whenever the email column is rewritten.
   Existing users see `NULL` → no banner, no behaviour change until they actually change their
   email.
-- **`options.countsAsBedLinen`** (`INTEGER NOT NULL DEFAULT 0`) and
-  **`app_settings.laundryWeekday`** (`INTEGER NOT NULL DEFAULT 2`) added by idempotent
-  ALTER TABLE in `server/src/database.js`. Existing options default to "not a linen option"
-  (the feature stays silent until Adrien ticks the flag). Default weekday = Tuesday.
+- **`options.countsAsBedLinen`**, **`options.countsAsBathroomLinen`** (both `INTEGER NOT NULL
+  DEFAULT 0`) and **`app_settings.laundryWeekday`** (`INTEGER NOT NULL DEFAULT 2`) added by
+  idempotent ALTER TABLE in `server/src/database.js`. Existing options default to "not a linen
+  option" on both flags (the feature stays silent until Adrien ticks them). Default weekday =
+  Tuesday.
 
 ### Changed
 - **PlanningPage day-card colour palette** (spec `weekly-bed-linen-tracking.md` §6.1, follow-up

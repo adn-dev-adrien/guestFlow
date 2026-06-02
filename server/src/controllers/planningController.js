@@ -45,13 +45,21 @@ function buildController({
       const row = injectedSettingsModel.read();
       const weekday = row && row.laundryWeekday != null ? Number(row.laundryWeekday) : 2;
       const laundryDates = findLaundryDaysInRange(from, to, weekday);
+      // Each dropOff / pickUp block carries the bed-linen sums AND the bathroom-linen sums.
+      // The bathroom counts are spread into the same block (not a separate sibling) so the
+      // client renders both under a unified "À apporter / À récupérer" section without an
+      // extra plumbing layer.
+      const buildBlock = (startExclusive, endInclusive) => ({
+        ...injectedLaundryModel.dropOffForWindow(startExclusive, endInclusive),
+        ...injectedLaundryModel.dropOffBathroomForWindow(startExclusive, endInclusive),
+      });
       const laundryDays = laundryDates.map((date) => {
         const prev = prevLaundryDay(date);
         return {
           date,
-          dropOff: injectedLaundryModel.dropOffForWindow(prev, date),
+          dropOff: buildBlock(prev, date),
           // Pick-up(L) = Drop-off(L - 7 days). Same half-open semantics shifted by 7.
-          pickUp: injectedLaundryModel.dropOffForWindow(prevLaundryDay(prev), prev),
+          pickUp: buildBlock(prevLaundryDay(prev), prev),
         };
       });
       return res.json({ laundryWeekday: weekday, laundryDays });

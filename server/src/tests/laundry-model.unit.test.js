@@ -16,12 +16,17 @@ function makeDb() {
       endDate TEXT NOT NULL,
       singleBeds INTEGER,
       doubleBeds INTEGER,
-      babyBeds INTEGER
+      babyBeds INTEGER,
+      adults INTEGER DEFAULT 0,
+      teens INTEGER DEFAULT 0,
+      children INTEGER DEFAULT 0,
+      babies INTEGER DEFAULT 0
     );
     CREATE TABLE options (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,
-      countsAsBedLinen INTEGER NOT NULL DEFAULT 0
+      countsAsBedLinen INTEGER NOT NULL DEFAULT 0,
+      countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE reservation_options (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,18 +39,21 @@ function makeDb() {
   return db;
 }
 
-function makeOption(db, { title = 'Linge de lit', countsAsBedLinen = 1 } = {}) {
-  const result = db.prepare('INSERT INTO options (title, countsAsBedLinen) VALUES (?, ?)').run(title, countsAsBedLinen);
+function makeOption(db, { title = 'Linge de lit', countsAsBedLinen = 1, countsAsBathroomLinen = 0 } = {}) {
+  const result = db.prepare(
+    'INSERT INTO options (title, countsAsBedLinen, countsAsBathroomLinen) VALUES (?, ?, ?)'
+  ).run(title, countsAsBedLinen, countsAsBathroomLinen);
   return Number(result.lastInsertRowid);
 }
 
 function makeReservation(db, {
   kind = 'reservation', startDate, endDate,
   singleBeds = 0, doubleBeds = 0, babyBeds = 0,
+  adults = 0, teens = 0, children = 0, babies = 0,
 } = {}) {
   const result = db.prepare(
-    'INSERT INTO reservations (kind, startDate, endDate, singleBeds, doubleBeds, babyBeds) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(kind, startDate, endDate, singleBeds, doubleBeds, babyBeds);
+    'INSERT INTO reservations (kind, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children, babies) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(kind, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children, babies);
   return Number(result.lastInsertRowid);
 }
 
@@ -197,4 +205,115 @@ test('dropOffForWindow: aggregates across multiple qualifying reservations', () 
 
   const model = laundryModel.buildModel(db);
   assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 3, doubleBeds: 3, babyBeds: 1 });
+});
+
+// --- Bathroom-linen aggregation (specs §3.5) ---
+// Same window/devis/EXISTS semantics as the bed-linen path, but the sum is on
+// (adults + teens + children), gated by EXISTS(option with countsAsBathroomLinen = 1).
+// Per Adrien's rule (1 large + 1 small per person), largeTowels === smallTowels by
+// construction — the model still exposes both keys because the laundry batch is sorted by
+// towel type.
+
+test('dropOffBathroomForWindow: contributes (adults + teens + children) when the option is flagged', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r = makeReservation(db, {
+    startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 2, teens: 1, children: 1, babies: 1,
+  });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    // 2 + 1 + 1 = 4 persons → 4 large + 4 small. Baby ignored (no adult-sized towel).
+    { largeTowels: 4, smallTowels: 4 }
+  );
+});
+
+test('dropOffBathroomForWindow: babies do NOT contribute', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r = makeReservation(db, {
+    startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 0, teens: 0, children: 0, babies: 3,
+  });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+});
+
+test('dropOffBathroomForWindow: reservation WITHOUT a bathroom-flagged option contributes nothing', () => {
+  // The bed-linen flag alone is NOT enough — the two flags are independent signals.
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 1, countsAsBathroomLinen: 0 });
+  const r = makeReservation(db, {
+    startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 2, teens: 1, children: 1,
+  });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+});
+
+test('dropOffBathroomForWindow: devis-stage reservations excluded', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r = makeReservation(db, {
+    kind: 'devis', startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 5,
+  });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+});
+
+test('dropOffBathroomForWindow: half-open window matches the bed-linen rule', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  // endDate exactly on the start bound → excluded.
+  const rOut = makeReservation(db, { startDate: '2026-05-22', endDate: '2026-05-26', adults: 3 });
+  linkOption(db, rOut, opt);
+  // endDate exactly on the end bound → included.
+  const rIn = makeReservation(db, { startDate: '2026-06-01', endDate: '2026-06-02', adults: 2 });
+  linkOption(db, rIn, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 2, smallTowels: 2 });
+});
+
+test('dropOffBathroomForWindow: aggregates across multiple qualifying reservations', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r1 = makeReservation(db, { startDate: '2026-05-28', endDate: '2026-05-30', adults: 2 });
+  const r2 = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-01', adults: 1, teens: 1 });
+  const r3 = makeReservation(db, { startDate: '2026-06-01', endDate: '2026-06-02', children: 3 });
+  linkOption(db, r1, opt);
+  linkOption(db, r2, opt);
+  linkOption(db, r3, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 7, smallTowels: 7 });
+});
+
+test('dropOffBathroomForWindow: option with BOTH bed AND bathroom flags counts the towels once', () => {
+  // EXISTS guard ensures no row multiplication — same protection as the bed path.
+  const db = makeDb();
+  const optBoth = makeOption(db, { countsAsBedLinen: 1, countsAsBathroomLinen: 1 });
+  const optBathExtra = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', adults: 2, teens: 1 });
+  linkOption(db, r, optBoth);
+  linkOption(db, r, optBathExtra);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 3, smallTowels: 3 });
+});
+
+test('dropOffBathroomForWindow: empty DB returns zeros', () => {
+  const db = makeDb();
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
 });

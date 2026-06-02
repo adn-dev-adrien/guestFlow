@@ -138,6 +138,45 @@ neither.
 17. The flag is purely a metadata tag — it does **not** affect pricing,
     invoicing, accounting, or any existing logic. The engine ignores it.
 
+### 3.5.bis Bathroom-linen tracking (towels) — 2026-06-02 follow-up
+
+18. The Option entity gains a **second** independent boolean flag
+    **`countsAsBathroomLinen`**. Default `false`. Shown as a second checkbox in the option form
+    just below the bed-linen one, with the label *"Cette option compte des serviettes de
+    toilette"* and helper text *"Une grande et une petite serviette par personne (adultes, ados
+    et enfants — bébés exclus)."*.
+
+19. The two flags are **completely independent**. An option may carry the bed flag, the bathroom
+    flag, both, or neither. The reservation-level booleans are computed per flag (one EXISTS query
+    per flag in `laundryModel`).
+
+20. **Towel count per reservation = `adults + teens + children`** (babies excluded — they don't
+    use adult-sized towels). The server exposes the count as two equal counters
+    `largeTowels` + `smallTowels` (1 of each per person), because the laundry batch is sorted by
+    towel type even though the two are equal by construction. The two-key shape leaves room for a
+    future change in ratio without breaking the contract.
+
+21. Bathroom contributions follow the **same window** as bed contributions: half-open
+    `(L - 7 days, L]`, gated by `kind = 'reservation'`, the option's `offered` flag and
+    `quantity` field are ignored (rules 2 + 3 apply identically), multiple bathroom-flagged
+    options on a single reservation count the towels **once** (rule 4 via EXISTS).
+
+22. **Default "Linge de toilette" option seeded at boot** via `utils/bathroomLinenSeed.js`,
+    strict mirror of the bed-linen seed (`autoOptionType = 'bathroom_linen'`, undeletable in the
+    UI). Non-destructive: skipped when the typed seed already exists OR when any operator-
+    adopted option already carries `countsAsBathroomLinen = 1`. The two seeds are independent —
+    skipping one does not skip the other.
+
+23. The server emits the bathroom counts **inside the same dropOff / pickUp block** as the bed
+    counts. The block schema becomes
+    `{ singleBeds, doubleBeds, babyBeds, largeTowels, smallTowels }`. Existing client code that
+    only read the bed keys keeps working unchanged.
+
+24. The client renders the bathroom contribution as a **second sub-line** under the same
+    "À apporter" / "À récupérer" headers, labelled *"Serviettes :"*, with the format
+    `N grandes · N petites`. The card stays silent (rule 13) when both the bed totals and the
+    towel totals are zero on both sides.
+
 ### 3.6 Edge cases
 
 - **Window straddles the planning start.** The planning shows 14 days forward;
@@ -169,19 +208,21 @@ neither.
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `database.js` | `database.js` | T | Idempotent migration: `options.countsAsBedLinen INTEGER NOT NULL DEFAULT 0`; `app_settings.laundryWeekday INTEGER NOT NULL DEFAULT 2`. |
-| `models/optionsModel.js` | `optionsModel.js` | T | Reads/writes `countsAsBedLinen`. `getById`, `list`, `create`, `update` include it; `update` accepts it in the payload. |
+| `database.js` | `database.js` | T | Idempotent migration: `options.countsAsBedLinen INTEGER NOT NULL DEFAULT 0`; `options.countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0` (§3.5.bis); `app_settings.laundryWeekday INTEGER NOT NULL DEFAULT 2`. |
+| `models/optionsModel.js` | `optionsModel.js` | T | Reads/writes `countsAsBedLinen` + `countsAsBathroomLinen`. `getById`, `list`, `create`, `update` include both; `update` accepts both in the payload. |
 | `models/settingsModel.js` | `settingsModel.js` | T | Adds `laundryWeekday` to `COLUMNS` (plain integer, no encryption, no mask). |
-| `models/laundryModel.js` | `laundryModel.js` | C | Pure aggregation queries: `dropOffForWindow(startExclusive, endInclusive)` → `{ singleBeds, doubleBeds, babyBeds }`. Joins reservations + reservation_options + options on `countsAsBedLinen = 1`. |
+| `models/laundryModel.js` | `laundryModel.js` | C | Pure aggregation queries: `dropOffForWindow(startExclusive, endInclusive)` → `{ singleBeds, doubleBeds, babyBeds }` (joins reservations + reservation_options + options on `countsAsBedLinen = 1`); `dropOffBathroomForWindow(startExclusive, endInclusive)` → `{ largeTowels, smallTowels }` (same window/devis filter; SUM `adults + teens + children`; EXISTS on `countsAsBathroomLinen = 1`). |
 | `utils/laundryWindow.js` | `laundryWindow.js` | C | Pure date helpers: `findLaundryDaysInRange(fromIso, toIso, weekday)` → ISO date list; `prevLaundryDay(isoDate)` → ISO date 7 days earlier. Unit-testable, no DB. |
 | `controllers/planningController.js` | `planningController.js` | C | New controller. Action `laundrySummary(req, res)` — reads `from`, `to` query params, the `laundryWeekday` from settings, iterates the laundry days in range, queries `laundryModel.dropOffForWindow` for both each laundry day AND its `prev` day (for pick-up). Returns the payload. |
 | `routes/planning.js` | `planning.js` | C | New file. Mounts `GET /api/planning/laundry`. Uses `requireAuth`. |
 | `index.js` | `index.js` | T | Wires the new router. |
 | `utils/bedLinenSeed.js` | `bedLinenSeed.js` | C | **Follow-up §4.4**. Boot-time seed of the default "Linge de lit" option. Non-destructive: short-circuits if the typed row already exists OR if any operator-adopted option already carries `countsAsBedLinen=1`. |
+| `utils/bathroomLinenSeed.js` | `bathroomLinenSeed.js` | C | **§3.5.bis follow-up**. Strict mirror of the bed-linen seed for the "Linge de toilette" option. `autoOptionType = 'bathroom_linen'`, same non-destructive contract gated on `countsAsBathroomLinen = 1`. Independent of the bed-linen seed (each only checks its own flag). |
 | `tests/` | `laundry-window.unit.test.js` | C | Pure helpers: weekday math, range iteration, edge of month / year, DST-safe ISO arithmetic. |
 | `tests/` | `laundry-model.unit.test.js` | C | In-memory DB. Covers: only flagged options count; offered flag ignored; quantity ignored; multiple flagged options on one reservation count once; kind='devis' excluded; window half-openness (`(start, end]`); empty results return zeros. |
 | `tests/` | `planning-laundry-controller.unit.test.js` | C | Fake models. Covers: drop-off and pick-up per laundry day in range; weekday change in settings is honoured; empty days are still listed with zero (the client filters the no-op cards, not the controller — keeps the contract uniform). |
 | `tests/` | `bed-linen-seed.unit.test.js` | C | **Follow-up §4.4**. 6 cases: fresh DB inserts the typed seed; idempotency on second boot; operator-adopted option already with `countsAsBedLinen=1` skipped; unrelated options don't prevent seed; schema missing the new column degrades gracefully; SQLite error caught + returned as `{ action: 'error' }`. |
+| `tests/` | `bathroom-linen-seed.unit.test.js` | C | **§3.5.bis follow-up**. 7 cases: mirror of the bed-linen-seed suite, plus a dedicated test confirming the two seeds do NOT conflict (a prod that adopted only the bed flag still gets the bathroom seed). |
 
 **Notes:**
 - `routes/planning.js` is new. The current `/api/reservations` endpoint is **not**

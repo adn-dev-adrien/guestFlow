@@ -654,6 +654,10 @@ tryAddOptionColumn('optionProgressiveTiers', "ALTER TABLE options ADD COLUMN opt
 // impact — the laundry endpoint joins reservation_options to this column to know which
 // reservations consumed sheets.
 tryAddOptionColumn('countsAsBedLinen', "ALTER TABLE options ADD COLUMN countsAsBedLinen INTEGER NOT NULL DEFAULT 0");
+// 2026-06-02 — bathroom-linen tracking (specs/weekly-bed-linen-tracking.md §3.5). Same shape as
+// `countsAsBedLinen` but counts large + small towels: 1 of each per guest (adults + teens +
+// children — babies excluded; the reservation field set is unchanged, towels are derived).
+tryAddOptionColumn('countsAsBathroomLinen', "ALTER TABLE options ADD COLUMN countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
@@ -1312,6 +1316,10 @@ db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
 ensureDefaultBedLinenOption(db);
 db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;
+
+const { ensureDefaultBathroomLinenOption } = require('./utils/bathroomLinenSeed');
+ensureDefaultBathroomLinenOption(db);
+db.ensureDefaultBathroomLinenOption = ensureDefaultBathroomLinenOption;
 
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
