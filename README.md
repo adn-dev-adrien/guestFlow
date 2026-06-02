@@ -238,15 +238,19 @@ credential encryption at rest, `GUESTFLOW_SESSION_SECRET` for sessions). This fi
 must never be committed or shared. Google service-account credentials are encrypted (AES-256-GCM) at
 rest using that key.
 
-The admin password persists across restarts. If you ever lose it, recover access without touching the
-database by hand — run, on the server:
+The admin password persists across restarts. If you ever lose it — or if you changed the admin's
+email and forgot the new address — recover access without touching the database by hand. Run, on
+the server, **either from the repo root or from `server/`**:
 
 ```bash
-cd server && npm run reset-admin
+npm run reset-admin            # from the repo root
+cd server && npm run reset-admin   # from server/
 ```
 
 This restores the default admin (`admin@guestflow.local` / `ChangeMe!2026`) with a forced password
-change on next login, and invalidates existing sessions. (Requires filesystem/SSH access to the server.)
+change on next login, and invalidates existing sessions. If the operator had previously renamed the
+admin email (since 2026-06-02), the oldest admin row is renamed back to `admin@guestflow.local`
+instead of a duplicate admin being created. (Requires filesystem/SSH access to the server.)
 
 ### Security configuration
 
