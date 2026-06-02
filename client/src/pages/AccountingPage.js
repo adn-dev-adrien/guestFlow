@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link,
+  TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link, Tooltip,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -59,6 +59,7 @@ export default function AccountingPage() {
   // and that's exactly what made the client name in the journal entry cease to be a clickable link.
   // Pinned by `__tests__/AccountingPage.regression.test.js`.
   const canOpenReservation = userHasRole(user, ADMIN);
+  const navigate = useNavigate();
   const today = new Date();
   // Default to the previous month — accounting work is typically retrospective.
   const defaultDate = useMemo(() => {
@@ -206,20 +207,38 @@ export default function AccountingPage() {
 
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Commissions plateformes</Typography>
-              {preview && (
-                <Typography variant="body2" color="text.secondary">
-                  Total commissions du mois : <strong>{formatEur(preview.totalCommission)}</strong>
-                </Typography>
-              )}
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              justifyContent="space-between"
+              spacing={1}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>Encaissements du mois</Typography>
+              <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={0.5}>
+                {/* Inline legend for the A/S/C badges shown on each row. Discreet — small font
+                    + the colour pastilles do the heavy lifting visually. */}
+                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                  {['deposit', 'balance', 'complement'].map((kind) => (
+                    <Stack key={kind} direction="row" spacing={0.5} alignItems="center">
+                      <KindBadge kind={kind} />
+                      <Typography variant="caption" color="text.secondary">{KIND_LABELS[kind]}</Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+                {preview && (
+                  <Typography variant="body2" color="text.secondary">
+                    Total commissions plateformes : <strong>{formatEur(preview.totalCommission)}</strong>
+                  </Typography>
+                )}
+              </Stack>
             </Stack>
 
             {loading && <Typography variant="body2" color="text.secondary">Chargement…</Typography>}
 
             {!loading && preview && preview.rows.length === 0 && (
               <Typography variant="body2" color="text.secondary">
-                Aucun encaissement plateforme ce mois-là.
+                Aucun encaissement ce mois-là.
               </Typography>
             )}
 
@@ -229,26 +248,47 @@ export default function AccountingPage() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Date</TableCell>
+                      <TableCell>Logement</TableCell>
                       <TableCell>Client</TableCell>
                       <TableCell>Plateforme</TableCell>
-                      <TableCell>Encaissement</TableCell>
-                      <TableCell>Net total séjour</TableCell>
-                      <TableCell>Brut payé client</TableCell>
+                      {/* Small badge column with no header label (the badges speak for themselves). */}
+                      <TableCell sx={{ width: 32, p: 0.5 }} />
+                      <TableCell sx={{ fontWeight: 700, bgcolor: 'primary.50' }}>Encaissement</TableCell>
                       <TableCell>Commission</TableCell>
+                      <TableCell>Brut payé client</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {preview.rows.map((row, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{formatDate(row.date)}</TableCell>
-                        <TableCell>{row.client}</TableCell>
-                        <TableCell>{row.platform}</TableCell>
-                        <TableCell>{formatEur(row.encaissement)}</TableCell>
-                        <TableCell>{formatEur(row.net)}</TableCell>
-                        <TableCell>{formatEur(row.gross)}</TableCell>
-                        <TableCell>{formatEur(row.commission)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {preview.rows.map((row, idx) => {
+                      // Row → reservation file, admin only. The accountant role is read-only
+                      // accounting and the server 403s `/api/reservations/*` for them, so the
+                      // link stays hidden at the UI layer too. `userHasRole(user, ADMIN)` is the
+                      // single gate (same helper as the sidebar + journal cards).
+                      const clickable = canOpenReservation && row.reservationId != null;
+                      return (
+                        <TableRow
+                          key={idx}
+                          hover={clickable}
+                          onClick={clickable ? () => navigate(`/reservations/${row.reservationId}`) : undefined}
+                          sx={clickable ? { cursor: 'pointer' } : undefined}
+                        >
+                          <TableCell>{formatDate(row.date)}</TableCell>
+                          <TableCell>{row.propertyName || '—'}</TableCell>
+                          <TableCell>{row.client}</TableCell>
+                          <TableCell>{row.platform}</TableCell>
+                          <TableCell sx={{ width: 32, p: 0.5 }}>
+                            <KindBadge kind={row.kind} />
+                          </TableCell>
+                          {/* Encaissement: highlighted column — bold + tinted background so the
+                              eye lands on it first when scanning the table. */}
+                          <TableCell sx={{ fontWeight: 700, bgcolor: 'primary.50' }}>
+                            {formatEur(row.encaissement)}
+                          </TableCell>
+                          <TableCell>{formatEur(row.commission)}</TableCell>
+                          <TableCell>{formatEur(row.gross)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Box>
@@ -265,6 +305,41 @@ export default function AccountingPage() {
 // and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
 
 const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde', complement: 'Complément' };
+
+// Tight single-letter badge so the encaissements table can show the kind without eating a
+// full column. Same colour palette as the journal cards' kind chip (amber / blue / purple).
+const KIND_BADGE_STYLES = {
+  deposit:    { letter: 'A', color: 'warning.contrastText', bgcolor: 'warning.main' },
+  balance:    { letter: 'S', color: 'info.contrastText',    bgcolor: 'info.main' },
+  complement: { letter: 'C', color: 'secondary.contrastText', bgcolor: 'secondary.main' },
+};
+
+function KindBadge({ kind }) {
+  const style = KIND_BADGE_STYLES[kind];
+  if (!style) return null;
+  return (
+    <Tooltip title={KIND_LABELS[kind] || ''} arrow>
+      <Box
+        component="span"
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          fontSize: 11,
+          fontWeight: 700,
+          color: style.color,
+          bgcolor: style.bgcolor,
+          lineHeight: 1,
+        }}
+      >
+        {style.letter}
+      </Box>
+    </Tooltip>
+  );
+}
 
 function JournalEntryCard({ entry, canOpenReservation = false }) {
   const isPlatform = Boolean(entry.platform.platform);

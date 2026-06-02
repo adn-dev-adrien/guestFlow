@@ -22,6 +22,7 @@ function makeRow(overrides = {}) {
     id: 7,
     firstName: 'Jean',
     lastName: 'Dupont',
+    propertyName: 'Le Petit Gîte',
     finalPrice: 200,
     touristTaxTotal: 4.80,
     clientGrossAmount: null,
@@ -42,6 +43,59 @@ function makeQuote(overrides = {}) {
     ...overrides,
   };
 }
+
+test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" entry)', () => {
+  // Regression for the dev-server bug Adrien spotted 2026-06-02: a reservation appeared twice
+  // in the AccountingPage table (and as two journal cards) — once with real numbers, once with
+  // every column at 0. Root cause: `depositDisabled = ON` after the user had clicked
+  // "Marquer acompte payé" → depositPaid stayed 1, depositAmount collapsed to 0, the entry
+  // was still emitted. Same shape for an accidentally-flipped complementPaid with no
+  // complement amount. Both code paths must return null when the kind's amount is 0.
+  const row = makeRow({ depositAmount: 0, balanceAmount: 0, complementAmount: 0 });
+  const quote = makeQuote();
+
+  // Legacy path.
+  assert.equal(buildEntry(row, quote, 'deposit'),    null);
+  assert.equal(buildEntry(row, quote, 'balance'),    null);
+  assert.equal(buildEntry(row, quote, 'complement'), null);
+
+  // Contrib-driven path (perLineData provided).
+  const perLineData = {
+    hasContribs: true,
+    optionLines: [], customOptionLines: [], resourceLines: [],
+    accommodationTtcCurrent: 0,
+  };
+  assert.equal(buildEntry(row, quote, 'deposit', perLineData),    null);
+  assert.equal(buildEntry(row, quote, 'balance', perLineData),    null);
+  assert.equal(buildEntry(row, quote, 'complement', perLineData), null);
+});
+
+test('every entry exposes propertyName, on BOTH the contrib-driven path AND the legacy fallback', () => {
+  // Regression: the propertyName field was only added to the contrib-driven return shape on
+  // first pass (2026-06-02 fix). Legacy reservations (no captured contribs) fall through to
+  // the second return path which was missing it — producing empty "Logement" cells in the
+  // platforms-commission table on AccountingPage. Pin both code paths here.
+  const row = makeRow({ propertyName: 'La Maison du Lac' });
+  const quote = makeQuote();
+
+  // Legacy path (no perLineData → hasContribs = false).
+  const legacy = buildEntry(row, quote, 'deposit');
+  assert.equal(legacy.propertyName, 'La Maison du Lac');
+
+  // Contrib-driven path — feed a non-zero accommodation contrib so the entry isn't dropped
+  // for being "all-zero" (the contrib path's null-return guard).
+  const contribRow = makeRow({
+    propertyName: 'La Maison du Lac',
+    accommodationAcompteContribTtc: 60,
+    accommodationSoldeContribTtc: 140,
+  });
+  const contribDriven = buildEntry(contribRow, quote, 'deposit', {
+    hasContribs: true,
+    optionLines: [], customOptionLines: [], resourceLines: [],
+    accommodationTtcCurrent: 200,
+  });
+  assert.equal(contribDriven.propertyName, 'La Maison du Lac');
+});
 
 test('direct booking — deposit + balance pro-rate against totalStayTtc (legacy unchanged)', () => {
   const row = makeRow({ platform: 'direct', depositAmount: 61.44, balanceAmount: 143.36 });
