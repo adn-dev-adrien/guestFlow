@@ -293,7 +293,10 @@ export default function PricingSummary({
                 const total = isOffered
                   ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
                   : Number(so.totalPrice || 0);
-                const isAuto = Boolean(opt?.autoOptionType);
+                // "Auto" hint = engine-derived early/late check option only. Linen options
+                // carry autoOptionType for undeletability but autoEnabled=0 — they're manual
+                // and must NOT display the "nuit complète" / "Xh suppl." hint.
+                const isAuto = Number(opt?.autoEnabled || 0) === 1;
                 let autoHint = '';
                 if (isAuto) {
                   if (so.autoFullNightApplied) autoHint = 'nuit complète';

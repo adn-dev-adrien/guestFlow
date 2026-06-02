@@ -217,6 +217,10 @@ const api = {
   // Lightweight status feed for the email field's "you still use the default admin seed"
   // red warning. Returns `{ myEmail, defaultStillUsed }`.
   getMyEmailStatus: () => request('/users/me/email-status'),
+  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
+  // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
+  getLaundryPlanningSummary: ({ from, to }) =>
+    request(`/planning/laundry?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

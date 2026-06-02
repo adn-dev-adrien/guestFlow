@@ -67,6 +67,11 @@ const RESERVATIONS_FIELDS = [
   { input: 'allowEditPastReservations', column: 'allowEditPastReservations' },
 ];
 
+// Laundry group (specs/weekly-bed-linen-tracking.md). Single field: weekday index.
+const LAUNDRY_FIELDS = [
+  { input: 'weekday', column: 'laundryWeekday', validator: validation.validateLaundryWeekday },
+];
+
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations']);
@@ -89,6 +94,7 @@ function updateSettings(req, res) {
   const vat = pickGroup(body, 'vat');
   const smtp = pickGroup(body, 'smtp');
   const reservations = pickGroup(body, 'reservations');
+  const laundry = pickGroup(body, 'laundry');
 
   const payload = {};
   const errors = {};
@@ -120,6 +126,7 @@ function updateSettings(req, res) {
   applyGroup(vat, VAT_FIELDS);
   applyGroup(smtp, SMTP_FIELDS);
   applyGroup(reservations, RESERVATIONS_FIELDS);
+  applyGroup(laundry, LAUNDRY_FIELDS);
 
   // Google Calendar private key — 3-way semantics.
   if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {

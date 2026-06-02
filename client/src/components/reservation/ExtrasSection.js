@@ -46,7 +46,13 @@ export default function ExtrasSection() {
                 {propertyOptions.map((opt) => {
                   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
                   const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                  const isAutoTimedOption = Boolean(opt.autoOptionType);
+                  // "Auto-timed" = the option is derived by the pricing engine itself (early
+                  // check-in / late check-out). The right discriminator is `autoEnabled === 1`,
+                  // NOT `autoOptionType` — since 2026-06-02 the latter is also used as a
+                  // "typed default" marker for the linen options (which carry autoOptionType +
+                  // autoEnabled=0; they're undeletable in the catalog but manually toggled per
+                  // reservation). Using autoOptionType here would wrongly disable the Switch.
+                  const isAutoTimedOption = Number(opt.autoEnabled || 0) === 1;
                   let factorHint = '';
                   if (opt.priceType === 'per_person') factorHint = `×${quantityPersons} pers.`;
                   else if (opt.priceType === 'per_night') factorHint = `×${quantityNights} j.`;

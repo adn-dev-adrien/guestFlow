@@ -46,9 +46,33 @@ test('"Ajouter une ligne" calls addCustomOption', async () => {
   expect(ctx.addCustomOption).toHaveBeenCalled();
 });
 
-test('an auto-timed option renders the "Ajout automatique" hint', () => {
+test('an auto-timed option (autoEnabled=1) renders the "Ajout automatique" hint', () => {
   renderExtras({
-    propertyOptions: [{ id: 11, title: 'Check-in anticipé', price: 20, priceType: 'per_stay', autoOptionType: 'early_check_in' }],
+    propertyOptions: [{ id: 11, title: 'Check-in anticipé', price: 20, priceType: 'per_stay', autoOptionType: 'early_check_in', autoEnabled: 1 }],
   });
   expect(screen.getByText('Ajout automatique')).toBeInTheDocument();
+});
+
+// 2026-06-02 regression — the bed-linen / bathroom-linen seeds carry `autoOptionType` purely
+// as an undeletability marker in the catalog (see specs/weekly-bed-linen-tracking.md §4.4). They
+// must behave like manual options on the reservation form: Switch ENABLED, no "Ajout
+// automatique" hint. The discriminator for "engine-derived" is `autoEnabled === 1`, NOT the
+// mere presence of `autoOptionType`.
+test('a typed-default linen option (autoOptionType set + autoEnabled=0) behaves as a manual option', async () => {
+  const user = userEvent.setup();
+  const ctx = renderExtras({
+    propertyOptions: [{
+      id: 42, title: 'Linge de lit', price: 0, priceType: 'per_stay',
+      autoOptionType: 'bed_linen', autoEnabled: 0, countsAsBedLinen: 1,
+    }],
+  });
+  // No auto-add hint anywhere on screen.
+  expect(screen.queryByText('Ajout automatique')).not.toBeInTheDocument();
+  // The first checkbox is the linen option's Switch (the only one in propertyOptions). It must
+  // not be disabled and must round-trip the click to setOptionEnabled — i.e. the manual flow
+  // works end-to-end.
+  const optionSwitch = screen.getAllByRole('checkbox')[0];
+  expect(optionSwitch).not.toBeDisabled();
+  await user.click(optionSwitch);
+  expect(ctx.setOptionEnabled).toHaveBeenCalledWith(42, true);
 });

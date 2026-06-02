@@ -74,6 +74,10 @@ const COLUMNS = [
   // helper casts to boolean for the controller, but read() returns the raw integer for the
   // API payload — consistent with smtpSecure (no surprise cast at the boundary).
   'allowEditPastReservations',
+  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sun .. 6=Sat, default
+  // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
+  // (400 INVALID_WEEKDAY).
+  'laundryWeekday',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -83,6 +87,7 @@ const NUMERIC_DEFAULTS = {
   smtpPort: 587,
   smtpSecure: 0,
   allowEditPastReservations: 0,
+  laundryWeekday: 2,
 };
 
 const STRING_DEFAULT_OVERRIDES = {

@@ -194,7 +194,11 @@ export default function ReservationPage() {
     complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
     depositDisabled: Boolean(form.depositDisabled),
     selectedOptions: (form.selectedOptions || [])
-      .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
+      // Exclude only options the pricing engine derives ITSELF (early/late check-in/out, i.e.
+      // `autoEnabled = 1`). Options that merely carry `autoOptionType` for the undeletability
+      // marker (linen options, since 2026-06-02) ARE part of the manual selection and must
+      // round-trip to the server.
+      .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
       .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: item.inComplement ? 1 : 0 }))
       .sort((a, b) => a.optionId - b.optionId),
     customOptions: (form.customOptions || [])
@@ -548,8 +552,10 @@ export default function ReservationPage() {
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
             // bit lives in `reservation_options`, but they're not part of form.selectedOptions
             // (auto-options have their own server-side channel) — keep them in a parallel array.
+            // Discriminator: `autoEnabled = 1` only, NOT autoOptionType (which the linen options
+            // also carry since 2026-06-02 — they ARE in form.selectedOptions like any manual option).
             autoOptionsInComplement: (res.options || [])
-              .filter((o) => !o.isCustom && o.autoOptionType && Number(o.inComplement || 0) === 1)
+              .filter((o) => !o.isCustom && Number(o.autoEnabled || 0) === 1 && Number(o.inComplement || 0) === 1)
               .map((o) => Number(o.optionId)),
           });
           setPricingQuote(null);
@@ -1162,7 +1168,9 @@ export default function ReservationPage() {
   // owned by the payment-flip code path; the server re-reads them from the DB-side snapshot.
   const buildSelectedOptionsPayload = () => {
     return (form.selectedOptions || [])
-      .filter((item) => !propertyOptions.find((o) => o.id === Number(item.optionId))?.autoOptionType)
+      // Same discriminator as the snapshot builder above: skip only engine-derived options
+      // (autoEnabled = 1), not the typed-default linen options (autoOptionType set, autoEnabled = 0).
+      .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
       .map((item) => ({ optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement ? 1 : 0 }));
   };
 

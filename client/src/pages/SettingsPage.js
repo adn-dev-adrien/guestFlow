@@ -9,6 +9,7 @@ import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsVatSection from '../components/SettingsVatSection';
 import SettingsReservationLockSection from '../components/SettingsReservationLockSection';
+import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
@@ -41,6 +42,10 @@ const EMPTY_FORM = {
   // Admin escape hatch (specs/admin-unlock-past-reservations.md). OFF by default.
   reservations: {
     allowEditPastReservations: false,
+  },
+  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Day of week, default Tue.
+  laundry: {
+    weekday: 2,
   },
 };
 
@@ -99,6 +104,10 @@ function buildPayloadFromDraft(draft, saved) {
   const reservationsDirty = diffFields(draft.reservations, saved.reservations);
   if (Object.keys(reservationsDirty).length > 0) payload.reservations = reservationsDirty;
 
+  // Laundry — single integer weekday, same per-field diff as the other simple groups.
+  const laundryDirty = diffFields(draft.laundry, saved.laundry);
+  if (Object.keys(laundryDirty).length > 0) payload.laundry = laundryDirty;
+
   return payload;
 }
 
@@ -121,6 +130,10 @@ function fromServer(settings) {
     reservations: {
       ...EMPTY_FORM.reservations,
       ...(settings.reservations || {}),
+    },
+    laundry: {
+      ...EMPTY_FORM.laundry,
+      ...(settings.laundry || {}),
     },
   };
 }
@@ -352,6 +365,13 @@ export default function SettingsPage() {
           disabled={loading || saving}
         />
 
+        <SettingsLaundrySection
+          value={draft.laundry.weekday}
+          error={errors.laundryWeekday}
+          onChange={(next) => updateGroup('laundry')('weekday', next)}
+          disabled={loading || saving}
+        />
+
         <SettingsGoogleCalendarSection
           values={draft.googleCalendar}
           errors={errors}
@@ -429,6 +449,11 @@ function mapClientKeyToErrorKey(group, key) {
       port: 'smtpPort',
       fromEmail: 'smtpFromEmail',
       publicUrl: 'publicUrl',
+    })[key];
+  }
+  if (group === 'laundry') {
+    return ({
+      weekday: 'laundryWeekday',
     })[key];
   }
   return null;
