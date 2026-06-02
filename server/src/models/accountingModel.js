@@ -240,6 +240,7 @@ function buildEntry(row, quote, kind, perLineData) {
       kind,
       paidDate: dateByKind[kind] || null,
       client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+      propertyName: row.propertyName || '',
       platform: row.platform || 'direct',
       clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
       finalPrice: finalPriceTtc,

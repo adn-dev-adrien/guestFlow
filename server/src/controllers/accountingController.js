@@ -66,6 +66,10 @@ function createAccountingController(accountingModel) {
       const platformRows = entries
         .filter((e) => e.platform && e.platform !== 'direct')
         .map((e) => ({
+          // `reservationId` + `propertyName` added 2026-06-02 so the AccountingPage table can
+          // link each row to its reservation file (admin only) and display the property.
+          reservationId: e.reservationId,
+          propertyName: e.propertyName || '',
           date: e.paidDate,
           kind: e.kind,
           client: `${e.client.firstName || ''} ${e.client.lastName || ''}`.trim() || `Réservation #${e.reservationId}`,

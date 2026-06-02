@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
   TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link,
@@ -59,6 +59,7 @@ export default function AccountingPage() {
   // and that's exactly what made the client name in the journal entry cease to be a clickable link.
   // Pinned by `__tests__/AccountingPage.regression.test.js`.
   const canOpenReservation = userHasRole(user, ADMIN);
+  const navigate = useNavigate();
   const today = new Date();
   // Default to the previous month — accounting work is typically retrospective.
   const defaultDate = useMemo(() => {
@@ -230,6 +231,7 @@ export default function AccountingPage() {
                     <TableRow>
                       <TableCell>Date</TableCell>
                       <TableCell>Client</TableCell>
+                      <TableCell>Logement</TableCell>
                       <TableCell>Plateforme</TableCell>
                       <TableCell>Encaissement</TableCell>
                       <TableCell>Net total séjour</TableCell>
@@ -238,17 +240,30 @@ export default function AccountingPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {preview.rows.map((row, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{formatDate(row.date)}</TableCell>
-                        <TableCell>{row.client}</TableCell>
-                        <TableCell>{row.platform}</TableCell>
-                        <TableCell>{formatEur(row.encaissement)}</TableCell>
-                        <TableCell>{formatEur(row.net)}</TableCell>
-                        <TableCell>{formatEur(row.gross)}</TableCell>
-                        <TableCell>{formatEur(row.commission)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {preview.rows.map((row, idx) => {
+                      // Row → reservation file, admin only. The accountant role is read-only
+                      // accounting and the server 403s `/api/reservations/*` for them, so the
+                      // link stays hidden at the UI layer too. `userHasRole(user, ADMIN)` is the
+                      // single gate (same helper as the sidebar + journal cards).
+                      const clickable = canOpenReservation && row.reservationId != null;
+                      return (
+                        <TableRow
+                          key={idx}
+                          hover={clickable}
+                          onClick={clickable ? () => navigate(`/reservations/${row.reservationId}`) : undefined}
+                          sx={clickable ? { cursor: 'pointer' } : undefined}
+                        >
+                          <TableCell>{formatDate(row.date)}</TableCell>
+                          <TableCell>{row.client}</TableCell>
+                          <TableCell>{row.propertyName || '—'}</TableCell>
+                          <TableCell>{row.platform}</TableCell>
+                          <TableCell>{formatEur(row.encaissement)}</TableCell>
+                          <TableCell>{formatEur(row.net)}</TableCell>
+                          <TableCell>{formatEur(row.gross)}</TableCell>
+                          <TableCell>{formatEur(row.commission)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </Box>
