@@ -73,6 +73,56 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 > immediately. Field-level server errors (`{ field: 'firstName', detail: '…' }`) land under the
 > matching input; generic errors fall through to the page snackbar.
 >
+> **2026-06-02 follow-up #7:** the "Mes informations" email field becomes **editable** for every
+> authenticated user. Rationale: a fresh install seeds `admin@guestflow.local` as the bootstrap
+> admin account; that placeholder is the login identity, not a real address, and the operator
+> needs to replace it with their actual email — which is also where welcome/reset mails are sent.
+> Server: `PUT /api/users/me` now accepts an optional `email` key, normalises (`trim`+`lowercase`),
+> validates with `isValidEmail`, returns **`400 INVALID_EMAIL`** for a malformed value and
+> **`409 EMAIL_ALREADY_EXISTS`** when another user already owns the address. Same-email (case-
+> insensitive equality with the current value) is a no-op — no conflict check, no DB write.
+> `roles` is still stripped (the privilege guard is unchanged). The model adds an
+> `isDefaultAdminEmailStillUsed()` helper exposed by **`GET /api/users/me/email-status`**
+> (authenticated, every role — allowlisted in `enforceRoleAccess.SELF_ENDPOINTS`) returning
+> `{ myEmail, defaultStillUsed, mustVerifyNewEmail, emailChangedAt }`. Client: `SelfProfileSection`
+> no longer disables the email input; when the server reports `defaultStillUsed: true` **AND** the
+> local draft is still `admin@guestflow.local`, the field gets MUI's `error` state + a red helper
+> text *"Vous utilisez encore l'adresse par défaut. Remplacez-la par votre vraie adresse — c'est
+> avec elle que vous vous connecterez."*. `UserManagementPage` fetches the status on mount and
+> re-fetches after every successful self-update so the warning disappears the moment the seed is
+> gone. The `AccountFormDialog` (admin's edit-other-user form) is **NOT** touched — email is still
+> locked when an admin edits someone else's account, because cross-account email rotation is a
+> different story (re-email of credentials, notification flow) and out of scope here.
+>
+> **Anti-lockout safeguards (this same follow-up).** Because the email IS the login identifier,
+> a typo + a logout = total prod lockout. To make the change safe:
+>
+> 1. **`users.emailChangedAt` (new column, NULL by default)** — stamped by `updateUser` whenever
+>    the email column is actually written (no stamp on no-op). Lets the client know the operator
+>    hasn't completed a full login round-trip with the new address yet.
+> 2. **Persistent `<EmailVerifyBanner>`** mounted in `AppShell` (visible on every page) — an MUI
+>    Alert (severity warning) shown iff `mustVerifyNewEmail === true`, i.e.
+>    `emailChangedAt && (!lastLoginAt || lastLoginAt <= emailChangedAt)`. Contains the new email
+>    + a "Se déconnecter" button. The CLI recovery command is intentionally NOT mentioned in the
+>    UI (operator-only escape hatch, documented in the README). Polls `/users/me/email-status` on
+>    mount AND on every route change so the banner appears anywhere the operator navigates and
+>    disappears the moment they log back in with the new address (the login flow updates
+>    `lastLoginAt` to a more recent timestamp).
+> 3. **`resetAdminToDefault` recovery path extended** — the existing `npm run reset-admin` CLI is
+>    the operator's last-resort recovery (SSH on the Pi). Today it would silently CREATE a second
+>    admin row with the seed email when no row holds it, leaving the operator's
+>    renamed-and-forgotten admin orphaned. New behaviour: when no `admin@guestflow.local` row
+>    exists but at least one admin row does, the OLDEST admin row is **renamed back** to the seed
+>    + password reset + `emailChangedAt` cleared (one-line console hint shows the recovered id).
+>    Pure additive — the legacy "seed row already exists" and "no admin at all" paths are
+>    unchanged. Same DB transaction, atomic.
+> 4. **`emailChangedAt` is cleared on every `resetAdminToDefault` run** so the recovered admin
+>    doesn't keep seeing the verification banner after the rescue.
+>
+> These four pieces close the lockout loop: change → banner appears → operator logs out + back in
+> → banner clears. If the operator typo'd + logs out without testing → SSH → `npm run reset-admin`
+> → recovered. No flow leaves the admin permanently locked out.
+>
 > **2026-05-30 follow-up #5:** the sidebar is now rendered by a **single code path for every role**
 > (no more separate accountant branch). A per-route role allowlist in
 > `client/src/constants/roles.js#ROUTE_ROLES` drives `canSeeRoute(user, path)` / `canSeeAnyRoute`;
@@ -255,7 +305,7 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 | `utils/passwordGenerator.js` | — | C | Pure function `generateTemporaryPassword(length = 12)` — 12 chars from `[A-HJ-NP-Z][a-hj-km-np-z][2-9]`, no `I/O/l/0/1`. Move the existing inline generator out of `SettingsAccountantAccessSection` (which is being deleted). |
 | `utils/emailService.js` | — | C | `createEmailService(settings) → { send(toEmail, subject, bodyPlain), sendTest(toEmail) }`. Wraps `nodemailer` (new dependency). Throws `EMAIL_NOT_CONFIGURED` when `settings.smtpHost` empty. Reads the decrypted password lazily. Pure plain-text emails (no HTML — keeps the code small and avoids the templating dependency for now). |
 | `utils/emailTemplates.js` | — | C | Two pure functions: `welcomeEmailBody({ firstName, email, temporaryPassword, publicUrl })` → `{ subject, body }` and `passwordResetEmailBody(...)`. Returns French plain-text. |
-| `controllers/usersController.js` | `usersController.js` | T | Extended: `list()` returns enriched users (with roles + lastLoginAt); `create({...})` orchestrates: validate → generate temp password → wrap in transaction → insert user + roles → send welcome email → on send failure, rollback; `update(id, payload)` (identity + roles); `resetPassword(id)` analogous to create (re-generate + email + rollback); `softDelete(id)` + `hardDelete(id)` with eligibility check + last-admin guard. All self-action checks reject `403 SELF_ACTION_FORBIDDEN`. **Follow-up #6:** new `updateSelf(req, res)` action — same identity-field validation as `create`, calls `usersModel.updateUser(req.user.id, { firstName, lastName, companyName, notes })` with NO `roles` and NO `email` keys (privilege guard). Returns 200 with the refreshed safe user, 401 when no session, 404 when the session id is gone from the DB. |
+| `controllers/usersController.js` | `usersController.js` | T | Extended: `list()` returns enriched users (with roles + lastLoginAt); `create({...})` orchestrates: validate → generate temp password → wrap in transaction → insert user + roles → send welcome email → on send failure, rollback; `update(id, payload)` (identity + roles); `resetPassword(id)` analogous to create (re-generate + email + rollback); `softDelete(id)` + `hardDelete(id)` with eligibility check + last-admin guard. All self-action checks reject `403 SELF_ACTION_FORBIDDEN`. **Follow-up #6:** new `updateSelf(req, res)` action — same identity-field validation as `create`, calls `usersModel.updateUser(req.user.id, { firstName, lastName, companyName, notes })` with NO `roles` (privilege guard). Returns 200 with the refreshed safe user, 401 when no session, 404 when the session id is gone from the DB. **Follow-up #7 (2026-06-02):** `updateSelf` now accepts an optional `email` key — normalised, validated with `isValidEmail` (400 `INVALID_EMAIL`), unique-checked (409 `EMAIL_ALREADY_EXISTS`); same-value is a no-op. New `emailStatus(req, res)` action re-reads the user from DB and returns `{ myEmail, defaultStillUsed, mustVerifyNewEmail, emailChangedAt }` — the verification flag drives the persistent anti-lockout banner. |
 | `controllers/settingsController.js` | `settingsController.js` | T | New action `sendSmtpTest(req)` (destination = `smtpFromEmail`, see rule 17). SMTP field validation lives here (port range, email pattern). **2026-05-30:** `updateSettings` strips ALL whitespace from `smtp.password` before passing it to `settingsModel.upsert` so Gmail App Passwords (4-by-4 format `abcd efgh ijkl mnop`) auth correctly without surfacing the cleanup to the user. |
 | `controllers/authController.js` | `authController.js` | T | `login` now calls `usersModel.touchLastLogin(user.id)` on success. `changePassword` now: if the *pre-change* session had `mustChangePassword=1`, **destroy the session** after the password update and return 204 (the client redirects to /login). Otherwise existing behaviour (session stays). |
 | `middleware/requireAuth.js` | `requireAuth.js` | T | `req.user.roles` is the new shape. Allowlist check stays identical. |
@@ -273,12 +323,16 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/UserManagementPage.js` | — | C | The unified `/account` page (renamed from `AccountsPage.js` on 2026-05-30 when the password section was merged in). **Three sections (in order):** "Mes informations" (`SelfProfileSection`, follow-up #6, every role), "Mon mot de passe" (`ChangePasswordForm`, every role), "Gestion des comptes" (admin only — list of users, AccountFormDialog, ConfirmDialogs). Reads `/api/users` + `/api/auth/me` + the roles constant. The list fetch is skipped for non-admins. The page also wires `useAuth().refresh()` after a successful self-update so the sidebar and dialog state pick up the new identity. |
+| `pages/UserManagementPage.js` | — | C | The unified `/account` page (renamed from `AccountsPage.js` on 2026-05-30 when the password section was merged in). **Three sections (in order):** "Mes informations" (`SelfProfileSection`, follow-up #6, every role), "Mon mot de passe" (`ChangePasswordForm`, every role), "Gestion des comptes" (admin only — list of users, AccountFormDialog, ConfirmDialogs). Reads `/api/users` + `/api/auth/me` + the roles constant. The list fetch is skipped for non-admins. The page also wires `useAuth().refresh()` after a successful self-update so the sidebar and dialog state pick up the new identity. **Follow-up #7 (2026-06-02):** also calls `api.getMyEmailStatus()` on mount and after every successful self-update, threads the result down to `SelfProfileSection` as `emailStatus={…}` for the red bootstrap-seed warning, and translates the new server error codes (`INVALID_EMAIL`, `EMAIL_ALREADY_EXISTS`) into French inline field errors. The system-wide `EmailVerifyBanner` lives in `AppShell`, not here. |
+| `App.js` | `App.js` | T | **Follow-up #7 (2026-06-02).** `AppShell` now renders `<EmailVerifyBanner />` once, between the AppBar and the `<Routes>` body — so the anti-lockout warning is visible on every page (not just `/account`) until the operator has logged in once with the new email. |
+| `models/usersModel.js` | `usersModel.js` | T | **Follow-up #7 (2026-06-02).** Reads/writes `users.emailChangedAt`; `updateEmailStmt` stamps it on real changes; `resetAdminToDefault` handles three cases (seed exists → reset; only a renamed admin exists → rename it back; nothing → bootstrap) and clears `emailChangedAt` on every reset so the recovered admin doesn't surface the banner. |
+| `scripts/reset-admin.js` | `reset-admin.js` | T | **Follow-up #7 (2026-06-02).** No code change — relies on the extended `resetAdminToDefault` to also recover the "operator changed their email and forgot it" lockout scenario. Stays the documented `npm run reset-admin` SSH escape hatch. |
 | `pages/SettingsPage.js` | `SettingsPage.js` | T | Removes the Accès comptable card. Adds a new **Envoi d'emails (SMTP)** section + "Envoyer un mail de test" button. Includes a `MaskedTextField` for the SMTP password (same UX as Google creds). |
 | `pages/ChangePasswordPage.js` | — | **D** | Deleted on 2026-05-30 — its responsibilities moved into `UserManagementPage`'s "Mon mot de passe" section. The first-login redirect-to-login flow (rule 15) is preserved verbatim inside the new section. |
 | `pages/LoginPage.js` | `LoginPage.js` | T | Reads the `reason=password-changed` query param and shows the *"Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe."* snackbar (one-shot). |
 | `components/AccountFormDialog.js` | — | C | FormDialog-based create/edit form. Fields: prénom, nom, email (disabled in edit mode), rôles (multi-select), société, note. Surface server validation errors inline. Lives next to the page since it's specifically about user identity; not a generification of FormDialog. |
-| `components/SelfProfileSection.js` | — | C | **Follow-up #6.** Self-service profile editor — Card with firstName, lastName, email (locked), companyName, notes + Save/Cancel buttons. No roles input (privilege guard). Submit + Cancel disabled until dirty; busy spinner on the Save button. Re-syncs its draft from `initialValues` on prop change (useful after `refreshAuth`). Owns its draft state; parent provides initial values + submit handler + busy + fieldErrors. |
+| `components/SelfProfileSection.js` | — | C | **Follow-up #6.** Self-service profile editor — Card with firstName, lastName, email, companyName, notes + Save/Cancel buttons. No roles input (privilege guard). Submit + Cancel disabled until dirty; busy spinner on the Save button. Re-syncs its draft from `initialValues` on prop change (useful after `refreshAuth`). Owns its draft state; parent provides initial values + submit handler + busy + fieldErrors. **Follow-up #7 (2026-06-02):** email is now editable. New `emailStatus` prop = `{ defaultStillUsed: boolean }`; when the local draft is still `admin@guestflow.local` AND `emailStatus.defaultStillUsed` is true, the email TextField switches to `error` state with a red helper text prompting the operator to replace the bootstrap seed. |
+| `components/EmailVerifyBanner.js` | — | C | **Follow-up #7 (2026-06-02).** Persistent anti-lockout banner mounted in `AppShell` between the `AppBar` and the routed pages. Polls `/api/users/me/email-status` on mount + every route change; renders an MUI Alert (warning) iff `mustVerifyNewEmail === true`. Shows the new email + a "Se déconnecter" button. The CLI recovery command (`npm run reset-admin`) is **deliberately NOT mentioned** in the UI text — it's an operator-only escape hatch documented in the README, and the banner is visible to non-admin roles too. Self-contained: returns `null` when there's nothing to warn about, so wiring is a single `<EmailVerifyBanner />`. |
 | `components/SettingsAccountantAccessSection.js` | — | **D** | Deleted (the section is gone; the file too). |
 | `components/AppSidebar.js` | `AppSidebar.js` | T | Adds the "Comptes" item (admin-only via `userHasRole(currentUser, 'admin')`). Inserted under "Paramètres" or near it. |
 | `App.js` | `App.js` | T | Registers the `/account` route; **2026-05-30 round 1:** redirects `/comptes` and `/settings/password` to `/account` via `<Navigate replace />`; renames the sidebar entry to "Gestion utilisateur" and moves it from a top-level item to a submenu of "Paramètres"; removes the admin-side `Paramètres > Mot de passe` submenu; switches the accountant-confinement guard to allow `/account`. **2026-05-30 round 2 (follow-up #5):** the dedicated accountant sidebar branch is **removed**. `NavContent` now renders a single tree for all roles; each `<ListItemButton>` is wrapped with `canSeeRoute(user, path)` (top-level + every submenu child). Submenu parents (Calendrier, Suivi financier, Paramètres) are gated by `canSeeAnyRoute(user, children)` so they survive when at least one child is visible. When the parent's own path isn't reachable (accountant on `/settings`), the row drops its `Link` props (no navigation) and the drawer-close callback is suppressed — clicking it only toggles the submenu. The `CALENDAR_CHILDREN` / `FINANCE_CHILDREN` / `SETTINGS_CHILDREN` constants list the children authoritatively next to the JSX. |

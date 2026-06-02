@@ -9,6 +9,10 @@ jest.mock('../../api', () => ({
   default: {
     listUsers: jest.fn(),
     updateSelf: jest.fn(),
+    // `getMyEmailStatus` drives the red bootstrap-admin warning in SelfProfileSection. The page
+    // fires it on mount + after every successful profile save — the mock returns a benign payload
+    // by default so tests don't have to worry about unhandled promises.
+    getMyEmailStatus: jest.fn(),
   },
 }));
 jest.mock('../../hooks/useAuth', () => ({
@@ -39,6 +43,9 @@ function renderPage() {
 beforeEach(() => {
   api.listUsers.mockReset();
   api.updateSelf.mockReset();
+  api.getMyEmailStatus.mockReset();
+  // Default: the seed is gone — no red warning, no test interference.
+  api.getMyEmailStatus.mockResolvedValue({ myEmail: null, defaultStillUsed: false });
 });
 
 describe('UserManagementPage — section visibility by role', () => {
@@ -157,6 +164,9 @@ describe('UserManagementPage — "Mes informations" section', () => {
     expect(api.updateSelf).toHaveBeenCalledWith({
       firstName: 'Marie',
       lastName: 'B',
+      // Email is editable since 2026-06-02 — the form always forwards the current value so
+      // a no-op email (same as before) is valid and a real change goes through.
+      email: 'compta@example.org',
       companyName: '',
       notes: '',
     });

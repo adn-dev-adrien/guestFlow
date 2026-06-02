@@ -82,7 +82,10 @@ function buildController({
 
     // PUT /api/users/me — any authenticated user updates their OWN identity fields. Email and
     // roles are explicitly NOT editable from this endpoint:
-    //   - email is locked everywhere (matches the admin form + AccountFormDialog edit mode);
+    //   - email is editable since 2026-06-02 (the bootstrap admin needs to replace the
+    //     `admin@guestflow.local` seed with a real address). The model enforces uniqueness
+    //     and we validate the format here; an unchanged email skips the validation altogether
+    //     so existing callers that don't touch it (or send the same string) keep working.
     //   - roles must never be self-modifiable — a user could otherwise grant themselves admin.
     // Validation mirrors `create` (firstName + lastName required). Returns the refreshed safe user
     // so the caller can update its local auth state immediately.
@@ -94,19 +97,67 @@ function buildController({
       if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
       if (!lastName) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
 
-      const updated = usersModel.updateUser(req.user.id, {
-        firstName,
-        lastName,
-        companyName: String(body.companyName || '').trim(),
-        notes: String(body.notes || '').trim(),
-        // No `roles` key on purpose — the model preserves the existing roles when undefined.
-      });
+      // Optional email change — only validate when the body carries a value that differs
+      // from the current one. Submitting the same email is a no-op (no format check
+      // re-runs, no uniqueness ping).
+      let emailForModel;
+      if (body.email !== undefined && body.email !== null) {
+        const trimmed = String(body.email).trim();
+        if (trimmed && trimmed.toLowerCase() !== String(req.user.email || '').toLowerCase()) {
+          if (!isValidEmail(trimmed)) return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
+          emailForModel = trimmed;
+        }
+      }
+
+      let updated;
+      try {
+        updated = usersModel.updateUser(req.user.id, {
+          firstName,
+          lastName,
+          companyName: String(body.companyName || '').trim(),
+          notes: String(body.notes || '').trim(),
+          // No `roles` key on purpose — the model preserves the existing roles when undefined.
+          ...(emailForModel !== undefined ? { email: emailForModel } : {}),
+        });
+      } catch (err) {
+        if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
+          return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
+        }
+        throw err;
+      }
       if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND' });
       // Sync the persisted session so the next /me + every downstream `req.user` read
       // (sidebar greeting, dialogs, future navigation) sees the new values immediately,
       // without waiting for the next /me round-trip to refresh from the DB.
       if (req.session) req.session.user = updated;
       return res.json({ user: updated });
+    },
+
+    // GET /api/users/me/email-status — minimal payload the SelfProfileSection polls to know
+    // whether the operator is still on the bootstrap admin email. Drives the red highlight
+    // + "Change me" hint on the email field. Read-only, gated by requireAuth like the rest of
+    // /api/users; admin-only is NOT enforced because any user can want to see their own
+    // email's status. The `defaultStillUsed` flag is a system-wide check (looks across all
+    // users) so a non-admin's profile UI doesn't have to special-case anything — they just
+    // see the warning on their own email if it happens to be the default one too.
+    emailStatus(req, res) {
+      if (!req.user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
+      // Re-read the user from DB instead of trusting `req.user` (which only refreshes when the
+      // session is rewritten) — guarantees lastLoginAt + emailChangedAt are current.
+      const fresh = usersModel.findById(req.user.id);
+      const lastLoginAt = fresh && fresh.lastLoginAt;
+      const emailChangedAt = fresh && fresh.emailChangedAt;
+      // Verification banner is active when the email was changed AND the user hasn't logged in
+      // afterwards yet. Both timestamps are ISO strings → safe lexicographic comparison.
+      const mustVerifyNewEmail = Boolean(
+        emailChangedAt && (!lastLoginAt || lastLoginAt <= emailChangedAt)
+      );
+      return res.json({
+        myEmail: (fresh && fresh.email) || req.user.email || '',
+        defaultStillUsed: usersModel.isDefaultAdminEmailStillUsed(),
+        mustVerifyNewEmail,
+        emailChangedAt: emailChangedAt || null,
+      });
     },
 
     // POST /api/users — create + email welcome with temporary password.

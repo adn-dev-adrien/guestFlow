@@ -111,27 +111,45 @@ export default function UserManagementPage() {
   }, [changePassword, navigate, wasMustChange]);
 
   // "Mes informations" — self-service profile editor (specs/admin-account-management.md §6.1).
-  // Hits PUT /api/users/me; the server ignores any roles / email key in the payload (privilege
-  // guard). On success we refresh the auth state so the sidebar + dialogs pick up the new name.
+  // Hits PUT /api/users/me. Since 2026-06-02 the email is editable too (the bootstrap admin
+  // needs to replace the `admin@guestflow.local` seed). On success we refresh the auth state
+  // so the sidebar + dialogs pick up the new name, plus the email-status feed so the red
+  // warning disappears the moment the seed is gone.
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
+  const [emailStatus, setEmailStatus] = useState(null);
+  const refreshEmailStatus = useCallback(async () => {
+    try {
+      setEmailStatus(await api.getMyEmailStatus());
+    } catch {
+      // Non-blocking — the form still saves; we just can't drive the red warning.
+      setEmailStatus(null);
+    }
+  }, []);
+  useEffect(() => { refreshEmailStatus(); }, [refreshEmailStatus]);
+
   const handleProfileSubmit = useCallback(async (payload) => {
     setProfileBusy(true);
     setProfileErrors({});
     try {
       await api.updateSelf(payload);
       if (typeof refreshAuth === 'function') await refreshAuth();
+      await refreshEmailStatus();
       setSnackbar({ severity: 'success', message: 'Vos informations ont été mises à jour.' });
     } catch (err) {
       if (err && err.field) {
-        setProfileErrors({ [err.field]: err.detail || err.error });
+        // Translate server error codes into user-facing French for the email-specific cases.
+        const friendly = err.error === 'INVALID_EMAIL' ? 'Adresse email invalide.'
+          : err.error === 'EMAIL_ALREADY_EXISTS' ? 'Cette adresse est déjà utilisée par un autre compte.'
+            : (err.detail || err.error);
+        setProfileErrors({ [err.field]: friendly });
       } else {
         showError(err, 'Mise à jour impossible.');
       }
     } finally {
       setProfileBusy(false);
     }
-  }, []);
+  }, [refreshAuth, refreshEmailStatus]);
 
   const isSelf = (u) => me && u && Number(me.id) === Number(u.id);
 
@@ -273,6 +291,7 @@ export default function UserManagementPage() {
         {/* Section 1 — Mes informations (tous les rôles, profil personnel). */}
         <SelfProfileSection
           initialValues={me}
+          emailStatus={emailStatus}
           fieldErrors={profileErrors}
           busy={profileBusy}
           onSubmit={handleProfileSubmit}

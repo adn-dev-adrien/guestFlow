@@ -37,6 +37,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import theme from './theme';
 import DialogProvider from './components/DialogProvider';
+import EmailVerifyBanner from './components/EmailVerifyBanner';
 import api from './api';
 import { PLATFORM_COLORS } from './constants/platforms';
 
@@ -647,6 +648,9 @@ function AppShell() {
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 2, md: 3 }, mt: 8, bgcolor: 'background.default', minHeight: '100vh' }}>
+        {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
+            address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
+        <EmailVerifyBanner />
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/clients" element={<ClientsPage />} />

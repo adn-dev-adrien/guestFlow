@@ -21,6 +21,7 @@ const SELF_ENDPOINTS = new Set([
   '/auth/logout',
   '/auth/change-password',
   '/users/me',
+  '/users/me/email-status',
   '/version',
 ]);
 

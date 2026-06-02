@@ -13,6 +13,10 @@ const controller = require('../controllers/usersController');
 
 router.get('/', controller.list);
 router.get('/me', controller.getMe);
+// Read-only status feed for the SelfProfileSection's "default admin email still in use"
+// red warning. Declared before /:id like /me itself, for the same string-vs-int routing
+// reason. Accountant role can hit it (allowlisted alongside `/me` in enforceRoleAccess).
+router.get('/me/email-status', controller.emailStatus);
 // PUT /api/users/me MUST be declared before PUT /api/users/:id so it's matched first (otherwise
 // :id would catch "me" as a string id and the admin guard in update() would 400 on the asInt).
 router.put('/me', controller.updateSelf);

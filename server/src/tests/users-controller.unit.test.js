@@ -40,10 +40,28 @@ function makeFakeUsersModel({ initialUsers = [], adminCount = 1 } = {}) {
       calls.push({ fn: 'updateUser', id, payload });
       const existing = users.get(Number(id));
       if (!existing) return null;
+      // Uniqueness simulation: if the payload carries an email that matches another user's,
+      // throw the same sentinel the real model throws so the controller branches via
+      // `err.code === 'EMAIL_ALREADY_EXISTS'`.
+      if (payload.email && payload.email !== existing.email) {
+        for (const [uid, u] of users) {
+          if (Number(uid) !== Number(id) && u.email === payload.email) {
+            const err = new Error('EMAIL_ALREADY_EXISTS');
+            err.code = 'EMAIL_ALREADY_EXISTS';
+            throw err;
+          }
+        }
+      }
       const updated = { ...existing, ...payload };
       if (Array.isArray(payload.roles)) updated.roles = [...payload.roles];
       users.set(Number(id), updated);
       return updated;
+    },
+    isDefaultAdminEmailStillUsed() {
+      for (const u of users.values()) {
+        if (String(u.email || '').toLowerCase() === 'admin@guestflow.local') return true;
+      }
+      return false;
     },
     resetUserPassword(id, password) {
       calls.push({ fn: 'resetUserPassword', id, password });
@@ -486,22 +504,186 @@ test('updateSelf: handler tolerates a missing session (sessionless callers / fai
   assert.equal(res.statusCode, 200);
 });
 
-test('updateSelf: an email field in the body is IGNORED — email stays locked', () => {
+test('updateSelf: email IS editable since 2026-06-02 (replaces the bootstrap admin seed)', () => {
+  // The admin@guestflow.local seed is a placeholder; the operator MUST be able to swap it
+  // for their real address. This test pins the positive path — submitting a new valid
+  // email updates the row and the response carries the new value.
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 1, firstName: 'A', lastName: 'B', email: 'admin@guestflow.local', companyName: '', notes: '', roles: ['admin'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const session = { user: { id: 1, email: 'admin@guestflow.local', roles: ['admin'] } };
+  const res = fakeRes();
+  c.updateSelf({
+    user: session.user,
+    session,
+    body: { firstName: 'A', lastName: 'B', email: 'adrien@adn-dev.fr' },
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  // Model was called WITH the email key.
+  const call = usersModel.calls.find((c) => c.fn === 'updateUser');
+  assert.equal(call.payload.email, 'adrien@adn-dev.fr');
+  // Response + session both carry the new value.
+  assert.equal(res.body.user.email, 'adrien@adn-dev.fr');
+  assert.equal(session.user.email, 'adrien@adn-dev.fr');
+});
+
+test('updateSelf: submitting the SAME email is a no-op (no validation re-runs, model gets no email key)', () => {
+  // Defensive: the SelfProfileSection always sends the full form payload (including the
+  // unchanged email). The controller should skip the format check + uniqueness ping in
+  // that case so a legitimate save doesn't suddenly fail because, say, the seed email
+  // happens to not pass our regex (it does — but the principle holds).
   const usersModel = makeFakeUsersModel({
     initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
   });
   const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
   const res = fakeRes();
   c.updateSelf({
-    user: { id: 7, roles: ['accountant'] },
-    body: { firstName: 'X', lastName: 'Y', email: 'attacker@evil.com' },
+    user: { id: 7, email: 'a@b.c', roles: ['accountant'] },
+    body: { firstName: 'A', lastName: 'B', email: 'a@b.c' /* same */ },
   }, res);
 
   assert.equal(res.statusCode, 200);
-  // Model call did not include email.
-  assert.equal(Object.prototype.hasOwnProperty.call(usersModel.calls[0].payload, 'email'), false);
-  // And the response keeps the original email.
-  assert.equal(res.body.user.email, 'a@b.c');
+  const call = usersModel.calls.find((c) => c.fn === 'updateUser');
+  assert.equal(Object.prototype.hasOwnProperty.call(call.payload, 'email'), false,
+    'no email key passed to the model when the value is unchanged');
+});
+
+test('updateSelf: case-insensitive same email is also a no-op', () => {
+  // RFC 5321: the local part is case-sensitive in theory but is case-insensitive in
+  // every real mail server. The session user's email is lowercased at login time; if the
+  // form re-submits with mixed casing, treat it as the same.
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, email: 'a@b.c', roles: ['accountant'] },
+    body: { firstName: 'A', lastName: 'B', email: 'A@B.C' /* mixed case, semantically same */ },
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  const call = usersModel.calls.find((c) => c.fn === 'updateUser');
+  assert.equal(Object.prototype.hasOwnProperty.call(call.payload, 'email'), false);
+});
+
+test('updateSelf: invalid email format → 400 INVALID_EMAIL', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, email: 'a@b.c', roles: ['accountant'] },
+    body: { firstName: 'A', lastName: 'B', email: 'not-an-email' },
+  }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'INVALID_EMAIL');
+  assert.equal(res.body.field, 'email');
+});
+
+test('updateSelf: email already used by another user → 409 EMAIL_ALREADY_EXISTS', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [
+      { id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' },
+      { id: 8, firstName: 'X', lastName: 'Y', email: 'taken@example.com', companyName: '', notes: '', roles: ['admin'], isActive: true, mustChangePassword: false, lastLoginAt: null },
+    ],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, email: 'a@b.c', roles: ['accountant'] },
+    body: { firstName: 'A', lastName: 'B', email: 'taken@example.com' },
+  }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'EMAIL_ALREADY_EXISTS');
+  assert.equal(res.body.field, 'email');
+});
+
+// ----- emailStatus -----
+
+test('emailStatus: returns the current user email + defaultStillUsed=true when the seed is in DB', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 1, firstName: 'A', lastName: 'B', email: 'admin@guestflow.local', companyName: '', notes: '', roles: ['admin'], isActive: true, mustChangePassword: false, lastLoginAt: null }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.emailStatus({ user: { id: 1, email: 'admin@guestflow.local' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.myEmail, 'admin@guestflow.local');
+  assert.equal(res.body.defaultStillUsed, true);
+});
+
+test('emailStatus: defaultStillUsed=false once the seed has been replaced', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 1, firstName: 'A', lastName: 'B', email: 'adrien@adn-dev.fr', companyName: '', notes: '', roles: ['admin'], isActive: true, mustChangePassword: false, lastLoginAt: null }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.emailStatus({ user: { id: 1, email: 'adrien@adn-dev.fr' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.myEmail, 'adrien@adn-dev.fr');
+  assert.equal(res.body.defaultStillUsed, false);
+});
+
+test('emailStatus: no session → 401 UNAUTHENTICATED', () => {
+  const c = buildSubject({ usersModel: makeFakeUsersModel(), settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.emailStatus({}, res);
+  assert.equal(res.statusCode, 401);
+});
+
+// 2026-06-02 — mustVerifyNewEmail drives the persistent anti-lockout banner. It's true iff the
+// admin has changed their email AND hasn't logged in once with the new one yet
+// (lastLoginAt <= emailChangedAt). Becomes false on the next login because login updates
+// lastLoginAt to a more recent timestamp.
+
+test('emailStatus: mustVerifyNewEmail=true right after an email change (no login since)', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{
+      id: 1, firstName: 'A', lastName: 'B', email: 'new@example.org', companyName: '', notes: '',
+      roles: ['admin'], isActive: true, mustChangePassword: false,
+      lastLoginAt: '2026-06-01 10:00:00',
+      emailChangedAt: '2026-06-02 09:00:00', // change happened AFTER last login
+    }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.emailStatus({ user: { id: 1, email: 'new@example.org' } }, res);
+  assert.equal(res.body.mustVerifyNewEmail, true);
+  assert.equal(res.body.emailChangedAt, '2026-06-02 09:00:00');
+});
+
+test('emailStatus: mustVerifyNewEmail=false once the operator has logged in with the new email', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{
+      id: 1, firstName: 'A', lastName: 'B', email: 'new@example.org', companyName: '', notes: '',
+      roles: ['admin'], isActive: true, mustChangePassword: false,
+      lastLoginAt: '2026-06-02 10:00:00',
+      emailChangedAt: '2026-06-02 09:00:00', // login happened AFTER change → banner clears
+    }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.emailStatus({ user: { id: 1, email: 'new@example.org' } }, res);
+  assert.equal(res.body.mustVerifyNewEmail, false);
+});
+
+test('emailStatus: mustVerifyNewEmail=false when emailChangedAt is null (never changed)', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{
+      id: 1, firstName: 'A', lastName: 'B', email: 'real@example.org', companyName: '', notes: '',
+      roles: ['admin'], isActive: true, mustChangePassword: false,
+      lastLoginAt: '2026-06-01 10:00:00', emailChangedAt: null,
+    }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.emailStatus({ user: { id: 1, email: 'real@example.org' } }, res);
+  assert.equal(res.body.mustVerifyNewEmail, false);
+  assert.equal(res.body.emailChangedAt, null);
 });
 
 test('updateSelf: empty firstName / lastName → 400 (same rules as admin create)', () => {

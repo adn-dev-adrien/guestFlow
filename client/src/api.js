@@ -211,9 +211,12 @@ const api = {
   listUsers: () => request('/users'),
   getCurrentUser: () => request('/users/me'),
   // Self-service profile update — every authenticated role can call this on their own row.
-  // Email + roles are NOT in the accepted payload server-side (privilege guard); the dialog only
-  // exposes firstName / lastName / companyName / notes.
+  // Email IS editable since 2026-06-02 (the bootstrap admin must be able to replace the
+  // `admin@guestflow.local` seed). Roles stay locked server-side (privilege guard).
   updateSelf: (payload) => request('/users/me', { method: 'PUT', body: payload }),
+  // Lightweight status feed for the email field's "you still use the default admin seed"
+  // red warning. Returns `{ myEmail, defaultStillUsed }`.
+  getMyEmailStatus: () => request('/users/me/email-status'),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

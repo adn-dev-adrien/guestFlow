@@ -23,6 +23,7 @@ function freshModel() {
       isActive INTEGER NOT NULL DEFAULT 1,
       mustChangePassword INTEGER NOT NULL DEFAULT 0,
       lastLoginAt TEXT,
+      emailChangedAt TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now'))
     );
