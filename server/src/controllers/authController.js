@@ -29,8 +29,29 @@ function createAuthController(users) {
   }
 
   function me(req, res) {
-    if (req.session && req.session.user) return res.json(req.session.user);
-    return res.status(401).json({ error: 'UNAUTHENTICATED' });
+    if (!req.session || !req.session.user) {
+      return res.status(401).json({ error: 'UNAUTHENTICATED' });
+    }
+    // Re-read the user from the DB on every /me call so the response reflects every
+    // side-channel update (an admin editing this user, the `companyName` / `notes` fields
+    // being filled later, etc.) instead of returning the stale snapshot persisted in the
+    // SQLite session store at login time. Without this re-read, the "Mes informations"
+    // form on /account stayed pre-filled with whatever the session held at login — which
+    // could be empty for users whose row was edited or whose session predates the
+    // companyName / notes shape extension.
+    //
+    // The re-read also refreshes `req.session.user` so downstream middleware reads
+    // (req.user via requireAuth) see the new values without needing a logout / login cycle.
+    const fresh = users.findById(req.session.user.id);
+    if (!fresh) {
+      // Underlying user was deleted while the session was live — kill the session too.
+      if (typeof req.session.destroy === 'function') {
+        return req.session.destroy(() => res.status(401).json({ error: 'UNAUTHENTICATED' }));
+      }
+      return res.status(401).json({ error: 'UNAUTHENTICATED' });
+    }
+    req.session.user = fresh;
+    return res.json(fresh);
   }
 
   function changePassword(req, res) {
