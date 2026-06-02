@@ -27,14 +27,21 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - **Bathroom-linen tracking (towels) — §3.5.bis follow-up.** Strict mirror of the bed-linen
     feature: a second independent flag `countsAsBathroomLinen`, a default **"Linge de toilette"**
     seed (`autoOptionType = 'bathroom_linen'`, same non-destructive contract), and a second
-    sub-line *"Serviettes: N grandes · N petites"* under the same "À apporter / À récupérer"
-    headers in the LaundryDayCard. **The towel count SCALES by `reservation_options.quantity`**
-    (asymmetric with bed-linen which ignores quantity) — the seed is `priceType = per_person`
-    and the operator uses the quantity field as a sub-occupation factor (e.g. `0.6667` on a
-    3-person stay = "2 of 3 want towels"). Formula:
-    `ROUND((adults + teens + children) × Σ reservation_options.quantity)` per reservation,
-    summed. Babies excluded (no adult-sized towels); 1 large + 1 small towel per effective
-    person.
+    sub-line *"Serviettes: N grandes · N moyennes · N petites"* under the same "À apporter /
+    À récupérer" headers in the LaundryDayCard. **The towel count SCALES by
+    `reservation_options.quantity`** (asymmetric with bed-linen which ignores quantity) — the
+    seed is `priceType = per_person` and the operator uses the quantity field as a
+    sub-occupation factor (e.g. `0.6667` on a 3-person stay = "2 of 3 want towels").
+  - **§3.5.ter — per-type linen configuration on the option.** Six new columns on `options`:
+    `linenIncludesSingle / Double / Baby` (1/0, default 1 — drive 3 checkboxes shown in the
+    option form when `countsAsBedLinen=1`) and `towelLargePerPerson / Medium / Small`
+    (integers ≥ 0, defaults 1 / 0 / 1 — drive 3 number inputs shown when
+    `countsAsBathroomLinen=1`). Bed-linen formula now gates each bed-type sum on its include
+    flag; bathroom-linen formula becomes
+    `ROUND(persons × Σ quantity × MAX(towel<Size>PerPerson))` per size. A multiplier at 0
+    silences that size in the LaundryDayCard (rule 13.bis). Defaults preserve the previous
+    "all bed types ON, 1 large + 1 small per person" semantic — no migration needed for
+    existing installs.
   - New global setting `laundryWeekday` (0 = Sunday … 6 = Saturday, default 2 = Tuesday)
     configurable in *Paramètres → Linge & blanchisserie*.
   - New endpoint `GET /api/planning/laundry?from=…&to=…` returning every laundry-day occurrence
@@ -75,6 +82,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   idempotent ALTER TABLE in `server/src/database.js`. Existing options default to "not a linen
   option" on both flags (the feature stays silent until Adrien ticks them). Default weekday =
   Tuesday.
+- **§3.5.ter** adds six more columns on `options`, all idempotent ALTER TABLE:
+  - `linenIncludesSingle`, `linenIncludesDouble`, `linenIncludesBaby` (INT 0/1, default 1)
+  - `towelLargePerPerson`, `towelMediumPerPerson`, `towelSmallPerPerson` (INT ≥ 0, defaults
+    1 / 0 / 1)
+
+  Defaults match the pre-existing semantic so no row needs backfill.
 
 ### Changed
 - **PlanningPage day-card colour palette** (spec `weekly-bed-linen-tracking.md` §6.1, follow-up

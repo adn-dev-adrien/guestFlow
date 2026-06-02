@@ -9,7 +9,7 @@ const { buildController } = require('../controllers/planningController');
 function makeFake({
   laundryWeekday = 2,
   windowFn = () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0 }),
-  bathroomFn = () => ({ largeTowels: 0, smallTowels: 0 }),
+  bathroomFn = () => ({ largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
 } = {}) {
   const settingsModel = { read: () => ({ laundryWeekday }) };
   const calls = [];
@@ -80,9 +80,9 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
   };
   // Same windows for the bathroom call: 7 people on drop, 9 people on pickUp.
   const bathroomFn = (start, end) => {
-    if (start === '2026-05-26' && end === '2026-06-02') return { largeTowels: 7, smallTowels: 7 };
-    if (start === '2026-05-19' && end === '2026-05-26') return { largeTowels: 9, smallTowels: 9 };
-    return { largeTowels: 0, smallTowels: 0 };
+    if (start === '2026-05-26' && end === '2026-06-02') return { largeTowels: 7, mediumTowels: 0, smallTowels: 7 };
+    if (start === '2026-05-19' && end === '2026-05-26') return { largeTowels: 9, mediumTowels: 0, smallTowels: 9 };
+    return { largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
   };
   const { settingsModel, laundryModel } = makeFake({ laundryWeekday: 2, windowFn, bathroomFn });
   const c = buildController({ settingsModel, laundryModel });
@@ -92,8 +92,8 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
   // sub-lines under the same "À apporter / À récupérer" header.
   assert.deepEqual(res.body.laundryDays, [{
     date: '2026-06-02',
-    dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, smallTowels: 7 },
-    pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, smallTowels: 9 },
+    dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7 },
+    pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9 },
   }]);
 });
 
@@ -143,10 +143,10 @@ test('laundrySummary: zero-everywhere laundry day is STILL emitted (server contr
   // Bed AND bathroom blocks merged into one zero block per side (5 keys total).
   assert.deepEqual(
     res.body.laundryDays[0].dropOff,
-    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, smallTowels: 0 }
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
   );
   assert.deepEqual(
     res.body.laundryDays[0].pickUp,
-    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, smallTowels: 0 }
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
   );
 });

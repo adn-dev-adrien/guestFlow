@@ -54,8 +54,14 @@ function createOptionsModel(database) {
 
     create(payload = {}) {
       const insertOption = database.prepare(`
-        INSERT INTO options (title, description, priceType, price, optionProgressiveTiers, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold, countsAsBedLinen, countsAsBathroomLinen)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO options (
+          title, description, priceType, price, optionProgressiveTiers,
+          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+          countsAsBedLinen, countsAsBathroomLinen,
+          linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
+          towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson
+        )
+        VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?,  ?, ?,  ?, ?, ?,  ?, ?, ?)
       `);
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       const optionId = database.transaction(() => {
@@ -71,6 +77,15 @@ function createOptionsModel(database) {
           payload.autoFullNightThreshold || null,
           payload.countsAsBedLinen ? 1 : 0,
           payload.countsAsBathroomLinen ? 1 : 0,
+          // Bed-linen per-type includes (specs §3.5.ter). Default ON to preserve legacy behaviour.
+          payload.linenIncludesSingle === undefined ? 1 : (payload.linenIncludesSingle ? 1 : 0),
+          payload.linenIncludesDouble === undefined ? 1 : (payload.linenIncludesDouble ? 1 : 0),
+          payload.linenIncludesBaby   === undefined ? 1 : (payload.linenIncludesBaby   ? 1 : 0),
+          // Bathroom-linen per-person multipliers. Coerce to a non-negative integer; default
+          // shape (1 large + 1 small) preserves the previous "1 set per person" semantic.
+          Math.max(0, Math.floor(Number(payload.towelLargePerPerson  ?? 1))),
+          Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
+          Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
         );
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
@@ -81,9 +96,13 @@ function createOptionsModel(database) {
 
     update(id, payload = {}) {
       const updateOption = database.prepare(`
-        UPDATE options
-        SET title=?, description=?, priceType=?, price=?, optionProgressiveTiers=?, autoOptionType=?, autoEnabled=?, autoPricingMode=?, autoFullNightThreshold=?, countsAsBedLinen=?, countsAsBathroomLinen=?
-        WHERE id=?
+        UPDATE options SET
+          title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
+          autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
+          countsAsBedLinen = ?, countsAsBathroomLinen = ?,
+          linenIncludesSingle = ?, linenIncludesDouble = ?, linenIncludesBaby = ?,
+          towelLargePerPerson = ?, towelMediumPerPerson = ?, towelSmallPerPerson = ?
+        WHERE id = ?
       `);
       const deleteLinks = database.prepare('DELETE FROM property_options WHERE optionId = ?');
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
@@ -100,6 +119,12 @@ function createOptionsModel(database) {
           payload.autoFullNightThreshold || null,
           payload.countsAsBedLinen ? 1 : 0,
           payload.countsAsBathroomLinen ? 1 : 0,
+          payload.linenIncludesSingle === undefined ? 1 : (payload.linenIncludesSingle ? 1 : 0),
+          payload.linenIncludesDouble === undefined ? 1 : (payload.linenIncludesDouble ? 1 : 0),
+          payload.linenIncludesBaby   === undefined ? 1 : (payload.linenIncludesBaby   ? 1 : 0),
+          Math.max(0, Math.floor(Number(payload.towelLargePerPerson  ?? 1))),
+          Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
+          Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
           id,
         );
         deleteLinks.run(id);

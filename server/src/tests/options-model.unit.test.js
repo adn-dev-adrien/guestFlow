@@ -10,7 +10,13 @@ const DDL = `
     optionProgressiveTiers TEXT DEFAULT '[]', autoOptionType TEXT, autoEnabled INTEGER DEFAULT 0,
     autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT,
     countsAsBedLinen INTEGER NOT NULL DEFAULT 0,
-    countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0
+    countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0,
+    linenIncludesSingle INTEGER NOT NULL DEFAULT 1,
+    linenIncludesDouble INTEGER NOT NULL DEFAULT 1,
+    linenIncludesBaby INTEGER NOT NULL DEFAULT 1,
+    towelLargePerPerson INTEGER NOT NULL DEFAULT 1,
+    towelMediumPerPerson INTEGER NOT NULL DEFAULT 0,
+    towelSmallPerPerson INTEGER NOT NULL DEFAULT 1
   );
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
 `;

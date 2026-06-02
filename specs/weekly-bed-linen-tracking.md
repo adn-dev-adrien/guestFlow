@@ -207,8 +207,32 @@ neither.
 
 25. The client renders the bathroom contribution as a **second sub-line** under the same
     "À apporter" / "À récupérer" headers, labelled *"Serviettes :"*, with the format
-    `N grandes · N petites`. The card stays silent (rule 13) when both the bed totals and the
-    towel totals are zero on both sides.
+    `N grandes · N moyennes · N petites` (each size omitted when zero — rule 13.bis). The
+    card stays silent (rule 13) when bed totals AND towel totals are all zero on both sides.
+
+### 3.5.ter Per-type linen configuration (2026-06-02 follow-up)
+
+26. **Bed-linen — 3 per-type include flags on the option** (`linenIncludesSingle`,
+    `linenIncludesDouble`, `linenIncludesBaby` — INTEGER 0/1, default 1). Surfaced in
+    `OptionsPage` as three checkboxes (component `BedLinenIncludesFields`) rendered ONLY when
+    the option carries `countsAsBedLinen = 1`. Unchecking a type excludes that bed-type sum
+    from the LaundryDayCard counter (the SQL aggregates via
+    `CASE WHEN sub.includes<Type> = 1 THEN SUM(<type>Beds) ELSE 0 END`). When multiple
+    bed-flagged options exist (edge case — rule 16 says one in steady state), the SQL takes
+    `MAX(includes<Type>)` over them, i.e. ANY flagged option that includes a type counts it.
+
+27. **Bathroom-linen — 3 per-person multipliers on the option**
+    (`towelLargePerPerson`, `towelMediumPerPerson`, `towelSmallPerPerson` — INTEGER ≥ 0,
+    defaults `1 / 0 / 1` preserving the previous "1 large + 1 small per person" semantic).
+    Surfaced in `OptionsPage` as three number inputs (component `BathroomTowelCountsFields`),
+    rendered ONLY when the option carries `countsAsBathroomLinen = 1`. The per-reservation
+    contribution per size becomes
+    `ROUND(persons × Σ quantity × MAX(towel<Size>PerPerson))`. A multiplier set to **0** silences
+    that size: the SUM is 0 → the LaundryDayCard hides the line at render time (rule 13.bis).
+
+13.bis. (Rule 13 extension for §3.5.ter.) The LaundryDayCard `formatTowels` helper omits any
+    towel size whose count is 0. If all three sizes are 0 on both sides, the towel line is
+    suppressed entirely — combined with rule 13, the card stays silent.
 
 ### 3.6 Edge cases
 

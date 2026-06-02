@@ -655,9 +655,23 @@ tryAddOptionColumn('optionProgressiveTiers', "ALTER TABLE options ADD COLUMN opt
 // reservations consumed sheets.
 tryAddOptionColumn('countsAsBedLinen', "ALTER TABLE options ADD COLUMN countsAsBedLinen INTEGER NOT NULL DEFAULT 0");
 // 2026-06-02 — bathroom-linen tracking (specs/weekly-bed-linen-tracking.md §3.5). Same shape as
-// `countsAsBedLinen` but counts large + small towels: 1 of each per guest (adults + teens +
-// children — babies excluded; the reservation field set is unchanged, towels are derived).
+// `countsAsBedLinen` but counts large + medium + small towels per guest (adults + teens +
+// children — babies excluded). Per-type per-person multipliers live on dedicated columns below.
 tryAddOptionColumn('countsAsBathroomLinen', "ALTER TABLE options ADD COLUMN countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0");
+
+// 2026-06-02 — fine-grained linen configuration (specs/weekly-bed-linen-tracking.md §3.5.ter).
+// Bed-linen option: which bed types are brought to the laundry (per-option toggles, default ON to
+// match the previous always-include-all behaviour). The aggregation gates each bed-type sum on
+// these flags so an operator can untick e.g. "Bébé" if their laundry service doesn't handle it.
+tryAddOptionColumn('linenIncludesSingle', "ALTER TABLE options ADD COLUMN linenIncludesSingle INTEGER NOT NULL DEFAULT 1");
+tryAddOptionColumn('linenIncludesDouble', "ALTER TABLE options ADD COLUMN linenIncludesDouble INTEGER NOT NULL DEFAULT 1");
+tryAddOptionColumn('linenIncludesBaby',   "ALTER TABLE options ADD COLUMN linenIncludesBaby INTEGER NOT NULL DEFAULT 1");
+// Bathroom-linen option: per-person count of each towel size (defaults preserve the previous
+// 1 large + 0 medium + 1 small per person semantic). A zero on any size hides that line in the
+// PlanningPage card (rule 13.bis).
+tryAddOptionColumn('towelLargePerPerson',  "ALTER TABLE options ADD COLUMN towelLargePerPerson INTEGER NOT NULL DEFAULT 1");
+tryAddOptionColumn('towelMediumPerPerson', "ALTER TABLE options ADD COLUMN towelMediumPerPerson INTEGER NOT NULL DEFAULT 0");
+tryAddOptionColumn('towelSmallPerPerson',  "ALTER TABLE options ADD COLUMN towelSmallPerPerson INTEGER NOT NULL DEFAULT 1");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {

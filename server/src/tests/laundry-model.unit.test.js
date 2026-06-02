@@ -26,7 +26,13 @@ function makeDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,
       countsAsBedLinen INTEGER NOT NULL DEFAULT 0,
-      countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0
+      countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0,
+      linenIncludesSingle INTEGER NOT NULL DEFAULT 1,
+      linenIncludesDouble INTEGER NOT NULL DEFAULT 1,
+      linenIncludesBaby INTEGER NOT NULL DEFAULT 1,
+      towelLargePerPerson INTEGER NOT NULL DEFAULT 1,
+      towelMediumPerPerson INTEGER NOT NULL DEFAULT 0,
+      towelSmallPerPerson INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE reservation_options (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,10 +45,28 @@ function makeDb() {
   return db;
 }
 
-function makeOption(db, { title = 'Linge de lit', countsAsBedLinen = 1, countsAsBathroomLinen = 0 } = {}) {
-  const result = db.prepare(
-    'INSERT INTO options (title, countsAsBedLinen, countsAsBathroomLinen) VALUES (?, ?, ?)'
-  ).run(title, countsAsBedLinen, countsAsBathroomLinen);
+function makeOption(db, {
+  title = 'Linge de lit',
+  countsAsBedLinen = 1,
+  countsAsBathroomLinen = 0,
+  linenIncludesSingle = 1,
+  linenIncludesDouble = 1,
+  linenIncludesBaby = 1,
+  towelLargePerPerson = 1,
+  towelMediumPerPerson = 0,
+  towelSmallPerPerson = 1,
+} = {}) {
+  const result = db.prepare(`
+    INSERT INTO options (
+      title, countsAsBedLinen, countsAsBathroomLinen,
+      linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
+      towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson
+    ) VALUES (?, ?, ?,  ?, ?, ?,  ?, ?, ?)
+  `).run(
+    title, countsAsBedLinen, countsAsBathroomLinen,
+    linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
+    towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson,
+  );
   return Number(result.lastInsertRowid);
 }
 
@@ -227,7 +251,7 @@ test('dropOffBathroomForWindow: contributes (adults + teens + children) when the
   assert.deepEqual(
     model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
     // 2 + 1 + 1 = 4 persons → 4 large + 4 small. Baby ignored (no adult-sized towel).
-    { largeTowels: 4, smallTowels: 4 }
+    { largeTowels: 4, mediumTowels: 0, smallTowels: 4 }
   );
 });
 
@@ -241,7 +265,7 @@ test('dropOffBathroomForWindow: babies do NOT contribute', () => {
   linkOption(db, r, opt);
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, mediumTowels: 0, smallTowels: 0 });
 });
 
 test('dropOffBathroomForWindow: reservation WITHOUT a bathroom-flagged option contributes nothing', () => {
@@ -255,7 +279,7 @@ test('dropOffBathroomForWindow: reservation WITHOUT a bathroom-flagged option co
   linkOption(db, r, opt);
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, mediumTowels: 0, smallTowels: 0 });
 });
 
 test('dropOffBathroomForWindow: devis-stage reservations excluded', () => {
@@ -268,7 +292,7 @@ test('dropOffBathroomForWindow: devis-stage reservations excluded', () => {
   linkOption(db, r, opt);
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, mediumTowels: 0, smallTowels: 0 });
 });
 
 test('dropOffBathroomForWindow: half-open window matches the bed-linen rule', () => {
@@ -282,7 +306,7 @@ test('dropOffBathroomForWindow: half-open window matches the bed-linen rule', ()
   linkOption(db, rIn, opt);
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 2, smallTowels: 2 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 2, mediumTowels: 0, smallTowels: 2 });
 });
 
 test('dropOffBathroomForWindow: aggregates across multiple qualifying reservations', () => {
@@ -296,7 +320,7 @@ test('dropOffBathroomForWindow: aggregates across multiple qualifying reservatio
   linkOption(db, r3, opt);
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 7, smallTowels: 7 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 7, mediumTowels: 0, smallTowels: 7 });
 });
 
 test('dropOffBathroomForWindow: quantity SCALES the person count (Adrien\'s prod scenario)', () => {
@@ -318,7 +342,7 @@ test('dropOffBathroomForWindow: quantity SCALES the person count (Adrien\'s prod
   const model = laundryModel.buildModel(db);
   assert.deepEqual(
     model.dropOffBathroomForWindow('2026-06-02', '2026-06-09'),
-    { largeTowels: 19, smallTowels: 19 }
+    { largeTowels: 19, mediumTowels: 0, smallTowels: 19 }
   );
 });
 
@@ -334,7 +358,7 @@ test('dropOffBathroomForWindow: multiple bathroom-flagged options on one reserva
   linkOption(db, r, optB, { quantity: 1.0 });
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 6, smallTowels: 6 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 6, mediumTowels: 0, smallTowels: 6 });
 });
 
 test('dropOffBathroomForWindow: ROUND on each reservation\'s contribution, not on the global sum', () => {
@@ -350,11 +374,70 @@ test('dropOffBathroomForWindow: ROUND on each reservation\'s contribution, not o
 
   const model = laundryModel.buildModel(db);
   // 2.5 + 2.5 rounded per-reservation → 3 + 3 = 6 (verifies SQLite ROUND'd each, then summed).
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 6, smallTowels: 6 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 6, mediumTowels: 0, smallTowels: 6 });
 });
 
 test('dropOffBathroomForWindow: empty DB returns zeros', () => {
   const db = makeDb();
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, smallTowels: 0 });
+  assert.deepEqual(model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'), { largeTowels: 0, mediumTowels: 0, smallTowels: 0 });
+});
+
+// --- §3.5.ter — per-type configuration on the linen options ---
+
+test('dropOffForWindow: option with linenIncludesBaby=0 hides baby beds (other types unchanged)', () => {
+  const db = makeDb();
+  // Operator unchecked "Drap bébé" on the bed-linen option — baby beds must NOT be counted.
+  const opt = makeOption(db, { linenIncludesBaby: 0 });
+  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', singleBeds: 2, doubleBeds: 1, babyBeds: 4 });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 2, doubleBeds: 1, babyBeds: 0 });
+});
+
+test('dropOffForWindow: option with linenIncludesSingle=0 + linenIncludesDouble=0 hides those sums', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { linenIncludesSingle: 0, linenIncludesDouble: 0 });
+  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', singleBeds: 5, doubleBeds: 5, babyBeds: 1 });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 1 });
+});
+
+test('dropOffBathroomForWindow: towelMediumPerPerson > 0 ADDS a medium counter (per-person multiplier)', () => {
+  // Operator sets large=1, medium=1, small=2 per person. On a 4-person stay with qty 1.0:
+  //   large = 4×1×1 = 4, medium = 4×1×1 = 4, small = 4×1×2 = 8.
+  const db = makeDb();
+  const opt = makeOption(db, {
+    countsAsBedLinen: 0, countsAsBathroomLinen: 1,
+    towelLargePerPerson: 1, towelMediumPerPerson: 1, towelSmallPerPerson: 2,
+  });
+  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', adults: 2, teens: 1, children: 1 });
+  linkOption(db, r, opt, { quantity: 1.0 });
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    { largeTowels: 4, mediumTowels: 4, smallTowels: 8 }
+  );
+});
+
+test('dropOffBathroomForWindow: towel*PerPerson = 0 silences that size (client filters at render)', () => {
+  // Adrien's default after this follow-up: medium = 0. The medium key still appears in the
+  // payload (set to 0); the client side hides the line.
+  const db = makeDb();
+  const opt = makeOption(db, {
+    countsAsBedLinen: 0, countsAsBathroomLinen: 1,
+    towelLargePerPerson: 1, towelMediumPerPerson: 0, towelSmallPerPerson: 1,
+  });
+  const r = makeReservation(db, { startDate: '2026-05-30', endDate: '2026-06-02', adults: 5 });
+  linkOption(db, r, opt, { quantity: 1.0 });
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    { largeTowels: 5, mediumTowels: 0, smallTowels: 5 }
+  );
 });

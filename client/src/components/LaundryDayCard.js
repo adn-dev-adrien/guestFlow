@@ -32,7 +32,7 @@ function totalSheets(side) {
 
 function totalTowels(side) {
   if (!side) return 0;
-  return Number(side.largeTowels || 0) + Number(side.smallTowels || 0);
+  return Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0);
 }
 
 function formatSheets(side) {
@@ -50,15 +50,18 @@ function formatSheets(side) {
 }
 
 function formatTowels(side) {
-  // 1 large + 1 small per person; the server exposes both because the laundry batch is sorted
-  // by type. Even though they're always equal by construction, surface both so Adrien can
-  // confirm each pile at the counter.
+  // Per-type towel counts (specs §3.5.ter). Operator configures `towelLargePerPerson`,
+  // `towelMediumPerPerson`, `towelSmallPerPerson` on the option; any size at 0 is omitted from
+  // the rendered line so the card stays compact. All three at zero → return null + the SideBlock
+  // falls back to the em-dash placeholder.
   if (!side) return null;
-  const lg = Number(side.largeTowels || 0);
-  const sm = Number(side.smallTowels || 0);
-  if (lg === 0 && sm === 0) return null;
+  const lg = Number(side.largeTowels  || 0);
+  const md = Number(side.mediumTowels || 0);
+  const sm = Number(side.smallTowels  || 0);
+  if (lg === 0 && md === 0 && sm === 0) return null;
   const parts = [];
   if (lg > 0) parts.push(`${lg} grande${lg > 1 ? 's' : ''}`);
+  if (md > 0) parts.push(`${md} moyenne${md > 1 ? 's' : ''}`);
   if (sm > 0) parts.push(`${sm} petite${sm > 1 ? 's' : ''}`);
   return parts.join(' · ');
 }
