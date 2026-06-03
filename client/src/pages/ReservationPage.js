@@ -129,7 +129,10 @@ export default function ReservationPage() {
   // §3.7 — cache of the current property's option defaults. Refreshed whenever `form.propertyId`
   // changes (incl. on edit-load), so `setOptionQuantity` can apply the offered flag when the
   // operator re-toggles an option ON. Map<optionId, { offered }>. Empty when no property or no
-  // defaults exist (the GET fails soft → empty list).
+  // defaults exist (the GET fails soft → empty list). The state declaration is here (early
+  // because `applyPropertyDefaultsAsync` below seeds it), but the useEffect that watches
+  // `form.propertyId` lives further down — AFTER the `form` state is declared — to avoid a
+  // TDZ crash in the minified prod bundle when accessing `form` before its useState ran.
   const [propertyOptionDefaults, setPropertyOptionDefaults] = useState([]);
   const propertyOptionDefaultsMap = useMemo(() => {
     const m = new Map();
@@ -173,27 +176,6 @@ export default function ReservationPage() {
     }
   }, []);
 
-  // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
-  // EDIT-existing-reservation path: we don't auto-merge defaults on edit (rule 30), but the
-  // cache must be populated so that when the operator manually toggles an option back on, the
-  // setOptionQuantity logic can apply the offered flag per the property's contract.
-  useEffect(() => {
-    const propId = Number(form.propertyId);
-    if (!propId) {
-      setPropertyOptionDefaults([]);
-      return undefined;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await api.getPropertyOptionDefaults(propId);
-        if (!cancelled) setPropertyOptionDefaults(Array.isArray(data) ? data : []);
-      } catch (_) {
-        if (!cancelled) setPropertyOptionDefaults([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [form.propertyId]);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
@@ -236,6 +218,30 @@ export default function ReservationPage() {
     // them from `option.autoEnabled`), so they need this parallel channel.
     autoOptionsInComplement: [],
   });
+
+  // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
+  // EDIT-existing-reservation path: we don't auto-merge defaults on edit (rule 30), but the
+  // cache must be populated so that when the operator manually toggles an option back on, the
+  // setOptionQuantity logic can apply the offered flag per the property's contract.
+  // **Declared AFTER `form`** to avoid a TDZ crash in the minified prod bundle that fired on
+  // the first render before the `form` useState had initialised.
+  useEffect(() => {
+    const propId = Number(form.propertyId);
+    if (!propId) {
+      setPropertyOptionDefaults([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.getPropertyOptionDefaults(propId);
+        if (!cancelled) setPropertyOptionDefaults(Array.isArray(data) ? data : []);
+      } catch (_) {
+        if (!cancelled) setPropertyOptionDefaults([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [form.propertyId]);
 
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneError = !isValidPhone(newClient.phone);
