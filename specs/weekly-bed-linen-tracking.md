@@ -318,6 +318,32 @@ neither.
     is populated even though `applyPropertyDefaultsAsync` is NOT called there per rule 30).
     The mirror is applied by `setOptionQuantity` on the absent → present transition.
 
+36. **Property default drives the laundry count for ALL reservations of that property — past
+    and future** (2026-06-03 follow-up). Activating a linen default on a property
+    (`property_option_defaults` row exists with the option flagged `countsAsBedLinen=1` or
+    `countsAsBathroomLinen=1`) makes every reservation of that property contribute to the
+    laundry counter, **regardless of whether the linen option is in the reservation's
+    `reservation_options`**. This covers:
+    - Reservations that pre-date the linen-tracking feature (no option ticked).
+    - Reservations where the operator unticked the option (the property contract overrides).
+    - Future reservations created from any path (the auto-add still works; this is a backstop).
+
+    SQL: each aggregation (`dropOffForWindow`, `dropOffBathroomForWindow`) UNION ALLs two
+    sources inside its `sub` JOIN — source 1 is the explicit `reservation_options` row, source
+    2 is the property-default fallback (`reservations` JOIN `property_option_defaults` JOIN
+    `options WHERE countsAsBedLinen=1`). Source 2 carries `NOT EXISTS (… reservation_options
+    … countsAsBedLinen=1)` so the explicit row wins as a strict override — operator intent
+    (linenIncludes* flags, bathroom qtySum sub-occupation factor) is never overwritten.
+
+    Strict-override examples pinned by tests:
+    - Reservation has explicit row with `linenIncludesBaby = 0` → baby beds suppressed in the
+      sum even though the property default's option has `linenIncludesBaby = 1`.
+    - Reservation has explicit bathroom row with quantity `0.6667` → 2 towels (3 × 0.6667
+      rounded) instead of 3 towels (3 × default 1.0).
+
+    Devis exclusion still wins over the default: a `kind='devis'` reservation never contributes
+    even when the property has the default activated.
+
 ### 3.6 Edge cases
 
 - **Window straddles the planning start.** The planning shows 14 days forward;
