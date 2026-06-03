@@ -4,6 +4,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Property defaults now drive the laundry counter for ALL reservations of that property —
+  past and future** (spec `weekly-bed-linen-tracking.md` rule 36, 2026-06-03). When the
+  operator activates a linen option as default on a property, every reservation of that
+  property contributes to the laundry counter even if the option isn't in the reservation's
+  `reservation_options`. Covers: pre-feature reservations (no option ticked), edge cases where
+  the operator unticked the option, and any future reservation regardless of creation path.
+  SQL: each aggregation (`dropOffForWindow`, `dropOffBathroomForWindow`) UNION ALLs an
+  explicit-row source and a property-default-fallback source inside its `sub` JOIN; the
+  fallback is suppressed by `NOT EXISTS` when an explicit row is present so operator intent
+  (linenIncludes* flags + bathroom qtySum sub-occupation factor) is never silently overridden.
+  Devis exclusion still wins.
+
 ### Added
 - **Per-property option defaults** (spec `weekly-bed-linen-tracking.md` §3.7, 2026-06-03).
   Adrien can declare, per logement, that one or more linen options are added by default on

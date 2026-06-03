@@ -12,6 +12,7 @@ function makeDb() {
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       kind TEXT NOT NULL DEFAULT 'reservation',
+      propertyId INTEGER,
       startDate TEXT NOT NULL,
       endDate TEXT NOT NULL,
       singleBeds INTEGER,
@@ -41,8 +42,21 @@ function makeDb() {
       quantity REAL DEFAULT 1,
       offered INTEGER DEFAULT 0
     );
+    -- §3.7 — per-property option defaults (drives the laundry counter as a fallback source).
+    CREATE TABLE property_option_defaults (
+      propertyId INTEGER NOT NULL,
+      optionId   INTEGER NOT NULL,
+      offered    INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (propertyId, optionId)
+    );
   `);
   return db;
+}
+
+function makePropertyOptionDefault(db, propertyId, optionId, offered = 0) {
+  db.prepare(
+    'INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (?, ?, ?)'
+  ).run(propertyId, optionId, offered);
 }
 
 function makeOption(db, {
@@ -71,13 +85,13 @@ function makeOption(db, {
 }
 
 function makeReservation(db, {
-  kind = 'reservation', startDate, endDate,
+  kind = 'reservation', propertyId = null, startDate, endDate,
   singleBeds = 0, doubleBeds = 0, babyBeds = 0,
   adults = 0, teens = 0, children = 0, babies = 0,
 } = {}) {
   const result = db.prepare(
-    'INSERT INTO reservations (kind, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children, babies) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(kind, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children, babies);
+    'INSERT INTO reservations (kind, propertyId, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children, babies) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(kind, propertyId, startDate, endDate, singleBeds, doubleBeds, babyBeds, adults, teens, children, babies);
   return Number(result.lastInsertRowid);
 }
 
@@ -439,5 +453,153 @@ test('dropOffBathroomForWindow: towel*PerPerson = 0 silences that size (client f
   assert.deepEqual(
     model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
     { largeTowels: 5, mediumTowels: 0, smallTowels: 5 }
+  );
+});
+
+// --- §3.7 — property-default fallback (2026-06-03) ---
+// When a property has a linen option declared as default, EVERY reservation of that property
+// counts towards the laundry — past and future — even when the option is not in
+// `reservation_options`. The explicit row (when present) still wins as a strict override.
+
+test('dropOffForWindow: property default counts a reservation even WITHOUT an explicit linen row', () => {
+  // Gite has Linge de lit as default → all its reservations contribute regardless of the
+  // reservation_options content. The reservation below has zero option links → previously it
+  // wouldn't count; now it does via the property-default fallback source.
+  const db = makeDb();
+  const opt = makeOption(db);
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 2, doubleBeds: 1, babyBeds: 1,
+  });
+  // No linkOption(...) call — the reservation has no explicit linen row.
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffForWindow('2026-05-26', '2026-06-02'),
+    { singleBeds: 2, doubleBeds: 1, babyBeds: 1 }
+  );
+});
+
+test('dropOffForWindow: property default DOES NOT count a reservation of a different property', () => {
+  // Gite has the default → Tente reservations must not be inflated by it.
+  const db = makeDb();
+  const opt = makeOption(db);
+  makePropertyOptionDefault(db, 10, opt); // Gite default only.
+  makeReservation(db, {
+    propertyId: 99, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 5, doubleBeds: 5,
+  });
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+});
+
+test('dropOffForWindow: explicit row WINS over the property default (operator intent preserved)', () => {
+  // The property has a default that says "include all bed types". The reservation has an
+  // explicit row pointing at an option with linenIncludesBaby = 0 (operator unticked baby).
+  // The explicit row's includes flags must drive the aggregation; the default is suppressed
+  // by NOT EXISTS in source 2.
+  const db = makeDb();
+  const optDefault = makeOption(db, { title: 'Linge de lit default', linenIncludesBaby: 1 });
+  const optExplicit = makeOption(db, { title: 'Linge de lit no baby', linenIncludesBaby: 0 });
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 2, doubleBeds: 1, babyBeds: 4,
+  });
+  linkOption(db, r, optExplicit);            // explicit row → source 1
+  makePropertyOptionDefault(db, 10, optDefault); // property default → source 2 suppressed
+
+  const model = laundryModel.buildModel(db);
+  // 4 baby beds excluded because the explicit option had linenIncludesBaby = 0.
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 2, doubleBeds: 1, babyBeds: 0 });
+});
+
+test('dropOffForWindow: property default counts a PAST reservation that pre-dates the feature', () => {
+  // Adrien's prod scenario: an old reservation created before the linen-tracking feature ever
+  // existed has no option in reservation_options. Activating the property default makes it
+  // count retroactively in the next visible laundry window.
+  const db = makeDb();
+  const opt = makeOption(db);
+  // Past-style reservation: no option ticked.
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-01',
+    singleBeds: 3, doubleBeds: 2,
+  });
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 3, doubleBeds: 2, babyBeds: 0 });
+});
+
+test('dropOffForWindow: devis-stage reservation excluded even when the property has a default', () => {
+  // The kind filter still wins — defaults don't lift devis into the count.
+  const db = makeDb();
+  const opt = makeOption(db);
+  makeReservation(db, {
+    kind: 'devis', propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 2, doubleBeds: 1,
+  });
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+});
+
+// --- Bathroom-linen mirror ---
+
+test('dropOffBathroomForWindow: property default counts towels for a reservation WITHOUT an explicit row', () => {
+  // Default contributes qty = 1.0 ("the whole party"), multiplied by persons × perPerson.
+  const db = makeDb();
+  const opt = makeOption(db, {
+    countsAsBedLinen: 0, countsAsBathroomLinen: 1,
+    towelLargePerPerson: 1, towelMediumPerPerson: 0, towelSmallPerPerson: 1,
+  });
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 3, children: 1, babies: 1, // babies excluded → 4 persons
+  });
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    { largeTowels: 4, mediumTowels: 0, smallTowels: 4 }
+  );
+});
+
+test('dropOffBathroomForWindow: explicit quantity (sub-occupation factor) WINS over the property default', () => {
+  // Reservation has the option with qty 0.6667 (= "2 of 3 want towels"); property also has it
+  // as default. Source 1 wins → 3 × 0.6667 ≈ 2.0001 → ROUND = 2. NOT 3 × 1.0 = 3.
+  const db = makeDb();
+  const opt = makeOption(db, {
+    countsAsBedLinen: 0, countsAsBathroomLinen: 1,
+    towelLargePerPerson: 1, towelMediumPerPerson: 0, towelSmallPerPerson: 1,
+  });
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 1, children: 2, // 3 persons
+  });
+  linkOption(db, r, opt, { quantity: 0.6667 });
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    { largeTowels: 2, mediumTowels: 0, smallTowels: 2 }
+  );
+});
+
+test('dropOffBathroomForWindow: property default DOES NOT cross properties', () => {
+  const db = makeDb();
+  const opt = makeOption(db, { countsAsBedLinen: 0, countsAsBathroomLinen: 1 });
+  makePropertyOptionDefault(db, 10, opt);
+  makeReservation(db, {
+    propertyId: 99, startDate: '2026-05-30', endDate: '2026-06-02', adults: 4,
+  });
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    { largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
   );
 });
