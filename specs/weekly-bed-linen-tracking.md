@@ -385,6 +385,15 @@ explicit `countsAsBedLinen` opt-in.
 (kept name/price/description).`, or stays silent on the already-seeded path. Errors
 (SQLite busy, missing schema) are caught + logged, never crash the boot.
 
+**2026-06-03 follow-up — promotion runs UNCONDITIONALLY.** The original implementation gated
+the promotion path on `hasTypedSeed === false`, which created a stuck state on Adrien's prod:
+an earlier (pre-alias) deploy had inserted the typed seed alongside a legacy "Linge de lits"
+row, and every subsequent boot short-circuited via `hasTypedSeed=true` → the alias row never
+got the marker → stayed deletable. Fix: move the promotion UPDATE to run on every boot before
+the `hasTypedSeed` check. The WHERE clause is already idempotent (`AND (autoOptionType IS NULL
+OR autoOptionType = '')`), so re-running on every boot is safe. The same fix is mirrored on
+the bathroom-linen seed.
+
 ---
 
 ## 5. Data model
