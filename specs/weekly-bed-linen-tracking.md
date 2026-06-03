@@ -234,6 +234,15 @@ neither.
     towel size whose count is 0. If all three sizes are 0 on both sides, the towel line is
     suppressed entirely — combined with rule 13, the card stays silent.
 
+13.ter. (Rule 13 extension for §3.7 follow-up — 2026-06-03.) A date that has ONLY a non-empty
+    laundry card (no arrivals, no departures, no resource bookings) MUST still appear in the
+    Planning's day-set. `PlanningPage` merges the date set from four sources — arrivals,
+    departures, resource bookings, AND laundry days with non-zero content — into the displayed
+    days. The "non-zero content" filter mirrors rule 13: a laundry-day key is added to the set
+    iff `sum(dropOff.beds) + sum(dropOff.towels) + sum(pickUp.beds) + sum(pickUp.towels) > 0`,
+    matching exactly the `LaundryDayCard` silence check (so an empty laundry day from the
+    server doesn't manifest as an empty day cell on screen).
+
 ### 3.7 Per-property option defaults (2026-06-03 follow-up)
 
 28. **Property-scoped default options + offered flag.** Adrien can declare, per logement, that
