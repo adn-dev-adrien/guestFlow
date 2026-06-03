@@ -126,6 +126,19 @@ export default function ReservationPage() {
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
 
+  // §3.7 — cache of the current property's option defaults. Refreshed whenever `form.propertyId`
+  // changes (incl. on edit-load), so `setOptionQuantity` can apply the offered flag when the
+  // operator re-toggles an option ON. Map<optionId, { offered }>. Empty when no property or no
+  // defaults exist (the GET fails soft → empty list).
+  const [propertyOptionDefaults, setPropertyOptionDefaults] = useState([]);
+  const propertyOptionDefaultsMap = useMemo(() => {
+    const m = new Map();
+    for (const d of propertyOptionDefaults) {
+      m.set(Number(d.optionId), { offered: Boolean(d.offered) });
+    }
+    return m;
+  }, [propertyOptionDefaults]);
+
   // §3.7 — apply per-property option defaults to a fresh form. Called from the new-reservation
   // init path AND from the property-change handler (both reset selectedOptions: []). NEVER called
   // from the edit path (the historical option set on a saved reservation must stay frozen —
@@ -135,10 +148,14 @@ export default function ReservationPage() {
     if (!propertyId) return;
     try {
       const defaults = await api.getPropertyOptionDefaults(propertyId);
-      if (!Array.isArray(defaults) || defaults.length === 0) return;
+      const list = Array.isArray(defaults) ? defaults : [];
+      // Cache the list so the toggle behaviour (setOptionQuantity) can consult it later when
+      // the operator manually re-adds an option on an existing reservation.
+      setPropertyOptionDefaults(list);
+      if (list.length === 0) return;
       setForm((prev) => {
         const existing = new Set((prev.selectedOptions || []).map((so) => Number(so.optionId)));
-        const toAdd = defaults
+        const toAdd = list
           .filter((d) => !existing.has(Number(d.optionId)))
           .map((d) => ({ optionId: Number(d.optionId), quantity: 1, totalPrice: 0 }));
         if (toAdd.length === 0) return prev;
@@ -146,7 +163,7 @@ export default function ReservationPage() {
       });
       setOfferedOptionIds((prev) => {
         const next = new Set(prev);
-        for (const d of defaults) {
+        for (const d of list) {
           if (d.offered) next.add(Number(d.optionId));
         }
         return next;
@@ -155,6 +172,28 @@ export default function ReservationPage() {
       // Soft fail — a defaults fetch must never block the reservation flow.
     }
   }, []);
+
+  // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
+  // EDIT-existing-reservation path: we don't auto-merge defaults on edit (rule 30), but the
+  // cache must be populated so that when the operator manually toggles an option back on, the
+  // setOptionQuantity logic can apply the offered flag per the property's contract.
+  useEffect(() => {
+    const propId = Number(form.propertyId);
+    if (!propId) {
+      setPropertyOptionDefaults([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.getPropertyOptionDefaults(propId);
+        if (!cancelled) setPropertyOptionDefaults(Array.isArray(data) ? data : []);
+      } catch (_) {
+        if (!cancelled) setPropertyOptionDefaults([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [form.propertyId]);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
@@ -1036,6 +1075,10 @@ export default function ReservationPage() {
 
   // ==================== OPTIONS & RESOURCES ====================
   const setOptionQuantity = (optionId, quantity) => {
+    // Snapshot the transition outcome so we can react to it OUTSIDE of the setForm updater
+    // (e.g. mirror the property's `offered` default into offeredOptionIds). React forbids
+    // calling another setState inside an updater function — track the side effect here.
+    let didAdd = false;
     setForm(prev => {
       const parsed = Number(quantity);
       const normalizedQty = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
@@ -1048,10 +1091,28 @@ export default function ReservationPage() {
           so.optionId === optionId ? { ...so, quantity: normalizedQty } : so
         );
       } else {
+        // Absent → present transition. Mark for the offered-mirror side effect below.
+        didAdd = true;
         newOpts = [...prev.selectedOptions, { optionId, quantity: normalizedQty, totalPrice: 0 }];
       }
       return { ...prev, selectedOptions: newOpts };
     });
+    // §3.7 fix — when the operator toggles an option BACK ON on an existing reservation,
+    // inherit the offered flag from the property's default. Without this, the option keeps
+    // whatever the offeredOptionIds had at load time, ignoring the property contract.
+    // Only fires on a fresh add AND when a default actually exists for this option — no
+    // default → leave the historical state alone.
+    if (didAdd) {
+      const def = propertyOptionDefaultsMap.get(Number(optionId));
+      if (def) {
+        setOfferedOptionIds((prev) => {
+          const next = new Set(prev);
+          if (def.offered) next.add(Number(optionId));
+          else next.delete(Number(optionId));
+          return next;
+        });
+      }
+    }
   };
 
   const setOptionEnabled = (optionId, enabled) => {

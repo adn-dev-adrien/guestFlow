@@ -304,6 +304,20 @@ neither.
       manually before the auto-add ran (last write wins is OK — the auto-add only inserts
       rows it didn't find).
 
+35. **Manual re-toggle mirrors the property contract** (2026-06-03 follow-up). When the operator
+    toggles an option **back ON** on an EXISTING reservation (i.e. removed earlier + re-added
+    via the same form), the `offered` flag is set from the property's default for that option:
+    - Default exists with `offered = true` → option is offered (free) on re-add.
+    - Default exists with `offered = false` → option is paid on re-add.
+    - No default → leave `offeredOptionIds` untouched (preserve the historical state).
+
+    Rationale: the property contract is "linen is included" / "linen costs X" — a manual
+    re-toggle should honour that contract, not the now-stale state captured at load time. The
+    client caches the property's defaults in `propertyOptionDefaults` state, refreshed via a
+    useEffect on every `form.propertyId` change (including the edit-load path — so the cache
+    is populated even though `applyPropertyDefaultsAsync` is NOT called there per rule 30).
+    The mirror is applied by `setOptionQuantity` on the absent → present transition.
+
 ### 3.6 Edge cases
 
 - **Window straddles the planning start.** The planning shows 14 days forward;

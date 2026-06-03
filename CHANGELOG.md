@@ -18,7 +18,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   on **new** reservation creation (and on property change mid-creation) using
   `GET /api/properties/:id/option-defaults`. Edit of an existing reservation NEVER re-applies
   defaults (rule 30 — historical bookings stay frozen). Soft-fails on the defaults fetch so a
-  defaults outage never blocks the reservation flow.
+  defaults outage never blocks the reservation flow. **Rule 35 follow-up**: when the operator
+  toggles an option back ON on an existing reservation (remove → re-add), the `offered` flag
+  is set from the property's default for that option (default `offered=true` → free, default
+  `offered=false` → paid, no default → preserve historical state). The cache is refreshed via
+  a useEffect watching `form.propertyId` so the contract is honoured on edit-load too.
 - **Weekly bed-linen tracking on the Planning page** (spec
   `weekly-bed-linen-tracking.md`, 2026-06-02). Each laundry day (configurable weekday, default
   Tuesday) now surfaces a small card under the day header of the Planning view showing the
