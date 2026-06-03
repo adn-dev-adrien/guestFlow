@@ -68,7 +68,7 @@ export default function LinenShortageAlert() {
                   {entry.impactedReservations.map((r) => (
                     <Chip
                       key={r.id}
-                      label={`#${r.id}${r.clientName ? ` – ${r.clientName}` : ''}`}
+                      label={r.clientName || `#${r.id}`}
                       size="small"
                       color="error"
                       variant="outlined"

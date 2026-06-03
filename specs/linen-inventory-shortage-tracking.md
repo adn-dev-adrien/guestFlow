@@ -141,8 +141,9 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
       - Title: `Drap simple` / `Drap double` / `Drap bébé` / `Serviette grande` / etc.
       - First shortage date.
       - Maximum deficit across the horizon (worst-case number missing).
-      - List of impacted reservation IDs as clickable chips
-        (`<reservation-#-id> – <client name> – <date>`).
+      - List of impacted reservations as clickable chips labelled
+        `<client first name> <client last name>` (falls back to `#<reservation-id>` only
+        when the client row was deleted). Clicking navigates to `/reservations/:id`.
     - No alert when no shortage exists in the horizon.
 
 14. **Empty state**: a type with `totalStock = 0` is invisible in both displays

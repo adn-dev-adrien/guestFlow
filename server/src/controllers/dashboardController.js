@@ -53,19 +53,18 @@ function buildController({
       }
 
       // Resolve impacted reservation details (client name + dates) via the reservations model.
-      // We resolve them lazily — only for the IDs that appear in at least one shortage.
+      // One batched query for all impacted ids across all types — cheaper than N point reads.
       const allImpactedIds = new Set();
       for (const [, agg] of typesWithShortage) {
         for (const id of agg.impactedReservationIds) allImpactedIds.add(id);
       }
-      const reservationsById = new Map();
-      for (const id of allImpactedIds) {
-        const r = injectedReservationsModel.findById ? injectedReservationsModel.findById(id) : null;
-        if (r) reservationsById.set(id, r);
-      }
+      const rows = typeof injectedReservationsModel.findClientNamesByIds === 'function'
+        ? injectedReservationsModel.findClientNamesByIds(Array.from(allImpactedIds))
+        : [];
+      const reservationsById = new Map(rows.map((r) => [Number(r.id), r]));
       const resolveReservation = (id) => {
-        const r = reservationsById.get(id);
-        if (!r) return { id, clientName: '', startDate: '', endDate: '' };
+        const r = reservationsById.get(Number(id));
+        if (!r) return { id, clientName: `#${id}`, startDate: '', endDate: '' };
         const firstName = String(r.firstName || '').trim();
         const lastName = String(r.lastName || '').trim();
         const clientName = `${firstName} ${lastName}`.trim() || `#${id}`;

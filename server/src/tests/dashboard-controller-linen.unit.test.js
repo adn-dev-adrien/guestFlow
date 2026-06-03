@@ -7,14 +7,17 @@ const { buildController } = require('../controllers/dashboardController');
 // only thing under test.
 
 function makeFake({ simulate = null, reservations = new Map() } = {}) {
-  const calls = { simulate: 0, findById: [] };
+  const calls = { simulate: 0, findClientNamesByIds: [] };
   return {
     calls,
     linenInventoryModel: {
       simulate() { calls.simulate += 1; return simulate; },
     },
     reservationsModel: {
-      findById(id) { calls.findById.push(id); return reservations.get(Number(id)) || null; },
+      findClientNamesByIds(ids) {
+        calls.findClientNamesByIds.push(ids);
+        return (ids || []).map((id) => reservations.get(Number(id))).filter(Boolean);
+      },
     },
   };
 }
@@ -118,12 +121,12 @@ test('linenShortage: missing client falls back to "#<id>"', () => {
         small:  { firstDate: null, maxMissing: 0, impactedReservationIds: [] },
       },
     },
-    // Empty reservations map — findById returns null for 99.
+    // Empty reservations map — the batched lookup returns nothing for 99.
   });
   const c = buildController(fakes);
   const res = fakeRes();
   c.linenShortage({}, res);
   const reservation = res.body.shortagesByType[0].impactedReservations[0];
   assert.equal(reservation.id, 99);
-  assert.equal(reservation.clientName, ''); // fallback — empty, the client should display "#99" if needed
+  assert.equal(reservation.clientName, '#99'); // fallback used directly as chip label
 });
