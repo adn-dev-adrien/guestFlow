@@ -33,14 +33,9 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
       logger.log('[Database] Bathroom-linen seed skipped: schema not ready yet');
       return { action: 'skipped-schema' };
     }
-    const hasTypedSeed = database.prepare(
-      "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'bathroom_linen'"
-    ).get().n > 0;
-    if (hasTypedSeed) {
-      return { action: 'skipped-already-seeded' };
-    }
-    // PROMOTION PATH (2026-06-02 follow-up) — strict mirror of utils/bedLinenSeed.js. Two match
-    // channels OR'd: explicit `countsAsBathroomLinen=1` flag OR title in `KNOWN_TITLE_ALIASES`.
+    // PROMOTION PATH — unconditional + idempotent (2026-06-03 follow-up; see utils/bedLinenSeed.js
+    // for the rationale). The WHERE clause only touches rows missing `autoOptionType`, so this
+    // is safe to run on every boot even when a typed seed already exists.
     const aliasPlaceholders = KNOWN_TITLE_ALIASES.map(() => '?').join(', ');
     const promotion = database.prepare(`
       UPDATE options
@@ -53,7 +48,15 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
     `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
       logger.log(`[Database] ✅ Bathroom-linen seed promoted ${promotion.changes} existing option(s) to the typed bathroom_linen marker (kept name/price/description).`);
-      return { action: 'promoted-adopted', count: promotion.changes };
+    }
+
+    const hasTypedSeed = database.prepare(
+      "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'bathroom_linen'"
+    ).get().n > 0;
+    if (hasTypedSeed) {
+      return promotion.changes > 0
+        ? { action: 'promoted-adopted', count: promotion.changes }
+        : { action: 'skipped-already-seeded' };
     }
     database.prepare(`
       INSERT INTO options (

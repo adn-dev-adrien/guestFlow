@@ -156,3 +156,31 @@ test('seed catches any thrown error and returns { action: "error" }', () => {
   assert.equal(result.action, 'error');
   assert.match(result.error, /SQLITE_BUSY/);
 });
+
+// --- 2026-06-03 regression — same fix mirrored for bathroom-linen ---
+
+test('REGRESSION: typed seed exists + a legacy alias row is STILL promoted on next boot', () => {
+  // Strict mirror of the bed-linen regression — see bed-linen-seed.unit.test.js for the prod
+  // history. The bathroom seed must apply the same fix so any future legacy alias
+  // ("linge de toilette" variant) is caught on the next boot.
+  const db = makeDb();
+  db.prepare(
+    "INSERT INTO options (title, autoOptionType, countsAsBathroomLinen, priceType, price) VALUES ('Linge de toilette', 'bathroom_linen', 1, 'per_stay', 0)"
+  ).run();
+  db.prepare(
+    "INSERT INTO options (title, priceType, price) VALUES ('linge de toilette', 'per_stay', 8)"
+  ).run();
+
+  const result = ensureDefaultBathroomLinenOption(db, { logger: NULL_LOGGER });
+  // The lowercase alias matches the title list (case-insensitive); typed-seed already exists
+  // → promotion still runs + emits `promoted-adopted`.
+  assert.equal(result.action, 'promoted-adopted');
+  assert.equal(result.count, 1);
+  const all = db.prepare("SELECT * FROM options WHERE LOWER(TRIM(title)) = 'linge de toilette' ORDER BY id").all();
+  assert.equal(all.length, 2);
+  // Both rows now carry the marker → undeletable in the UI.
+  for (const row of all) {
+    assert.equal(row.autoOptionType, 'bathroom_linen');
+    assert.equal(Number(row.countsAsBathroomLinen), 1);
+  }
+});

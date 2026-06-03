@@ -44,29 +44,22 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
       logger.log('[Database] Bed-linen seed skipped: schema not ready yet');
       return { action: 'skipped-schema' };
     }
-    const hasTypedSeed = database.prepare(
-      "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'bed_linen'"
-    ).get().n > 0;
-    if (hasTypedSeed) {
-      // Idempotent boot — the seed is already in place. Nothing to log; this is the
-      // common path on every restart after the first.
-      return { action: 'skipped-already-seeded' };
-    }
-    // PROMOTION PATH (2026-06-02 follow-up). When a prior version of this seeder skipped on
-    // "operator-customised" detection, the operator's option stayed deletable because it never
-    // got the `autoOptionType` marker (the only signal `OptionsPage` reads for the
-    // undeletability rule). Instead of skipping, we now PROMOTE every adopted row in place:
-    // set `autoOptionType = 'bed_linen'` so the UI treats it as the default linen option. The
-    // operator's customisations (title, price, description) are preserved — only the type
-    // marker is added (and `countsAsBedLinen` set to 1 if it wasn't, so the LaundryDayCard
-    // picks it up immediately).
+    // PROMOTION PATH (runs UNCONDITIONALLY on every boot — 2026-06-03 follow-up).
+    //
+    // The WHERE clause is idempotent: it only touches rows that don't already carry an
+    // `autoOptionType` marker. So this is safe to run on every boot regardless of whether the
+    // typed seed exists. Why "unconditional" matters: an earlier version of this seeder (pre
+    // 2026-06-02 alias support) ran the promotion ONLY when no typed seed existed. On prod
+    // servers that bootstrapped during that interval, the seed inserted a fresh "Linge de lit"
+    // alongside an existing legacy "Linge de lits" — and subsequent boots skipped the
+    // promotion entirely (hasTypedSeed=true short-circuit), leaving "Linge de lits" still
+    // deletable. Adrien's prod hit this exact case. Moving the promotion before the
+    // hasTypedSeed check (and not gating it on that flag) finishes the job on next restart.
     //
     // Two match channels OR'd in the WHERE:
     //   - `countsAsBedLinen = 1` → operator explicitly opted in via the (now hidden) flag.
     //   - title in `KNOWN_TITLE_ALIASES` → covers the "I named it 'Linge de lits' before the
     //     feature existed" prod scenario (transparent migration, no manual cleanup).
-    //
-    // After promotion, subsequent boots short-circuit via `hasTypedSeed`.
     const aliasPlaceholders = KNOWN_TITLE_ALIASES.map(() => '?').join(', ');
     const promotion = database.prepare(`
       UPDATE options
@@ -79,7 +72,17 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
     `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
       logger.log(`[Database] ✅ Bed-linen seed promoted ${promotion.changes} existing option(s) to the typed bed_linen marker (kept name/price/description).`);
-      return { action: 'promoted-adopted', count: promotion.changes };
+    }
+
+    const hasTypedSeed = database.prepare(
+      "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'bed_linen'"
+    ).get().n > 0;
+    if (hasTypedSeed) {
+      // Common path on steady-state boots. If we also promoted on this run, surface that in
+      // the action tag for the test harness — the operator already saw the log line above.
+      return promotion.changes > 0
+        ? { action: 'promoted-adopted', count: promotion.changes }
+        : { action: 'skipped-already-seeded' };
     }
     database.prepare(`
       INSERT INTO options (
