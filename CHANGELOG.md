@@ -5,6 +5,30 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Changed
+- **iCal sync no longer auto-deletes cancelled reservations** (spec
+  `ical-cancellation-approval.md`, 2026-06-03). Previously, when a reservation's UID fell
+  out of every source feed, the engine silently deleted it — including locked,
+  user-edited reservations. The engine now records ONE pending cancellation per
+  reservation in `ical_cancellation_alerts` (UPSERT — multiple sources dropping the same
+  UID in cascade don't duplicate the alert). The Dashboard mounts a new
+  `<IcalCancellationAlert />` orange card listing every pending cancellation with three
+  per-row actions:
+  - **Supprimer** → atomic delete: history audit entry → DELETE reservations →
+    DELETE ical_import_events. Idempotent shape (`outcome: 'reservation_gone'`) if the
+    reservation was already manually removed between sync and click.
+  - **Voir la fiche** → opens the reservation without acknowledging.
+  - **✕** → ignores the proposal; the reservation stays as a "detached" iCal-origin row.
+
+  Auto-resolve: at the top of every `syncSource()` call, pending alerts whose
+  `(sourceId, eventUid)` matches an incoming feed event are silently deleted (the
+  platform un-cancelled the booking). Cross-platform protection is preserved — the
+  alert only fires once every iCal source has dropped the UID. The sync result's
+  `removedCount` keeps its key but its meaning shifts to "cancellation alerts raised";
+  the user-facing status string was reworded to `… annulation(s) à valider`. 24 new
+  server tests pinning the contract (model UPSERT + auto-resolve + atomic approve +
+  reject, sync engine soft flow + cross-platform protection + auto-resolve, controller
+  HTTP shaping for the 3 new endpoints).
+
 - **Single global VAT rate** (spec `single-vat-rate.md`, 2026-06-03). The previous 2-rate
   model — 10 % for accommodation, 20 % for everything else — was collapsed to ONE editable
   rate (default 10 %) after the comptable confirmed every revenue stream on a GuestFlow
@@ -180,6 +204,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     also cleared on reset so the recovered account doesn't show the verification banner.
 
 ### Migration
+- **`ical_cancellation_alerts`** — new table (id, reservationId, sourceId, eventUid,
+  detectedAt, acknowledgedAt, outcome). Three partial indexes on `acknowledgedAt IS NULL`
+  (Dashboard listing, per-reservation UPSERT, per-event auto-resolve lookup). Created
+  idempotently on first boot. Empty on existing installs.
 - **VAT schema collapse** — `app_settings` gains a new column `vatRate REAL NOT NULL DEFAULT
   10`; the migration seeds it once from the legacy `vatRateAccommodation` value (prod has
   10 % there → no behavioural surprise), then DROPs both `vatRateAccommodation` and

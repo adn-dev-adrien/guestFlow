@@ -8,6 +8,7 @@
 const linenInventoryModel = require('../models/linenInventoryModel');
 const reservationsModel = require('../models/reservationsModel');
 const icalDateDriftModel = require('../models/icalDateDriftModel');
+const icalCancellationModel = require('../models/icalCancellationModel');
 
 const TYPE_LABELS = Object.freeze({
   single: 'Drap simple',
@@ -22,6 +23,7 @@ function buildController({
   linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
   reservationsModel: injectedReservationsModel = reservationsModel,
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
+  icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
 } = {}) {
   return {
     /**
@@ -118,6 +120,49 @@ function buildController({
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
       const result = injectedIcalDateDriftModel.reject(id);
+      if (result.error) return res.status(result.status || 400).json({ error: result.error });
+      return res.json({ ok: true });
+    },
+
+    /**
+     * GET /api/dashboard/ical-cancellation
+     *
+     * Returns every pending cancellation approval for iCal-imported reservations whose UID
+     * has fallen out of every source feed (specs/ical-cancellation-approval.md §4.3).
+     * Empty `alerts: []` when nothing pending.
+     */
+    icalCancellation(req, res) {
+      const alerts = injectedIcalCancellationModel.listPending();
+      return res.json({ alerts });
+    },
+
+    /**
+     * POST /api/dashboard/ical-cancellation/:id/approve
+     *
+     * Atomically deletes the reservation + its ical_import_events mappings + writes a
+     * history audit entry + flips the alert to outcome='approved'. Returns 200 with
+     * `outcome: 'reservation_gone'` (idempotent shape) when the reservation was already
+     * manually deleted between the sync and the approve click.
+     */
+    approveIcalCancellation(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      const result = injectedIcalCancellationModel.approve(id);
+      if (result.error) return res.status(result.status || 400).json({ error: result.error });
+      return res.json({ ok: true, outcome: result.outcome });
+    },
+
+    /**
+     * POST /api/dashboard/ical-cancellation/:id/reject
+     *
+     * Flips the alert to outcome='rejected' without touching the reservation. The
+     * dropped iCal mappings stay dropped (they were removed during the sync that raised
+     * the alert and we don't restore them — spec §8).
+     */
+    rejectIcalCancellation(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      const result = injectedIcalCancellationModel.reject(id);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
       return res.json({ ok: true });
     },

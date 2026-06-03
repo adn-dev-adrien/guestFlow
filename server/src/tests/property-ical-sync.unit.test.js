@@ -42,6 +42,15 @@ const DDL = `
     acknowledgedAt TEXT,
     outcome TEXT
   );
+  CREATE TABLE ical_cancellation_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    sourceId INTEGER NOT NULL,
+    eventUid TEXT NOT NULL,
+    detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT,
+    outcome TEXT
+  );
 `;
 
 function icsFeed(events) {
@@ -174,14 +183,57 @@ test('unlocked + dates change: NO drift row (full update path)', async () => {
     'drift mechanism only triggers on locked reservations');
 });
 
-test('stale: an event no longer in the feed removes its reservation', async () => {
+test('cancellation: an event no longer in the feed records a pending alert (soft delete)', async () => {
+  // specs/ical-cancellation-approval.md §3 rule 1 — the engine no longer auto-deletes.
   const { db, model, source } = freshModel();
   stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
   const result = await model.syncSource(source);
-  assert.equal(result.removedCount, 1);
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 0);
+  assert.equal(result.removedCount, 1, 'removedCount counts pending cancellation alerts');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1, 'reservation kept (soft flow)');
+  const pending = db.prepare("SELECT reservationId, sourceId, eventUid FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL").all();
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].eventUid, 'E1');
+});
+
+test('cancellation: locked reservation falls out of feed → still soft-cancelled (no lock short-circuit)', async () => {
+  // The lock does NOT protect against soft cancellation; the user explicitly approves.
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'E1'").run();
+  stubFetch([]);
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
+});
+
+test('cancellation: repeated empty-feed sync keeps ONE pending row (UPSERT)', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  stubFetch([]);
+  await model.syncSource(source);
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts').get().c, 1);
+});
+
+test('cancellation: auto-resolve when the UID reappears in the feed before the user reacts', async () => {
+  // specs/ical-cancellation-approval.md §3 rule 4 — the alert is dropped silently.
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  stubFetch([]);
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
+
+  // The platform un-cancels: same UID is back in the feed.
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts').get().c, 0, 'pending row deleted, not acknowledged');
+  // The reservation also re-acquires its mapping in the standard create/legacy-match path.
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1);
 });
 
 test('unavailable/blocked events are filtered out (no reservation)', async () => {

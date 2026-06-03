@@ -245,6 +245,11 @@ const api = {
   getIcalDateDriftAlert: () => request('/dashboard/ical-date-drift'),
   approveIcalDateDrift: (id) => request(`/dashboard/ical-date-drift/${id}/approve`, { method: 'POST' }),
   rejectIcalDateDrift: (id) => request(`/dashboard/ical-date-drift/${id}/reject`, { method: 'POST' }),
+  // Dashboard iCal cancellation approvals — pending deletion proposals when a reservation's
+  // UID has fallen out of every source feed (specs/ical-cancellation-approval.md §4.3).
+  getIcalCancellationAlert: () => request('/dashboard/ical-cancellation'),
+  approveIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/approve`, { method: 'POST' }),
+  rejectIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/reject`, { method: 'POST' }),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),
