@@ -35,7 +35,7 @@ function sampleDevis() {
 const settings = {
   companyName: 'My Co', companyEmail: 'co@x.fr', companyPhone: '0102030405', companyAddress: '1 Rue Co',
   companyIban: 'FR7612345678901234567890123', companyBic: 'ABCDEFGH', companyBankName: 'Banque', quoteValidityDays: 30,
-  vatRateAccommodation: 10, vatRateStandard: 20,
+  vatRate: 10,
 };
 
 test('generateDevisPdf returns a non-empty PDF buffer (offered/custom/per-hour branches do not throw)', async () => {

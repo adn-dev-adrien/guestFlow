@@ -1,14 +1,15 @@
 /**
  * SettingsVatSection — "Taux de TVA" card.
  *
- * Two global VAT rates, common to every property: accommodation (the nightly stay) and standard
- * (everything else billable — options, custom options, resources). Replaces the former per-property
- * VAT settings.
+ * One global VAT rate applied uniformly to every revenue stream — accommodation, options,
+ * resources, custom options (specs/single-vat-rate.md §6.1). The previous 2-rate model
+ * (accommodation vs standard) was collapsed since every line on a GuestFlow installation is
+ * invoiced under the same reduced rate.
  *
  * Props:
- *   values:    { accommodationRate, standardRate }
- *   errors:    { vatRateAccommodation?, vatRateStandard? }
- *   onChange:  (key, value) => void   // key is 'accommodationRate' | 'standardRate'
+ *   values:    { rate }
+ *   errors:    { vatRate? }
+ *   onChange:  (key, value) => void   // key is 'rate'
  *   disabled:  boolean
  */
 import React from 'react';
@@ -30,35 +31,22 @@ export default function SettingsVatSection({
               Taux de TVA
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Communs à tous les logements. L'hébergement a son propre taux ; tout le reste (options,
-              ressources) utilise le taux standard.
+              Appliqué à l'ensemble des prestations : hébergement, options, ressources.
             </Typography>
           </Box>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="TVA hébergement (%)"
-              type="number"
-              value={v.accommodationRate ?? 10}
-              onChange={(e) => onChange('accommodationRate', e.target.value === '' ? '' : Number(e.target.value))}
-              inputProps={{ min: 0, max: 100, step: 0.5 }}
-              fullWidth
-              disabled={disabled}
-              error={Boolean(errors.vatRateAccommodation)}
-              helperText={errors.vatRateAccommodation || '10 % par défaut.'}
-            />
-            <TextField
-              label="TVA standard (%)"
-              type="number"
-              value={v.standardRate ?? 20}
-              onChange={(e) => onChange('standardRate', e.target.value === '' ? '' : Number(e.target.value))}
-              inputProps={{ min: 0, max: 100, step: 0.5 }}
-              fullWidth
-              disabled={disabled}
-              error={Boolean(errors.vatRateStandard)}
-              helperText={errors.vatRateStandard || '20 % par défaut (options, ressources).'}
-            />
-          </Stack>
+          <TextField
+            label="Taux de TVA (%)"
+            type="number"
+            value={v.rate ?? 10}
+            onChange={(e) => onChange('rate', e.target.value === '' ? '' : Number(e.target.value))}
+            inputProps={{ min: 0, max: 100, step: 0.5 }}
+            fullWidth
+            disabled={disabled}
+            error={Boolean(errors.vatRate)}
+            helperText={errors.vatRate || '10 % par défaut.'}
+            sx={{ maxWidth: { sm: 320 } }}
+          />
         </Stack>
       </CardContent>
     </Card>

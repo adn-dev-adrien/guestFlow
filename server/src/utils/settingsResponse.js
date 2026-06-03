@@ -89,8 +89,7 @@ function shapeResponse(row) {
       validityDays: Number(row.quoteValidityDays) || 30,
     },
     vat: {
-      accommodationRate: row.vatRateAccommodation == null ? 10 : Number(row.vatRateAccommodation),
-      standardRate: row.vatRateStandard == null ? 20 : Number(row.vatRateStandard),
+      rate: row.vatRate == null ? 10 : Number(row.vatRate),
     },
     googleCalendar: {
       calendarId: safeStr(row.googleCalendarId).trim(),

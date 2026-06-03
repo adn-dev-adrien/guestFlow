@@ -5,10 +5,14 @@ const Database = require('better-sqlite3');
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { roundMoney } = require('../utils/pricing');
 
-// Two-rate global VAT model: accommodation uses `app_settings.vatRateAccommodation`, everything else
-// billable (options, custom options, resources) uses `app_settings.vatRateStandard`. The legacy
-// per-property `vatPercentage*` columns have been dropped — only the two globals drive the quote.
-function createDb({ withSettings = true, accommodationRate = 10, standardRate = 20 } = {}) {
+// Single-rate global VAT model — specs/single-vat-rate.md. The two-rate split (accommodation vs.
+// standard) was collapsed to a single `app_settings.vatRate` column that drives every billable
+// line of the quote (accommodation, options, custom options, resources). The legacy
+// per-property `vatPercentage*` columns remain dropped — only the single global drives the quote.
+// The quote payload keeps the `vatPercentageAccommodation` / `vatPercentageOptions` /
+// `vatPercentageResources` field names for backward compatibility — they just always carry the
+// same value now.
+function createDb({ withSettings = true, vatRate = 10 } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE properties (
@@ -40,9 +44,8 @@ function createDb({ withSettings = true, accommodationRate = 10, standardRate = 
     CREATE TABLE property_resource_prices ( propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId) );
   `);
   if (withSettings) {
-    db.exec('CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRateAccommodation REAL, vatRateStandard REAL)');
-    db.prepare('INSERT INTO app_settings (id, vatRateAccommodation, vatRateStandard) VALUES (1, ?, ?)')
-      .run(accommodationRate, standardRate);
+    db.exec('CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10)');
+    db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, ?)').run(vatRate);
   }
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Maison test')").run();
   db.prepare("INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 100, 1)").run();
@@ -71,39 +74,44 @@ function quoteWith(db) {
   return calculateReservationQuote({ ...BASE_INPUTS, db, selectedOptions: [{ optionId: 1, quantity: 1 }] });
 }
 
-test('accommodation uses the accommodation rate; options use the standard rate', () => {
-  const db = createDb({ accommodationRate: 10, standardRate: 20 });
+test('accommodation, options and resources all use the single global rate', () => {
+  const db = createDb({ vatRate: 10 });
   const q = quoteWith(db);
+  // All three legacy payload keys carry the SAME single rate now.
   assert.equal(q.vatPercentageAccommodation, 10);
-  assert.equal(q.vatPercentageOptions, 20);
-  assert.equal(q.vatPercentageResources, 20);
+  assert.equal(q.vatPercentageOptions, 10);
+  assert.equal(q.vatPercentageResources, 10);
   // Accommodation 200 TTC @10% → VAT = 200 * 10/110.
   assert.equal(q.accommodationVatAmount, roundMoney(200 * (10 / 110)));
-  // Option 60 TTC @20% → VAT = 60 * 20/120 = 10.
-  assert.equal(q.optionsVatAmount, roundMoney(60 * (20 / 120)));
-  assert.equal(q.optionsVatAmount, 10);
+  // Option 60 TTC @10% → VAT = 60 * 10/110.
+  assert.equal(q.optionsVatAmount, roundMoney(60 * (10 / 110)));
   db.close();
 });
 
 test('TTC totals are independent of the VAT rate (VAT is extracted, not added)', () => {
-  const a = quoteWith(createDb({ accommodationRate: 10, standardRate: 20 }));
-  const b = quoteWith(createDb({ accommodationRate: 0, standardRate: 0 }));
+  const a = quoteWith(createDb({ vatRate: 10 }));
+  const b = quoteWith(createDb({ vatRate: 0 }));
   assert.equal(a.finalPrice, b.finalPrice); // 200 + 60 = 260 either way
   assert.equal(a.finalPrice, 260);
   // Only the VAT split differs.
   assert.equal(b.accommodationVatAmount, 0);
+  assert.equal(b.optionsVatAmount, 0);
   assert.notEqual(a.accommodationVatAmount, 0);
+  assert.notEqual(a.optionsVatAmount, 0);
 });
 
-test('missing app_settings falls back to 10 / 20 defaults', () => {
+test('missing app_settings falls back to the 10 % default', () => {
   const q = quoteWith(createDb({ withSettings: false }));
   assert.equal(q.vatPercentageAccommodation, 10);
-  assert.equal(q.vatPercentageOptions, 20);
+  assert.equal(q.vatPercentageOptions, 10);
+  assert.equal(q.vatPercentageResources, 10);
 });
 
-test('custom global rates flow through to the quote (e.g. 5.5 / 10)', () => {
-  const q = quoteWith(createDb({ accommodationRate: 5.5, standardRate: 10 }));
+test('custom global rate flows through to the quote (e.g. 5.5 %)', () => {
+  const q = quoteWith(createDb({ vatRate: 5.5 }));
   assert.equal(q.vatPercentageAccommodation, 5.5);
-  assert.equal(q.vatPercentageOptions, 10);
+  assert.equal(q.vatPercentageOptions, 5.5);
+  assert.equal(q.vatPercentageResources, 5.5);
   assert.equal(q.accommodationVatAmount, roundMoney(200 * (5.5 / 105.5)));
+  assert.equal(q.optionsVatAmount, roundMoney(60 * (5.5 / 105.5)));
 });

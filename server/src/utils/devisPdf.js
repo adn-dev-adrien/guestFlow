@@ -16,11 +16,13 @@ function generateDevisPdf(full, settings) {
   return new Promise((resolve, reject) => {
   const property = full.property;
   const client = full.client;
-  // VAT rates are global (2-rate model): accommodation has its own; options and resources both use the
-  // standard rate. Sourced from app settings (read by the controller) — never from the property anymore.
-  const vatAccommodation = Number(settings?.vatRateAccommodation ?? 10);
-  const vatOptions = Number(settings?.vatRateStandard ?? 20);
-  const vatResources = Number(settings?.vatRateStandard ?? 20);
+  // Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to every line:
+  // accommodation, options, resources, custom options. The three local bindings stay so the
+  // existing `drawRow(..., rate, ...)` call sites read clearly; they all hold the same value.
+  const vatRate = Number(settings?.vatRate ?? 10);
+  const vatAccommodation = vatRate;
+  const vatOptions = vatRate;
+  const vatResources = vatRate;
 
   // Client phone (single column since the Clients bloc).
   const phones = client.phone ? [String(client.phone).trim()] : [];
