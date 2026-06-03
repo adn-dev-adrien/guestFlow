@@ -98,7 +98,6 @@ export default function PricingSummary({
   onToggleTouristTaxInComplement,
 }) {
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
-  const [showVatDetail, setShowVatDetail] = useState(false);
   const [showTouristTaxDetail, setShowTouristTaxDetail] = useState(false);
 
   const nights = Number(quote?.nights || Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000)));
@@ -123,16 +122,13 @@ export default function PricingSummary({
   // `touristTaxTotal`) and kept it in for owner-collected / direct cases. No client-side stripping.
   const totalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
 
-  // VAT rates come from the server quote (two global rates: accommodation + standard for options & resources).
-  const vatPercentageAccommodation = Number(quote?.vatPercentageAccommodation ?? 10);
-  const vatPercentageOptions = Number(quote?.vatPercentageOptions ?? 20);
-  const vatPercentageResources = Number(quote?.vatPercentageResources ?? 20);
-  const accommodationVatAmount = Number(quote?.accommodationVatAmount || 0);
-  const accommodationNetPrice = Number(quote?.accommodationNetPrice || 0);
-  const optionsVatAmount = Number(quote?.optionsVatAmount || 0);
-  const optionsNetPrice = Number(quote?.optionsNetPrice || 0);
-  const resourcesVatAmount = Number(quote?.resourcesVatAmount || 0);
-  const resourcesNetPrice = Number(quote?.resourcesNetPrice || 0);
+  // Single global VAT rate (specs/single-vat-rate.md §4.2). The engine still ships three
+  // separate `vatPercentage*` keys for backward compatibility — they all carry the same
+  // value, so we read one and ignore the others.
+  const vatRate = Number(quote?.vatPercentageAccommodation ?? quote?.vatPercentageOptions ?? quote?.vatPercentageResources ?? 10);
+  // Per-bucket HT/VAT amounts were dropped from the UI when the dual rate collapsed
+  // (specs/single-vat-rate.md §6.2) — only the aggregated `totalNetPrice` and
+  // `totalVatAmount` are still shown.
   const totalVatAmount = Number(quote?.totalVatAmount || 0);
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
 
@@ -562,70 +558,19 @@ export default function PricingSummary({
             </Box>
           </>
 
-          {/* Détails TVA */}
+          {/* TVA — single global rate (specs/single-vat-rate.md §6.2). Collapsed from the former
+              per-bucket breakdown since accommodation / options / resources all share the
+              same rate now. Total HT + TVA on two lines under the séjour total. */}
           <Divider />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Détails TVA
-              </Typography>
-              <Button
-                size="small"
-                variant="text"
-                onClick={() => setShowVatDetail((prev) => !prev)}
-                sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
-              >
-                {showVatDetail ? 'Masquer' : 'Afficher'}
-              </Button>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">Total HT</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>{totalNetPrice.toFixed(2)}€</Typography>
             </Box>
-
-            {showVatDetail && (
-              <>
-                {/* Accommodation VAT */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Hébergement (HT + TVA {vatPercentageAccommodation}%)
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                    {accommodationNetPrice.toFixed(2)}€ + {accommodationVatAmount.toFixed(2)}€
-                  </Typography>
-                </Box>
-
-                {/* Options VAT */}
-                {optionsTotal > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Options (HT + TVA {vatPercentageOptions}%)
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                      {optionsNetPrice.toFixed(2)}€ + {optionsVatAmount.toFixed(2)}€
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Resources VAT */}
-                {resourcesTotal > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Ressources (HT + TVA {vatPercentageResources}%)
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                      {resourcesNetPrice.toFixed(2)}€ + {resourcesVatAmount.toFixed(2)}€
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Total HT / TVA */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    Total HT / TVA
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    {totalNetPrice.toFixed(2)}€ / {totalVatAmount.toFixed(2)}€
-                  </Typography>
-                </Box>
-              </>
-            )}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>{totalVatAmount.toFixed(2)}€</Typography>
+            </Box>
           </Box>
 
           {/* Total du séjour */}

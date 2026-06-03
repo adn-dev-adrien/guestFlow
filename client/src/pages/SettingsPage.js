@@ -21,7 +21,7 @@ const EMPTY_FORM = {
     logoPath: '',
   },
   quote: { footerText: '', validityDays: 30 },
-  vat: { accommodationRate: 10, standardRate: 20 },
+  vat: { rate: 10 },
   googleCalendar: {
     calendarId: '',
     serviceAccountEmail: '',
@@ -433,8 +433,7 @@ function mapClientKeyToErrorKey(group, key) {
   }
   if (group === 'vat') {
     return ({
-      accommodationRate: 'vatRateAccommodation',
-      standardRate: 'vatRateStandard',
+      rate: 'vatRate',
     })[key];
   }
   if (group === 'googleCalendar') {

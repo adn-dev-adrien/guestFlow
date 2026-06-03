@@ -287,7 +287,7 @@ function createFinanceModel(database) {
           COALESCE(p.touristTaxFixedAmount, 0) as touristTaxFixedAmount,
           COALESCE(p.basePriceIncludedGuests, 0) as basePriceIncludedGuests,
           COALESCE(p.extraGuestPrice, 0) as extraGuestPrice,
-          COALESCE((SELECT vatRateAccommodation FROM app_settings WHERE id = 1), 10) as accommodationVatRate,
+          COALESCE((SELECT vatRate FROM app_settings WHERE id = 1), 10) as accommodationVatRate,
           MAX(0,
             CAST(
               JULIANDAY(r.endDate) - JULIANDAY(r.startDate)

@@ -42,9 +42,9 @@ function freshDb({ depositPercent = 30, depositDaysBefore = 30, balanceDaysBefor
       isComplex INTEGER NOT NULL DEFAULT 0, propertyIds TEXT DEFAULT '[]'
     );
     CREATE TABLE property_resource_prices ( propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId) );
-    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRateAccommodation REAL DEFAULT 10, vatRateStandard REAL DEFAULT 20);
+    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
   `);
-  db.prepare('INSERT INTO app_settings (id, vatRateAccommodation, vatRateStandard) VALUES (1, 10, 20)').run();
+  db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare(`
     INSERT INTO properties (id, name, depositPercent, depositDaysBefore, balanceDaysBefore)
     VALUES (1, 'Maison test', ?, ?, ?)

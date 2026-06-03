@@ -1018,11 +1018,13 @@ tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyB
 tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
 tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
 
-// Global VAT rates (2-rate model): accommodation vs everything else (options/resources). Replaces the
-// per-property vatPercentage* columns, which are then dropped. Defaults 10/20; backfilled once from any
-// existing property's old rates so a single-gîte install keeps its configured values.
+// Global VAT rate (single-rate model — specs/single-vat-rate.md §5). The previous 2-rate model
+// (accommodation 10 % / standard 20 %) was collapsed because every revenue stream on GuestFlow
+// is invoiced under the reduced 10 % rate. Backfill (further down) seeds `vatRate` from the
+// legacy `vatRateAccommodation` (which prod has at 10 %), then DROP the two legacy columns.
 tryAddAppSettingsCol('vatRateAccommodation', "ALTER TABLE app_settings ADD COLUMN vatRateAccommodation REAL DEFAULT 10");
 tryAddAppSettingsCol('vatRateStandard', "ALTER TABLE app_settings ADD COLUMN vatRateStandard REAL DEFAULT 20");
+tryAddAppSettingsCol('vatRate', "ALTER TABLE app_settings ADD COLUMN vatRate REAL NOT NULL DEFAULT 10");
 // SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
 // Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
 tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");
@@ -1063,13 +1065,30 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   }
   db.prepare("UPDATE app_settings SET vatRateAccommodation = ?, vatRateStandard = ? WHERE id = 1").run(acc, std);
 }
-// Drop the retired per-property VAT columns — the engine reads only the two globals from app_settings.
+// Drop the retired per-property VAT columns — the engine reads only the globals from app_settings.
 {
   const propColsForDrop = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
   for (const col of ['vatPercentageAccommodation', 'vatPercentageOptions', 'vatPercentageResources']) {
     if (propColsForDrop.includes(col)) {
       db.exec(`ALTER TABLE properties DROP COLUMN ${col}`);
     }
+  }
+}
+
+// Single-rate VAT migration (specs/single-vat-rate.md §5). Seeds `vatRate` from the legacy
+// accommodation column ONCE (prod has 10 % there → no behavioural surprise), then DROPS the
+// two legacy columns. Idempotent: re-runs are no-ops because the legacy columns are absent
+// after the first pass. SQLite ≥ 3.35 (well below our Pi version) supports DROP COLUMN.
+{
+  const cols = db.prepare("PRAGMA table_info(app_settings)").all().map(c => c.name);
+  if (cols.includes('vatRate') && cols.includes('vatRateAccommodation')) {
+    db.prepare("UPDATE app_settings SET vatRate = COALESCE(vatRateAccommodation, 10) WHERE id = 1").run();
+  }
+  if (cols.includes('vatRateAccommodation')) {
+    db.exec('ALTER TABLE app_settings DROP COLUMN vatRateAccommodation');
+  }
+  if (cols.includes('vatRateStandard')) {
+    db.exec('ALTER TABLE app_settings DROP COLUMN vatRateStandard');
   }
 }
 

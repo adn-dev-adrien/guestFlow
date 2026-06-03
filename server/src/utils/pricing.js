@@ -815,17 +815,15 @@ function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
   return Number(row.collectsTouristTax) !== 0;
 }
 
-// Global VAT rates (2-rate model). Accommodation has its own rate; everything else billable
-// (options, custom options, resources) uses the standard rate. Defaults 10 / 20 if unset.
-function getGlobalVatRates(db) {
+// Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
+// options, resources, custom options. Defaults to 10 % when the column is missing (minimal
+// test DBs) or NULL.
+function getGlobalVatRate(db) {
   let row = null;
   try {
-    row = db.prepare('SELECT vatRateAccommodation, vatRateStandard FROM app_settings WHERE id = 1').get();
-  } catch (_) { /* table/columns may not exist in minimal test DBs → fall back to defaults */ }
-  return {
-    accommodation: row && row.vatRateAccommodation != null ? Number(row.vatRateAccommodation) : 10,
-    standard: row && row.vatRateStandard != null ? Number(row.vatRateStandard) : 20,
-  };
+    row = db.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
+  } catch (_) { /* column may not exist in minimal test DBs → fall back to the default */ }
+  return row && row.vatRate != null ? Number(row.vatRate) : 10;
 }
 
 function calculateReservationQuote({
@@ -879,8 +877,11 @@ function calculateReservationQuote({
     return { error: 'Logement non trouvé', status: 404 };
   }
 
-  // VAT is configured by two global rates (accommodation vs everything else), not per property.
-  const vatRates = getGlobalVatRates(db);
+  // Single global VAT rate (specs/single-vat-rate.md §4.1). The three quote keys
+  // (vatPercentageAccommodation / Options / Resources) below keep their names but all carry
+  // the same value, so downstream readers (devisPdf, accountingModel, PricingSummary)
+  // continue working without a wider rename.
+  const vatRate = getGlobalVatRate(db);
 
   const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
   const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
@@ -920,9 +921,9 @@ function calculateReservationQuote({
       defaultCheckOut: property.defaultCheckOut || '10:00',
       optionLines: [],
       resourceLines: [],
-      vatPercentageAccommodation: vatRates.accommodation,
-      vatPercentageOptions: vatRates.standard,
-      vatPercentageResources: vatRates.standard,
+      vatPercentageAccommodation: vatRate,
+      vatPercentageOptions: vatRate,
+      vatPercentageResources: vatRate,
       accommodationNetPrice: 0,
       accommodationVatAmount: 0,
       optionsNetPrice: 0,
@@ -1251,9 +1252,9 @@ function calculateReservationQuote({
 
   // VAT calculations (all prices are TTC - VAT already included). Two global rates: accommodation
   // has its own; options, custom options and resources all use the standard rate.
-  const vatPercentageAccommodation = vatRates.accommodation;
-  const vatPercentageOptions = vatRates.standard;
-  const vatPercentageResources = vatRates.standard;
+  const vatPercentageAccommodation = vatRate;
+  const vatPercentageOptions = vatRate;
+  const vatPercentageResources = vatRate;
   
   // For TTC prices: VAT amount = TTC × (vatRate / (100 + vatRate))
   const accommodationVatAmount = roundMoney(accommodationAdjustedPrice * (vatPercentageAccommodation / (100 + vatPercentageAccommodation)));

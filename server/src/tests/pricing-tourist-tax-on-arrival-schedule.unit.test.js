@@ -35,13 +35,13 @@ function createDb({ collectsTouristTax } = {}) {
     CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, quantity INTEGER DEFAULT 0, price REAL DEFAULT 0, priceType TEXT DEFAULT 'per_stay', isComplex INTEGER DEFAULT 0, propertyIds TEXT DEFAULT '[]');
     CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId));
-    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRateAccommodation REAL, vatRateStandard REAL);
+    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
     CREATE TABLE ical_sources (
       id INTEGER PRIMARY KEY, propertyId INTEGER NOT NULL,
       platformKey TEXT NOT NULL, collectsTouristTax INTEGER NOT NULL DEFAULT 1
     );
   `);
-  db.prepare('INSERT INTO app_settings (id, vatRateAccommodation, vatRateStandard) VALUES (1, 10, 20)').run();
+  db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Tente')").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 100, 1)').run();
   if (collectsTouristTax !== undefined) {

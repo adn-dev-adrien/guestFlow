@@ -56,8 +56,7 @@ const COLUMNS = [
   'quoteFooterText',
   'quoteValidityDays',
   'companyLogoPath',
-  'vatRateAccommodation',
-  'vatRateStandard',
+  'vatRate',
   // SMTP for the account-management flow (specs/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.
@@ -91,8 +90,7 @@ const COLUMNS = [
 
 const NUMERIC_DEFAULTS = {
   quoteValidityDays: 30,
-  vatRateAccommodation: 10,
-  vatRateStandard: 20,
+  vatRate: 10,
   smtpPort: 587,
   smtpSecure: 0,
   allowEditPastReservations: 0,

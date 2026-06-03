@@ -85,12 +85,13 @@ function createPricingTestDb() {
       PRIMARY KEY (propertyId, resourceId)
     );
 
-    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRateAccommodation REAL, vatRateStandard REAL);
+    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
   `);
 
-  // Global VAT now drives the engine. These tests predate the 2-rate model and assume 20% everywhere,
-  // so seed both rates to 20 to keep their (VAT-derived) expectations valid.
-  db.prepare('INSERT INTO app_settings (id, vatRateAccommodation, vatRateStandard) VALUES (1, 20, 20)').run();
+  // Global VAT now drives the engine — single-rate model (specs/single-vat-rate.md). These tests
+  // predate the collapse and assume 20% everywhere, so seed the single global rate to 20 to keep
+  // their (VAT-derived) expectations valid.
+  db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 20)').run();
 
   db.prepare(`
     INSERT INTO properties (
