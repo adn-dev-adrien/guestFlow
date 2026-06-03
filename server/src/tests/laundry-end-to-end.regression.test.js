@@ -29,6 +29,7 @@ const DDL = `
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL DEFAULT 'reservation',
+    propertyId INTEGER,
     startDate TEXT NOT NULL,
     endDate TEXT NOT NULL,
     singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER,
@@ -51,6 +52,11 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL,
     quantity REAL DEFAULT 1, offered INTEGER DEFAULT 0
+  );
+  CREATE TABLE property_option_defaults (
+    propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL,
+    offered INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (propertyId, optionId)
   );
 `;
 
@@ -273,4 +279,68 @@ test('END-TO-END: checkout on the START of the window goes to the PREVIOUS batch
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   // Drop-off on 06-09 = sums (06-02, 06-09]. 06-02 is excluded.
   assert.equal(res.body.laundryDays[0].dropOff.singleBeds, 0);
+});
+
+// --- §3.7 — property-default fallback drives the controller payload ---
+
+test('END-TO-END: property default ⇒ a reservation WITHOUT the linen option STILL contributes', () => {
+  // Adrien's exact ask 2026-06-03: activate the linen default on a property → every reservation
+  // of that property counts toward the laundry, regardless of what's in reservation_options.
+  // Pinned at the controller level so future SQL refactors that drop the UNION source 2 surface
+  // here as a payload diff.
+  const { db, controller } = makeStack();
+  const { bedId } = seedSeeds(db);
+  // Reservation NOT linked to the option. Without §3.7 this would contribute zero.
+  makeReservation(db, {
+    startDate: '2026-06-02', endDate: '2026-06-04',
+    singleBeds: 4, doubleBeds: 4, babyBeds: 1,
+    adults: 8, children: 4,
+  });
+  // Set the property default. The makeReservation above didn't set propertyId — patch the row
+  // directly so the JOIN finds it.
+  db.prepare("UPDATE reservations SET propertyId = 10 WHERE startDate = '2026-06-02'").run();
+  db.prepare(
+    "INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (?, ?, 1)"
+  ).run(10, bedId);
+
+  const res = makeRes();
+  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  assert.deepEqual(res.body.laundryDays[0].dropOff, {
+    singleBeds: 4, doubleBeds: 4, babyBeds: 1,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
+});
+
+test('END-TO-END: explicit reservation_options row STILL wins over the property default', () => {
+  // Sanity contract — operator intent is never silently overwritten by the property default.
+  // Reservation has the option explicitly with linenIncludesBaby=0 (the operator created a
+  // different option with baby unchecked); property default points at an option that includes
+  // baby. The explicit row's flags drive the result — baby beds must not be counted.
+  const { db, controller } = makeStack();
+  const bedDefault = db.prepare(`
+    INSERT INTO options (title, autoOptionType, countsAsBedLinen, linenIncludesBaby)
+    VALUES ('Linge de lit default', 'bed_linen', 1, 1)
+  `).run().lastInsertRowid;
+  const bedExplicit = db.prepare(`
+    INSERT INTO options (title, countsAsBedLinen, linenIncludesBaby)
+    VALUES ('Linge de lit (no baby)', 1, 0)
+  `).run().lastInsertRowid;
+  const r = makeReservation(db, {
+    startDate: '2026-06-02', endDate: '2026-06-04',
+    singleBeds: 2, doubleBeds: 1, babyBeds: 3,
+  });
+  db.prepare("UPDATE reservations SET propertyId = 10 WHERE id = ?").run(r);
+  db.prepare(
+    "INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, 1)"
+  ).run(r, bedExplicit);
+  db.prepare(
+    "INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (?, ?, 1)"
+  ).run(10, bedDefault);
+
+  const res = makeRes();
+  controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  assert.deepEqual(res.body.laundryDays[0].dropOff, {
+    singleBeds: 2, doubleBeds: 1, babyBeds: 0, // baby suppressed by the explicit row
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
 });
