@@ -258,6 +258,93 @@ test('update with a renamed guest does not create an orphan client', async () =>
   assert.equal(db.prepare('SELECT COUNT(*) c FROM clients').get().c, 1);
 });
 
+test('summary fallback (step 3.5): unlocked moved booking with NEW UID → re-claim + dates rewritten', async () => {
+  // specs/ical-summary-fallback-cross-uid.md §7.
+  // Replays the Abracadaroom case: same booking #144253 reappears with a new UID and
+  // new dates. Every prior fallback fails because they key on the new dates; step 3.5
+  // matches by the stable summary and re-claims the existing reservation.
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'OLDUID', start: '20260606', end: '20260607', summary: 'Booking #144253' }]);
+  await model.syncSource(source);
+  const beforeId = db.prepare('SELECT id FROM reservations').get().id;
+
+  stubFetch([{ uid: '7517039833', start: '20261010', end: '20261011', summary: 'Booking #144253' }]);
+  const result = await model.syncSource(source);
+
+  assert.equal(result.createdCount, 0, 'no new reservation created');
+  assert.equal(result.updatedCount, 1, 'existing reservation updated in place');
+  assert.equal(result.removedCount, 0, 'no cancellation alert raised');
+  const row = db.prepare('SELECT id, startDate, endDate, sourceIcalEventUid FROM reservations').get();
+  assert.equal(row.id, beforeId, 'same reservation row preserved');
+  assert.equal(row.startDate, '2026-10-10');
+  assert.equal(row.endDate, '2026-10-11');
+  assert.equal(row.sourceIcalEventUid, '7517039833');
+  const mappings = db.prepare('SELECT eventUid, startDate, endDate FROM ical_import_events').all();
+  assert.equal(mappings.length, 1, 'OLD mapping dropped, NEW mapping in place');
+  assert.equal(mappings[0].eventUid, '7517039833');
+});
+
+test('summary fallback (step 3.5): LOCKED moved booking with NEW UID → date-drift alert, no auto-update', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'OLDUID', start: '20260606', end: '20260607', summary: 'Booking #144253' }]);
+  await model.syncSource(source);
+  db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'OLDUID'").run();
+
+  stubFetch([{ uid: '7517039833', start: '20261010', end: '20261011', summary: 'Booking #144253' }]);
+  const result = await model.syncSource(source);
+
+  assert.equal(result.lockedCount, 1);
+  assert.equal(result.updatedCount, 0);
+  assert.equal(result.removedCount, 0, 'no cancellation alert raised');
+  const row = db.prepare('SELECT startDate, endDate FROM reservations').get();
+  assert.equal(row.startDate, '2026-06-06', 'persisted dates unchanged on locked rez');
+  assert.equal(row.endDate, '2026-06-07');
+  const drifts = db.prepare(`
+    SELECT previousStartDate, previousEndDate, newStartDate, newEndDate
+      FROM ical_date_drift_alerts WHERE acknowledgedAt IS NULL
+  `).all();
+  assert.equal(drifts.length, 1, 'one date-drift card on the Dashboard');
+  assert.equal(drifts[0].previousStartDate, '2026-06-06');
+  assert.equal(drifts[0].newStartDate, '2026-10-10');
+});
+
+test('summary fallback (step 3.5): AMBIGUOUS summary (≥2 same-source mappings) → no re-claim, INSERT new', async () => {
+  // Two existing mappings with the SAME summaryNormalized → uniqueness gate blocks the
+  // re-claim, the new event falls through to the standard INSERT path. Protects against
+  // false-positive remaps on generic summaries (e.g. "Booked Ical", "Closed Period").
+  const { db, model, source } = freshModel();
+  stubFetch([
+    { uid: 'A1', start: '20260601', end: '20260602', summary: 'Closed Period' },
+    { uid: 'A2', start: '20260701', end: '20260702', summary: 'Closed Period' },
+  ]);
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 2);
+
+  stubFetch([
+    { uid: 'A1', start: '20260601', end: '20260602', summary: 'Closed Period' },
+    { uid: 'A2', start: '20260701', end: '20260702', summary: 'Closed Period' },
+    { uid: 'A3', start: '20261010', end: '20261011', summary: 'Closed Period' },
+  ]);
+  const result = await model.syncSource(source);
+  assert.equal(result.createdCount, 1, 'ambiguous summary → INSERT new, no false remap');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 3);
+});
+
+test('summary fallback (step 3.5): empty/unavailable-summary new event still works via standard INSERT', async () => {
+  // Edge case: the parser may strip the summary entirely. The summary fallback skips
+  // empty summaries (existing `if (!mapping && summaryNormalized)` guard reused).
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'OLDUID', start: '20260606', end: '20260607', summary: 'Booking #144253' }]);
+  await model.syncSource(source);
+
+  // New event without a summary: cannot re-claim → goes to INSERT. The old reservation
+  // stays alive and the old UID is now stale → raises a cancellation alert.
+  stubFetch([{ uid: 'NEWUID', start: '20261010', end: '20261011', summary: '' }]);
+  const result = await model.syncSource(source);
+  assert.equal(result.createdCount, 1, 'empty-summary new event always inserts');
+  assert.equal(result.removedCount, 1, 'old UID becomes stale → cancellation alert');
+});
+
 test('syncSourceAndRecord writes the source status row', async () => {
   const { db, model, source } = freshModel();
   db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel, isActive) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb', 1)").run();

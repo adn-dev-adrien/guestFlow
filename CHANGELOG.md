@@ -4,6 +4,31 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **iCal sync now re-claims a reservation when the platform re-issues its UID** on a date
+  change (spec `ical-summary-fallback-cross-uid.md`, 2026-06-03). Investigation triggered
+  by a confirmed prod case: an Abracadaroom reservation #144253 was rescheduled from
+  06-07 Jun to 10-11 Oct, the platform emitted a brand-new UID for the move, and the
+  engine's four existing fallbacks (all keyed on the NEW dates) failed to link the new
+  event to the old reservation — the old one was silently deleted (pre-PR #106) or would
+  now surface as a soft cancellation alert, while a fresh new reservation was created
+  with none of the operator's manual edits carried over.
+
+  A new step 3.5 in `syncSource()`'s matching cascade now searches
+  `ical_import_events` by `(sourceId, summaryNormalized)` — the SUMMARY is the only thing
+  that stays stable across the move on platforms like Abracadaroom or Booking.com (booking
+  number embedded). Two safety guards keep the heuristic from misfiring:
+  - **Staleness filter** — only candidates whose UID is NOT in the current feed are
+    considered (those have genuinely disappeared from the platform's authoritative state).
+  - **Uniqueness gate** — exactly one stale candidate. ≥ 2 stale matches → ambiguity →
+    fall through to INSERT + the standard cancellation alert flow.
+
+  Net effect: when the new event lands, the existing reservation row is preserved,
+  `sourceIcalEventUid` is rewired to the new UID, and the existing date-drift detection
+  (PR #104) does the rest — silent full update if the reservation is unlocked, orange
+  Dashboard "Modifications de dates iCal" card if it's locked. No new tables, no new
+  endpoints, no new UI; ~15 lines of engine code + 4 dedicated tests.
+
 ### Changed
 - **iCal sync no longer auto-deletes cancelled reservations** (spec
   `ical-cancellation-approval.md`, 2026-06-03). Previously, when a reservation's UID fell
