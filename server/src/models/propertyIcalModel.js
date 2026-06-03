@@ -18,17 +18,19 @@ const {
   buildIcalCreationHistoryChanges,
 } = require('../utils/icalParser');
 const icalDateDriftModel = require('./icalDateDriftModel');
+const icalCancellationModel = require('./icalCancellationModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
   collectsTouristTax,
   lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt`;
 
 function createPropertyIcalModel(database) {
-  // Bind the drift model to the SAME database instance so prod and unit tests share one
-  // consistent SQLite handle (the default `icalDateDriftModel` export is bound to the
-  // production DB; tests build a fresh property-ical model on `:memory:`, and they need a
-  // matching drift model).
+  // Bind the drift + cancellation models to the SAME database instance so prod and unit
+  // tests share one consistent SQLite handle (the default exports are bound to the
+  // production DB; tests build a fresh property-ical model on `:memory:`, and they need
+  // matching companion models).
   const driftModel = icalDateDriftModel.buildModel(database);
+  const cancellationModel = icalCancellationModel.buildModel(database);
 
   function getOrCreateIcalClient(guestName, platformLabel) {
     const { firstName, lastName } = resolveIcalClientIdentity(guestName, platformLabel);
@@ -217,6 +219,13 @@ function createPropertyIcalModel(database) {
         const syncTx = database.transaction((eventList) => {
           const seenUids = new Set(eventList.map((event) => event.uid));
 
+          // Auto-resolve any pending cancellation alerts whose UID is back in the feed —
+          // the platform un-cancelled the booking, so the alert is moot
+          // (specs/ical-cancellation-approval.md §3 rule 4).
+          cancellationModel.resolveOnReappearance(
+            eventList.map((event) => ({ sourceId: source.id, eventUid: event.uid })),
+          );
+
           for (const event of eventList) {
             const eventHash = buildEventHash(event);
             const summaryNormalized = normalizeIcalSummary(event.summary);
@@ -357,19 +366,32 @@ function createPropertyIcalModel(database) {
             updatedCount += 1;
           }
 
-          // Remove reservations that were previously imported from this source
-          // but are no longer present in the incoming iCal feed (or now filtered out).
+          // Soft cancellation flow (specs/ical-cancellation-approval.md §3 rule 1):
+          // when a reservation's UID is no longer in this feed, drop this source's mapping
+          // but DO NOT delete the reservation. If no OTHER source still references it,
+          // record a pending cancellation alert for the Dashboard so the user explicitly
+          // approves the deletion (or rejects it). Cross-platform-shared bookings still
+          // survive until every feed drops them — the alert only fires once the last
+          // mapping is gone.
           const staleMappings = listMappings
             .all(source.id)
             .filter((row) => !seenUids.has(row.eventUid));
           const countMappingsForReservation = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE reservationId = ?');
+          const reservationStillExists = database.prepare('SELECT 1 FROM reservations WHERE id = ?');
           staleMappings.forEach((row) => {
-            // Drop this source's mapping; only delete the reservation if no OTHER source's mapping still
-            // references it (a cross-platform-shared booking survives until every feed drops it).
             deleteMapping.run(source.id, row.eventUid);
             if (countMappingsForReservation.get(row.reservationId).c === 0) {
-              deleteReservation.run(row.reservationId);
-              removedCount += 1;
+              // No other source still claims this reservation. Soft-record a pending
+              // cancellation alert if the reservation still exists (a manual delete
+              // between syncs is idempotent — we just drop the trailing mapping).
+              if (reservationStillExists.get(row.reservationId)) {
+                cancellationModel.recordPending({
+                  reservationId: row.reservationId,
+                  sourceId: source.id,
+                  eventUid: row.eventUid,
+                });
+                removedCount += 1;
+              }
             }
           });
 
@@ -410,7 +432,9 @@ function createPropertyIcalModel(database) {
               updatedAt = datetime('now')
           WHERE id = ?
         `).run(
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} supprimé(s), ${result.unchangedCount} inchangé(s)`,
+          // `removedCount` now counts soft-cancellation alerts raised on the Dashboard,
+          // not deletions (specs/ical-cancellation-approval.md §3 rule 8).
+          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider, ${result.unchangedCount} inchangé(s)`,
           result.createdCount + result.updatedCount,
           source.id,
         );

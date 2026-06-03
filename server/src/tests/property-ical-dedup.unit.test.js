@@ -38,6 +38,15 @@ const DDL = `
     acknowledgedAt TEXT,
     outcome TEXT
   );
+  CREATE TABLE ical_cancellation_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    sourceId INTEGER NOT NULL,
+    eventUid TEXT NOT NULL,
+    detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT,
+    outcome TEXT
+  );
 `;
 
 function icsFeed(events) {
@@ -151,19 +160,32 @@ test('legacy match is robust to notes drift via the authoritative icalOriginalSu
 });
 
 test('cross-platform shared reservation survives until BOTH feeds drop it', async () => {
+  // Under the soft cancellation flow (specs/ical-cancellation-approval.md §3 rule 1),
+  // the second drop no longer auto-deletes — it raises ONE pending cancellation alert.
   const { db, model } = fresh();
   stubFetch([{ uid: 'A1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
   await model.syncSource(SOURCE_A);
   stubFetch([{ uid: 'B1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
   await model.syncSource(SOURCE_B); // both sources now map to the one reservation
 
-  // Source A drops the booking — but Booking still lists it → reservation must survive.
+  // Source A drops the booking — but Booking still lists it → reservation survives,
+  // and NO cancellation alert (cross-platform protection still holds).
   stubFetch([]);
   await model.syncSource(SOURCE_A);
   assert.equal(resCount(db), 1, 'reservation still referenced by the other platform');
+  assert.equal(
+    db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c,
+    0,
+    'no alert while another source still claims the booking',
+  );
 
-  // Now Booking drops it too → reservation removed.
+  // Now Booking drops it too → reservation stays + ONE pending cancellation raised.
   stubFetch([]);
   await model.syncSource(SOURCE_B);
-  assert.equal(resCount(db), 0);
+  assert.equal(resCount(db), 1, 'soft flow: reservation kept until user approves');
+  assert.equal(
+    db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c,
+    1,
+    'one pending cancellation across both sources',
+  );
 });
