@@ -353,6 +353,34 @@ db.exec(`
   )
 `);
 
+// spec: ical-sync-override-locked-dates.md §5 — pending date-drift approvals.
+// The sync engine records one pending row per locked reservation when the source platform
+// shifts its dates; the Dashboard alert lets the user approve or reject. Acknowledged rows
+// are kept for audit (no auto-cleanup in v1).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ical_date_drift_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    previousStartDate TEXT NOT NULL,
+    previousEndDate TEXT NOT NULL,
+    newStartDate TEXT NOT NULL,
+    newEndDate TEXT NOT NULL,
+    detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT,
+    outcome TEXT
+  )
+`);
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_ical_drift_unack
+    ON ical_date_drift_alerts(acknowledgedAt)
+    WHERE acknowledgedAt IS NULL
+`);
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_ical_drift_unack_reservation
+    ON ical_date_drift_alerts(reservationId)
+    WHERE acknowledgedAt IS NULL
+`);
+
 // ---------- MIGRATIONS ----------
 // ALTER TABLE migrations are skipped when SKIP_MIGRATIONS=true.
 // CREATE TABLE IF NOT EXISTS statements above always run — they are safe and idempotent.

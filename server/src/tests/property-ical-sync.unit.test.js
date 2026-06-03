@@ -8,7 +8,7 @@ const propertyIcalModel = require('../models/propertyIcalModel');
 // unavailable-filter. The sync engine was moved verbatim from routes/properties.js — this locks it in.
 
 const DDL = `
-  CREATE TABLE properties (id INTEGER PRIMARY KEY, defaultCheckIn TEXT, defaultCheckOut TEXT, defaultCautionAmount REAL);
+  CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT, defaultCautionAmount REAL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, notes TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, clientId INTEGER,
@@ -31,6 +31,17 @@ const DDL = `
     UNIQUE(sourceId, eventUid)
   );
   CREATE TABLE reservation_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, eventType TEXT, changedFields TEXT);
+  CREATE TABLE ical_date_drift_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    previousStartDate TEXT NOT NULL,
+    previousEndDate TEXT NOT NULL,
+    newStartDate TEXT NOT NULL,
+    newEndDate TEXT NOT NULL,
+    detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT,
+    outcome TEXT
+  );
 `;
 
 function icsFeed(events) {
@@ -92,6 +103,75 @@ test('locked: a locked iCal reservation is NOT overwritten on re-sync', async ()
   assert.equal(result.lockedCount, 1);
   assert.equal(result.updatedCount, 0);
   assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-07-13'); // unchanged
+  // New behavior: dates differ → a pending drift row was recorded for the Dashboard alert.
+  // See specs/ical-sync-override-locked-dates.md §3 rules 1-3.
+  const drifts = db.prepare('SELECT * FROM ical_date_drift_alerts WHERE acknowledgedAt IS NULL').all();
+  assert.equal(drifts.length, 1);
+  assert.equal(drifts[0].previousEndDate, '2026-07-13');
+  assert.equal(drifts[0].newEndDate, '2026-07-20');
+});
+
+test('locked + date drift: same proposal repeated → still one pending row', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'E1'").run();
+
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260720', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  // Second sync, same dates: the mapping hash now matches → unchanged path, no new drift row.
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_date_drift_alerts').get().c, 1);
+});
+
+test('locked + drift then re-drift: pending row UPDATED with the latest proposal', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'E1'").run();
+
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260720', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  // The source shuffles dates again before the user reacts.
+  stubFetch([{ uid: 'E1', start: '20260712', end: '20260722', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+
+  const drifts = db.prepare('SELECT * FROM ical_date_drift_alerts WHERE acknowledgedAt IS NULL').all();
+  assert.equal(drifts.length, 1, 'still ONE pending row per reservation (rule 3)');
+  // previousStart/End keep the reservation's persisted dates (the user still has those).
+  assert.equal(drifts[0].previousStartDate, '2026-07-10');
+  assert.equal(drifts[0].previousEndDate, '2026-07-13');
+  // newStart/End reflect the LATEST proposal.
+  assert.equal(drifts[0].newStartDate, '2026-07-12');
+  assert.equal(drifts[0].newEndDate, '2026-07-22');
+});
+
+test('locked + summary-only change (no date diff): skipped silently, NO drift row', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'E1'").run();
+
+  // Same dates, renamed guest → hash differs but no date drift → silent skip.
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Marie Martin' }]);
+  const result = await model.syncSource(source);
+  assert.equal(result.lockedCount, 1);
+  assert.equal(result.updatedCount, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_date_drift_alerts').get().c, 0);
+});
+
+test('unlocked + dates change: NO drift row (full update path)', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  // Reservation stays unlocked (icalSyncLocked = 0).
+
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260720', summary: 'Jean Dupont' }]);
+  const result = await model.syncSource(source);
+  assert.equal(result.updatedCount, 1);
+  assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-07-20');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_date_drift_alerts').get().c, 0,
+    'drift mechanism only triggers on locked reservations');
 });
 
 test('stale: an event no longer in the feed removes its reservation', async () => {

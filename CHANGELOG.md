@@ -5,6 +5,28 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **iCal date-drift Dashboard approval** (spec `ical-sync-override-locked-dates.md`,
+  2026-06-03). Previously, an iCal reservation that had been opened+saved through the form
+  became `icalSyncLocked = 1` and the sync engine then ignored EVERY subsequent change from
+  the source platform — including date moves, the most safety-critical mutation for
+  overbooking prevention. The new flow detects locked date drifts during `syncSource()`,
+  records ONE pending row per reservation in `ical_date_drift_alerts` (UPSERT semantics — a
+  later proposal replaces the previous one), and exposes them as an orange Dashboard
+  `<IcalDateDriftAlert />` card. Each card offers:
+  - **Approuver** → runs a NARROW SQL override touching only `startDate`, `endDate`,
+    `updatedAt`. Bed config, guest counts, options, resources, prices, payments, lock flag
+    are explicitly preserved (rules 6+7).
+  - **Voir la fiche** → opens the reservation page without acknowledging.
+  - **✕** (top-right) → ignores the proposal; the reservation stays at its persisted dates.
+
+  Acknowledged rows are kept indefinitely for audit. Approved overrides emit a
+  `reservation_history` entry labelled "Dates iCal approuvées" so the change appears in the
+  audit log. Unlocked reservations + summary-only locked drifts keep their existing behavior
+  (full update path / silent skip respectively). 23 new server tests pinning the contract
+  (engine drift detection, idempotency on repeated syncs, latest-proposal-wins UPSERT,
+  approve/reject atomicity, controller HTTP shaping). Known follow-up: a locked reservation
+  receiving a NEW UID alongside the date change still falls through to insert+delete (loses
+  user data) — separate sync-engine rework needed; tracked as a follow-up.
 - **Linen inventory & shortage projection** (spec `linen-inventory-shortage-tracking.md`,
   2026-06-03). Adrien declares his global stock (3 bed types + 3 towel types) in the new
   `/parametres/stock-blanchisserie` sub-page. A pure simulation engine
@@ -138,6 +160,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     also cleared on reset so the recovered account doesn't show the verification banner.
 
 ### Migration
+- **`ical_date_drift_alerts`** — new table (id, reservationId, previousStart/End,
+  newStart/End, detectedAt, acknowledgedAt, outcome). Created idempotently on first boot.
+  Two partial indexes on `acknowledgedAt IS NULL` for the Dashboard listing and the
+  per-reservation UPSERT lookup. Empty on existing installs.
 - **6 new columns on `app_settings`** for the linen-inventory feature: `bedLinenStock
   Single / Double / Baby`, `towelStockLarge / Medium / Small` — all `INTEGER NOT NULL DEFAULT
   0`. Idempotent ALTER TABLE; existing installs see 0 everywhere = "no type tracked" = no UI

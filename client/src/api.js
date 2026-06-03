@@ -240,6 +240,11 @@ const api = {
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
+  // Dashboard iCal date-drift approvals — pending date-change proposals on locked iCal
+  // reservations (specs/ical-sync-override-locked-dates.md §4.3).
+  getIcalDateDriftAlert: () => request('/dashboard/ical-date-drift'),
+  approveIcalDateDrift: (id) => request(`/dashboard/ical-date-drift/${id}/approve`, { method: 'POST' }),
+  rejectIcalDateDrift: (id) => request(`/dashboard/ical-date-drift/${id}/reject`, { method: 'POST' }),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

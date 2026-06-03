@@ -231,6 +231,18 @@ function shouldSkipIcalReservationUpdate(mappedReservation) {
     && Number(mappedReservation?.icalSyncLocked || 0) === 1;
 }
 
+// True when a sync-locked reservation's iCal source proposes different dates from the persisted
+// ones. Drives the "Dashboard date-drift approval" flow
+// (specs/ical-sync-override-locked-dates.md §3 rule 1). The reservation row must carry its
+// current `startDate` / `endDate` for the comparison; the caller is responsible for SELECTing
+// those.
+function isLockedDateDrift(mappedReservation, event) {
+  if (!shouldSkipIcalReservationUpdate(mappedReservation)) return false;
+  if (!mappedReservation || !event) return false;
+  return String(mappedReservation.startDate || '') !== String(event.startDate || '')
+      || String(mappedReservation.endDate   || '') !== String(event.endDate   || '');
+}
+
 function buildIcalCreationHistoryChanges(source, eventUid) {
   return [
     { field: 'sourceType', label: 'Origine', from: null, to: `Import iCal (${source?.platformLabel || source?.name || 'Source inconnue'})` },
@@ -254,5 +266,6 @@ module.exports = {
   parseIcsEvents,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
+  isLockedDateDrift,
   buildIcalCreationHistoryChanges,
 };
