@@ -5,6 +5,24 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Per-property option defaults** (spec `weekly-bed-linen-tracking.md` §3.7, 2026-06-03).
+  Adrien can declare, per logement, that one or more linen options are added by default on
+  every NEW reservation for that property, optionally with the offered flag pre-set ("le
+  linge est inclus dans le tarif"). New table `property_option_defaults(propertyId, optionId,
+  offered)` decoupled from `property_options` (the availability filter remains untouched).
+  Four new API endpoints under `/api/properties/:id/option-defaults` (GET / PUT / DELETE) +
+  `/api/options/:id/property-defaults` (read-only mirror). Two UI surfaces per Adrien's UX
+  choice: PropertyDetail card "Options ajoutées par défaut" with immediate-save switches
+  (canonical edit) + OptionsPage section "Logements par défaut" listing the same data
+  read-only when editing a linen option. ReservationPage auto-pre-populates `selectedOptions`
+  on **new** reservation creation (and on property change mid-creation) using
+  `GET /api/properties/:id/option-defaults`. Edit of an existing reservation NEVER re-applies
+  defaults (rule 30 — historical bookings stay frozen). Soft-fails on the defaults fetch so a
+  defaults outage never blocks the reservation flow. **Rule 35 follow-up**: when the operator
+  toggles an option back ON on an existing reservation (remove → re-add), the `offered` flag
+  is set from the property's default for that option (default `offered=true` → free, default
+  `offered=false` → paid, no default → preserve historical state). The cache is refreshed via
+  a useEffect watching `form.propertyId` so the contract is honoured on edit-load too.
 - **Weekly bed-linen tracking on the Planning page** (spec
   `weekly-bed-linen-tracking.md`, 2026-06-02). Each laundry day (configurable weekday, default
   Tuesday) now surfaces a small card under the day header of the Planning view showing the
@@ -73,6 +91,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     also cleared on reset so the recovered account doesn't show the verification banner.
 
 ### Migration
+- **`property_option_defaults`** (§3.7) — new table created on first boot, primary key
+  `(propertyId, optionId)`, ON DELETE CASCADE on both FKs. Empty on existing installs; no
+  data migration needed. Decoupled from the existing `property_options` table to preserve the
+  current "global option = available everywhere" semantic.
 - **`users.emailChangedAt`** (`TEXT NULL`) added by an idempotent ALTER TABLE in
   `server/src/database.js`. Stamped by `updateUser` whenever the email column is rewritten.
   Existing users see `NULL` → no banner, no behaviour change until they actually change their

@@ -116,6 +116,22 @@ db.exec(`
   )
 `);
 
+// Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7, 2026-06-03 follow-up).
+// Decoupled from `property_options` (which is the availability filter): a row's presence here
+// means "this option is added by default on every NEW reservation for this property"; `offered`
+// is the second binary flag ("bed linen is included in the property price → free for the
+// guest"). The two tables answer different questions and are independent.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS property_option_defaults (
+    propertyId INTEGER NOT NULL,
+    optionId   INTEGER NOT NULL,
+    offered    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (propertyId, optionId),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+    FOREIGN KEY (optionId)   REFERENCES options(id)    ON DELETE CASCADE
+  )
+`);
+
 // ---------- RESERVATIONS ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS reservations (

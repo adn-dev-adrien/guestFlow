@@ -234,6 +234,90 @@ neither.
     towel size whose count is 0. If all three sizes are 0 on both sides, the towel line is
     suppressed entirely — combined with rule 13, the card stays silent.
 
+### 3.7 Per-property option defaults (2026-06-03 follow-up)
+
+28. **Property-scoped default options + offered flag.** Adrien can declare, per logement, that
+    one or more linen options are **added by default** on every NEW reservation for that
+    property, optionally with the **offered flag pre-set** ("le linge est inclus dans le
+    tarif du logement, gratuit pour le client"). Examples:
+    - Gite always includes bed linen → `Linge de lit` added by default, offered = true.
+    - Tente provides bed linen on demand → `Linge de lit` added by default, offered = false.
+    - Studio: no auto-add (operator picks per reservation).
+
+29. **Data model — dedicated table** `property_option_defaults` keeps the new semantic fully
+    decoupled from the existing `property_options` (which is a per-property availability
+    filter that we do NOT want to repurpose: a global option like `Linge de lit` must stay
+    available on every property, regardless of its default-status on any specific property).
+    Schema:
+    ```sql
+    CREATE TABLE property_option_defaults (
+      propertyId INTEGER NOT NULL,
+      optionId   INTEGER NOT NULL,
+      offered    INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (propertyId, optionId),
+      FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+      FOREIGN KEY (optionId)   REFERENCES options(id)    ON DELETE CASCADE
+    );
+    ```
+    A row's presence ≡ `addedByDefault = 1`. Removing the row ≡ no default. `offered` is the
+    second binary flag; nothing else is stored. ON DELETE CASCADE on both FKs prevents orphan
+    rows when a property or an option is hard-deleted.
+
+30. **Auto-add on NEW reservation only.** The client pre-populates `form.selectedOptions` from
+    `GET /api/properties/:id/option-defaults` exactly once, on the **fresh reservation create
+    path** for the chosen property. Editing an existing reservation NEVER re-applies the
+    defaults — historical reservations must stay frozen as the operator left them. The
+    pre-population uses `quantity: 1` + `offered: <row.offered>`.
+
+31. **UI canonical edit + read-only mirror** (Adrien's UX choice, 2026-06-03):
+    - **PropertyDetail (canonical edit)**: new section *"Options ajoutées par défaut"*. For each
+      linen-flagged option (`countsAsBedLinen = 1` OR `countsAsBathroomLinen = 1`), one row
+      with two switches: *"Ajouter par défaut"* + *"Offert (gratuit)"* (the second is disabled
+      until the first is on). Changes are saved with a PUT.
+    - **OptionsPage (read-only mirror)**: when editing a linen option, a section *"Logements
+      par défaut"* lists each property that has this option as a default + the offered flag
+      next to each. The component is a pure renderer — no input, just a status table that
+      mirrors what the property page is canonical for.
+
+32. **API endpoints**:
+    - `GET /api/properties/:id/option-defaults` → `[{ optionId, offered }]`.
+    - `PUT /api/properties/:id/option-defaults/:optionId` → `{ offered: boolean }` body, idempotent
+      upsert. Returns the row.
+    - `DELETE /api/properties/:id/option-defaults/:optionId` → 204 (idempotent unset).
+    - `GET /api/options/:id/property-defaults` → `[{ propertyId, propertyName, offered }]` (the
+      read-only mirror feed).
+
+33. **Non-regression contract** (Adrien explicitly flagged): no change to existing reservation
+    create / edit paths beyond the new fresh-reservation pre-population. The current global
+    availability of the linen options (no `property_options` rows = available everywhere) is
+    untouched. The existing `selectedOptions` payload shape (`optionId`, `quantity`,
+    `inComplement`, `offered`) is unchanged. The `property_options` filter rule still drives
+    "which options the operator can pick from" — no new joins / filters / coupling added.
+
+34. **Forbidden interactions** (pinned by tests):
+    - Auto-add MUST NOT fire on reservation EDIT (re-applying defaults would silently mutate
+      historical bookings).
+    - Auto-add MUST NOT duplicate an option already in `form.selectedOptions` (e.g. when the
+      operator changes property mid-edit: keep what they picked manually, just add the
+      new property's defaults that are not already there).
+    - `offered` defaults sourced from the row must be honoured even when the option was added
+      manually before the auto-add ran (last write wins is OK — the auto-add only inserts
+      rows it didn't find).
+
+35. **Manual re-toggle mirrors the property contract** (2026-06-03 follow-up). When the operator
+    toggles an option **back ON** on an EXISTING reservation (i.e. removed earlier + re-added
+    via the same form), the `offered` flag is set from the property's default for that option:
+    - Default exists with `offered = true` → option is offered (free) on re-add.
+    - Default exists with `offered = false` → option is paid on re-add.
+    - No default → leave `offeredOptionIds` untouched (preserve the historical state).
+
+    Rationale: the property contract is "linen is included" / "linen costs X" — a manual
+    re-toggle should honour that contract, not the now-stale state captured at load time. The
+    client caches the property's defaults in `propertyOptionDefaults` state, refreshed via a
+    useEffect on every `form.propertyId` change (including the edit-load path — so the cache
+    is populated even though `applyPropertyDefaultsAsync` is NOT called there per rule 30).
+    The mirror is applied by `setOptionQuantity` on the absent → present transition.
+
 ### 3.6 Edge cases
 
 - **Window straddles the planning start.** The planning shows 14 days forward;
