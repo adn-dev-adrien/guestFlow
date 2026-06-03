@@ -381,6 +381,38 @@ db.exec(`
     WHERE acknowledgedAt IS NULL
 `);
 
+// spec: ical-cancellation-approval.md §5 — pending cancellation approvals.
+// When the iCal sync detects that a reservation's UID has fallen out of every source
+// feed, the engine stops auto-deleting and records one pending row here for the Dashboard
+// alert. Acknowledged rows are kept for audit. The third partial index supports the
+// auto-resolve lookup by (sourceId, eventUid) at O(log n).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ical_cancellation_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    sourceId INTEGER NOT NULL,
+    eventUid TEXT NOT NULL,
+    detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT,
+    outcome TEXT
+  )
+`);
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_ical_cancel_unack
+    ON ical_cancellation_alerts(acknowledgedAt)
+    WHERE acknowledgedAt IS NULL
+`);
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_ical_cancel_unack_reservation
+    ON ical_cancellation_alerts(reservationId)
+    WHERE acknowledgedAt IS NULL
+`);
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_ical_cancel_unack_event
+    ON ical_cancellation_alerts(sourceId, eventUid)
+    WHERE acknowledgedAt IS NULL
+`);
+
 // ---------- MIGRATIONS ----------
 // ALTER TABLE migrations are skipped when SKIP_MIGRATIONS=true.
 // CREATE TABLE IF NOT EXISTS statements above always run — they are safe and idempotent.

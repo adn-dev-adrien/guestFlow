@@ -14,6 +14,7 @@ import PageHeader from '../components/PageHeader';
 import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
+import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
@@ -115,6 +116,9 @@ export default function Dashboard() {
       {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
           Self-contained: renders nothing when no pending drift exists. */}
       <IcalDateDriftAlert />
+      {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
+          contained: renders nothing when no pending cancellation exists. */}
+      <IcalCancellationAlert />
 
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

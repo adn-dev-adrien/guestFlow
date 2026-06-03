@@ -16,4 +16,8 @@ router.get('/ical-date-drift', controller.icalDateDrift);
 router.post('/ical-date-drift/:id/approve', controller.approveIcalDateDrift);
 router.post('/ical-date-drift/:id/reject', controller.rejectIcalDateDrift);
 
+router.get('/ical-cancellation', controller.icalCancellation);
+router.post('/ical-cancellation/:id/approve', controller.approveIcalCancellation);
+router.post('/ical-cancellation/:id/reject', controller.rejectIcalCancellation);
+
 module.exports = router;
