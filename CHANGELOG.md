@@ -4,6 +4,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Single global VAT rate** (spec `single-vat-rate.md`, 2026-06-03). The previous 2-rate
+  model — 10 % for accommodation, 20 % for everything else — was collapsed to ONE editable
+  rate (default 10 %) after the comptable confirmed every revenue stream on a GuestFlow
+  installation is invoiced under the reduced rate. The Settings page exposes one field
+  "Taux de TVA (%)"; the pricing engine, devis PDF, finance reporting, accounting model
+  and accounting CSV export all consume the single rate. The quote payload keeps the three
+  `vatPercentageAccommodation` / `vatPercentageOptions` / `vatPercentageResources` keys
+  (downstream readers untouched) — they all hold the same value now. PricingSummary's
+  per-bucket HT/VAT breakdown collapses to a single "TVA {rate} %" line.
+  - **Retroactive**: historical reservations re-export at the new rate. The accounting CSV
+    emits ONE VAT line per encaissement on account `44571100` (TVA 10 %); no more
+    `44571200` rows. Past TTC totals are unchanged; only the HT / VAT split shifts.
+  - The `vatAccountForRate` resolver + `STANDARD_20` constant stay defined as dormant
+    safety nets: if the editable field is ever set to 20 % temporarily, the export still
+    maps to the right GL account without code change.
+  - Test sweep: 12 server test fixtures collapsed from 2-rate to single-rate; the dedicated
+    `pricing-vat-two-rates.unit.test.js` was renamed (`git mv`) to
+    `pricing-vat-single-rate.unit.test.js` and rewritten.
+
 ### Added
 - **iCal date-drift Dashboard approval** (spec `ical-sync-override-locked-dates.md`,
   2026-06-03). Previously, an iCal reservation that had been opened+saved through the form
@@ -160,6 +180,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     also cleared on reset so the recovered account doesn't show the verification banner.
 
 ### Migration
+- **VAT schema collapse** — `app_settings` gains a new column `vatRate REAL NOT NULL DEFAULT
+  10`; the migration seeds it once from the legacy `vatRateAccommodation` value (prod has
+  10 % there → no behavioural surprise), then DROPs both `vatRateAccommodation` and
+  `vatRateStandard`. Idempotent on re-runs (the DROP guards on `cols.includes(...)`).
+  SQLite ≥ 3.35 (well below the Pi's bundled version) supports DROP COLUMN.
 - **`ical_date_drift_alerts`** — new table (id, reservationId, previousStart/End,
   newStart/End, detectedAt, acknowledgedAt, outcome). Created idempotently on first boot.
   Two partial indexes on `acknowledgedAt IS NULL` for the Dashboard listing and the

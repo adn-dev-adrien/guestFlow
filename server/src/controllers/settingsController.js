@@ -43,9 +43,11 @@ const GOOGLE_FIELDS = [
   // privateKey is handled separately (3-way semantics).
 ];
 
+// Single VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
+// options, resources, custom options. Previously a 2-rate model (10 % accommodation / 20 %
+// standard) — collapsed because every revenue stream on GuestFlow is invoiced at 10 %.
 const VAT_FIELDS = [
-  { input: 'accommodationRate', column: 'vatRateAccommodation', validator: validation.validateVatRate },
-  { input: 'standardRate', column: 'vatRateStandard', validator: validation.validateVatRate },
+  { input: 'rate', column: 'vatRate', validator: validation.validateVatRate },
 ];
 
 // SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask

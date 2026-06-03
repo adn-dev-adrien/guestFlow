@@ -38,7 +38,7 @@ function createDb() {
     CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, quantity INTEGER, price REAL, priceType TEXT, isComplex INTEGER DEFAULT 0, propertyIds TEXT DEFAULT '[]');
     CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId));
-    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRateAccommodation REAL, vatRateStandard REAL);
+    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY, propertyId INTEGER, clientId INTEGER, kind TEXT DEFAULT 'reservation',
       startDate TEXT, endDate TEXT, checkInTime TEXT DEFAULT '15:00', checkOutTime TEXT DEFAULT '10:00',
@@ -59,7 +59,7 @@ function createDb() {
     CREATE TABLE reservation_nights (reservationId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL, PRIMARY KEY (reservationId, date));
     CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, platformKey TEXT, collectsTouristTax INTEGER DEFAULT 1);
   `);
-  db.prepare('INSERT INTO app_settings (id, vatRateAccommodation, vatRateStandard) VALUES (1, 10, 20)').run();
+  db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Le Petit Gîte')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (2, 'La Maison du Lac')").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId) VALUES (1, 1)').run();
