@@ -78,6 +78,15 @@ const COLUMNS = [
   // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
   // (400 INVALID_WEEKDAY).
   'laundryWeekday',
+  // Linen inventory & shortage tracking (specs/linen-inventory-shortage-tracking.md §3.1).
+  // Global stock per type, integer ≥ 0. 0 = "I don't track this type" → simulation skips it
+  // and the UI hides any line for that type.
+  'bedLinenStockSingle',
+  'bedLinenStockDouble',
+  'bedLinenStockBaby',
+  'towelStockLarge',
+  'towelStockMedium',
+  'towelStockSmall',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -88,6 +97,12 @@ const NUMERIC_DEFAULTS = {
   smtpSecure: 0,
   allowEditPastReservations: 0,
   laundryWeekday: 2,
+  bedLinenStockSingle: 0,
+  bedLinenStockDouble: 0,
+  bedLinenStockBaby: 0,
+  towelStockLarge: 0,
+  towelStockMedium: 0,
+  towelStockSmall: 0,
 };
 
 const STRING_DEFAULT_OVERRIDES = {

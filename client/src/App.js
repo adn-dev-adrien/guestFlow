@@ -57,6 +57,7 @@ import ResourcesPage from './pages/ResourcesPage';
 import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import SettingsPage from './pages/SettingsPage';
+import LinenStockPage from './pages/LinenStockPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import AccountingPage from './pages/AccountingPage';
@@ -77,7 +78,7 @@ const navItems = [
 // and the children's order matters for display.
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/account'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/stock-blanchisserie', '/account'];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -479,6 +480,18 @@ function NavContent({ onItemClick }) {
                   <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
                 )}
+                {can('/parametres/stock-blanchisserie') && (
+                <ListItemButton
+                  component={Link}
+                  to="/parametres/stock-blanchisserie"
+                  onClick={(e) => onItemClick && onItemClick(e, '/parametres/stock-blanchisserie')}
+                  selected={location.pathname === '/parametres/stock-blanchisserie'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Stock blanchisserie" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
+                )}
                 {can('/account') && (
                 <ListItemButton
                   component={Link}
@@ -671,6 +684,7 @@ function AppShell() {
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/parametres/stock-blanchisserie" element={<LinenStockPage />} />
           {/* Legacy paths redirect to the unified "Gestion utilisateur" page. */}
           <Route path="/settings/password" element={<Navigate to="/account" replace />} />
           <Route path="/comptes" element={<Navigate to="/account" replace />} />

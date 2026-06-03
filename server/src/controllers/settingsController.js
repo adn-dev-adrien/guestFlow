@@ -72,9 +72,28 @@ const LAUNDRY_FIELDS = [
   { input: 'weekday', column: 'laundryWeekday', validator: validation.validateLaundryWeekday },
 ];
 
+// Linen-stock group (specs/linen-inventory-shortage-tracking.md §3.1). 6 integer counts ≥ 0,
+// each capped at 999 by the validator. Stock is global across all properties.
+const LINEN_STOCK_FIELDS = [
+  { input: 'bedSingle',   column: 'bedLinenStockSingle', validator: validation.validateLinenStockCount },
+  { input: 'bedDouble',   column: 'bedLinenStockDouble', validator: validation.validateLinenStockCount },
+  { input: 'bedBaby',     column: 'bedLinenStockBaby',   validator: validation.validateLinenStockCount },
+  { input: 'towelLarge',  column: 'towelStockLarge',     validator: validation.validateLinenStockCount },
+  { input: 'towelMedium', column: 'towelStockMedium',    validator: validation.validateLinenStockCount },
+  { input: 'towelSmall',  column: 'towelStockSmall',     validator: validation.validateLinenStockCount },
+];
+
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations']);
+
+// Columns that must be coerced to a non-negative integer floor at the boundary (defensive
+// against the form sending strings or decimals). The validator already rejects out-of-range
+// values; the coercion here protects against malformed-but-in-range inputs.
+const INTEGER_COUNT_COLUMNS = new Set([
+  'bedLinenStockSingle', 'bedLinenStockDouble', 'bedLinenStockBaby',
+  'towelStockLarge', 'towelStockMedium', 'towelStockSmall',
+]);
 
 function pickGroup(body, group) {
   const value = body && body[group];
@@ -95,6 +114,7 @@ function updateSettings(req, res) {
   const smtp = pickGroup(body, 'smtp');
   const reservations = pickGroup(body, 'reservations');
   const laundry = pickGroup(body, 'laundry');
+  const linenStock = pickGroup(body, 'linenStock');
 
   const payload = {};
   const errors = {};
@@ -113,6 +133,12 @@ function updateSettings(req, res) {
         // Switch on the client; normalize to 0/1 for SQLite.
         if (BOOLEAN_INT_COLUMNS.has(column)) {
           payload[column] = (value === true || value === 1 || value === '1') ? 1 : 0;
+        } else if (INTEGER_COUNT_COLUMNS.has(column)) {
+          // Defensive coercion for the linen-stock columns: floor to a non-negative int even
+          // when the form sends a string-decimal or a negative (the validator already runs
+          // above, but the coercion here keeps the DB row clean if the validator path is
+          // bypassed in a future refactor).
+          payload[column] = Math.max(0, Math.floor(Number(value) || 0));
         } else {
           payload[column] = value;
         }
@@ -127,6 +153,7 @@ function updateSettings(req, res) {
   applyGroup(smtp, SMTP_FIELDS);
   applyGroup(reservations, RESERVATIONS_FIELDS);
   applyGroup(laundry, LAUNDRY_FIELDS);
+  applyGroup(linenStock, LINEN_STOCK_FIELDS);
 
   // Google Calendar private key — 3-way semantics.
   if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {

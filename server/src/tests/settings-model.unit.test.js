@@ -38,6 +38,12 @@ const DDL = `
     publicUrl TEXT DEFAULT '',
     allowEditPastReservations INTEGER NOT NULL DEFAULT 0,
     laundryWeekday INTEGER NOT NULL DEFAULT 2,
+    bedLinenStockSingle INTEGER NOT NULL DEFAULT 0,
+    bedLinenStockDouble INTEGER NOT NULL DEFAULT 0,
+    bedLinenStockBaby INTEGER NOT NULL DEFAULT 0,
+    towelStockLarge INTEGER NOT NULL DEFAULT 0,
+    towelStockMedium INTEGER NOT NULL DEFAULT 0,
+    towelStockSmall INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );

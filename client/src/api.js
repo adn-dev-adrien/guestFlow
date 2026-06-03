@@ -234,6 +234,12 @@ const api = {
   // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
   getLaundryPlanningSummary: ({ from, to }) =>
     request(`/planning/laundry?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
+  // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
+  getLinenInventory: () => request('/planning/linen-inventory'),
+  // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
+  // empty when nothing is in shortage.
+  getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),
