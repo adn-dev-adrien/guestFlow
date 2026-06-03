@@ -7,6 +7,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
 import PricedItemsPage from '../components/PricedItemsPage';
+import OptionPropertyDefaultsMirror from '../components/OptionPropertyDefaultsMirror';
 
 const OPTION_PRICE_TYPES = [
   { value: 'per_stay', label: 'Prix fixe' },
@@ -199,6 +200,8 @@ export default function OptionsPage() {
           {form.countsAsBathroomLinen && (
             <BathroomTowelCountsFields form={form} setForm={setForm} />
           )}
+          {/* §3.7 read-only mirror — list of properties that use this option as a default. */}
+          <OptionPropertyDefaultsMirror optionId={form.id} form={form} />
         </>
       )}
     />

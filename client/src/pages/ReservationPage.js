@@ -125,6 +125,36 @@ export default function ReservationPage() {
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
+
+  // §3.7 — apply per-property option defaults to a fresh form. Called from the new-reservation
+  // init path AND from the property-change handler (both reset selectedOptions: []). NEVER called
+  // from the edit path (the historical option set on a saved reservation must stay frozen —
+  // rule 30). The function merges defaults into selectedOptions + offeredOptionIds; existing
+  // entries are preserved (no duplicate, no override of operator picks).
+  const applyPropertyDefaultsAsync = useCallback(async (propertyId) => {
+    if (!propertyId) return;
+    try {
+      const defaults = await api.getPropertyOptionDefaults(propertyId);
+      if (!Array.isArray(defaults) || defaults.length === 0) return;
+      setForm((prev) => {
+        const existing = new Set((prev.selectedOptions || []).map((so) => Number(so.optionId)));
+        const toAdd = defaults
+          .filter((d) => !existing.has(Number(d.optionId)))
+          .map((d) => ({ optionId: Number(d.optionId), quantity: 1, totalPrice: 0 }));
+        if (toAdd.length === 0) return prev;
+        return { ...prev, selectedOptions: [...(prev.selectedOptions || []), ...toAdd] };
+      });
+      setOfferedOptionIds((prev) => {
+        const next = new Set(prev);
+        for (const d of defaults) {
+          if (d.offered) next.add(Number(d.optionId));
+        }
+        return next;
+      });
+    } catch (_) {
+      // Soft fail — a defaults fetch must never block the reservation flow.
+    }
+  }, []);
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
   const [isIcalImportedBlankPrice, setIsIcalImportedBlankPrice] = useState(false);
@@ -761,6 +791,9 @@ export default function ReservationPage() {
 
           await loadResourcesAvailability(startDate, endDate, initialPropId);
           await loadBabyBedAvailability(startDate, endDate, initialPropId);
+          // §3.7 — pre-populate selectedOptions with the property's defaults (linen options
+          // typically). Soft-fail; awaiting so the form is consistent before the user can interact.
+          await applyPropertyDefaultsAsync(initialPropId);
         }
 
         setLoading(false);
@@ -1284,6 +1317,12 @@ export default function ReservationPage() {
       loadResourcesAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
       loadBabyBedAvailability(form.startDate, form.endDate, nextPropertyId, editingReservationId || null),
     ]);
+    // §3.7 — re-apply defaults for the NEW property. We skip this when the user is editing an
+    // existing reservation BUT switched property: per rule 30 the historical state stays frozen
+    // — except the operator just reset their option list by changing property, so re-applying
+    // the new property's defaults is the only sane behaviour. The `editingReservationId`
+    // discriminator is intentionally NOT used here: changing property is an explicit reset.
+    await applyPropertyDefaultsAsync(nextPropertyId);
   };
 
   // ==================== CONFLICT CHECKING ====================

@@ -75,6 +75,19 @@ const api = {
   // Property options
   updatePropertyOptions: (propId, optionIds) => request(`/properties/${propId}/options`, { method: 'PUT', body: { optionIds } }),
 
+  // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7). Independent of
+  // updatePropertyOptions, which only manages the availability filter. The endpoints below
+  // drive the "Options ajoutées par défaut" section in PropertyDetail and the read-only
+  // mirror in OptionsPage.
+  getPropertyOptionDefaults: (propId) => request(`/properties/${propId}/option-defaults`),
+  setPropertyOptionDefault: (propId, optionId, offered) =>
+    request(`/properties/${propId}/option-defaults/${optionId}`, {
+      method: 'PUT', body: { offered: Boolean(offered) },
+    }),
+  unsetPropertyOptionDefault: (propId, optionId) =>
+    request(`/properties/${propId}/option-defaults/${optionId}`, { method: 'DELETE' }),
+  getOptionPropertyDefaults: (optionId) => request(`/options/${optionId}/property-defaults`),
+
   // Options
   getOptions: () => request('/options'),
   createOption: (data) => request('/options', { method: 'POST', body: data }),
