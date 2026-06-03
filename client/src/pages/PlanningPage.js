@@ -758,8 +758,26 @@ export default function PlanningPage() {
           </Card>
         )}
 
-        {/* Merge reservation days + resource booking days */}
-        {[...new Set([...planningDays.map((d) => d.date), ...Object.keys(resourceBookingsMap), ...Object.keys(departuresMap)])].sort().map((date, idx, arr) => {
+        {/* Merge reservation days + resource booking days + laundry days with content.
+            §3.7 / 2026-06-03 fix: a Tuesday that has only a laundry card (no arrivals, no
+            departures, no resource bookings) must STILL render. We add `laundryByDate` keys to
+            the date set, filtered to days where the LaundryDayCard would render something
+            (mirrors its rule-13 silence test — beds + towels > 0 on at least one side). */}
+        {[...new Set([
+          ...planningDays.map((d) => d.date),
+          ...Object.keys(resourceBookingsMap),
+          ...Object.keys(departuresMap),
+          ...Object.keys(laundryByDate).filter((d) => {
+            const data = laundryByDate[d];
+            if (!data) return false;
+            const sum = (side) => {
+              if (!side) return 0;
+              return Number(side.singleBeds || 0) + Number(side.doubleBeds || 0) + Number(side.babyBeds || 0)
+                   + Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0);
+            };
+            return sum(data.dropOff) + sum(data.pickUp) > 0;
+          }),
+        ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
           const dayDepartures = departuresMap[date] || [];

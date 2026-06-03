@@ -4,6 +4,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **Planning: a Tuesday with ONLY a laundry card now renders** (rule 13.ter, 2026-06-03). The
+  day-set merger in `PlanningPage` previously only collected dates from arrivals, departures,
+  and resource bookings. A laundry day that fell on a date with none of those (typical after
+  activating property defaults on a quiet week) silently disappeared. The merger now also
+  consumes `laundryByDate` keys, filtered to those that pass the `LaundryDayCard` silence
+  check (`sum(dropOff) + sum(pickUp) > 0`).
+
 ### Changed
 - **Property defaults now drive the laundry counter for ALL reservations of that property —
   past and future** (spec `weekly-bed-linen-tracking.md` rule 36, 2026-06-03). When the
