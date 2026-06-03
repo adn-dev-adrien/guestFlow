@@ -160,6 +160,20 @@ function createPropertyIcalModel(database) {
           ORDER BY iie.lastSeenAt DESC
           LIMIT 1
         `);
+        // specs/ical-summary-fallback-cross-uid.md — step 3.5 in the matching cascade.
+        // When the platform re-issues a NEW UID alongside a date change (Abracadaroom
+        // does this on every reschedule), every prior fallback fails (they all key on
+        // the NEW dates) but the SUMMARY stays stable. We return every candidate so the
+        // caller can (a) discard active mappings (= UIDs still in the current feed:
+        // those would be a false-positive remap of two unrelated bookings sharing a
+        // generic summary like "Closed Period") and (b) enforce a uniqueness gate over
+        // the remaining truly-stale candidates.
+        const listSameSourceMappingsBySummary = database.prepare(`
+          SELECT eventUid, reservationId, eventHash
+            FROM ical_import_events
+           WHERE sourceId = ? AND summaryNormalized = ?
+           ORDER BY datetime(lastSeenAt) DESC
+        `);
         const listMappings = database.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
         const deleteMapping = database.prepare('DELETE FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const upsertMapping = database.prepare(`
@@ -249,6 +263,29 @@ function createPropertyIcalModel(database) {
               if (legacyCandidate) {
                 mapping = { reservationId: Number(legacyCandidate.id), eventHash: null };
                 previousUid = String(legacyCandidate.sourceIcalEventUid || '');
+              }
+            }
+
+            // Step 3.5 — re-claim a moved booking when the platform re-issued its UID
+            // (specs/ical-summary-fallback-cross-uid.md §3 rules 1-3). Every prior fallback
+            // keyed on the NEW dates; this one keys on the stable summary. Two guards make
+            // the heuristic safe:
+            //   (a) we only consider candidates whose UID is NOT in the current feed —
+            //       those are about to become stale, i.e. they map to a booking that has
+            //       genuinely disappeared. An active candidate sharing a generic summary
+            //       with the new event (e.g. two distinct "Closed Period" entries in the
+            //       same feed) would otherwise be silently rewired.
+            //   (b) uniqueness: exactly ONE stale candidate. With multiple stale matches
+            //       the heuristic cannot tell which one moved → we fall through to step 4
+            //       + INSERT and let the cancellation alert flow surface the orphans for
+            //       manual arbitration.
+            if (!mapping && summaryNormalized) {
+              const sameSummaryCandidates = listSameSourceMappingsBySummary.all(source.id, summaryNormalized);
+              const staleCandidates = sameSummaryCandidates.filter((c) => !seenUids.has(c.eventUid));
+              if (staleCandidates.length === 1) {
+                const candidate = staleCandidates[0];
+                mapping = { reservationId: Number(candidate.reservationId), eventHash: candidate.eventHash };
+                previousUid = String(candidate.eventUid || '');
               }
             }
 
