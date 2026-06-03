@@ -14,14 +14,22 @@ const {
   parseIcsEvents,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
+  isLockedDateDrift,
   buildIcalCreationHistoryChanges,
 } = require('../utils/icalParser');
+const icalDateDriftModel = require('./icalDateDriftModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
   collectsTouristTax,
   lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt`;
 
 function createPropertyIcalModel(database) {
+  // Bind the drift model to the SAME database instance so prod and unit tests share one
+  // consistent SQLite handle (the default `icalDateDriftModel` export is bound to the
+  // production DB; tests build a fresh property-ical model on `:memory:`, and they need a
+  // matching drift model).
+  const driftModel = icalDateDriftModel.buildModel(database);
+
   function getOrCreateIcalClient(guestName, platformLabel) {
     const { firstName, lastName } = resolveIcalClientIdentity(guestName, platformLabel);
     const existing = database.prepare(`
@@ -164,7 +172,10 @@ function createPropertyIcalModel(database) {
             summaryNormalized=excluded.summaryNormalized,
             lastSeenAt=datetime('now')
         `);
-        const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked FROM reservations WHERE id = ?');
+        // startDate/endDate are needed so the locked date-drift detector
+        // (isLockedDateDrift / icalDateDriftModel) can compare the persisted dates against the
+        // ones proposed by the source feed — see specs/ical-sync-override-locked-dates.md §3.
+        const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?');
         const listSourceReservationsByDates = database.prepare(`
           SELECT id, sourceType, icalSyncLocked, sourceIcalEventUid, notes, icalOriginalSummary
           FROM reservations
@@ -313,6 +324,19 @@ function createPropertyIcalModel(database) {
             }
 
             if (shouldSkipIcalReservationUpdate(mappedReservation)) {
+              // Locked: the reservation is NOT touched. If the source proposed new dates we
+              // record a pending drift so the user can approve / reject from the Dashboard
+              // (specs/ical-sync-override-locked-dates.md §3 rules 1-3). Other locked diffs
+              // (summary / adults only) are skipped silently as before.
+              if (isLockedDateDrift(mappedReservation, event)) {
+                driftModel.recordPending({
+                  reservationId: mapping.reservationId,
+                  previousStartDate: mappedReservation.startDate,
+                  previousEndDate: mappedReservation.endDate,
+                  newStartDate: event.startDate,
+                  newEndDate: event.endDate,
+                });
+              }
               upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               lockedCount += 1;
               continue;

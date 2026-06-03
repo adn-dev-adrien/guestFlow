@@ -13,6 +13,7 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
 import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
 import LinenShortageAlert from '../components/LinenShortageAlert';
+import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
@@ -111,6 +112,9 @@ export default function Dashboard() {
       {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
           contained: renders nothing when no shortage is projected. */}
       <LinenShortageAlert />
+      {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
+          Self-contained: renders nothing when no pending drift exists. */}
+      <IcalDateDriftAlert />
 
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
