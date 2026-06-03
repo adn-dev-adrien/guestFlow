@@ -397,6 +397,9 @@ export default function PlanningPage() {
   // payload `{ dropOff, pickUp }`. Server emits zero-everywhere days too; LaundryDayCard hides
   // them silently so we don't need to filter here.
   const [laundryByDate, setLaundryByDate] = useState({});
+  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
+  // → per-type clean snapshot to display as the 3rd block on each laundry day.
+  const [inventoryByDate, setInventoryByDate] = useState({});
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -497,11 +500,13 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
       // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
       api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
+      // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
+      api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
     ]);
     const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
     const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -549,6 +554,10 @@ export default function PlanningPage() {
       lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
     }
     setLaundryByDate(lByDate);
+
+    // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
+    // horizon; LaundryDayCard filters the types it actually renders.
+    setInventoryByDate(inventoryProjection?.byLaundryDay || {});
 
     detectAlerts(days, properties);
     lastLoadedRef.current = to;
@@ -822,7 +831,7 @@ export default function PlanningPage() {
 
               {/* Weekly bed-linen card (specs/weekly-bed-linen-tracking.md). Renders only on
                   laundry days that actually have something to bring or pick up. */}
-              <LaundryDayCard data={laundryByDate[date]} />
+              <LaundryDayCard data={laundryByDate[date]} inventoryAfter={inventoryByDate[date]} />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>

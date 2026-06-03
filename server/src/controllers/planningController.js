@@ -9,6 +9,7 @@
 
 const laundryModel = require('../models/laundryModel');
 const settingsModel = require('../models/settingsModel');
+const linenInventoryModel = require('../models/linenInventoryModel');
 const { findLaundryDaysInRange, prevLaundryDay } = require('../utils/laundryWindow');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,6 +21,7 @@ function isIsoDate(value) {
 function buildController({
   laundryModel: injectedLaundryModel = laundryModel,
   settingsModel: injectedSettingsModel = settingsModel,
+  linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
 } = {}) {
   return {
     /**
@@ -63,6 +65,33 @@ function buildController({
         };
       });
       return res.json({ laundryWeekday: weekday, laundryDays });
+    },
+
+    /**
+     * GET /api/planning/linen-inventory
+     *
+     * Returns the per-laundry-day inventory snapshot (post-day-end clean per type) so the
+     * client can render "Disponible après ce dépôt" on each laundry card
+     * (specs/linen-inventory-shortage-tracking.md §3.5 / §4.3).
+     *
+     * Payload shape:
+     *   { horizon: 'YYYY-MM-DD', byLaundryDay: { 'YYYY-MM-DD': { single, double, baby, large, medium, small }, ... } }
+     *
+     * Empty `byLaundryDay` when no horizon (no future reservation) or no stock tracked.
+     */
+    linenInventory(req, res) {
+      const result = injectedLinenInventoryModel.simulate();
+      if (!result) return res.json({ horizon: null, byLaundryDay: {} });
+      const row = injectedSettingsModel.read();
+      const laundryWeekday = Number(row.laundryWeekday == null ? 2 : row.laundryWeekday);
+      const byLaundryDay = {};
+      for (const day of result.days) {
+        const isLaundryDay = (new Date(`${day.date}T00:00:00Z`).getUTCDay()) === laundryWeekday;
+        if (isLaundryDay) {
+          byLaundryDay[day.date] = day.clean;
+        }
+      }
+      return res.json({ horizon: result.horizon, byLaundryDay });
     },
   };
 }

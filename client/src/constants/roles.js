@@ -50,6 +50,7 @@ export const ROUTE_ROLES = Object.freeze({
   '/clients':                [ADMIN],
   '/school-holidays':        [ADMIN],
   '/establishment-closures': [ADMIN],
+  '/parametres/stock-blanchisserie': [ADMIN],
   '/account':                [ADMIN, ACCOUNTANT],
 });
 

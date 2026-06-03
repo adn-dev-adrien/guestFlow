@@ -10,5 +10,6 @@ const router = require('express').Router();
 const controller = require('../controllers/planningController');
 
 router.get('/laundry', controller.laundrySummary);
+router.get('/linen-inventory', controller.linenInventory);
 
 module.exports = router;
