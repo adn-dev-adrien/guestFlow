@@ -4,6 +4,32 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Linen inventory & shortage projection** (spec `linen-inventory-shortage-tracking.md`,
+  2026-06-03). Adrien declares his global stock (3 bed types + 3 towel types) in the new
+  `/parametres/stock-blanchisserie` sub-page. A pure simulation engine
+  (`server/src/utils/linenInventory.js`) walks day-by-day from today to the last reservation's
+  endDate, modelling 4 buckets per type (`clean` / `inCirculation` / `dirty` / `atLaundry`)
+  with the conservation invariant `clean + inCirculation + dirty + atLaundry = stock` asserted
+  on every day. Pick-up on a laundry day runs BEFORE check-in (rule 6) so a same-day arrival
+  is served by the freshly returned linen. Two new endpoints:
+  - `GET /api/planning/linen-inventory` → per-laundry-day clean snapshot, consumed by
+    `LaundryDayCard`'s new third block "Disponible après ce dépôt :" with red highlighting
+    on negative values (rule 35).
+  - `GET /api/dashboard/linen-shortage` → grouped-by-type shortage list (first date, max
+    missing, impacted reservations) consumed by the new `<LinenShortageAlert />` mounted at the
+    top of the Dashboard. Empty when no shortage; clickable reservation chips navigate to the
+    reservation page.
+
+  Six new columns on `app_settings` (`bedLinenStockSingle / Double / Baby`, `towelStock
+  Large / Medium / Small`), all integer ≥ 0 capped at 999 by `validateLinenStockCount`. **Stock
+  = 0 ⇒ "type not tracked"**: the simulation skips it and the UI omits any line for it (Planning
+  3rd block, Dashboard alert) — keeps the surfaces clean for partially-tracked installs.
+
+  53 new server tests pinning the engine (conservation, devis exclusion, property-default
+  fallback, explicit-wins-over-default, bathroom qty sub-occupation factor, same-day pickup
+  ordering, shortage detection + impacted reservations).
+
 ### Fixed
 - **Planning: a Tuesday with ONLY a laundry card now renders** (rule 13.ter, 2026-06-03). The
   day-set merger in `PlanningPage` previously only collected dates from arrivals, departures,
@@ -112,6 +138,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     also cleared on reset so the recovered account doesn't show the verification banner.
 
 ### Migration
+- **6 new columns on `app_settings`** for the linen-inventory feature: `bedLinenStock
+  Single / Double / Baby`, `towelStockLarge / Medium / Small` — all `INTEGER NOT NULL DEFAULT
+  0`. Idempotent ALTER TABLE; existing installs see 0 everywhere = "no type tracked" = no UI
+  change.
 - **`property_option_defaults`** (§3.7) — new table created on first boot, primary key
   `(propertyId, optionId)`, ON DELETE CASCADE on both FKs. Empty on existing installs; no
   data migration needed. Decoupled from the existing `property_options` table to preserve the

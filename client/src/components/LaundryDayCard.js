@@ -96,13 +96,70 @@ function SideBlock({ title, side }) {
   );
 }
 
-export default function LaundryDayCard({ data }) {
+// Third block — "Disponible après ce dépôt" (specs/linen-inventory-shortage-tracking.md §6.2).
+// Prop `inventoryAfter` is the per-type `clean` snapshot at end-of-day on this laundry day.
+// Each type with stock > 0 (i.e. tracked at all — server emits only those) gets a chip; values
+// < 0 render in red with the math-minus prefix (`−2 bébé`).
+function formatInventoryParts(byType, typeKeys, labels) {
+  if (!byType) return [];
+  const out = [];
+  for (const t of typeKeys) {
+    if (!(t in byType)) continue;
+    const n = Number(byType[t]);
+    const label = labels[t];
+    const isShortage = n < 0;
+    out.push({
+      key: t,
+      text: isShortage ? `−${Math.abs(n)} ${label(Math.abs(n))}` : `${n} ${label(n)}`,
+      isShortage,
+    });
+  }
+  return out;
+}
+
+const BED_LABELS = {
+  double: (n) => (n > 1 ? 'doubles' : 'double'),
+  single: (n) => (n > 1 ? 'simples' : 'simple'),
+  baby: () => 'bébé',
+};
+const TOWEL_LABELS = {
+  large: (n) => (n > 1 ? 'grandes' : 'grande'),
+  medium: (n) => (n > 1 ? 'moyennes' : 'moyenne'),
+  small: (n) => (n > 1 ? 'petites' : 'petite'),
+};
+
+function InventoryLine({ label, parts }) {
+  if (parts.length === 0) return null;
+  return (
+    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', mt: 0.25 }}>
+      <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500, mr: 0.5 }}>{label}</Box>
+      {parts.map((p, idx) => (
+        <Box
+          key={p.key}
+          component="span"
+          sx={{ color: p.isShortage ? 'error.main' : 'inherit', fontWeight: p.isShortage ? 700 : 600 }}
+        >
+          {idx > 0 && <Box component="span" sx={{ color: 'text.disabled', fontWeight: 400 }}> · </Box>}
+          {p.text}
+        </Box>
+      ))}
+    </Typography>
+  );
+}
+
+export default function LaundryDayCard({ data, inventoryAfter }) {
   if (!data) return null;
   // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
   // spec rule 13 — keeps a quiet week silent.
   const dropTotal = totalSheets(data.dropOff) + totalTowels(data.dropOff);
   const pickTotal = totalSheets(data.pickUp) + totalTowels(data.pickUp);
   if (dropTotal === 0 && pickTotal === 0) return null;
+
+  // §3.5 — third block: post-drop available stock. Hidden when no inventory data is provided
+  // (e.g. stock untracked = nothing to display).
+  const bedParts = formatInventoryParts(inventoryAfter, ['double', 'single', 'baby'], BED_LABELS);
+  const towelParts = formatInventoryParts(inventoryAfter, ['large', 'medium', 'small'], TOWEL_LABELS);
+  const hasInventoryLine = bedParts.length + towelParts.length > 0;
 
   return (
     <Card variant="outlined" sx={{ mb: 1.25, bgcolor: LAUNDRY_BG, borderColor: LAUNDRY_BORDER }}>
@@ -121,6 +178,15 @@ export default function LaundryDayCard({ data }) {
           <SideBlock title="À apporter" side={data.dropOff} />
           <SideBlock title="À récupérer" side={data.pickUp} />
         </Stack>
+        {hasInventoryLine && (
+          <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Disponible après ce dépôt
+            </Typography>
+            <InventoryLine label="Draps :" parts={bedParts} />
+            <InventoryLine label="Serviettes :" parts={towelParts} />
+          </Box>
+        )}
       </CardContent>
     </Card>
   );

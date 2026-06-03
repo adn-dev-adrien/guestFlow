@@ -282,6 +282,21 @@ function createReservationsModel(database) {
       return database.prepare('SELECT id FROM reservations WHERE id = ?').get(reservationId);
     },
 
+    // Batched lookup of (id, firstName, lastName, startDate, endDate) for a list of reservation
+    // ids. Used by the Dashboard linen-shortage alert to label impacted chips with the client
+    // name instead of a bare #id.
+    findClientNamesByIds(ids) {
+      const cleanIds = Array.from(new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
+      if (cleanIds.length === 0) return [];
+      const placeholders = cleanIds.map(() => '?').join(',');
+      return database.prepare(`
+        SELECT r.id, r.startDate, r.endDate, c.firstName, c.lastName
+          FROM reservations r
+          LEFT JOIN clients c ON c.id = r.clientId
+         WHERE r.id IN (${placeholders})
+      `).all(...cleanIds);
+    },
+
     // Full reservation row, used by the contrib-capture path (force-item-to-complement.md)
     // to feed `calculateReservationQuote` with the latest persisted state at flip time.
     getRow(reservationId) {

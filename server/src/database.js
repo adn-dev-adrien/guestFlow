@@ -1009,6 +1009,15 @@ tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLU
 // when Adrien drops the dirty linen at the laundry. Drives the LaundryDayCard on PlanningPage.
 // Default 2 (Tuesday) reflects current practice.
 tryAddAppSettingsCol('laundryWeekday',        "ALTER TABLE app_settings ADD COLUMN laundryWeekday INTEGER NOT NULL DEFAULT 2");
+// Linen inventory & shortage tracking (specs/linen-inventory-shortage-tracking.md §5).
+// 6 integer columns ≥ 0, default 0 (= "type not tracked"). Stock is global across all
+// properties — the simulation aggregates demand against these single numbers.
+tryAddAppSettingsCol('bedLinenStockSingle', "ALTER TABLE app_settings ADD COLUMN bedLinenStockSingle INTEGER NOT NULL DEFAULT 0");
+tryAddAppSettingsCol('bedLinenStockDouble', "ALTER TABLE app_settings ADD COLUMN bedLinenStockDouble INTEGER NOT NULL DEFAULT 0");
+tryAddAppSettingsCol('bedLinenStockBaby',   "ALTER TABLE app_settings ADD COLUMN bedLinenStockBaby   INTEGER NOT NULL DEFAULT 0");
+tryAddAppSettingsCol('towelStockLarge',     "ALTER TABLE app_settings ADD COLUMN towelStockLarge     INTEGER NOT NULL DEFAULT 0");
+tryAddAppSettingsCol('towelStockMedium',    "ALTER TABLE app_settings ADD COLUMN towelStockMedium    INTEGER NOT NULL DEFAULT 0");
+tryAddAppSettingsCol('towelStockSmall',     "ALTER TABLE app_settings ADD COLUMN towelStockSmall     INTEGER NOT NULL DEFAULT 0");
 // Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
