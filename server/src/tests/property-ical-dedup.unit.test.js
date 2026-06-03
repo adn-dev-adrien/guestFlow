@@ -8,7 +8,7 @@ const propertyIcalModel = require('../models/propertyIcalModel');
 // booking arriving from another platform — must map to the EXISTING reservation, never duplicate it, and
 // never overwrite a reservation the user has modified (icalSyncLocked).
 const DDL = `
-  CREATE TABLE properties (id INTEGER PRIMARY KEY, defaultCheckIn TEXT, defaultCheckOut TEXT, defaultCautionAmount REAL);
+  CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT, defaultCautionAmount REAL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, notes TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, clientId INTEGER,
@@ -27,6 +27,17 @@ const DDL = `
     UNIQUE(sourceId, eventUid)
   );
   CREATE TABLE reservation_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, eventType TEXT, changedFields TEXT);
+  CREATE TABLE ical_date_drift_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    previousStartDate TEXT NOT NULL,
+    previousEndDate TEXT NOT NULL,
+    newStartDate TEXT NOT NULL,
+    newEndDate TEXT NOT NULL,
+    detectedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT,
+    outcome TEXT
+  );
 `;
 
 function icsFeed(events) {

@@ -7,6 +7,7 @@
 
 const linenInventoryModel = require('../models/linenInventoryModel');
 const reservationsModel = require('../models/reservationsModel');
+const icalDateDriftModel = require('../models/icalDateDriftModel');
 
 const TYPE_LABELS = Object.freeze({
   single: 'Drap simple',
@@ -20,6 +21,7 @@ const TYPE_LABELS = Object.freeze({
 function buildController({
   linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
   reservationsModel: injectedReservationsModel = reservationsModel,
+  icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
 } = {}) {
   return {
     /**
@@ -80,6 +82,44 @@ function buildController({
       }));
 
       return res.json({ horizon: result.horizon, shortagesByType });
+    },
+
+    /**
+     * GET /api/dashboard/ical-date-drift
+     *
+     * Returns every pending date-drift approval for iCal-locked reservations
+     * (specs/ical-sync-override-locked-dates.md §4.3). Empty `alerts: []` when nothing pending.
+     */
+    icalDateDrift(req, res) {
+      const alerts = injectedIcalDateDriftModel.listPending();
+      return res.json({ alerts });
+    },
+
+    /**
+     * POST /api/dashboard/ical-date-drift/:id/approve
+     *
+     * Applies the narrow date override on the reservation and flips the drift row to
+     * outcome='approved' (atomic). Maps domain error codes to HTTP statuses.
+     */
+    approveIcalDateDrift(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      const result = injectedIcalDateDriftModel.approve(id);
+      if (result.error) return res.status(result.status || 400).json({ error: result.error });
+      return res.json({ ok: true });
+    },
+
+    /**
+     * POST /api/dashboard/ical-date-drift/:id/reject
+     *
+     * Flips the drift row to outcome='rejected' without touching the reservation.
+     */
+    rejectIcalDateDrift(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      const result = injectedIcalDateDriftModel.reject(id);
+      if (result.error) return res.status(result.status || 400).json({ error: result.error });
+      return res.json({ ok: true });
     },
   };
 }
