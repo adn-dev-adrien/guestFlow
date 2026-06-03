@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/propertiesController');
 const ical = require('../controllers/propertyIcalController');
+const optionDefaults = require('../controllers/propertyOptionDefaultsController');
 const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require('../utils/propertyUploads');
 
 // Properties
@@ -24,6 +25,11 @@ router.delete('/:id/documents/:docId', ctrl.deleteDocument);
 
 // Property ↔ options linkage
 router.put('/:id/options', ctrl.setOptions);
+
+// Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7).
+router.get('/:id/option-defaults', optionDefaults.listForProperty);
+router.put('/:id/option-defaults/:optionId', optionDefaults.setForProperty);
+router.delete('/:id/option-defaults/:optionId', optionDefaults.unsetForProperty);
 
 // iCal sources
 router.get('/:id/ical-sources', ical.listSources);
