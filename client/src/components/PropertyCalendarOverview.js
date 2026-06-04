@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Card, CardContent, Typography } from '@mui/material';
+import { getPlatformColor } from '../constants/platforms';
 
 export function buildOverviewDays(count = 30, fromDate = new Date()) {
   const base = new Date(fromDate);
@@ -16,7 +17,6 @@ export default function PropertyCalendarOverview({
   title,
   properties,
   reservations,
-  platformColors,
   daysCount = 30,
   fromDate,
   onPropertySelect,
@@ -78,7 +78,7 @@ export default function PropertyCalendarOverview({
                       onClick={() => handleSelect(prop)}
                       sx={{
                         borderRadius: 0.5,
-                        bgcolor: res ? (platformColors[res.platform] || '#757575') : 'grey.100',
+                        bgcolor: res ? getPlatformColor(res.platform) : 'grey.100',
                         minHeight: 28,
                         display: 'flex',
                         alignItems: 'center',

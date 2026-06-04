@@ -187,8 +187,97 @@ Worked examples (from the prod-copy DB and probable future inputs):
 
 ### 4.2 Client side
 
-No changes. The page still displays whatever `platforms.name` returns —
-which is now the canonical form.
+**2026-06-05 follow-up — platform colors + dropdown alignment.** The
+initial spec claimed the frontend was untouched. The post-deploy
+calendar review showed two regressions caused by the UpperCamelCase
+shift:
+
+1. `client/src/constants/platforms.js → PLATFORM_COLORS` keys are
+   lowercase slugs (`airbnb`, `gitedefrance`). Reservations now carry
+   `platform = 'Airbnb'` / `'Gitedefrance'`, so the direct lookup
+   `PLATFORM_COLORS[reservation.platform]` returned `undefined` →
+   every non-direct booking fell back to the default grey on the
+   calendar (the bug Adrien reported).
+2. `PLATFORMS` array (used as `<MenuItem value=…>` in the platform
+   `<Select>` on `ReservationPage`) was lowercase. Reservations
+   stored as `'Airbnb'` no longer matched any `MenuItem` →
+   `<Select>` rendered blank on edit.
+
+**Fixes (this spec update + fix/platform-colors-uppercamel-mismatch
+branch):**
+
+- Add `normalizePlatformKey(platform)` helper to
+  `client/src/constants/platforms.js`: NFD-strip + lowercase +
+  remove every non-alphanumeric character. Slug-shape compatible
+  with the server's `KNOWN_PLATFORM_COLORS` keys.
+- Rewrite `getPlatformColor(platform)` to slug the input before
+  looking up the colour map. Returns `DEFAULT_PLATFORM_COLOR`
+  (`#757575`) only for genuinely-unknown platforms.
+- Update `PLATFORMS` array to UpperCamelCase canonical form
+  (matching `formatPlatformName`'s output) so the `<Select>` round-
+  trips correctly: `['direct', 'Airbnb', 'Greengo', 'Abritel',
+  'Abracadaroom', 'Booking', 'Gitedefrance', 'Pitchup']`.
+- Add the `gitesdefrance` alias to `PLATFORM_COLORS` so the plural
+  form (the formatter's output for accented `'Gîtes de France'`
+  input) resolves to the same yellow as the typo-style singular
+  `gitedefrance` slug.
+- Replace the 4 direct `PLATFORM_COLORS[…]` lookups in
+  `client/src/components/MiniPlanningStrip.js` with calls to
+  `getPlatformColor(…)` — the slug normalisation flows through.
+- Normalize keys when merging the API's `customColors` payload in
+  `App.js` (the server slug uses dashes, the client slug strips
+  them — without re-normalising the merged entries would never
+  match a client-side lookup).
+
+`PropertyDetail.js`'s `PLATFORM_COLORS[source.platformKey]` lookups
+are unchanged — they read `ical_sources.platformKey`, which is
+already the lowercase slug by construction (the server's
+`normalizePlatformKey` lives at the iCal write site).
+
+Tests: `client/src/constants/__tests__/platforms.test.js` (13 cases)
+pins the slug normaliser, every UpperCamelCase reservation form, the
+"Gîtes de France" plural variant + the dropdown invariants.
+
+**2026-06-05 follow-up #2 — every calendar surface + filesystem
+invariant test.** Adrien asked for full coverage on all the
+calendars. The audit found 3 more affected files (the initial fix
+only patched MiniPlanningStrip):
+
+- `SyncedPropertyMiniCalendars.js` + `PropertyCalendarOverview.js`
+  (dashboard + simplified calendar) — direct
+  `platformColors[platform]` lookups in their day-cell gradient
+  functions. The `platformColors` prop was killed; both now import
+  `getPlatformColor` directly, and `CalendarPage` + `Dashboard`
+  dropped the now-dead `platformColors={PLATFORM_COLORS}` prop they
+  used to pass.
+- `pages/FinancePage.js` — 2
+  `<Chip sx={{ bgcolor: PLATFORM_COLORS[r.platform] }}>` on the
+  reservation tables. Same regression shape, same fix.
+- `pages/PropertyDetail.js` — 5 lookups against
+  `source.platformKey` (lowercase slug, so chips were correct
+  today but the access shape was fragile). Refactored to
+  `getPlatformColor` + the new `isKnownPlatformKey(platform)`
+  predicate (added to `constants/platforms.js`).
+
+Two extra refactors land for testability:
+
+- `SyncedPropertyMiniCalendars.buildDayGradient` is exported.
+- `MiniPlanningStrip` gets a new top-level
+  `buildMiniStripDayGradient` pure helper (the previous closure
+  captured `selectedReservationColor` so the colour-resolution
+  path wasn't unit-testable in isolation).
+
+Regression prevention: a filesystem-walk test in
+`client/src/__tests__/calendar-platform-colors.test.js` (12
+cases — pure-function coverage on `getReservationColor` +
+`buildMiniStripDayGradient` + `buildDayGradient` (synced), plus
+the filesystem invariant) walks every `.js` file under
+`client/src/` and fails on any direct `PLATFORM_COLORS[dynamic]`
+READ. Writes (the customColors merge in `App.js`:
+`PLATFORM_COLORS[key] = color`) are explicitly allowed via a
+negative lookahead because the key is normalised before assignment.
+A future drift back to the regression shape now breaks the suite
+automatically at lint time. Vitest total 195 → **210 / 210 green**.
 
 ### 4.3 API contract
 

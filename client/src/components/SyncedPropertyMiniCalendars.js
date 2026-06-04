@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Box, Button, Card, CardContent, IconButton, Typography } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import { getPlatformColor } from '../constants/platforms';
 
 const DAY_START = 8;
 const DAY_END = 21;
@@ -27,20 +28,25 @@ function nudgeBackward(value) {
   return Math.min(100, Math.max(0, value - HARD_STOP_EPSILON));
 }
 
-function buildDayGradient({ departureRes, arrivalRes, middleRes, platformColors }) {
+/**
+ * Pure function exported for `__tests__/calendar-platform-colors.test.js` —
+ * verifies every UpperCamelCase platform value flows through `getPlatformColor`
+ * and the day cell never falls back to the default grey on a known platform.
+ */
+export function buildDayGradient({ departureRes, arrivalRes, middleRes }) {
   if (!departureRes && !arrivalRes && !middleRes) {
     return { background: EMPTY_DAY_COLOR, textColor: 'text.primary' };
   }
 
   if (middleRes && !departureRes && !arrivalRes) {
-    const fullColor = platformColors[middleRes.platform] || '#757575';
+    const fullColor = getPlatformColor(middleRes.platform);
     return { background: fullColor, textColor: '#fff' };
   }
 
   const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
   const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
-  const departColor = departureRes ? (platformColors[departureRes.platform] || '#757575') : null;
-  const arriveColor = arrivalRes ? (platformColors[arrivalRes.platform] || '#757575') : null;
+  const departColor = departureRes ? getPlatformColor(departureRes.platform) : null;
+  const arriveColor = arrivalRes ? getPlatformColor(arrivalRes.platform) : null;
 
   const stops = [];
 
@@ -97,7 +103,6 @@ function addDays(dateStr, count) {
 export default function SyncedPropertyMiniCalendars({
   properties,
   reservations,
-  platformColors,
   onCreateReservation,
   onOpenProperty,
   onOpenReservation,
@@ -184,7 +189,6 @@ export default function SyncedPropertyMiniCalendars({
                       departureRes,
                       arrivalRes,
                       middleRes,
-                      platformColors,
                     });
                     return (
                       <Box

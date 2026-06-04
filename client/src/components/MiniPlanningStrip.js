@@ -4,7 +4,7 @@ import {
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { PLATFORM_COLORS } from '../constants/platforms';
+import { getPlatformColor } from '../constants/platforms';
 import { getBlockedNightConflictInfo } from '../utils/reservationConflicts';
 
 const DAY_START = 8;
@@ -41,6 +41,82 @@ function hourToPercent(hour) {
 const EMPTY_DAY_COLOR = '#f5f5f5';
 const BLOCKED_NIGHT_COLOR = '#ff9800';
 
+/**
+ * Compute the day-cell background + text colour for the mini planning strip.
+ * Pure function so the colour-resolution path is unit-testable in isolation
+ * — the test ensures every UpperCamelCase platform value flows through
+ * `getPlatformColor` and never falls back to grey.
+ *
+ * Exported for `__tests__/calendar-platform-colors.test.js`. Production code
+ * uses it via the inline wrapper inside the component (which closes over the
+ * currently-selected reservation colour).
+ */
+export function buildMiniStripDayGradient({
+  departureRes,
+  arrivalRes,
+  middleRes,
+  blockedNightInfo,
+  departureIsSelected,
+  arrivalIsSelected,
+  middleIsSelected,
+  selectedReservationColor,
+}) {
+  if (!departureRes && !arrivalRes && !middleRes) {
+    return { background: EMPTY_DAY_COLOR, textColor: 'text.primary' };
+  }
+
+  if (middleRes && !departureRes && !arrivalRes) {
+    const fullColor = middleIsSelected ? selectedReservationColor : getPlatformColor(middleRes.platform);
+    return { background: fullColor, textColor: '#fff' };
+  }
+
+  const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
+  const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
+  const departColor = departureRes
+    ? (departureIsSelected ? selectedReservationColor : getPlatformColor(departureRes.platform))
+    : null;
+  const arriveColor = arrivalRes
+    ? (arrivalIsSelected ? selectedReservationColor : getPlatformColor(arrivalRes.platform))
+    : null;
+
+  const stops = [];
+
+  if (departPct !== null) {
+    stops.push(`${departColor} 0%`);
+    stops.push(`${departColor} ${departPct}%`);
+    if (blockedNightInfo?.type === 'late-departure-evening') {
+      const blockedEnd = arrivePct !== null ? Math.min(arrivePct, 100) : 100;
+      stops.push(`${BLOCKED_NIGHT_COLOR} ${departPct}%`);
+      stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedEnd}%`);
+      if (arrivePct !== null && arrivePct > blockedEnd) {
+        stops.push(`${EMPTY_DAY_COLOR} ${blockedEnd}%`);
+        stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
+      }
+    } else if (arrivePct !== null && arrivePct > departPct) {
+      stops.push(`${EMPTY_DAY_COLOR} ${departPct}%`);
+      stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
+    } else if (arrivePct === null) {
+      stops.push(`${EMPTY_DAY_COLOR} ${departPct}%`);
+      stops.push(`${EMPTY_DAY_COLOR} 100%`);
+    }
+  }
+
+  if (arrivePct !== null) {
+    if (departPct === null) {
+      stops.push(`${EMPTY_DAY_COLOR} 0%`);
+      stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
+    }
+    stops.push(`${arriveColor} ${arrivePct}%`);
+    stops.push(`${arriveColor} 100%`);
+  }
+
+  const background = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : EMPTY_DAY_COLOR;
+  const hasDeparturePartial = departPct !== null && departPct < 100;
+  const hasArrivalPartial = arrivePct !== null && arrivePct > 0;
+  const isPartialDay = hasDeparturePartial || hasArrivalPartial;
+  return { background, textColor: isPartialDay ? 'text.primary' : '#fff' };
+}
+
 export default function MiniPlanningStrip({
   miniCalendarStart,
   setMiniCalendarStart = () => {},
@@ -54,7 +130,11 @@ export default function MiniPlanningStrip({
   isLocked,
 }) {
   const safeReservations = Array.isArray(reservations) ? reservations : [];
-  const selectedReservationColor = PLATFORM_COLORS[currentReservation?.platform] || '#1976d2';
+  // Use getPlatformColor so the lookup tolerates UpperCamelCase (post-PR #118 normalisation),
+  // lowercase, or accented free-form platform values — all resolve to the same colour.
+  const selectedReservationColor = currentReservation?.platform
+    ? getPlatformColor(currentReservation.platform)
+    : '#1976d2';
 
   const miniDays = useMemo(() => {
     return Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
@@ -89,71 +169,10 @@ export default function MiniPlanningStrip({
     return currentReservation?.endDate === dateStr;
   };
 
-  const buildDayGradient = ({
-    departureRes,
-    arrivalRes,
-    middleRes,
-    blockedNightInfo,
-    departureIsSelected,
-    arrivalIsSelected,
-    middleIsSelected,
-  }) => {
-    if (!departureRes && !arrivalRes && !middleRes) {
-      return { background: EMPTY_DAY_COLOR, textColor: 'text.primary' };
-    }
-
-    // Middle-of-stay day: fully filled.
-    if (middleRes && !departureRes && !arrivalRes) {
-      const fullColor = middleIsSelected ? selectedReservationColor : (PLATFORM_COLORS[middleRes.platform] || '#757575');
-      return { background: fullColor, textColor: '#fff' };
-    }
-
-    const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
-    const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
-    const departColor = departureRes
-      ? (departureIsSelected ? selectedReservationColor : (PLATFORM_COLORS[departureRes.platform] || '#757575'))
-      : null;
-    const arriveColor = arrivalRes
-      ? (arrivalIsSelected ? selectedReservationColor : (PLATFORM_COLORS[arrivalRes.platform] || '#757575'))
-      : null;
-
-    const stops = [];
-
-    if (departPct !== null) {
-      stops.push(`${departColor} 0%`);
-      stops.push(`${departColor} ${departPct}%`);
-      if (blockedNightInfo?.type === 'late-departure-evening') {
-        const blockedEnd = arrivePct !== null ? Math.min(arrivePct, 100) : 100;
-        stops.push(`${BLOCKED_NIGHT_COLOR} ${departPct}%`);
-        stops.push(`${BLOCKED_NIGHT_COLOR} ${blockedEnd}%`);
-        if (arrivePct !== null && arrivePct > blockedEnd) {
-          stops.push(`${EMPTY_DAY_COLOR} ${blockedEnd}%`);
-          stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
-        }
-      } else if (arrivePct !== null && arrivePct > departPct) {
-        stops.push(`${EMPTY_DAY_COLOR} ${departPct}%`);
-        stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
-      } else if (arrivePct === null) {
-        stops.push(`${EMPTY_DAY_COLOR} ${departPct}%`);
-        stops.push(`${EMPTY_DAY_COLOR} 100%`);
-      }
-    }
-
-    if (arrivePct !== null) {
-      if (departPct === null) {
-        stops.push(`${EMPTY_DAY_COLOR} 0%`);
-        stops.push(`${EMPTY_DAY_COLOR} ${arrivePct}%`);
-      }
-      stops.push(`${arriveColor} ${arrivePct}%`);
-      stops.push(`${arriveColor} 100%`);
-    }
-
-    const background = stops.length > 0 ? `linear-gradient(135deg, ${stops.join(', ')})` : EMPTY_DAY_COLOR;
-    const hasDeparturePartial = departPct !== null && departPct < 100;
-    const hasArrivalPartial = arrivePct !== null && arrivePct > 0;
-    const isPartialDay = hasDeparturePartial || hasArrivalPartial;
-    return { background, textColor: isPartialDay ? 'text.primary' : '#fff' };
-  };
+  // Thin wrapper closing over `selectedReservationColor` so the JSX below stays
+  // unchanged. The actual colour-resolution logic lives in
+  // `buildMiniStripDayGradient` (exported above for testability).
+  const buildDayGradient = (args) => buildMiniStripDayGradient({ ...args, selectedReservationColor });
 
   return (
     <Card variant="outlined" sx={{ bgcolor: '#fff' }}>

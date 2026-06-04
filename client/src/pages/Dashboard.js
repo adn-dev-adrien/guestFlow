@@ -15,7 +15,6 @@ import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalenda
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
-import { PLATFORM_COLORS } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
@@ -355,7 +354,6 @@ export default function Dashboard() {
       <SyncedPropertyMiniCalendars
         properties={properties}
         reservations={reservations}
-        platformColors={PLATFORM_COLORS}
         onOpenProperty={handleOpenPropertyCalendar}
         onOpenReservation={(r) => navigate(withFrom(`/reservations/${r.id}`, '/'))}
         onCreateReservation={({ propertyId, startDate, endDate }) => {

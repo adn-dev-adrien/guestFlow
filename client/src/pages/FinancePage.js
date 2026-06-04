@@ -7,7 +7,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import PageHeader from '../components/PageHeader';
 import { displayDate } from '../utils/formatters';
-import { PLATFORM_COLORS } from '../constants/platforms';
+import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
 
 const COLORS = ['#1565c0', '#4CAF50', '#f57c00', '#9c27b0'];
@@ -374,7 +374,7 @@ export default function FinancePage() {
                           <TableCell>{r.firstName} {r.lastName}</TableCell>
                           <TableCell>{r.propertyName}</TableCell>
                           <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
+                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: getPlatformColor(r.platform), color: 'white' }} /></TableCell>
                           <TableCell>{r.finalPrice}€</TableCell>
                           <TableCell align="center" sx={{ color: remainingDue > 0 ? 'error.main' : 'success.main', fontWeight: 700 }}>
                             {Math.round(remainingDue * 100) / 100}€
@@ -446,7 +446,7 @@ export default function FinancePage() {
                           <TableCell>{r.propertyName}</TableCell>
                           <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
                           <TableCell>{nights}</TableCell>
-                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: PLATFORM_COLORS[r.platform], color: 'white' }} /></TableCell>
+                          <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: getPlatformColor(r.platform), color: 'white' }} /></TableCell>
                           <TableCell>{r.finalPrice}€</TableCell>
                           <TableCell sx={{ color: remaining > 0 ? 'error.main' : 'success.main', fontWeight: 600 }}>{remaining}€</TableCell>
                         </TableRow>
