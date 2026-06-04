@@ -4,6 +4,61 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **Devis PDF — date du devis, validité, taxe de séjour, options par défaut**
+  (spec `devis-pdf-and-tourist-tax-fixes.md`, 2026-06-04). Four user-reported defects
+  bundled into one PR because they live in the same devis-generation flow:
+  - **"Date du devis" was blank on recent devis.** Some rows (e.g. `2026-06-001`,
+    `2026-05-007`) ended up with `createdAt = ''` despite the SQLite default. Fix:
+    explicit `createdAt = datetime('now')` binding on every devis INSERT path
+    (`create` + `convertFromReservation`), plus a defensive fallback in
+    `devisPdf.js` that prints today's date for legacy bad-data rows.
+  - **"Valable jusqu'au" ignored the configured `quoteValidityDays`.** The
+    `validUntil` column was NULL on every devis in the prod-copy DB — the PDF was
+    silently computing "today + days" on each render, oblivious to the issue date.
+    Fix: persist `validUntil = createdAt + quoteValidityDays` (capped at `startDate
+    - 2`) on `create` / `convertFromReservation`; `update` back-fills it on the
+    first edit of a legacy row; the PDF reads the persisted value with the same
+    formula as a forward-only fallback.
+  - **Property option defaults (e.g. `Linge de lit`) were silently dropped from
+    new devis.** The client merged them into the form AFTER the price call, but
+    nothing on the server enforced the contract — a UI race / raw API caller saved
+    the devis without them. Fix per "fat backend": `devisModel.create` AND
+    `reservationsController.create` now merge any `property_option_defaults` entry
+    not already in the payload BEFORE computing the quote. Idempotent (no
+    duplicates), symmetric across the two surfaces, and rolls the `offered=true`
+    flag into `offeredOptionIds` so an included-in-price default stays included.
+  - **Tourist-tax detail string on the PDF was meaningless for percentage-based
+    tax.** The PDF read `full.touristTaxRate` (the base percentage / fixed-amount
+    column) as a per-person-per-night unit. Fix per user request ("ce montant doit
+    être géré par le backend"): `devisController.pdf` re-runs the pricing engine
+    against the persisted devis and passes the live `quote` to `generateDevisPdf`;
+    the PDF uses `quote.touristTaxUnitAmount × touristTaxAdultsCount ×
+    touristTaxNights`, mirroring what PricingSummary shows live in the UI. Legacy
+    no-quote callers (existing tests, ad-hoc invocations) keep the historical
+    row-derived behaviour — additive `quote` parameter, no breaking signature
+    change.
+
+  **Non-regression coverage** (per user's explicit request): 4 new server unit
+  test files, 24 cases, **898 / 898** server suite green.
+  - `tests/devis-model-createdAt-validUntil.unit.test.js` (6 cases): explicit
+    `createdAt` binding, `validUntil` formula, the `startDate - 2` cap, the legacy
+    backfill on `update`, the persisted-override-wins case, and
+    `convertFromReservation` parity.
+  - `tests/devis-model-property-defaults.unit.test.js` (4 cases): merge,
+    no-duplicate, no-defaults no-op, `offered` flag propagation.
+  - `tests/reservations-controller-property-defaults.unit.test.js` (4 cases):
+    symmetric coverage on the reservations side via a controller-level test that
+    mocks the engine + model surface.
+  - `tests/devis-pdf-date-validity-tax.unit.test.js` (10 cases): the
+    `computeValidUntil` helper + a PDF render smoke per scenario the spec lists
+    (PDFKit's content streams are FlateDecode-compressed, so byte-level inspection
+    isn't reliable; the helper coverage + render smoke are the right shape).
+
+  **Forward-only**: no backfill SQL for the existing rows with bad/empty data.
+  The defensive guards in `devisPdf.js` and the `update`-time `validUntil`
+  backfill mean legacy devis still render correctly on the next reopen.
+
 ### Added
 - **E2E smoke suite with Playwright** — Wave 1 (spec
   `e2e-playwright-smoke-suite.md`, 2026-06-04). Phase 0 of the upcoming CRA → Vite

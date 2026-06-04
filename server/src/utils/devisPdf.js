@@ -12,7 +12,7 @@ const {
   timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
 } = require("./devisHelpers");
 
-function generateDevisPdf(full, settings) {
+function generateDevisPdf(full, settings, quote) {
   return new Promise((resolve, reject) => {
   const property = full.property;
   const client = full.client;
@@ -149,27 +149,36 @@ function generateDevisPdf(full, settings) {
   // ── Devis meta ────────────────────────────────────────────────────────────
   const META_TOP = Math.max(cy, ccy) + 18;
 
+  // §3.1 + §3.2 — Date du devis + Valable jusqu'au.
+  //
+  // `createdAt` is normally populated by the model (§3.1 rule 1 binds it explicitly on INSERT).
+  // The fallback to "today" below is a legacy guard for the handful of pre-fix rows persisted
+  // with an empty value (devis #12102, #12097 etc. in the prod-copy DB) — without it those
+  // legacy PDFs show an empty "Date du devis" pill.
+  const todayIsoDate = new Date().toISOString().slice(0, 10);
+  const createdAtIsoDate = full.createdAt
+    ? String(full.createdAt).slice(0, 10)
+    : todayIsoDate;
+
+  // `validUntil` is normally persisted by the model (§3.2 rule 6) as
+  // MIN(createdAt + quoteValidityDays, startDate - 2). The fallback below recomputes the
+  // same formula from `createdAt` for legacy rows where `validUntil` is NULL — these are
+  // the same rows the spec §3.2 rule 9 calls out as the forward-only safety net.
+  const validUntilIso = (() => {
+    if (full.validUntil) return String(full.validUntil);
+    const days = Number(settings && settings.quoteValidityDays) || 30;
+    let iso = addDaysToIsoDate(createdAtIsoDate, days) || '';
+    const startDateIso = String(full.startDate || '');
+    if (startDateIso && iso && iso > startDateIso) {
+      iso = addDaysToIsoDate(startDateIso, -2) || iso;
+    }
+    return iso;
+  })();
+
   // Meta pills
   const metaItems = [
-    { label: 'Date du devis', value: formatDateFR(full.createdAt ? full.createdAt.slice(0, 10) : '') },
-    { label: 'Valable jusqu\'au', value: (() => {
-      let validUntilIso = '';
-      if (full.validUntil) {
-        validUntilIso = String(full.validUntil);
-      } else {
-        const days = Number(settings.quoteValidityDays) || 30;
-        const d = new Date();
-        d.setDate(d.getDate() + days);
-        validUntilIso = d.toISOString().slice(0, 10);
-      }
-
-      const startDateIso = String(full.startDate || '');
-      if (startDateIso && validUntilIso && validUntilIso > startDateIso) {
-        validUntilIso = addDaysToIsoDate(startDateIso, -2) || validUntilIso;
-      }
-
-      return formatDateFR(validUntilIso);
-    })() },
+    { label: 'Date du devis', value: formatDateFR(createdAtIsoDate) },
+    { label: 'Valable jusqu\'au', value: formatDateFR(validUntilIso) },
     { label: 'Logement', value: property ? property.name : `#${full.propertyId}` },
   ];
 
@@ -459,12 +468,29 @@ function generateDevisPdf(full, settings) {
   drawTotalLine('Sous-total HT', subtotalHt, false);
   const subtotalTtc = roundMoney(subtotalTtcFromRows);
   drawTotalLine('Sous-total TTC', subtotalTtc, false);
+  // §3.4 rules 15–18 — Tourist tax detail string. When the engine quote is provided
+  // (devisController.pdf passes it post-fix), the breakdown mirrors PricingSummary:
+  //   {adultsCount} pers. × {nights} nuit(s) × {unitAmount} / pers./nuit.
+  // Without the quote (legacy callers / tests that don't pass it), we fall back to the
+  // historical persisted-row computation, knowing it's wrong for percentage-based tax
+  // but acceptable for the no-quote callsite.
   if (Number(full.touristTaxTotal || 0) > 0) {
     drawTotalLine('Taxe de séjour', full.touristTaxTotal, false);
-    const taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);
-    const taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
-    const taxRate = Number(full.touristTaxRate || 0);
-    const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${formatCurrency(taxRate)} / pers./nuit`;
+    let taxablePersons;
+    let taxNights;
+    let taxUnitLabel;
+    if (quote && Number(quote.touristTaxTotal || 0) > 0) {
+      taxablePersons = Number(quote.touristTaxAdultsCount || 0);
+      taxNights = Number(quote.touristTaxNights || 0);
+      // Engine-authoritative per-person-per-night unit; the engine resolves percentage vs
+      // fixed-amount + department tax + capping into a single coherent number.
+      taxUnitLabel = formatCurrency(Number(quote.touristTaxUnitAmount || 0));
+    } else {
+      taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);
+      taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
+      taxUnitLabel = formatCurrency(Number(full.touristTaxRate || 0));
+    }
+    const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${taxUnitLabel} / pers./nuit`;
     doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
       .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     totY += 10;
