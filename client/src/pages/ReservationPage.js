@@ -245,6 +245,10 @@ export default function ReservationPage() {
 
   const newClientEmailError = !isValidEmail(newClient.email);
   const newClientPhoneError = !isValidPhone(newClient.phone);
+  // specs/force-extras-complement-on-platform.md §3 rule 4: non-direct platforms route every
+  // extras line to the Complément. Used below to project the pricing engine's preview before
+  // the server enforces the same rule on save — see the `quoteInput` useMemo.
+  const isPlatformReservation = Boolean(form.platform) && String(form.platform).toLowerCase() !== 'direct';
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
@@ -268,13 +272,19 @@ export default function ReservationPage() {
     balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
     complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
     depositDisabled: Boolean(form.depositDisabled),
+    // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
+    // extras line is routed to the Complément server-side at save. We mirror that bit here
+    // so the live preview shows the correct totals immediately, without mutating form state
+    // (operators keep their toggles intact if they switch back to direct mid-edit). The server
+    // re-applies the same forcing in reservationsModel.replace{Options,CustomOptions,Resources}
+    // so the wire payload doesn't have to be sanitized here.
     selectedOptions: (form.selectedOptions || [])
       // Exclude only options the pricing engine derives ITSELF (early/late check-in/out, i.e.
       // `autoEnabled = 1`). Options that merely carry `autoOptionType` for the undeletability
       // marker (linen options, since 2026-06-02) ARE part of the manual selection and must
       // round-trip to the server.
       .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
-      .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: item.inComplement ? 1 : 0 }))
+      .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0 }))
       .sort((a, b) => a.optionId - b.optionId),
     customOptions: (form.customOptions || [])
       .map((line, index) => ({
@@ -282,18 +292,26 @@ export default function ReservationPage() {
         description: String(line.description || '').trim(),
         amount: Number(line.amount || 0),
         offered: Boolean(line.offered),
-        inComplement: line.inComplement ? 1 : 0,
+        inComplement: (line.inComplement || isPlatformReservation) ? 1 : 0,
       }))
       .filter((line) => line.description && Number(line.amount || 0) > 0)
       .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
-      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: item.inComplement ? 1 : 0 }))
+      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0 }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
     touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
-    autoOptionsInComplement: [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement]);
+    // On a platform reservation, every auto-enabled option is also in Complément — union the
+    // explicit operator set with the catalog's auto-enabled ids so the engine preview matches
+    // what the server will write on save.
+    autoOptionsInComplement: isPlatformReservation
+      ? Array.from(new Set([
+          ...((form.autoOptionsInComplement || []).map(Number)),
+          ...propertyOptions.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)),
+        ])).sort((a, b) => a - b)
+      : [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, isPlatformReservation]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
