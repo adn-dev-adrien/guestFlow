@@ -54,11 +54,23 @@ fi
 # The Pi PM2 entry expects the bundle at `current/client/build` (legacy CRA name) so we
 # rename `dist` to `build` inside the archive. This keeps the deployed layout backwards
 # compatible with the PM2 process file + any caddy/nginx config that references it.
+#
+# `--mkpath` (GNU rsync ≥ 3.2.3) creates the missing intermediate parent
+# `$RELEASE_DIR/client/` on the fly. Without it, rsync only mkdir's the leaf (`build/`) and
+# fails because the prior step in this script (line ~46) only created `$RELEASE_DIR/server/`
+# — `$RELEASE_DIR/client/` never existed. Regression introduced in the CRA → Vite migration
+# (PR #111): the previous CRA path copied `client/build/` directly, so the parent layout
+# was created by a different rsync invocation.
+#
+# The deploy runner (Pi) runs GNU rsync 3.4.1 — `--mkpath` is supported there. Note for
+# local dev on macOS: the default `rsync` shipped by Apple is openrsync (BSD fork) which
+# does NOT understand `--mkpath`; if you want to test this script locally, install GNU
+# rsync via Homebrew (`brew install rsync`) and prepend its path to your shell.
 if [ ! -d client/dist ]; then
   echo "Error: client/dist does not exist. Run 'cd client && npm run build' first."
   exit 1
 fi
-rsync -av client/dist/ "$RELEASE_DIR/client/build/"
+rsync -av --mkpath client/dist/ "$RELEASE_DIR/client/build/"
 
 # Copy root files
 cp package.json "$RELEASE_DIR/"
