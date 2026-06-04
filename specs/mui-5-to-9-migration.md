@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/mui-5-to-9-migration` _(user-managed)_ |
 | **Created** | 2026-06-04 |
 | **Author** | Adrien |
@@ -287,10 +287,10 @@ md) is the primary gate beyond the automated suite.
 
 | Test file | Cases | Pins |
 |---|---|---|
-| `client/src/__tests__/mui-smoke.test.js` (NEW) | 3 new: (1) `<Grid container><Grid size={{xs:12,md:6}}/></Grid>` renders without throwing under v9 API; (2) `<Chip>` without a `color` prop renders the default gray — pins the post-`color="default"` shape; (3) `<DatePicker>` from `@mui/x-date-pickers/DatePicker` under `<LocalizationProvider dateAdapter={AdapterDayjs}>` mounts without throwing. | Rules 4 + 7 + 9. |
+| `client/src/__tests__/mui-smoke.test.js` (NEW) | 4 new (one more than planned, added during implementation to pin the `<Switch>` role upgrade that broke ExtrasSection tests): (1) `<Grid container><Grid size={{xs:12,md:6}}/></Grid>` renders without throwing under v9 API; (2) `<Chip>` without a `color` prop renders correctly — pins the post-`color="default"` shape; (3) `<Switch slotProps={{ input: { 'aria-label': … } }}>` exposes `role="switch"` (v9 WAI-ARIA upgrade); (4) `<DatePicker>` from `@mui/x-date-pickers/DatePicker` under `<LocalizationProvider dateAdapter={AdapterDayjs}>` mounts without throwing. | Rules 4 + 7 + 9 + Switch accessibility upgrade. |
 
-Three smoke cases. Like the router-v7 ones, they pin the migration contract
-so a future v10 catch the same patterns.
+Four smoke cases. Like the router-v7 ones, they pin the migration contract
+so a future v10 catches the same patterns.
 
 ### 7.3 Existing client Vitest suite
 
