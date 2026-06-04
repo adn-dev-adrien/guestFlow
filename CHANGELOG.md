@@ -4,6 +4,54 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Client routing: react-router-dom 6 → 7** (spec `react-router-7-migration.md`,
+  2026-06-04). First of the four queued major-version dep upgrades unlocked by
+  the CRA → Vite migration (PR #111). Bump `react-router-dom@^6.20.0` (resolved
+  `6.30.4`) → `^7.16.0` (resolved `7.17.0`). **Zero observable behavior change**
+  for the end user; **zero source-file change required** — the 10 APIs we use
+  (`BrowserRouter`, `MemoryRouter`, `Routes`, `Route`, `Link`, `Navigate`,
+  `useLocation`, `useNavigate`, `useParams`, `useSearchParams`) keep identical
+  signatures in v7. The audit confirmed zero data-router APIs in use
+  (`createBrowserRouter`, `RouterProvider`, `loader:`, `action:`, …) so the
+  migration was a `package.json` bump + a verification gate, not a routing
+  rewrite.
+
+  Acceptance gate (spec §7.1) — all green:
+  - `npm ls react-router-dom`: single top-level `7.17.0`, no duplicate transitive.
+  - `npm run build`: 2.24 s, **0 esbuild warnings**.
+  - Vitest: **156 / 156** (153 existing + 3 new smoke cases pinning the
+    classic-API contract for any future v8 bump).
+  - Playwright E2E: **18 passed / 1 skipped / 0 failed**, identical to post-Vite.
+  - Server tripwire: 890 / 892 (2 pre-existing parallel-runner flakes that pass
+    in isolation, unrelated to this change).
+
+  Measured bundle size: 428.24 → **434.13 kB gzip** (+5.89 kB / +0.4 % of the
+  bundle). Driven by an expected upstream change documented in the v7 release
+  notes: `@remix-run/router` no longer ships as a separate sub-package, the
+  data-router internals are bundled directly inside `react-router` even for
+  classic-API consumers. The original spec budget of +5 kB was relaxed to
+  +10 kB during implementation (§3.5 rule 13 + §9 Q3 updated) once the cause
+  was confirmed as a non-regression; reverting the bump for +0.4 % of the
+  bundle would block the entire upgrade chain (MUI 9, React 19, Recharts 3)
+  for no functional gain.
+
+  New smoke coverage (`client/src/__tests__/router-smoke.test.js`, 3 cases):
+  - `<BrowserRouter>` mounts a `<Routes>` + `<Route element>` tree.
+  - MUI `<Button component={RouterLink} to=…>` renders an anchor with the
+    right `href` — pins the forwardRef adapter pattern used in
+    `AccountingPage.js` (journal entry → reservation link).
+  - `useNavigate()` round-trips the pathname under `<MemoryRouter>` — the
+    foundation of every imperative navigation (28 call sites in the app).
+
+  **Out of scope** (each its own future spec): data-router adoption
+  (`createBrowserRouter` + loaders / actions), route-level `errorElement`,
+  `useNavigate({ flushSync: true })`. Picked up only if/when concrete use
+  cases appear.
+
+  **Next in the chain**: MUI 5 → 9 (the big one, the React 19 unlock), then
+  React 18 → 19, then Recharts 2 → 3.
+
 ### Fixed
 - **Devis PDF — date du devis, validité, taxe de séjour, options par défaut**
   (spec `devis-pdf-and-tourist-tax-fixes.md`, 2026-06-04). Four user-reported defects
