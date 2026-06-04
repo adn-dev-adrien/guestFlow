@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 /**
  * Regression test for AccountingPage — the client-name in each journal entry card must be a
  * clickable link to the reservation file when the current user is admin.
@@ -21,17 +22,17 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mock the API + auth BEFORE importing AccountingPage so the page picks up the mocks.
-jest.mock('../../api', () => ({
+vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getAccountingPlatforms: jest.fn(),
-    getAccountingSales: jest.fn(),
-    downloadAccountingSalesCsv: jest.fn(),
+    getAccountingPlatforms: vi.fn(),
+    getAccountingSales: vi.fn(),
+    downloadAccountingSalesCsv: vi.fn(),
   },
 }));
-jest.mock('../../hooks/useAuth', () => ({
+vi.mock('../../hooks/useAuth', () => ({
   __esModule: true,
-  useAuth: jest.fn(),
+  useAuth: vi.fn(),
 }));
 
 import api from '../../api';

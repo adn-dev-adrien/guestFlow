@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 
 import SelfProfileSection from '../SelfProfileSection';
 
@@ -20,7 +21,7 @@ function renderSection(props = {}) {
       emailStatus={props.emailStatus}
       fieldErrors={props.fieldErrors ?? {}}
       busy={props.busy ?? false}
-      onSubmit={props.onSubmit ?? jest.fn()}
+      onSubmit={props.onSubmit ?? vi.fn()}
     />
   );
 }
@@ -83,7 +84,7 @@ describe('SelfProfileSection', () => {
 
   test('submit forwards a trimmed payload including email (editable since 2026-06-02), never roles', async () => {
     const user = userEvent.setup();
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
     renderSection({ onSubmit });
 
     await user.clear(screen.getByLabelText(/Prénom/));
@@ -130,7 +131,7 @@ describe('SelfProfileSection', () => {
         initialValues={{ ...BASE, firstName: 'Marie', companyName: 'Solio v2' }}
         fieldErrors={{}}
         busy={false}
-        onSubmit={jest.fn()}
+        onSubmit={vi.fn()}
       />
     );
 

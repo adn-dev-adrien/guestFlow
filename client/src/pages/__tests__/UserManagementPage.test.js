@@ -2,22 +2,23 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 
 // Mock the API + auth before importing the page so the imports pick up the mocks.
-jest.mock('../../api', () => ({
+vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    listUsers: jest.fn(),
-    updateSelf: jest.fn(),
+    listUsers: vi.fn(),
+    updateSelf: vi.fn(),
     // `getMyEmailStatus` drives the red bootstrap-admin warning in SelfProfileSection. The page
     // fires it on mount + after every successful profile save — the mock returns a benign payload
     // by default so tests don't have to worry about unhandled promises.
-    getMyEmailStatus: jest.fn(),
+    getMyEmailStatus: vi.fn(),
   },
 }));
-jest.mock('../../hooks/useAuth', () => ({
+vi.mock('../../hooks/useAuth', () => ({
   __esModule: true,
-  useAuth: jest.fn(),
+  useAuth: vi.fn(),
 }));
 
 import api from '../../api';
@@ -27,8 +28,8 @@ import UserManagementPage from '../UserManagementPage';
 function setAuth(user) {
   useAuth.mockReturnValue({
     user,
-    changePassword: jest.fn().mockResolvedValue(undefined),
-    refresh: jest.fn().mockResolvedValue(undefined),
+    changePassword: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn().mockResolvedValue(undefined),
   });
 }
 
@@ -147,10 +148,10 @@ describe('UserManagementPage — "Mes informations" section', () => {
 
   test('submit calls api.updateSelf + refresh + shows success snackbar', async () => {
     const user = userEvent.setup();
-    const refreshAuth = jest.fn().mockResolvedValue(undefined);
+    const refreshAuth = vi.fn().mockResolvedValue(undefined);
     useAuth.mockReturnValue({
       user: { id: 7, email: 'compta@example.org', firstName: 'A', lastName: 'B', companyName: '', notes: '', roles: ['accountant'] },
-      changePassword: jest.fn().mockResolvedValue(undefined),
+      changePassword: vi.fn().mockResolvedValue(undefined),
       refresh: refreshAuth,
     });
     api.updateSelf.mockResolvedValueOnce({ user: { id: 7, firstName: 'Marie', lastName: 'B', email: 'compta@example.org', roles: ['accountant'] } });

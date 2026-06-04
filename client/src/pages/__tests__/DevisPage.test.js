@@ -2,34 +2,38 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 
 // Regression guard against the legacy PageHeader → PageActionBar migration: the page used to pass
 // an `actions={<Button>}` prop that the old PageHeader silently dropped, so the "Nouveau devis"
 // button never rendered. The test below pins both the visibility AND the click → /reservations/new
 // navigation behaviour.
 
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
+// vi.mock is hoisted to the top of the file BEFORE imports + const declarations, so
+// `mockNavigate` needs to be inside vi.hoisted() to be visible at mock-eval time. And
+// `vi.importActual` is the async equivalent of Jest's `jest.requireActual`.
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
+vi.mock('react-router-dom', async () => ({
   __esModule: true,
-  ...jest.requireActual('react-router-dom'),
+  ...(await vi.importActual('react-router-dom')),
   useNavigate: () => mockNavigate,
 }));
 
-jest.mock('../../api', () => ({
+vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getDevis: jest.fn(),
-    deleteDevis: jest.fn(),
-    convertDevisToReservation: jest.fn(),
-    getDevisPdfBlob: jest.fn(),
+    getDevis: vi.fn(),
+    deleteDevis: vi.fn(),
+    convertDevisToReservation: vi.fn(),
+    getDevisPdfBlob: vi.fn(),
   },
 }));
 
-jest.mock('../../components/DialogProvider', () => ({
+vi.mock('../../components/DialogProvider', () => ({
   __esModule: true,
   useAppDialogs: () => ({
-    confirm: jest.fn().mockResolvedValue(false),
-    alert: jest.fn().mockResolvedValue(undefined),
+    confirm: vi.fn().mockResolvedValue(false),
+    alert: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 

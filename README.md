@@ -166,7 +166,7 @@ npm run dev
 
 This starts:
 - **API** at `http://localhost:4000` (with hot-reload via `node --watch`)
-- **React client** at `http://localhost:3000` (with hot-reload via react-scripts)
+- **React client** at `http://localhost:3000` (with hot-reload via Vite)
 
 The client automatically proxies `/api/*` requests to port 4000.
 
@@ -266,8 +266,9 @@ Optional environment variables (sensible defaults otherwise):
 | `LOGIN_RATELIMIT_MAX` / `LOGIN_RATELIMIT_WINDOW_MS` | Login rate limit | `10` / `900000` |
 | `API_RATELIMIT_MAX` / `API_RATELIMIT_WINDOW_MS` | Global API rate limit | `300` / `900000` |
 
-The production build is created with `INLINE_RUNTIME_CHUNK=false` (already wired into
-`client` `npm run build`) so the CSP can keep `script-src 'self'`.
+The production build is created with Vite, which emits zero inline runtime scripts and no
+sourcemaps (`build.sourcemap = false` in `client/vite.config.js`) so the CSP can keep
+`script-src 'self'`.
 
 ## Production Deployment
 ## Release Packaging
@@ -588,7 +589,7 @@ cd client
 npm run build
 ```
 
-This generates a `client/build/` folder containing optimized static files.
+This generates a `client/dist/` folder containing optimized static files.
 
 ### 2. Serve the Application
 

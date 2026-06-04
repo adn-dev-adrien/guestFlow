@@ -193,3 +193,47 @@ describe('applyQuoteToForm — basic shaping', () => {
     expect(prev.selectedOptions[0].inComplement).toBe(true);
   });
 });
+
+// Regression coverage for the devis PDF bug fix bundle (PR #112,
+// `specs/devis-pdf-and-tourist-tax-fixes.md`). The PDF is server-rendered, but the
+// same "consume the engine quote, never recompute on the client" contract holds
+// here: when the engine returns a fresh `touristTaxTotal`, `applyQuoteToForm` MUST
+// overwrite the form's stale value. The bug-equivalent on the client would be the
+// helper preserving `prev.touristTaxTotal` and letting it drift below the live
+// engine number (= the same root cause as the PDF's stale 15,36 € vs 16,80 €).
+describe('applyQuoteToForm — engine tourist tax always wins over the stale form value', () => {
+  test('overwrites form.touristTaxTotal with the engine value on every recompute', () => {
+    // User's exact 2026-06-04 scenario: form carries the stale 15.36€ that used to
+    // leak into the PDF, engine recompute returns the live 16.80€. The next form
+    // state must hold the live value — otherwise it would re-introduce the drift.
+    const prev = { ...basePrev, touristTaxTotal: 15.36 };
+    const next = applyQuoteToForm(prev, { ...baseQuote, touristTaxTotal: 16.80 });
+    expect(next.touristTaxTotal).toBe(16.80);
+  });
+
+  test('engine zero overrides a non-zero form value (no client-side preservation)', () => {
+    // E.g. switching to a platform that collects the tax → engine returns 0.
+    // The form MUST follow; keeping the old number would falsely keep the tax
+    // line visible in the summary AND inflate the persisted `finalPrice + tax`.
+    const prev = { ...basePrev, touristTaxTotal: 6 };
+    const next = applyQuoteToForm(prev, { ...baseQuote, touristTaxTotal: 0 });
+    expect(next.touristTaxTotal).toBe(0);
+  });
+
+  test('engine touristTaxRate is copied verbatim — never re-derived from form fields', () => {
+    // Pinning the "fat backend" boundary: the rate is engine-owned (the percentage
+    // for percentage-based tax, the fixed unit otherwise). The helper just copies.
+    const next = applyQuoteToForm(basePrev, { ...baseQuote, touristTaxRate: 0.05, touristTaxTotal: 16.80 });
+    expect(next.touristTaxRate).toBe(0.05);
+    expect(next.touristTaxTotal).toBe(16.80);
+  });
+
+  test('blank/null engine values map to 0 (no NaN leak into the form)', () => {
+    // Defensive: if the engine round-trip fails and the helper receives a partial
+    // quote, the form must not end up with NaN-cascading values that crash
+    // PricingSummary's `.toFixed(2)` calls.
+    const next = applyQuoteToForm(basePrev, { ...baseQuote, touristTaxTotal: null, touristTaxRate: undefined });
+    expect(next.touristTaxTotal).toBe(0);
+    expect(next.touristTaxRate).toBe(0);
+  });
+});

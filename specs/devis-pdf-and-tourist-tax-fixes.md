@@ -267,7 +267,20 @@ would draw via direct calls on the helpers).
 
 Stays green. ~880 tests already pin the engine + accounting + iCal + linen.
 
-### 7.3 E2E suite (PR #110)
+### 7.3 Client Vitest tests (added on the Vite-migration branch, 2026-06-04)
+
+| Test file | Cases | Pins |
+|---|---|---|
+| `client/src/components/__tests__/PricingSummary.tourist-tax.test.js` (C) | (1) Displayed tax total reads `quote.touristTaxTotal`, never `form.touristTaxTotal`. (2) Detail breakdown reads `touristTaxUnitAmount × touristTaxAdultsCount × touristTaxNights` from the engine. (3) Engine zero overrides a stale form value. (4) Quote omitted (initial load) → legacy fallback to `form.touristTaxTotal`. (5) `touristTaxLabel` rendered verbatim, never re-derived. | Rules 17, 20 — client-side mirror of the PDF parity invariant. |
+| `client/src/utils/applyQuoteToForm.test.js` (4 new cases appended) | (1) Engine `touristTaxTotal` overwrites the stale form value on every recompute (user's 15,36 € → 16,80 € scenario). (2) Engine zero overrides a non-zero form value. (3) `touristTaxRate` is copied verbatim. (4) Null/undefined engine values map to 0 (no NaN leak). | Rule 20 — the helper that bridges the API response to the form state. |
+
+Both files run under Vitest (CRA → Vite migration branch). They pin the
+client-side equivalent of the PDF parity rule: the engine quote owns the math;
+the UI only consumes its fields. Any future refactor that introduces a JS
+re-derivation of the tax (from `touristTaxRate × people × nights` or similar)
+fails these tests immediately.
+
+### 7.4 E2E suite (PR #110)
 
 Stays green. The Playwright smoke suite covers Dashboard + routing + persistence
 round-trips; the devis-PDF tests above sit at the unit level for precision.

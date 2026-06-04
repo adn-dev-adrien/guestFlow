@@ -4,8 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
+import { vi } from 'vitest';
 
-jest.mock('../../../api', () => ({ __esModule: true, default: { markPayment: jest.fn() } }));
+vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
 
 function renderFinance(overrides) {
   const ctx = makeMockContext(overrides);
