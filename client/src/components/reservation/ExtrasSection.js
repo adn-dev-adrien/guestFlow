@@ -97,8 +97,10 @@ export default function ExtrasSection() {
                               label="Qté"
                               value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
                               onChange={(e) => setOptionQuantity(opt.id, toBaseQuantity(e.target.value, opt.priceType))}
-                              inputProps={{ min: 1 }}
                               sx={{ width: { xs: '100%', sm: 'auto' } }}
+                              slotProps={{
+                                htmlInput: { min: 1 }
+                              }}
                             />
                             <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
                               {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
@@ -201,8 +203,10 @@ export default function ExtrasSection() {
                               label="Prix TTC"
                               value={line.amount ?? 0}
                               onChange={(e) => updateCustomOption(line.customKey, { amount: Math.max(0, Number(e.target.value || 0)) })}
-                              inputProps={{ min: 0, step: 0.01 }}
                               sx={{ width: { xs: '100%', sm: 180 } }}
+                              slotProps={{
+                                htmlInput: { min: 0, step: 0.01 }
+                              }}
                             />
                             {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
                             <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
@@ -299,12 +303,14 @@ export default function ExtrasSection() {
                                 label={isPerHour ? 'Heures' : 'Qté'}
                                 value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
                                 onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
-                                inputProps={isPerHour
-                                  ? { min: 1, step: 1 }
-                                  : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }}
                                 error={resourceConflict}
                                 helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
                                 sx={{ width: { xs: '100%', sm: 'auto' } }}
+                                slotProps={{
+                                  htmlInput: isPerHour
+                                    ? { min: 1, step: 1 }
+                                    : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }
+                                }}
                               />
                               <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
                                 {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}

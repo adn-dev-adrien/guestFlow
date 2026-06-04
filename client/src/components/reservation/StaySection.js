@@ -58,24 +58,26 @@ export default function StaySection() {
                 label="Date d'arrivée"
                 type="date"
                 value={form.startDate || ''}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: arrivalMin, max: arrivalMax || undefined }}
                 onChange={(e) => handleManualDateInputChange({ startDate: e.target.value })}
                 error={datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
-              />
+                slotProps={{
+                  htmlInput: { min: arrivalMin, max: arrivalMax || undefined },
+                  inputLabel: { shrink: true }
+                }} />
             </Box>
             <Box>
               <TextField
                 label="Date de départ"
                 type="date"
                 value={form.endDate || ''}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: departureMin || undefined, max: departureMax || undefined }}
                 onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
                 error={datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
-              />
+                slotProps={{
+                  htmlInput: { min: departureMin || undefined, max: departureMax || undefined },
+                  inputLabel: { shrink: true }
+                }} />
             </Box>
           </Box>
 

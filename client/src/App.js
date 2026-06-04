@@ -176,344 +176,373 @@ function NavContent({ onItemClick }) {
         const isSubmenuParent = item.path === '/calendar' || item.path === '/finance' || item.path === '/settings';
         const linkProps = isParentReachable ? { component: Link, to: item.path } : {};
         return (
-        <Box key={item.path}>
-          <ListItemButton
-            {...linkProps}
-            onClick={(e) => {
-              if (item.path === '/calendar') {
-                setCalendarMenuOpen((location.pathname.startsWith('/calendar') || location.pathname === '/resource-planning') ? true : (prev) => !prev);
-                setFinanceMenuOpen(false);
-                setSettingsMenuOpen(false);
-              } else if (item.path === '/finance') {
-                setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname === '/comptabilite') ? true : (prev) => !prev);
-                setCalendarMenuOpen(false);
-                setSettingsMenuOpen(false);
-              } else if (item.path === '/settings') {
-                setSettingsMenuOpen(
-                  location.pathname === '/settings'
-                                  || location.pathname === '/options'
-                    || location.pathname === '/resources'
-                    || location.pathname === '/clients'
-                    || location.pathname === '/school-holidays'
-                    || location.pathname === '/establishment-closures'
-                    || location.pathname === '/account'
-                    || location.pathname.startsWith('/properties')
-                    ? true
-                    : (prev) => !prev
-                );
-                setCalendarMenuOpen(false);
-                setFinanceMenuOpen(false);
-                setSettingsPropertiesMenuOpen(location.pathname.startsWith('/properties'));
-              } else {
-                setCalendarMenuOpen(false);
-                setFinanceMenuOpen(false);
-                setSettingsMenuOpen(false);
-                setSettingsPropertiesMenuOpen(false);
-              }
-              // Suppress the drawer-close on toggle-only parents so the user can pick their child.
-              if (onItemClick && (isParentReachable || !isSubmenuParent)) onItemClick(e, item.path);
-            }}
-            selected={
-              item.path === '/properties'
-                ? location.pathname.startsWith('/properties')
-                : item.path === '/finance'
-                  ? (location.pathname.startsWith('/finance') || location.pathname === '/comptabilite')
-                  : item.path === '/settings'
-                    ? (
-                      location.pathname === '/settings'
-                                      || location.pathname === '/options'
+          <Box key={item.path}>
+            <ListItemButton
+              {...linkProps}
+              onClick={(e) => {
+                if (item.path === '/calendar') {
+                  setCalendarMenuOpen((location.pathname.startsWith('/calendar') || location.pathname === '/resource-planning') ? true : (prev) => !prev);
+                  setFinanceMenuOpen(false);
+                  setSettingsMenuOpen(false);
+                } else if (item.path === '/finance') {
+                  setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname === '/comptabilite') ? true : (prev) => !prev);
+                  setCalendarMenuOpen(false);
+                  setSettingsMenuOpen(false);
+                } else if (item.path === '/settings') {
+                  setSettingsMenuOpen(
+                    location.pathname === '/settings'
+                                    || location.pathname === '/options'
                       || location.pathname === '/resources'
                       || location.pathname === '/clients'
                       || location.pathname === '/school-holidays'
                       || location.pathname === '/establishment-closures'
                       || location.pathname === '/account'
                       || location.pathname.startsWith('/properties')
-                    )
-                    : location.pathname === item.path
-            }
-            sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.label} />
-            {item.path === '/calendar' && (
-              <Box
-                component="span"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setCalendarMenuOpen((prev) => !prev);
-                }}
-                sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-              >
-                {calendarMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-              </Box>
-            )}
-            {item.path === '/finance' && (
-              <Box
-                component="span"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setFinanceMenuOpen((prev) => !prev);
-                }}
-                sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-              >
-                {financeMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-              </Box>
-            )}
-            {item.path === '/settings' && (
-              <Box
-                component="span"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setSettingsMenuOpen((prev) => !prev);
-                }}
-                sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-              >
-                {settingsMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-              </Box>
-            )}
-          </ListItemButton>
-
-          {item.path === '/calendar' && (
-            <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
-              <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                {can('/resource-planning') && (
-                <ListItemButton
-                  component={Link}
-                  to="/resource-planning"
-                  onClick={(e) => onItemClick && onItemClick(e, '/resource-planning')}
-                  selected={location.pathname === '/resource-planning'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                      ? true
+                      : (prev) => !prev
+                  );
+                  setCalendarMenuOpen(false);
+                  setFinanceMenuOpen(false);
+                  setSettingsPropertiesMenuOpen(location.pathname.startsWith('/properties'));
+                } else {
+                  setCalendarMenuOpen(false);
+                  setFinanceMenuOpen(false);
+                  setSettingsMenuOpen(false);
+                  setSettingsPropertiesMenuOpen(false);
+                }
+                // Suppress the drawer-close on toggle-only parents so the user can pick their child.
+                if (onItemClick && (isParentReachable || !isSubmenuParent)) onItemClick(e, item.path);
+              }}
+              selected={
+                item.path === '/properties'
+                  ? location.pathname.startsWith('/properties')
+                  : item.path === '/finance'
+                    ? (location.pathname.startsWith('/finance') || location.pathname === '/comptabilite')
+                    : item.path === '/settings'
+                      ? (
+                        location.pathname === '/settings'
+                                        || location.pathname === '/options'
+                        || location.pathname === '/resources'
+                        || location.pathname === '/clients'
+                        || location.pathname === '/school-holidays'
+                        || location.pathname === '/establishment-closures'
+                        || location.pathname === '/account'
+                        || location.pathname.startsWith('/properties')
+                      )
+                      : location.pathname === item.path
+              }
+              sx={{ mx: 1, borderRadius: 2, mb: 0.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} />
+              {item.path === '/calendar' && (
+                <Box
+                  component="span"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCalendarMenuOpen((prev) => !prev);
+                  }}
+                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
                 >
-                  <ListItemText
-                    primary="Ressources"
-                    primaryTypographyProps={{ variant: 'body2', fontStyle: 'italic' }}
-                  />
-                </ListItemButton>
-                )}
-                {properties.map((p) => (
+                  {calendarMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                </Box>
+              )}
+              {item.path === '/finance' && (
+                <Box
+                  component="span"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setFinanceMenuOpen((prev) => !prev);
+                  }}
+                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                >
+                  {financeMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                </Box>
+              )}
+              {item.path === '/settings' && (
+                <Box
+                  component="span"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSettingsMenuOpen((prev) => !prev);
+                  }}
+                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                >
+                  {settingsMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                </Box>
+              )}
+            </ListItemButton>
+            {item.path === '/calendar' && (
+              <Collapse in={calendarMenuOpen} timeout="auto" unmountOnExit>
+                <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                  {can('/resource-planning') && (
                   <ListItemButton
-                    key={`calendar-${p.id}`}
                     component={Link}
-                    to={`/calendar?propertyId=${p.id}`}
-                    onClick={(e) => onItemClick && onItemClick(e, `/calendar?propertyId=${p.id}`)}
-                    selected={location.pathname === '/calendar' && String(selectedCalendarPropertyId) === String(p.id)}
+                    to="/resource-planning"
+                    onClick={(e) => onItemClick && onItemClick(e, '/resource-planning')}
+                    selected={location.pathname === '/resource-planning'}
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemText
-                      primary={p.name}
-                      primaryTypographyProps={{
-                        variant: 'body2',
-                        noWrap: true,
+                      primary="Ressources"
+                      slotProps={{
+                        primary: { variant: 'body2', fontStyle: 'italic' }
                       }}
                     />
                   </ListItemButton>
-                ))}
-              </List>
-            </Collapse>
-          )}
-
-          {item.path === '/finance' && (
-            <Collapse in={financeMenuOpen} timeout="auto" unmountOnExit>
-              <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                {can('/finance') && (
-                <ListItemButton
-                  component={Link}
-                  to="/finance"
-                  onClick={(e) => onItemClick && onItemClick(e, '/finance')}
-                  selected={location.pathname === '/finance'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemText primary="Vue générale" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/finance/tourist-tax') && (
-                <ListItemButton
-                  component={Link}
-                  to="/finance/tourist-tax"
-                  onClick={(e) => onItemClick && onItemClick(e, '/finance/tourist-tax')}
-                  selected={location.pathname === '/finance/tourist-tax'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemText primary="Taxe de séjour" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/comptabilite') && (
-                <ListItemButton
-                  component={Link}
-                  to="/comptabilite"
-                  onClick={(e) => onItemClick && onItemClick(e, '/comptabilite')}
-                  selected={location.pathname === '/comptabilite'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemText primary="Comptabilité" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-              </List>
-            </Collapse>
-          )}
-
-          {item.path === '/settings' && (
-            <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
-              <List disablePadding sx={{ px: 1, pb: 0.5 }}>
-                {can('/settings') && (
-                <ListItemButton
-                  component={Link}
-                  to="/settings"
-                  onClick={(e) => onItemClick && onItemClick(e, '/settings')}
-                  selected={location.pathname === '/settings'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><SettingsIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Générale" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/properties') && (
-                <ListItemButton
-                  component={Link}
-                  to="/properties"
-                  onClick={(e) => {
-                    setSettingsPropertiesMenuOpen((prev) => !prev);
-                    if (onItemClick) onItemClick(e, '/properties');
-                  }}
-                  selected={location.pathname.startsWith('/properties')}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><HomeWorkIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Logements" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                  <Box
-                    component="span"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setSettingsPropertiesMenuOpen((prev) => !prev);
-                    }}
-                    sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
-                  >
-                    {settingsPropertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                  </Box>
-                </ListItemButton>
-                )}
-                {can('/properties') && (
-                <Collapse in={settingsPropertiesMenuOpen} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ px: 1, pb: 0.25 }}>
-                    {properties.map((p) => (
-                      <ListItemButton
-                        key={`settings-property-${p.id}`}
-                        component={Link}
-                        to={`/properties/${p.id}`}
-                        onClick={(e) => onItemClick && onItemClick(e, `/properties/${p.id}`)}
-                        selected={location.pathname === `/properties/${p.id}`}
-                        sx={{ pl: 9, py: 0.65, borderRadius: 2, mb: 0.25 }}
-                      >
-                        <ListItemText
-                          primary={p.name}
-                          primaryTypographyProps={{
+                  )}
+                  {properties.map((p) => (
+                    <ListItemButton
+                      key={`calendar-${p.id}`}
+                      component={Link}
+                      to={`/calendar?propertyId=${p.id}`}
+                      onClick={(e) => onItemClick && onItemClick(e, `/calendar?propertyId=${p.id}`)}
+                      selected={location.pathname === '/calendar' && String(selectedCalendarPropertyId) === String(p.id)}
+                      sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                    >
+                      <ListItemText
+                        primary={p.name}
+                        slotProps={{
+                          primary: {
                             variant: 'body2',
                             noWrap: true,
-                          }}
-                        />
-                      </ListItemButton>
-                    ))}
-                  </List>
-                </Collapse>
-                )}
-                {can('/options') && (
-                <ListItemButton
-                  component={Link}
-                  to="/options"
-                  onClick={(e) => onItemClick && onItemClick(e, '/options')}
-                  selected={location.pathname === '/options'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><ExtensionIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Options" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/resources') && (
-                <ListItemButton
-                  component={Link}
-                  to="/resources"
-                  onClick={(e) => onItemClick && onItemClick(e, '/resources')}
-                  selected={location.pathname === '/resources'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Ressources" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/clients') && (
-                <ListItemButton
-                  component={Link}
-                  to="/clients"
-                  onClick={(e) => onItemClick && onItemClick(e, '/clients')}
-                  selected={location.pathname === '/clients'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><PeopleIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Clients" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/school-holidays') && (
-                <ListItemButton
-                  component={Link}
-                  to="/school-holidays"
-                  onClick={(e) => onItemClick && onItemClick(e, '/school-holidays')}
-                  selected={location.pathname === '/school-holidays'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Vacances scolaires" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/establishment-closures') && (
-                <ListItemButton
-                  component={Link}
-                  to="/establishment-closures"
-                  onClick={(e) => onItemClick && onItemClick(e, '/establishment-closures')}
-                  selected={location.pathname === '/establishment-closures'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/parametres/stock-blanchisserie') && (
-                <ListItemButton
-                  component={Link}
-                  to="/parametres/stock-blanchisserie"
-                  onClick={(e) => onItemClick && onItemClick(e, '/parametres/stock-blanchisserie')}
-                  selected={location.pathname === '/parametres/stock-blanchisserie'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Stock blanchisserie" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-                {can('/account') && (
-                <ListItemButton
-                  component={Link}
-                  to="/account"
-                  onClick={(e) => onItemClick && onItemClick(e, '/account')}
-                  selected={location.pathname === '/account'}
-                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}><AdminPanelSettingsIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Gestion utilisateur" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
-                </ListItemButton>
-                )}
-              </List>
-            </Collapse>
-          )}
-        </Box>
+                          }
+                        }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Collapse>
+            )}
+            {item.path === '/finance' && (
+              <Collapse in={financeMenuOpen} timeout="auto" unmountOnExit>
+                <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                  {can('/finance') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/finance"
+                    onClick={(e) => onItemClick && onItemClick(e, '/finance')}
+                    selected={location.pathname === '/finance'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText primary="Vue générale" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/finance/tourist-tax') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/finance/tourist-tax"
+                    onClick={(e) => onItemClick && onItemClick(e, '/finance/tourist-tax')}
+                    selected={location.pathname === '/finance/tourist-tax'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText primary="Taxe de séjour" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/comptabilite') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/comptabilite"
+                    onClick={(e) => onItemClick && onItemClick(e, '/comptabilite')}
+                    selected={location.pathname === '/comptabilite'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText primary="Comptabilité" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                </List>
+              </Collapse>
+            )}
+            {item.path === '/settings' && (
+              <Collapse in={settingsMenuOpen} timeout="auto" unmountOnExit>
+                <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                  {can('/settings') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/settings"
+                    onClick={(e) => onItemClick && onItemClick(e, '/settings')}
+                    selected={location.pathname === '/settings'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><SettingsIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Générale" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/properties') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/properties"
+                    onClick={(e) => {
+                      setSettingsPropertiesMenuOpen((prev) => !prev);
+                      if (onItemClick) onItemClick(e, '/properties');
+                    }}
+                    selected={location.pathname.startsWith('/properties')}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><HomeWorkIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Logements" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                    <Box
+                      component="span"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSettingsPropertiesMenuOpen((prev) => !prev);
+                      }}
+                      sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                    >
+                      {settingsPropertiesMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                    </Box>
+                  </ListItemButton>
+                  )}
+                  {can('/properties') && (
+                  <Collapse in={settingsPropertiesMenuOpen} timeout="auto" unmountOnExit>
+                    <List disablePadding sx={{ px: 1, pb: 0.25 }}>
+                      {properties.map((p) => (
+                        <ListItemButton
+                          key={`settings-property-${p.id}`}
+                          component={Link}
+                          to={`/properties/${p.id}`}
+                          onClick={(e) => onItemClick && onItemClick(e, `/properties/${p.id}`)}
+                          selected={location.pathname === `/properties/${p.id}`}
+                          sx={{ pl: 9, py: 0.65, borderRadius: 2, mb: 0.25 }}
+                        >
+                          <ListItemText
+                            primary={p.name}
+                            slotProps={{
+                              primary: {
+                                variant: 'body2',
+                                noWrap: true,
+                              }
+                            }}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  </Collapse>
+                  )}
+                  {can('/options') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/options"
+                    onClick={(e) => onItemClick && onItemClick(e, '/options')}
+                    selected={location.pathname === '/options'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><ExtensionIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Options" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/resources') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/resources"
+                    onClick={(e) => onItemClick && onItemClick(e, '/resources')}
+                    selected={location.pathname === '/resources'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Ressources" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/clients') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/clients"
+                    onClick={(e) => onItemClick && onItemClick(e, '/clients')}
+                    selected={location.pathname === '/clients'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><PeopleIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Clients" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/school-holidays') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/school-holidays"
+                    onClick={(e) => onItemClick && onItemClick(e, '/school-holidays')}
+                    selected={location.pathname === '/school-holidays'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Vacances scolaires" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/establishment-closures') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/establishment-closures"
+                    onClick={(e) => onItemClick && onItemClick(e, '/establishment-closures')}
+                    selected={location.pathname === '/establishment-closures'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Fermetures" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/parametres/stock-blanchisserie') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/parametres/stock-blanchisserie"
+                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/stock-blanchisserie')}
+                    selected={location.pathname === '/parametres/stock-blanchisserie'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Stock blanchisserie" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/account') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/account"
+                    onClick={(e) => onItemClick && onItemClick(e, '/account')}
+                    selected={location.pathname === '/account'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><AdminPanelSettingsIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Gestion utilisateur" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                </List>
+              </Collapse>
+            )}
+          </Box>
         );
       })}
       <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
         <ListItemButton onClick={() => logout()} sx={{ py: 0.75, borderRadius: 2, mx: 1 }}>
           <ListItemIcon sx={{ minWidth: 34 }}><LogoutIcon fontSize="small" /></ListItemIcon>
-          <ListItemText primary="Se déconnecter" primaryTypographyProps={{ variant: 'body2' }} />
+          <ListItemText primary="Se déconnecter" slotProps={{
+            primary: { variant: 'body2' }
+          }} />
         </ListItemButton>
       </Box>
     </List>

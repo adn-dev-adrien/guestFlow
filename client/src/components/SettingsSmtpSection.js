@@ -85,7 +85,9 @@ export default function SettingsSmtpSection({
               helperText={errors.smtpPort || 'Souvent 587 (STARTTLS) ou 465 (TLS implicite)'}
               size="small"
               sx={{ width: { xs: '100%', sm: 200 } }}
-              inputProps={{ min: 1, max: 65535 }}
+              slotProps={{
+                htmlInput: { min: 1, max: 65535 }
+              }}
             />
             <TextField
               label="Sécurité"

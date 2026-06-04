@@ -35,7 +35,11 @@ export default function FinanceSection() {
               </Box>
 
               <Grid container spacing={2} alignItems="stretch" sx={sectionGridSx}>
-                <Grid item xs={12} md={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    md: 6
+                  }}>
                   <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
@@ -50,7 +54,11 @@ export default function FinanceSection() {
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    md: 6
+                  }}>
                   <Card
                     variant="outlined"
                     sx={{
@@ -73,7 +81,6 @@ export default function FinanceSection() {
                         }}
                         onFocus={(e) => e.target.select()}
                         fullWidth
-                        inputProps={{ min: 0, step: 0.01 }}
                         sx={{
                           mt: 1,
                           '& input[type=number]': {
@@ -85,6 +92,9 @@ export default function FinanceSection() {
                           }
                         }}
                         size="small"
+                        slotProps={{
+                          htmlInput: { min: 0, step: 0.01 }
+                        }}
                       />
                       {form.customPrice !== '' && accommodationBasePriceDisplay && (
                         <Box sx={{ mt: 1 }}>
@@ -104,8 +114,10 @@ export default function FinanceSection() {
                           value={form.discountPercent}
                           onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
                           fullWidth
-                          inputProps={{ min: 0, max: 100 }}
                           size="small"
+                          slotProps={{
+                            htmlInput: { min: 0, max: 100 }
+                          }}
                         />
                       </Stack>
                     </CardContent>
@@ -128,7 +140,11 @@ export default function FinanceSection() {
                   <Box>
                     <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Plateforme</Typography>
                     <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
-                      <Grid item xs={12} md={6}>
+                      <Grid
+                        size={{
+                          xs: 12,
+                          md: 6
+                        }}>
                         <TextField
                           label="Prix payé par le client"
                           type="number"
@@ -137,14 +153,20 @@ export default function FinanceSection() {
                           onFocus={(e) => e.target.select()}
                           fullWidth
                           size="small"
-                          inputProps={{ min: 0, step: 0.01 }}
                           error={grossBelowNet}
                           helperText={grossBelowNet
                             ? `Doit être ≥ ${net.toFixed(2)}€ (montant net que tu touches).`
                             : 'Montant TTC réellement payé par le client sur la plateforme.'}
+                          slotProps={{
+                            htmlInput: { min: 0, step: 0.01 }
+                          }}
                         />
                       </Grid>
-                      <Grid item xs={12} md={6}>
+                      <Grid
+                        size={{
+                          xs: 12,
+                          md: 6
+                        }}>
                         <Box sx={{ p: 1.5, bgcolor: '#f7fafc', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                           <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
                             Commission plateforme
@@ -167,7 +189,11 @@ export default function FinanceSection() {
 
             <Box>
               <Grid container spacing={2} sx={sectionGridSx}>
-                <Grid item xs={12} md={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    md: 6
+                  }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom sx={{ mb: 0 }}>Acompte</Typography>
                     <FormControlLabel
@@ -204,9 +230,11 @@ export default function FinanceSection() {
                         type="date"
                         value={form.depositDueDate}
                         disabled={isReservationLocked}
-                        InputLabelProps={{ shrink: true }}
                         onChange={(e) => updateForm({ depositDueDate: e.target.value })}
                         fullWidth
+                        slotProps={{
+                          inputLabel: { shrink: true }
+                        }}
                       />
                       <Button
                         fullWidth
@@ -230,7 +258,6 @@ export default function FinanceSection() {
                           label="Payé le"
                           type="date"
                           value={form.depositPaidDate || ''}
-                          InputLabelProps={{ shrink: true }}
                           onChange={async (e) => {
                             const v = e.target.value;
                             updateForm({ depositPaidDate: v });
@@ -240,22 +267,31 @@ export default function FinanceSection() {
                           }}
                           fullWidth
                           sx={{ mt: 1.5 }}
+                          slotProps={{
+                            inputLabel: { shrink: true }
+                          }}
                         />
                       )}
                     </>
                   )}
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    md: 6
+                  }}>
                   <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Solde</Typography>
                   <TextField
                     label="Échéance solde"
                     type="date"
                     value={form.balanceDueDate}
                     disabled={isReservationLocked}
-                    InputLabelProps={{ shrink: true }}
                     onChange={(e) => updateForm({ balanceDueDate: e.target.value })}
                     fullWidth
+                    slotProps={{
+                      inputLabel: { shrink: true }
+                    }}
                   />
                   <Button
                     fullWidth
@@ -279,7 +315,6 @@ export default function FinanceSection() {
                       label="Payé le"
                       type="date"
                       value={form.balancePaidDate || ''}
-                      InputLabelProps={{ shrink: true }}
                       onChange={async (e) => {
                         const v = e.target.value;
                         updateForm({ balancePaidDate: v });
@@ -289,6 +324,9 @@ export default function FinanceSection() {
                       }}
                       fullWidth
                       sx={{ mt: 1.5 }}
+                      slotProps={{
+                        inputLabel: { shrink: true }
+                      }}
                     />
                   )}
                 </Grid>
@@ -336,7 +374,11 @@ export default function FinanceSection() {
                 <Divider />
                 <Box>
                   <Grid container spacing={2} sx={sectionGridSx}>
-                    <Grid item xs={12} md={6}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        md: 6
+                      }}>
                       {/* Red border tant qu'impayé pour signaler le reste à percevoir ; bascule en visuel
                           neutre (= Acompte/Solde payé) une fois le complément encaissé. */}
                       <Box
@@ -375,7 +417,6 @@ export default function FinanceSection() {
                             label="Payé le"
                             type="date"
                             value={form.complementPaidDate || ''}
-                            InputLabelProps={{ shrink: true }}
                             onChange={async (e) => {
                               const v = e.target.value;
                               updateForm({ complementPaidDate: v });
@@ -385,6 +426,9 @@ export default function FinanceSection() {
                             }}
                             fullWidth
                             sx={{ mt: 1.5 }}
+                            slotProps={{
+                              inputLabel: { shrink: true }
+                            }}
                           />
                         )}
                       </Box>
@@ -399,7 +443,11 @@ export default function FinanceSection() {
             <Box>
               <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Caution</Typography>
               <Grid container spacing={1.5} sx={sectionGridSx}>
-                <Grid item xs={12} md={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    md: 6
+                  }}>
                   <Button
                     fullWidth
                     variant={form.cautionReceived ? 'contained' : 'outlined'}
@@ -423,7 +471,6 @@ export default function FinanceSection() {
                     label="Date réception"
                     type="date"
                     value={form.cautionReceivedDate}
-                    InputLabelProps={{ shrink: true }}
                     onChange={(e) => {
                       const selectedDate = e.target.value;
                       updateForm({
@@ -433,9 +480,16 @@ export default function FinanceSection() {
                     }}
                     fullWidth
                     sx={{ mt: 2 }}
+                    slotProps={{
+                      inputLabel: { shrink: true }
+                    }}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    md: 6
+                  }}>
                   <Button
                     fullWidth
                     variant={form.cautionReturned ? 'contained' : 'outlined'}
@@ -459,10 +513,12 @@ export default function FinanceSection() {
                     label="Date restitution"
                     type="date"
                     value={form.cautionReturnedDate}
-                    InputLabelProps={{ shrink: true }}
                     onChange={(e) => updateForm({ cautionReturnedDate: e.target.value })}
                     fullWidth
                     sx={{ mt: 2 }}
+                    slotProps={{
+                      inputLabel: { shrink: true }
+                    }}
                   />
                 </Grid>
               </Grid>

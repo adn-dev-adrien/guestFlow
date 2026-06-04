@@ -399,10 +399,12 @@ export default function ClientsPage() {
               placeholder="Rechercher un client (nom, email, téléphone…)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
               size="small"
               variant="outlined"
               sx={{ flex: 1, minWidth: 260 }}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }
+              }}
             />
             <Button
               variant="outlined"
@@ -449,7 +451,6 @@ export default function ClientsPage() {
           </TableRow>
         ))}
       </DataPageScaffold>
-
       {/* Dialog */}
       <FormDialog
         open={open}
@@ -486,7 +487,6 @@ export default function ClientsPage() {
           </>
         )}
       </FormDialog>
-
       <Dialog open={deleteImpact.open} onClose={closeDeleteImpact} maxWidth="md" fullWidth>
         <DialogTitle>Confirmer la suppression du client</DialogTitle>
         <DialogContent>

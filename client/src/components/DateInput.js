@@ -62,8 +62,9 @@ export default function DateInput({ value, onChange, label, ...props }) {
       onChange={handleChange}
       onBlur={handleBlur}
       placeholder="JJ/MM/AAAA"
-      InputLabelProps={{ shrink: true }}
-      inputProps={{ maxLength: 10, ...props.inputProps }}
-    />
+      slotProps={{
+        htmlInput: { maxLength: 10, ...props.inputProps },
+        inputLabel: { shrink: true }
+      }} />
   );
 }
