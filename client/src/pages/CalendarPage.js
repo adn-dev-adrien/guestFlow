@@ -7,7 +7,6 @@ import CalendarToolbar from '../components/CalendarToolbar';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
 import CalendarDayCell from '../components/CalendarDayCell';
 import CalendarNoteDialog from '../components/CalendarNoteDialog';
-import { PLATFORM_COLORS } from '../constants/platforms';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getDayOccupancyConflictMessage, getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
@@ -380,7 +379,6 @@ export default function CalendarPage() {
         <SyncedPropertyMiniCalendars
           properties={properties}
           reservations={overviewReservations}
-          platformColors={PLATFORM_COLORS}
           title="Calendrier simplifié"
           helperText="Cliquez une date de début puis une date de fin sur un logement pour créer une réservation, ou ouvrez son calendrier complet."
           openPropertyLabel="Ouvrir"

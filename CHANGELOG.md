@@ -5,6 +5,58 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Fixed
+- **Platform colours restored on EVERY calendar surface + the finance
+  summary, with a filesystem invariant test that prevents the
+  regression from re-appearing silently** (2026-06-05). Initial fix
+  caught the three lookups on `MiniPlanningStrip.js`. A second sweep
+  triggered by Adrien's request for full calendar coverage uncovered
+  three more broken surfaces:
+  - `SyncedPropertyMiniCalendars.js` (the dashboard's + simplified
+    calendar's per-property mini strips) — 3 direct
+    `platformColors[platform]` lookups in `buildDayGradient`.
+  - `PropertyCalendarOverview.js` (legacy overview, currently unused
+    in the routing but kept for future) — same pattern.
+  - `pages/FinancePage.js` — 2 `<Chip sx={{ bgcolor: PLATFORM_COLORS[r.platform] }}>`
+    on the finance reservation tables, making every non-direct
+    platform appear with a `bgcolor: undefined` chip.
+  - `pages/PropertyDetail.js` — 5 lookups against
+    `source.platformKey` (lowercase slug, so the chips were
+    visually correct today, but the read shape was fragile).
+
+  **Refactors:**
+  - The 3 calendar components no longer accept a `platformColors`
+    prop. They import `getPlatformColor` directly. Removed the
+    now-dead `platformColors={PLATFORM_COLORS}` prop from
+    `CalendarPage` + `Dashboard`. `buildDayGradient` is exported
+    from `SyncedPropertyMiniCalendars.js` + a new
+    `buildMiniStripDayGradient` is extracted to a top-level pure
+    function in `MiniPlanningStrip.js` so the colour-resolution
+    paths are unit-testable in isolation.
+  - `FinancePage` + `PropertyDetail` switched to
+    `getPlatformColor(…)`; the latter also uses the new
+    `isKnownPlatformKey(platform)` predicate (added to
+    `constants/platforms.js`) for the iCal form's "well-known vs.
+    custom" branch.
+
+  **Tests** (`client/src/__tests__/calendar-platform-colors.test.js`,
+  12 cases):
+  - Pure-function coverage on `getReservationColor` +
+    `buildMiniStripDayGradient` + `buildDayGradient` (synced) — every
+    UpperCamelCase form (`Airbnb`, `Booking`, `Gitedefrance`,
+    `Pitchup`, etc.) lands on its canonical colour, never
+    `DEFAULT_PLATFORM_COLOR`.
+  - **Filesystem invariant**: walks `client/src/**/*.{js,jsx,ts,tsx}`
+    (skipping `constants/platforms.js` + every `__tests__/`) and
+    fails on any direct `PLATFORM_COLORS[dynamicValue]` READ. Writes
+    (the customColors merge in App.js: `PLATFORM_COLORS[key] = color`)
+    are explicitly allowed via a negative lookahead because the key
+    is normalised before assignment. Catches future drift
+    automatically at lint time.
+
+  `platforms.test.js` extended with 3 cases on `isKnownPlatformKey`.
+  Vitest total **210 / 210 green** (195 from the previous step + 12
+  calendar invariants + 3 helper).
+
 - **Platform colours restored on the calendar + `<Select>` round-
   trips correctly after the UpperCamelCase migration**
   (2026-06-05). Two regressions caused by PR #118

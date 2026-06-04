@@ -238,6 +238,47 @@ Tests: `client/src/constants/__tests__/platforms.test.js` (13 cases)
 pins the slug normaliser, every UpperCamelCase reservation form, the
 "Gîtes de France" plural variant + the dropdown invariants.
 
+**2026-06-05 follow-up #2 — every calendar surface + filesystem
+invariant test.** Adrien asked for full coverage on all the
+calendars. The audit found 3 more affected files (the initial fix
+only patched MiniPlanningStrip):
+
+- `SyncedPropertyMiniCalendars.js` + `PropertyCalendarOverview.js`
+  (dashboard + simplified calendar) — direct
+  `platformColors[platform]` lookups in their day-cell gradient
+  functions. The `platformColors` prop was killed; both now import
+  `getPlatformColor` directly, and `CalendarPage` + `Dashboard`
+  dropped the now-dead `platformColors={PLATFORM_COLORS}` prop they
+  used to pass.
+- `pages/FinancePage.js` — 2
+  `<Chip sx={{ bgcolor: PLATFORM_COLORS[r.platform] }}>` on the
+  reservation tables. Same regression shape, same fix.
+- `pages/PropertyDetail.js` — 5 lookups against
+  `source.platformKey` (lowercase slug, so chips were correct
+  today but the access shape was fragile). Refactored to
+  `getPlatformColor` + the new `isKnownPlatformKey(platform)`
+  predicate (added to `constants/platforms.js`).
+
+Two extra refactors land for testability:
+
+- `SyncedPropertyMiniCalendars.buildDayGradient` is exported.
+- `MiniPlanningStrip` gets a new top-level
+  `buildMiniStripDayGradient` pure helper (the previous closure
+  captured `selectedReservationColor` so the colour-resolution
+  path wasn't unit-testable in isolation).
+
+Regression prevention: a filesystem-walk test in
+`client/src/__tests__/calendar-platform-colors.test.js` (12
+cases — pure-function coverage on `getReservationColor` +
+`buildMiniStripDayGradient` + `buildDayGradient` (synced), plus
+the filesystem invariant) walks every `.js` file under
+`client/src/` and fails on any direct `PLATFORM_COLORS[dynamic]`
+READ. Writes (the customColors merge in `App.js`:
+`PLATFORM_COLORS[key] = color`) are explicitly allowed via a
+negative lookahead because the key is normalised before assignment.
+A future drift back to the regression shape now breaks the suite
+automatically at lint time. Vitest total 195 → **210 / 210 green**.
+
 ### 4.3 API contract
 
 No endpoint signature change. The values returned by GET

@@ -6,6 +6,7 @@ import {
   DEFAULT_PLATFORM_COLOR,
   normalizePlatformKey,
   getPlatformColor,
+  isKnownPlatformKey,
 } from '../platforms';
 
 // Regression coverage for the bug reported on 2026-06-05: after the
@@ -84,6 +85,26 @@ describe('getPlatformColor', () => {
     expect(getPlatformColor(null)).toBe(DEFAULT_PLATFORM_COLOR);
     expect(getPlatformColor('')).toBe(DEFAULT_PLATFORM_COLOR);
     expect(getPlatformColor(undefined)).toBe(DEFAULT_PLATFORM_COLOR);
+  });
+});
+
+describe('isKnownPlatformKey', () => {
+  test('any casing of a known platform returns true', () => {
+    expect(isKnownPlatformKey('airbnb')).toBe(true);
+    expect(isKnownPlatformKey('Airbnb')).toBe(true);
+    expect(isKnownPlatformKey('AIRBNB')).toBe(true);
+    expect(isKnownPlatformKey('Gitedefrance')).toBe(true);
+    expect(isKnownPlatformKey('GitesDeFrance')).toBe(true);
+  });
+
+  test('the "direct" enum value is also a known platform (has a colour)', () => {
+    expect(isKnownPlatformKey('direct')).toBe(true);
+  });
+
+  test('unknown / empty input → false', () => {
+    expect(isKnownPlatformKey('Lodgify')).toBe(false);
+    expect(isKnownPlatformKey('')).toBe(false);
+    expect(isKnownPlatformKey(null)).toBe(false);
   });
 });
 

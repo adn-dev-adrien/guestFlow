@@ -59,3 +59,14 @@ export function getPlatformColor(platform) {
   if (!key) return DEFAULT_PLATFORM_COLOR;
   return PLATFORM_COLORS[key] || DEFAULT_PLATFORM_COLOR;
 }
+
+/**
+ * Predicate: is `platform` one of the well-known platforms (with a defined
+ * brand colour)? Slug-normalises the input first so 'Airbnb', 'airbnb' and
+ * 'AIRBNB' all answer `true`. Used by callers that need to distinguish
+ * "iCal source uses a well-known platform" from "custom platform name".
+ */
+export function isKnownPlatformKey(platform) {
+  const key = normalizePlatformKey(platform);
+  return Boolean(key && PLATFORM_COLORS[key]);
+}

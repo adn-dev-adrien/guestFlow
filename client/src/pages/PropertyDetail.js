@@ -13,7 +13,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import SyncIcon from '@mui/icons-material/Sync';
 import AddIcon from '@mui/icons-material/Add';
 import { TIME_OPTIONS } from '../constants/timeOptions';
-import { PLATFORMS, PLATFORM_COLORS } from '../constants/platforms';
+import { PLATFORMS, getPlatformColor, isKnownPlatformKey } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -49,7 +49,7 @@ const EMPTY_ICAL_FORM = {
   platformOption: 'airbnb',
   platformKey: '',
   platformLabel: '',
-  platformColor: PLATFORM_COLORS.airbnb || DEFAULT_ICAL_COLOR,
+  platformColor: getPlatformColor('airbnb') || DEFAULT_ICAL_COLOR,
   isActive: true,
   collectsTouristTax: true, // default true → mirrors legacy "non-direct platforms collect the tax"
 };
@@ -420,14 +420,14 @@ export default function PropertyDetail() {
   };
 
   const startEditIcalSource = (source) => {
-    const isKnown = Boolean(PLATFORM_COLORS[source.platformKey]);
+    const isKnown = isKnownPlatformKey(source.platformKey);
     setIcalForm({
       id: source.id,
       url: source.url || '',
       platformOption: isKnown ? source.platformKey : 'other',
       platformKey: isKnown ? '' : (source.platformKey || ''),
       platformLabel: source.platformLabel || source.platformKey || '',
-      platformColor: source.platformColor || PLATFORM_COLORS[source.platformKey] || DEFAULT_ICAL_COLOR,
+      platformColor: source.platformColor || getPlatformColor(source.platformKey) || DEFAULT_ICAL_COLOR,
       isActive: source.isActive !== 0,
       collectsTouristTax: source.collectsTouristTax !== 0,
     });
@@ -441,7 +441,7 @@ export default function PropertyDetail() {
       url: icalForm.url.trim(),
       platformKey: isOther ? icalForm.platformKey.trim() : icalForm.platformOption,
       platformLabel: isOther ? (icalForm.platformLabel.trim() || icalForm.platformKey.trim()) : icalForm.platformOption,
-      platformColor: isOther ? (icalForm.platformColor || DEFAULT_ICAL_COLOR) : (PLATFORM_COLORS[icalForm.platformOption] || DEFAULT_ICAL_COLOR),
+      platformColor: isOther ? (icalForm.platformColor || DEFAULT_ICAL_COLOR) : (getPlatformColor(icalForm.platformOption) || DEFAULT_ICAL_COLOR),
       isActive: Boolean(icalForm.isActive),
       collectsTouristTax: Boolean(icalForm.collectsTouristTax),
     };
@@ -1000,7 +1000,7 @@ export default function PropertyDetail() {
                       const next = e.target.value;
                       setIcalField('platformOption', next);
                       if (next !== 'other') {
-                        setIcalField('platformColor', PLATFORM_COLORS[next] || DEFAULT_ICAL_COLOR);
+                        setIcalField('platformColor', getPlatformColor(next) || DEFAULT_ICAL_COLOR);
                         setIcalField('platformLabel', next);
                       }
                     }}
@@ -1101,7 +1101,7 @@ export default function PropertyDetail() {
                   </TableHead>
                   <TableBody>
                     {(property.icalSources || []).map((source) => {
-                      const sourceColor = source.platformColor || PLATFORM_COLORS[source.platformKey] || DEFAULT_ICAL_COLOR;
+                      const sourceColor = source.platformColor || getPlatformColor(source.platformKey) || DEFAULT_ICAL_COLOR;
                       return (
                         <TableRow key={source.id}>
                           <TableCell>
