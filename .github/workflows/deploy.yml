@@ -66,14 +66,15 @@ jobs:
       #   run: npm install
 
       - name: ⚛️ Build React client
-        # `GENERATE_SOURCEMAP=false` keeps the un-minified bundle off the prod server. A
-        # publicly-fetched .map file leaks the full module tree, original variable names
-        # and any compile-time constants — gratis recon for any visitor. Spotted in the
-        # 2026-06-01 security audit (finding H1).
+        # Vite (post-CRA migration, specs/cra-to-vite-migration.md) — the
+        # `build.sourcemap = false` flag lives in client/vite.config.js, so no env-var
+        # override is needed here. The output is at `client/dist/` and gets renamed to
+        # `client/build/` by release.sh inside the archive so the Pi PM2 layout stays
+        # backwards compatible.
         run: |
           cd client
           npm install
-          GENERATE_SOURCEMAP=false npm run build
+          npm run build
           cd ..
 
       - name: 📦 Create release archive

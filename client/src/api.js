@@ -1,4 +1,6 @@
-const API = process.env.REACT_APP_API_URL || '/api';
+// Vite injects build-time env vars via `import.meta.env`. CRA's `process.env.REACT_APP_*`
+// equivalents become `VITE_*` (specs/cra-to-vite-migration.md §3.1 rule 6).
+const API = import.meta.env.VITE_API_URL || '/api';
 
 async function request(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -202,7 +204,7 @@ const api = {
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
   getDevisPdfUrl: (id) => `${API}/devis/${id}/pdf`,
   // Fetch the devis PDF as a blob. Uses credentials so the session cookie is sent — required because
-  // REACT_APP_API_URL can be absolute (cross-origin in dev), where a default fetch would omit the cookie.
+  // VITE_API_URL can be absolute (cross-origin in dev), where a default fetch would omit the cookie.
   getDevisPdfBlob: async (id) => {
     const res = await fetch(`${API}/devis/${id}/pdf`, { credentials: 'include' });
     if (!res.ok) throw new Error('Impossible de générer le PDF.');

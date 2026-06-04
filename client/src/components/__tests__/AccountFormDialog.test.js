@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 
 import AccountFormDialog from '../AccountFormDialog';
 
@@ -70,7 +71,7 @@ describe('AccountFormDialog', () => {
 
   test('submit forwards trimmed identity fields + the roles array', async () => {
     const user = userEvent.setup();
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
     renderDialog({ mode: 'create', onSubmit });
 
     await user.type(screen.getByLabelText(/Prénom/), '  Marie ');

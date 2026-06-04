@@ -1,6 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { useReservationForm } from '../ReservationFormContext';
+import { vi } from 'vitest';
 
 function Consumer() {
   useReservationForm();
@@ -8,7 +9,7 @@ function Consumer() {
 }
 
 test('useReservationForm throws a clear error when used outside its provider', () => {
-  const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
   expect(() => render(<Consumer />)).toThrow(
     'useReservationForm must be used within a ReservationFormProvider'
   );

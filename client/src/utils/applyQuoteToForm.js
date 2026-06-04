@@ -97,4 +97,4 @@ function applyQuoteToForm(prev, quote, opts = {}) {
   };
 }
 
-module.exports = { applyQuoteToForm };
+export { applyQuoteToForm };

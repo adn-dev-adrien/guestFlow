@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 /**
  * Regression test for the Commissions plateformes table on AccountingPage:
  *   - Admin: clicking a row navigates to the reservation file.
@@ -13,17 +14,17 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
-jest.mock('../../api', () => ({
+vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getAccountingPlatforms: jest.fn(),
-    getAccountingSales: jest.fn(),
-    downloadAccountingSalesCsv: jest.fn(),
+    getAccountingPlatforms: vi.fn(),
+    getAccountingSales: vi.fn(),
+    downloadAccountingSalesCsv: vi.fn(),
   },
 }));
-jest.mock('../../hooks/useAuth', () => ({
+vi.mock('../../hooks/useAuth', () => ({
   __esModule: true,
-  useAuth: jest.fn(),
+  useAuth: vi.fn(),
 }));
 
 import api from '../../api';
