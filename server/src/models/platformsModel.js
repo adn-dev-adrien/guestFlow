@@ -12,30 +12,30 @@
  */
 
 const db = require('../database');
+const { formatPlatformName } = require('../utils/platformNameFormat');
 
 const DIRECT_NAME = 'direct';
 
 function createPlatformsModel(database) {
   const stmts = {
     listAll: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission, commissionRatePercent
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission
       FROM platforms
       ORDER BY (name = '${DIRECT_NAME}') DESC, name COLLATE NOCASE ASC
     `),
     findByName: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission, commissionRatePercent
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission
       FROM platforms WHERE name = ?
     `),
     findById: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission, commissionRatePercent
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission
       FROM platforms WHERE id = ?
     `),
     upsert: database.prepare("INSERT OR IGNORE INTO platforms (name) VALUES (?)"),
     update: database.prepare(`
       UPDATE platforms
          SET commissionAccountNumber = ?,
-             hasVatOnCommission = ?,
-             commissionRatePercent = ?
+             hasVatOnCommission = ?
        WHERE id = ?
     `),
   };
@@ -52,15 +52,38 @@ function createPlatformsModel(database) {
       if (id == null) return null;
       return stmts.findById.get(Number(id)) || null;
     },
+    // specs/normalize-platform-names.md §3.2 rule 10 — belt-and-suspenders: format the input
+    // even though the model's callers (propertyIcalModel + reservationsModel) already feed a
+    // canonical string. Guards against a future caller that bypasses those hooks.
     upsertByName(name) {
-      const trimmed = String(name || '').trim();
-      if (!trimmed) return null;
-      stmts.upsert.run(trimmed);
-      return stmts.findByName.get(trimmed) || null;
+      const canonical = formatPlatformName(name);
+      if (canonical == null || canonical === '') return null;
+      stmts.upsert.run(canonical);
+      return stmts.findByName.get(canonical) || null;
+    },
+    // Re-run the union INSERT OR IGNORE from `ical_sources.platformLabel` +
+    // `reservations.platform` so any platform that appeared since the last boot/upsert lands on
+    // the dedicated config page. Idempotent: existing rows are untouched. Returns the number
+    // of new platforms inserted so the UI can flash a friendly "+N nouvelles plateformes"
+    // toast on the operator's refresh click.
+    rescan() {
+      const before = database.prepare('SELECT COUNT(*) AS c FROM platforms').get().c;
+      database.exec(`
+        INSERT OR IGNORE INTO platforms (name)
+        SELECT DISTINCT platformLabel FROM ical_sources
+         WHERE platformLabel IS NOT NULL AND platformLabel != ''
+      `);
+      database.exec(`
+        INSERT OR IGNORE INTO platforms (name)
+        SELECT DISTINCT platform FROM reservations
+         WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
+      `);
+      const after = database.prepare('SELECT COUNT(*) AS c FROM platforms').get().c;
+      return Math.max(0, after - before);
     },
     // Guard against editing the Direct row. The spec says Direct fields are server-side
     // ignored — never written. Returns the unchanged row, mirroring update()'s contract.
-    update({ id, commissionAccountNumber, hasVatOnCommission, commissionRatePercent }) {
+    update({ id, commissionAccountNumber, hasVatOnCommission }) {
       const row = stmts.findById.get(Number(id));
       if (!row) return null;
       if (row.name === DIRECT_NAME) return row;
@@ -68,10 +91,7 @@ function createPlatformsModel(database) {
         ? null
         : String(commissionAccountNumber);
       const hasVat = hasVatOnCommission === true || Number(hasVatOnCommission) === 1 ? 1 : 0;
-      const rate = commissionRatePercent == null || commissionRatePercent === ''
-        ? null
-        : Number(commissionRatePercent);
-      stmts.update.run(account, hasVat, rate, Number(id));
+      stmts.update.run(account, hasVat, Number(id));
       return stmts.findById.get(Number(id));
     },
   };

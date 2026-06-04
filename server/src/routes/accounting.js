@@ -17,5 +17,8 @@ router.get('/platforms', controller.platformsPreview);
 // accountant role guard in middleware/enforceRoleAccess.js.
 router.get('/platform-accounts', platformAccountsController.getAll);
 router.put('/platform-accounts', platformAccountsController.saveAll);
+// Operator-triggered rescan: re-runs the union INSERT OR IGNORE from `ical_sources` +
+// `reservations.platform` so a brand-new platform name surfaces without a server restart.
+router.post('/platform-accounts/refresh', platformAccountsController.refresh);
 
 module.exports = router;

@@ -16,8 +16,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT,
-    hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-    commissionRatePercent REAL
+    hasVatOnCommission INTEGER NOT NULL DEFAULT 0
   );
 `;
 
@@ -64,11 +63,9 @@ test('update writes the per-platform config + leaves Direct untouched (rule 18)'
     id: gdf.id,
     commissionAccountNumber: '62260500',
     hasVatOnCommission: 1,
-    commissionRatePercent: 9.5,
   });
   assert.equal(updated.commissionAccountNumber, '62260500');
   assert.equal(updated.hasVatOnCommission, 1);
-  assert.equal(updated.commissionRatePercent, 9.5);
 
   // Direct row: write is silently dropped — returns the unchanged row.
   const direct = model.findByName('direct');
@@ -76,11 +73,9 @@ test('update writes the per-platform config + leaves Direct untouched (rule 18)'
     id: direct.id,
     commissionAccountNumber: '99999999',
     hasVatOnCommission: 1,
-    commissionRatePercent: 50,
   });
   assert.equal(direct2.commissionAccountNumber, null);
   assert.equal(direct2.hasVatOnCommission, 0);
-  assert.equal(direct2.commissionRatePercent, null);
 });
 
 test('upsertByName ignores empty / whitespace-only names', () => {
@@ -97,4 +92,36 @@ test('listAll order: Direct first, then platforms sorted case-insensitively', ()
   const names = model.listAll().map((r) => r.name);
   assert.equal(names[0], 'direct');
   assert.deepEqual(names.slice(1), ['aardvark', 'Beta', 'Zoo']);
+});
+
+test('rescan unions ical_sources + reservations.platform (idempotent, returns inserted count)', () => {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE ical_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, platformLabel TEXT NOT NULL DEFAULT '');
+    CREATE TABLE reservations (id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT);
+    CREATE TABLE platforms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      commissionAccountNumber TEXT,
+      hasVatOnCommission INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+  db.prepare('INSERT INTO ical_sources (platformLabel) VALUES (?)').run('Airbnb');
+  db.prepare('INSERT INTO ical_sources (platformLabel) VALUES (?)').run('Booking');
+  db.prepare('INSERT INTO reservations (platform) VALUES (?)').run('Airbnb');     // duplicate of iCal label
+  db.prepare('INSERT INTO reservations (platform) VALUES (?)').run('Greengo');    // new platform via manual reservation
+  db.prepare('INSERT INTO reservations (platform) VALUES (?)').run('direct');     // excluded (case-insensitive)
+  db.prepare('INSERT INTO reservations (platform) VALUES (?)').run('Direct');     // excluded
+  db.prepare('INSERT INTO reservations (platform) VALUES (?)').run('');           // excluded (empty)
+  db.prepare("INSERT INTO platforms (name) VALUES ('direct')").run();
+  const model = platformsModel.create(db);
+
+  const inserted = model.rescan();
+  // 3 new rows: Airbnb, Booking (iCal), Greengo (reservation). 'direct' and empty skipped.
+  assert.equal(inserted, 3);
+  const names = model.listAll().map((p) => p.name).sort();
+  assert.deepEqual(names, ['Airbnb', 'Booking', 'Greengo', 'direct']);
+
+  // Re-run: idempotent, returns 0.
+  assert.equal(model.rescan(), 0);
 });

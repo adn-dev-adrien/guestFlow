@@ -9,6 +9,7 @@
 
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
+const { formatPlatformName } = require('../utils/platformNameFormat');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature } = require('../utils/reservationAudit');
 const { computePaymentStatus } = require('../utils/paymentStatus');
@@ -449,11 +450,15 @@ function createReservationsModel(database) {
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
         clientGrossAmount, depositDisabled, touristTaxInComplement } = payload;
+      // specs/normalize-platform-names.md §3.2 rule 9 — `reservations.platform` is normalized
+      // to UpperCamelCase here so direct DB queries (`SELECT DISTINCT platform`) yield a
+      // case-uniform set. The 'direct' enum stays lowercase (formatPlatformName preserves it).
+      const platformNormalized = formatPlatformName(platform) || 'direct';
       // accounting-platform-commission-and-no-deposit.md §3.2 rule 4: `clientGrossAmount`
       // is populated on every reservation now. For platforms = the operator-typed gross;
       // for directs = `finalPrice` (since gross === net trivially). This homogenises the
       // shape so the accounting engine doesn't have to special-case NULLs.
-      const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
+      const platformIsNonDirect = String(platformNormalized).toLowerCase() !== 'direct';
       const grossForPlatform = platformIsNonDirect
         ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : null)
         : Number(quote.finalPrice || 0);
@@ -470,7 +475,7 @@ function createReservationsModel(database) {
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
         checkInTime || '15:00', checkOutTime || '10:00',
-        platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
+        platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
         quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null, quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null, sentenceCase(notes),
@@ -492,7 +497,9 @@ function createReservationsModel(database) {
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
         extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate,
         depositDisabled, touristTaxInComplement } = payload;
-      const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
+      // specs/normalize-platform-names.md §3.2 rule 9 — same canonicalization as insertReservation.
+      const platformNormalized = formatPlatformName(platform) || 'direct';
+      const platformIsNonDirect = String(platformNormalized).toLowerCase() !== 'direct';
       const grossForPlatform = platformIsNonDirect
         ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : null)
         : Number(quote.finalPrice || 0);
@@ -512,7 +519,7 @@ function createReservationsModel(database) {
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
         checkInTime || '15:00', checkOutTime || '10:00',
-        platform || 'direct', quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
+        platformNormalized, quote.totalPrice, quote.touristTaxRate || 0, quote.touristTaxTotal || 0, quote.discountPercent || 0,
         customPrice !== undefined && customPrice !== null && customPrice !== '' ? Number(customPrice) : null,
         quote.finalPrice,
         quote.depositAmount || 0, quote.depositDueDate || depositDueDate || null,

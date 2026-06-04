@@ -21,6 +21,10 @@ function createController(platformAccountsModel) {
       }
       return res.json(result.data);
     },
+    refresh(req, res) {
+      const { newCount, data } = platformAccountsModel.refresh();
+      return res.json({ ...data, newCount });
+    },
   };
 }
 
