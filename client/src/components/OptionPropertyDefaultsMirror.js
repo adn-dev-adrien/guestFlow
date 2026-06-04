@@ -67,7 +67,7 @@ export default function OptionPropertyDefaultsMirror({ optionId, form }) {
       </FormHelperText>
 
       {loading && (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ py: 1, alignItems: 'center' }}>
           <CircularProgress size={16} />
           <Typography variant="body2" color="text.secondary">Chargement…</Typography>
         </Stack>

@@ -155,7 +155,7 @@ export default function PropertyDefaultOptionsCard({ propertyId, options, onErro
                         : Number(opt.countsAsBedLinen) === 1 ? 'Linge de lit' : 'Linge de toilette'}
                     </Typography>
                   </Box>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} alignItems="center">
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} sx={{ alignItems: 'center' }}>
                     <FormControlLabel
                       control={(
                         <Switch

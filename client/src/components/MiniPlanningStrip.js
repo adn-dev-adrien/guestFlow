@@ -177,7 +177,7 @@ export default function MiniPlanningStrip({
   return (
     <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+        <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
           {miniDays.length > 0 && (() => {
             const firstDate = parseDate(miniDays[0]);
             const lastDate = parseDate(miniDays[miniDays.length - 1]);
