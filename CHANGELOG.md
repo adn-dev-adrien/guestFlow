@@ -38,9 +38,22 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     no-quote callers (existing tests, ad-hoc invocations) keep the historical
     row-derived behaviour — additive `quote` parameter, no breaking signature
     change.
+  - **Tourist-tax TOTAL line + grand TOTAL TTC stayed stale after a partial fix.**
+    Follow-up to the same PR: the first round routed only the *detail string*
+    through the engine quote but kept the displayed "Taxe de séjour" total line
+    and the "TOTAL TTC" grand total on the persisted `full.touristTaxTotal` /
+    `full.finalPrice`. Concrete user-reported case: PDF showed `Taxe de séjour
+    15,36 €` while PricingSummary showed `16,80 €` on the same reservation
+    (percentage tax + 10 % department surcharge). New pure helper
+    `resolveLiveTaxTotals(full, quote)` in `utils/devisPdf.js` owns the
+    resolution: live quote wins when provided, row is the legacy fallback,
+    `quote.touristTaxTotal = 0` keeps the row (engine "didn't compute"), and
+    `quote.finalPrice = 0` is honoured (offered stay). Pinned by 5 new invariant
+    cases in `tests/devis-pdf-date-validity-tax.unit.test.js` (consistency
+    invariant block). Spec §3.4 rule 20 added.
 
   **Non-regression coverage** (per user's explicit request): 4 new server unit
-  test files, 24 cases, **898 / 898** server suite green.
+  test files, 29 cases, **899 / 899** server suite green.
   - `tests/devis-model-createdAt-validUntil.unit.test.js` (6 cases): explicit
     `createdAt` binding, `validUntil` formula, the `startDate - 2` cap, the legacy
     backfill on `update`, the persisted-override-wins case, and
@@ -50,10 +63,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - `tests/reservations-controller-property-defaults.unit.test.js` (4 cases):
     symmetric coverage on the reservations side via a controller-level test that
     mocks the engine + model surface.
-  - `tests/devis-pdf-date-validity-tax.unit.test.js` (10 cases): the
+  - `tests/devis-pdf-date-validity-tax.unit.test.js` (15 cases): the
     `computeValidUntil` helper + a PDF render smoke per scenario the spec lists
     (PDFKit's content streams are FlateDecode-compressed, so byte-level inspection
-    isn't reliable; the helper coverage + render smoke are the right shape).
+    isn't reliable; the helper coverage + render smoke are the right shape) + 5
+    consistency-invariant cases on `resolveLiveTaxTotals` pinning the live-quote-
+    vs-row resolution (incl. the user's exact 15,36 € / 16,80 € regression).
 
   **Forward-only**: no backfill SQL for the existing rows with bad/empty data.
   The defensive guards in `devisPdf.js` and the `update`-time `validUntil`

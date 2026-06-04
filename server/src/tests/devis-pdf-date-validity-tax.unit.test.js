@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { generateDevisPdf } = require('../utils/devisPdf');
+const { generateDevisPdf, __test: { resolveLiveTaxTotals } } = require('../utils/devisPdf');
 const { __test: { computeValidUntil } } = require('../models/devisModel');
 
 // Non-regression coverage for specs/devis-pdf-and-tourist-tax-fixes.md.
@@ -91,4 +91,59 @@ test('rule 16 fallback: quote omitted → falls back to row-derived without thro
 test('rule 18: touristTaxTotal = 0 → skip block without throwing', async () => {
   const buf = await generateDevisPdf(sampleDevis({ touristTaxTotal: 0 }), { quoteValidityDays: 30 });
   await assertValidPdf(buf);
+});
+
+// ── Consistency invariant — the PDF's tourist tax + grand total MUST match the engine
+// quote (= PricingSummary) when one is provided. Pins the regression behind PR #112:
+// percentage-based tax with a department surcharge would persist 15.36€ on the row but
+// the live engine returns 16.80€ — the PDF must show the live figure, not the row. ───
+//
+// Walkthrough of the user's report:
+//   summary: (227.27EUR HT/nuit ÷ 12 occupants) × 5% × 1.10 dep = 1.05€/adulte/nuit
+//            → 1.05 × 8 adultes × 2 nuits = 16.80€
+//   PDF before fix: 8 × 2 × 0.96 = 15.36€ (no department surcharge in the row total)
+
+test('invariant: PDF tax total mirrors quote.touristTaxTotal when row drifts (user-report scenario)', () => {
+  const full = { touristTaxTotal: 15.36, finalPrice: 1000, touristTaxRate: 0.05 };
+  const quote = { touristTaxTotal: 16.80, touristTaxUnitAmount: 1.05, touristTaxAdultsCount: 8, touristTaxNights: 2, finalPrice: 1000 };
+  const out = resolveLiveTaxTotals(full, quote);
+  assert.equal(out.liveTaxTotal, 16.80);
+  assert.equal(out.liveFinalPrice, 1000);
+  // Grand total must include the LIVE tax, not the stale 15.36 — otherwise the PDF totals
+  // would diverge from PricingSummary by exactly the department surcharge (1.44€ here).
+  assert.equal(out.grandTotalTtc, 1016.80);
+});
+
+test('invariant: quote.finalPrice overrides full.finalPrice (engine is the source of truth)', () => {
+  const full = { touristTaxTotal: 6, finalPrice: 900 }; // stale
+  const quote = { touristTaxTotal: 6, finalPrice: 1000 };
+  const out = resolveLiveTaxTotals(full, quote);
+  assert.equal(out.liveFinalPrice, 1000);
+  assert.equal(out.grandTotalTtc, 1006);
+});
+
+test('fallback: no quote → persisted row values drive the totals (legacy callsite)', () => {
+  const full = { touristTaxTotal: 6, finalPrice: 900 };
+  const out = resolveLiveTaxTotals(full, null);
+  assert.equal(out.liveTaxTotal, 6);
+  assert.equal(out.liveFinalPrice, 900);
+  assert.equal(out.grandTotalTtc, 906);
+});
+
+test('fallback: quote with zero tax → row value wins (engine reported no tax this time)', () => {
+  // touristTaxTotal=0 in the quote currently means "engine didn't compute it"; keep the
+  // row as the safer fallback to avoid silently zeroing a known-correct persisted tax.
+  const full = { touristTaxTotal: 6, finalPrice: 900 };
+  const quote = { touristTaxTotal: 0, finalPrice: 900 };
+  const out = resolveLiveTaxTotals(full, quote);
+  assert.equal(out.liveTaxTotal, 6);
+});
+
+test('quote.finalPrice = 0 is honoured (not treated as missing)', () => {
+  // An offered stay has finalPrice = 0 — must not silently fall back to the row.
+  const full = { touristTaxTotal: 0, finalPrice: 900 };
+  const quote = { touristTaxTotal: 0, finalPrice: 0 };
+  const out = resolveLiveTaxTotals(full, quote);
+  assert.equal(out.liveFinalPrice, 0);
+  assert.equal(out.grandTotalTtc, 0);
 });

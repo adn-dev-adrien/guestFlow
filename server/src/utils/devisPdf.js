@@ -12,6 +12,22 @@ const {
   timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
 } = require("./devisHelpers");
 
+// §3.4 rules 15–18 — single source of truth for the tax + grand-total numbers the PDF
+// renders. When the engine quote is provided, every figure flows from it; without a quote
+// we read the persisted row (legacy fallback for devis whose engine call fails). Exported
+// so the consistency invariant — "PDF total equals PricingSummary total" — can be tested
+// without rendering and parsing the FlateDecode-compressed PDF stream.
+function resolveLiveTaxTotals(full, quote) {
+  const liveTaxTotal = quote && Number(quote.touristTaxTotal || 0) > 0
+    ? Number(quote.touristTaxTotal)
+    : Number(full.touristTaxTotal || 0);
+  const liveFinalPrice = quote && quote.finalPrice != null
+    ? Number(quote.finalPrice)
+    : Number(full.finalPrice || 0);
+  const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
+  return { liveTaxTotal, liveFinalPrice, grandTotalTtc };
+}
+
 function generateDevisPdf(full, settings, quote) {
   return new Promise((resolve, reject) => {
   const property = full.property;
@@ -468,14 +484,14 @@ function generateDevisPdf(full, settings, quote) {
   drawTotalLine('Sous-total HT', subtotalHt, false);
   const subtotalTtc = roundMoney(subtotalTtcFromRows);
   drawTotalLine('Sous-total TTC', subtotalTtc, false);
-  // §3.4 rules 15–18 — Tourist tax detail string. When the engine quote is provided
-  // (devisController.pdf passes it post-fix), the breakdown mirrors PricingSummary:
-  //   {adultsCount} pers. × {nights} nuit(s) × {unitAmount} / pers./nuit.
-  // Without the quote (legacy callers / tests that don't pass it), we fall back to the
-  // historical persisted-row computation, knowing it's wrong for percentage-based tax
-  // but acceptable for the no-quote callsite.
-  if (Number(full.touristTaxTotal || 0) > 0) {
-    drawTotalLine('Taxe de séjour', full.touristTaxTotal, false);
+  // §3.4 rules 15–18 — Tourist tax + grand total flow through `resolveLiveTaxTotals` so
+  // the PDF stays consistent with PricingSummary even when the persisted row drifts (e.g.
+  // user changed pricing then re-printed without updating the row). Mixing live + persisted
+  // here is what caused the user-reported PDF/summary drift (16.80€ summary vs. 15.36€ PDF
+  // on percentage-based tax with department surcharge).
+  const { liveTaxTotal, liveFinalPrice } = resolveLiveTaxTotals(full, quote);
+  if (liveTaxTotal > 0) {
+    drawTotalLine('Taxe de séjour', liveTaxTotal, false);
     let taxablePersons;
     let taxNights;
     let taxUnitLabel;
@@ -497,7 +513,7 @@ function generateDevisPdf(full, settings, quote) {
   }
 
   // Total line
-  const grandTotalTtc = roundMoney(Number(full.finalPrice || 0) + Number(full.touristTaxTotal || 0));
+  const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
     .text('TOTAL TTC', TOTAL_RX - 4, totY + 4, { width: 120 });
@@ -602,4 +618,4 @@ function generateDevisPdf(full, settings, quote) {
   });
 }
 
-module.exports = { generateDevisPdf };
+module.exports = { generateDevisPdf, __test: { resolveLiveTaxTotals } };

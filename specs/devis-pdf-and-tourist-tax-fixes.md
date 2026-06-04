@@ -158,6 +158,23 @@ each of these lives on the server — no UI-side calculation.
     through can land in a follow-up if the demo reveals a need.
 19. **No schema change** is required — the engine outputs the breakdown each time. The
     PDF doesn't persist breakdown fields.
+20. **Consistency invariant — tax total + grand total must mirror the engine quote.**
+    When the engine quote is provided, both the displayed "Taxe de séjour" line *and*
+    the TOTAL TTC line are sourced from `quote.touristTaxTotal` + `quote.finalPrice` —
+    never from the persisted `full.touristTaxTotal` / `full.finalPrice`, which may
+    have drifted (e.g. user edited pricing then re-printed without saving). The
+    pure helper `resolveLiveTaxTotals(full, quote)` (in `utils/devisPdf.js`) owns
+    this resolution and is unit-tested. Fallbacks: no quote → row values; quote
+    provided with `touristTaxTotal = 0` → row value wins (treated as "engine didn't
+    compute"); `quote.finalPrice = 0` IS honoured (offered stay). Pinned by
+    `tests/devis-pdf-date-validity-tax.unit.test.js` invariant block.
+
+    *Bug context:* the user reported PDF tax = 15,36 € while PricingSummary showed
+    16,80 € on the same reservation (percentage-based tax with a 10 % department
+    surcharge). Root cause: the first fix wired the *detail string* through the
+    engine but kept the displayed total + grand total on the persisted row, so the
+    PDF said "8 pers. × 2 nuits × 1,05 € / pers./nuit" → 16,80 € in the detail but
+    "Taxe de séjour 15,36 €" on the total line above it (internal contradiction).
 
 **Edge cases:**
 
@@ -240,7 +257,7 @@ No UI change beyond the PDF output itself. The user sees:
 | `tests/devis-model-property-defaults.unit.test.js` (C) | (1) `create` merges property default options not in the payload. (2) Default option already present in the payload → no duplicate. (3) No property defaults configured → behaviour unchanged. (4) Default offered flag is propagated. | Rules 11–13. |
 | `tests/reservations-controller-property-defaults.unit.test.js` (C) | Same shape as the devis test, for the reservation path. Pins rule 13. | Rule 13. |
 | `tests/devis-pdf-date-and-validity.unit.test.js` (C) | (1) Empty `full.createdAt` → "Date du devis" defaults to today. (2) Empty `full.validUntil` → recomputed from `createdAt + quoteValidityDays`. (3) `validUntil` capped at `startDate - 2`. (4) Both populated → strings round-trip via `formatDateFR`. | Rules 4 + 9 + cap. |
-| `tests/devis-pdf-tourist-tax-from-quote.unit.test.js` (C) | (1) Quote provided → detail string uses `touristTaxUnitAmount × adultsCount × nights`. (2) Quote omitted → legacy behaviour. (3) `touristTaxTotal = 0` → no detail block. | Rules 15–18. |
+| `tests/devis-pdf-date-validity-tax.unit.test.js` (C) | (1) `computeValidUntil` helper unit cases (rules 6 + 9 + cap). (2) PDF render smoke per scenario (rules 4, 9, 16, 18) — assert the magic header + a non-trivial buffer size. (3) **Consistency invariant** via `resolveLiveTaxTotals(full, quote)`: live tax total + grand total mirror `quote.touristTaxTotal` / `quote.finalPrice` when provided, fall back to row values otherwise, treat `touristTaxTotal = 0` in the quote as "engine didn't compute" (row wins), honour `quote.finalPrice = 0` (offered stay). | Rules 4, 6, 9, 15–18, **20**. |
 
 These tests focus on the model + the utility — not the live PDF render (PDFs are
 binary; we assert the inputs the renderer would receive and the strings the renderer
