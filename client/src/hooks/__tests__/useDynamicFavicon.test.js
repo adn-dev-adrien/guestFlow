@@ -1,13 +1,14 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 
-jest.mock('../../api', () => ({
+vi.mock('../../api', () => ({
   __esModule: true,
-  default: { getSettings: jest.fn() },
+  default: { getSettings: vi.fn() },
 }));
-jest.mock('../../utils/setFavicon', () => ({
+vi.mock('../../utils/setFavicon', () => ({
   __esModule: true,
-  setFavicon: jest.fn(),
+  setFavicon: vi.fn(),
 }));
 
 import api from '../../api';

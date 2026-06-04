@@ -74,6 +74,63 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   The defensive guards in `devisPdf.js` and the `update`-time `validUntil`
   backfill mean legacy devis still render correctly on the next reopen.
 
+### Changed
+- **Client build stack: Create React App → Vite** (spec `cra-to-vite-migration.md`,
+  2026-06-04). The biggest single change since `V02.01.00`. Replaces `react-scripts`
+  with `vite ^7` + `@vitejs/plugin-react` for the build/dev server, and migrates the
+  test runner from Jest (via `react-scripts test`) to `vitest ^3`. All 19 existing
+  client unit test files (144 cases) ported and stay green; the E2E smoke suite from
+  PR #110 stays green and identical (**18 passed / 1 skipped / 0 failed**) — the
+  migration's primary acceptance criterion per spec §7.1.
+
+  Measured wins:
+  - `npm audit` on the client tree: **42 vulnerabilities → 0 in production deps**.
+    A single critical remains in `vitest` itself (CVE on its UI server which we
+    NEVER expose — Vitest only runs in CI / locally). Down from 19 high / 14
+    moderate / 9 low.
+  - Production build wall time: **~40 s → 2 s** (Vite + Rollup + esbuild).
+  - Dev server boot: **~30 s → ~1 s** (esbuild pre-bundling).
+  - `npm warn deprecated` count on install: **~25 → 2** (the remaining two are
+    `@mui/base@5.0.0-dev` and `recharts@2` — both unrelated to the build stack and
+    addressable when those libraries are upgraded).
+
+  Migration shape (single PR):
+  - `client/`: `react-scripts` removed; `vite` + `@vitejs/plugin-react` + `vitest` +
+    `jsdom` added. New `client/vite.config.js` + `client/vitest.config.js`. The
+    HTML entry moves from `client/public/index.html` to `client/index.html` (Vite
+    convention); `%PUBLIC_URL%` references resolve to `/` now.
+  - `client/src/api.js`: `process.env.REACT_APP_API_URL` → `import.meta.env.VITE_API_URL`.
+  - `client/src/utils/applyQuoteToForm.js`: lone CJS `module.exports = ...` →
+    `export { ... }` (Vite's strict ESM caught it; CRA tolerated via Babel interop).
+  - All 19 client tests + the shared `mockReservationForm.js` fixture: `jest.*` →
+    `vi.*` calls + `import { vi } from 'vitest'`. `DevisPage.test.js` got the proper
+    `vi.hoisted()` + `vi.importActual` pattern for hoisted mock-with-state cases.
+    `StaySection.test.js` got the explicit `{ default: ... }` factory wrapper Vitest
+    needs (Jest auto-wrapped a raw return).
+  - `client/src/setupTests.js`: unchanged in spirit — auto-loads
+    `@testing-library/jest-dom`; the temporary `globalThis.jest = vi` shim used
+    during the porting was removed once every test file was converted.
+  - `release.sh`: build path `client/build` → `client/dist`. The release archive
+    still ships the bundle at `client/build/` (rename happens during `rsync`) so
+    the Pi PM2 deploy layout stays backwards compatible.
+  - `.github/workflows/deploy.yml`: drops `GENERATE_SOURCEMAP=false` env (now lives
+    inside `vite.config.js` as `build.sourcemap = false`).
+  - `README.md`: 3 mentions updated for Vite.
+  - `.gitignore`: adds `client/dist/`.
+
+  **Build output security posture preserved**: no sourcemaps in prod
+  (`build.sourcemap = false`), zero inline runtime scripts (Vite's default — keeps
+  the `script-src 'self'` CSP from PR #91), same proxy / cookie behaviour, same
+  Pi deploy layout.
+
+  **Out of scope** (each is its own future project, listed in spec §8): React
+  18 → 19, MUI 5 → 9, react-router 6 → 7, TypeScript adoption, PWA. None of these
+  is blocked by build tooling any more — Vite supports all of them.
+
+  **Rollback** if needed: the tag `V02.01.00` snapshots the pre-migration master.
+  `git push origin V02.01.00:release` redeploys the legacy CRA build with zero
+  schema migration to undo (none happened).
+
 ### Added
 - **E2E smoke suite with Playwright** — Wave 1 (spec
   `e2e-playwright-smoke-suite.md`, 2026-06-04). Phase 0 of the upcoming CRA → Vite

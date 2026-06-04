@@ -4,8 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import StaySection from '../StaySection';
 import { makeMockContext } from '../mockReservationForm';
+import { vi } from 'vitest';
 
-jest.mock('../../MiniPlanningStrip', () => () => <div data-testid="mini-planning-strip" />);
+// Vitest factory must return an object with `default` for default-export modules
+// (Jest auto-wrapped a raw function return; Vitest doesn't).
+vi.mock('../../MiniPlanningStrip', () => ({ default: () => <div data-testid="mini-planning-strip" /> }));
 
 function renderStay(overrides) {
   const ctx = makeMockContext(overrides);
