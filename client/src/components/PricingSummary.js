@@ -146,6 +146,12 @@ export default function PricingSummary({
   const isTouristTaxCollectedOnArrival = Boolean(quote?.touristTaxCollectedOnArrival);
   const touristTaxDisplayedAmount = isTouristTaxOffered ? touristTaxOriginalTotal : touristTaxTotal;
 
+  // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
+  // extras line is server-forced to inComplement = 1. The per-line <ComplementChip> here is
+  // therefore meaningless (no toggle to expose) and is hidden. The "Offert/Offrir" button
+  // stays — a geste commercial works the same on platform and direct reservations.
+  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+
   return (
     <Box
       sx={{
@@ -373,10 +379,15 @@ export default function PricingSummary({
                   </Box>
                 );
 
+                // Platform reservations: server forces inComplement = 1 on save. The chip
+                // disappears here so the operator never sees a meaningless toggle, but the
+                // numerical routing through `split` stays correct because ReservationPage feeds
+                // an `inComplement: true` flag through `quoteInput` on platform reservations
+                // (specs/force-extras-complement-on-platform.md §3 rule 4).
                 if (split.kind === 'forced') {
                   return (
                     <Box key={baseKey}>
-                      {renderRow({ label: baseLabel, amount: split.delta, chip: 'on', withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: isPlatformReservation ? null : 'on', withOfferedToggle: true })}
                     </Box>
                   );
                 }
@@ -384,13 +395,13 @@ export default function PricingSummary({
                   return (
                     <Stack key={baseKey} spacing={0.5}>
                       {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: true })}
-                      {renderRow({ label: baseLabel, amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: isPlatformReservation ? null : 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
                 return (
                   <Box key={baseKey}>
-                    {renderRow({ label: baseLabel, amount: total, chip: isOffered ? null : 'off', withOfferedToggle: true })}
+                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || isPlatformReservation) ? null : 'off', withOfferedToggle: true })}
                   </Box>
                 );
               })}
@@ -469,18 +480,20 @@ export default function PricingSummary({
                   </Box>
                 );
 
+                // Same platform-hide-chip rule as the options block above
+                // (specs/force-extras-complement-on-platform.md §3 rule 4).
                 if (split.kind === 'forced') {
-                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: true })}</Box>;
+                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: isPlatformReservation ? null : 'on', withOfferedToggle: true })}</Box>;
                 }
                 if (split.kind === 'split') {
                   return (
                     <Stack key={sr.resourceId} spacing={0.5}>
                       {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: true })}
-                      {renderRow({ amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
+                      {renderRow({ amount: split.delta, chip: isPlatformReservation ? null : 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
-                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: true })}</Box>;
+                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: (isOffered || isPlatformReservation) ? null : 'off', withOfferedToggle: true })}</Box>;
               })}
             </>
           )}

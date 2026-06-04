@@ -1572,6 +1572,28 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- FORCE EXTRAS TO COMPLÉMENT ON PLATFORM RESERVATIONS ----------
+// specs/force-extras-complement-on-platform.md §3 rule 6. One-shot migration: every
+// extra line (`reservation_options`, `reservation_custom_options`, `reservation_resources`)
+// attached to a non-direct platform reservation is forced to `inComplement = 1` with
+// both contribs nulled. From this boot onwards, the reservationsModel enforces the same
+// invariant on every write — see `replaceOptions` / `replaceCustomOptions` /
+// `replaceResources`. Idempotent via `migrations.force_extras_complement_on_platform_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'force_extras_complement_on_platform_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runForceExtrasComplementOnPlatform } = require('./utils/forceExtrasComplementOnPlatformMigration');
+    const tx = db.transaction(() => {
+      const { affectedReservations, affectedLines } = runForceExtrasComplementOnPlatform(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:force-extras-complement-on-platform] migrated ${affectedLines} extra line(s) across ${affectedReservations} reservation(s)`);
+    });
+    tx();
+  }
+}
+
 const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
 ensureDefaultBedLinenOption(db);
 db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;

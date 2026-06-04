@@ -5,6 +5,74 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Changed
+- **Extras on platform reservations always routed to Complément**
+  (spec `force-extras-complement-on-platform.md`, 2026-06-04). Sister
+  rule to PR #116 (no deposit on platforms): the platform's single
+  bank transfer covers the base stay = Solde, but any baby bed,
+  late check-out surcharge, ménage extra or resource line is paid
+  **directly by the guest on site** = Complément. Today the operator
+  has to remember to flip the per-line "Compl." toggle on every
+  extra of every platform reservation; this PR moves the rule to
+  the server-authoritative side and lets the UI hide the toggle
+  entirely.
+
+  **Two halves to the fix:**
+
+  - **Write-time forcing** in `reservationsModel` (`isPlatformNonDirect`
+    + `readPlatformForcing` helpers): every extra line written via
+    `replaceOptions`, `insertOptions`, `insertCustomOptions`,
+    `insertResourceLine` is OR'd with the reservation's just-persisted
+    `platform` value within the same transaction. Non-direct platforms
+    → `inComplement = 1` forced + both contribs nulled, regardless of
+    what the payload says. Same channel covers auto-options (they flow
+    through `optionLines`).
+
+  - **One-shot boot migration** (gated by
+    `migrations.force_extras_complement_on_platform_v1`,
+    `utils/forceExtrasComplementOnPlatformMigration.js`): for every
+    reservation with a non-direct platform, UPDATE the 3 extras
+    tables to set `inComplement = 1` + null both contribs `WHERE`
+    inComplement = 0. The `WHERE` guard makes it idempotent — a
+    second boot reports 0 affected. Captured acompte contribs on
+    platform extras (rare legacy data) trigger a one-line warn log
+    per affected reservation/table so the operator can spot-check
+    the next monthly export. Mirrors the
+    `normalizePlatformNamesMigration` extraction pattern for
+    testability.
+
+  **Frontend mirror:** `ExtrasSection` derives `isPlatformReservation`
+  from `form.platform` and hides the 4 per-line "Compl." Checkbox
+  blocks (property options, auto-options, custom options, resources),
+  replacing them with a single muted caption:
+  *"Réservation plateforme — les extras sont automatiquement facturés
+  en paiement complémentaire."* `PricingSummary` mirrors the
+  derivation and hides every per-line `<ComplementChip>` — but the
+  **"Offrir / ✓ Offert"** Button stays visible and interactive on
+  every line. An operator can always make a geste commercial on an
+  extra, regardless of whether the booking came via a platform; the
+  "Offrir" code path is untouched. `ReservationPage`'s `quoteInput`
+  useMemo projects `inComplement: 1` on every entry of the three
+  extras arrays + unions the catalog's auto-enabled option ids into
+  `autoOptionsInComplement` when on a platform — keeps the live
+  preview consistent with what the server writes on save without
+  mutating form state (operators keep their toggle choices intact if
+  they switch back to direct mid-edit).
+
+  **Tests:** +12 server unit cases (6 migration + 6 model write-time
+  forcing) + 7 Vitest cases (4 ExtrasSection + 3 PricingSummary).
+  Server suite stays green minus the same parallel-runner flake from
+  PR #116/#118 that clears in isolation; Vitest 189/189; E2E
+  18/1 skip/0 fail; client build 464.29 kB gzip (within budget).
+
+  **Risk:** past CSV exports for platform reservations with
+  pre-existing options/resources will surface those extras in the
+  **Complément** entry instead of in the **Solde** entry, starting at
+  the next boot after deploy. Accepted (same risk family as PR #116).
+  Operators who want to compare against the previous shape should
+  snapshot the DB before deploy. Escape valve to re-run / inspect:
+  `DELETE FROM migrations WHERE name =
+  'force_extras_complement_on_platform_v1'` + restart.
+
 - **Platform names — UpperCamelCase canonical form everywhere** (spec
   `normalize-platform-names.md`, 2026-06-04). Follow-up to PR #116 which
   extended the platforms list to a union of `ical_sources.platformLabel` +

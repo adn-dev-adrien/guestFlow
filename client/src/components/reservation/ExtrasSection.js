@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Box, Card, CardContent, Typography, Stack, Divider, Button, TextField, Chip,
-  FormControlLabel, Switch, Checkbox, Tooltip
+  FormControlLabel, Switch, Tooltip
 } from '@mui/material';
 import { useReservationForm } from './ReservationFormContext';
 
@@ -33,11 +33,20 @@ export default function ExtrasSection() {
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
   // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
   const autoOptionsInComplementSet = new Set((form?.autoOptionsInComplement || []).map(Number));
+  // specs/force-extras-complement-on-platform.md §3 rule 4: non-direct platforms hide every
+  // "Compl." toggle (server forces inComplement = 1 on save anyway) and explain the routing
+  // with a single muted caption above the section.
+  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Options et ressources</Typography>
+        {isPlatformReservation && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontStyle: 'italic' }}>
+            Réservation plateforme — les extras sont automatiquement facturés en paiement complémentaire.
+          </Typography>
+        )}
         <Stack spacing={2}>
           {propertyOptions.length > 0 && (
             <Box>
@@ -102,27 +111,33 @@ export default function ExtrasSection() {
                                 htmlInput: { min: 1 }
                               }}
                             />
-                            <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                              {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
-                              <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
-                                <FormControlLabel
-                                  sx={{ m: 0 }}
-                                  control={
-                                    <Checkbox
-                                      size="small"
-                                      checked={Boolean(selected?.inComplement)}
-                                      onChange={(e) => setOptionInComplement(opt.id, e.target.checked)}
-                                    />
-                                  }
-                                  label={<Typography variant="caption">Compl.</Typography>}
-                                />
-                              </Tooltip>
+                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                              {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
+                                  Small Switch — same visual family as the activation Switch above, just
+                                  smaller, so the operator perceives it as the same kind of widget at a
+                                  glance. Tooltip carries the affordance label. Hidden on platform
+                                  reservations (specs/force-extras-complement-on-platform.md §3 rule 4 —
+                                  server forces inComplement = 1). */}
+                              {!isPlatformReservation && (
+                                <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                  <FormControlLabel
+                                    sx={{ m: 0 }}
+                                    control={
+                                      <Switch
+                                        size="small"
+                                        slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
+                                        checked={Boolean(selected?.inComplement)}
+                                        onChange={(e) => setOptionInComplement(opt.id, e.target.checked)}
+                                      />
+                                    }
+                                  />
+                                </Tooltip>
+                              )}
                               <Chip
                                 size="small"
                                 color="primary"
                                 variant="outlined"
                                 label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                                sx={{ flexGrow: 1 }}
                               />
                             </Stack>
                           </Stack>
@@ -135,29 +150,33 @@ export default function ExtrasSection() {
                               : selected?.autoExtraHours > 0
                                 ? <Chip size="small" variant="outlined" label={`${Number(selected.autoExtraHours).toFixed(1).replace('.0', '')}h supplémentaire${selected.autoExtraHours >= 2 ? 's' : ''}`} />
                                 : null}
-                            <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ width: { xs: '100%', sm: 'auto' } }}>
                               {/* Force-to-complement override for auto-options (spec force-item-to-complement.md §3.1).
-                                  Common case: late check-out surcharge collected at check-out → belongs in
-                                  the Complément entry, not in the deposit/balance split. */}
-                              <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
-                                <FormControlLabel
-                                  sx={{ m: 0 }}
-                                  control={
-                                    <Checkbox
-                                      size="small"
-                                      checked={autoOptionsInComplementSet.has(Number(opt.id))}
-                                      onChange={(e) => setAutoOptionInComplement(opt.id, e.target.checked)}
-                                    />
-                                  }
-                                  label={<Typography variant="caption">Compl.</Typography>}
-                                />
-                              </Tooltip>
+                                  Same small Switch + Tooltip pattern as regular options above. Common
+                                  case: late check-out surcharge collected at check-out → belongs in the
+                                  Complément entry, not in the deposit/balance split. Hidden on platform
+                                  reservations — server forces inComplement = 1
+                                  (specs/force-extras-complement-on-platform.md §3 rule 5). */}
+                              {!isPlatformReservation && (
+                                <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                  <FormControlLabel
+                                    sx={{ m: 0 }}
+                                    control={
+                                      <Switch
+                                        size="small"
+                                        slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
+                                        checked={autoOptionsInComplementSet.has(Number(opt.id))}
+                                        onChange={(e) => setAutoOptionInComplement(opt.id, e.target.checked)}
+                                      />
+                                    }
+                                  />
+                                </Tooltip>
+                              )}
                               <Chip
                                 size="small"
                                 color="primary"
                                 variant="outlined"
                                 label={`Total auto: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                                sx={{ flexGrow: 1 }}
                               />
                             </Stack>
                           </Stack>
@@ -208,20 +227,25 @@ export default function ExtrasSection() {
                                 htmlInput: { min: 0, step: 0.01 }
                               }}
                             />
-                            {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
-                            <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
-                              <FormControlLabel
-                                sx={{ m: 0 }}
-                                control={
-                                  <Checkbox
-                                    size="small"
-                                    checked={Boolean(line.inComplement)}
-                                    onChange={(e) => updateCustomOption(line.customKey, { inComplement: e.target.checked })}
-                                  />
-                                }
-                                label={<Typography variant="caption">Compl.</Typography>}
-                              />
-                            </Tooltip>
+                            {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
+                                Small Switch + Tooltip pattern — see comment on the regular-option block
+                                above. Hidden on platform reservations
+                                (specs/force-extras-complement-on-platform.md §3 rule 4). */}
+                            {!isPlatformReservation && (
+                              <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                <FormControlLabel
+                                  sx={{ m: 0 }}
+                                  control={
+                                    <Switch
+                                      size="small"
+                                      slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
+                                      checked={Boolean(line.inComplement)}
+                                      onChange={(e) => updateCustomOption(line.customKey, { inComplement: e.target.checked })}
+                                    />
+                                  }
+                                />
+                              </Tooltip>
+                            )}
                             <Button color="error" variant="text" onClick={() => removeCustomOption(line.customKey)}>
                               Supprimer
                             </Button>
@@ -312,27 +336,31 @@ export default function ExtrasSection() {
                                     : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }
                                 }}
                               />
-                              <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                                {/* Force-to-complement override (spec force-item-to-complement.md §6.4) */}
-                                <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
-                                  <FormControlLabel
-                                    sx={{ m: 0 }}
-                                    control={
-                                      <Checkbox
-                                        size="small"
-                                        checked={Boolean(selected?.inComplement)}
-                                        onChange={(e) => setResourceInComplement(resource.id, e.target.checked)}
-                                      />
-                                    }
-                                    label={<Typography variant="caption">Compl.</Typography>}
-                                  />
-                                </Tooltip>
+                              <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                                {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
+                                    Small Switch + Tooltip pattern, mirrors the option block above. Hidden
+                                    on platform reservations
+                                    (specs/force-extras-complement-on-platform.md §3 rule 4). */}
+                                {!isPlatformReservation && (
+                                  <Tooltip title={COMPLEMENT_TOOLTIP} arrow>
+                                    <FormControlLabel
+                                      sx={{ m: 0 }}
+                                      control={
+                                        <Switch
+                                          size="small"
+                                          slotProps={{ input: { 'aria-label': 'Forcer en complément' } }}
+                                          checked={Boolean(selected?.inComplement)}
+                                          onChange={(e) => setResourceInComplement(resource.id, e.target.checked)}
+                                        />
+                                      }
+                                    />
+                                  </Tooltip>
+                                )}
                                 <Chip
                                   size="small"
                                   color="primary"
                                   variant="outlined"
                                   label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
-                                  sx={{ flexGrow: 1 }}
                                 />
                               </Stack>
                             </Stack>
