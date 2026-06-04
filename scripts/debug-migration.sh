@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Debug script to diagnose WordPress migration issues
-# Usage: DOMAIN=www.domainesolio.com ./scripts/debug-migration.sh
+# Usage: DOMAIN=www.example.com ./scripts/debug-migration.sh
 
-DOMAIN="${DOMAIN:-www.domainesolio.com}"
+DOMAIN="${DOMAIN:-www.example.com}"
 WORKDIR="${WORKDIR:-$PWD/.domain-migration}"
 
 if [[ ! -d "$WORKDIR" ]]; then
@@ -108,7 +108,7 @@ import requests
 import trafilatura
 from bs4 import BeautifulSoup
 
-domain = "www.domainesolio.com"
+domain = "www.example.com"
 test_url = f"https://{domain}"
 
 print(f"Testing trafilatura on: {test_url}")

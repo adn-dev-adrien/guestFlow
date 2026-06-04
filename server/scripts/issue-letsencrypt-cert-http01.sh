@@ -2,7 +2,7 @@
 # Issues / renews a Let's Encrypt cert for the GuestFlow server using acme.sh + HTTP-01 challenge.
 #
 # Why HTTP-01 (not DNS-01)?
-#   - Adrien's domainesolio.com is registered at Squarespace, which doesn't expose a DNS API.
+#   - Your domain is registered at Squarespace, which doesn't expose a DNS API.
 #     DNS-01 would need either a Cloudflare migration or manual TXT records on every renewal.
 #   - HTTP-01 is simpler: Let's Encrypt resolves the hostname → reaches the Freebox public IP →
 #     the Freebox port-forwards 80 → the Pi → acme.sh's standalone HTTP server responds → cert
@@ -12,19 +12,19 @@
 #     binds port 80 only during the validation handshake (a few seconds, every ~60 days).
 #
 # Prerequisites (operator-side, see README §HTTPS):
-#   1. Squarespace DNS — CNAME `guestflow` → `maisonadrisoph.freeboxos.fr` (Free's DDNS lives
+#   1. Squarespace DNS — CNAME `guestflow` → `<your-freebox-dyndns>.freeboxos.fr` (Free's DDNS lives
 #      under `.fr`, NOT `.com`; pointing at `.com` returns NXDOMAIN and the cert won't issue).
-#   2. Freebox — DHCP reservation pinning the Pi at 192.168.0.196 (so the port forward never
+#   2. Freebox — DHCP reservation pinning the Pi at <your-pi-lan-ip> (so the port forward never
 #      breaks on the next lease renewal).
 #   3. Freebox — port-forwarding:
-#         WAN 80/TCP  → 192.168.0.196:80    (used only during cert issuance / renewal)
-#         WAN 443/TCP → 192.168.0.196:4000  (the user-facing HTTPS traffic)
+#         WAN 80/TCP  → <your-pi-lan-ip>:80    (used only during cert issuance / renewal)
+#         WAN 443/TCP → <your-pi-lan-ip>:4000  (the user-facing HTTPS traffic)
 #   4. The Pi is otherwise not listening on port 80 (GuestFlow's Node binds 4000 — fine).
 #
 # Then run this script ON THE PI as root (port 80 is privileged):
 #   sudo ./server/scripts/issue-letsencrypt-cert-http01.sh \
-#     --hostname guestflow.domainesolio.com \
-#     --email contact@domainesolio.com
+#     --hostname <your-app>.<your-domain> \
+#     --email you@example.com
 #
 # What it does:
 #   - Installs acme.sh if missing.
@@ -65,7 +65,7 @@ usage() {
   cat <<EOF
 Usage: $0 --hostname <fqdn> --email <addr> [--staging] [--force]
 
-  --hostname FQDN  hostname the cert should be valid for (e.g. guestflow.domainesolio.com)
+  --hostname FQDN  hostname the cert should be valid for (e.g. <your-app>.<your-domain>)
   --email ADDR     contact email for Let's Encrypt expiry notices
   --staging        use Let's Encrypt staging (untrusted cert, no rate limits — for testing)
   --force          force re-issue even if a valid cert already exists
@@ -235,7 +235,7 @@ elif [ "$ACME_RC" -ne 0 ]; then
 ❌ acme.sh failed (rc=$ACME_RC). Common causes:
   - Freebox port 80 forward missing or pointing at the wrong LAN IP.
   - DNS not propagated yet: \`dig $HOSTNAME +short\` should return your Freebox public IP
-    (via the chained CNAME → maisonadrisoph.freeboxos.fr → public IP).
+    (via the chained CNAME → <your-freebox-dyndns>.freeboxos.fr → public IP).
   - ISP blocks inbound port 80 (rare on Free, but check with the Freebox admin UI's port test).
   - HTTPS_ENABLED=true on Node but with cert/key missing → Node would refuse to boot but the
     HTTP-01 test would still work since acme.sh binds port 80 only briefly.
@@ -413,7 +413,7 @@ Troubleshooting:
       curl -v http://$HOSTNAME/ from any device OUTSIDE your LAN (your phone on mobile data
       is the easiest). You should reach acme.sh's empty 404 response (when no validation is
       running) or Node's 4000 service if anything is listening.
-  - DNS not propagated: dig $HOSTNAME +short — should chain through maisonadrisoph.freeboxos.fr
+  - DNS not propagated: dig $HOSTNAME +short — should chain through <your-freebox-dyndns>.freeboxos.fr
     then return your Freebox's current public IP. If you see NXDOMAIN, double-check that the
     Squarespace CNAME points at the .fr Free DDNS, NOT .com (a common copy-paste mistake).
   - Re-run with --staging first if you're worried about Let's Encrypt's rate limits while

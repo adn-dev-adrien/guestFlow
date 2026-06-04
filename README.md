@@ -358,7 +358,7 @@ regenerate on cert expiry or to swap IPs):
 ./server/scripts/generate-self-signed-cert.sh
 
 # Explicit SANs
-./server/scripts/generate-self-signed-cert.sh 192.168.0.196 guestflow.local
+./server/scripts/generate-self-signed-cert.sh <your-pi-lan-ip> guestflow.local
 
 # Custom output directory (the deploy workflow uses ~/guestflow/certs/)
 OUT_DIR=~/guestflow/certs ./server/scripts/generate-self-signed-cert.sh
@@ -373,7 +373,7 @@ The cert is valid for **1 year**. When it nears expiry, regenerate (`--force`) a
 
 The cert is self-signed so browsers will warn on the first visit. Two paths:
 
-- **Easy path — accept once per device**. Open `https://192.168.0.196:4000`, Safari shows
+- **Easy path — accept once per device**. Open `https://<your-pi-lan-ip>:4000`, Safari shows
   *"Cette connexion n'est pas privée"*, click *Détails* → *Afficher ce site web*. Chrome:
   *Avancé* → *Continuer vers...*. After acceptance, HSTS (issued by the server) pins HTTPS on
   that hostname for 1 year, so the warning is gone until the cert is regenerated.
@@ -386,7 +386,7 @@ The cert is self-signed so browsers will warn on the first visit. Two paths:
 ##### Real Let's Encrypt cert via Freebox port-forward + HTTP-01 (Adrien's actual prod)
 
 This is the path Adrien's prod uses. The setup answers a specific question: *make
-`https://guestflow.domainesolio.com` reach the Pi at home with a publicly-trusted cert (no
+`https://<your-app>.<your-domain>` reach the Pi at home with a publicly-trusted cert (no
 warning) and a hands-off auto-renewal.*
 
 **Why HTTP-01 and not DNS-01?** The domain registrar (Squarespace) doesn't expose a DNS API.
@@ -399,39 +399,39 @@ challenge. Renewal is the same path, automatic.
 **Architecture**
 
 ```
-  Browser                 Squarespace DNS                Freebox                       Pi (192.168.0.196)
+  Browser                 Squarespace DNS                Freebox                       Pi (<your-pi-lan-ip>)
   ─────────               ─────────────────              ──────────                    ──────────────────
   https://guestflow…  →   CNAME: guestflow              WAN :80   → forward → :80   acme.sh standalone
-                          → maisonadrisoph.freeboxos.fr WAN :443  → forward → :4000 Node (HTTPS, port 4000)
+                          → <your-freebox-dyndns>.freeboxos.fr WAN :443  → forward → :4000 Node (HTTPS, port 4000)
                           (Free's DDNS, IP-tracking)
 ```
 
 **Operator steps — do these once, then renewal is automatic**
 
 1. **Squarespace — add the CNAME (1 min)**
-   1. <https://account.squarespace.com/> → *Domains* → `domainesolio.com` → *DNS Settings* →
+   1. <https://account.squarespace.com/> → *Domains* → `<your-domain>` → *DNS Settings* →
       *Add Record*.
-   2. **Type** CNAME, **Host** `guestflow`, **Data** `maisonadrisoph.freeboxos.fr`. ⚠️
+   2. **Type** CNAME, **Host** `guestflow`, **Data** `<your-freebox-dyndns>.freeboxos.fr`. ⚠️
       Free's DDNS lives under `.fr`, **not** `.com`. `.com` resolves to NXDOMAIN and
       everything downstream (browsers, acme.sh challenge) silently fails — checked
       against this exact mistake on 2026-05-31.
    3. Save. Propagation usually <10 min; verify against a public resolver to bypass
       stale negative caches on your ISP / mobile carrier:
       ```
-      dig @8.8.8.8 guestflow.domainesolio.com +short
+      dig @8.8.8.8 <your-app>.<your-domain> +short
       ```
-      should chain through `maisonadrisoph.freeboxos.fr.` then return your current
+      should chain through `<your-freebox-dyndns>.freeboxos.fr.` then return your current
       Freebox public IP. If your home / phone resolver still returns NXDOMAIN while
       `8.8.8.8` resolves correctly, it's just a cached negative TTL — wait it out or
       pin `8.8.8.8` as the active resolver in `System Settings → Network → DNS`.
 
 2. **Freebox — DHCP reservation for the Pi (5 min, one-time)**
 
-   Pin the Pi at `192.168.0.196` so the port forwards never break on the next lease renewal.
+   Pin the Pi at `<your-pi-lan-ip>` so the port forwards never break on the next lease renewal.
    1. Open <http://mafreebox.freebox.fr/> from your home network.
    2. *Paramètres de la Freebox* → *Mode avancé* → *DHCP*.
    3. In the *Baux DHCP statiques* section, *Ajouter*: select the Pi by its current LAN IP /
-      MAC address, set the *adresse IP* to `192.168.0.196`. Save.
+      MAC address, set the *adresse IP* to `<your-pi-lan-ip>`. Save.
    4. Reboot the Pi (or release/renew its DHCP lease) so it picks up the static IP.
 
 3. **Freebox — port forwarding (5 min, one-time)**
@@ -439,12 +439,12 @@ challenge. Renewal is the same path, automatic.
    2. *Ajouter une redirection*:
       | IP source | Protocole | Port début | Port fin | IP destination | Port destination | Activée |
       |---|---|---|---|---|---|---|
-      | All | TCP | 80 | 80 | 192.168.0.196 | 80 | ✓ |
-      | All | TCP | 443 | 443 | 192.168.0.196 | 4000 | ✓ |
+      | All | TCP | 80 | 80 | <your-pi-lan-ip> | 80 | ✓ |
+      | All | TCP | 443 | 443 | <your-pi-lan-ip> | 4000 | ✓ |
    3. Save.
    4. **Test from outside the LAN** (phone mobile data is the easiest):
       ```
-      curl -v http://maisonadrisoph.freeboxos.fr/
+      curl -v http://<your-freebox-dyndns>.freeboxos.fr/
       ```
       The TCP connection should at least open (then probably 404 or `Connection reset by peer`,
       since nothing listens on :80 outside cert issuance — that's expected). A pure timeout
@@ -457,8 +457,8 @@ challenge. Renewal is the same path, automatic.
    script reads `$SUDO_USER` to derive the install paths and the chown target), then:
    ```bash
    sudo ~/guestflow/current/server/scripts/issue-letsencrypt-cert-http01.sh \
-     --hostname guestflow.domainesolio.com \
-     --email contact@domainesolio.com
+     --hostname <your-app>.<your-domain> \
+     --email you@example.com
    ```
 
    That's it. No `--force`, no special second pass. The script:
@@ -488,7 +488,7 @@ challenge. Renewal is the same path, automatic.
 
    On success the last lines of output should look like:
    ```
-   subject=CN=guestflow.domainesolio.com
+   subject=CN=<your-app>.<your-domain>
    issuer=C=US, O=Let's Encrypt, CN=...    ← any LE prod intermediate (R10, R11, E5, E6, YE1, ...)
    notBefore=... notAfter=...
    ✓ openssl verify against /etc/ssl/certs/ca-certificates.crt: OK (publicly trusted).
@@ -499,9 +499,9 @@ challenge. Renewal is the same path, automatic.
    ```
    pm2 restart guestflow --update-env    # only if --reloadcmd didn't already do it
    ```
-   Open `https://guestflow.domainesolio.com` from any device, anywhere. The lock icon is solid
+   Open `https://<your-app>.<your-domain>` from any device, anywhere. The lock icon is solid
    green, no warning. The cert chain (click the lock → details) should show
-   *Let's Encrypt R3 → guestflow.domainesolio.com*.
+   *Let's Encrypt R3 → <your-app>.<your-domain>*.
 
 **Renewal** is fully automatic via the acme.sh daily cron. Every ~60 days the cert is
 re-issued, acme.sh briefly binds port 80, installs the new fullchain into the same paths PM2
@@ -509,7 +509,7 @@ already reads, and runs `pm2 restart guestflow`. You don't have to do anything f
 the Freebox port forward stays in place.
 
 **Caveats / failure modes**
-- *Free changes your public IP.* The Freebox DDNS `maisonadrisoph.freeboxos.fr` updates
+- *Free changes your public IP.* The Freebox DDNS `<your-freebox-dyndns>.freeboxos.fr` updates
   automatically; the CNAME chain takes care of the rest. No action needed.
 - *Port 80 ever bound to another service on the Pi.* acme.sh's standalone mode fails to bind.
   Fix: switch to webroot mode (point acme.sh at a directory under Node's static serve). For
@@ -517,7 +517,7 @@ the Freebox port forward stays in place.
 - *ISP blocks inbound port 80.* Rare on Free; verify with `curl -v` from outside the LAN. If
   blocked, you'd have to fall back to DNS-01 (Cloudflare migration path).
 - *URL access via IP only.* The cert is signed for the hostname; opening
-  `https://192.168.0.196:4000` would trigger a hostname-mismatch warning. Always use the
+  `https://<your-pi-lan-ip>:4000` would trigger a hostname-mismatch warning. Always use the
   hostname URL.
 
 **Troubleshooting — issues caught during the 2026-05-31 bringup**
@@ -538,7 +538,7 @@ the Freebox port forward stays in place.
   read. Pinned by the auto-detection block at the top of the script; override with
   `CERTS_DIR=...` if your install is non-standard. To verify what Node is actually serving:
   ```
-  echo | openssl s_client -servername guestflow.domainesolio.com -connect localhost:4000 2>/dev/null \
+  echo | openssl s_client -servername <your-app>.<your-domain> -connect localhost:4000 2>/dev/null \
     | openssl x509 -noout -subject -issuer
   ```
 - *Cert file on disk is the new one but `openssl s_client` shows the old one.* PM2 / Node
