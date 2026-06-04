@@ -225,6 +225,10 @@ const api = {
   // accounting-platform-commission-and-no-deposit.md §4.3.
   getPlatformAccounts: () => request('/accounting/platform-accounts'),
   savePlatformAccounts: (payload) => request('/accounting/platform-accounts', { method: 'PUT', body: JSON.stringify(payload) }),
+  // Rescan the union of `ical_sources` + `reservations.platform` so any platform that wasn't
+  // ramassée at boot (e.g. fresh manual reservation) appears on the page without a server
+  // restart. Returns `{ defaultAccount, vatRateCommission, platforms, newCount }`.
+  refreshPlatformAccounts: () => request('/accounting/platform-accounts/refresh', { method: 'POST' }),
 
   // User management (admin-only). resetUserPassword no longer takes a password — the server
   // generates the temp password and emails it (specs/admin-account-management.md M2).

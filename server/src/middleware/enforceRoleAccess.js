@@ -32,9 +32,12 @@ function isAccountingPath(path) {
 // accounting-platform-commission-and-no-deposit.md §3.7 rule 19. The accountant must be able
 // to edit the per-platform commission config from `/comptabilite/plateformes`, so PUT on
 // this one path is exempt from the "accountant = GET-only" rule. Other PUTs under
-// `/accounting/*` remain admin-only.
+// `/accounting/*` remain admin-only. The POST /refresh endpoint is the operator-triggered
+// rescan from the dedicated page — same allow-list as PUT.
 function isAccountantWritablePath(method, path) {
-  return method === 'PUT' && path === '/accounting/platform-accounts';
+  if (method === 'PUT' && path === '/accounting/platform-accounts') return true;
+  if (method === 'POST' && path === '/accounting/platform-accounts/refresh') return true;
+  return false;
 }
 
 function isSelfPath(path) {

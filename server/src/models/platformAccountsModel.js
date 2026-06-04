@@ -34,14 +34,6 @@ function validateAccountNumber(value, { required = false } = {}) {
   return null;
 }
 
-function validateRatePercent(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 'Taux doit être un nombre entre 0 et 100.';
-  if (n < 0 || n > 100) return 'Taux doit être compris entre 0 et 100.';
-  return null;
-}
-
 function createPlatformAccountsModel(database, { platforms = platformsModel, settings = settingsModel } = {}) {
   return {
     getAll() {
@@ -56,7 +48,6 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
         name: p.name,
         commissionAccountNumber: p.commissionAccountNumber || null,
         hasVatOnCommission: Number(p.hasVatOnCommission) === 1,
-        commissionRatePercent: p.commissionRatePercent == null ? null : Number(p.commissionRatePercent),
         isDirect: String(p.name).toLowerCase() === 'direct',
       }));
       return { defaultAccount, vatRateCommission, platforms: decoratedPlatforms };
@@ -71,9 +62,8 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
       const perPlatformErrors = [];
       for (const p of platformList) {
         const accErr = validateAccountNumber(p.account, { required: false });
-        const rateErr = validateRatePercent(p.ratePercent);
-        if (accErr || rateErr) {
-          perPlatformErrors.push({ id: p.id, account: accErr || null, ratePercent: rateErr || null });
+        if (accErr) {
+          perPlatformErrors.push({ id: p.id, account: accErr });
         }
       }
       if (perPlatformErrors.length > 0) errors.platforms = perPlatformErrors;
@@ -89,18 +79,25 @@ function createPlatformAccountsModel(database, { platforms = platformsModel, set
             id: p.id,
             commissionAccountNumber: (p.account == null || p.account === '') ? null : String(p.account).trim(),
             hasVatOnCommission: p.hasVat === true || Number(p.hasVat) === 1 ? 1 : 0,
-            commissionRatePercent: (p.ratePercent == null || p.ratePercent === '') ? null : Number(p.ratePercent),
           });
         }
       });
       tx();
       return { ok: true, data: this.getAll() };
     },
+
+    // Operator-triggered rescan of every platform string declared in the DB (iCal sources +
+    // reservations.platform). Returns the updated GET payload + how many new rows were added.
+    // Spec accounting-platform-commission-and-no-deposit.md §3.1 rule 2.
+    refresh() {
+      const newCount = platforms.rescan ? platforms.rescan() : 0;
+      return { newCount, data: this.getAll() };
+    },
   };
 }
 
 const defaultModel = createPlatformAccountsModel(db);
 defaultModel.create = createPlatformAccountsModel;
-defaultModel.__test = { validateAccountNumber, validateRatePercent };
+defaultModel.__test = { validateAccountNumber };
 
 module.exports = defaultModel;

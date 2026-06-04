@@ -19,6 +19,7 @@ const {
 } = require('../utils/icalParser');
 const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
+const { formatPlatformName } = require('../utils/platformNameFormat');
 const icalCancellationModel = require('./icalCancellationModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
@@ -60,7 +61,13 @@ function createPropertyIcalModel(database) {
     const platformKeyInput = String(body.platformKey ?? existing?.platformKey ?? '').trim();
     const platformLabelInput = String(body.platformLabel ?? existing?.platformLabel ?? '').trim();
     const normalizedPlatformKey = normalizePlatformKey(platformKeyInput || platformLabelInput);
-    const platformLabel = sentenceCase(platformLabelInput || platformKeyInput || normalizedPlatformKey);
+    // specs/normalize-platform-names.md §3.2 — `platformLabel` lands in `ical_sources.platformLabel`
+    // and is propagated to `platforms.name` via the upsert hook below + `reservations.platform`
+    // on every iCal-imported booking. Normalize to UpperCamelCase here so the entire chain sees
+    // the canonical form (and the case-different duplicates that surfaced on the 2026-06-04
+    // prod-copy DB don't reappear).
+    const platformLabelRaw = sentenceCase(platformLabelInput || platformKeyInput || normalizedPlatformKey);
+    const platformLabel = formatPlatformName(platformLabelRaw) || platformLabelRaw;
 
     if (!url || !/^https?:\/\//i.test(url)) return { error: 'URL iCal invalide (http(s) requis).' };
     if (!normalizedPlatformKey) return { error: 'La plateforme est requise.' };

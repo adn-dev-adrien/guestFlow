@@ -123,20 +123,33 @@ Make every monthly CSV match the écriture model the accountant validated:
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT UNIQUE NOT NULL,            -- 'direct', 'Airbnb', 'Gîtes de France', 'Stripe', …
      commissionAccountNumber TEXT,         -- 8-digit French chart code, NULL = falls back to default
-     hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-     commissionRatePercent REAL            -- typical rate in %, e.g. 3.0 for Airbnb. NULL = unknown.
+     hasVatOnCommission INTEGER NOT NULL DEFAULT 0
    );
    ```
-2. **Auto-seeding at boot** (idempotent):
+2. **Auto-seeding at boot** (idempotent — `INSERT OR IGNORE`):
    - Always ensures a `'direct'` row exists (id reserved as the lowest, never
      editable through the UI — see rule 19).
-   - Walks `SELECT DISTINCT platform FROM ical_sources WHERE platform IS NOT NULL`
-     and inserts any platform name not yet in `platforms`.
-   - Runs again on every successful iCal source create/update (so a freshly
+   - Union of TWO sources:
+     - `SELECT DISTINCT platformLabel FROM ical_sources WHERE platformLabel IS NOT NULL`
+       — every platform configured as an iCal source.
+     - `SELECT DISTINCT platform FROM reservations WHERE platform IS NOT NULL
+       AND LOWER(platform) != 'direct'` — covers manually-entered platform
+       reservations (e.g. operator typed "Booking" on a one-off reservation
+       without an iCal sync). Without this branch, a platform that only ever
+       appeared in a manual reservation would stay invisible on the config
+       page until the operator added an iCal source matching the same name.
+   - Re-runs on every successful iCal source create/update (so a freshly
      added Booking source surfaces immediately on the page without a server
      restart).
-   - Never deletes — a platform that no longer has any iCal source stays
-     visible (operator can manually delete from the new page if they want).
+   - **Operator-triggered rescan**: a "Rafraîchir la liste" button on
+     `/comptabilite/plateformes` reposts to `POST /api/accounting/platform-
+     accounts/refresh` which re-runs the union (idempotent). Returns
+     `newCount = <number of fresh rows added>` so the UI flashes a friendly
+     toast: *"+N nouvelle(s) plateforme(s) ramassée(s)"* or *"Aucune nouvelle
+     plateforme à ramasser — la liste est à jour."*.
+   - Never deletes — a platform that no longer has any iCal source or
+     reservation stays visible (operator can manually delete from the new
+     page if they want).
 3. **Add two columns** to `app_settings`:
    - `defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600'` — fallback
      when a platform has `commissionAccountNumber = NULL`.
@@ -160,11 +173,10 @@ Make every monthly CSV match the écriture model the accountant validated:
      `commissionHt = commissionTtc`; no VAT line. The full commission TTC
      hits the 6226xx charge account as HT (consistent with the comptable's
      instruction for non-EU operators).
-   - `commissionRatePercent` is **informational only** for now — used by the
-     reservation form caption (rule 25) and the page table, but the actual
-     commission TTC keeps being derived from `clientGrossAmount - finalPrice`
-     (the operator's-typed truth). A follow-up spec could add auto-fill of
-     `clientGrossAmount` from the rate.
+   - The actual commission TTC is derived from `clientGrossAmount - finalPrice`
+     (the operator-typed truth) — there is no per-platform commission rate
+     stored on the table (the column was added in an early draft, judged
+     useless on 2026-06-04 and removed).
    - `'direct'` matches `platforms.name = 'direct'` whose fields are never
      written — commission = 0 always.
 
@@ -296,19 +308,15 @@ Make every monthly CSV match the écriture model the accountant validated:
       `platforms` table (auto-deduped — see §3.1 rule 2). Columns:
       - *Plateforme* (read-only label, e.g. "Airbnb", "Gîtes de France",
         "Direct").
-      - *Compte commission* (8-digit text input, placeholder shows the
+      - *Compte commission* (text input, 6–8 digits, placeholder shows the
         resolved fallback `"622600 (défaut)"` when empty).
       - *TVA déductible* (Switch — ON for platforms whose commission carries
         French VAT, OFF for Airbnb/Abritel and other non-EU/non-VAT operators).
         The rate itself (currently 20 %) is read from
         `settings.vatRateCommission` at export time — not editable here.
-      - *Taux commission %* (number input, 0–100, 2 decimals, optional —
-        informational; e.g. `3.0` for Airbnb, `9.5` for Gîtes de France).
-    - Muted caption under the bottom table: *"Le 'taux commission' est
-      indicatif (affiché sur la fiche de réservation pour cross-check) — le
-      montant réel est saisi par l'opérateur via 'Prix payé par le client'.
-      Le taux TVA appliqué quand la case est cochée est défini dans Réglages
-      → Général → Taux de TVA."*
+    - The page does NOT store a per-platform commission rate (column was
+      dropped on 2026-06-04 as useless — the actual commission TTC is derived
+      from `clientGrossAmount - finalPrice` on each reservation).
 17b. **Settings → Général → Taux de TVA** — the existing card grows by **one
     field**: "TVA déductible commissions" (number input, %, default 20). It
     sits alongside the existing "TVA hébergement" (10 %) and "TVA standard"
@@ -324,15 +332,16 @@ Make every monthly CSV match the écriture model the accountant validated:
       kept in the response shape just to keep the row visible).
 19. **Role access** (server-side, fail-closed):
     - `GET /api/accounting/platform-accounts` — admin **or** accountant.
-      Returns `{ defaultAccount, platforms: [{ id, name, account, hasVat,
-      ratePercent, isDirect }, …] }`. The global `vatRateCommission` is **not**
-      part of this payload — it's read via the existing `GET /api/settings`
-      which is admin-only (the accountant doesn't need to edit it; if they
-      want to see the active rate, the new page renders it as a read-only
-      caption *"TVA appliquée: 20 %"* fetched via a dedicated lightweight
-      `GET /api/accounting/vat-rate-commission` admin-or-accountant route).
+      Returns `{ defaultAccount, vatRateCommission, platforms: [{ id, name,
+      commissionAccountNumber, hasVatOnCommission, isDirect }, …] }`. The
+      `vatRateCommission` is included for read-only display in the page's
+      caption; the canonical write surface stays `PUT /api/settings` which
+      is admin-only.
     - `PUT /api/accounting/platform-accounts` — admin **or** accountant. Body
-      = `{ defaultAccount, platforms: [{ id, account, hasVat, ratePercent }, …] }`.
+      = `{ defaultAccount, platforms: [{ id, account, hasVat }, …] }`.
+    - `POST /api/accounting/platform-accounts/refresh` — admin **or**
+      accountant. No body. Returns `{ defaultAccount, vatRateCommission,
+      platforms, newCount }`. Triggers the union rescan (rule 2).
     - Other `/api/ical-sources/*` routes and the `vatRateCommission` write
       (`PUT /api/settings`) stay **admin-only**.
 20. **Sidebar wiring**:
@@ -343,10 +352,9 @@ Make every monthly CSV match the écriture model the accountant validated:
       client-side redirect rule is widened by one path
       (`/comptabilite/plateformes`).
 21. **Validation**:
-    - `defaultCommissionAccountNumber`: required, 8 digits exactly, digits-only.
-    - Per-platform `commissionAccountNumber`: optional. If provided, 8 digits
-      exactly, digits-only. Empty = uses the default.
-    - Per-platform `commissionRatePercent`: optional, ≥ 0, ≤ 100. Empty = unknown.
+    - `defaultCommissionAccountNumber`: required, 6–8 digits, digits-only.
+    - Per-platform `commissionAccountNumber`: optional. If provided, 6–8
+      digits, digits-only. Empty = uses the default.
     - Per-platform `hasVatOnCommission`: boolean (Switch).
     - **Global** `vatRateCommission` (managed in Settings, not on this page):
       required ≥ 0, ≤ 100, default 20. Validated by the existing
@@ -368,11 +376,6 @@ Make every monthly CSV match the écriture model the accountant validated:
       that will be journalised**: "Commission plateforme: 61,00 € TTC (50,83 €
       HT + 10,17 € TVA) sur le compte 62260500" — reading from the resolved
       `(commissionAccount, hasVat)` of the matched `platforms` row.
-    - When `platforms.commissionRatePercent` is set, an additional sanity-check
-      caption appears: *"Taux observé X,X % vs taux configuré Y,Y %"*. If the
-      delta is > 2 pp, the caption turns warning-amber — non-blocking, just a
-      hint that the gross typed by the operator may not match the platform's
-      typical commission.
 22. **ReservationPage save logic** — if the operator types into the Acompte
     fields and later changes the platform from direct to non-direct (or
     selects a non-direct iCal source on a new reservation), the form
@@ -485,9 +488,10 @@ CREATE TABLE IF NOT EXISTS platforms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT UNIQUE NOT NULL,
   commissionAccountNumber TEXT,
-  hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-  commissionRatePercent REAL
+  hasVatOnCommission INTEGER NOT NULL DEFAULT 0
 );
+-- The legacy `commissionRatePercent` column (early-draft, judged useless on 2026-06-04)
+-- is dropped on subsequent boots if found via PRAGMA table_info.
 
 -- Always-present 'direct' row (UI-disabled, never used at export time)
 INSERT OR IGNORE INTO platforms (name) VALUES ('direct');
@@ -559,16 +563,14 @@ UPDATE reservations
   - **Par plateforme** (carte du bas): un `TableCard` listant chaque ligne de
     la table `platforms`. Colonnes:
     - *Plateforme* (libellé read-only)
-    - *Compte commission* (input 8-digit, placeholder = valeur par défaut)
+    - *Compte commission* (input 6–8 digits, placeholder = valeur par défaut)
     - *TVA déductible* (Switch — quand ON, l'engine applique le taux global
       `settings.vatRateCommission`)
-    - *Taux commission %* (input 0–100, optionnel)
 
     La ligne *Direct* est toujours présente, tous les champs grisés avec un
     caption *"Pas de commission sur les réservations directes"*.
     Tri par nom (avec Direct en première position pour rappel visuel).
-    Validation visuelle inline (rouge si le compte n'est pas 8 chiffres,
-    rouge si le taux commission est hors 0–100).
+    Validation visuelle inline (rouge si le compte n'est pas 6–8 chiffres).
 
     Un caption read-only au-dessus de la table montre le taux TVA actif:
     *"TVA déductible commissions appliquée: 20 %  (modifiable dans Réglages
@@ -692,14 +694,13 @@ SQLite DB."
   - Proposed: **only on the new page**. Mirroring elsewhere creates two
     places to look (= drift risk). The admin sidebar link is one click away
     anyway.
-- **Q7** (added 2026-06-04): The `commissionRatePercent` is currently
-  informational (displayed in a cross-check caption). Do we want to also
-  use it to **auto-fill** the gross from the net when the operator types
-  the net first?
-  - Proposed: **no for v1**. Auto-fill creates a foot-gun if the rate is
-    stale or the platform invoice differs from the typical rate. Cross-check
-    caption is enough. A follow-up spec can add auto-fill if you ask for it
-    explicitly.
+- **Q7** (resolved 2026-06-04 during implementation): The
+  `commissionRatePercent` column was dropped from `platforms`. The
+  informational column on the dedicated page was judged useless by Adrien
+  on 2026-06-04 (commission TTC is operator-typed via `clientGrossAmount -
+  finalPrice`, no real need to also store a typical rate). A follow-up
+  spec can re-add it if auto-fill of the gross from a per-platform rate
+  becomes desired.
 - **Q8** (added 2026-06-04): A platform name in `ical_sources` that's later
   renamed in the iCal source admin — do we rename the corresponding
   `platforms` row, or leave the old name visible as a "ghost" until manually

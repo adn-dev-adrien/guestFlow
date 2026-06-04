@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
   TableCell, TableBody, Stack, Alert, Switch, TextField, Link as MuiLink,
-  CircularProgress,
+  CircularProgress, Button, Tooltip,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import { useAuth } from '../hooks/useAuth';
@@ -34,11 +35,6 @@ function normalizeAccount(value) {
   return String(value).replace(/\s+/g, '');
 }
 
-function normalizeRate(value) {
-  if (value == null || value === '') return '';
-  return String(value).replace(',', '.');
-}
-
 export default function PlatformAccountsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -46,6 +42,7 @@ export default function PlatformAccountsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState({});
   const [globalMessage, setGlobalMessage] = useState(null);
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
@@ -66,7 +63,6 @@ export default function PlatformAccountsPage() {
         const sortedPlatforms = (data.platforms || []).map((p) => ({
           ...p,
           commissionAccountNumber: p.commissionAccountNumber || '',
-          commissionRatePercent: p.commissionRatePercent == null ? '' : String(p.commissionRatePercent),
         }));
         setSavedPlatforms(sortedPlatforms);
         setPlatforms(sortedPlatforms);
@@ -88,7 +84,6 @@ export default function PlatformAccountsPage() {
       if (a.id !== b.id) return true;
       if ((a.commissionAccountNumber || '') !== (b.commissionAccountNumber || '')) return true;
       if (Boolean(a.hasVatOnCommission) !== Boolean(b.hasVatOnCommission)) return true;
-      if (String(a.commissionRatePercent ?? '') !== String(b.commissionRatePercent ?? '')) return true;
     }
     return false;
   }, [defaultAccount, savedDefaultAccount, platforms, savedPlatforms]);
@@ -120,7 +115,6 @@ export default function PlatformAccountsPage() {
             id: p.id,
             account: normalizeAccount(p.commissionAccountNumber),
             hasVat: Boolean(p.hasVatOnCommission),
-            ratePercent: p.commissionRatePercent === '' ? null : Number(normalizeRate(p.commissionRatePercent)),
           })),
       };
       const result = await api.savePlatformAccounts(payload);
@@ -129,7 +123,6 @@ export default function PlatformAccountsPage() {
       const sortedPlatforms = (result.platforms || []).map((p) => ({
         ...p,
         commissionAccountNumber: p.commissionAccountNumber || '',
-        commissionRatePercent: p.commissionRatePercent == null ? '' : String(p.commissionRatePercent),
       }));
       setSavedPlatforms(sortedPlatforms);
       setPlatforms(sortedPlatforms);
@@ -142,7 +135,6 @@ export default function PlatformAccountsPage() {
         if (Array.isArray(apiErrors.platforms)) {
           for (const row of apiErrors.platforms) {
             if (row.account) next[`platform-${row.id}-account`] = row.account;
-            if (row.ratePercent) next[`platform-${row.id}-rate`] = row.ratePercent;
           }
         }
         setErrors(next);
@@ -160,6 +152,36 @@ export default function PlatformAccountsPage() {
     setPlatforms(savedPlatforms);
     setErrors({});
     setGlobalMessage(null);
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setGlobalMessage(null);
+    try {
+      const result = await api.refreshPlatformAccounts();
+      const sortedPlatforms = (result.platforms || []).map((p) => ({
+        ...p,
+        commissionAccountNumber: p.commissionAccountNumber || '',
+      }));
+      // Merge into the current draft: rows already in `platforms` keep the operator's unsaved
+      // edits; brand-new rows from the rescan join the bottom of the table.
+      setPlatforms((prev) => {
+        const draftById = new Map(prev.map((p) => [p.id, p]));
+        return sortedPlatforms.map((p) => draftById.get(p.id) || p);
+      });
+      setSavedPlatforms(sortedPlatforms);
+      const newCount = Number(result.newCount || 0);
+      setGlobalMessage({
+        severity: newCount > 0 ? 'success' : 'info',
+        text: newCount > 0
+          ? `+${newCount} nouvelle${newCount > 1 ? 's' : ''} plateforme${newCount > 1 ? 's' : ''} ramassée${newCount > 1 ? 's' : ''}.`
+          : 'Aucune nouvelle plateforme à ramasser — la liste est à jour.',
+      });
+    } catch (err) {
+      setGlobalMessage({ severity: 'error', text: err?.message || 'Échec du rafraîchissement.' });
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   return (
@@ -213,18 +235,30 @@ export default function PlatformAccountsPage() {
 
           <Card variant="outlined">
             <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
-              <Box sx={{ px: { xs: 1, sm: 2 }, pt: { xs: 1, sm: 1.5 }, pb: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Par plateforme</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  TVA déductible commissions appliquée: <strong>{vatRateCommission} %</strong>
-                  {isAdmin
-                    ? <>{' '}(<MuiLink component="button" type="button" onClick={() => navigate('/settings')} sx={{ verticalAlign: 'baseline' }}>modifiable dans Réglages → Général</MuiLink>)</>
-                    : <em> &nbsp;(modifiable par un administrateur)</em>}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                  Le « taux commission » est indicatif (affiché sur la fiche de réservation pour cross-check)
-                  — le montant réel est saisi par l'opérateur via « Prix payé par le client ».
-                </Typography>
+              <Box sx={{ px: { xs: 1, sm: 2 }, pt: { xs: 1, sm: 1.5 }, pb: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-start' }, gap: 1 }}>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Par plateforme</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    TVA déductible commissions appliquée: <strong>{vatRateCommission} %</strong>
+                    {isAdmin
+                      ? <>{' '}(<MuiLink component="button" type="button" onClick={() => navigate('/settings')} sx={{ verticalAlign: 'baseline' }}>modifiable dans Réglages → Général</MuiLink>)</>
+                      : <em> &nbsp;(modifiable par un administrateur)</em>}
+                  </Typography>
+                </Box>
+                <Tooltip title="Re-scanner les sources iCal + les réservations pour ajouter toute nouvelle plateforme">
+                  <span>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                      onClick={handleRefresh}
+                      disabled={refreshing || saving}
+                      sx={{ alignSelf: { sm: 'flex-start' }, whiteSpace: 'nowrap' }}
+                    >
+                      Rafraîchir la liste
+                    </Button>
+                  </span>
+                </Tooltip>
               </Box>
               <Table size="small">
                 <TableHead>
@@ -232,13 +266,11 @@ export default function PlatformAccountsPage() {
                     <TableCell>Plateforme</TableCell>
                     <TableCell>Compte commission</TableCell>
                     <TableCell align="center">TVA déductible</TableCell>
-                    <TableCell align="right">Taux commission (%)</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {platforms.map((p) => {
                     const accountErr = errors[`platform-${p.id}-account`];
-                    const rateErr = errors[`platform-${p.id}-rate`];
                     return (
                       <TableRow key={p.id}>
                         <TableCell sx={{ fontWeight: p.isDirect ? 600 : 500 }}>
@@ -268,20 +300,6 @@ export default function PlatformAccountsPage() {
                             onChange={(e) => updatePlatformField(p.id, 'hasVatOnCommission', e.target.checked)}
                             disabled={p.isDirect || saving}
                             slotProps={{ input: { 'aria-label': `TVA déductible commission ${p.name}` } }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <TextField
-                            size="small"
-                            type="number"
-                            value={p.commissionRatePercent}
-                            onChange={(e) => updatePlatformField(p.id, 'commissionRatePercent', e.target.value)}
-                            disabled={p.isDirect || saving}
-                            error={Boolean(rateErr)}
-                            helperText={rateErr}
-                            slotProps={{ htmlInput: { min: 0, max: 100, step: 0.1, style: { textAlign: 'right' } } }}
-                            sx={{ width: { xs: '100%', sm: 120 } }}
-                            placeholder={p.isDirect ? '—' : ''}
                           />
                         </TableCell>
                       </TableRow>

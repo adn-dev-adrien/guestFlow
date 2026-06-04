@@ -50,12 +50,12 @@ const DDL = `
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY AUTOINCREMENT, platformLabel TEXT NOT NULL DEFAULT '');
   CREATE TABLE platforms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT,
-    hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-    commissionRatePercent REAL
+    hasVatOnCommission INTEGER NOT NULL DEFAULT 0
   );
 `;
 
@@ -89,8 +89,8 @@ test('saveAll persists default account + per-platform rows', () => {
   const res = model.saveAll({
     defaultAccount: '62260000',
     platforms: [
-      { id: 2, account: '62260300', hasVat: false, ratePercent: 3 },     // Airbnb
-      { id: 3, account: '62260500', hasVat: true,  ratePercent: 9.5 },   // Gîtes de France
+      { id: 2, account: '62260300', hasVat: false },     // Airbnb
+      { id: 3, account: '62260500', hasVat: true  },     // Gîtes de France
     ],
   });
   assert.equal(res.ok, true);
@@ -99,7 +99,6 @@ test('saveAll persists default account + per-platform rows', () => {
   const gdf = out.platforms.find((p) => p.name === 'Gîtes de France');
   assert.equal(gdf.commissionAccountNumber, '62260500');
   assert.equal(gdf.hasVatOnCommission, true);
-  assert.equal(gdf.commissionRatePercent, 9.5);
 });
 
 test('saveAll rejects an invalid (non-numeric) default account', () => {
@@ -120,7 +119,7 @@ test('saveAll: empty per-platform account is OK (falls back to default at export
   const { model } = freshModel();
   const res = model.saveAll({
     defaultAccount: '622600',
-    platforms: [{ id: 2, account: '', hasVat: false, ratePercent: null }],
+    platforms: [{ id: 2, account: '', hasVat: false }],
   });
   assert.equal(res.ok, true);
   const airbnb = res.data.platforms.find((p) => p.name === 'Airbnb');
@@ -131,7 +130,7 @@ test('saveAll: per-platform invalid account (too few digits) → 400 + error pin
   const { model } = freshModel();
   const res = model.saveAll({
     defaultAccount: '622600',
-    platforms: [{ id: 2, account: '12', hasVat: false, ratePercent: null }],
+    platforms: [{ id: 2, account: '12', hasVat: false }],
   });
   assert.equal(res.status, 400);
   assert.ok(res.error.platforms);
@@ -139,21 +138,11 @@ test('saveAll: per-platform invalid account (too few digits) → 400 + error pin
   assert.ok(res.error.platforms[0].account);
 });
 
-test('saveAll: rate > 100 → 400', () => {
-  const { model } = freshModel();
-  const res = model.saveAll({
-    defaultAccount: '622600',
-    platforms: [{ id: 2, account: '62260300', hasVat: false, ratePercent: 150 }],
-  });
-  assert.equal(res.status, 400);
-  assert.ok(res.error.platforms[0].ratePercent);
-});
-
 test('saveAll: write targeting the Direct row is silently ignored', () => {
   const { model } = freshModel();
   const res = model.saveAll({
     defaultAccount: '622600',
-    platforms: [{ id: 1, account: '99999999', hasVat: true, ratePercent: 50 }],
+    platforms: [{ id: 1, account: '99999999', hasVat: true }],
   });
   assert.equal(res.ok, true);
   const direct = res.data.platforms.find((p) => p.name === 'direct');
@@ -177,4 +166,26 @@ test('saveAll round-trips empty platforms (no-op on per-platform rows)', () => {
   const res = model.saveAll({ defaultAccount: '62260001', platforms: [] });
   assert.equal(res.ok, true);
   assert.equal(res.data.defaultAccount, '62260001');
+});
+
+test('refresh returns the updated list + newCount when the DB grows', () => {
+  const { model, db, platforms } = freshModel();
+  // Add a `reservations` table after the fact + a fresh platform via a manual reservation.
+  db.exec('CREATE TABLE reservations (id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT)');
+  db.prepare('INSERT INTO reservations (platform) VALUES (?)').run('Booking');
+  // Also a new iCal source.
+  db.prepare('INSERT INTO ical_sources (platformLabel) VALUES (?)').run('Greengo');
+
+  const result = model.refresh();
+  assert.equal(result.newCount, 2);
+  const names = result.data.platforms.map((p) => p.name).sort();
+  assert.ok(names.includes('Booking'));
+  assert.ok(names.includes('Greengo'));
+
+  // Idempotent — second refresh adds nothing.
+  const again = model.refresh();
+  assert.equal(again.newCount, 0);
+
+  // platformsModel is the source of truth — the rescan ran against the same db handle.
+  void platforms;
 });
