@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/react-19-and-recharts-3-migration` _(user-managed)_ |
 | **Created** | 2026-06-04 |
 | **Author** | Adrien |
