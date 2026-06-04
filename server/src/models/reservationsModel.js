@@ -15,6 +15,27 @@ const { getOptionsSignature, getResourcesSignature } = require('../utils/reserva
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
+// specs/force-extras-complement-on-platform.md §3 rule 1: every extra line written for a
+// non-direct platform reservation is forced to `inComplement = 1`, regardless of the
+// caller's payload. The model is authoritative — the client toggle is hidden in the UI
+// for these reservations, but the rule applies even if a stale or hand-crafted payload
+// arrives with `inComplement: 0`.
+function isPlatformNonDirect(platform) {
+  const normalized = formatPlatformName(platform) || 'direct';
+  return String(normalized).toLowerCase() !== 'direct';
+}
+
+// Reads the reservation's stored `platform` value (just-persisted within the same
+// transaction by `insertReservation` / `updateReservation`) and returns `true` if the
+// reservation should have its extras forced to `inComplement = 1`. Returns `false` for
+// a missing reservation (caller is mid-insert and the row hasn't landed yet — pricing
+// engine + caller already validated the input) so we don't accidentally over-force.
+function readPlatformForcing(database, reservationId) {
+  const row = database.prepare('SELECT platform FROM reservations WHERE id = ?').get(reservationId);
+  if (!row) return false;
+  return isPlatformNonDirect(row.platform);
+}
+
 // Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
 // The owner's net stays in `finalPrice`. Commission = gross − net (clipped to 0). Null on direct bookings
 // and on platform bookings without a recorded gross.
@@ -542,11 +563,19 @@ function createReservationsModel(database) {
     // saves preserve them by passing through the values the engine returned (which it reads
     // from the locked DB snapshot). Forced lines (`inComplement = 1`) always get NULL contribs
     // — they live 100 % in the Complément entry, never in Acompte/Solde.
+    // specs/force-extras-complement-on-platform.md §3 rule 1: on non-direct platform
+    // reservations, every extra line is forced to `inComplement = 1` regardless of the
+    // payload's per-line value. The model reads the reservation's current `platform`
+    // value (just written by `insertReservation` / `updateReservation` within the same
+    // transaction) to compute `platformForcing`. This covers regular options,
+    // auto-options (they flow through the same `optionLines` array) and the additive
+    // `insertOptions` callsite.
     replaceOptions(reservationId, optionLines) {
       database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(reservationId);
+      const platformForcing = readPlatformForcing(database, reservationId);
       const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
-        const forced = opt.inComplement ? 1 : 0;
+        const forced = (opt.inComplement || platformForcing) ? 1 : 0;
         insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
           Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
           forced,
@@ -556,9 +585,10 @@ function createReservationsModel(database) {
     },
 
     insertOptions(reservationId, optionLines) {
+      const platformForcing = readPlatformForcing(database, reservationId);
       const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
-        const forced = opt.inComplement ? 1 : 0;
+        const forced = (opt.inComplement || platformForcing) ? 1 : 0;
         insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
           Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
           forced,
@@ -571,12 +601,14 @@ function createReservationsModel(database) {
       database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(reservationId);
     },
 
+    // Same platform-forcing rule as `replaceOptions` — see comment above.
     insertCustomOptions(reservationId, optionLines) {
+      const platformForcing = readPlatformForcing(database, reservationId);
       const insertCustomOpt = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
       let sortOrder = 0;
       for (const line of optionLines || []) {
         if (!line.isCustom) continue;
-        const forced = line.inComplement ? 1 : 0;
+        const forced = (line.inComplement || platformForcing) ? 1 : 0;
         insertCustomOpt.run(reservationId, String(line.title || line.description || '').trim(),
           Number(line.originalTotalPrice || line.totalPrice || 0), line.offered ? 1 : 0, sortOrder,
           forced,
@@ -603,8 +635,13 @@ function createReservationsModel(database) {
       database.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(reservationId);
     },
 
+    // Same platform-forcing rule as `replaceOptions` — see comment above. Note this is
+    // the per-line writer; the caller (`replaceResources`-like flow in the controller)
+    // already pre-deletes the reservation's rows in a separate step, so we pay the
+    // `readPlatformForcing` query once per line. Cheap (~µs on a primary-key lookup).
     insertResourceLine(reservationId, rr, unitPrice, qty, priceType) {
-      const forced = rr.inComplement ? 1 : 0;
+      const platformForcing = readPlatformForcing(database, reservationId);
+      const forced = (rr.inComplement || platformForcing) ? 1 : 0;
       database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(reservationId, rr.resourceId, qty, unitPrice, Number(rr.billedUnits || qty),
           priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0,
