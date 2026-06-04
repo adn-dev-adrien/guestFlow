@@ -39,7 +39,7 @@ import theme from './theme';
 import DialogProvider from './components/DialogProvider';
 import EmailVerifyBanner from './components/EmailVerifyBanner';
 import api from './api';
-import { PLATFORM_COLORS } from './constants/platforms';
+import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
 
 import Dashboard from './pages/Dashboard';
 import ClientsPage from './pages/ClientsPage';
@@ -613,7 +613,15 @@ function AppShell() {
       .then((data) => {
         if (!isMounted) return;
         const customColors = data?.customColors || {};
-        Object.assign(PLATFORM_COLORS, customColors);
+        // Re-normalize incoming keys so they share the slug shape used by
+        // `getPlatformColor`. The server's slug uses dashes
+        // (`gites-de-france`); ours strips them (`gitesdefrance`). Without
+        // this pass the merged entries would never match any client-side
+        // lookup.
+        for (const [rawKey, color] of Object.entries(customColors)) {
+          const key = normalizePlatformKey(rawKey);
+          if (key) PLATFORM_COLORS[key] = color;
+        }
       })
       .catch(() => {
         // Keep static colors when custom colors cannot be loaded.
