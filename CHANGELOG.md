@@ -107,6 +107,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - `npm warn deprecated` count on install: **~25 → 2** (the remaining two are
     `@mui/base@5.0.0-dev` and `recharts@2` — both unrelated to the build stack and
     addressable when those libraries are upgraded).
+  - **Second-order win caught by Vite's strict ESM**: the first `npm run build`
+    on this branch surfaced **two duplicate `complementPaid` keys** in the same
+    object literal in `client/src/pages/ReservationPage.js` (lines ~938 and
+    ~1707, both reservation-save build sites). CRA's Babel chain silently
+    overlooked them; esbuild flags the construct as a hard warning. Three dead
+    assignments removed, no behaviour change (last-write-wins was the same
+    value), but a real code-quality cleanup the migration uncovered. Documented
+    in the spec edge-cases section.
 
   Migration shape (single PR):
   - `client/`: `react-scripts` removed; `vite` + `@vitejs/plugin-react` + `vitest` +

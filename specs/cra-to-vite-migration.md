@@ -197,6 +197,17 @@ ad hoc afterward).
   override of `REACT_APP_API_URL` exists in the prod environment, it's silently
   dropped. We verified no such override is used (the prod client calls
   same-origin `/api`); deploy notes mention this preemptively.
+- **CRA-tolerated source-level bugs caught by Vite/esbuild's strict ESM.**
+  Vite's esbuild transform refuses to silently overlook constructs that CRA's
+  Babel chain tolerated. First production build on this branch caught **two
+  duplicate keys** in the same object literal in
+  [client/src/pages/ReservationPage.js](client/src/pages/ReservationPage.js):
+  `complementPaid` was set three times (lines ~938 and ~1707, both build call
+  sites) — only the last assignment ever took effect; the other two were dead
+  code accumulated by a prior merge that wasn't caught by review. Fix: keep one
+  assignment per call site, drop the dead ones. No behaviour change (last-write
+  wins applied the same value), but the cleanup is captured here because it's a
+  real CRA → Vite second-order win and worth documenting for the post-mortem.
 
 ---
 
