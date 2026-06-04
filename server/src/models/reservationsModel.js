@@ -449,10 +449,14 @@ function createReservationsModel(database) {
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
         clientGrossAmount, depositDisabled, touristTaxInComplement } = payload;
-      // gross is meaningful only for platform-sourced bookings (rule 7 of the spec).
-      const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
-        ? Number(clientGrossAmount)
-        : null;
+      // accounting-platform-commission-and-no-deposit.md §3.2 rule 4: `clientGrossAmount`
+      // is populated on every reservation now. For platforms = the operator-typed gross;
+      // for directs = `finalPrice` (since gross === net trivially). This homogenises the
+      // shape so the accounting engine doesn't have to special-case NULLs.
+      const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
+      const grossForPlatform = platformIsNonDirect
+        ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : null)
+        : Number(quote.finalPrice || 0);
       const result = database.prepare(`
         INSERT INTO reservations (propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds,
@@ -488,9 +492,10 @@ function createReservationsModel(database) {
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
         extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate,
         depositDisabled, touristTaxInComplement } = payload;
-      const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
-        ? Number(clientGrossAmount)
-        : null;
+      const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
+      const grossForPlatform = platformIsNonDirect
+        ? (clientGrossAmount != null && clientGrossAmount !== '' ? Number(clientGrossAmount) : null)
+        : Number(quote.finalPrice || 0);
       database.prepare(`
         UPDATE reservations SET propertyId=?, clientId=?, startDate=?, endDate=?, adults=?, children=?, teens=?, babies=?,
           singleBeds=?, doubleBeds=?, babyBeds=?,

@@ -22,6 +22,9 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
+const platformsModel = require('./platformsModel');
+const settingsModel = require('./settingsModel');
+const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
 
 function createAccountingModel(database) {
   return {
@@ -63,6 +66,10 @@ function createAccountingModel(database) {
         ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate), r.id
       `).all(from, nextMonth, from, nextMonth, from, nextMonth);
 
+      // Read the global commission config once per export run (settings + platforms).
+      // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
+      const commissionContext = buildCommissionContext(database);
+
       // For each reservation, recompute its quote (which loads options/resources/nights from the DB)
       // to get the per-bucket HT + VAT splits. The quote ignores any encaissement-side dates, so this
       // is safe and deterministic.
@@ -71,14 +78,40 @@ function createAccountingModel(database) {
         const perLineData = buildPerLineData(database, row, quote);
         const entries = [];
         const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
-        if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, quote, 'deposit', perLineData));
-        if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, quote, 'balance', perLineData));
-        if (inMonth(row.complementPaid, row.complementPaidDate)) entries.push(buildEntry(row, quote, 'complement', perLineData));
+        if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, quote, 'deposit', perLineData, commissionContext));
+        if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, quote, 'balance', perLineData, commissionContext));
+        if (inMonth(row.complementPaid, row.complementPaidDate)) entries.push(buildEntry(row, quote, 'complement', perLineData, commissionContext));
         // Pure-tax entries are dropped (see `buildEntry`).
         return entries.filter(Boolean);
       });
     },
   };
+}
+
+// One-shot snapshot of the per-platform commission config + the global default account +
+// the global VAT rate. Computed once per export-run and threaded into every `buildEntry`
+// call so we don't re-query the DB for every line.
+function buildCommissionContext(database) {
+  const settings = settingsModel.read ? settingsModel.read() : database.prepare('SELECT * FROM app_settings WHERE id = 1').get();
+  const defaultAccount = (settings && settings.defaultCommissionAccountNumber) || DEFAULT_COMMISSION_ACCOUNT;
+  const vatRateCommission = settings && settings.vatRateCommission != null ? Number(settings.vatRateCommission) : 20;
+  // Index platforms by lowercased name for case-insensitive matching (`Airbnb` vs `airbnb`).
+  const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
+  const byName = new Map();
+  for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
+  return { defaultAccount, vatRateCommission, platformByName: byName };
+}
+
+// Resolve the commission config for one reservation. Returns null for direct bookings (no
+// platform → no commission line). Returns `{ account, hasVat }` otherwise.
+function resolveCommissionConfig(row, commissionContext) {
+  if (!commissionContext) return null;
+  const platform = String(row.platform || 'direct').toLowerCase();
+  if (platform === 'direct') return null;
+  const platformRow = commissionContext.platformByName.get(platform);
+  const account = (platformRow && platformRow.commissionAccountNumber) || commissionContext.defaultAccount;
+  const hasVat = platformRow ? Boolean(Number(platformRow.hasVatOnCommission)) : false;
+  return { account, hasVat };
 }
 
 function computeQuoteForReservation(database, row) {
@@ -194,7 +227,16 @@ function buildPerLineData(database, row, quote) {
 // tax TTC from the complement entry, and drop the entry if its remainder is 0.
 //
 // Returns `null` when the entry boils down to pure tourist tax (excluded from the export).
-function buildEntry(row, quote, kind, perLineData) {
+//
+// accounting-platform-commission-and-no-deposit.md §3.5 rules 11–13:
+//   - CA HT is recognised on the GROSS (`clientGrossAmount`), so revenue buckets are scaled
+//     by `effectiveGross / finalPrice` before being returned.
+//   - Commission TTC = effectiveGross − finalPrice for the balance entry of a non-direct
+//     reservation; 0 elsewhere (deposit on platforms is always 0 post-migration; complement
+//     is host-billed extras with no commission).
+//   - The CCLIENT debit drops to the **net** (= bank movement). The commission HT debit +
+//     optional VAT debit absorb the gap so Σ debits = Σ credits = gross TTC.
+function buildEntry(row, quote, kind, perLineData, commissionContext) {
   // Use the STORED `row.finalPrice` (= the price the user actually committed to and what every
   // other GuestFlow surface displays — fiche réservation, projections, finance summary) and
   // fall back to the engine's recompute only when the stored value is missing (iCal imports
@@ -234,6 +276,47 @@ function buildEntry(row, quote, kind, perLineData) {
   // export.md §3.4 rule 12bis.
   if (encaissementTtc === 0) return null;
 
+  // Gross/net resolution + commission for this entry (§3.5).
+  // - Direct: gross === net (= finalPrice). The backfill at boot ensures `row.clientGrossAmount`
+  //   is populated for directs; we still defensively fall back to finalPrice on legacy NULL.
+  // - Platform: gross > net by the commission amount. The full commission rides on the
+  //   `balance` entry (deposit is 0 post-migration; complement is on-site extras).
+  const platformIsNonDirect = String(row.platform || 'direct').toLowerCase() !== 'direct';
+  const effectiveGross = Math.max(
+    finalPriceTtc,
+    Number(row.clientGrossAmount != null ? row.clientGrossAmount : finalPriceTtc) || 0,
+  );
+  const commissionTtcTotal = round2(Math.max(0, effectiveGross - finalPriceTtc));
+  const grossRatio = finalPriceTtc > 0 ? effectiveGross / finalPriceTtc : 1;
+  // Per-entry commission share — full on balance for non-direct platforms; 0 otherwise.
+  const commissionTtcEntry = (platformIsNonDirect && kind === 'balance')
+    ? commissionTtcTotal
+    : 0;
+  // Resolve compte commission + hasVat from the global config snapshot.
+  const commissionResolved = commissionTtcEntry > 0
+    ? resolveCommissionConfig(row, commissionContext)
+    : null;
+  const vatRateCommission = commissionContext && Number.isFinite(Number(commissionContext.vatRateCommission))
+    ? Number(commissionContext.vatRateCommission)
+    : 20;
+  let commissionLine = null;
+  if (commissionResolved && commissionTtcEntry > 0) {
+    const hasVat = commissionResolved.hasVat;
+    const ht = hasVat
+      ? round2(commissionTtcEntry / (1 + vatRateCommission / 100))
+      : round2(commissionTtcEntry);
+    const vat = hasVat ? round2(commissionTtcEntry - ht) : 0;
+    commissionLine = {
+      account: commissionResolved.account,
+      hasVat,
+      ttc: round2(commissionTtcEntry),
+      ht,
+      vat,
+      vatAccount: VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
+      vatRate: vatRateCommission,
+    };
+  }
+
   // `perLineData` is optional: when omitted (legacy callers / unit tests that don't model the
   // contrib columns) the fallback path runs unchanged.
   const hasContribs = Boolean(perLineData && perLineData.hasContribs);
@@ -247,13 +330,23 @@ function buildEntry(row, quote, kind, perLineData) {
     // pass-through account 46710000 in the export, NOT to a 70xxx revenue line.
     const taxTtc = computeTaxTtcForKind(row, kind);
 
-    const totalTtc = round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc);
-    if (totalTtc === 0) return null;
+    // Scale per-bucket TTCs by the gross ratio so the credited HT + VAT reflect the BRUT
+    // the customer paid the platform (§3.5). For directs grossRatio === 1, so this is a
+    // no-op and the entry shape stays identical to the pre-spec output.
+    const grossByBucket = {
+      accommodation: round2(ttcByBucket.accommodation * grossRatio),
+      options:       round2(ttcByBucket.options       * grossRatio),
+      resources:     round2(ttcByBucket.resources     * grossRatio),
+    };
+    const totalGrossTtc = round2(grossByBucket.accommodation + grossByBucket.options + grossByBucket.resources + taxTtc);
+    if (totalGrossTtc === 0) return null;
+    // Net = what the owner banks; commission absorbs the difference on the debit side.
+    const encaissementNetTtc = round2(totalGrossTtc - (commissionLine ? commissionLine.ttc : 0));
 
     const buckets = [
-      bucketFromTtc('accommodation', ttcByBucket.accommodation, Number(quote.vatPercentageAccommodation || 0)),
-      bucketFromTtc('options',       ttcByBucket.options,       Number(quote.vatPercentageOptions       || 0)),
-      bucketFromTtc('resources',     ttcByBucket.resources,     Number(quote.vatPercentageResources     || 0)),
+      bucketFromTtc('accommodation', grossByBucket.accommodation, Number(quote.vatPercentageAccommodation || 0)),
+      bucketFromTtc('options',       grossByBucket.options,       Number(quote.vatPercentageOptions       || 0)),
+      bucketFromTtc('resources',     grossByBucket.resources,     Number(quote.vatPercentageResources     || 0)),
     ].filter((b) => b.ht > 0 || b.vat > 0);
 
     return {
@@ -265,9 +358,12 @@ function buildEntry(row, quote, kind, perLineData) {
       platform: row.platform || 'direct',
       clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
       finalPrice: finalPriceTtc,
-      // Encaissement TTC = revenue TTC + tax TTC (the customer paid both). The export engine
-      // emits a credit on the tax pass-through account so Σ credits == debit holds.
-      encaissementTtc: totalTtc,
+      // Encaissement TTC = revenue-on-gross TTC + tax TTC. The export engine credits revenue
+      // 70xxx + VAT 44571xxx on this gross figure, and the CCLIENT debit + commission debits
+      // sum to the same value (§3.5).
+      encaissementTtc: totalGrossTtc,
+      encaissementNetTtc,
+      commission: commissionLine,
       taxTtc: round2(taxTtc),
       fraction: 1,
       buckets,
@@ -290,6 +386,17 @@ function buildEntry(row, quote, kind, perLineData) {
     legacyTaxTtc = round2(touristTaxTotal * fraction);
   }
 
+  // §3.5 — legacy path: same gross-ratio scaling, applied through `fraction`. We scale the
+  // computed `fraction` by `grossRatio` so the buckets (still computed on NET in the engine
+  // quote) end up at the right gross HT/VAT when the CSV does `bucket.ht × fraction`.
+  // The encaissement reported to the export = encaissement × grossRatio so the credits sum
+  // to the gross. Commission gets booked separately on the debit side.
+  const legacyEncaissementGross = round2(encaissementTtc * grossRatio);
+  const legacyFraction = collectedOnArrival && totalStayTtc > 0
+    ? ((encaissementTtc - legacyTaxTtc) / finalPriceTtc) * grossRatio
+    : fraction * grossRatio;
+  const legacyEncaissementNet = round2(legacyEncaissementGross - (commissionLine ? commissionLine.ttc : 0));
+
   return {
     reservationId: row.id,
     kind,
@@ -299,13 +406,11 @@ function buildEntry(row, quote, kind, perLineData) {
     platform: row.platform || 'direct',
     clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
     finalPrice: finalPriceTtc,
-    encaissementTtc,
+    encaissementTtc: legacyEncaissementGross,
+    encaissementNetTtc: legacyEncaissementNet,
+    commission: commissionLine,
     taxTtc: legacyTaxTtc,
-    // Legacy path keeps `fraction` so the export engine pro-rates the bucket HT/VAT, and
-    // surfaces the tax separately so it can emit a 46710000 credit on top.
-    fraction: collectedOnArrival && totalStayTtc > 0
-      ? (encaissementTtc - legacyTaxTtc) / finalPriceTtc
-      : fraction,
+    fraction: legacyFraction,
     buckets: [
       bucket('accommodation', quote.accommodationNetPrice, quote.accommodationVatAmount, quote.vatPercentageAccommodation),
       bucket('options', Number(quote.optionsNetPrice || 0), Number(quote.optionsVatAmount || 0), quote.vatPercentageOptions),
