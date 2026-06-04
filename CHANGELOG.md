@@ -4,6 +4,51 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **Platform colours restored on the calendar + `<Select>` round-
+  trips correctly after the UpperCamelCase migration**
+  (2026-06-05). Two regressions caused by PR #118
+  (`normalize-platform-names.md`) that the spec missed because it
+  declared the frontend untouched:
+  1. `client/src/constants/platforms.js → PLATFORM_COLORS` keys are
+     lowercase slugs (`airbnb`, `gitedefrance`). Reservations now
+     carry `platform = 'Airbnb'` / `'Gitedefrance'` (UpperCamelCase)
+     so the direct lookup `PLATFORM_COLORS[reservation.platform]`
+     returned `undefined` → every non-direct booking fell back to
+     the default grey on the calendar.
+  2. The `PLATFORMS` array used as `<MenuItem value=…>` in
+     `ReservationPage`'s platform `<Select>` was lowercase.
+     Reservations stored as `'Airbnb'` no longer matched any
+     `MenuItem` → `<Select>` rendered blank on edit.
+
+  **Fix** (`client/src/constants/platforms.js`):
+  - New `normalizePlatformKey(platform)` helper: NFD-strip +
+    lowercase + remove every non-alphanumeric character. Slug-shape
+    compatible with the server's `KNOWN_PLATFORM_COLORS` keys.
+  - `getPlatformColor(platform)` rewritten to slug the input before
+    looking up the colour map — every shape (UpperCamelCase,
+    lowercase, free-form with accents) resolves correctly.
+  - `PLATFORMS` array switched to UpperCamelCase canonical form
+    (`'direct'` stays lowercase, matches `formatPlatformName`'s
+    output): the `<Select>` round-trips again.
+  - `gitesdefrance` (plural) alias added so the accented form
+    `'Gîtes de France'` resolves to the same yellow as the singular
+    slug.
+
+  Callers updated: 4 direct `PLATFORM_COLORS[…]` lookups in
+  `MiniPlanningStrip.js` replaced with `getPlatformColor(…)`; the
+  `customColors` merge in `App.js` now re-normalises incoming server
+  slugs before assigning. `PropertyDetail.js`'s lookups by
+  `ical_sources.platformKey` are unchanged (that column is the
+  lowercase slug by construction).
+
+  Tests: `client/src/constants/__tests__/platforms.test.js`
+  (13 Vitest cases) pins the slug normaliser, every UpperCamelCase
+  reservation form, the "Gîtes de France" plural variant + the
+  dropdown invariants. Spec `normalize-platform-names.md` §4.2
+  updated with a "2026-06-05 follow-up" subsection so the next
+  reader sees this gap was retroactively closed.
+
 ### Changed
 - **Platform names — UpperCamelCase canonical form everywhere** (spec
   `normalize-platform-names.md`, 2026-06-04). Follow-up to PR #116 which

@@ -187,8 +187,56 @@ Worked examples (from the prod-copy DB and probable future inputs):
 
 ### 4.2 Client side
 
-No changes. The page still displays whatever `platforms.name` returns —
-which is now the canonical form.
+**2026-06-05 follow-up — platform colors + dropdown alignment.** The
+initial spec claimed the frontend was untouched. The post-deploy
+calendar review showed two regressions caused by the UpperCamelCase
+shift:
+
+1. `client/src/constants/platforms.js → PLATFORM_COLORS` keys are
+   lowercase slugs (`airbnb`, `gitedefrance`). Reservations now carry
+   `platform = 'Airbnb'` / `'Gitedefrance'`, so the direct lookup
+   `PLATFORM_COLORS[reservation.platform]` returned `undefined` →
+   every non-direct booking fell back to the default grey on the
+   calendar (the bug Adrien reported).
+2. `PLATFORMS` array (used as `<MenuItem value=…>` in the platform
+   `<Select>` on `ReservationPage`) was lowercase. Reservations
+   stored as `'Airbnb'` no longer matched any `MenuItem` →
+   `<Select>` rendered blank on edit.
+
+**Fixes (this spec update + fix/platform-colors-uppercamel-mismatch
+branch):**
+
+- Add `normalizePlatformKey(platform)` helper to
+  `client/src/constants/platforms.js`: NFD-strip + lowercase +
+  remove every non-alphanumeric character. Slug-shape compatible
+  with the server's `KNOWN_PLATFORM_COLORS` keys.
+- Rewrite `getPlatformColor(platform)` to slug the input before
+  looking up the colour map. Returns `DEFAULT_PLATFORM_COLOR`
+  (`#757575`) only for genuinely-unknown platforms.
+- Update `PLATFORMS` array to UpperCamelCase canonical form
+  (matching `formatPlatformName`'s output) so the `<Select>` round-
+  trips correctly: `['direct', 'Airbnb', 'Greengo', 'Abritel',
+  'Abracadaroom', 'Booking', 'Gitedefrance', 'Pitchup']`.
+- Add the `gitesdefrance` alias to `PLATFORM_COLORS` so the plural
+  form (the formatter's output for accented `'Gîtes de France'`
+  input) resolves to the same yellow as the typo-style singular
+  `gitedefrance` slug.
+- Replace the 4 direct `PLATFORM_COLORS[…]` lookups in
+  `client/src/components/MiniPlanningStrip.js` with calls to
+  `getPlatformColor(…)` — the slug normalisation flows through.
+- Normalize keys when merging the API's `customColors` payload in
+  `App.js` (the server slug uses dashes, the client slug strips
+  them — without re-normalising the merged entries would never
+  match a client-side lookup).
+
+`PropertyDetail.js`'s `PLATFORM_COLORS[source.platformKey]` lookups
+are unchanged — they read `ical_sources.platformKey`, which is
+already the lowercase slug by construction (the server's
+`normalizePlatformKey` lives at the iCal write site).
+
+Tests: `client/src/constants/__tests__/platforms.test.js` (13 cases)
+pins the slug normaliser, every UpperCamelCase reservation form, the
+"Gîtes de France" plural variant + the dropdown invariants.
 
 ### 4.3 API contract
 

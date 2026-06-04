@@ -4,7 +4,7 @@ import {
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { PLATFORM_COLORS } from '../constants/platforms';
+import { getPlatformColor } from '../constants/platforms';
 import { getBlockedNightConflictInfo } from '../utils/reservationConflicts';
 
 const DAY_START = 8;
@@ -54,7 +54,11 @@ export default function MiniPlanningStrip({
   isLocked,
 }) {
   const safeReservations = Array.isArray(reservations) ? reservations : [];
-  const selectedReservationColor = PLATFORM_COLORS[currentReservation?.platform] || '#1976d2';
+  // Use getPlatformColor so the lookup tolerates UpperCamelCase (post-PR #118 normalisation),
+  // lowercase, or accented free-form platform values — all resolve to the same colour.
+  const selectedReservationColor = currentReservation?.platform
+    ? getPlatformColor(currentReservation.platform)
+    : '#1976d2';
 
   const miniDays = useMemo(() => {
     return Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);
@@ -104,17 +108,17 @@ export default function MiniPlanningStrip({
 
     // Middle-of-stay day: fully filled.
     if (middleRes && !departureRes && !arrivalRes) {
-      const fullColor = middleIsSelected ? selectedReservationColor : (PLATFORM_COLORS[middleRes.platform] || '#757575');
+      const fullColor = middleIsSelected ? selectedReservationColor : getPlatformColor(middleRes.platform);
       return { background: fullColor, textColor: '#fff' };
     }
 
     const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
     const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
     const departColor = departureRes
-      ? (departureIsSelected ? selectedReservationColor : (PLATFORM_COLORS[departureRes.platform] || '#757575'))
+      ? (departureIsSelected ? selectedReservationColor : getPlatformColor(departureRes.platform))
       : null;
     const arriveColor = arrivalRes
-      ? (arrivalIsSelected ? selectedReservationColor : (PLATFORM_COLORS[arrivalRes.platform] || '#757575'))
+      ? (arrivalIsSelected ? selectedReservationColor : getPlatformColor(arrivalRes.platform))
       : null;
 
     const stops = [];
