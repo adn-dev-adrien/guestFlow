@@ -4,6 +4,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **CI deploy — `release.sh` rsync now creates the missing `client/` parent directory**
+  (2026-06-04). Regression from the CRA → Vite migration (PR #111): `release.sh` line 61
+  copies `client/dist/` → `client/build/` inside the release archive, but rsync only
+  creates the leaf (`build/`) — not the intermediate parent `client/`. The first rsync
+  in the script (line ~46) only created `$RELEASE_DIR/server/`, so the subsequent client
+  rsync failed with `mkdir "guestflow-release/client/build" failed: No such file or
+  directory` and aborted the deploy at the "Create release archive" step. Fix: add
+  `--mkpath` (GNU rsync ≥ 3.2.3 — the Pi self-hosted runner runs 3.4.1, so it's
+  supported). The `dist/` → `build/` rename inside the archive stays unchanged so the Pi
+  PM2 deploy layout is backwards compatible. **Note for local dev on macOS**: Apple's
+  default `rsync` is `openrsync` which doesn't understand `--mkpath`; install GNU rsync
+  via `brew install rsync` to run `release.sh` locally.
+
 ### Changed
 - **Client framework: React 18 → 19 + Recharts 2 → 3** (spec
   `react-19-and-recharts-3-migration.md`, 2026-06-04). **Third and final
