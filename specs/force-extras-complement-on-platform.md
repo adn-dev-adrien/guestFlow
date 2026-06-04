@@ -252,16 +252,33 @@ already-documented behaviour for forced lines (see PR
 "Compl." Checkbox visible on each of the four blocks (property
 options, auto-options, custom options, resources).
 
+**Direct reservation extras — visual contract (post 2026-06-05 polish):**
+
+Each per-line "Compl." toggle is a **small MUI Switch** (`size="small"`)
+inside a `<Tooltip>`, with no inline label — same visual family as the
+per-line activation Switch above the bottom row, just smaller. The
+`<FormControlLabel>` wrapper carries no `label` prop; the Tooltip
+provides the affordance text (*"Cette ligne sera comptabilisée
+intégralement dans le Complément à percevoir, jamais dans l'acompte
+ou le solde."*) and an `aria-label="Forcer en complément"` makes the
+control queryable by screen readers + tests. The Compl. Switch sits
+immediately to the **left** of the Total chip in the right-aligned
+bottom cluster (`justifyContent="flex-end"`); the Total chip is
+sized to its content (no `flexGrow: 1`) so the cluster stays tight
+against the right edge.
+
 **When `form.platform != 'direct'`:**
 
 1. At the top of the Extras section (immediately under the "Extras"
    heading), insert a muted caption:
    > Réservation plateforme — les extras sont automatiquement facturés
    > en paiement complémentaire.
-2. The four "Compl." Checkbox blocks (`ExtrasSection.js` lines ~113,
-   ~148, ~218, ~323) are **not rendered**. The surrounding `<Stack>`
-   /`<Tooltip>` wrapper falls back to just the totals chip + the
-   delete button (custom options) / qty input.
+2. The four "Forcer en complément" small Switches (`ExtrasSection.js`
+   on each of the 4 line types) are **not rendered**. The surrounding
+   `<Stack>` /`<Tooltip>` wrapper falls back to just the totals chip +
+   the delete button (custom options) / qty input. The right-aligned
+   bottom cluster (Total chip alone) keeps the same alignment as the
+   direct case.
 3. In `PricingSummary`, the per-line `<ComplementChip>` is **not
    rendered** (same rationale — the routing is forced, no toggle to
    expose). The "Offert/Offrir" `<Button>` next to each line **stays

@@ -6,16 +6,21 @@ import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
 // specs/force-extras-complement-on-platform.md §3 rule 4 + §7.2.
-// On non-direct platform reservations, the per-line "Compl." Checkboxes are
-// hidden + a muted caption replaces them at the top of the section.
-// Direct reservations are unaffected.
+// On non-direct platform reservations, the per-line "Forcer en complément"
+// small Switches are hidden + a muted caption replaces them at the top of the
+// section. Direct reservations are unaffected.
+//
+// The Compl. toggle was reshaped in this branch: small Switch (`size="small"`)
+// instead of a Checkbox, no inline label, aria-label "Forcer en complément" for
+// screen readers + test queryability. Same visual family as the per-line
+// activation Switch above, just smaller.
 
 function renderExtras(overrides = {}) {
-  // Seed enough state on the form to render every Checkbox branch (property option +
-  // custom option + resource). The auto-options Checkbox path requires an auto-enabled
-  // option in the catalog AND a selected entry that flips it ON. Destructure
-  // `form` out of `overrides` before re-spreading so it merges with the seeded shape
-  // instead of replacing it.
+  // Seed enough state on the form to render every Switch branch (property option +
+  // auto-option + custom option + resource). The auto-options Switch path requires
+  // an auto-enabled option in the catalog AND a selected entry that flips it ON.
+  // Destructure `form` out of overrides before re-spreading so it merges with the
+  // seeded shape instead of replacing it.
   const { form: formOverride, ...restOverrides } = overrides;
   const baseCtx = makeMockContext({
     propertyOptions: [
@@ -50,22 +55,23 @@ function renderExtras(overrides = {}) {
   return baseCtx;
 }
 
-test('direct reservation: 4 "Compl." Checkbox labels rendered (property option + auto-option + custom option + resource)', () => {
+test('direct reservation: 4 "Forcer en complément" Switches rendered (property option + auto-option + custom option + resource)', () => {
   renderExtras({ form: { platform: 'direct' } });
-  // Each "Compl." Checkbox renders a `<Typography variant="caption">Compl.</Typography>` label.
-  const labels = screen.getAllByText(/^Compl\.$/);
-  expect(labels).toHaveLength(4);
+  // Each Compl. Switch carries aria-label="Forcer en complément" — the canonical
+  // identifier the operator's screen reader announces too.
+  const complementSwitches = screen.getAllByRole('switch', { name: 'Forcer en complément' });
+  expect(complementSwitches).toHaveLength(4);
   // No platform caption.
   expect(screen.queryByText(/Réservation plateforme — les extras sont automatiquement/i)).not.toBeInTheDocument();
 });
 
-test('platform reservation: caption renders + ZERO "Compl." Checkboxes', () => {
+test('platform reservation: caption renders + ZERO "Forcer en complément" Switches', () => {
   renderExtras({ form: { platform: 'Airbnb' } });
   expect(screen.getByText(/Réservation plateforme — les extras sont automatiquement facturés en paiement complémentaire/i)).toBeInTheDocument();
-  expect(screen.queryAllByText(/^Compl\.$/)).toHaveLength(0);
+  expect(screen.queryAllByRole('switch', { name: 'Forcer en complément' })).toHaveLength(0);
 });
 
-test('platform reservation: option totals (Chip) are unchanged — only the toggle disappears', () => {
+test('platform reservation: option totals (Chip) are unchanged — only the Compl. Switch disappears', () => {
   renderExtras({ form: { platform: 'GitesDeFrance' } });
   // The "Total: 20.00€" chip on the property option is still visible.
   expect(screen.getByText(/Total: 20\.00€/)).toBeInTheDocument();
@@ -73,7 +79,7 @@ test('platform reservation: option totals (Chip) are unchanged — only the togg
   expect(screen.getByText(/Total auto:/)).toBeInTheDocument();
 });
 
-test('case-insensitive Direct enum: any casing of "direct" keeps the regular Checkboxes', () => {
+test('case-insensitive Direct enum: any casing of "direct" keeps the regular Compl. Switches', () => {
   // Mirrors the runtime guard `String(form.platform || '').toLowerCase() !== 'direct'`.
   for (const directVariant of ['direct', 'Direct', 'DIRECT']) {
     const ctx = makeMockContext({
@@ -89,8 +95,8 @@ test('case-insensitive Direct enum: any casing of "direct" keeps the regular Che
         <ExtrasSection />
       </ReservationFormProvider>
     );
-    // 1 "Compl." Checkbox (the property option). Custom options block is empty + no resources.
-    expect(screen.getAllByText(/^Compl\.$/).length).toBeGreaterThanOrEqual(1);
+    // 1 Compl. Switch (the property option). Custom options block is empty + no resources.
+    expect(screen.getAllByRole('switch', { name: 'Forcer en complément' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Réservation plateforme — les extras sont automatiquement/i)).not.toBeInTheDocument();
     unmount();
   }
