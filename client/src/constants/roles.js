@@ -42,6 +42,9 @@ export const ROUTE_ROLES = Object.freeze({
   '/finance':                [ADMIN],
   '/finance/tourist-tax':    [ADMIN],
   '/comptabilite':           [ADMIN, ACCOUNTANT],
+  // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — dedicated page for the
+  // per-platform commission config, reachable by both admin and accountant.
+  '/comptabilite/plateformes': [ADMIN, ACCOUNTANT],
   '/devis':                  [ADMIN],
   '/settings':               [ADMIN],
   '/properties':             [ADMIN],
