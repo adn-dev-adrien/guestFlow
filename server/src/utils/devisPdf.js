@@ -12,7 +12,23 @@ const {
   timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
 } = require("./devisHelpers");
 
-function generateDevisPdf(full, settings) {
+// §3.4 rules 15–18 — single source of truth for the tax + grand-total numbers the PDF
+// renders. When the engine quote is provided, every figure flows from it; without a quote
+// we read the persisted row (legacy fallback for devis whose engine call fails). Exported
+// so the consistency invariant — "PDF total equals PricingSummary total" — can be tested
+// without rendering and parsing the FlateDecode-compressed PDF stream.
+function resolveLiveTaxTotals(full, quote) {
+  const liveTaxTotal = quote && Number(quote.touristTaxTotal || 0) > 0
+    ? Number(quote.touristTaxTotal)
+    : Number(full.touristTaxTotal || 0);
+  const liveFinalPrice = quote && quote.finalPrice != null
+    ? Number(quote.finalPrice)
+    : Number(full.finalPrice || 0);
+  const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
+  return { liveTaxTotal, liveFinalPrice, grandTotalTtc };
+}
+
+function generateDevisPdf(full, settings, quote) {
   return new Promise((resolve, reject) => {
   const property = full.property;
   const client = full.client;
@@ -149,27 +165,36 @@ function generateDevisPdf(full, settings) {
   // ── Devis meta ────────────────────────────────────────────────────────────
   const META_TOP = Math.max(cy, ccy) + 18;
 
+  // §3.1 + §3.2 — Date du devis + Valable jusqu'au.
+  //
+  // `createdAt` is normally populated by the model (§3.1 rule 1 binds it explicitly on INSERT).
+  // The fallback to "today" below is a legacy guard for the handful of pre-fix rows persisted
+  // with an empty value (devis #12102, #12097 etc. in the prod-copy DB) — without it those
+  // legacy PDFs show an empty "Date du devis" pill.
+  const todayIsoDate = new Date().toISOString().slice(0, 10);
+  const createdAtIsoDate = full.createdAt
+    ? String(full.createdAt).slice(0, 10)
+    : todayIsoDate;
+
+  // `validUntil` is normally persisted by the model (§3.2 rule 6) as
+  // MIN(createdAt + quoteValidityDays, startDate - 2). The fallback below recomputes the
+  // same formula from `createdAt` for legacy rows where `validUntil` is NULL — these are
+  // the same rows the spec §3.2 rule 9 calls out as the forward-only safety net.
+  const validUntilIso = (() => {
+    if (full.validUntil) return String(full.validUntil);
+    const days = Number(settings && settings.quoteValidityDays) || 30;
+    let iso = addDaysToIsoDate(createdAtIsoDate, days) || '';
+    const startDateIso = String(full.startDate || '');
+    if (startDateIso && iso && iso > startDateIso) {
+      iso = addDaysToIsoDate(startDateIso, -2) || iso;
+    }
+    return iso;
+  })();
+
   // Meta pills
   const metaItems = [
-    { label: 'Date du devis', value: formatDateFR(full.createdAt ? full.createdAt.slice(0, 10) : '') },
-    { label: 'Valable jusqu\'au', value: (() => {
-      let validUntilIso = '';
-      if (full.validUntil) {
-        validUntilIso = String(full.validUntil);
-      } else {
-        const days = Number(settings.quoteValidityDays) || 30;
-        const d = new Date();
-        d.setDate(d.getDate() + days);
-        validUntilIso = d.toISOString().slice(0, 10);
-      }
-
-      const startDateIso = String(full.startDate || '');
-      if (startDateIso && validUntilIso && validUntilIso > startDateIso) {
-        validUntilIso = addDaysToIsoDate(startDateIso, -2) || validUntilIso;
-      }
-
-      return formatDateFR(validUntilIso);
-    })() },
+    { label: 'Date du devis', value: formatDateFR(createdAtIsoDate) },
+    { label: 'Valable jusqu\'au', value: formatDateFR(validUntilIso) },
     { label: 'Logement', value: property ? property.name : `#${full.propertyId}` },
   ];
 
@@ -459,19 +484,36 @@ function generateDevisPdf(full, settings) {
   drawTotalLine('Sous-total HT', subtotalHt, false);
   const subtotalTtc = roundMoney(subtotalTtcFromRows);
   drawTotalLine('Sous-total TTC', subtotalTtc, false);
-  if (Number(full.touristTaxTotal || 0) > 0) {
-    drawTotalLine('Taxe de séjour', full.touristTaxTotal, false);
-    const taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);
-    const taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
-    const taxRate = Number(full.touristTaxRate || 0);
-    const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${formatCurrency(taxRate)} / pers./nuit`;
+  // §3.4 rules 15–18 — Tourist tax + grand total flow through `resolveLiveTaxTotals` so
+  // the PDF stays consistent with PricingSummary even when the persisted row drifts (e.g.
+  // user changed pricing then re-printed without updating the row). Mixing live + persisted
+  // here is what caused the user-reported PDF/summary drift (16.80€ summary vs. 15.36€ PDF
+  // on percentage-based tax with department surcharge).
+  const { liveTaxTotal, liveFinalPrice } = resolveLiveTaxTotals(full, quote);
+  if (liveTaxTotal > 0) {
+    drawTotalLine('Taxe de séjour', liveTaxTotal, false);
+    let taxablePersons;
+    let taxNights;
+    let taxUnitLabel;
+    if (quote && Number(quote.touristTaxTotal || 0) > 0) {
+      taxablePersons = Number(quote.touristTaxAdultsCount || 0);
+      taxNights = Number(quote.touristTaxNights || 0);
+      // Engine-authoritative per-person-per-night unit; the engine resolves percentage vs
+      // fixed-amount + department tax + capping into a single coherent number.
+      taxUnitLabel = formatCurrency(Number(quote.touristTaxUnitAmount || 0));
+    } else {
+      taxablePersons = Number(full.adults || 0) + Number(full.children || 0) + Number(full.teens || 0);
+      taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
+      taxUnitLabel = formatCurrency(Number(full.touristTaxRate || 0));
+    }
+    const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${taxUnitLabel} / pers./nuit`;
     doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
       .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     totY += 10;
   }
 
   // Total line
-  const grandTotalTtc = roundMoney(Number(full.finalPrice || 0) + Number(full.touristTaxTotal || 0));
+  const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
     .text('TOTAL TTC', TOTAL_RX - 4, totY + 4, { width: 120 });
@@ -576,4 +618,4 @@ function generateDevisPdf(full, settings) {
   });
 }
 
-module.exports = { generateDevisPdf };
+module.exports = { generateDevisPdf, __test: { resolveLiveTaxTotals } };
