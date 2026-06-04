@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/accounting-platform-commission-and-no-deposit` _(user-managed)_ |
 | **Created** | 2026-06-04 |
 | **Author** | Adrien |

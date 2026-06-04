@@ -5,6 +5,95 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Changed
+- **Accounting export — platform commission as journal lines + no-deposit on platforms**
+  (spec `accounting-platform-commission-and-no-deposit.md`, 2026-06-04). Driven by
+  the accountant's 2026-06-04 email pushback on the previous CSV: turnover was
+  recognised on the **net** (`finalPrice`) instead of on the **gross**
+  (`clientGrossAmount`), and the platform commission was just a trailing info
+  column instead of a real charge journal line.
+
+  **New shape per encaissement** (Gîtes de France booking, 687 € gross / 626 €
+  net / 61 € commission):
+
+  ```
+  DÉBIT C<NAME>  626          (net = bank movement)
+  DÉBIT 62260500  50,83       (commission HT — per-platform compte)
+  DÉBIT 445660    10,17       (TVA déductible 20 %)
+  CRÉDIT 706000   624,55      (CA HT on the GROSS)
+  CRÉDIT 445711    62,45      (TVA collectée 10 % on the GROSS)
+  Σ debits = Σ credits = 687
+  ```
+
+  **What's new on the database:**
+  - NEW `platforms` table — deduped per-platform commission config (auto-seeded
+    with the `direct` row + `DISTINCT ical_sources.platformLabel` at boot; the
+    iCal source create / update path calls `platformsModel.upsertByName` so a
+    fresh platform surfaces on the dedicated config page immediately).
+  - `app_settings` gains `defaultCommissionAccountNumber` (TEXT, default
+    `'622600'`) — fallback when a platform row doesn't set its own account —
+    and `vatRateCommission` (REAL, default 20) — global rate applied to
+    commissions whose row carries `hasVatOnCommission = 1`, lives in
+    Settings → Général → Taux de TVA next to the existing `vatRate`.
+  - One-shot migration `platform_no_deposit_v1` (gated by a `migrations` flag
+    table): collapses every legacy non-direct platform reservation's deposit
+    into the balance + nulls the per-line `acompteContribTtc` snapshots so the
+    contrib path falls back to legacy pro-rata cleanly. **Past CSV exports
+    change retroactively on these rows — accepted call per spec rule 9**;
+    snapshot the SQLite DB before deploy as a safety net.
+  - Backfill `clientGrossAmount = finalPrice` for direct reservations where the
+    column was NULL (now always populated; `gross === net` trivially for directs).
+
+  **What's new on the engine:**
+  - `pricing.js` enforces `depositAmount = 0` + `balanceAmount = preArrivalAmount`
+    on every non-direct platform, regardless of `depositPaid`. Same effect as
+    `depositDisabled` but driven by `platform` instead.
+  - `accountingModel.buildEntry` reads one snapshot of
+    `{ defaultAccount, vatRateCommission, platformByName }` per export run.
+    Scales bucket TTCs by `effectiveGross / finalPrice` so 70xxx HT + 44571x
+    VAT are credited on the GROSS. For the balance entry of non-direct
+    platforms: builds the commission line (HT on the resolved compte +
+    optional VAT on 44566000 when `hasVatOnCommission = 1`). Complement
+    entries: 0 commission (host-billed extras).
+  - `accountingExport.entryToRows` debits CCLIENT at the net (= bank movement)
+    + emits commission HT + VAT debit lines right after, so Σ debits = Σ
+    credits = gross TTC to the cent. The CSV columns + `Pièce` numbering
+    convention stay unchanged.
+
+  **New page `/comptabilite/plateformes`** — admin + accountant edit the
+  per-platform config from one centralised place. Top card = compte par
+  défaut (6–8 digit fallback); bottom card = table listing every platform
+  with editable compte + Switch TVA déductible + taux commission %. Direct
+  row's inputs grayed out. Sidebar gains the link under Suivi financier;
+  accountant's minimal sidebar grows by one item.
+
+  **Reservation FinanceSection** — Acompte block hidden on non-direct
+  platforms, replaced by *"Pas d'acompte (réservation plateforme — virement
+  unique)"*. Direct bookings unchanged.
+
+  Acceptance gate — all green:
+  - `npm run build`: 2.24 s, 0 esbuild warnings, gzip 464.07 kB (+1.92 kB
+    vs the post-React-19 baseline, well under the +10 kB budget).
+  - Vitest: 163 / 163 (162 existing + 1 updated roles test for the
+    accountant's new allow-list entry).
+  - Playwright E2E: 18 passed / 1 skipped / 0 failed.
+  - Server tests: ~30 new cases (5 platforms-model + 7 commission-lines + 4
+    no-deposit + 10 platform-accounts-endpoint + 4 vatRateCommission), on
+    top of 880 pre-existing.
+
+  **Out of scope** (each its own future spec): Pièce numbering scheme
+  (deferred since the original `accountant-accounting-export.md` spec), auto-
+  fill of the gross from the per-platform commission rate, alias resolution
+  for manually-entered platform names that don't match an iCal source.
+
+  **Operational note** — **snapshot the SQLite DB before deploying this PR
+  to prod**. The platform-no-deposit migration is destructive: deposit
+  amounts collapse into the balance on every legacy non-direct platform
+  reservation. The collapse is mathematically equivalent for the
+  reservation's total owed amount, but past monthly CSV exports change
+  shape (one balance entry instead of deposit+balance), so the accountant
+  may want a paper copy of the previous exports for cross-reference before
+  the deploy.
+
 - **Client framework: React 18 → 19 + Recharts 2 → 3** (spec
   `react-19-and-recharts-3-migration.md`, 2026-06-04). **Third and final
   major-version dep upgrade unlocked by the CRA → Vite migration (PR #111)
