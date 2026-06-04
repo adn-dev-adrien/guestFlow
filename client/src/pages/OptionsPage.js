@@ -109,18 +109,22 @@ function ProgressivePricingFields({ form, setForm }) {
               ));
               setForm({ ...form, optionProgressiveTiers: normalizeProgressiveTiers(next) });
             }}
-            inputProps={{ min: 1, step: 1 }}
             size="small"
             sx={{ width: 160 }}
+            slotProps={{
+              htmlInput: { min: 1, step: 1 }
+            }}
           />
           <TextField
             label="Prix unitaire (EUR)"
             type="number"
             value={line.unitPrice}
             onChange={(e) => updateTier(line.participantNumber, { unitPrice: Number(e.target.value || 0) })}
-            inputProps={{ min: 0, step: 0.01 }}
             size="small"
             sx={{ width: 190 }}
+            slotProps={{
+              htmlInput: { min: 0, step: 0.01 }
+            }}
           />
           <IconButton
             size="small"
@@ -263,8 +267,10 @@ function BathroomTowelCountsFields({ form, setForm }) {
           size="small"
           value={Number(form.towelLargePerPerson) || 0}
           onChange={setKey('towelLargePerPerson')}
-          inputProps={{ min: 0, step: 1 }}
           sx={{ width: { xs: '100%', sm: 140 } }}
+          slotProps={{
+            htmlInput: { min: 0, step: 1 }
+          }}
         />
         <TextField
           label="Moyennes"
@@ -272,8 +278,10 @@ function BathroomTowelCountsFields({ form, setForm }) {
           size="small"
           value={Number(form.towelMediumPerPerson) || 0}
           onChange={setKey('towelMediumPerPerson')}
-          inputProps={{ min: 0, step: 1 }}
           sx={{ width: { xs: '100%', sm: 140 } }}
+          slotProps={{
+            htmlInput: { min: 0, step: 1 }
+          }}
         />
         <TextField
           label="Petites"
@@ -281,8 +289,10 @@ function BathroomTowelCountsFields({ form, setForm }) {
           size="small"
           value={Number(form.towelSmallPerPerson) || 0}
           onChange={setKey('towelSmallPerPerson')}
-          inputProps={{ min: 0, step: 1 }}
           sx={{ width: { xs: '100%', sm: 140 } }}
+          slotProps={{
+            htmlInput: { min: 0, step: 1 }
+          }}
         />
       </Stack>
     </Box>

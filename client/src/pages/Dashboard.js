@@ -119,10 +119,13 @@ export default function Dashboard() {
       {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
           contained: renders nothing when no pending cancellation exists. */}
       <IcalCancellationAlert />
-
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 4
+          }}>
           <Card
             sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
             onClick={() => navigate('/properties')}
@@ -136,7 +139,11 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 4
+          }}>
           <Card
             sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
             onClick={() => navigate('/reservations/upcoming')}
@@ -150,7 +157,11 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 4
+          }}>
           <Card
             sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
             onClick={() => navigate('/planning')}
@@ -165,7 +176,6 @@ export default function Dashboard() {
           </Card>
         </Grid>
       </Grid>
-
       {/* Daily arrivals / departures */}
       <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
         <Typography variant="h6">Arrivées &amp; Départs</Typography>
@@ -179,7 +189,9 @@ export default function Dashboard() {
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
             sx={{ width: { xs: '100%', sm: 165 } }}
-            inputProps={{ style: { padding: '6px 10px' } }}
+            slotProps={{
+              htmlInput: { style: { padding: '6px 10px' } }
+            }}
           />
           <IconButton size="small" onClick={() => setSelectedDate((d) => addDays(d, 1))} aria-label="Jour suivant">
             <NavigateNextIcon />
@@ -192,7 +204,7 @@ export default function Dashboard() {
         )}
       </Box>
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Arrivées — {displayDate(selectedDate)}</Typography>
@@ -279,7 +291,7 @@ export default function Dashboard() {
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Départs — {displayDate(selectedDate)}</Typography>
@@ -338,7 +350,6 @@ export default function Dashboard() {
           </Card>
         </Grid>
       </Grid>
-
       {/* Combined timeline calendar */}
       <Divider sx={{ my: 3 }} />
       <SyncedPropertyMiniCalendars

@@ -83,18 +83,24 @@ export default function FinancePage() {
   return (
     <Box>
       <PageHeader title="Suivi financier" />
-
       {/* Period selector */}
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField label="Du" type="date" value={from} onChange={e => setFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-          <TextField label="Au" type="date" value={to} onChange={e => setTo(e.target.value)} InputLabelProps={{ shrink: true }} />
+          <TextField label="Du" type="date" value={from} onChange={e => setFrom(e.target.value)} slotProps={{
+            inputLabel: { shrink: true }
+          }} />
+          <TextField label="Au" type="date" value={to} onChange={e => setTo(e.target.value)} slotProps={{
+            inputLabel: { shrink: true }
+          }} />
         </CardContent>
       </Card>
-
       {summary && (
         <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={4}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 4
+            }}>
             <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
               <CardContent>
                 <Typography variant="subtitle2">Revenu total</Typography>
@@ -102,7 +108,11 @@ export default function FinancePage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 4
+            }}>
             <Card sx={{ bgcolor: '#4CAF50', color: 'white' }}>
               <CardContent>
                 <Typography variant="subtitle2">Encaissé</Typography>
@@ -110,7 +120,11 @@ export default function FinancePage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 4
+            }}>
             <Card sx={{ bgcolor: '#f57c00', color: 'white' }}>
               <CardContent>
                 <Typography variant="subtitle2">En attente</Typography>
@@ -120,10 +134,13 @@ export default function FinancePage() {
           </Grid>
         </Grid>
       )}
-
       {/* Charts */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={7}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 7
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Revenus par logement</Typography>
@@ -154,7 +171,11 @@ export default function FinancePage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={5}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 5
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Répartition</Typography>
@@ -171,26 +192,39 @@ export default function FinancePage() {
           </Card>
         </Grid>
       </Grid>
-
       {/* Projection */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
             <Typography variant="h6">Projection à une date</Typography>
-            <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
+            <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{
+              inputLabel: { shrink: true }
+            }} />
           </Box>
           {projection && (
             <>
               <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} sm={4}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 4
+                  }}>
                   <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
                   <Typography variant="h5">{projection.collected.toLocaleString('fr-FR')} €</Typography>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 4
+                  }}>
                   <Typography variant="subtitle2" color="text.secondary">À encaisser d'ici cette date</Typography>
                   <Typography variant="h5">{projection.expectedByDate.toLocaleString('fr-FR')} €</Typography>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 4
+                  }}>
                   <Typography variant="subtitle2" color="text.secondary">Total prévu</Typography>
                   <Typography variant="h5">{projection.total.toLocaleString('fr-FR')} €</Typography>
                 </Grid>
@@ -241,7 +275,6 @@ export default function FinancePage() {
           )}
         </CardContent>
       </Card>
-
       <Divider sx={{ my: 3 }} />
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -456,7 +489,6 @@ export default function FinancePage() {
                                 <Chip
                                   label="Acompte désactivé"
                                   size="small"
-                                  color="default"
                                   variant="outlined"
                                   sx={{ fontStyle: 'italic' }}
                                 />

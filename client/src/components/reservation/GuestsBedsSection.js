@@ -31,8 +31,10 @@ export default function GuestsBedsSection() {
                 value={form.adults}
                 onChange={(e) => updateForm({ adults: Number(e.target.value) })}
                 fullWidth
-                inputProps={{ min: 1, max: maxAdultsAllowed ?? undefined }}
                 error={exceedsAdultsCapacity}
+                slotProps={{
+                  htmlInput: { min: 1, max: maxAdultsAllowed ?? undefined }
+                }}
               />
             </Box>
             <Box>
@@ -42,8 +44,10 @@ export default function GuestsBedsSection() {
                 value={form.children}
                 onChange={(e) => updateForm({ children: Number(e.target.value) })}
                 fullWidth
-                inputProps={{ min: 0 }}
                 error={exceedsChildrenCapacity}
+                slotProps={{
+                  htmlInput: { min: 0 }
+                }}
               />
             </Box>
             <Box>
@@ -53,8 +57,10 @@ export default function GuestsBedsSection() {
                 value={form.teens}
                 onChange={(e) => updateForm({ teens: Number(e.target.value) })}
                 fullWidth
-                inputProps={{ min: 0 }}
                 error={exceedsChildrenCapacity}
+                slotProps={{
+                  htmlInput: { min: 0 }
+                }}
               />
             </Box>
             <Box>
@@ -64,8 +70,10 @@ export default function GuestsBedsSection() {
                 value={form.babies}
                 onChange={(e) => updateForm({ babies: Number(e.target.value) })}
                 fullWidth
-                inputProps={{ min: 0, max: maxBabiesAllowed ?? undefined }}
                 error={exceedsBabiesCapacity}
+                slotProps={{
+                  htmlInput: { min: 0, max: maxBabiesAllowed ?? undefined }
+                }}
               />
             </Box>
           </Box>
@@ -86,7 +94,9 @@ export default function GuestsBedsSection() {
                 fullWidth
                 error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
                 helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
-                inputProps={{ min: 0, max: maxDoubleBeds ?? undefined }}
+                slotProps={{
+                  htmlInput: { min: 0, max: maxDoubleBeds ?? undefined }
+                }}
               />
             </Box>
             <Box>
@@ -98,7 +108,9 @@ export default function GuestsBedsSection() {
                 fullWidth
                 error={bedsCapacityMismatch || exceedsSingleBedsLimit}
                 helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
-                inputProps={{ min: 0, max: maxSingleBeds ?? undefined }}
+                slotProps={{
+                  htmlInput: { min: 0, max: maxSingleBeds ?? undefined }
+                }}
               />
             </Box>
             <Box>
@@ -116,8 +128,10 @@ export default function GuestsBedsSection() {
                   updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
                 }}
                 fullWidth
-                inputProps={{ min: 0, max: maxBabyBedsByRule }}
                 helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
+                slotProps={{
+                  htmlInput: { min: 0, max: maxBabyBedsByRule }
+                }}
               />
             </Box>
           </Box>

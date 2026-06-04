@@ -235,7 +235,7 @@ export default function DevisPage() {
                           </Tooltip>
                           {d.status !== 'converted' && (
                             <Tooltip title="Confirmer en réservation">
-                              <IconButton size="small" color="default" onClick={() => handleConvert(d)}>
+                              <IconButton size="small" onClick={() => handleConvert(d)}>
                                 <CheckCircleIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>

@@ -40,12 +40,14 @@ export default function SettingsVatSection({
             type="number"
             value={v.rate ?? 10}
             onChange={(e) => onChange('rate', e.target.value === '' ? '' : Number(e.target.value))}
-            inputProps={{ min: 0, max: 100, step: 0.5 }}
             fullWidth
             disabled={disabled}
             error={Boolean(errors.vatRate)}
             helperText={errors.vatRate || '10 % par défaut.'}
             sx={{ maxWidth: { sm: 320 } }}
+            slotProps={{
+              htmlInput: { min: 0, max: 100, step: 0.5 }
+            }}
           />
         </Stack>
       </CardContent>
