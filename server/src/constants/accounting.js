@@ -29,6 +29,33 @@ const PASS_THROUGH_ACCOUNTS = {
   TOURIST_TAX: '46710000',
 };
 
+// accounting-platform-commission-and-no-deposit.md §3.1.
+// Fallback compte commission when a platform row doesn't have its own number set on
+// `/comptabilite/plateformes` AND the global default in app_settings is somehow NULL
+// (defensive — the schema default is also '622600').
+const DEFAULT_COMMISSION_ACCOUNT = '622600';
+// Compte de TVA déductible sur les commissions plateforme. Une seule ligne unique au tier;
+// le taux (default 20 %) est configuré globalement dans Settings (vatRateCommission).
+const VAT_DEDUCTIBLE_COMMISSION_ACCOUNT = '44566000';
+
+// Well-known commission accounts the accountant uses. Adrien's accountant gave these by
+// email 2026-06-04; new platforms get a generic `622600` fallback until the operator
+// configures the right number on `/comptabilite/plateformes`.
+const COMMISSION_ACCOUNT_LABELS = {
+  '622600':   'Frais commission générique',
+  '62260300': 'Frais Airbnb',
+  '62260400': 'Frais Abritel',
+  '62260500': 'Frais Gîtes de France',
+  '62260600': 'Frais Stripe',
+};
+
+function commissionAccountLabel(account) {
+  const key = String(account || '').trim();
+  if (COMMISSION_ACCOUNT_LABELS[key]) return COMMISSION_ACCOUNT_LABELS[key];
+  if (key) return `Frais commission (${key})`;
+  return '';
+}
+
 // Human label per account number — drives the "intitulé" column in the visual journal preview on the
 // Comptabilité page (not in the CSV itself, which keeps to the accountant's column list).
 const ACCOUNT_LABELS = {
@@ -38,11 +65,14 @@ const ACCOUNT_LABELS = {
   [VAT_ACCOUNTS.REDUCED_10]:  'TVA 10 %',
   [VAT_ACCOUNTS.STANDARD_20]: 'TVA 20 %',
   [PASS_THROUGH_ACCOUNTS.TOURIST_TAX]: 'Taxe de séjour',
+  [VAT_DEDUCTIBLE_COMMISSION_ACCOUNT]: 'TVA déductible commission',
 };
 
 function accountLabel(account) {
   if (ACCOUNT_LABELS[account]) return ACCOUNT_LABELS[account];
   if (String(account || '').startsWith('C')) return 'Compte client';
+  // Dynamic commission accounts (any 6226xx beyond the well-known map).
+  if (String(account || '').startsWith('6226')) return commissionAccountLabel(account);
   return '';
 }
 
@@ -78,18 +108,25 @@ function buildClientAccount(lastName, { chars = CLIENT_ACCOUNT_NAME_CHARS } = {}
   return `C${cleaned.slice(0, chars)}`;
 }
 
-// How a sale's amounts are sourced. 'net' = owner-received (`finalPrice`); 'gross' = guest-paid
-// (`clientGrossAmount`). Wired here so the choice is explicit and one-place-changeable.
-const RECOGNISE_REVENUE_ON = 'net';
+// How a sale's amounts are sourced. 'gross' = guest-paid (`clientGrossAmount`); 'net' = owner-
+// received (`finalPrice`). Switched to 'gross' on 2026-06-04 per the accountant's email + the
+// commission-as-journal-line rework (spec accounting-platform-commission-and-no-deposit.md §3.5
+// rule 12). For directs gross === finalPrice (populated by the reservations model + boot
+// backfill), so the entry shape collapses to the legacy direct one (no commission lines).
+const RECOGNISE_REVENUE_ON = 'gross';
 
 module.exports = {
   REVENUE_ACCOUNTS,
   VAT_ACCOUNTS,
   PASS_THROUGH_ACCOUNTS,
   ACCOUNT_LABELS,
+  COMMISSION_ACCOUNT_LABELS,
+  DEFAULT_COMMISSION_ACCOUNT,
+  VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
   BUCKET_TO_ACCOUNT,
   vatAccountForRate,
   accountLabel,
+  commissionAccountLabel,
   CLIENT_ACCOUNT_NAME_CHARS,
   buildClientAccount,
   RECOGNISE_REVENUE_ON,

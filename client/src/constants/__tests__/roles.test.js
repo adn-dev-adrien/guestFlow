@@ -69,9 +69,11 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
     }
   });
 
-  test('accountant sees ONLY /comptabilite and /account', () => {
+  test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, and /account', () => {
+    // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — accountant gains
+    // access to the dedicated per-platform commission config page.
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(accountant, p));
-    expect(visible.sort()).toEqual(['/account', '/comptabilite']);
+    expect(visible.sort()).toEqual(['/account', '/comptabilite', '/comptabilite/plateformes']);
   });
 
   test('multi-role admin+accountant: admin scope (everything) wins', () => {

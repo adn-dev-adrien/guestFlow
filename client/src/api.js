@@ -220,6 +220,11 @@ const api = {
     if (!res.ok) throw new Error("Impossible de générer le CSV.");
     return res.blob();
   },
+  // Per-platform commission accounting config — admin + accountant (PUT whitelisted on the
+  // accountant role guard, see middleware/enforceRoleAccess.js).
+  // accounting-platform-commission-and-no-deposit.md §4.3.
+  getPlatformAccounts: () => request('/accounting/platform-accounts'),
+  savePlatformAccounts: (payload) => request('/accounting/platform-accounts', { method: 'PUT', body: JSON.stringify(payload) }),
 
   // User management (admin-only). resetUserPassword no longer takes a password — the server
   // generates the temp password and emails it (specs/admin-account-management.md M2).

@@ -18,6 +18,7 @@ const {
   buildIcalCreationHistoryChanges,
 } = require('../utils/icalParser');
 const icalDateDriftModel = require('./icalDateDriftModel');
+const platformsModel = require('./platformsModel');
 const icalCancellationModel = require('./icalCancellationModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
@@ -100,6 +101,9 @@ function createPropertyIcalModel(database) {
           propertyId, name, url, platformKey, platformLabel, platformColor, isActive, collectsTouristTax, updatedAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, collectsTouristTax);
+      // accounting-platform-commission-and-no-deposit.md §3.1 rule 2: surface this platform on
+      // the dedicated config page right away (idempotent INSERT OR IGNORE).
+      platformsModel.upsertByName(input.platformLabel);
       return { data: database.prepare('SELECT * FROM ical_sources WHERE id = ?').get(result.lastInsertRowid) };
     },
 
@@ -118,6 +122,9 @@ function createPropertyIcalModel(database) {
             collectsTouristTax = ?, updatedAt = datetime('now')
         WHERE id = ? AND propertyId = ?
       `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, collectsTouristTax, sourceId, propertyId);
+      // §3.1 rule 2 — if the user renamed the platform, the previous row stays as a "ghost"
+      // (see spec Q8); the new name lands on the page on next reload.
+      platformsModel.upsertByName(input.platformLabel);
       return { data: database.prepare('SELECT * FROM ical_sources WHERE id = ?').get(sourceId) };
     },
 

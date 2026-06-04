@@ -29,6 +29,8 @@ function makeDb() {
       quoteValidityDays INTEGER DEFAULT 30,
       companyLogoPath TEXT DEFAULT '',
       vatRate REAL NOT NULL DEFAULT 10,
+      defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600',
+      vatRateCommission REAL NOT NULL DEFAULT 20,
       smtpHost TEXT DEFAULT '',
       smtpPort INTEGER DEFAULT 587,
       smtpSecure INTEGER NOT NULL DEFAULT 0,

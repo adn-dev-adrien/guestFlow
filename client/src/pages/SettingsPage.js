@@ -21,7 +21,7 @@ const EMPTY_FORM = {
     logoPath: '',
   },
   quote: { footerText: '', validityDays: 30 },
-  vat: { rate: 10 },
+  vat: { rate: 10, rateCommission: 20 },
   googleCalendar: {
     calendarId: '',
     serviceAccountEmail: '',

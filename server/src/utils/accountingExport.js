@@ -99,7 +99,14 @@ function zerofyMoneyColumns(row) {
 }
 
 // Build the rows of one encaissement entry (debit + credits). Returns an array of tuples
-// matching CSV_HEADERS. Σ credits is guaranteed equal to debit.
+// matching CSV_HEADERS. Σ credits is guaranteed equal to Σ debits.
+//
+// accounting-platform-commission-and-no-deposit.md §3.5–§3.6:
+//   - DÉBIT CCLIENT = encaissementNetTtc (= bank movement = what the owner banks).
+//   - DÉBIT compte commission HT (6226xx) + optional DÉBIT 44566000 (VAT) for non-direct
+//     platforms with `entry.commission` populated. Σ debits = encaissement GROSS TTC.
+//   - CREDITS unchanged in shape — revenue 70xxx + VAT 44571xxx (scaled to GROSS by the
+//     model upstream) + tax pass-through 46710000. Σ credits = encaissement GROSS TTC.
 function entryToRows(entry) {
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
@@ -107,8 +114,15 @@ function entryToRows(entry) {
   const piece = ''; // empty until Adrien provides a numbering scheme; see spec §3.4 rule 13b.
 
   const fraction = entry.fraction;
-  const debitTtc = round2(entry.encaissementTtc);
+  const grossDebitTtc = round2(entry.encaissementTtc);
+  // The CCLIENT debit defaults to the net (= bank movement). When `encaissementNetTtc` is
+  // not provided (legacy entries built without the commission spec), fall back to gross so
+  // the entry remains balanced — identical to pre-spec output.
+  const netDebitTtc = entry.encaissementNetTtc != null
+    ? round2(entry.encaissementNetTtc)
+    : grossDebitTtc;
   const taxTtc = round2(entry.taxTtc || 0);
+  const commission = entry.commission || null;
 
   // Group credits: by bucket (revenue) and by VAT rate. We compute per-bucket pro-rated HT
   // and VAT, then aggregate the VAT by rate (10 vs 20).
@@ -138,13 +152,29 @@ function entryToRows(entry) {
     ? [{ account: PASS_THROUGH_ACCOUNTS.TOURIST_TAX, amount: taxTtc }]
     : [];
 
-  // Rounding residue: nudge the last credit so Σ credits == debit (to the cent).
+  // Rounding residue: nudge the last credit so Σ credits == gross debit (to the cent).
   const allCredits = [...revenueLines, ...vatLines, ...taxLines];
   if (allCredits.length > 0) {
     const sum = round2(allCredits.reduce((a, l) => a + l.amount, 0));
-    const residue = round2(debitTtc - sum);
+    const residue = round2(grossDebitTtc - sum);
     if (residue !== 0) {
       allCredits[allCredits.length - 1].amount = round2(allCredits[allCredits.length - 1].amount + residue);
+    }
+  }
+
+  // Commission debit lines (§3.5). One HT line on the platform's compte commission, plus
+  // optionally one VAT line on 44566000 when the platform's row has hasVatOnCommission = 1.
+  const commissionLines = [];
+  if (commission && commission.ttc > 0) {
+    if (commission.ht > 0) commissionLines.push({ account: commission.account, amount: round2(commission.ht) });
+    if (commission.hasVat && commission.vat > 0) {
+      commissionLines.push({ account: commission.vatAccount, amount: round2(commission.vat) });
+    }
+    // Absorb any rounding residue on the LAST commission line so Σ debits == grossDebitTtc.
+    const debitSum = round2(netDebitTtc + commissionLines.reduce((a, l) => a + l.amount, 0));
+    const debitResidue = round2(grossDebitTtc - debitSum);
+    if (debitResidue !== 0 && commissionLines.length > 0) {
+      commissionLines[commissionLines.length - 1].amount = round2(commissionLines[commissionLines.length - 1].amount + debitResidue);
     }
   }
 
@@ -153,8 +183,9 @@ function entryToRows(entry) {
     ? {
         plateforme: entry.platform,
         prixPayéClient: entry.clientGrossAmount == null ? '' : Number(entry.clientGrossAmount),
-        commission: entry.clientGrossAmount == null ? ''
-          : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice))),
+        commission: commission ? round2(commission.ttc)
+          : (entry.clientGrossAmount == null ? ''
+              : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
       }
     : { plateforme: '', prixPayéClient: '', commission: '' };
 
@@ -166,11 +197,19 @@ function entryToRows(entry) {
     SALES_JOURNAL_CODE, piece,
     libelle,
     clientAccount,
-    debitTtc, '',
+    netDebitTtc, '',
     platformInfo.plateforme, platformInfo.prixPayéClient, platformInfo.commission,
   ]));
 
-  // 2..N) Credit lines: revenue, then VAT, then tax pass-through.
+  // 2) Commission debit lines (§3.5). Inserted right after the CCLIENT debit so the
+  // accountant reads them as the offset to the net bank movement.
+  for (const line of commissionLines) {
+    rows.push(zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
+    ]));
+  }
+
+  // 3..N) Credit lines: revenue, then VAT, then tax pass-through.
   for (const line of revenueLines) {
     rows.push(zerofyMoneyColumns([
       day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, '', line.amount, '', '', '',
@@ -211,10 +250,15 @@ function entryToStructured(entry) {
     ? {
         platform: entry.platform,
         gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
-        commission: entry.clientGrossAmount == null ? null
-          : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice))),
+        commission: entry.commission ? round2(entry.commission.ttc)
+          : (entry.clientGrossAmount == null ? null
+              : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
+        commissionAccount: entry.commission ? entry.commission.account : null,
+        commissionHt: entry.commission ? entry.commission.ht : null,
+        commissionVat: entry.commission ? entry.commission.vat : null,
+        commissionHasVat: entry.commission ? entry.commission.hasVat : null,
       }
-    : { platform: null, gross: null, commission: null };
+    : { platform: null, gross: null, commission: null, commissionAccount: null, commissionHt: null, commissionVat: null, commissionHasVat: null };
 
   // Position indices follow CSV_HEADERS exactly.
   const lines = rows.map((row) => {
@@ -257,13 +301,19 @@ function entryToStructured(entry) {
 }
 
 // 'client' = auxiliary debit (C…) — 'revenue' = comptes 70xxx — 'vat' = comptes 44571xxx —
-// 'tax_pass_through' = compte 46710000 (taxe de séjour pass-through, see spec §3.4 rule 14).
+// 'tax_pass_through' = compte 46710000 (taxe de séjour pass-through, see spec
+// accountant-accounting-export.md §3.4 rule 14) — 'commission_charge' = compte 6226xx
+// (debit line on the platform's compte commission) — 'commission_vat' = compte 44566000
+// (debit line for the deductible VAT on commission). See accounting-platform-commission-
+// and-no-deposit.md §3.5–§3.6.
 function classifyLine(compte) {
   const s = String(compte);
   if (s.startsWith('C')) return 'client';
   if (s.startsWith('70')) return 'revenue';
   if (s.startsWith('44571')) return 'vat';
   if (s === PASS_THROUGH_ACCOUNTS.TOURIST_TAX) return 'tax_pass_through';
+  if (s === '44566000') return 'commission_vat';
+  if (s.startsWith('6226')) return 'commission_charge';
   return 'other';
 }
 

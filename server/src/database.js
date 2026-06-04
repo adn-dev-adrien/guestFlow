@@ -1431,6 +1431,105 @@ db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
 // seed is skipped on purpose: the operator's customised option keeps priority. They can later
 // either: rename it to keep working as-is, or delete it + run `npm run reset-admin`-style
 // cleanup (out of scope here — manual edit suffices). Documented in the spec.
+// ---------- PLATFORM COMMISSION ACCOUNTING ----------
+// specs/accounting-platform-commission-and-no-deposit.md §3.1.
+// Single source of truth for the per-platform commission config (deduped across all iCal sources).
+// `direct` is auto-seeded (never used at export time, kept visible in the UI for consistency).
+// New platforms appear automatically on the dedicated page after their first iCal source is created
+// (the propertyIcalModel calls platformsModel.upsertByName on every successful create/update).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS platforms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    commissionAccountNumber TEXT,
+    hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
+    commissionRatePercent REAL
+  )
+`);
+// Always-present 'direct' row + auto-seed from existing iCal sources (idempotent via INSERT OR IGNORE).
+db.prepare("INSERT OR IGNORE INTO platforms (name) VALUES ('direct')").run();
+db.exec(`
+  INSERT OR IGNORE INTO platforms (name)
+  SELECT DISTINCT platformLabel FROM ical_sources
+   WHERE platformLabel IS NOT NULL AND platformLabel != ''
+`);
+
+// Global commission settings (default account + commission VAT rate). The VAT rate lives in
+// Settings → Général → Taux de TVA alongside the existing vatRate (per spec §3.7 rule 17b).
+tryAddAppSettingsCol('defaultCommissionAccountNumber', "ALTER TABLE app_settings ADD COLUMN defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600'");
+tryAddAppSettingsCol('vatRateCommission',              "ALTER TABLE app_settings ADD COLUMN vatRateCommission REAL NOT NULL DEFAULT 20");
+
+// Idempotency table for one-shot data migrations (= "schema_versions" by another name, kept
+// simple). Each one-shot migration inserts its name when it runs successfully.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS migrations (
+    name TEXT PRIMARY KEY,
+    ran_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// One-shot migration: collapse legacy platform deposits into balance. Per spec §3.3 + §3.4,
+// every platform reservation is paid in a single bank transfer, so depositAmount must be 0.
+// Past CSV exports change retroactively on these rows — accepted call per spec rule 9.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'platform_no_deposit_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const candidates = db.prepare(`
+      SELECT id FROM reservations
+       WHERE kind = 'reservation'
+         AND platform IS NOT NULL
+         AND platform != 'direct'
+         AND depositAmount > 0
+    `).all();
+    if (candidates.length > 0) {
+      const tx = db.transaction(() => {
+        db.prepare(`
+          UPDATE reservations
+             SET balanceAmount = balanceAmount + depositAmount,
+                 depositAmount = 0,
+                 depositPaid = 0,
+                 depositPaidDate = NULL,
+                 depositDueDate = NULL
+           WHERE kind = 'reservation'
+             AND platform IS NOT NULL
+             AND platform != 'direct'
+             AND depositAmount > 0
+        `).run();
+        // Null out per-line acompte contribs on the migrated reservations' children — the
+        // contrib-driven path falls back to legacy pro-rata for any reservation already paid.
+        const ids = candidates.map((c) => c.id);
+        const placeholders = ids.map(() => '?').join(',');
+        if (ids.length > 0) {
+          db.prepare(`UPDATE reservation_options SET acompteContribTtc = NULL WHERE reservationId IN (${placeholders})`).run(...ids);
+          db.prepare(`UPDATE reservation_custom_options SET acompteContribTtc = NULL WHERE reservationId IN (${placeholders})`).run(...ids);
+          db.prepare(`UPDATE reservation_resources SET acompteContribTtc = NULL WHERE reservationId IN (${placeholders})`).run(...ids);
+          db.prepare(`UPDATE reservations SET accommodationAcompteContribTtc = NULL, touristTaxAcompteContribTtc = NULL WHERE id IN (${placeholders})`).run(...ids);
+        }
+      });
+      tx();
+    }
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+    if (candidates.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[migration:platform-no-deposit] migrated ${candidates.length} reservation(s)`);
+    }
+  }
+}
+
+// Backfill clientGrossAmount = finalPrice for direct bookings where the column is NULL. After
+// this spec the column is always populated (= the customer-paid TTC, regardless of platform).
+// For directs gross = net trivially; for platforms the value was already entered at booking time.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  db.prepare(`
+    UPDATE reservations
+       SET clientGrossAmount = finalPrice
+     WHERE kind = 'reservation'
+       AND clientGrossAmount IS NULL
+       AND (platform IS NULL OR platform = 'direct')
+  `).run();
+}
+
 const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
 ensureDefaultBedLinenOption(db);
 db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;

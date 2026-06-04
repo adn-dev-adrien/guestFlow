@@ -1333,13 +1333,22 @@ function calculateReservationQuote({
   let resolvedDepositAmount = autoDepositAmount;
   let resolvedBalanceAmount = autoBalanceAmount;
 
+  // Platform reservations are always paid in a single bank transfer — no deposit/balance
+  // split (specs/accounting-platform-commission-and-no-deposit.md §3.3 rules 5–7). The boot
+  // migration collapses legacy platform deposits into the balance, and the engine here
+  // enforces the same on every recompute so an edit can't reintroduce a phantom acompte.
+  // Direct reservations keep the full deposit/balance/complement flow.
+  const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
+  if (platformIsNonDirect) {
+    resolvedDepositAmount = 0;
+    resolvedBalanceAmount = roundMoney(preArrivalAmount);
+  } else if (depositDisabled) {
   // `depositDisabled` opt-out wins over every other branch below — it's the explicit
   // "this reservation has no deposit concept, the platform handled it" toggle. See
   // specs/disable-deposit-per-reservation.md. We force-zero the deposit and let the
   // balance absorb the pre-arrival total. The controller is responsible for also forcing
   // depositPaid = 0 + depositPaidDate = NULL on the way in, so accountingModel emits a
   // single journal entry instead of two.
-  if (depositDisabled) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);
   } else if (depositPaid && balancePaid) {

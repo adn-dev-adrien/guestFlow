@@ -1,15 +1,17 @@
 /**
  * SettingsVatSection — "Taux de TVA" card.
  *
- * One global VAT rate applied uniformly to every revenue stream — accommodation, options,
- * resources, custom options (specs/single-vat-rate.md §6.1). The previous 2-rate model
- * (accommodation vs standard) was collapsed since every line on a GuestFlow installation is
- * invoiced under the same reduced rate.
+ * Two global VAT rates:
+ *   - `rate` (default 10) — uniform rate applied to every revenue stream (accommodation,
+ *     options, resources, custom options). Single-rate model per specs/single-vat-rate.md §6.1.
+ *   - `rateCommission` (default 20) — VAT rate applied to platform commissions whose row on
+ *     `/comptabilite/plateformes` carries `hasVatOnCommission = 1`. Spec:
+ *     accounting-platform-commission-and-no-deposit.md §3.7 rule 17b.
  *
  * Props:
- *   values:    { rate }
- *   errors:    { vatRate? }
- *   onChange:  (key, value) => void   // key is 'rate'
+ *   values:    { rate, rateCommission }
+ *   errors:    { vatRate?, vatRateCommission? }
+ *   onChange:  (key, value) => void   // key is 'rate' or 'rateCommission'
  *   disabled:  boolean
  */
 import React from 'react';
@@ -44,6 +46,21 @@ export default function SettingsVatSection({
             disabled={disabled}
             error={Boolean(errors.vatRate)}
             helperText={errors.vatRate || '10 % par défaut.'}
+            sx={{ maxWidth: { sm: 320 } }}
+            slotProps={{
+              htmlInput: { min: 0, max: 100, step: 0.5 }
+            }}
+          />
+
+          <TextField
+            label="TVA déductible commissions (%)"
+            type="number"
+            value={v.rateCommission ?? 20}
+            onChange={(e) => onChange('rateCommission', e.target.value === '' ? '' : Number(e.target.value))}
+            fullWidth
+            disabled={disabled}
+            error={Boolean(errors.vatRateCommission)}
+            helperText={errors.vatRateCommission || "Taux appliqué aux commissions plateforme marquées 'TVA déductible' dans le Plan comptable plateformes."}
             sx={{ maxWidth: { sm: 320 } }}
             slotProps={{
               htmlInput: { min: 0, max: 100, step: 0.5 }

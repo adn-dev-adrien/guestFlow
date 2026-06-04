@@ -189,6 +189,19 @@ export default function FinanceSection() {
 
             <Box>
               <Grid container spacing={2} sx={sectionGridSx}>
+                {/* accounting-platform-commission-and-no-deposit.md §3.3 rule 5 + §3.8 rule 21.
+                    Platform reservations are paid in a single bank transfer — no acompte.
+                    The whole pre-arrival amount lands on the Solde block to the right. */}
+                {String(form.platform || 'direct').toLowerCase() !== 'direct' ? (
+                  <Grid
+                    size={{ xs: 12, md: 6 }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ mb: 1 }}>Acompte</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      Pas d'acompte (réservation plateforme — virement unique). Le montant total est
+                      encaissé en une fois via le Solde.
+                    </Typography>
+                  </Grid>
+                ) : (
                 <Grid
                   size={{
                     xs: 12,
@@ -275,6 +288,7 @@ export default function FinanceSection() {
                     </>
                   )}
                 </Grid>
+                )}
 
                 <Grid
                   size={{

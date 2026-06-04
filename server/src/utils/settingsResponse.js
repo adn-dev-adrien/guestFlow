@@ -90,6 +90,7 @@ function shapeResponse(row) {
     },
     vat: {
       rate: row.vatRate == null ? 10 : Number(row.vatRate),
+      rateCommission: row.vatRateCommission == null ? 20 : Number(row.vatRateCommission),
     },
     googleCalendar: {
       calendarId: safeStr(row.googleCalendarId).trim(),
