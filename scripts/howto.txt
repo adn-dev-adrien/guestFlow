@@ -1,6 +1,6 @@
 cd /home/adrien/guestFlow
-DOMAIN=www.domainesolio.com \
-WP_URL=http://192.168.0.196:8080 \
+DOMAIN=www.example.com \
+WP_URL=http://<your-pi-lan-ip>:8080 \
 WP_DB_HOST=wp_db:3306 \
 WP_DB_NAME=wordpress \
 WP_DB_USER=wpuser \

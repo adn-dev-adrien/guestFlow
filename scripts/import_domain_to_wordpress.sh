@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Usage:
-#   DOMAIN=www.domainesolio.com \
-#   WP_URL=http://192.168.0.196:8080 \
+#   DOMAIN=www.example.com \
+#   WP_URL=http://<your-pi-lan-ip>:8080 \
 #   WP_DB_HOST=wp_db:3306 \
 #   WP_DB_NAME=wordpress \
 #   WP_DB_USER=wpuser \
@@ -11,8 +11,8 @@ set -euo pipefail
 #   WP_CONTAINER=wp_app \
 #   ./scripts/import_domain_to_wordpress.sh
 
-DOMAIN="${DOMAIN:-www.domainesolio.com}"
-WP_URL="${WP_URL:-http://192.168.0.196:8080}"
+DOMAIN="${DOMAIN:-www.example.com}"
+WP_URL="${WP_URL:-http://<your-pi-lan-ip>:8080}"
 WP_DB_HOST="${WP_DB_HOST:-wp_db:3306}"
 WP_DB_NAME="${WP_DB_NAME:-wordpress}"
 WP_DB_USER="${WP_DB_USER:-wpuser}"
