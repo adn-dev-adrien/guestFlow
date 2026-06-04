@@ -1,0 +1,68 @@
+name: E2E smoke (Playwright)
+
+# specs/e2e-playwright-smoke-suite.md §3.2.
+#
+# Auto-runs on:
+#   - pull_request to master → fires on open, every subsequent push to the PR branch,
+#     and on re-open. Pull_request (not pull_request_target) keeps secrets safe even
+#     when the PR comes from a fork.
+#   - push to master → post-merge guard against squash-merge slipping in regressions
+#     undetected by direct PR checks.
+#
+# Runs on ubuntu-latest (GitHub-hosted) — free for public repos, no Pi runner queue.
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Cancel in-progress runs on the same ref when a newer commit lands.
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: 📚 Install root + client + server deps
+        run: |
+          npm ci
+          cd client && npm ci
+          cd ../server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        # better-sqlite3 ships prebuilt binaries that may not match the Ubuntu runner's
+        # Node ABI. Forcing a rebuild from source guarantees compatibility — same idiom
+        # as deploy.yml.
+        run: |
+          cd server
+          env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🎭 Install Playwright browsers (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: 🧪 Run the E2E smoke suite
+        env:
+          CI: 'true'
+        run: npm run test:e2e
+
+      - name: 📤 Upload Playwright HTML report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

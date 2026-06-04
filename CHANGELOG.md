@@ -4,6 +4,43 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **E2E smoke suite with Playwright** — Wave 1 (spec
+  `e2e-playwright-smoke-suite.md`, 2026-06-04). Phase 0 of the upcoming CRA → Vite
+  migration: a safety net of browser-level tests that exercises the most user-visible
+  flows on the CURRENT (CRA) app, then becomes the acceptance criterion for the Vite
+  migration ("same suite must stay green after the swap"). Auto-runs on every PR
+  targeting master + every push to master via the new
+  `.github/workflows/e2e.yml` workflow (ubuntu-latest runner, free for public repos).
+
+  Shipped this PR: **18 deterministic tests across 7 spec files** — Dashboard boot +
+  zero console errors, 12 top-level routes render their header (sidebar nav graph
+  pinned), Settings VAT round-trip, Linen stock 6-field round-trip, iCal date-drift +
+  cancellation Dashboard cards seeded via DB helper and surfaced through the
+  components shipped in PRs #104 / #106, mobile xs viewport drawer reachability.
+  Wall time ~18 s end-to-end.
+
+  Infrastructure: ephemeral SQLite per run (`/tmp/guestflow-e2e.db`) wiped by a
+  pretest hook, deterministic admin seeded via the new `server/scripts/seed-e2e.js`,
+  session cookie captured through the CRA proxy origin so every spec inherits an
+  authenticated `storageState`, API + DB seed fixtures (`apiSeed.js` + `dbSeed.js`)
+  for the rare cases where going through the real engine would be slow or
+  non-deterministic.
+
+  **Wave 2 follow-up** (separate PR, before the migration starts): the remaining 16
+  specs from §3.4 of the spec — reservation create/edit, force-item-to-complement,
+  disable-deposit, devis create + accept, CRUD round-trips, accounting CSV download,
+  establishment closures gate. Skipped in Wave 1 because each needs careful UI
+  inspection that's more efficient to do in a focused follow-up. One spec
+  (`force-password-change`) is skipped with a documented reason — it calls
+  `reset-admin.js` which `DELETE`s sessions and nukes the cached e2e admin cookie;
+  needs a per-spec auth-isolation pattern to be safely re-enabled.
+
+  Local dev: `npm run test:e2e` (headless) or `:headed` to watch. CI: report
+  uploaded as a downloadable artifact on failure (interactive HTML with traces +
+  screenshots, no comment in the PR thread — standard GitHub Actions check box is
+  enough per user preference).
+
 ### Fixed
 - **CI deploy log cleanup** (2026-06-04). Three deprecation-noise sources in
   `.github/workflows/deploy.yml` driven to zero:
