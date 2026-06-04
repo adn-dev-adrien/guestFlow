@@ -8,7 +8,7 @@
 #
 # Usage:
 #   ./server/scripts/generate-self-signed-cert.sh                 # auto-detect SANs
-#   ./server/scripts/generate-self-signed-cert.sh 192.168.0.196 guestflow.local
+#   ./server/scripts/generate-self-signed-cert.sh <your-pi-lan-ip> guestflow.local
 #   OUT_DIR=/some/persistent/dir ./server/scripts/generate-self-signed-cert.sh
 #
 # Writes:

@@ -4,6 +4,35 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Removed
+- **Dead `deploy.sh` script** removed at the repo root (2026-06-04). The script was
+  superseded by the GitHub Actions self-hosted runner (`.github/workflows/deploy.yml`)
+  back in April 2026; nothing in the repo still referenced it. Removing keeps the
+  surface area honest and was tactically convenient — it also hardcoded the Pi's LAN IP,
+  which would otherwise have needed parameterising for the anonymisation pass below.
+
+### Changed
+- **Anonymised personal identifiers in public docs** (2026-06-04). The repo is public on
+  GitHub; the HTTPS setup docs introduced over the last few weeks hardcoded the owner's
+  business email, Free DDNS hostname, production subdomain, and Pi LAN IP — all
+  indexable by anyone cloning the repo or browsing GitHub. A forward-only sed sweep
+  replaces them with placeholders across `README.md`, `CHANGELOG.md`, and the helper
+  scripts under `scripts/` + `server/scripts/`:
+  | Real value | Placeholder |
+  |---|---|
+  | `contact@domainesolio.com` | `you@example.com` |
+  | `maisonadrisoph.freeboxos.fr` / `.com` | `<your-freebox-dyndns>.freeboxos.fr` / `.com` |
+  | `guestflow.domainesolio.com` | `<your-app>.<your-domain>` |
+  | `www.domainesolio.com` | `www.example.com` |
+  | `192.168.0.196` | `<your-pi-lan-ip>` |
+
+  **Forward-only** by design: rewriting git history (`git filter-repo` + force-push)
+  would break clones / forks and GitHub still caches old commit content via the API for
+  weeks anyway, so the marginal benefit is low for a solo public repo. The trade-off
+  was explicitly chosen on 2026-05-31. Brand names (Squarespace, Freebox / Free) stay
+  in the docs as concrete worked examples — they are categories of provider, not
+  personal identifiers.
+
 ### Fixed
 - **iCal sync now re-claims a reservation when the platform re-issues its UID** on a date
   change (spec `ical-summary-fallback-cross-uid.md`, 2026-06-03). Investigation triggered
@@ -515,7 +544,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - **H1 — Source maps no longer shipped to prod.** CI step `⚛️ Build React client`
     sets `GENERATE_SOURCEMAP=false` before `npm run build`, so
     `/static/js/main.*.js.map` is never generated. Previously it was publicly fetchable
-    on `guestflow.domainesolio.com` and leaked the full un-minified bundle (module
+    on `<your-app>.<your-domain>` and leaked the full un-minified bundle (module
     tree, original variable names, compile-time constants).
   - **M1 — Explicit JSON body size limit (256kb).** `express.json()` was using the
     Express default of 100 KB without an explicit cap. Pinned to 256 KB so a runaway
@@ -578,10 +607,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ### Added
 - **Let's Encrypt cert via Freebox port-forward + HTTP-01** (`server/scripts/issue-letsencrypt-cert-http01.sh`).
-  The path Adrien's prod actually uses to make `https://guestflow.domainesolio.com` reach the Pi
+  The path Adrien's prod actually uses to make `https://<your-app>.<your-domain>` reach the Pi
   with a publicly-trusted cert (no browser warning) and a hands-off auto-renewal — without
   migrating DNS hosting (Squarespace stays as registrar + DNS host). The architecture is a chain
-  of three boring steps: a CNAME `guestflow → maisonadrisoph.freeboxos.com` at Squarespace, two
+  of three boring steps: a CNAME `guestflow → <your-freebox-dyndns>.freeboxos.com` at Squarespace, two
   Freebox port-forwards (WAN 80 → Pi:80 for ACME, WAN 443 → Pi:4000 for HTTPS), and a single
   acme.sh standalone invocation on the Pi. acme.sh's daily cron re-issues at the 60-day mark,
   briefly re-binds port 80 to answer the ACME challenge, drops the renewed fullchain into
@@ -590,7 +619,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   port-busy check via ss / netstat, FQDN format) and surfaces a self-contained troubleshooting
   cheatsheet on failure (DNS propagation, Freebox forward, ISP port-80 blocking, staging fallback).
   README §HTTPS gets a full operator walkthrough — DHCP reservation pinning the Pi at
-  192.168.0.196, the exact Freebox port-forwarding table, the `dig`-based DNS verification, and
+  <your-pi-lan-ip>, the exact Freebox port-forwarding table, the `dig`-based DNS verification, and
   caveats (CNAME chain self-updates via Free's DDNS so the dynamic public IP is a non-issue;
   hostname-only access since the cert SAN is the FQDN). Complements the earlier
   `feat/prod-https-self-signed` (still ships the script + behaviour for offline / LAN-only
@@ -760,7 +789,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   walkthrough split into staging-first + `--force` for prod, plus a *Troubleshooting* block
   covering the four pitfalls actually hit on 2026-05-31: the `.com` vs `.fr` DDNS suffix
   (Free's Freebox DDNS lives under `.fr` — Squarespace CNAMEs pointing at
-  `maisonadrisoph.freeboxos.com` return NXDOMAIN), the cached-NXDOMAIN behavior on
+  `<your-freebox-dyndns>.freeboxos.com` return NXDOMAIN), the cached-NXDOMAIN behavior on
   carrier resolvers (browser sees `DNS_PROBE_FINISHED_BAD_CONFIG` while `dig @8.8.8.8`
   resolves fine), the sudo-HOME / CERTS_DIR mismatch (and the `openssl s_client` one-liner
   to verify which cert Node is **actually** serving on `localhost:4000`), and the
@@ -1158,7 +1187,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   (expected — self-signed for a LAN-only deploy); after acceptance HSTS makes HTTPS sticky for
   1 year. README §HTTPS documents the per-device cert-trust workflow (accept-once OR install
   rootCA) + the HSTS-clearing instructions for every major browser. Access changes from
-  `http://192.168.0.196:4000` to `https://192.168.0.196:4000`.
+  `http://<your-pi-lan-ip>:4000` to `https://<your-pi-lan-ip>:4000`.
 
 ### Fixed
 - **Production deploy over plain HTTP hit "Une erreur TLS a provoqué l'échec de la connexion
