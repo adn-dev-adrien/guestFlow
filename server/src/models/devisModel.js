@@ -15,6 +15,66 @@ const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { sentenceCase } = require('../utils/textFormatters');
 const { roundMoney, addDaysToIsoDate } = require('../utils/devisHelpers');
+const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
+
+// Helpers shared between create + convertFromReservation
+// (specs/devis-pdf-and-tourist-tax-fixes.md §3).
+
+/**
+ * Merge property option defaults into a payload's `selectedOptions` array. Idempotent:
+ * if a default option is already present in the payload, it's left untouched (no
+ * duplicate). Implements §3.3 rule 11–13 — server-side enforcement of property
+ * defaults so a UI bug or raw-API caller can't accidentally skip them.
+ */
+function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel) {
+  const defaults = defaultsModel.listForProperty(propertyId);
+  if (!defaults || defaults.length === 0) return payload;
+  const existing = new Set((payload.selectedOptions || []).map((o) => Number(o.optionId)));
+  const toAdd = defaults
+    .filter((d) => !existing.has(Number(d.optionId)))
+    .map((d) => ({ optionId: Number(d.optionId), quantity: 1 }));
+  if (toAdd.length === 0) return payload;
+  // Also propagate the `offered` flag — a default with offered=true means the line
+  // is included in the price (no extra charge to the customer).
+  const existingOfferedIds = new Set((payload.offeredOptionIds || []).map((id) => Number(id)));
+  const newOfferedIds = defaults
+    .filter((d) => d.offered && !existingOfferedIds.has(Number(d.optionId)))
+    .map((d) => Number(d.optionId));
+  return {
+    ...payload,
+    selectedOptions: [...(payload.selectedOptions || []), ...toAdd],
+    offeredOptionIds: [...(payload.offeredOptionIds || []), ...newOfferedIds],
+  };
+}
+
+/**
+ * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
+ * the explicit `createdAt` binding for INSERTs that should never end up with an empty
+ * value (specs/devis-pdf-and-tourist-tax-fixes.md §3.1 rule 1).
+ */
+function sqliteNow() {
+  return new Date().toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
+ * Compute a devis `validUntil` per §3.2 rule 6:
+ *   validUntil = MIN(createdAtIsoDate + quoteValidityDays, startDate - 2 days).
+ * Both inputs are ISO `YYYY-MM-DD` strings; output same. Falls back to the un-capped
+ * value if `startDate` isn't a valid ISO date.
+ */
+function computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) {
+  // Honour `quoteValidityDays = 0` as a deliberate "same day" choice (spec §3 edge case).
+  // Only fall back to 30 when the input is non-finite (undefined / null / NaN).
+  const rawDays = Number(quoteValidityDays);
+  const days = Number.isFinite(rawDays) ? Math.max(0, rawDays) : 30;
+  const raw = addDaysToIsoDate(createdAtIsoDate, days);
+  if (!raw) return null;
+  if (startDateIso && /^\d{4}-\d{2}-\d{2}$/.test(startDateIso)) {
+    const cap = addDaysToIsoDate(startDateIso, -2);
+    if (cap && raw > cap) return cap;
+  }
+  return raw;
+}
 
 const DEVIS_HISTORY_FIELD_LABELS = {
   propertyId: 'Logement', clientId: 'Client', startDate: 'Date arrivée', endDate: 'Date départ',
@@ -28,6 +88,18 @@ const DEVIS_HISTORY_FIELD_LABELS = {
 };
 
 function createModel(database) {
+  // ---- settings access ----
+  // Read `quoteValidityDays` from the SAME database handle the model was given so tests can
+  // override it on their isolated DBs (the prod-bound `settingsModel.read()` would otherwise
+  // ignore the test-DB row). Returns 30 as the documented fallback.
+  function readQuoteValidityDays() {
+    try {
+      const row = database.prepare('SELECT quoteValidityDays FROM app_settings WHERE id = 1').get();
+      const days = Number(row && row.quoteValidityDays);
+      return Number.isFinite(days) && days > 0 ? days : 30;
+    } catch { return 30; }
+  }
+
   // ---- payment schedule ----
   function resolvePaymentSchedule(row, property) {
     const totalStayPrice = roundMoney(Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0));
@@ -263,29 +335,45 @@ function createModel(database) {
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
 
-    const quote = computeQuote(payload, null, property);
+    // Server-side enforcement of property option defaults (specs/devis-pdf-and-tourist-tax-fixes.md §3.3
+    // rules 11–13). Idempotent: if the client already shipped the default optionId we leave it alone.
+    const defaultsModel = propertyOptionDefaultsModel.buildModel(database);
+    const payloadWithDefaults = mergePropertyDefaultsIntoPayload(payload, Number(payload.propertyId), defaultsModel);
+
+    const quote = computeQuote(payloadWithDefaults, null, property);
     const devisNumber = database.generateDevisNumber();
+
+    // §3.1 + §3.2 — bind `createdAt` + `validUntil` explicitly. `validUntil` =
+    // MIN(createdAt + quoteValidityDays, startDate - 2 days). The operator's optional
+    // `payload.validUntil` override wins (rare; the form doesn't expose it today).
+    const createdAt = sqliteNow();
+    const createdAtDate = createdAt.slice(0, 10);
+    const quoteValidityDays = readQuoteValidityDays();
+    const validUntil = payload.validUntil
+      || computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: payloadWithDefaults.startDate, quoteValidityDays })
+      || null;
+
     const tx = database.transaction(() => {
       const info = database.prepare(`
         INSERT INTO reservations (
           kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
-          discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil
-        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt
+        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        devisNumber, Number(payload.propertyId), Number(payload.clientId), payload.startDate, payload.endDate,
-        Number(payload.adults || 1), Number(payload.children || 0), Number(payload.teens || 0), Number(payload.babies || 0),
-        payload.singleBeds != null && payload.singleBeds !== '' ? Number(payload.singleBeds) : null,
-        payload.doubleBeds != null && payload.doubleBeds !== '' ? Number(payload.doubleBeds) : null,
-        payload.babyBeds != null && payload.babyBeds !== '' ? Number(payload.babyBeds) : null,
-        payload.checkInTime || property.defaultCheckIn || '15:00', payload.checkOutTime || property.defaultCheckOut || '10:00',
-        payload.platform || 'direct', roundMoney(quote.totalPrice), roundMoney(quote.touristTaxRate || 0), roundMoney(quote.touristTaxTotal || 0),
-        Number(payload.discountPercent || 0),
-        payload.customPrice !== undefined && payload.customPrice !== null && payload.customPrice !== '' ? Number(payload.customPrice) : null,
+        devisNumber, Number(payloadWithDefaults.propertyId), Number(payloadWithDefaults.clientId), payloadWithDefaults.startDate, payloadWithDefaults.endDate,
+        Number(payloadWithDefaults.adults || 1), Number(payloadWithDefaults.children || 0), Number(payloadWithDefaults.teens || 0), Number(payloadWithDefaults.babies || 0),
+        payloadWithDefaults.singleBeds != null && payloadWithDefaults.singleBeds !== '' ? Number(payloadWithDefaults.singleBeds) : null,
+        payloadWithDefaults.doubleBeds != null && payloadWithDefaults.doubleBeds !== '' ? Number(payloadWithDefaults.doubleBeds) : null,
+        payloadWithDefaults.babyBeds != null && payloadWithDefaults.babyBeds !== '' ? Number(payloadWithDefaults.babyBeds) : null,
+        payloadWithDefaults.checkInTime || property.defaultCheckIn || '15:00', payloadWithDefaults.checkOutTime || property.defaultCheckOut || '10:00',
+        payloadWithDefaults.platform || 'direct', roundMoney(quote.totalPrice), roundMoney(quote.touristTaxRate || 0), roundMoney(quote.touristTaxTotal || 0),
+        Number(payloadWithDefaults.discountPercent || 0),
+        payloadWithDefaults.customPrice !== undefined && payloadWithDefaults.customPrice !== null && payloadWithDefaults.customPrice !== '' ? Number(payloadWithDefaults.customPrice) : null,
         roundMoney(quote.finalPrice), roundMoney(quote.depositAmount), quote.depositDueDate || null,
         roundMoney(quote.balanceAmount), quote.balanceDueDate || null,
-        roundMoney(payload.cautionAmount != null ? payload.cautionAmount : (property.defaultCautionAmount || 0)),
-        String(payload.notes || ''), payload.validUntil || null,
+        roundMoney(payloadWithDefaults.cautionAmount != null ? payloadWithDefaults.cautionAmount : (property.defaultCautionAmount || 0)),
+        String(payloadWithDefaults.notes || ''), validUntil, createdAt,
       );
       const devisId = info.lastInsertRowid;
       persistLines(devisId, quote);
@@ -307,6 +395,18 @@ function createModel(database) {
     const quote = computeQuote(payload, existing, property);
     // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
     const beforeSnapshot = snapshotFromDb(numId);
+    // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and
+    // the payload doesn't override. This silently rescues legacy devis (NULL validUntil
+    // in the prod-copy DB) on the first edit without needing a data migration.
+    const resolvedValidUntil = (() => {
+      if (payload.validUntil !== undefined && payload.validUntil !== null) return payload.validUntil;
+      if (existing.validUntil) return existing.validUntil;
+      const createdAtIsoDate = String(existing.createdAt || sqliteNow()).slice(0, 10);
+      const startDateIso = payload.startDate || existing.startDate;
+      const quoteValidityDays = readQuoteValidityDays();
+      return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
+    })();
+
     const tx = database.transaction(() => {
       database.prepare(`
         UPDATE reservations SET
@@ -332,7 +432,7 @@ function createModel(database) {
         roundMoney(quote.balanceAmount), quote.balanceDueDate || null,
         roundMoney(payload.cautionAmount ?? existing.cautionAmount ?? 0),
         String(payload.notes ?? existing.notes ?? ''),
-        payload.validUntil !== undefined ? payload.validUntil : existing.validUntil,
+        resolvedValidUntil,
         numId,
       );
       persistLines(numId, quote);
@@ -416,19 +516,27 @@ function createModel(database) {
     if (!reservation) return { error: 'Réservation introuvable', status: 404 };
 
     const devisNumber = database.generateDevisNumber();
+
+    // §3.1 + §3.2 — populate createdAt + validUntil on the new devis row (rules 2 + 8).
+    const createdAt = sqliteNow();
+    const createdAtDate = createdAt.slice(0, 10);
+    const quoteValidityDays = readQuoteValidityDays();
+    const validUntil = computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: reservation.startDate, quoteValidityDays }) || null;
+
     const tx = database.transaction(() => {
       const info = database.prepare(`
         INSERT INTO reservations (
           kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
           singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
-          discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes
-        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt
+        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         devisNumber, reservation.propertyId, reservation.clientId, reservation.startDate, reservation.endDate,
         reservation.adults, reservation.children, reservation.teens, reservation.babies,
         reservation.singleBeds, reservation.doubleBeds, reservation.babyBeds, reservation.checkInTime, reservation.checkOutTime, reservation.platform,
         reservation.totalPrice, reservation.touristTaxRate, reservation.touristTaxTotal, reservation.discountPercent, reservation.customPrice, reservation.finalPrice,
         reservation.depositAmount, reservation.depositDueDate, reservation.balanceAmount, reservation.balanceDueDate, reservation.cautionAmount || 0, reservation.notes,
+        validUntil, createdAt,
       );
       const devisId = info.lastInsertRowid;
       copyLineGraph(numId, devisId);
@@ -455,5 +563,8 @@ function createModel(database) {
 
 const defaultModel = createModel(db);
 defaultModel.buildModel = createModel;
+// Pure-function helpers exported for direct unit testing
+// (specs/devis-pdf-and-tourist-tax-fixes.md §7.1).
+defaultModel.__test = { computeValidUntil, sqliteNow, mergePropertyDefaultsIntoPayload };
 
 module.exports = defaultModel;

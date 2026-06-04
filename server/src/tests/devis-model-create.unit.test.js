@@ -50,6 +50,11 @@ const DDL = `
   CREATE TABLE reservation_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, resourceId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
   CREATE TABLE reservation_nights (reservationId INTEGER, date TEXT, seasonLabel TEXT, pricingMode TEXT, price REAL);
   CREATE TABLE reservation_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, eventType TEXT, changedFields TEXT, createdAt TEXT DEFAULT (datetime('now')));
+  -- specs/devis-pdf-and-tourist-tax-fixes.md §3.3: server-side property defaults merge requires this table.
+  CREATE TABLE property_option_defaults (propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
+  -- specs/devis-pdf-and-tourist-tax-fixes.md §3.2: devis create reads quoteValidityDays from settings.
+  CREATE TABLE app_settings (id INTEGER PRIMARY KEY, quoteValidityDays INTEGER NOT NULL DEFAULT 30);
+  INSERT INTO app_settings (id, quoteValidityDays) VALUES (1, 30);
 `;
 
 function freshModel() {

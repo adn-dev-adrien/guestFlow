@@ -15,6 +15,7 @@ const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/force
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
+const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 
 const model = reservationsModel;
 
@@ -224,8 +225,32 @@ function create(req, res) {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
     forceMinNights, forceCapacity,
-    options: reservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
+    options: rawReservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
+
+  // Server-side enforcement of property option defaults (specs/devis-pdf-and-tourist-tax-fixes.md
+  // §3.3 rule 13). Idempotent merge — defaults that are already in the payload stay untouched.
+  // Symmetric with `devisModel.create` so both surfaces respect the contract regardless of which
+  // client surface (UI form, raw API, future flow) issued the request.
+  const reservationOptions = (() => {
+    if (!propertyId) return rawReservationOptions || [];
+    const defaults = propertyOptionDefaultsModel.listForProperty(Number(propertyId));
+    if (!defaults || defaults.length === 0) return rawReservationOptions || [];
+    const existing = new Set((rawReservationOptions || []).map((o) => Number(o.optionId)));
+    const toAdd = defaults
+      .filter((d) => !existing.has(Number(d.optionId)))
+      .map((d) => ({ optionId: Number(d.optionId), quantity: 1 }));
+    return [...(rawReservationOptions || []), ...toAdd];
+  })();
+
+  // Forward the offered flag of every property default into `offeredOptionIds` (rule 11 in §3.3).
+  const propertyDefaultsOffered = propertyId
+    ? propertyOptionDefaultsModel.listForProperty(Number(propertyId)).filter((d) => d.offered).map((d) => Number(d.optionId))
+    : [];
+  const offeredOptionIds = Array.from(new Set([
+    ...((req.body.offeredOptionIds || []).map((id) => Number(id))),
+    ...propertyDefaultsOffered,
+  ]));
 
   // Per-reservation opt-out of the deposit/balance split — when 1, the engine collapses the
   // deposit to 0 and lets the balance absorb the whole pre-arrival total. See
@@ -245,7 +270,7 @@ function create(req, res) {
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
     balanceAmount: req.body.balanceAmount,
-    offeredOptionIds: req.body.offeredOptionIds,
+    offeredOptionIds,
     depositDisabled: depositDisabledFlag,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
