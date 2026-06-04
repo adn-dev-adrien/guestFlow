@@ -675,7 +675,6 @@ export default function PlanningPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <PageHeader title="Planning" />
-
       {/* Controls */}
       <Card sx={{ mb: 2, mx: 2, mt: 2 }}>
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
@@ -689,7 +688,9 @@ export default function PlanningPage() {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               sx={{ width: 155 }}
-              inputProps={{ style: { padding: '6px 10px' } }}
+              slotProps={{
+                htmlInput: { style: { padding: '6px 10px' } }
+              }}
             />
             <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, 1))} aria-label="Jour suivant">
               <NavigateNextIcon />
@@ -744,9 +745,7 @@ export default function PlanningPage() {
           )}
         </CardContent>
       </Card>
-
       {loading && <LinearProgress />}
-
       {/* Scrollable content */}
       <Box
         ref={scrollContainerRef}

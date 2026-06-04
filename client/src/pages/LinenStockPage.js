@@ -88,7 +88,6 @@ export default function LinenStockPage() {
         onCancel={handleCancel}
         cancelDisabled={loading || saving || !isDirty}
       />
-
       <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 900 }}>
         {snackbar && (
           <Alert severity={snackbar.severity} sx={{ mb: 2 }} onClose={() => setSnackbar(null)}>
@@ -120,8 +119,10 @@ export default function LinenStockPage() {
                   value={draft.bedSingle}
                   onChange={update('bedSingle')}
                   disabled={loading || saving}
-                  inputProps={{ min: 0, max: 999, step: 1 }}
                   fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
                 />
                 <TextField
                   label="Doubles"
@@ -130,8 +131,10 @@ export default function LinenStockPage() {
                   value={draft.bedDouble}
                   onChange={update('bedDouble')}
                   disabled={loading || saving}
-                  inputProps={{ min: 0, max: 999, step: 1 }}
                   fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
                 />
                 <TextField
                   label="Bébé"
@@ -140,8 +143,10 @@ export default function LinenStockPage() {
                   value={draft.bedBaby}
                   onChange={update('bedBaby')}
                   disabled={loading || saving}
-                  inputProps={{ min: 0, max: 999, step: 1 }}
                   fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
                 />
               </Stack>
             </Stack>
@@ -166,8 +171,10 @@ export default function LinenStockPage() {
                   value={draft.towelLarge}
                   onChange={update('towelLarge')}
                   disabled={loading || saving}
-                  inputProps={{ min: 0, max: 999, step: 1 }}
                   fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
                 />
                 <TextField
                   label="Moyennes"
@@ -176,8 +183,10 @@ export default function LinenStockPage() {
                   value={draft.towelMedium}
                   onChange={update('towelMedium')}
                   disabled={loading || saving}
-                  inputProps={{ min: 0, max: 999, step: 1 }}
                   fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
                 />
                 <TextField
                   label="Petites"
@@ -186,15 +195,16 @@ export default function LinenStockPage() {
                   value={draft.towelSmall}
                   onChange={update('towelSmall')}
                   disabled={loading || saving}
-                  inputProps={{ min: 0, max: 999, step: 1 }}
                   fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
                 />
               </Stack>
             </Stack>
           </CardContent>
         </Card>
       </Box>
-
       <ConfirmDialog
         open={guardDialogOpen}
         onClose={dismissGuard}

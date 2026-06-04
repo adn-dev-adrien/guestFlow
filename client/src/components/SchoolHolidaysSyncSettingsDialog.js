@@ -51,18 +51,22 @@ export default function SchoolHolidaysSyncSettingsDialog({ open, onClose, initia
           type="number"
           value={intervalDays}
           onChange={(e) => setIntervalDays(e.target.value)}
-          inputProps={{ min: 1, max: 365, step: 1 }}
           helperText="Combien de jours entre deux synchronisations automatiques (1 à 365)."
           fullWidth
+          slotProps={{
+            htmlInput: { min: 1, max: 365, step: 1 }
+          }}
         />
         <TextField
           label="Horizon de mise à jour (mois)"
           type="number"
           value={horizonMonths}
           onChange={(e) => setHorizonMonths(e.target.value)}
-          inputProps={{ min: 1, max: 60, step: 1 }}
           helperText="Jusqu'à combien de mois dans le futur récupérer les vacances (1 à 60)."
           fullWidth
+          slotProps={{
+            htmlInput: { min: 1, max: 60, step: 1 }
+          }}
         />
       </Box>
     </FormDialog>

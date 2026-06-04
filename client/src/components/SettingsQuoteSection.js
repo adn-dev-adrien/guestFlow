@@ -32,11 +32,13 @@ export default function SettingsQuoteSection({
             type="number"
             value={v.validityDays ?? 30}
             onChange={(e) => onChange('validityDays', Number(e.target.value) || 30)}
-            inputProps={{ min: 1, max: 365 }}
             sx={{ maxWidth: 280 }}
             disabled={disabled}
             error={Boolean(errors.quoteValidityDays)}
             helperText={errors.quoteValidityDays || 'Combien de temps un nouveau devis reste valable. 30 par défaut.'}
+            slotProps={{
+              htmlInput: { min: 1, max: 365 }
+            }}
           />
 
           <TextField

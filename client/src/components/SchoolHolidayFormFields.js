@@ -9,24 +9,36 @@ function ZoneDateFields({ zoneKey, form, setField }) {
         {`Zone ${zoneKey}`}
       </Typography>
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             label="Début"
             type="date"
             value={form[`zone${zoneKey}_start`]}
-            InputLabelProps={{ shrink: true }}
             onChange={(e) => setField(`zone${zoneKey}_start`, e.target.value)}
             fullWidth
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             label="Fin"
             type="date"
             value={form[`zone${zoneKey}_end`]}
-            InputLabelProps={{ shrink: true }}
             onChange={(e) => setField(`zone${zoneKey}_end`, e.target.value)}
             fullWidth
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Grid>
       </Grid>

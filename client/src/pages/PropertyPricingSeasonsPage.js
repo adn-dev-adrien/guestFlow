@@ -524,7 +524,6 @@ export default function PropertyPricingSeasonsPage() {
   return (
     <Box>
       <PageHeader title={`Saisons tarifaires - ${property.name}`} />
-
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
@@ -592,7 +591,6 @@ export default function PropertyPricingSeasonsPage() {
           </TableContainer>
         </CardContent>
       </Card>
-
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap' }}>
           <TextField
@@ -600,8 +598,10 @@ export default function PropertyPricingSeasonsPage() {
             type="number"
             value={displayStartYear}
             onChange={(e) => setDisplayStartYear(Number(e.target.value || minYear))}
-            inputProps={{ min: minYear, max: maxYear + 2 }}
             size="small"
+            slotProps={{
+              htmlInput: { min: minYear, max: maxYear + 2 }
+            }}
           />
           <FormControl size="small" sx={{ minWidth: 200 }}>
             <InputLabel>Nombre d'années affichées</InputLabel>
@@ -623,10 +623,9 @@ export default function PropertyPricingSeasonsPage() {
           </Button>
         </CardContent>
       </Card>
-
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {yearsToDisplay.map((year) => (
-          <Grid item xs={12} key={year}>
+          <Grid key={year} size={12}>
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
@@ -660,7 +659,14 @@ export default function PropertyPricingSeasonsPage() {
                     }
 
                     return (
-                      <Grid item xs={12} sm={6} md={4} lg={3} key={`${year}-${month}`}>
+                      <Grid
+                        key={`${year}-${month}`}
+                        size={{
+                          xs: 12,
+                          sm: 6,
+                          md: 4,
+                          lg: 3
+                        }}>
                         <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}>
                           <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.5, display: 'block' }}>{monthLabel(year, month)}</Typography>
                           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.3 }}>
@@ -713,7 +719,6 @@ export default function PropertyPricingSeasonsPage() {
           </Grid>
         ))}
       </Grid>
-
       <Dialog open={seasonDialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}</DialogTitle>
         <DialogContent>
@@ -774,7 +779,9 @@ export default function PropertyPricingSeasonsPage() {
                   setBasePriceInput('');
                 }}
                 fullWidth
-                inputProps={{ inputMode: 'decimal' }}
+                slotProps={{
+                  htmlInput: { inputMode: 'decimal' }
+                }}
               />
               <FormControl fullWidth>
                 <InputLabel>Type de tarification</InputLabel>
@@ -793,7 +800,9 @@ export default function PropertyPricingSeasonsPage() {
                   <MenuItem value="progressive">Dégressif</MenuItem>
                 </Select>
               </FormControl>
-              <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth inputProps={{ min: 1 }} />
+              <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth slotProps={{
+                htmlInput: { min: 1 }
+              }} />
             </Box>
 
             {seasonForm.pricingMode === 'progressive' && (
@@ -853,11 +862,12 @@ export default function PropertyPricingSeasonsPage() {
                                     return next;
                                   });
                                 }}
-                                inputProps={{ inputMode: 'decimal' }}
-                                InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>€</InputAdornment> }}
                                 sx={{ width: { xs: 100, sm: 120 } }}
                                 disabled={t.readOnly}
-                              />
+                                slotProps={{
+                                  input: { endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>€</InputAdornment> },
+                                  htmlInput: { inputMode: 'decimal' }
+                                }} />
                             </TableCell>
                             <TableCell align="right" sx={{ py: { xs: 0.75, sm: 1 } }}>
                               <TextField
@@ -865,11 +875,12 @@ export default function PropertyPricingSeasonsPage() {
                                 type="number"
                                 value={Number(t.extraNightDiscountPct || 0).toFixed(0)}
                                 onChange={(e) => updateTierByPct(t.nightNumber, e.target.value)}
-                                inputProps={{ min: 0, max: 100, step: 1 }}
-                                InputProps={{ endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>%</InputAdornment> }}
                                 sx={{ width: { xs: 100, sm: 120 } }}
                                 disabled={t.readOnly}
-                              />
+                                slotProps={{
+                                  input: { endAdornment: <InputAdornment position="end" sx={{ mr: 0.5 }}>%</InputAdornment> },
+                                  htmlInput: { min: 0, max: 100, step: 1 }
+                                }} />
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
@@ -901,7 +912,6 @@ export default function PropertyPricingSeasonsPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
       <Dialog open={applyDialogOpen} onClose={() => setApplyDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Appliquer les saisons à un autre logement</DialogTitle>
         <DialogContent>
@@ -938,7 +948,6 @@ export default function PropertyPricingSeasonsPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
@@ -947,7 +956,6 @@ export default function PropertyPricingSeasonsPage() {
         message={deleteTarget ? `Supprimer la saison ${deleteTarget.label} ?` : ''}
         confirmLabel="Supprimer"
       />
-
       <ConfirmDialog
         open={confirmDialogOpen}
         onClose={handleConfirmDialogClose}

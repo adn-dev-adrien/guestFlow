@@ -24,7 +24,9 @@ export default function PropertyFormFields({ form, setForm, photoFile, setPhotoF
         onChange={(e) => setForm({ ...form, touristTaxPerDayPerPerson: e.target.value })}
         onFocus={handleZeroFocus}
         fullWidth
-        inputProps={{ min: 0, step: 0.01 }}
+        slotProps={{
+          htmlInput: { min: 0, step: 0.01 }
+        }}
       />
       <Button variant="outlined" component="label">
         Ajouter une photo
