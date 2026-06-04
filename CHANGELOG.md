@@ -5,6 +5,77 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Changed
+- **Client UI library: `@mui/material` 5 → 9** (spec `mui-5-to-9-migration.md`,
+  2026-06-04). Second of the four queued major-version dep upgrades unlocked
+  by the CRA → Vite migration (PR #111), and the gating peer for the React
+  18 → 19 bump next in the chain. Bumps:
+  - `@mui/material@^5.15.0` → `^9.0.1`
+  - `@mui/icons-material@^5.15.0` → `^9.0.1`
+  - `@mui/x-date-pickers@^6.18.0` → `^9.4.0`
+
+  MUI skipped v8 for `@mui/material` (npm dist-tags: `latest-v7=7.3.11`
+  then directly `latest=9.0.1`), so the conceptual jump is 5 → 6 → 7 → 9
+  but the npm bump is a single `^9.0.1` install. **Zero observable behavior
+  change** for the end user; visual + interactive parity verified by the
+  acceptance gate.
+
+  Acceptance gate (spec §7.1) — all green:
+  - `npm ls @mui/material @mui/x-date-pickers @mui/icons-material`: single
+    top-level `9.x` on each, every emotion peer deduped on 11.14.x.
+  - `npm run build`: 2.19 s, **0 esbuild warnings**.
+  - Vitest: **160 / 160** (156 existing + 4 new MUI smoke cases).
+  - Playwright E2E: **18 passed / 1 skipped / 0 failed**, identical to the
+    post-router-v7 baseline.
+  - Server tripwire: green in isolation (allow the same 2-3 pre-existing
+    parallel-runner flakes).
+
+  Bundle: 434.13 → **445.64 kB gzip** (+11.51 kB / +2.6 % of the bundle),
+  well under the +25 kB strict budget set in spec §3.5 + §9 Q3.
+
+  Source-side migration shape (`mui-codemod` ran transiently via npx,
+  never installed as a dep):
+  - **Grid v2 API**: 56 `<Grid item xs/sm/md/…>` sites across 8 files
+    collapsed into `<Grid size={{…}}>`. Codemods used:
+    `v6.0.0/grid-v2-props` + `v7.0.0/grid-props`.
+  - **TextField slot APIs**: `InputProps`, `InputLabelProps`,
+    `FormHelperTextProps` → `slotProps={{ input, inputLabel, formHelperText }}`
+    across 24 files. Codemod: `deprecations/text-field-props`.
+  - **ListItemText slot API**: `<ListItemText primaryTypographyProps=…>` →
+    `slotProps={{ primary: … }}` in the App.js sidebar nav (10+ sites in
+    one file). Codemod: `deprecations/list-item-text-props`. Caught when
+    the E2E `Dashboard loads with zero console errors` test failed on a
+    React `unknown DOM prop primarytypographyprops` warning.
+  - **`color="default"` cleanup**: 2 manual fixes — Chip on FinancePage
+    ("Acompte désactivé") + IconButton on DevisPage (convert action). The
+    `default` color token was removed in v6+; without a `color` prop the
+    rendered look matches the pre-fix.
+  - **`<Switch>` accessibility upgrade**: v9 exposes WAI-ARIA `role="switch"`
+    instead of `role="checkbox"`. Two ExtrasSection test assertions
+    updated (`getAllByRole('checkbox')` → `getAllByRole('switch')`).
+  - **Icon path rename**: `@mui/icons-material/DeleteOutline` (1 site in
+    UserManagementPage) → `DeleteOutlineOutlined`. The bare `Outline`
+    variants were dropped in v9 in favor of the `Outlined` suffix.
+
+  New smoke coverage (`client/src/__tests__/mui-smoke.test.js`, 4 cases —
+  one more than the spec's original 3 to pin the Switch accessibility
+  upgrade that surfaced during the work):
+  - `<Grid container><Grid size={{ xs: 12, md: 6 }}>…</Grid></Grid>` —
+    pins the v9 Grid API shape.
+  - `<Chip>` without a `color` prop renders correctly — pins the
+    post-`color="default"` shape.
+  - `<Switch slotProps={{ input: { 'aria-label': … } }}>` exposes
+    `role="switch"` — pins the v9 accessibility upgrade and the
+    `slotProps` migration.
+  - `<DatePicker>` under `<LocalizationProvider dateAdapter={AdapterDayjs}>`
+    mounts — pins the date-pickers v9 contract.
+
+  **Out of scope** (each its own future spec): `cssVarsTheme` adoption,
+  `@mui/material-pigment-css` engine (zero-runtime alternative to emotion),
+  `@mui/x-data-grid` adoption, `<DateField>` field-component UX.
+
+  **Next in the chain**: React 18 → 19 (now unblocked — MUI 9 fully
+  supports React 19), then Recharts 2 → 3 (independent of the chain).
+
 - **Client routing: react-router-dom 6 → 7** (spec `react-router-7-migration.md`,
   2026-06-04). First of the four queued major-version dep upgrades unlocked by
   the CRA → Vite migration (PR #111). Bump `react-router-dom@^6.20.0` (resolved

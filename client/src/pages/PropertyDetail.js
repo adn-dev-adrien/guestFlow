@@ -536,10 +536,13 @@ export default function PropertyDetail() {
           )}
         </Box>
       </Box>
-
       <Grid container spacing={3}>
         {/* Infos */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Informations</Typography>
@@ -566,8 +569,12 @@ export default function PropertyDetail() {
                   <TextField label="Max bébés" type="number" value={form.maxBabies ?? 0} onChange={(e) => updateField('maxBabies', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="0 à 2 ans" />
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0 }} />
-                  <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0 }} />
+                  <TextField label="Lits doubles" type="number" value={form.doubleBeds ?? 0} onChange={(e) => updateField('doubleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                    htmlInput: { min: 0 }
+                  }} />
+                  <TextField label="Lits simples" type="number" value={form.singleBeds ?? 0} onChange={(e) => updateField('singleBeds', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                    htmlInput: { min: 0 }
+                  }} />
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField
@@ -578,8 +585,10 @@ export default function PropertyDetail() {
                     onFocus={handleZeroFocus}
                     fullWidth
                     size="small"
-                    inputProps={{ min: 0, step: 1 }}
                     helperText="Nombre de personnes incluses avant surcoût"
+                    slotProps={{
+                      htmlInput: { min: 0, step: 1 }
+                    }}
                   />
                   <TextField
                     label="Supplément par personne (€ / séjour)"
@@ -589,8 +598,10 @@ export default function PropertyDetail() {
                     onFocus={handleZeroFocus}
                     fullWidth
                     size="small"
-                    inputProps={{ min: 0, step: 0.01 }}
                     helperText="Ex: 15 pour facturer 15€ par personne supplémentaire"
+                    slotProps={{
+                      htmlInput: { min: 0, step: 0.01 }
+                    }}
                   />
                 </Box>
               </Box>
@@ -599,7 +610,11 @@ export default function PropertyDetail() {
         </Grid>
 
         {/* Horaires & Ménage */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Horaires & Ménage</Typography>
@@ -618,13 +633,19 @@ export default function PropertyDetail() {
                     </Select>
                   </FormControl>
                 </Box>
-                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" inputProps={{ min: 0, step: 0.5 }} />
+                <TextField label="Temps de ménage (heures)" type="number" value={form.cleaningHours ?? 3} onChange={(e) => updateField('cleaningHours', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                  htmlInput: { min: 0, step: 0.5 }
+                }} />
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Options horaires automatiques</Typography>
@@ -646,7 +667,6 @@ export default function PropertyDetail() {
                         label={option.autoEnabled ? 'Actif' : 'Inactif'}
                       />
                     </Box>
-
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.5, mt: 1 }}>
                       <FormControl size="small" fullWidth>
                         <InputLabel>Tarification</InputLabel>
@@ -667,8 +687,10 @@ export default function PropertyDetail() {
                         value={option.price ?? 0}
                         onChange={(e) => updateTimedOptionField(entry.key, 'price', e.target.value)}
                         disabled={(option.autoPricingMode || 'fixed') !== 'fixed'}
-                        inputProps={{ min: 0, step: 1 }}
                         fullWidth
+                        slotProps={{
+                          htmlInput: { min: 0, step: 1 }
+                        }}
                       />
 
                       <FormControl size="small" fullWidth>
@@ -692,7 +714,11 @@ export default function PropertyDetail() {
 
         {/* Per-property option defaults — canonical edit surface (specs/weekly-bed-linen-tracking.md §3.7). */}
         {!isNew && (
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <PropertyDefaultOptionsCard
               propertyId={Number(id)}
               options={catalogOptions}
@@ -701,7 +727,11 @@ export default function PropertyDetail() {
         )}
 
         {/* Acompte & Solde */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
@@ -711,14 +741,20 @@ export default function PropertyDetail() {
                   <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 </Box>
-                <TextField label="Caution par défaut (€)" type="number" inputProps={{ step: 50 }} value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                  htmlInput: { step: 50 }
+                }} />
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
         {/* Pricing */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Tarification</Typography>
@@ -747,7 +783,9 @@ export default function PropertyDetail() {
                     onFocus={handleZeroFocus}
                     fullWidth
                     size="small"
-                    inputProps={{ min: 0, step: 0.01 }}
+                    slotProps={{
+                      htmlInput: { min: 0, step: 0.01 }
+                    }}
                   />
                 )}
                 
@@ -761,8 +799,10 @@ export default function PropertyDetail() {
                       onFocus={handleZeroFocus}
                       fullWidth
                       size="small"
-                      inputProps={{ min: 0, step: 0.01 }}
                       helperText="Appliqué au prix moyen HT de la nuit par occupant"
+                      slotProps={{
+                        htmlInput: { min: 0, step: 0.01 }
+                      }}
                     />
                     <TextField
                       label="Pourcentage additionnel départemental (%)"
@@ -772,8 +812,10 @@ export default function PropertyDetail() {
                       onFocus={handleZeroFocus}
                       fullWidth
                       size="small"
-                      inputProps={{ min: 0, step: 0.01 }}
                       helperText="Pourcentage additionnel appliqué sur la part communale"
+                      slotProps={{
+                        htmlInput: { min: 0, step: 0.01 }
+                      }}
                     />
                   </>
                 )}
@@ -788,8 +830,10 @@ export default function PropertyDetail() {
                       onFocus={handleZeroFocus}
                       fullWidth
                       size="small"
-                      inputProps={{ min: 0, step: 0.01 }}
                       helperText="Appliqué au prix moyen HT de la nuit par occupant"
+                      slotProps={{
+                        htmlInput: { min: 0, step: 0.01 }
+                      }}
                     />
                     <TextField
                       label="Pourcentage additionnel départemental (%)"
@@ -799,8 +843,10 @@ export default function PropertyDetail() {
                       onFocus={handleZeroFocus}
                       fullWidth
                       size="small"
-                      inputProps={{ min: 0, step: 0.01 }}
                       helperText="Pourcentage additionnel appliqué sur la part communale"
+                      slotProps={{
+                        htmlInput: { min: 0, step: 0.01 }
+                      }}
                     />
                     <TextField
                       label="Montant fixe (€)"
@@ -810,8 +856,10 @@ export default function PropertyDetail() {
                       onFocus={handleZeroFocus}
                       fullWidth
                       size="small"
-                      inputProps={{ min: 0, step: 0.01 }}
                       helperText="Montant fixe par nuit et par adulte, ajouté au pourcentage"
+                      slotProps={{
+                        htmlInput: { min: 0, step: 0.01 }
+                      }}
                     />
                   </>
                 )}
@@ -880,7 +928,11 @@ export default function PropertyDetail() {
         </Grid>
 
         {/* Documents */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Documents</Typography>
@@ -917,13 +969,13 @@ export default function PropertyDetail() {
 
         {/* iCal Export */}
         {!isNew && (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <IcalExportCard propertyId={property.id} propertyName={property.name} />
           </Grid>
         )}
 
         {/* iCal Sync */}
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
@@ -1102,7 +1154,6 @@ export default function PropertyDetail() {
         </Grid>
 
       </Grid>
-
       {/* Unsaved changes dialog */}
       <Dialog open={navGuardOpen} onClose={() => setNavGuardOpen(false)}>
         <DialogTitle>Modifications non sauvegardées</DialogTitle>
@@ -1115,7 +1166,6 @@ export default function PropertyDetail() {
           <Button variant="contained" onClick={handleNavGuardSave}>Sauvegarder et quitter</Button>
         </DialogActions>
       </Dialog>
-
       {!isNew && <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}

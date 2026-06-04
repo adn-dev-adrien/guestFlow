@@ -26,8 +26,10 @@ test('renders an option row, the custom-options block and a resource row', () =>
 test('toggling an option switch calls setOptionEnabled', async () => {
   const user = userEvent.setup();
   const ctx = renderExtras();
-  // The first switch belongs to the "Petit-déjeuner" option row.
-  await user.click(screen.getAllByRole('checkbox')[0]);
+  // The first switch belongs to the "Petit-déjeuner" option row. MUI 9 upgraded
+  // <Switch> to expose role="switch" instead of "checkbox" per WAI-ARIA — the
+  // accessibility fix that broke this assertion at migration time.
+  await user.click(screen.getAllByRole('switch')[0]);
   expect(ctx.setOptionEnabled).toHaveBeenCalledWith(10, true);
 });
 
@@ -68,10 +70,10 @@ test('a typed-default linen option (autoOptionType set + autoEnabled=0) behaves 
   });
   // No auto-add hint anywhere on screen.
   expect(screen.queryByText('Ajout automatique')).not.toBeInTheDocument();
-  // The first checkbox is the linen option's Switch (the only one in propertyOptions). It must
+  // The first switch is the linen option's Switch (the only one in propertyOptions). It must
   // not be disabled and must round-trip the click to setOptionEnabled — i.e. the manual flow
-  // works end-to-end.
-  const optionSwitch = screen.getAllByRole('checkbox')[0];
+  // works end-to-end. MUI 9 exposes <Switch> as role="switch" (see comment above).
+  const optionSwitch = screen.getAllByRole('switch')[0];
   expect(optionSwitch).not.toBeDisabled();
   await user.click(optionSwitch);
   expect(ctx.setOptionEnabled).toHaveBeenCalledWith(42, true);

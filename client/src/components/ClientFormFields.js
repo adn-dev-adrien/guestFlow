@@ -9,7 +9,6 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         <TextField label="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} fullWidth required />
         <TextField label="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} fullWidth required />
       </FormRow>
-
       <FormRow>
         <TextField
           label="N°"
@@ -24,7 +23,6 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
           fullWidth
         />
       </FormRow>
-
       <FormRow>
         <TextField
           label="Code postal"
@@ -41,7 +39,6 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
           fullWidth
         />
       </FormRow>
-
       <TextField
         label="Email"
         value={form.email}
@@ -50,7 +47,6 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         error={emailError}
         helperText={emailError ? 'Format email invalide' : ''}
       />
-
       <TextField
         label="Téléphone"
         value={form.phone || ''}
@@ -59,12 +55,13 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         error={phoneError}
         helperText={phoneError ? 'Format téléphone invalide' : ''}
       />
-
       <TextField
         label="Adresse complète"
         value={[form.streetNumber, form.street, form.postalCode, form.city].filter(Boolean).join(' ')}
         fullWidth
-        InputProps={{ readOnly: true }}
+        slotProps={{
+          input: { readOnly: true }
+        }}
       />
       <TextField label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} fullWidth multiline rows={3} />
     </Box>

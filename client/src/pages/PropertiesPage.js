@@ -37,10 +37,15 @@ export default function PropertiesPage() {
   return (
     <Box>
       <PageHeader title="Logements" actionLabel="Nouveau logement" actionIcon={<AddIcon />} onAction={() => navigate(withFrom('/properties/new', '/properties'))} />
-
       <Grid container spacing={3}>
         {properties.map((p) => (
-          <Grid item xs={12} sm={6} md={4} key={p.id}>
+          <Grid
+            key={p.id}
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 4
+            }}>
             <Card
               sx={{ cursor: 'pointer', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}
               onClick={() => navigate(withFrom(`/properties/${p.id}`, '/properties'))}
@@ -72,12 +77,11 @@ export default function PropertiesPage() {
           </Grid>
         ))}
         {properties.length === 0 && (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Card><CardContent><Typography align="center" color="text.secondary">Aucun logement. Créez votre premier logement!</Typography></CardContent></Card>
           </Grid>
         )}
       </Grid>
-
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}

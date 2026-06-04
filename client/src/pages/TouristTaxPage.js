@@ -87,7 +87,6 @@ export default function TouristTaxPage() {
   return (
     <Box>
       <PageHeader title="Extraction taxe de séjour" />
-
       {(() => {
         const { month: m, year: y } = MonthYearPicker.fromYearMonth(month);
         return (
@@ -100,13 +99,15 @@ export default function TouristTaxPage() {
           />
         );
       })()}
-
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
       {data && (
         <>
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={4}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
                 <CardContent>
                   <Typography variant="subtitle2">Réservations directes (mois)</Typography>
@@ -114,7 +115,11 @@ export default function TouristTaxPage() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Card sx={{ bgcolor: '#00897b', color: 'white' }}>
                 <CardContent>
                   <Typography variant="subtitle2">Adultes-nuits (mois)</Typography>
@@ -122,7 +127,11 @@ export default function TouristTaxPage() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Card sx={{ bgcolor: '#ef6c00', color: 'white' }}>
                 <CardContent>
                   <Typography variant="subtitle2">Taxe de séjour totale</Typography>

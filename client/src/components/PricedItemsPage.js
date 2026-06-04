@@ -221,7 +221,6 @@ export default function PricedItemsPage({
           );
         })}
       </DataPageScaffold>
-
       <FormDialog
         open={open}
         onClose={() => setOpen(false)}
@@ -255,7 +254,9 @@ export default function PricedItemsPage({
                 value={form.quantity}
                 onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                 fullWidth
-                inputProps={{ min: 0 }}
+                slotProps={{
+                  htmlInput: { min: 0 }
+                }}
               />
             )}
 
@@ -277,7 +278,9 @@ export default function PricedItemsPage({
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 fullWidth
-                inputProps={{ min: 0, step: '0.01' }}
+                slotProps={{
+                  htmlInput: { min: 0, step: '0.01' }
+                }}
               />
             )}
 

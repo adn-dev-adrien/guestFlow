@@ -102,7 +102,6 @@ function ComplexResourceFields({ form, setForm, properties }) {
           </Select>
         </FormControl>
       )}
-
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography variant="body2" fontWeight={600}>Prix specifique par logement (optionnel)</Typography>
         <Typography variant="caption" color="text.secondary">
@@ -119,8 +118,10 @@ function ComplexResourceFields({ form, setForm, properties }) {
               size="small"
               value={getPropertyPricingLine(property.id).price}
               onChange={(e) => updatePropertyPrice(property.id, e.target.value)}
-              inputProps={{ min: 0, step: '0.01' }}
               fullWidth
+              slotProps={{
+                htmlInput: { min: 0, step: '0.01' }
+              }}
             />
             <FormControlLabel
               control={
@@ -136,7 +137,6 @@ function ComplexResourceFields({ form, setForm, properties }) {
           </Box>
         ))}
       </Box>
-
       <FormControlLabel
         control={<Switch checked={Boolean(form.isComplex)} onChange={(e) => setForm({ ...form, isComplex: e.target.checked })} />}
         label={<Typography variant="body2" fontWeight={600}>Ressource à créneaux (bain nordique, salle…)</Typography>}
@@ -160,8 +160,10 @@ function ComplexResourceFields({ form, setForm, properties }) {
               size="small"
               value={form.openTime || '08:00'}
               onChange={(e) => setForm({ ...form, openTime: e.target.value })}
-              InputLabelProps={{ shrink: true }}
               sx={{ flex: 1 }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
             <TextField
               label="Heure de fermeture"
@@ -169,8 +171,10 @@ function ComplexResourceFields({ form, setForm, properties }) {
               size="small"
               value={form.closeTime || '22:00'}
               onChange={(e) => setForm({ ...form, closeTime: e.target.value })}
-              InputLabelProps={{ shrink: true }}
               sx={{ flex: 1 }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Box>
           <TextField
@@ -179,9 +183,11 @@ function ComplexResourceFields({ form, setForm, properties }) {
             size="small"
             value={form.turnoverMinutes || 0}
             onChange={(e) => setForm({ ...form, turnoverMinutes: Math.max(0, Number(e.target.value) || 0) })}
-            inputProps={{ min: 0, step: 5 }}
             helperText="Ex: 15 min pour chauffer/remettre en état"
             fullWidth
+            slotProps={{
+              htmlInput: { min: 0, step: 5 }
+            }}
           />
           <Box>
             <Typography variant="caption" color="text.secondary" gutterBottom display="block">Jours d'ouverture</Typography>

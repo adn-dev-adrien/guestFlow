@@ -265,7 +265,9 @@ export default function ResourceBookingDialog({
               onChange={(e) => { setDate(e.target.value); setSelectedStart(''); setSelectedEnd(''); }}
               fullWidth
               size="small"
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
             <MiniDayPlanner
               date={date}

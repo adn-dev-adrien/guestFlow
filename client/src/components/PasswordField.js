@@ -20,22 +20,24 @@ export default function PasswordField({ InputProps, ...props }) {
     <TextField
       {...props}
       type={visible ? 'text' : 'password'}
-      InputProps={{
-        ...InputProps,
-        endAdornment: (
-          <InputAdornment position="end">
-            <Tooltip title={label}>
-              <IconButton
-                onClick={() => setVisible((v) => !v)}
-                edge="end"
-                aria-label={label}
-                tabIndex={-1}
-              >
-                {visible ? <VisibilityOff /> : <Visibility />}
-              </IconButton>
-            </Tooltip>
-          </InputAdornment>
-        ),
+      slotProps={{
+        input: {
+          ...InputProps,
+          endAdornment: (
+            <InputAdornment position="end">
+              <Tooltip title={label}>
+                <IconButton
+                  onClick={() => setVisible((v) => !v)}
+                  edge="end"
+                  aria-label={label}
+                  tabIndex={-1}
+                >
+                  {visible ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </Tooltip>
+            </InputAdornment>
+          ),
+        }
       }}
     />
   );
