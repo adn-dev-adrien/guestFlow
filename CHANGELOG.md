@@ -60,6 +60,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   'platform_names_normalized_v1'` + restart).
 
 ### Fixed
+- **Dev server — `/uploads/*` now proxied to the backend** (2026-06-04).
+  Regression from the CRA → Vite migration (PR #111): CRA's
+  `"proxy": "http://localhost:4000"` field was a **catch-all** that forwarded
+  every unmatched request to Node, including `/uploads/*` (company logo +
+  property photos, served by `server/src/index.js` line 100). Vite requires
+  explicit prefix entries, and the migration only listed `/api`. Symptoms on
+  the local `npm run dev` setup: broken `<img src="/uploads/…">` tags on
+  `/settings` and `/properties`, and the dynamic favicon silently falling
+  back to the bundled `client/public/favicon.ico` because
+  `/uploads/company-logo.png` 404'd. Fix: add `/uploads` to
+  `vite.config.js → server.proxy`. Prod path was never affected (Express
+  serves `/uploads` directly there). Spec `cra-to-vite-migration.md` §3.1
+  updated to list both proxy prefixes + explain the CRA catch-all behaviour
+  for future migrations.
 - **CI deploy — `release.sh` rsync now creates the missing `client/` parent directory**
   (2026-06-04). Regression from the CRA → Vite migration (PR #111): `release.sh` line 61
   copies `client/dist/` → `client/build/` inside the release archive, but rsync only

@@ -71,9 +71,15 @@ ad hoc afterward).
    codebase). The config:
    - `plugins: [react()]`
    - `server.port = 3000` (matches the existing CRA dev port; E2E + dev parity).
-   - `server.proxy: { '/api': 'http://localhost:4000' }` — equivalent of CRA's
-     `"proxy"` field. Critical: the E2E suite (PR #110) relies on this proxying
-     `/api/*` → `:4000`; same-origin cookies + session work the same way.
+   - `server.proxy: { '/api': 'http://localhost:4000', '/uploads': 'http://localhost:4000' }`
+     — equivalent of CRA's `"proxy"` field, which was a **catch-all** that
+     forwarded every unmatched request to the backend. Vite requires explicit
+     prefixes, so both paths the backend owns must be listed: `/api/*` for the
+     REST surface (E2E suite + same-origin cookies depend on this) and
+     `/uploads/*` for the static company-logo / property-photo files served by
+     `server/src/index.js` line 100. Without the `/uploads` entry, every
+     `<img src="/uploads/…">` 404s in dev and the dynamic favicon stays at the
+     bundled default.
    - `build.outDir = 'dist'` (Vite default; we accept the rename `build/` → `dist/`).
    - `build.sourcemap = false` (equivalent of CRA's `GENERATE_SOURCEMAP=false`
      security flag — never ship sourcemaps to prod, per 2026-06-01 audit finding).
