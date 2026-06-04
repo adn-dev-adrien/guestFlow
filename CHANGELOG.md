@@ -4,6 +4,61 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Platform names — UpperCamelCase canonical form everywhere** (spec
+  `normalize-platform-names.md`, 2026-06-04). Follow-up to PR #116 which
+  extended the platforms list to a union of `ical_sources.platformLabel` +
+  `reservations.platform` and surfaced obvious data-quality drift on the
+  prod-copy DB: `Gitedefrance` + `gitedefrance`, `Lodgify` + `lodgify`,
+  `Abracadaroom` + `abracadaroom` were all stored as separate rows.
+
+  **Two halves to the fix:**
+
+  - **Write-time formatter** (`utils/platformNameFormat.js`):
+    `formatPlatformName(input)` reduces a free-form platform string to a
+    canonical UpperCamelCase shape. Diacritics stripped, spaces/punctuation
+    split, each segment capitalized, joined without separator. Idempotent
+    on its own output (the splitter detects camelCase boundaries on the
+    second pass). The `direct` enum value is preserved as lowercase so the
+    codebase's strict equality checks against `'direct'` keep working.
+    Applied at every write site: `propertyIcalModel.createSource` +
+    `updateSource` (for `ical_sources.platformLabel`),
+    `reservationsModel.insertReservation` + `updateReservation` (for
+    `reservations.platform`), `platformsModel.upsertByName` (belt-and-
+    suspenders for any caller that bypasses the upstream hooks).
+
+  - **One-shot boot migration** (`utils/normalizePlatformNamesMigration.js`,
+    gated by `migrations.platform_names_normalized_v1`): walks every
+    `platforms` row, computes the canonical name, groups by canonical, and
+    for each group with > 1 member: merges to a single row keeping the one
+    with non-NULL `commissionAccountNumber` (tiebreak by lowest id),
+    updates `ical_sources.platformLabel` + `reservations.platform`
+    references to the winner's name, deletes the losers. Then a defensive
+    pass normalizes orphan labels in the source tables (rows with no
+    matching `platforms` entry). The whole sequence wraps in
+    `db.transaction()` so a partial run rolls back cleanly. Logs one line:
+    `[migration:platform-names-normalized] merged N conflict(s), renamed M
+    row(s)`.
+
+  Boot smoke on the prod-copy DB after the migration: 12 → 9 platforms
+  (3 conflicts merged — Gitedefrance, Lodgify, Abracadaroom — and 2 rows
+  renamed to canonical). The typo `Logify` (which isn't the same string as
+  `Lodgify`) survives — the formatter is a mechanical case-normalizer, not
+  a spell-checker; operator can delete the typo row from the dedicated
+  page if they want.
+
+  Server tests +18 cases (11 on the formatter pinning every entry of the
+  spec §3.1 table + idempotency, 7 on the migration pinning merge
+  conflict resolution + defensive pass + idempotency + the `direct` enum
+  pass-through). Server suite 952 / 952, Vitest 163 / 163 (no client
+  change), build clean.
+
+  **Out of scope** (each its own future spec or manual cleanup): typo
+  correction, foreign-key constraint on `reservations.platform`, automated
+  re-normalize tool if Adrien wants to re-run after a manual data edit
+  (today's escape hatch: `DELETE FROM migrations WHERE name =
+  'platform_names_normalized_v1'` + restart).
+
 ### Fixed
 - **CI deploy — `release.sh` rsync now creates the missing `client/` parent directory**
   (2026-06-04). Regression from the CRA → Vite migration (PR #111): `release.sh` line 61

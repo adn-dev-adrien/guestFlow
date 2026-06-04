@@ -1550,6 +1550,28 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   `).run();
 }
 
+// ---------- PLATFORM NAMES NORMALIZATION ----------
+// specs/normalize-platform-names.md §3.3. One-shot migration: every existing platform name
+// (across `platforms.name`, `ical_sources.platformLabel`, `reservations.platform`) is collapsed
+// to its canonical UpperCamelCase form. Conflicts in `platforms` (e.g. `Gitedefrance` and
+// `gitedefrance` both → `Gitedefrance`) are merged: the row with a non-NULL
+// `commissionAccountNumber` wins; tiebreak by lowest id. References in iCal sources +
+// reservations follow the merge. Idempotent via `migrations.platform_names_normalized_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'platform_names_normalized_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runPlatformNamesNormalization } = require('./utils/normalizePlatformNamesMigration');
+    const tx = db.transaction(() => {
+      const { mergedCount, renamedCount } = runPlatformNamesNormalization(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:platform-names-normalized] merged ${mergedCount} conflict(s), renamed ${renamedCount} row(s)`);
+    });
+    tx();
+  }
+}
+
 const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
 ensureDefaultBedLinenOption(db);
 db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;

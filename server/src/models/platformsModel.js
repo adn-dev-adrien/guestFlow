@@ -12,6 +12,7 @@
  */
 
 const db = require('../database');
+const { formatPlatformName } = require('../utils/platformNameFormat');
 
 const DIRECT_NAME = 'direct';
 
@@ -51,11 +52,14 @@ function createPlatformsModel(database) {
       if (id == null) return null;
       return stmts.findById.get(Number(id)) || null;
     },
+    // specs/normalize-platform-names.md §3.2 rule 10 — belt-and-suspenders: format the input
+    // even though the model's callers (propertyIcalModel + reservationsModel) already feed a
+    // canonical string. Guards against a future caller that bypasses those hooks.
     upsertByName(name) {
-      const trimmed = String(name || '').trim();
-      if (!trimmed) return null;
-      stmts.upsert.run(trimmed);
-      return stmts.findByName.get(trimmed) || null;
+      const canonical = formatPlatformName(name);
+      if (canonical == null || canonical === '') return null;
+      stmts.upsert.run(canonical);
+      return stmts.findByName.get(canonical) || null;
     },
     // Re-run the union INSERT OR IGNORE from `ical_sources.platformLabel` +
     // `reservations.platform` so any platform that appeared since the last boot/upsert lands on
