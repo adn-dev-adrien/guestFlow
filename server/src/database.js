@@ -1442,16 +1442,36 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT,
-    hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-    commissionRatePercent REAL
+    hasVatOnCommission INTEGER NOT NULL DEFAULT 0
   )
 `);
-// Always-present 'direct' row + auto-seed from existing iCal sources (idempotent via INSERT OR IGNORE).
+// Drop the legacy `commissionRatePercent` column (only ever held informational values for a
+// UI cross-check that turned out to be useless — see spec §3.1 and the §6 page layout
+// after the 2026-06-04 cleanup). Idempotent: SKIP when column absent. Safe to run on every
+// boot since the column is no longer referenced anywhere.
+{
+  const platformCols = db.prepare("PRAGMA table_info(platforms)").all().map((c) => c.name);
+  if (platformCols.includes('commissionRatePercent')) {
+    db.exec('ALTER TABLE platforms DROP COLUMN commissionRatePercent');
+  }
+}
+// Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
+// (idempotent via INSERT OR IGNORE):
+//   1. `ical_sources.platformLabel` — every iCal source declared by the operator.
+//   2. `reservations.platform` — covers manually-entered platform reservations whose source
+//      isn't an iCal sync (e.g. operator typed "Booking" while creating a one-off reservation).
+// The operator can refresh the list at runtime from `/comptabilite/plateformes` (POST
+// `/api/accounting/platform-accounts/refresh`) — see platformsModel.rescan.
 db.prepare("INSERT OR IGNORE INTO platforms (name) VALUES ('direct')").run();
 db.exec(`
   INSERT OR IGNORE INTO platforms (name)
   SELECT DISTINCT platformLabel FROM ical_sources
    WHERE platformLabel IS NOT NULL AND platformLabel != ''
+`);
+db.exec(`
+  INSERT OR IGNORE INTO platforms (name)
+  SELECT DISTINCT platform FROM reservations
+   WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
 `);
 
 // Global commission settings (default account + commission VAT rate). The VAT rate lives in

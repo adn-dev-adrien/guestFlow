@@ -76,9 +76,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   **New page `/comptabilite/plateformes`** — admin + accountant edit the
   per-platform config from one centralised place. Top card = compte par
   défaut (6–8 digit fallback); bottom card = table listing every platform
-  with editable compte + Switch TVA déductible + taux commission %. Direct
-  row's inputs grayed out. Sidebar gains the link under Suivi financier;
-  accountant's minimal sidebar grows by one item.
+  with editable compte + Switch TVA déductible. Direct row's inputs grayed
+  out. The platform list is the **union of `ical_sources.platformLabel`
+  AND `reservations.platform`** — so a manually-entered platform name on a
+  one-off reservation also surfaces here (it wouldn't if we only seeded
+  from iCal sources). A **"Rafraîchir la liste" button** on the page
+  triggers `POST /api/accounting/platform-accounts/refresh` so a brand-new
+  platform name appears without a server restart; the UI flashes
+  *"+N nouvelle(s) plateforme(s) ramassée(s)"* on success. Sidebar gains
+  the link under Suivi financier; accountant's minimal sidebar grows by
+  one item.
 
   **Reservation FinanceSection** — Acompte block hidden on non-direct
   platforms, replaced by *"Pas d'acompte (réservation plateforme — virement
