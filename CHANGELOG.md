@@ -4,6 +4,29 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **CI deploy log cleanup** (2026-06-04). Three deprecation-noise sources in
+  `.github/workflows/deploy.yml` driven to zero:
+  - `actions/checkout@v4` → `@v6` and `actions/setup-node@v4` → `@v6`. Eliminates the
+    GitHub Actions warning `Node.js 20 actions are deprecated. ... will be forced to run
+    with Node.js 24 by default starting June 16th, 2026`. The v6 majors of both actions
+    run on Node 24 natively.
+  - `npm rebuild --build-from-source better-sqlite3` → `env
+    npm_config_build_from_source=true npm rebuild better-sqlite3`. The bare flag is NOT
+    an npm CLI option (it's a `prebuild-install` convention) and recent npm versions
+    reject it with two warnings: `"better-sqlite3" is being parsed as a normal command
+    line argument` + `Unknown cli config "--build-from-source"`. The env-var form is the
+    canonical entry point and survives the next npm major. Verified locally —
+    `rebuilt dependencies successfully` with zero warning.
+
+  Scope deliberately bounded: **42 client-side `npm audit` vulnerabilities** (19 high /
+  14 moderate / 9 low) + ~25 `npm warn deprecated` lines during `client/ npm install` are
+  ~90 % CRA transitive dependencies (`react-scripts 5.0.1` pulling stale jsdom / babel
+  proposal plugins / workbox / svgo / eslint 8 trees). They cannot be fixed without
+  migrating off CRA — a separate "migration project" tracked in the session memory.
+  Server tree is clean (0 vulns; the 2 transitive deprecation warnings on
+  `prebuild-install` + `node-domexception` are also CRA/jsdom-adjacent).
+
 ### Removed
 - **Dead `deploy.sh` script** removed at the repo root (2026-06-04). The script was
   superseded by the GitHub Actions self-hosted runner (`.github/workflows/deploy.yml`)

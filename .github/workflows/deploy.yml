@@ -21,10 +21,10 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           # Must match the Node major installed on the Pi (`node -v`). The PM2 daemon on the
           # Pi was launched with the system Node, and any native module (notably
@@ -318,11 +318,17 @@ jobs:
         # Force a rebuild from source so the ABI is guaranteed to match the Node we're about
         # to start PM2 with. Cheap on the Pi (~30 s for better-sqlite3); avoids the silent
         # ABI-mismatch crash loop entirely.
+        #
+        # `--build-from-source` is NOT an npm CLI flag — it's a `prebuild-install` convention
+        # that historical npm versions tolerated but recent ones formally reject ("Unknown cli
+        # config" warning, and "better-sqlite3 is being parsed as a normal command line
+        # argument"). The clean replacement is the env-var form, which `prebuild-install` reads
+        # directly. Survives the next npm major.
         run: |
           DEPLOY_DIR="$HOME/guestflow"
           cd "$DEPLOY_DIR/current/server"
           echo "Rebuilding native modules against Node $(node -v) (ABI v$(node -p 'process.versions.modules'))..."
-          npm rebuild --build-from-source better-sqlite3
+          env npm_config_build_from_source=true npm rebuild better-sqlite3
           echo "✓ Native modules rebuilt against the runtime Node ABI"
           # Verify it actually loads — a broken rebuild here is much better than discovering
           # it via the PM2 errored state right after `pm2 start`.
