@@ -48,6 +48,9 @@ const GOOGLE_FIELDS = [
 // standard) — collapsed because every revenue stream on GuestFlow is invoiced at 10 %.
 const VAT_FIELDS = [
   { input: 'rate', column: 'vatRate', validator: validation.validateVatRate },
+  // accounting-platform-commission-and-no-deposit.md §3.7 rule 17b — sits alongside the
+  // existing single VAT rate in the same Settings card.
+  { input: 'rateCommission', column: 'vatRateCommission', validator: validation.validateVatRate },
 ];
 
 // SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask

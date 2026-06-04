@@ -61,6 +61,7 @@ import LinenStockPage from './pages/LinenStockPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import AccountingPage from './pages/AccountingPage';
+import PlatformAccountsPage from './pages/PlatformAccountsPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -77,7 +78,7 @@ const navItems = [
 // (matches the JSX below) instead of derived from ROUTE_ROLES because the JSX itself is hand-rolled
 // and the children's order matters for display.
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
-const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite'];
+const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
 const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/stock-blanchisserie', '/account'];
 
 function NavContent({ onItemClick }) {
@@ -134,7 +135,7 @@ function NavContent({ onItemClick }) {
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
-    if (location.pathname.startsWith('/finance') || location.pathname === '/comptabilite') {
+    if (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite')) {
       setFinanceMenuOpen(true);
       setCalendarMenuOpen(false);
       setSettingsMenuOpen(false);
@@ -185,7 +186,7 @@ function NavContent({ onItemClick }) {
                   setFinanceMenuOpen(false);
                   setSettingsMenuOpen(false);
                 } else if (item.path === '/finance') {
-                  setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname === '/comptabilite') ? true : (prev) => !prev);
+                  setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite')) ? true : (prev) => !prev);
                   setCalendarMenuOpen(false);
                   setSettingsMenuOpen(false);
                 } else if (item.path === '/settings') {
@@ -217,7 +218,7 @@ function NavContent({ onItemClick }) {
                 item.path === '/properties'
                   ? location.pathname.startsWith('/properties')
                   : item.path === '/finance'
-                    ? (location.pathname.startsWith('/finance') || location.pathname === '/comptabilite')
+                    ? (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite'))
                     : item.path === '/settings'
                       ? (
                         location.pathname === '/settings'
@@ -355,6 +356,19 @@ function NavContent({ onItemClick }) {
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemText primary="Comptabilité" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/comptabilite/plateformes') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/comptabilite/plateformes"
+                    onClick={(e) => onItemClick && onItemClick(e, '/comptabilite/plateformes')}
+                    selected={location.pathname === '/comptabilite/plateformes'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText primary="Plan comptable plateformes" slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
@@ -568,7 +582,7 @@ function AppShell() {
   // also hold admin keep the full app.
   useEffect(() => {
     if (!user || !userHasRole(user, ACCOUNTANT) || userHasRole(user, ADMIN)) return;
-    const allowed = location.pathname === '/comptabilite' || location.pathname === '/account';
+    const allowed = location.pathname.startsWith('/comptabilite') || location.pathname === '/account';
     if (!allowed) navigate('/comptabilite', { replace: true });
   }, [user, location.pathname, navigate]);
 
@@ -719,6 +733,7 @@ function AppShell() {
           <Route path="/comptes" element={<Navigate to="/account" replace />} />
           <Route path="/account" element={<UserManagementPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
+          <Route path="/comptabilite/plateformes" element={<PlatformAccountsPage />} />
         </Routes>
       </Box>
     </Box>

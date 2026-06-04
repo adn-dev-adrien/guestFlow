@@ -29,6 +29,14 @@ function isAccountingPath(path) {
   return /^\/accounting(\/|$)/.test(path);
 }
 
+// accounting-platform-commission-and-no-deposit.md §3.7 rule 19. The accountant must be able
+// to edit the per-platform commission config from `/comptabilite/plateformes`, so PUT on
+// this one path is exempt from the "accountant = GET-only" rule. Other PUTs under
+// `/accounting/*` remain admin-only.
+function isAccountantWritablePath(method, path) {
+  return method === 'PUT' && path === '/accounting/platform-accounts';
+}
+
 function isSelfPath(path) {
   return SELF_ENDPOINTS.has(path);
 }
@@ -38,6 +46,7 @@ function enforceRoleAccess(req, res, next) {
   if (userHasRole(req.user, ACCOUNTANT)) {
     if (isSelfPath(req.path)) return next();
     if (req.method === 'GET' && isAccountingPath(req.path)) return next();
+    if (isAccountantWritablePath(req.method, req.path)) return next();
     return res.status(403).json({ error: 'FORBIDDEN_ROLE' });
   }
   // No known role → fail-closed.
@@ -45,4 +54,4 @@ function enforceRoleAccess(req, res, next) {
 }
 
 module.exports = enforceRoleAccess;
-module.exports.__test = { isAccountingPath, isSelfPath, SELF_ENDPOINTS };
+module.exports.__test = { isAccountingPath, isSelfPath, isAccountantWritablePath, SELF_ENDPOINTS };

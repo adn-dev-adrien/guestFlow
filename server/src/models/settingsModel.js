@@ -57,6 +57,14 @@ const COLUMNS = [
   'quoteValidityDays',
   'companyLogoPath',
   'vatRate',
+  // accounting-platform-commission-and-no-deposit.md §3.1 + §3.7 rule 17b. Single source of
+  // truth for the per-platform commission accounting:
+  //   - `defaultCommissionAccountNumber` is the 6226xx fallback when a platform row doesn't
+  //     have its own number set on `/comptabilite/plateformes`.
+  //   - `vatRateCommission` is the global VAT rate applied to platform commissions whose
+  //     row carries `hasVatOnCommission = 1`. Lives in Settings → Général → Taux de TVA.
+  'defaultCommissionAccountNumber',
+  'vatRateCommission',
   // SMTP for the account-management flow (specs/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.
@@ -91,6 +99,7 @@ const COLUMNS = [
 const NUMERIC_DEFAULTS = {
   quoteValidityDays: 30,
   vatRate: 10,
+  vatRateCommission: 20,
   smtpPort: 587,
   smtpSecure: 0,
   allowEditPastReservations: 0,

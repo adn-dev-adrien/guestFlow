@@ -63,7 +63,9 @@ const BASE_INPUTS = {
   depositPaid: false, balancePaid: false,
 };
 
-test('non-direct owner-collect → tax goes to complement; acompte + solde based on finalPrice', () => {
+test('non-direct owner-collect → tax goes to complement; whole net on solde (no acompte on platforms)', () => {
+  // accounting-platform-commission-and-no-deposit.md §3.3: platform reservations have
+  // depositAmount = 0; the whole pre-arrival amount lands on the balance.
   const db = createDb({ collectsTouristTax: false });
   const q = calculateReservationQuote({ ...BASE_INPUTS, db, platform: 'airbnb' });
 
@@ -73,9 +75,10 @@ test('non-direct owner-collect → tax goes to complement; acompte + solde based
   assert.equal(q.touristTaxTotal, 4.80);
   assert.equal(q.totalStayPrice, 204.80);
 
-  // Schedule: 30% of 200 = 60 acompte, 140 solde, 4.80 complement (= the tax).
-  assert.equal(q.depositAmount, 60);
-  assert.equal(q.balanceAmount, 140);
+  // Schedule on platform: 0 acompte, 200 solde (= finalPrice, since tax is collected on arrival),
+  // 4.80 complement (= the tax).
+  assert.equal(q.depositAmount, 0);
+  assert.equal(q.balanceAmount, 200);
   assert.equal(q.complementAmount, 4.80);
   // Sanity: deposit + balance + complement = totalStayPrice.
   assert.equal(q.depositAmount + q.balanceAmount + q.complementAmount, q.totalStayPrice);
@@ -97,7 +100,8 @@ test('direct booking is UNCHANGED → tax stays in balance, complement = 0', () 
   db.close();
 });
 
-test('non-direct platform-collect → tax = 0, schedule mirrors a tax-free booking, complement = 0', () => {
+test('non-direct platform-collect → tax = 0, single solde encaissement (no acompte on platforms)', () => {
+  // §3.3: same no-acompte rule applies regardless of who collects the tax.
   const db = createDb({ collectsTouristTax: true });
   const q = calculateReservationQuote({ ...BASE_INPUTS, db, platform: 'airbnb' });
 
@@ -105,30 +109,34 @@ test('non-direct platform-collect → tax = 0, schedule mirrors a tax-free booki
   assert.equal(q.touristTaxCollectedOnArrival, false);
   assert.equal(q.touristTaxTotal, 0);
   assert.equal(q.totalStayPrice, 200);
-  assert.equal(q.depositAmount, 60);
-  assert.equal(q.balanceAmount, 140);
+  assert.equal(q.depositAmount, 0);
+  assert.equal(q.balanceAmount, 200);
   assert.equal(q.complementAmount, 0);
   db.close();
 });
 
-test('non-direct owner-collect with depositPaid → balance recomputes against finalPrice, not totalStayPrice', () => {
+test('non-direct owner-collect with depositPaid is overridden → no acompte on platforms', () => {
+  // Even when the caller passes depositPaid + depositAmount (e.g. legacy form payload), the
+  // engine forces depositAmount = 0 because the platform rule wins. §3.3 rule 5.
   const db = createDb({ collectsTouristTax: false });
   const q = calculateReservationQuote({
     ...BASE_INPUTS,
     db,
     platform: 'airbnb',
     depositPaid: true,
-    depositAmount: 60, // frozen at the saved acompte (= 30% of 200)
+    depositAmount: 60,
   });
 
-  assert.equal(q.depositAmount, 60);
-  // Balance must close out the pre-arrival amount only — 200 - 60 = 140 — not 204.80 - 60.
-  assert.equal(q.balanceAmount, 140);
+  assert.equal(q.depositAmount, 0);
+  assert.equal(q.balanceAmount, 200);
   assert.equal(q.complementAmount, 4.80);
   db.close();
 });
 
 test('non-direct owner-collect with complementPaid → complement frozen to stored value', () => {
+  // Legacy form payload may still carry depositPaid + depositAmount on a platform; the
+  // engine overrides depositAmount = 0 (§3.3). The complementPaid freeze still applies on
+  // the stored complementAmount, independently of the deposit clear.
   const db = createDb({ collectsTouristTax: false });
   const q = calculateReservationQuote({
     ...BASE_INPUTS,
@@ -142,8 +150,8 @@ test('non-direct owner-collect with complementPaid → complement frozen to stor
     complementAmount: 4.80,
   });
 
-  assert.equal(q.depositAmount, 60);
-  assert.equal(q.balanceAmount, 140);
+  assert.equal(q.depositAmount, 0);
+  assert.equal(q.balanceAmount, 200);
   assert.equal(q.complementAmount, 4.80);
   db.close();
 });
