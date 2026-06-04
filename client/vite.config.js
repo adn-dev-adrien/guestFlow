@@ -38,8 +38,16 @@ export default defineConfig({
     // Equivalent of `client/package.json`'s previous `"proxy": "http://localhost:4000"`
     // field. Keeps /api/* same-origin from the browser's perspective so the session
     // cookie binds to localhost:3000 — same auth model the E2E suite expects.
+    //
+    // `/uploads` is also proxied: the backend serves `server/uploads/*` (company logo +
+    // property photos) at that path (see server/src/index.js line 100). Under CRA the
+    // `"proxy": "http://localhost:4000"` string was a catch-all that forwarded every
+    // unmatched request to the backend — Vite requires explicit prefixes, so without this
+    // entry the dev server returns 404 for every `<img src="/uploads/…">` and the dynamic
+    // favicon stays at the bundled default.
     proxy: {
       '/api': 'http://localhost:4000',
+      '/uploads': 'http://localhost:4000',
     },
   },
 
