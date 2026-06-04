@@ -29,7 +29,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
