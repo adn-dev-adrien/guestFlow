@@ -70,6 +70,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     consistency-invariant cases on `resolveLiveTaxTotals` pinning the live-quote-
     vs-row resolution (incl. the user's exact 15,36 € / 16,80 € regression).
 
+  **Client-side Vitest mirror** (added when rebasing on the CRA → Vite branch,
+  same day): 9 new cases pinning the symmetric "consume the engine quote, never
+  re-derive" rule on the client.
+  - `client/src/components/__tests__/PricingSummary.tourist-tax.test.js`
+    (5 cases): displayed tax total reads `quote.touristTaxTotal` (the user's
+    16,80 € exact scenario), detail breakdown reads the engine's `unitAmount ×
+    adultsCount × nights`, engine zero overrides a stale form value, quote-omitted
+    initial load falls back to the form (anti-flicker), `touristTaxLabel`
+    rendered verbatim.
+  - `client/src/utils/applyQuoteToForm.test.js` (+4 cases): the form-sync helper
+    overwrites a stale `touristTaxTotal` on every recompute, an engine zero wins
+    over a non-zero form value, `touristTaxRate` is copied verbatim, null/undef
+    engine values map to 0 (no NaN leak into the form).
+
   **Forward-only**: no backfill SQL for the existing rows with bad/empty data.
   The defensive guards in `devisPdf.js` and the `update`-time `validUntil`
   backfill mean legacy devis still render correctly on the next reopen.
