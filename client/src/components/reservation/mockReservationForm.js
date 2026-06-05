@@ -69,6 +69,7 @@ export function makeMockContext(overrides = {}) {
     // option enabled" so existing tests keep the bed-inputs sub-block hidden in ExtrasSection
     // by default. Tests that exercise the bed-linen card override these explicitly.
     firstEnabledBedLinenOptionId: null, bedLinenOptionEnabled: false,
+    bedLinenForcedOptionIds: new Set(),
     // finance
     isDevisMode: false, reservationId: null,
     refreshToCurrentPricing: vi.fn(),

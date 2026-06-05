@@ -371,13 +371,43 @@ function update(req, res) {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
     forceMinNights, forceCapacity, refreshPricingToCurrent,
-    options: reservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
+    options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
-  // specs/bed-config-in-linen-card.md §3 rule 7 — same coercion as `create`, but on update
-  // the property-defaults auto-merge does NOT re-fire (rule 30 preserves historical state),
-  // so `reservationOptions` is what the operator submitted as-is. If the bed-linen option is
-  // absent from the payload, the bed counts go to 0 regardless of what they were before.
+  // specs/bed-config-in-linen-card.md §3 rule 4.bis — historical preservation (rule 30 in
+  // other specs) keeps the operator's option set frozen on update, EXCEPT for options
+  // flagged `countsAsBedLinen = 1` declared as property defaults: those are re-merged here
+  // so the property contract ("this property always includes bed linen") stays sticky
+  // across edits. Without this, a reservation predating the property default would lose
+  // its bed counts on the next save (the invariant below would zero them).
+  const reservationOptions = (() => {
+    const submitted = rawUpdateOptions || [];
+    if (!propertyId) return submitted;
+    const defaults = propertyOptionDefaultsModel.listForProperty(Number(propertyId));
+    if (!defaults || defaults.length === 0) return submitted;
+    const bedLinenDefaultIds = defaults
+      .map((d) => Number(d.optionId))
+      .filter((optId) => {
+        const row = db.prepare(
+          'SELECT countsAsBedLinen FROM options WHERE id = ?',
+        ).get(optId);
+        return row && Number(row.countsAsBedLinen) === 1;
+      });
+    if (bedLinenDefaultIds.length === 0) return submitted;
+    const existing = new Set(submitted.map((o) => Number(o.optionId)));
+    const toAdd = bedLinenDefaultIds
+      .filter((optId) => !existing.has(optId))
+      .map((optId) => ({ optionId: optId, quantity: 1 }));
+    return [...submitted, ...toAdd];
+  })();
+  // Keep `req.body.options` in sync so the model layer downstream (which reads from
+  // req.body) sees the re-merged list and persists it.
+  req.body.options = reservationOptions;
+
+  // specs/bed-config-in-linen-card.md §3 rule 7 — invariant on save. After the bed-linen-
+  // only property-defaults re-merge above, this only zeros bed counts on reservations that
+  // genuinely have no bed-linen contract (= neither the operator's explicit option nor a
+  // property default applies).
   const bedLinenIncluded = hasBedLinenOption(reservationOptions);
   const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
   const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;

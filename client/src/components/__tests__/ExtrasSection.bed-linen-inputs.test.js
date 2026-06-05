@@ -41,6 +41,7 @@ function buildContext({
   propertyOptions = [BED_LINEN_OPT],
   selectedOptions = [],
   firstEnabledBedLinenOptionId = null,
+  bedLinenForcedOptionIds = new Set(),
   setOptionEnabled = () => {},
   updateForm = () => {},
 } = {}) {
@@ -78,6 +79,7 @@ function buildContext({
     setResourceInComplement: () => {},
     setAutoOptionInComplement: () => {},
     firstEnabledBedLinenOptionId,
+    bedLinenForcedOptionIds,
     // BedLinenInputsBlock dependencies
     updateForm,
     maxSingleBeds: 6,
@@ -140,6 +142,26 @@ test('Switch ON → OFF calls setOptionEnabled(optId, false) for the bed-linen o
   const switches = screen.getAllByRole('switch');
   fireEvent.click(switches[0]);
   expect(setOptionEnabled).toHaveBeenCalledWith(1, false);
+});
+
+test('bed-linen option forced by property default → Switch checked + disabled + bed inputs visible + "Inclus par défaut" caption', () => {
+  // specs/bed-config-in-linen-card.md §3 rule 4.bis. The reservation does NOT have the
+  // bed-linen option in `selectedOptions` (= pre-default-era state), but the property
+  // declares it as a default. The Switch must show ON + disabled; the bed inputs
+  // sub-block surfaces because the property contract treats the option as enabled.
+  renderWith(buildContext({
+    selectedOptions: [], // no explicit entry
+    firstEnabledBedLinenOptionId: 1, // computed by the page from the forced set
+    bedLinenForcedOptionIds: new Set([1]),
+  }));
+  // Switch is checked + disabled.
+  const switches = screen.getAllByRole('switch');
+  expect(switches[0]).toBeChecked();
+  expect(switches[0]).toBeDisabled();
+  // Bed inputs are rendered.
+  expect(screen.getByLabelText(/Lits doubles/i)).toBeInTheDocument();
+  // Caption surfaces the "forced by property" affordance.
+  expect(screen.getByText(/Inclus par défaut/i)).toBeInTheDocument();
 });
 
 test('multiple bed-linen-flagged options both enabled → bed inputs render exactly ONCE under the first', () => {

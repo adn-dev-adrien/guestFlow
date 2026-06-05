@@ -76,6 +76,19 @@ the new invariant.
    already the current behaviour; the spec just pins it so a future
    refactor doesn't silently hide the card when the option is a
    property default.
+
+   **4.bis (hotfix 2026-06-05 follow-up)** — **A bed-linen-flagged
+   option that is configured as a property default is forced ON and
+   the Switch is disabled.** The operator cannot remove it from a
+   reservation form (the property contract says it's mandatory).
+   This applies to BOTH new reservations (the option already auto-
+   merges via the existing property-defaults logic on the create
+   path) AND existing reservations (where pre-default-era rows may
+   carry no entry in `reservation_options` despite the property now
+   declaring the option as a default). The Switch shows checked +
+   `disabled`; the bed inputs sub-block is rendered as if the option
+   were enabled; the bed-counts auto-zero on Switch OFF (rule 3) is
+   unreachable because the operator cannot turn the Switch off.
 5. **Capacity validation only fires when the option is enabled** —
    `exceedsSingleBedsLimit / exceedsDoubleBedsLimit /
    bedsCapacityMismatch` only render their error messages when the
@@ -88,10 +101,21 @@ the new invariant.
 7. **Server-side invariant on save (create + update)** — the
    reservation controller forces `singleBeds / doubleBeds / babyBeds`
    to `0` whenever the final `reservation_options` (after the
-   property-defaults auto-merge on create; as-submitted on update)
-   contains **no** option flagged `countsAsBedLinen = 1`. This
-   protects the DB from a misbehaving client (or a future spec
-   change that bypasses the UI).
+   property-defaults merge described below) contains **no** option
+   flagged `countsAsBedLinen = 1`. This protects the DB from a
+   misbehaving client (or a future spec change that bypasses the UI).
+
+   **Bed-linen-only property-defaults merge on update** — on `create`
+   the controller already merges ALL property defaults into
+   `reservation_options` (idempotent, existing behaviour). On
+   `update`, historical preservation (other-spec rule 30) keeps the
+   operator's original option set frozen — EXCEPT for options
+   flagged `countsAsBedLinen = 1`, which are always re-merged from
+   `property_option_defaults` before the invariant runs. This makes
+   the operator's intent ("this property always includes bed
+   linen") sticky across edits without bleeding into unrelated
+   defaults (e.g. a one-off "Petit-déjeuner" that wasn't included
+   on the historical reservation).
 8. **One-shot data migration at boot** — a new idempotent migration
    block in `database.js` zeroes `singleBeds / doubleBeds / babyBeds`
    for every reservation that has no bed-linen-flagged option in
@@ -436,3 +460,17 @@ that ships each step, per CLAUDE.md §4.1.)_
 - [x] Client tests (Vitest 4 + 2) + manual UI check on
       reservation #12077 (dev DB).
 - [x] Docs: spec status → Implemented, CHANGELOG entry.
+- [x] **Hotfix 2026-06-05 follow-up** — Adrien reported that on his
+      Gite (which has `Linge de lit` as a property default), existing
+      reservations whose `reservation_options` predate the default
+      were showing the Switch OFF instead of ON. The initial commits
+      treated `form.selectedOptions` as the sole source of truth for
+      Switch state, ignoring the property contract. Fix: (a) server
+      `update` handler re-merges `countsAsBedLinen = 1` property
+      defaults before the invariant runs; (b) client exposes
+      `propertyDefaultOptionIds` on the form context, forces the
+      Switch ON + disabled for any bed-linen-flagged option that's
+      a property default, and extends
+      `firstEnabledBedLinenOptionId` to include property-default
+      lookups (so the bed inputs sub-block surfaces correctly). +2
+      tests (1 server, 1 Vitest).

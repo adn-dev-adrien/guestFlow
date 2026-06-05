@@ -108,7 +108,7 @@ export default function ExtrasSection() {
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
     setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
-    firstEnabledBedLinenOptionId,
+    firstEnabledBedLinenOptionId, bedLinenForcedOptionIds,
   } = useReservationForm();
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
   // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
@@ -134,7 +134,13 @@ export default function ExtrasSection() {
               <Stack spacing={1.25}>
                 {propertyOptions.map((opt) => {
                   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
-                  const enabled = Boolean(selected && Number(selected.quantity) > 0);
+                  const explicitlyEnabled = Boolean(selected && Number(selected.quantity) > 0);
+                  // specs/bed-config-in-linen-card.md §3 rule 4.bis — a bed-linen-flagged
+                  // option that's a property default is FORCED ON, even when it's not (yet)
+                  // in form.selectedOptions. The Switch shows checked + disabled. The server
+                  // re-merges the same default at save time so the option lands in the DB.
+                  const isForcedByPropertyDefault = bedLinenForcedOptionIds?.has(opt.id) || false;
+                  const enabled = explicitlyEnabled || isForcedByPropertyDefault;
                   // "Auto-timed" = the option is derived by the pricing engine itself (early
                   // check-in / late check-out). The right discriminator is `autoEnabled === 1`,
                   // NOT `autoOptionType` — since 2026-06-02 the latter is also used as a
@@ -170,10 +176,13 @@ export default function ExtrasSection() {
                           <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                             <FormControlLabel
                               sx={{ m: 0 }}
-                              control={<Switch checked={enabled} disabled={isAutoTimedOption} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
+                              control={<Switch checked={enabled} disabled={isAutoTimedOption || isForcedByPropertyDefault} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
                             />
                             {isAutoTimedOption && (
                               <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
+                            )}
+                            {!isAutoTimedOption && isForcedByPropertyDefault && (
+                              <Typography variant="caption" color="text.secondary">Inclus par défaut</Typography>
                             )}
                           </Stack>
                         </Stack>

@@ -1064,16 +1064,30 @@ export default function ReservationPage() {
     ? null
     : Math.max(0, babyAvailableNumber - selectedBabyBeds);
 
+  // specs/bed-config-in-linen-card.md §3 rule 4.bis — a `countsAsBedLinen = 1` option that
+  // sits in `property_option_defaults` for the current property is FORCED ON (Switch
+  // disabled, never removable). Pre-default-era reservations may not carry the option in
+  // their `reservation_options`, but the property contract still says it's mandatory — the
+  // Switch must reflect that.
+  const propertyDefaultOptionIds = new Set(propertyOptionDefaults.map((d) => Number(d.optionId)));
+  const bedLinenForcedOptionIds = new Set(
+    propertyOptions
+      .filter((opt) => Number(opt.countsAsBedLinen || 0) === 1 && propertyDefaultOptionIds.has(opt.id))
+      .map((opt) => opt.id),
+  );
+
   // specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed inputs live inside the FIRST
   // enabled `countsAsBedLinen = 1` option card. The boolean drives the rendering on both
   // sides: `GuestsBedsSection` no longer renders bed inputs at all, and `ExtrasSection`
   // mounts the bed-inputs sub-block exactly once, under the card whose id matches
-  // `firstEnabledBedLinenOptionId`.
+  // `firstEnabledBedLinenOptionId`. An option that's "forced on" by a property default
+  // counts as enabled even if it's not (yet) in `form.selectedOptions`.
   const firstEnabledBedLinenOptionId = (() => {
     for (const opt of propertyOptions) {
       if (Number(opt.countsAsBedLinen || 0) !== 1) continue;
       const sel = form.selectedOptions.find((so) => so.optionId === opt.id);
-      if (sel && Number(sel.quantity) > 0) return opt.id;
+      const explicitlyEnabled = Boolean(sel && Number(sel.quantity) > 0);
+      if (explicitlyEnabled || bedLinenForcedOptionIds.has(opt.id)) return opt.id;
     }
     return null;
   })();
@@ -2175,6 +2189,9 @@ export default function ReservationPage() {
     // specs/bed-config-in-linen-card.md — drives the bed-inputs sub-block in ExtrasSection
     // and suppresses the (now-removed) bed inputs from GuestsBedsSection.
     firstEnabledBedLinenOptionId, bedLinenOptionEnabled,
+    // §3 rule 4.bis (hotfix follow-up) — bed-linen-flagged option IDs that are property
+    // defaults. ExtrasSection forces the Switch ON + disabled for these.
+    bedLinenForcedOptionIds,
     // extras
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,

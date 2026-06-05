@@ -52,11 +52,35 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   backs them, so editing in one place is the only source of
   truth.
 
-  **Tests** — +10 server (5 migration + 5 controller invariant),
-  +6 Vitest (4 `ExtrasSection.bed-linen-inputs` + 2
-  `GuestsBedsSection.no-beds`). Server suite 1006 → 1016 green;
-  Vitest 228 → 234 green; vite build clean (465 KB gzip ≈
-  baseline). Manual verification on reservation #12077 (dev DB):
+  **Hotfix 2026-06-05 follow-up (same PR)** — Adrien reported that on
+  his Gite property (which has `Linge de lit` as a property default),
+  EXISTING reservations whose `reservation_options` predate the
+  default were showing the Switch OFF instead of ON — the form was
+  treating `form.selectedOptions` as the only source of truth,
+  ignoring the property contract. Fix:
+  - **Server** — `reservationsController.update` now re-merges
+    property defaults THAT ARE `countsAsBedLinen = 1` before the
+    invariant runs. Other property defaults stay frozen on update
+    (historical preservation rule from other specs). Pin via a new
+    controller test.
+  - **Client** — `ReservationFormContext` exposes
+    `bedLinenForcedOptionIds: Set<number>` derived from
+    `propertyOptionDefaults ∩ propertyOptions.filter(countsAsBedLinen=1)`.
+    `firstEnabledBedLinenOptionId` now considers forced-by-default
+    options as enabled. `ExtrasSection` renders the Switch as
+    `checked + disabled` for forced options, with the "Inclus par
+    défaut" caption next to it. The user CANNOT remove a bed-linen
+    option enforced by the property.
+  - Verified live on reservation #12077 (Gite property): Switch
+    checked + disabled, 3 bed inputs visible, caption shown, sub-
+    block rendered.
+
+  **Tests** — +10 server (5 migration + 5 controller invariant + 1
+  property-default re-merge), +7 Vitest (5
+  `ExtrasSection.bed-linen-inputs` + 2 `GuestsBedsSection.no-beds`).
+  Server suite 1006 → 1017 green; Vitest 228 → 235 green; vite build
+  clean (465 KB gzip ≈ baseline). Manual verification on
+  reservation #12077 (dev DB):
   Switch ON → sub-block + 3 inputs + button appear, Switch OFF →
   sub-block disappears.
 
