@@ -478,7 +478,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                   <TableCell>{fullName(u)}</TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
                       {(u.roles || []).map((r) => (
                         <Chip key={r} size="small" label={ROLE_LABELS[r] || r} variant="outlined" />
                       ))}
@@ -488,7 +488,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                   <TableCell>{formatLastLogin(u.lastLoginAt)}</TableCell>
                   <TableCell><StatusBadge status={status} label={label} /></TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                    <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                       <Tooltip title="Modifier">
                         <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy}><EditIcon fontSize="small" /></IconButton></span>
                       </Tooltip>
@@ -554,7 +554,7 @@ function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleT
                   </Box>
                   <StatusBadge status={status} label={label} />
                 </Box>
-                <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
                   {(u.roles || []).map((r) => (
                     <Chip key={r} size="small" label={ROLE_LABELS[r] || r} variant="outlined" />
                   ))}
@@ -563,7 +563,7 @@ function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleT
                   <Typography variant="body2"><strong>Société :</strong> {u.companyName}</Typography>
                 )}
                 <Typography variant="body2"><strong>Dernière connexion :</strong> {formatLastLogin(u.lastLoginAt)}</Typography>
-                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                   <Tooltip title="Modifier">
                     <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy}><EditIcon /></IconButton></span>
                   </Tooltip>

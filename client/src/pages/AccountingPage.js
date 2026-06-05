@@ -155,7 +155,7 @@ export default function AccountingPage() {
 
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <Stack direction="row" sx={{ mb: 2, flexWrap: 'wrap', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>Détail des écritures du mois</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -163,7 +163,7 @@ export default function AccountingPage() {
                 </Typography>
               </Box>
               {sales && sales.totals.entriesCount > 0 && (
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Chip size="small" label={`${sales.totals.entriesCount} encaissement${sales.totals.entriesCount > 1 ? 's' : ''}`} />
                   <Chip
                     size="small"
@@ -177,7 +177,7 @@ export default function AccountingPage() {
             </Stack>
 
             {salesLoading && (
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ py: 2 }}>
+              <Stack direction="row" spacing={1} sx={{ py: 2, alignItems: 'center' }}>
                 <CircularProgress size={18} />
                 <Typography variant="body2" color="text.secondary">Chargement des écritures…</Typography>
               </Stack>
@@ -209,18 +209,16 @@ export default function AccountingPage() {
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
-              justifyContent="space-between"
               spacing={1}
-              sx={{ mb: 2 }}
+              sx={{ mb: 2, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
             >
               <Typography variant="h6" sx={{ fontWeight: 700 }}>Encaissements du mois</Typography>
-              <Stack alignItems={{ xs: 'flex-start', sm: 'flex-end' }} spacing={0.5}>
+              <Stack spacing={0.5} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
                 {/* Inline legend for the A/S/C badges shown on each row. Discreet — small font
                     + the colour pastilles do the heavy lifting visually. */}
-                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   {['deposit', 'balance', 'complement'].map((kind) => (
-                    <Stack key={kind} direction="row" spacing={0.5} alignItems="center">
+                    <Stack key={kind} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                       <KindBadge kind={kind} />
                       <Typography variant="caption" color="text.secondary">{KIND_LABELS[kind]}</Typography>
                     </Stack>
@@ -365,7 +363,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
         }}
       >
-        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { xs: 'flex-start', sm: 'center' } }}>
           <Chip
             size="small"
             color="primary"
@@ -373,7 +371,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
             label={`${String(entry.day).padStart(2, '0')}/${String(entry.month).padStart(2, '0')}/${entry.year}`}
           />
           <Chip size="small" label={KIND_LABELS[entry.kind] || entry.kind} />
-          <Stack direction="row" alignItems="center" spacing={0.75}>
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
             <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
             {clientNode}
           </Stack>
@@ -387,9 +385,9 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
             />
           )}
         </Stack>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Stack alignItems="flex-end">
-            <Stack direction="row" alignItems="center" spacing={0.5}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <Stack sx={{ alignItems: 'flex-end' }}>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <EuroIcon fontSize="small" sx={{ color: 'text.secondary' }} />
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                 {formatEur(entry.encaissementTtc)}
@@ -411,7 +409,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
 
       {isPlatform && (
         <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 1, bgcolor: 'rgba(33, 150, 243, 0.04)', borderBottom: '1px dashed', borderColor: 'divider' }}>
-          <Stack direction="row" spacing={3} flexWrap="wrap" alignItems="center">
+          <Stack direction="row" spacing={3} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Typography variant="caption" color="text.secondary">
               Prix payé client : <strong>{formatEur(entry.platform.gross)}</strong>
             </Typography>

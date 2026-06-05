@@ -101,6 +101,54 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   updated with a "2026-06-05 follow-up" subsection so the next
   reader sees this gap was retroactively closed.
 
+### Fixed
+- **MUI 9 — `<Stack>` CSS-shorthand props now passed via `sx` everywhere,
+  silent layout breakage finally killed** (2026-06-05). The migration
+  from MUI 5 → 9 (PR #114) silently dropped support for
+  `justifyContent`, `alignItems` and `flexWrap` as direct `<Stack>`
+  JSX attributes — in MUI 6+ they MUST be passed inside `sx={{ … }}`,
+  otherwise they're stripped at runtime and the rendered DOM gets
+  `justify-content: normal`, `align-items: normal`, etc. `direction`
+  and `spacing` still work as props (they're explicit Stack API
+  fields).
+
+  The breakage stayed invisible for weeks because most layouts had
+  a `<Box flex={1}>` as the first child of every Stack, which spreads
+  space naturally regardless of `justifyContent` — the right-side
+  cluster of every option card landed on the right edge even with
+  the prop dropped. The polish in PR #121 (small Switch + no inline
+  label + no `flexGrow: 1` on the Total chip) shrank the right-side
+  cluster enough that the bottom row of the Extras section visibly
+  collapsed to the left. Confirmed via Playwright DOM inspection
+  on a real platform reservation: `getComputedStyle(stack)
+  .justifyContent === 'normal'` for every offender, then
+  `'space-between'` after the migration.
+
+  **Sweep** (21 occurrences across 8 files):
+  - `components/reservation/ExtrasSection.js` — 11 Stacks (the
+    user-reported regression: bottom row of every option / resource
+    card on the reservation form).
+  - `components/MiniPlanningStrip.js` — 1 Stack (the toolbar above
+    the mini planning strip in the reservation form).
+  - `components/PropertyDefaultOptionsCard.js`,
+    `components/OptionPropertyDefaultsMirror.js`,
+    `components/LogoUpload.js` — 1 each.
+  - `pages/AccountingPage.js` — 9 Stacks (monthly toolbar + legend +
+    encaissement rows).
+  - `pages/DevisPage.js` — 2 Stacks (filter row + row actions).
+  - `pages/UserManagementPage.js` — 4 Stacks (table cells + mobile
+    card actions).
+
+  **Regression net**: a new Vitest filesystem-walk test
+  (`client/src/__tests__/mui9-stack-props-no-direct-shorthand.test.js`)
+  scans every `.{js,jsx,ts,tsx}` under `client/src/` (skipping
+  `__tests__/`) and fails on any `<Stack … {justifyContent,
+  alignItems, flexWrap}="…">` direct-prop usage. Multi-line Stack
+  openings are tolerated by the regex (the initial grep that drove
+  the manual sweep missed one — the test caught it). Any future
+  drift back to the broken pattern now breaks the suite at lint
+  time. Vitest **189 → 190 / 190 green**.
+
 ### Changed
 - **Extras on platform reservations always routed to Complément**
   (spec `force-extras-complement-on-platform.md`, 2026-06-04). Sister
