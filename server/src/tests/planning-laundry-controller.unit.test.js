@@ -10,6 +10,7 @@ function makeFake({
   laundryWeekday = 2,
   windowFn = () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0 }),
   bathroomFn = () => ({ largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
+  skippedDates = [],
 } = {}) {
   const settingsModel = { read: () => ({ laundryWeekday }) };
   const calls = [];
@@ -23,7 +24,9 @@ function makeFake({
       return bathroomFn(start, end);
     },
   };
-  return { settingsModel, laundryModel, calls };
+  // Default to no skips so the legacy tests stay byte-identical in payload shape.
+  const laundryTripSkipsModel = { listAll: () => [...skippedDates] };
+  return { settingsModel, laundryModel, laundryTripSkipsModel, calls };
 }
 
 function fakeRes() {
@@ -36,8 +39,8 @@ function fakeRes() {
 }
 
 test('laundrySummary: 14-day range emits exactly the right number of laundry days', () => {
-  const { settingsModel, laundryModel } = makeFake({ laundryWeekday: 2 });
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake({ laundryWeekday: 2 });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-01', to: '2026-06-14' } }, res);
   assert.equal(res.statusCode, 200);
@@ -46,8 +49,8 @@ test('laundrySummary: 14-day range emits exactly the right number of laundry day
 });
 
 test('laundrySummary: per laundry day, dropOff queries (L-7, L] and pickUp queries (L-14, L-7]', () => {
-  const { settingsModel, laundryModel, calls } = makeFake({ laundryWeekday: 2 });
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel, calls } = makeFake({ laundryWeekday: 2 });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   c.laundrySummary({ query: { from: '2026-06-01', to: '2026-06-08' } }, fakeRes());
   // For L = 2026-06-02: dropOff (2026-05-26, 2026-06-02], pickUp (2026-05-19, 2026-05-26].
   // After §3.5 the controller calls bed THEN bathroom for each block — filter by `fn` so
@@ -62,8 +65,8 @@ test('laundrySummary: per laundry day, dropOff queries (L-7, L] and pickUp queri
 });
 
 test('laundrySummary: weekday change in settings is honoured (Wednesday)', () => {
-  const { settingsModel, laundryModel } = makeFake({ laundryWeekday: 3 });
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake({ laundryWeekday: 3 });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-01', to: '2026-06-14' } }, res);
   assert.equal(res.body.laundryWeekday, 3);
@@ -84,8 +87,8 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
     if (start === '2026-05-19' && end === '2026-05-26') return { largeTowels: 9, mediumTowels: 0, smallTowels: 9 };
     return { largeTowels: 0, mediumTowels: 0, smallTowels: 0 };
   };
-  const { settingsModel, laundryModel } = makeFake({ laundryWeekday: 2, windowFn, bathroomFn });
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake({ laundryWeekday: 2, windowFn, bathroomFn });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
   // Server merges bed + bathroom into one block per side; the client renders both as
@@ -98,8 +101,8 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
 });
 
 test('laundrySummary: 400 on missing from', () => {
-  const { settingsModel, laundryModel } = makeFake();
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake();
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { to: '2026-06-14' } }, res);
   assert.equal(res.statusCode, 400);
@@ -107,24 +110,24 @@ test('laundrySummary: 400 on missing from', () => {
 });
 
 test('laundrySummary: 400 on malformed date', () => {
-  const { settingsModel, laundryModel } = makeFake();
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake();
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '06/01/2026', to: '2026-06-14' } }, res);
   assert.equal(res.statusCode, 400);
 });
 
 test('laundrySummary: 400 when from > to', () => {
-  const { settingsModel, laundryModel } = makeFake();
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake();
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-14', to: '2026-06-01' } }, res);
   assert.equal(res.statusCode, 400);
 });
 
 test('laundrySummary: empty range (no laundry day in window) returns laundryDays=[]', () => {
-  const { settingsModel, laundryModel } = makeFake({ laundryWeekday: 2 });
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake({ laundryWeekday: 2 });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   // Wed → Mon, no Tuesday inside.
   c.laundrySummary({ query: { from: '2026-06-03', to: '2026-06-08' } }, res);
@@ -135,8 +138,8 @@ test('laundrySummary: empty range (no laundry day in window) returns laundryDays
 test('laundrySummary: zero-everywhere laundry day is STILL emitted (server contract is uniform; client filters)', () => {
   // windowFn returns zeros for every query → the controller doesn't drop the day. The client
   // is responsible for hiding the silent card (rule 13).
-  const { settingsModel, laundryModel } = makeFake({ laundryWeekday: 2 });
-  const c = buildController({ settingsModel, laundryModel });
+  const { settingsModel, laundryModel, laundryTripSkipsModel } = makeFake({ laundryWeekday: 2 });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
   assert.equal(res.body.laundryDays.length, 1);
@@ -149,4 +152,109 @@ test('laundrySummary: zero-everywhere laundry day is STILL emitted (server contr
     res.body.laundryDays[0].pickUp,
     { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// specs/skip-laundry-trip.md §3.1 rule 6 + §3.3 rule 9 — the controller must see the skip
+// set so the À apporter / À récupérer counts on the next non-skipped card absorb the
+// deferred batch. Before these tests pinned the contract, the inventory line was already
+// skip-aware (via linenInventoryModel.simulate) but the drop-off / pick-up windows still
+// used a flat `L - 7` step, which is exactly the user-visible bug
+// ("la carte blanchisserie suivante ne change pas").
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+test('laundrySummary: skipped laundry day returns zero blocks (client renders "Voyage non réalisé")', () => {
+  const { settingsModel, laundryModel, laundryTripSkipsModel, calls } = makeFake({
+    laundryWeekday: 2,
+    // If any window is queried for this day, return non-zero. The skip path must NOT call.
+    windowFn: () => ({ singleBeds: 9, doubleBeds: 9, babyBeds: 9 }),
+    bathroomFn: () => ({ largeTowels: 9, mediumTowels: 9, smallTowels: 9 }),
+    skippedDates: ['2026-06-02'],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.laundryDays.length, 1);
+  assert.equal(res.body.laundryDays[0].date, '2026-06-02');
+  assert.deepEqual(res.body.laundryDays[0].dropOff, {
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
+  assert.deepEqual(res.body.laundryDays[0].pickUp, {
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
+  // No window query was issued for the skipped day — proves we shortcut before hitting the model.
+  assert.equal(calls.length, 0);
+});
+
+test('laundrySummary: non-skipped trip after a skip widens the drop-off window backward through the skip', () => {
+  // Setup: laundryWeekday = 2 (Tuesday). L = 2026-06-09 (Tue), the trip 7 days earlier
+  // (2026-06-02) is skipped. Expected window for 2026-06-09 drop-off: (2026-05-26, 2026-06-09]
+  // — i.e. 14 days, absorbing the missed batch. PickUp(2026-06-09) reflects what was deposited
+  // on the previous NON-skipped trip = 2026-05-26 → window (2026-05-19, 2026-05-26].
+  const { settingsModel, laundryModel, laundryTripSkipsModel, calls } = makeFake({
+    laundryWeekday: 2,
+    skippedDates: ['2026-06-02'],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
+  const bedCalls = calls.filter((cc) => cc.fn === 'bed').map(({ fn, ...rest }) => rest);
+  assert.deepEqual(bedCalls[0], { start: '2026-05-26', end: '2026-06-09' });
+  assert.deepEqual(bedCalls[1], { start: '2026-05-19', end: '2026-05-26' });
+});
+
+test('laundrySummary: two consecutive skips before a non-skipped trip widen the window to 21 days', () => {
+  // L = 2026-06-16 (Tue). Skipped: 2026-06-02 + 2026-06-09. Previous non-skipped = 2026-05-26.
+  // Expected drop-off window: (2026-05-26, 2026-06-16] — 21 days.
+  const { settingsModel, laundryModel, laundryTripSkipsModel, calls } = makeFake({
+    laundryWeekday: 2,
+    skippedDates: ['2026-06-02', '2026-06-09'],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-16', to: '2026-06-16' } }, res);
+  const bedCalls = calls.filter((cc) => cc.fn === 'bed').map(({ fn, ...rest }) => rest);
+  assert.deepEqual(bedCalls[0], { start: '2026-05-26', end: '2026-06-16' });
+  // PickUp reflects what was deposited at the previous non-skipped trip (2026-05-26),
+  // whose batch is the (2026-05-19, 2026-05-26] window.
+  assert.deepEqual(bedCalls[1], { start: '2026-05-19', end: '2026-05-26' });
+});
+
+test('laundrySummary: a skip bleeds into the next trip only, then propagation stops', () => {
+  // L = 2026-06-02 absorbs the 2026-05-26 skipped batch. L = 2026-06-09 — both 2026-06-02
+  // AND 2026-05-26's deferral are now behind it, so its window is the plain (L-7, L].
+  // Pin the bleed AND the stop in one test, to catch a regression where the skip semantics
+  // either over-shoot (apply forever) or under-shoot (don't widen at all).
+  const { settingsModel, laundryModel, laundryTripSkipsModel, calls } = makeFake({
+    laundryWeekday: 2,
+    skippedDates: ['2026-05-26'],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-09' } }, res);
+  const bedCalls = calls.filter((cc) => cc.fn === 'bed').map(({ fn, ...rest }) => rest);
+  // 2026-06-02 dropOff widens to (2026-05-19, 2026-06-02] — 14 days, captures the deferred batch.
+  assert.deepEqual(bedCalls[0], { start: '2026-05-19', end: '2026-06-02' });
+  // 2026-06-02 pickUp — previous non-skipped from 2026-05-19 is 2026-05-12 → (2026-05-12, 2026-05-19].
+  assert.deepEqual(bedCalls[1], { start: '2026-05-12', end: '2026-05-19' });
+  // 2026-06-09 dropOff — both previous trips are non-skipped → plain (2026-06-02, 2026-06-09].
+  assert.deepEqual(bedCalls[2], { start: '2026-06-02', end: '2026-06-09' });
+  // 2026-06-09 pickUp — what was deposited at 2026-06-02 = the 14-day batch (2026-05-19, 2026-06-02].
+  assert.deepEqual(bedCalls[3], { start: '2026-05-19', end: '2026-06-02' });
+});
+
+test('laundrySummary: when the entire 4-week lookback is skipped, falls back to L-7 (degenerate but always returns a window)', () => {
+  // Skipping 4+ consecutive Tuesdays makes `previousNonSkippedLaundryDay` return null. The
+  // controller must still emit something for the L itself — fall back to the plain L-7 window.
+  const { settingsModel, laundryModel, laundryTripSkipsModel, calls } = makeFake({
+    laundryWeekday: 2,
+    skippedDates: ['2026-06-09', '2026-06-02', '2026-05-26', '2026-05-19', '2026-05-12'],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-16', to: '2026-06-16' } }, res);
+  const bedCalls = calls.filter((cc) => cc.fn === 'bed').map(({ fn, ...rest }) => rest);
+  // Fallback: (2026-06-09, 2026-06-16] — exactly what the pre-feature code would have used.
+  assert.deepEqual(bedCalls[0], { start: '2026-06-09', end: '2026-06-16' });
 });

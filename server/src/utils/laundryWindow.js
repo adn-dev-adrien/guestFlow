@@ -70,11 +70,38 @@ function prevLaundryDay(iso) {
   return addDays(iso, -7);
 }
 
+/**
+ * Like `prevLaundryDay` but walks back through any laundry days the operator marked as
+ * skipped (`skippedDates`, a `Set<string>` of ISO dates). Precondition: `iso` MUST itself be
+ * a laundry day — we step in 7-day jumps so the weekday is preserved by construction.
+ *
+ * specs/skip-laundry-trip.md §3.1 rule 6 — a skipped trip defers BOTH drop-off and pick-up
+ * to the next non-skipped trip. Concretely, the half-open drop-off window on the next
+ * non-skipped trip `L` is `(prevNonSkipped, L]` instead of `(L-7, L]`, so reservations from
+ * the in-between weeks finally show up in "À apporter".
+ *
+ * Walks back at most `maxLookbackDays` (default 28, i.e. 4 weeks). Returns `null` when no
+ * non-skipped trip exists within the lookback — the caller should fall back to a plain
+ * `addDays(iso, -7)` so we keep producing windows under that degenerate "haven't done
+ * laundry in a month" state.
+ */
+function previousNonSkippedLaundryDay(iso, skippedDates, maxLookbackDays = 28) {
+  let candidate = addDays(iso, -7);
+  if (!skippedDates || skippedDates.size === 0) return candidate;
+  const maxSteps = Math.floor(maxLookbackDays / 7);
+  for (let i = 0; i < maxSteps; i += 1) {
+    if (!skippedDates.has(candidate)) return candidate;
+    candidate = addDays(candidate, -7);
+  }
+  return null;
+}
+
 module.exports = {
   addDays,
   weekdayOf,
   findLaundryDaysInRange,
   prevLaundryDay,
+  previousNonSkippedLaundryDay,
   // exported for unit tests
   __test: { parseIso, toIso, assertWeekday },
 };

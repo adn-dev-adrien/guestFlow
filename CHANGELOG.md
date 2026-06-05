@@ -52,6 +52,22 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   Playwright E2E cases. Server tests 967 → 991 green; Vitest 223 →
   229 / 229 green; E2E 19 → 21 / 1 skip / 0 fail; build clean.
 
+  **Hotfix 2026-06-05 (same PR)** — first round of testing surfaced a
+  visible gap: the "Disponible après ce dépôt" line did react to a
+  skip (driven by `linenInventoryModel.simulate`, already skip-aware),
+  but the "À apporter" / "À récupérer" counts on the next non-skipped
+  card stayed on their pre-skip values. Two parallel server paths
+  feed the same UI card and only one of them was skip-aware. The
+  user reported it as *"la carte blanchisserie suivante ne change
+  pas"*. Fixed by wiring the skip set into
+  `planningController.laundrySummary` + adding
+  `utils/laundryWindow.previousNonSkippedLaundryDay` to derive the
+  widened drop-off / pick-up windows. A skipped trip itself emits
+  zeroed blocks — the client masks them with the existing "Voyage
+  non réalisé" caption. +11 server tests (5 helper + 5 controller +
+  1 full-stack regression case pinning the user-reported scenario).
+  Server tests 991 → 1002 green.
+
 ### Fixed
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug

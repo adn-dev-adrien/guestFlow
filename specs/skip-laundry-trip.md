@@ -151,11 +151,12 @@ reflect the skip immediately.
 |---|---|---|---|
 | `database.js` | `database.js` | T | NEW table `CREATE TABLE IF NOT EXISTS laundry_trip_skips (tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10))`. No migration of existing data needed (table starts empty). |
 | `models/` | `models/laundryTripSkipsModel.js` | C | NEW — thin model with `listAll() → string[]`, `isSkipped(date) → boolean`, `add(date)`, `remove(date)`, `count() → number`. Factory `create(db)` mirroring the other models. |
-| `models/` | `models/laundryModel.js` | T | Wire the skip-set into the aggregation queries. The change is small: every place that aggregates over a laundry date pulls the skip set once and excludes the skipped dates from the per-trip totals. |
+| `models/` | `models/laundryModel.js` | — | **Stays untouched.** The pure-SQL aggregator `dropOffForWindow(start, end)` already sums any half-open `(start, end]` window — the skip semantics are achieved by widening the window upstream (in the controller) rather than mutating the SQL. Decision: keeps the model boring + the skip math co-located with the rest of the controller wiring. |
+| `utils/laundryWindow.js` | `utils/laundryWindow.js` | T | NEW helper `previousNonSkippedLaundryDay(iso, skippedDates, maxLookbackDays = 28)` — walks back in 7-day jumps over any skipped Tuesdays, returns `null` past the lookback. Used by the controller to derive the widened drop-off / pick-up windows. |
 | `utils/` | `utils/linenInventory.js` | T | Inject `skippedDates: Set<string>` into `simulateInventory`. Rules §3.2 / 5–7 implemented inside the daily transition loop. Conservation invariant (`clean + inCirculation + dirty + atLaundry = totalStock`) STAYS — we just defer transitions, never lose linen. |
 | `controllers/` | `controllers/laundryController.js` | T (or C if doesn't exist) | NEW handlers `listSkips`, `addSkip`, `removeSkip`. Admin-only. |
 | `routes/` | `routes/laundry.js` | T (or C if doesn't exist) | `GET  /api/laundry/skips`, `POST /api/laundry/skips`, `DELETE /api/laundry/skips/:date`. All admin-only. |
-| `controllers/` | `controllers/planningController.js` + `dashboardController.js` | T | The `linenInventory` + `linenShortage` actions read the skip set + thread it through `simulateInventory`. Already a 1-line addition. |
+| `controllers/` | `controllers/planningController.js` + `dashboardController.js` | T | Two distinct skip wirings: (1) `linenInventory` + `linenShortage` thread the skip set through `simulateInventory` (drives the "Disponible après ce dépôt" line). (2) `laundrySummary` ALSO loads the skip set and feeds it to `previousNonSkippedLaundryDay` so the drop-off window of every non-skipped trip widens backward across skipped Tuesdays (drives "À apporter" / "À récupérer"). A skipped trip itself emits zero blocks — the client masks them with the "Voyage non réalisé" caption. **Both wirings are mandatory:** missing the second one is what produced the bug "la carte blanchisserie suivante ne change pas" caught on 2026-06-05 (fix in same PR). |
 | `tests/` | 4 new test files | C | See §7. |
 
 **Reuse:**
@@ -274,8 +275,11 @@ alert shrinks. Same component, same shape, recomputed inputs.
 | **NEW** `tests/linen-inventory-skipped-trip.unit.test.js` | (1) A skipped trip on date D defers drop-off to D+7. (2) A skipped trip on date D defers pick-up to D+7. (3) Conservation invariant holds across the skip. (4) Two consecutive skipped trips → 3 weeks of accumulation on the third trip. (5) Skip on a non-laundry-day → no-op. (6) Skip set empty → engine output identical to pre-feature baseline. (7) Skip on a past date → projection re-aligns from today forward (no rewriting of yesterday's stock display). |
 | **NEW** `tests/laundry-skips-endpoint.unit.test.js` | (1) GET returns the persisted list. (2) POST adds. (3) POST same date → 200 OK, idempotent. (4) DELETE removes. (5) DELETE non-existent → 200 OK, idempotent. (6) POST bad date format → 400. (7) Non-admin → 403. |
 | **TOUCHED** `tests/linen-shortage.unit.test.js` (or equivalent) | One case added: shortage alert grows when a date is skipped (= less clean stock projected forward), shrinks when un-skipped. |
+| **TOUCHED** `tests/laundry-window.unit.test.js` | Five cases on the new `previousNonSkippedLaundryDay`: empty skip set ≡ `prevLaundryDay`; single skip walks back 7d; multi-skip walks back further; null past lookback; longer lookback finds further-back candidate. |
+| **TOUCHED** `tests/planning-laundry-controller.unit.test.js` | Five cases on the skip-aware `laundrySummary`: skipped day emits zero blocks; non-skipped trip after a skip widens drop-off backward; two consecutive skips widen to 21 days; skip bleeds into next trip then propagation stops; degenerate full lookback falls back to `L-7`. |
+| **TOUCHED** `tests/laundry-end-to-end.regression.test.js` | One full-stack case (real DB) pinning the user-reported bug fix: skipping `2026-06-02` makes the `2026-06-09` card absorb both the deferred reservation and the natural one into "À apporter". |
 
-Expected: existing **967** + **5 + 7 + 7 + 1** = **987** server tests.
+Expected: existing **967** + **5 + 7 + 7 + 1 + 5 + 5 + 1** = **998** server tests.
 
 ### 7.2 Client unit tests (Vitest)
 
@@ -354,4 +358,11 @@ that ships each step, per CLAUDE.md §4.1.)_
       placeholder data for skipped dates without underlying activity.
 - [x] Frontend: Vitest tests (6) + Playwright E2E (2 — API round-trip
       + bad-date 400).
+- [x] **Hotfix 2026-06-05** — `planningController.laundrySummary` was
+      not skip-aware, so the "À apporter / À récupérer" counts on the
+      next non-skipped card stayed on their pre-skip values (user
+      report: *"la carte blanchisserie suivante ne change pas"*).
+      Wired the skip set into the controller + added
+      `utils/laundryWindow.previousNonSkippedLaundryDay` for the
+      widened window math + +11 server tests pinning the contract.
 - [x] Docs: CHANGELOG entry, spec status → Implemented.
