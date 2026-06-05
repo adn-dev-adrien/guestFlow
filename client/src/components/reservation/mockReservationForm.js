@@ -65,6 +65,10 @@ export function makeMockContext(overrides = {}) {
     setOptionEnabled: vi.fn(), setOptionQuantity: vi.fn(),
     setResourceEnabled: vi.fn(), setResourceQuantity: vi.fn(),
     addCustomOption: vi.fn(), updateCustomOption: vi.fn(), removeCustomOption: vi.fn(),
+    // specs/bed-config-in-linen-card.md — added 2026-06-05. Default to "no bed-linen
+    // option enabled" so existing tests keep the bed-inputs sub-block hidden in ExtrasSection
+    // by default. Tests that exercise the bed-linen card override these explicitly.
+    firstEnabledBedLinenOptionId: null, bedLinenOptionEnabled: false,
     // finance
     isDevisMode: false, reservationId: null,
     refreshToCurrentPricing: vi.fn(),

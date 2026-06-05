@@ -3,7 +3,86 @@ import {
   Box, Card, CardContent, Typography, Stack, Divider, Button, TextField, Chip,
   FormControlLabel, Switch, Tooltip
 } from '@mui/material';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { useReservationForm } from './ReservationFormContext';
+
+// specs/bed-config-in-linen-card.md §3 + §6. Bed counters (lits doubles / simples / bébé)
+// + "Suggérer les lits" button + capacity-mismatch warning, rendered inside the option
+// card of the FIRST enabled `countsAsBedLinen = 1` option (rule 10). Lives in this file as
+// a private sub-component because it's tightly coupled to the reservation-form context and
+// used exactly once.
+function BedLinenInputsBlock() {
+  const {
+    form, updateForm,
+    maxSingleBeds, maxDoubleBeds,
+    exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
+    reservationBedCapacity, requiredRegularBeds,
+    maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
+    selectedProp, isReservationLocked,
+  } = useReservationForm();
+  return (
+    <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1 }}>
+        Configuration des lits
+      </Typography>
+      <Stack spacing={1.5}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+          <TextField
+            label="Lits doubles"
+            type="number"
+            value={form.doubleBeds}
+            onChange={(e) => updateForm({ doubleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+            fullWidth
+            error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
+            helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
+            slotProps={{ htmlInput: { min: 0, max: maxDoubleBeds ?? undefined } }}
+          />
+          <TextField
+            label="Lits simples"
+            type="number"
+            value={form.singleBeds}
+            onChange={(e) => updateForm({ singleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+            fullWidth
+            error={bedsCapacityMismatch || exceedsSingleBedsLimit}
+            helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
+            slotProps={{ htmlInput: { min: 0, max: maxSingleBeds ?? undefined } }}
+          />
+          <TextField
+            label="Lits bébé"
+            type="number"
+            value={form.babyBeds}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') { updateForm({ babyBeds: '' }); return; }
+              const n = Math.max(0, Number(val));
+              updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
+            }}
+            fullWidth
+            helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
+            slotProps={{ htmlInput: { min: 0, max: maxBabyBedsByRule } }}
+          />
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={<AutoFixHighIcon fontSize="small" />}
+            onClick={handleSuggestBeds}
+            disabled={!selectedProp || isReservationLocked}
+            sx={{ textTransform: 'none', width: { xs: '100%', sm: 'auto' } }}
+          >
+            Suggérer les lits
+          </Button>
+        </Box>
+        {bedsCapacityMismatch && (
+          <Typography variant="body2" color="error">
+            Attention: la capacité des lits classiques saisis ({reservationBedCapacity}) est inférieure au besoin réel ({requiredRegularBeds}). Les enfants de 2 à 12 ans placés en lit bébé sont déduits automatiquement du calcul.
+          </Typography>
+        )}
+      </Stack>
+    </Box>
+  );
+}
 
 // Tooltip text shared by every "Compl." checkbox (spec §6.4).
 const COMPLEMENT_TOOLTIP = 'Cette ligne sera comptabilisée intégralement dans le Complément à percevoir, jamais dans l\'acompte ou le solde.';
@@ -29,6 +108,7 @@ export default function ExtrasSection() {
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
     setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
+    firstEnabledBedLinenOptionId,
   } = useReservationForm();
   // Auto-options use a parallel signal (`form.autoOptionsInComplement`) because they aren't part
   // of `form.selectedOptions` — see ReservationPage.js (spec force-item-to-complement.md §3.1).
@@ -141,6 +221,14 @@ export default function ExtrasSection() {
                               />
                             </Stack>
                           </Stack>
+                        )}
+
+                        {/* specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed counters
+                            sit inside the first enabled `countsAsBedLinen = 1` option card. */}
+                        {enabled
+                          && Number(opt.countsAsBedLinen || 0) === 1
+                          && firstEnabledBedLinenOptionId === opt.id && (
+                            <BedLinenInputsBlock />
                         )}
 
                         {enabled && isAutoTimedOption && (

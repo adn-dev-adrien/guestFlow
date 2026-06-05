@@ -1064,6 +1064,21 @@ export default function ReservationPage() {
     ? null
     : Math.max(0, babyAvailableNumber - selectedBabyBeds);
 
+  // specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed inputs live inside the FIRST
+  // enabled `countsAsBedLinen = 1` option card. The boolean drives the rendering on both
+  // sides: `GuestsBedsSection` no longer renders bed inputs at all, and `ExtrasSection`
+  // mounts the bed-inputs sub-block exactly once, under the card whose id matches
+  // `firstEnabledBedLinenOptionId`.
+  const firstEnabledBedLinenOptionId = (() => {
+    for (const opt of propertyOptions) {
+      if (Number(opt.countsAsBedLinen || 0) !== 1) continue;
+      const sel = form.selectedOptions.find((so) => so.optionId === opt.id);
+      if (sel && Number(sel.quantity) > 0) return opt.id;
+    }
+    return null;
+  })();
+  const bedLinenOptionEnabled = firstEnabledBedLinenOptionId !== null;
+
   useEffect(() => {
     if (babyAvailableNumber === null) return;
     const current = Number(form.babyBeds || 0);
@@ -1145,6 +1160,13 @@ export default function ReservationPage() {
       return;
     }
     setOptionQuantity(optionId, 0);
+    // specs/bed-config-in-linen-card.md §3 rule 3 — disabling a `countsAsBedLinen = 1`
+    // option zeroes the bed counters in form state, mirroring the server invariant on save
+    // (rule 7). Keeps the UI consistent: the inputs disappear, and the saved data matches.
+    const opt = propertyOptions.find((o) => o.id === optionId);
+    if (opt && Number(opt.countsAsBedLinen || 0) === 1) {
+      updateForm({ singleBeds: '', doubleBeds: '', babyBeds: '' });
+    }
   };
 
   const setResourceQuantity = (resourceId, quantity) => {
@@ -2150,6 +2172,9 @@ export default function ReservationPage() {
     exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
     totalGuestsCount, totalGuestsMax, reservationBedCapacity, requiredRegularBeds,
     maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
+    // specs/bed-config-in-linen-card.md — drives the bed-inputs sub-block in ExtrasSection
+    // and suppresses the (now-removed) bed inputs from GuestsBedsSection.
+    firstEnabledBedLinenOptionId, bedLinenOptionEnabled,
     // extras
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
