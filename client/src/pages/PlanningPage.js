@@ -17,6 +17,7 @@ import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
+import BreakfastDayCard from '../components/BreakfastDayCard';
 import { displayDate } from '../utils/formatters';
 import api from '../api';
 
@@ -397,6 +398,10 @@ export default function PlanningPage() {
   // payload `{ dropOff, pickUp }`. Server emits zero-everywhere days too; LaundryDayCard hides
   // them silently so we don't need to filter here.
   const [laundryByDate, setLaundryByDate] = useState({});
+  // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.2). Map ISO date
+  // → `{ items: [{ reservationId, clientName, propertyName, persons }], totalPersons }`.
+  // Empty days are not included; `BreakfastDayCard` hides itself if data is missing.
+  const [breakfastByDate, setBreakfastByDate] = useState({});
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
   // → per-type clean snapshot to display as the 3rd block on each laundry day.
   const [inventoryByDate, setInventoryByDate] = useState({});
@@ -556,13 +561,16 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
       // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
       api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
       // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
       api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+      // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
+      // Non-blocking like the others; an empty map keeps the planning fully functional.
+      api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
     ]);
     const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
     const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -610,6 +618,8 @@ export default function PlanningPage() {
       lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
     }
     setLaundryByDate(lByDate);
+    // Breakfast map (date → { items, totalPersons }) directly from the server payload.
+    setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
 
     // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
     // horizon; LaundryDayCard filters the types it actually renders.
@@ -646,6 +656,14 @@ export default function PlanningPage() {
               }
               return merged;
             });
+          })
+          .catch(() => {});
+        // Same incremental pattern for breakfast: fetch the next window and merge into
+        // the existing map so the new days surface their BreakfastDayCard on scroll.
+        api.getBreakfastPlanningSummary({ from: nextStart, to: nextEnd })
+          .then((summary) => {
+            const next = summary?.breakfastByDate || {};
+            setBreakfastByDate((prev) => ({ ...prev, ...next }));
           })
           .catch(() => {});
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
@@ -845,6 +863,10 @@ export default function PlanningPage() {
           // operator can revert it. Add every skipped date to the date set; the LaundryDayCard
           // receives a {} placeholder for `data` below when laundryByDate has nothing.
           ...skippedLaundryDates,
+          // specs/breakfast-option-and-planning-card.md §3 rule 8 — a date that has ONLY a
+          // breakfast card (no arrival/departure/laundry) must still render so the operator
+          // sees it. Filter to days where there's actually at least one item.
+          ...Object.keys(breakfastByDate).filter((d) => (breakfastByDate[d]?.items?.length || 0) > 0),
         ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
@@ -903,6 +925,12 @@ export default function PlanningPage() {
                 isSkipped={skippedLaundryDates.has(date)}
                 onToggleSkip={handleToggleLaundrySkip}
               />
+
+              {/* Breakfast card (specs/breakfast-option-and-planning-card.md §6.1). Sits
+                  between laundry and departures so the operator's morning scan is:
+                  laundry → breakfasts → who's leaving today. The card hides itself when
+                  no reservation contributes (rule 7). */}
+              <BreakfastDayCard data={breakfastByDate[date]} />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>
