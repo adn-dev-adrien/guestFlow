@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/skip-laundry-trip` _(user-managed)_ |
 | **Created** | 2026-06-06 |
 | **Author** | Adrien |
@@ -340,10 +340,18 @@ Expected: existing **19** + **1** = **20**.
 _(Filled in as commits land. Update this section in the same commit
 that ships each step, per CLAUDE.md §4.1.)_
 
-- [ ] Backend: schema migration + `laundryTripSkipsModel` + endpoint.
-- [ ] Backend: `linenInventory.simulateInventory` skip-aware logic.
-- [ ] Backend: server unit tests (5 + 7 + 7 + 1 = 20).
-- [ ] Frontend: `LaundryDayCard` skip prop + IconButton + greyed state.
-- [ ] Frontend: `PlanningPage` skip set + refetch on toggle.
-- [ ] Frontend: Vitest tests (4) + Playwright E2E (1).
-- [ ] Docs: CHANGELOG entry, spec status → Implemented.
+- [x] Backend: schema migration + `laundryTripSkipsModel` + endpoint.
+- [x] Backend: `linenInventory.simulateInventory` skip-aware logic
+      (loop + initial state via the new
+      `previousOrSameNonSkippedLaundryDay` helper + pickup widened
+      from `= D-7` to `<= D-7` so deferred batches don't loop forever).
+- [x] Backend: server unit tests (6 model + 7 endpoint + 7 engine +
+      4 propagation = 24).
+- [x] Frontend: `LaundryDayCard` skip props + IconButton + greyed
+      state + muted caption + rule 11 (always-shown when skipped).
+- [x] Frontend: `PlanningPage` skip set + optimistic toggle handler
+      with revert-on-failure + refetch inventory on success +
+      placeholder data for skipped dates without underlying activity.
+- [x] Frontend: Vitest tests (6) + Playwright E2E (2 — API round-trip
+      + bad-date 400).
+- [x] Docs: CHANGELOG entry, spec status → Implemented.

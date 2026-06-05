@@ -4,6 +4,54 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Skip a laundry trip** (spec `skip-laundry-trip.md`, 2026-06-06).
+  The operator (Adrien) can now mark a specific laundry trip date as
+  not-made from the Planning page — a click on the `LaundryDayCard`
+  header IconButton greys the card out, replaces the 3 detail blocks
+  with a muted *"Voyage non réalisé — reporté au prochain voyage"*
+  caption, and persists the decision in a new global table.
+
+  **Motivation** — reality intrudes: sometimes the trip doesn't
+  happen (illness, travel, day off). Today the projection keeps
+  assuming the trip went, the displayed clean stock diverges from
+  the bins on the shelf, and the shortage alert can over- or under-
+  shoot. The skip toggle closes that loop in one click.
+
+  **Engine cascade** — on a skipped date the engine performs neither
+  the drop-off nor the pick-up; both backlogs flow forward to the
+  next non-skipped trip. The pickup lookup widened from `drop date
+  = cursor − 7` to `drop date <= cursor − 7` so a deferred batch is
+  finally picked up alongside the regular 7-days-ago batch on the
+  next successful trip. The initial state computation (when `from`
+  is after a skipped trip) uses a new
+  `previousOrSameNonSkippedLaundryDay` helper that walks back 7
+  days at a time until finding a non-skipped Tuesday, so past skips
+  surface as deferred dirty at engine startup — not just in the
+  forward loop. Conservation invariant
+  (`clean + inCirculation + dirty + atLaundry = totalStock`) holds
+  across every test case (pinned in the new
+  `linen-inventory-skipped-trip.unit.test.js`).
+
+  **Data model** — new table `laundry_trip_skips(tripDate TEXT PK,
+  createdAt)`, additive, starts empty, no migration. Global scope per
+  spec §3.1 rule 1: one human, one trip per day, the toggle is per
+  date (not per property). Endpoint trio `/api/laundry/skips` (GET +
+  POST + DELETE), admin-only via the default `enforceRoleAccess`
+  middleware. Idempotent on both POST and DELETE; 400 on a malformed
+  date.
+
+  **Shortage alert + Dashboard** — no new UI. The existing
+  `LinenShortageAlert` re-renders with the post-skip projection
+  numbers automatically because `linenInventoryModel.simulate` loads
+  the skip set as a single point of injection. A skipped future trip
+  that pushes the clean stock below 0 → alert grows. An un-skipped
+  trip → alert shrinks.
+
+  **Tests** — 24 new server unit cases + 6 new Vitest cases + 2 new
+  Playwright E2E cases. Server tests 967 → 991 green; Vitest 223 →
+  229 / 229 green; E2E 19 → 21 / 1 skip / 0 fail; build clean.
+
 ### Fixed
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug
