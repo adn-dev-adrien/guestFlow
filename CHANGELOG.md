@@ -4,6 +4,139 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Bed configuration moves inside the "Linge de lit" option card**
+  (spec `bed-config-in-linen-card.md`, 2026-06-05). The 3 bed
+  counters (Lits doubles / simples / bébé) + the "Suggérer les
+  lits" button + the capacity-mismatch warning leave the
+  "Voyageurs et couchages" card (renamed to "Voyageurs") and move
+  into the "Linge de lit" option card inside the
+  "Options et ressources" section. The sub-block is rendered ONLY
+  when the bed-linen Switch is ON; toggling it OFF auto-zeroes the
+  form state for the 3 bed counts.
+
+  **Why** — pre-change, the operator could enter bed counts on a
+  reservation without ticking the bed-linen option (the counts then
+  sat in the DB but contributed zero to the laundry aggregation), OR
+  tick the option while leaving the counts at 0 (silent "0 sheets
+  to drop off" for a reservation that obviously has beds). The two
+  surfaces are now coupled in the UI and on the server.
+
+  **Server invariant** — `reservationsController.create` and
+  `update` coerce `singleBeds / doubleBeds / babyBeds` to `0`
+  whenever the final `reservation_options` (after the property-
+  defaults auto-merge on create; as-submitted on update) contains
+  no option flagged `countsAsBedLinen = 1`. Capacity validation
+  uses the coerced values so a misbehaving client can't trip a
+  "beds exceed property capacity" error on counts that won't
+  even be saved.
+
+  **Migration** — one-shot idempotent
+  `zero_beds_when_no_bed_linen_option_v1` runs at boot, in a single
+  SQL pass via `utils/zeroBedsWhenNoBedLinenMigration.js`. Zeroes
+  the bed counts on every reservation (`kind = 'reservation'`) that
+  has no bed-linen-flagged option in `reservation_options` AND
+  whose property has no bed-linen-flagged option in
+  `property_option_defaults`. Devis (`kind = 'devis'`) are skipped
+  — they don't feed the laundry and they convert through the
+  reservation controller anyway. **No data loss** for the laundry
+  feature: the affected rows already contributed `0` to the
+  aggregation (the SQL in `laundryModel.js` requires a flagged
+  option to count).
+
+  **Multi-option edge** — if the catalog carries more than one
+  option flagged `countsAsBedLinen = 1` (rare; the seeded "Linge
+  de lit" is the typical singleton), the inputs render exactly
+  once, under the FIRST enabled bed-linen-flagged option in
+  catalog order. The same form state (`form.singleBeds` etc.)
+  backs them, so editing in one place is the only source of
+  truth.
+
+  **Hotfix 2026-06-05 follow-up (same PR)** — Adrien reported that on
+  his Gite property (which has `Linge de lit` as a property default),
+  EXISTING reservations whose `reservation_options` predate the
+  default were showing the Switch OFF instead of ON — the form was
+  treating `form.selectedOptions` as the only source of truth,
+  ignoring the property contract. Fix:
+  - **Server** — `reservationsController.update` now re-merges
+    property defaults THAT ARE `countsAsBedLinen = 1` before the
+    invariant runs. Other property defaults stay frozen on update
+    (historical preservation rule from other specs). Pin via a new
+    controller test.
+  - **Client** — `ReservationFormContext` exposes
+    `bedLinenForcedOptionIds: Set<number>` derived from
+    `propertyOptionDefaults ∩ propertyOptions.filter(countsAsBedLinen=1)`.
+    `firstEnabledBedLinenOptionId` now considers forced-by-default
+    options as enabled. `ExtrasSection` renders the Switch as
+    `checked + disabled` for forced options, with the "Inclus par
+    défaut" caption next to it. The user CANNOT remove a bed-linen
+    option enforced by the property.
+  - Verified live on reservation #12077 (Gite property): Switch
+    checked + disabled, 3 bed inputs visible, caption shown, sub-
+    block rendered.
+
+  **Hotfix 2026-06-05 follow-up #2 — GROSS_BELOW_NET on direct
+  bookings (same PR)** — Adrien hit `400 GROSS_BELOW_NET` after
+  adding the bed-linen option on reservation #12089 (direct booking,
+  Gite property). Root cause is independent of this spec but
+  surfaces through it: the form's gross input
+  (`client/src/components/reservation/FinanceSection.js:129`) is
+  rendered ONLY for non-direct platforms, so the stored
+  `clientGrossAmount` sits frozen the moment `finalPrice`
+  recomputes. The boot-time migration backfills
+  `clientGrossAmount = finalPrice` for direct rows but doesn't
+  re-fire on subsequent saves. The reservations controller now
+  coerces `clientGrossAmount = quote.finalPrice` when
+  `platform === 'direct'` (or empty) before the validator runs, in
+  both `create` AND `update`. Platform reservations stay
+  authoritative on the operator-entered gross (the input is visible
+  + editable for them).
+  Tests: +5 server cases in
+  `reservations-controller-gross-coercion.unit.test.js`.
+
+  **Coverage extension** — added 1 server test pinning that
+  NON-bed-linen property defaults are NOT re-merged on update
+  (historical preservation still holds for non-linen defaults), and
+  2 extra Vitest cases on the property-default enforcement: a
+  non-bed-linen catalog option stays toggleable when a bed-linen
+  option is forced, and the disabled Switch stays disabled when the
+  bed-linen option is explicit in `selectedOptions` AND forced by
+  property default (no double-toggle confusion).
+
+  **Hotfix 2026-06-05 follow-up #4 — empty platform never
+  persisted (same PR)** — Adrien clarified the data invariant:
+  `reservations.platform` always carries a real value, either a
+  platform name (Airbnb, GitesDeFrance, etc.) or `'direct'`. NULL /
+  `''` / whitespace-only must not exist anywhere in the table.
+  - `reservationsController.create` and `update` normalise
+    `req.body.platform` via a `normalisePlatform(value)` helper
+    right after `validateFinanceInputs` — any future write that
+    tries to persist an empty value is coerced to `'direct'` before
+    anything downstream (including the gross-coercion logic above)
+    sees it.
+  - One-shot migration `platform_empty_to_direct_v1` (boot block in
+    `database.js` + util `utils/normaliseEmptyPlatformMigration.js`)
+    backfills legacy rows. Idempotent via the `migrations` table.
+  - Tests: +5 migration cases + 5 controller cases. The migration
+    pins NULL/''/'  ' all → 'direct' and "Airbnb/direct preserved";
+    the controller cases pin the same on create + one on update.
+  - Verified live: PUT to `/api/reservations/12089` with `platform:
+    ''` returns 200 OK and the DB stores `'direct'` afterwards.
+
+  **Tests (total for this spec + follow-ups)** — +27 server (5
+  migration zero-beds + 5 controller invariant + 1 property-default
+  re-merge + 1 non-linen-default scoping + 5 gross coercion + 5
+  platform normalisation migration + 5 platform normalisation
+  controller), +9 Vitest (7 `ExtrasSection.bed-linen-inputs` + 2
+  `GuestsBedsSection.no-beds`). Server suite 1006 → 1033 green
+  (in-isolation; parallel-runner flakes from earlier specs still
+  occasionally surface); Vitest 228 → 237 green; vite build clean
+  (465 KB gzip ≈ baseline). Manual verification on reservation
+  #12077 (bed-linen card + Switch forcing) and live save on #12089
+  (gross coercion + platform normalisation):
+  Switch ON → sub-block + 3 inputs + button appear, Switch OFF →
+  sub-block disappears.
+
 ### Added
 - **Skip a laundry trip** (spec `skip-laundry-trip.md`, 2026-06-06).
   The operator (Adrien) can now mark a specific laundry trip date as
