@@ -188,6 +188,7 @@ reflect the skip immediately.
 | GET | `/api/laundry/skips` | — | `{ skips: string[] }` (ISO dates) | Admin-only. |
 | POST | `/api/laundry/skips` | `{ date: 'YYYY-MM-DD' }` | `{ ok: true, skips: string[] }` | Idempotent — POSTing an existing date returns OK. |
 | DELETE | `/api/laundry/skips/:date` | — | `{ ok: true, skips: string[] }` | Idempotent — DELETing a non-skipped date returns OK. |
+| GET | `/api/planning/laundry?from=...[&to=...]` | — | `{ laundryWeekday, laundryDays: [...] }` | **`to` is optional** (2026-06-05 hotfix follow-up #3). When omitted, the server projects to the inventory horizon (= last reservation `endDate`). The client uses the short form for the post-toggle refetch so the projection range stays decoupled from UI state (scroll position, paging size) per CLAUDE.md §6.0. The explicit form is still used by the infinite-scroll path to fetch the next viewport page. |
 
 Error shape: `{ error: <message> }`, 400 on bad date format, 403 on
 non-admin.
@@ -382,10 +383,23 @@ that ships each step, per CLAUDE.md §4.1.)_
       to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window)
       and `setLaundryByDate` REPLACES the whole map — wiping any
       dates the user had already scrolled into view via infinite
-      scroll. Fixed by using `lastLoadedRef.current` as the upper
-      bound of the refetch so the entire visible range stays
-      consistent. Verified live: skip trip 1 + trip 2 → trip 3 card
-      stays visible with the full 3-week batch
+      scroll. **Initial patch** used `lastLoadedRef.current` as the
+      upper bound of the refetch. Superseded by follow-up #3 below.
+- [x] **Hotfix 2026-06-05 follow-up #3** — Adrien rightly pushed back
+      on follow-up #2: the toggle refetch was relying on UI state
+      (`lastLoadedRef.current`, a scroll bookmark), which conflates
+      display with business logic. Per CLAUDE.md §6.0 the projection
+      horizon is a backend concern. Made `to` optional on
+      `GET /api/planning/laundry`; when omitted, the server defaults
+      it to `linenInventoryModel.simulate().horizon` (= last
+      reservation endDate, the same horizon that drives the inventory
+      projection). The toggle handler now calls the endpoint without
+      a `to` and just receives "everything that matters". The
+      infinite-scroll path keeps the explicit `from`/`to` form for
+      paginated next-page fetches. +4 server tests pinning the new
+      optional-`to` contract. Verified live in a browser without any
+      prior scroll: skip trip 1 + trip 2 → scroll down → trip-3 card
+      is rendered with the full 3-week batch
       (17 doubles + 15 simples + 19 grandes + 19 petites in
       À apporter).
 - [x] Docs: CHANGELOG entry, spec status → Implemented.

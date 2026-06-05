@@ -36,27 +36,51 @@ function buildController({
 } = {}) {
   return {
     /**
-     * GET /api/planning/laundry?from=YYYY-MM-DD&to=YYYY-MM-DD
+     * GET /api/planning/laundry?from=YYYY-MM-DD[&to=YYYY-MM-DD]
      *
      * Returns the laundry summary for every occurrence of `laundryWeekday` (from settings)
-     * within the requested range. Drop-off counts sheets used by reservations whose endDate
+     * in the requested range. Drop-off counts sheets used by reservations whose endDate
      * is in `(L-7d, L]`; pick-up is the previous laundry day's drop-off (which may itself
      * be outside the requested range — we still compute it).
+     *
+     * `to` is OPTIONAL. When omitted the server defaults it to the inventory horizon
+     * (= the last reservation's endDate, same business concept that drives the linen
+     * simulation). This keeps the client from having to derive the "right" upper bound
+     * from UI state (scroll position, page size, etc.) — the business horizon is a server
+     * concern (specs/skip-laundry-trip.md §4.1 hotfix 2026-06-05 follow-up #3,
+     * CLAUDE.md §6.0). The client passes `to` only when it explicitly wants a slice (e.g.
+     * incremental loading of a future window via infinite scroll).
      *
      * The client filters out silent laundry days (both sides zero) — the server emits them
      * uniformly so the contract stays predictable.
      */
     laundrySummary(req, res) {
       const from = (req.query && req.query.from) || '';
-      const to = (req.query && req.query.to) || '';
-      if (!isIsoDate(from) || !isIsoDate(to)) {
+      const rawTo = (req.query && req.query.to) || '';
+      if (!isIsoDate(from)) {
         return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
       }
-      if (from > to) {
+      if (rawTo && !isIsoDate(rawTo)) {
         return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
       }
       const row = injectedSettingsModel.read();
       const weekday = row && row.laundryWeekday != null ? Number(row.laundryWeekday) : 2;
+      // Compute `to`. Explicit query param wins; otherwise derive from the inventory horizon.
+      // No horizon (no future reservations) AND no explicit `to` → emit nothing: there's
+      // nothing to project against.
+      let to = rawTo;
+      if (!to) {
+        const sim = injectedLinenInventoryModel.simulate();
+        to = sim?.horizon || null;
+        if (!to) {
+          return res.json({ laundryWeekday: weekday, laundryDays: [] });
+        }
+      }
+      if (from > to) {
+        // Explicit slice that ends before it starts → still a 400 (operator error).
+        // The horizon fallback never trips this because horizon ≥ today by construction.
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      }
       const laundryDates = findLaundryDaysInRange(from, to, weekday);
       // specs/skip-laundry-trip.md §3.1 rule 6 — the operator can mark a trip as not-made,
       // and BOTH the drop-off and the pick-up of that trip carry over to the next non-skipped

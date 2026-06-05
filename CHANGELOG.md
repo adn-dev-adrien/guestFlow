@@ -86,19 +86,33 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   **Hotfix 2026-06-05 follow-up #2 (same PR)** — third round caught a
   scroll-related regression. Adrien skipped trips 1 and 2 in a row
   (2026-06-09 then 2026-06-16) and the trip-3 card (2026-06-23)
-  *disappeared* instead of absorbing the 3-week backlog. Root cause:
-  the toggle handler refetched `from = startDate` to
-  `startDate + DAYS_AHEAD - 1` (= the initial 14-day window) and
-  `setLaundryByDate` REPLACES the whole map. Any laundry dates the
-  user had already scrolled into view via infinite-scroll (2026-06-23
-  and beyond) were wiped from the state, and since `laundryByDate`
-  drives the "show this Tuesday even with no arrivals" merge in the
-  date-set, the card vanished. Fixed by using `lastLoadedRef.current`
-  (the end of the last infinite-scroll page) as the upper bound of
-  the refetch, so the whole visible range stays consistent after a
-  toggle. Verified live: skipping trip 1 + trip 2 keeps trip 3
-  visible with `17 doubles + 15 simples + 19 grandes + 19 petites`
-  in À apporter (= the full 3-week absorbed batch).
+  *disappeared* instead of absorbing the 3-week backlog. First patch
+  used `lastLoadedRef.current` (the end of the last infinite-scroll
+  page) as the upper bound of the refetch. Superseded by follow-up #3
+  below — the right fix is server-side.
+
+  **Hotfix 2026-06-05 follow-up #3 (same PR)** — Adrien correctly
+  pushed back on follow-up #2: the toggle was relying on UI state
+  (`lastLoadedRef.current`, a scroll bookmark), which conflates
+  display with business logic. Per CLAUDE.md §6.0 the projection
+  horizon is a backend concern.
+  - **Server** — `GET /api/planning/laundry` now treats `to` as
+    OPTIONAL. When omitted, the controller calls
+    `linenInventoryModel.simulate()` and uses its `horizon` (= last
+    reservation endDate) as the upper bound. Empty result when there
+    are no future reservations.
+  - **Client** — `api.getLaundryPlanningSummary({ from })` (no `to`)
+    is the new short form. `handleToggleLaundrySkip` uses it for the
+    post-toggle refetch so the visible range is always consistent
+    with the simulation, regardless of scroll position. The
+    infinite-scroll path keeps the explicit `from`/`to` form for
+    paginated next-page fetches.
+  - +4 server tests pin the new contract (default-to-horizon path,
+    null-horizon path, explicit-`to` wins, `from` validation still
+    400). Server tests now 1006/1006 green.
+  - Verified live: reset skips, navigate fresh (no scroll), skip
+    trip 1, skip trip 2, scroll down → trip-3 card visible with
+    17 doubles + 15 simples + 19 grandes + 19 petites in À apporter.
 
 ### Fixed
 - **Accounting export — legacy path now sees `customPrice` + offered

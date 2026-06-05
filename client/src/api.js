@@ -248,8 +248,15 @@ const api = {
   getMyEmailStatus: () => request('/users/me/email-status'),
   // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
   // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
-  getLaundryPlanningSummary: ({ from, to }) =>
-    request(`/planning/laundry?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last
+  // reservation endDate). Use the explicit form when paginating an infinite-scroll viewport;
+  // omit it for "give me everything that matters" calls like a post-toggle refetch
+  // (specs/skip-laundry-trip.md §4.3 — hotfix 2026-06-05 follow-up #3).
+  getLaundryPlanningSummary: ({ from, to } = {}) => {
+    const params = [`from=${encodeURIComponent(from)}`];
+    if (to) params.push(`to=${encodeURIComponent(to)}`);
+    return request(`/planning/laundry?${params.join('&')}`);
+  },
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
   getLinenInventory: () => request('/planning/linen-inventory'),
