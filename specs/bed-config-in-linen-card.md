@@ -495,3 +495,18 @@ that ships each step, per CLAUDE.md §4.1.)_
       confusion). Added 1 extra server test pinning that non-bed-
       linen property defaults are NOT re-merged on update
       (historical preservation still holds for them).
+- [x] **Hotfix 2026-06-05 follow-up #4 — empty platform never
+      persisted** — Adrien clarified the data invariant:
+      `reservations.platform` always carries a real value, either a
+      platform name (Airbnb, GitesDeFrance, etc.) or `'direct'`.
+      NULL / `''` / whitespace-only must not exist. Two paired
+      pieces: (a) `reservationsController.create` and `update`
+      normalise `req.body.platform` via a `normalisePlatform` helper
+      right after `validateFinanceInputs`, so any future write that
+      tries to persist an empty value is coerced; (b) one-shot
+      idempotent migration `platform_empty_to_direct_v1` (util
+      `utils/normaliseEmptyPlatformMigration.js`) backfills legacy
+      rows at boot. +5 migration tests + 5 controller tests pinning
+      the contract (NULL / '' / '   ' all → 'direct'; real platform
+      values preserved). Verified live: PUT to #12089 with
+      `platform: ''` returns 200 OK and the DB stores `'direct'`.

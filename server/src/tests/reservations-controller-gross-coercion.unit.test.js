@@ -154,3 +154,56 @@ test('create — empty platform (= treated as direct) is also coerced', () => {
   assert.equal(res.statusCode, 200);
   assert.equal(captures.inserted.clientGrossAmount, 648);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// specs/bed-config-in-linen-card.md §10 hotfix follow-up #4 — empty platform must never
+// be persisted. The controller normalises NULL / '' / whitespace to 'direct' before any
+// downstream logic runs. Pairs with the boot migration that backfills legacy rows.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+test('create — NULL platform is normalised to direct before persistence', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 100, captures });
+  const req = { body: bodyFor(null, 0) };
+  const res = fakeRes();
+  controller.create(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(captures.inserted.platform, 'direct', 'NULL platform → direct');
+});
+
+test('create — empty-string platform is normalised to direct', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 100, captures });
+  const req = { body: bodyFor('', 0) };
+  const res = fakeRes();
+  controller.create(req, res);
+  assert.equal(captures.inserted.platform, 'direct', "'' platform → direct");
+});
+
+test('create — whitespace-only platform is normalised to direct', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 100, captures });
+  const req = { body: bodyFor('   ', 0) };
+  const res = fakeRes();
+  controller.create(req, res);
+  assert.equal(captures.inserted.platform, 'direct', "'   ' platform → direct");
+});
+
+test('update — NULL platform is normalised to direct', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 100, captures });
+  const req = { params: { id: '999' }, body: bodyFor(null, 0) };
+  const res = fakeRes();
+  controller.update(req, res);
+  assert.equal(captures.updated.platform, 'direct');
+});
+
+test('create — real platform value is preserved (no false-positive coercion)', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 100, captures });
+  // Use a high gross so the validator passes (Airbnb gross >= net).
+  const req = { body: bodyFor('Airbnb', 150) };
+  const res = fakeRes();
+  controller.create(req, res);
+  assert.equal(captures.inserted.platform, 'Airbnb', 'non-empty platform left intact');
+});

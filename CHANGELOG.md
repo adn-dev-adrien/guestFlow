@@ -103,13 +103,37 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   bed-linen option is explicit in `selectedOptions` AND forced by
   property default (no double-toggle confusion).
 
-  **Tests (total for this spec + follow-ups)** — +17 server (5
-  migration + 5 controller invariant + 1 property-default re-merge
-  + 1 non-linen-default scoping + 5 gross coercion), +9 Vitest (7
-  `ExtrasSection.bed-linen-inputs` + 2 `GuestsBedsSection.no-beds`).
-  Server suite 1006 → 1023 green; Vitest 228 → 237 green; vite build
-  clean (465 KB gzip ≈ baseline). Manual verification on
-  reservation #12077 (dev DB) and live save on #12089:
+  **Hotfix 2026-06-05 follow-up #4 — empty platform never
+  persisted (same PR)** — Adrien clarified the data invariant:
+  `reservations.platform` always carries a real value, either a
+  platform name (Airbnb, GitesDeFrance, etc.) or `'direct'`. NULL /
+  `''` / whitespace-only must not exist anywhere in the table.
+  - `reservationsController.create` and `update` normalise
+    `req.body.platform` via a `normalisePlatform(value)` helper
+    right after `validateFinanceInputs` — any future write that
+    tries to persist an empty value is coerced to `'direct'` before
+    anything downstream (including the gross-coercion logic above)
+    sees it.
+  - One-shot migration `platform_empty_to_direct_v1` (boot block in
+    `database.js` + util `utils/normaliseEmptyPlatformMigration.js`)
+    backfills legacy rows. Idempotent via the `migrations` table.
+  - Tests: +5 migration cases + 5 controller cases. The migration
+    pins NULL/''/'  ' all → 'direct' and "Airbnb/direct preserved";
+    the controller cases pin the same on create + one on update.
+  - Verified live: PUT to `/api/reservations/12089` with `platform:
+    ''` returns 200 OK and the DB stores `'direct'` afterwards.
+
+  **Tests (total for this spec + follow-ups)** — +27 server (5
+  migration zero-beds + 5 controller invariant + 1 property-default
+  re-merge + 1 non-linen-default scoping + 5 gross coercion + 5
+  platform normalisation migration + 5 platform normalisation
+  controller), +9 Vitest (7 `ExtrasSection.bed-linen-inputs` + 2
+  `GuestsBedsSection.no-beds`). Server suite 1006 → 1033 green
+  (in-isolation; parallel-runner flakes from earlier specs still
+  occasionally surface); Vitest 228 → 237 green; vite build clean
+  (465 KB gzip ≈ baseline). Manual verification on reservation
+  #12077 (bed-linen card + Switch forcing) and live save on #12089
+  (gross coercion + platform normalisation):
   Switch ON → sub-block + 3 inputs + button appear, Switch OFF →
   sub-block disappears.
 

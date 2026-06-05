@@ -27,7 +27,20 @@ const model = reservationsModel;
 // from the operator's POV it's a phantom error — they never controlled the value.
 // Spec: specs/bed-config-in-linen-card.md §10 hotfix follow-up #2 (2026-06-05).
 function isDirectPlatform(platform) {
-  return !platform || String(platform).toLowerCase() === 'direct';
+  return !platform || String(platform).trim() === '' || String(platform).toLowerCase() === 'direct';
+}
+
+// "Empty platform" must never be persisted. The data invariant is: every reservation
+// either belongs to a platform (Airbnb, Booking, etc.) or is 'direct'. NULL / '' /
+// whitespace-only are normalised to 'direct' on every save. Spec:
+// specs/bed-config-in-linen-card.md §10 hotfix follow-up #4 (2026-06-05). The schema
+// already declares DEFAULT 'direct' on the `platform` column; this coercion catches the
+// case where the client sends an explicit empty string AND backfills any pre-existing
+// NULL/'' rows via a paired migration at boot.
+function normalisePlatform(platform) {
+  if (platform == null) return 'direct';
+  const trimmed = String(platform).trim();
+  return trimmed === '' ? 'direct' : trimmed;
 }
 
 // specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
@@ -252,6 +265,9 @@ function create(req, res) {
   });
   if (financeError) return res.status(400).json({ error: financeError });
 
+  // Data invariant: never persist an empty platform — see `normalisePlatform`.
+  req.body.platform = normalisePlatform(req.body.platform);
+
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
@@ -381,6 +397,9 @@ function update(req, res) {
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
+
+  // Data invariant: never persist an empty platform — see `normalisePlatform`.
+  req.body.platform = normalisePlatform(req.body.platform);
 
   const id = Number(req.params.id);
   const {
