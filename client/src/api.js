@@ -256,6 +256,13 @@ const api = {
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
+  // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
+  // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
+  // non-skipped trip. Global per date (one human, one trip). Spec
+  // specs/skip-laundry-trip.md §4.3.
+  listLaundrySkips: () => request('/laundry/skips'),
+  addLaundrySkip: (date) => request('/laundry/skips', { method: 'POST', body: { date } }),
+  removeLaundrySkip: (date) => request(`/laundry/skips/${date}`, { method: 'DELETE' }),
   // Dashboard iCal date-drift approvals — pending date-change proposals on locked iCal
   // reservations (specs/ical-sync-override-locked-dates.md §4.3).
   getIcalDateDriftAlert: () => request('/dashboard/ical-date-drift'),
