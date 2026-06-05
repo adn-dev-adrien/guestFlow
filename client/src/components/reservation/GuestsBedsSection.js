@@ -1,27 +1,31 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Stack, TextField, Button } from '@mui/material';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import { Box, Card, CardContent, Typography, Stack, TextField } from '@mui/material';
 import { useReservationForm } from './ReservationFormContext';
 
 /**
- * Voyageurs et couchages card: guest counts, bed counts, capacity warnings and "Suggérer les lits".
+ * Voyageurs card: guest counts + capacity warning.
+ *
+ * specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — bed counters (lits doubles /
+ * simples / bébé), "Suggérer les lits" button, and the `bedsCapacityMismatch` warning
+ * moved out of this card and into the "Linge de lit" option card inside `ExtrasSection`
+ * (rendered there only when the bed-linen option is enabled). Title renamed from
+ * "Voyageurs et couchages" → "Voyageurs" to reflect the smaller scope.
+ *
  * Reads everything from the reservation form context — no props.
  */
 export default function GuestsBedsSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
     form, updateForm,
-    maxAdultsAllowed, maxBabiesAllowed, maxSingleBeds, maxDoubleBeds,
+    maxAdultsAllowed, maxBabiesAllowed,
     exceedsAdultsCapacity, exceedsChildrenCapacity, exceedsBabiesCapacity, exceedsTotalCapacity,
-    exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
-    totalGuestsCount, totalGuestsMax, reservationBedCapacity, requiredRegularBeds,
-    maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds, selectedProp, isReservationLocked,
+    totalGuestsCount, totalGuestsMax,
   } = useReservationForm();
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Voyageurs et couchages</Typography>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Voyageurs</Typography>
         <Stack spacing={2.25}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
@@ -81,77 +85,6 @@ export default function GuestsBedsSection() {
           {exceedsTotalCapacity && (
             <Typography variant="body2" color="error">
               Capacité totale dépassée: {totalGuestsCount}/{totalGuestsMax} personnes.
-            </Typography>
-          )}
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-            <Box>
-              <TextField
-                label="Lits doubles"
-                type="number"
-                value={form.doubleBeds}
-                onChange={(e) => updateForm({ doubleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
-                fullWidth
-                error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
-                helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
-                slotProps={{
-                  htmlInput: { min: 0, max: maxDoubleBeds ?? undefined }
-                }}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label="Lits simples"
-                type="number"
-                value={form.singleBeds}
-                onChange={(e) => updateForm({ singleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
-                fullWidth
-                error={bedsCapacityMismatch || exceedsSingleBedsLimit}
-                helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
-                slotProps={{
-                  htmlInput: { min: 0, max: maxSingleBeds ?? undefined }
-                }}
-              />
-            </Box>
-            <Box>
-              <TextField
-                label="Lits bébé"
-                type="number"
-                value={form.babyBeds}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '') {
-                    updateForm({ babyBeds: '' });
-                    return;
-                  }
-                  const n = Math.max(0, Number(val));
-                  updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
-                }}
-                fullWidth
-                helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
-                slotProps={{
-                  htmlInput: { min: 0, max: maxBabyBedsByRule }
-                }}
-              />
-            </Box>
-          </Box>
-
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              size="small"
-              variant="text"
-              startIcon={<AutoFixHighIcon fontSize="small" />}
-              onClick={handleSuggestBeds}
-              disabled={!selectedProp || isReservationLocked}
-              sx={{ textTransform: 'none' }}
-            >
-              Suggérer les lits
-            </Button>
-          </Box>
-
-          {bedsCapacityMismatch && (
-            <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
-              Attention: la capacité des lits classiques saisis ({reservationBedCapacity}) est inférieure au besoin réel ({requiredRegularBeds}). Les enfants de 2 à 12 ans placés en lit bébé sont déduits automatiquement du calcul.
             </Typography>
           )}
         </Stack>

@@ -19,6 +19,50 @@ const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsMod
 
 const model = reservationsModel;
 
+// Direct bookings have no platform commission → the customer pays the owner directly, so
+// `clientGrossAmount` MUST equal `finalPrice`. The form doesn't render the gross input for
+// directs (FinanceSection.js only shows it for platform reservations), so the stored value
+// drifts the moment finalPrice recomputes (e.g. the operator adds an option). Without this
+// coercion the validator rightfully rejects gross < net with a 400 GROSS_BELOW_NET, but
+// from the operator's POV it's a phantom error — they never controlled the value.
+// Spec: specs/bed-config-in-linen-card.md §10 hotfix follow-up #2 (2026-06-05).
+function isDirectPlatform(platform) {
+  return !platform || String(platform).trim() === '' || String(platform).toLowerCase() === 'direct';
+}
+
+// "Empty platform" must never be persisted. The data invariant is: every reservation
+// either belongs to a platform (Airbnb, Booking, etc.) or is 'direct'. NULL / '' /
+// whitespace-only are normalised to 'direct' on every save. Spec:
+// specs/bed-config-in-linen-card.md §10 hotfix follow-up #4 (2026-06-05). The schema
+// already declares DEFAULT 'direct' on the `platform` column; this coercion catches the
+// case where the client sends an explicit empty string AND backfills any pre-existing
+// NULL/'' rows via a paired migration at boot.
+function normalisePlatform(platform) {
+  if (platform == null) return 'direct';
+  const trimmed = String(platform).trim();
+  return trimmed === '' ? 'direct' : trimmed;
+}
+
+// specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
+// maps to a `countsAsBedLinen = 1` row in `options`. Used by create + update to gate the
+// bed-counts coercion: if the saved reservation has no bed-linen contract, `singleBeds /
+// doubleBeds / babyBeds` are forced to 0 before insert/update (the values would never
+// contribute to the laundry aggregation anyway — the SQL in `laundryModel.js` requires a
+// flagged option). The query is tiny (option list ≤ ~10) so a single `IN` round-trip
+// is fine.
+function hasBedLinenOption(reservationOptions) {
+  if (!Array.isArray(reservationOptions) || reservationOptions.length === 0) return false;
+  const ids = reservationOptions
+    .map((ro) => Number(ro && ro.optionId))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (ids.length === 0) return false;
+  const placeholders = ids.map(() => '?').join(',');
+  const row = db.prepare(
+    `SELECT 1 FROM options WHERE id IN (${placeholders}) AND countsAsBedLinen = 1 LIMIT 1`,
+  ).get(...ids);
+  return Boolean(row);
+}
+
 // Shared capacity/baby-bed validation for create & update. Returns an error string or null.
 function checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity }) {
   const property = model.getPropertyCapacity(propertyId);
@@ -221,6 +265,9 @@ function create(req, res) {
   });
   if (financeError) return res.status(400).json({ error: financeError });
 
+  // Data invariant: never persist an empty platform — see `normalisePlatform`.
+  req.body.platform = normalisePlatform(req.body.platform);
+
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
@@ -242,6 +289,19 @@ function create(req, res) {
       .map((d) => ({ optionId: Number(d.optionId), quantity: 1 }));
     return [...(rawReservationOptions || []), ...toAdd];
   })();
+
+  // specs/bed-config-in-linen-card.md §3 rule 7 — bed counts are only meaningful when the
+  // saved reservation carries at least one `countsAsBedLinen = 1` option. We coerce here
+  // BEFORE `checkCapacity` so a misbehaving client can't trip the "exceeds property capacity"
+  // error on values that won't even be persisted. Mutating `req.body` is intentional: the
+  // model layer (`insertReservation`) reads from `req.body` (see reservationsModel.js).
+  const bedLinenIncluded = hasBedLinenOption(reservationOptions);
+  const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
+  const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
+  const effectiveBabyBeds   = bedLinenIncluded ? babyBeds   : 0;
+  req.body.singleBeds = effectiveSingleBeds;
+  req.body.doubleBeds = effectiveDoubleBeds;
+  req.body.babyBeds   = effectiveBabyBeds;
 
   // Forward the offered flag of every property default into `offeredOptionIds` (rule 11 in §3.3).
   const propertyDefaultsOffered = propertyId
@@ -283,6 +343,11 @@ function create(req, res) {
     });
   }
 
+  // Direct: derive gross from net before the validator runs (the client form never edits this
+  // field for direct bookings — see comment on `isDirectPlatform` above).
+  if (isDirectPlatform(req.body.platform)) {
+    req.body.clientGrossAmount = quote.finalPrice;
+  }
   const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
   if (grossError) return res.status(400).json({ error: grossError });
 
@@ -296,10 +361,14 @@ function create(req, res) {
   );
   if (validationError) return res.status(409).json(validationError);
 
-  const capacityError = checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity });
+  const capacityError = checkCapacity({
+    propertyId, adults, children, teens, babies,
+    babyBeds: effectiveBabyBeds, singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
+    forceCapacity,
+  });
   if (capacityError) return res.status(400).json({ error: capacityError });
 
-  const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds, excludeId: null });
+  const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: null });
   if (babyError) return res.status(400).json({ error: babyError });
 
   const reservationId = model.insertReservation(req.body, quote, nightBlocks);
@@ -329,13 +398,58 @@ function update(req, res) {
   });
   if (financeError) return res.status(400).json({ error: financeError });
 
+  // Data invariant: never persist an empty platform — see `normalisePlatform`.
+  req.body.platform = normalisePlatform(req.body.platform);
+
   const id = Number(req.params.id);
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
     forceMinNights, forceCapacity, refreshPricingToCurrent,
-    options: reservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
+    options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
+
+  // specs/bed-config-in-linen-card.md §3 rule 4.bis — historical preservation (rule 30 in
+  // other specs) keeps the operator's option set frozen on update, EXCEPT for options
+  // flagged `countsAsBedLinen = 1` declared as property defaults: those are re-merged here
+  // so the property contract ("this property always includes bed linen") stays sticky
+  // across edits. Without this, a reservation predating the property default would lose
+  // its bed counts on the next save (the invariant below would zero them).
+  const reservationOptions = (() => {
+    const submitted = rawUpdateOptions || [];
+    if (!propertyId) return submitted;
+    const defaults = propertyOptionDefaultsModel.listForProperty(Number(propertyId));
+    if (!defaults || defaults.length === 0) return submitted;
+    const bedLinenDefaultIds = defaults
+      .map((d) => Number(d.optionId))
+      .filter((optId) => {
+        const row = db.prepare(
+          'SELECT countsAsBedLinen FROM options WHERE id = ?',
+        ).get(optId);
+        return row && Number(row.countsAsBedLinen) === 1;
+      });
+    if (bedLinenDefaultIds.length === 0) return submitted;
+    const existing = new Set(submitted.map((o) => Number(o.optionId)));
+    const toAdd = bedLinenDefaultIds
+      .filter((optId) => !existing.has(optId))
+      .map((optId) => ({ optionId: optId, quantity: 1 }));
+    return [...submitted, ...toAdd];
+  })();
+  // Keep `req.body.options` in sync so the model layer downstream (which reads from
+  // req.body) sees the re-merged list and persists it.
+  req.body.options = reservationOptions;
+
+  // specs/bed-config-in-linen-card.md §3 rule 7 — invariant on save. After the bed-linen-
+  // only property-defaults re-merge above, this only zeros bed counts on reservations that
+  // genuinely have no bed-linen contract (= neither the operator's explicit option nor a
+  // property default applies).
+  const bedLinenIncluded = hasBedLinenOption(reservationOptions);
+  const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
+  const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
+  const effectiveBabyBeds   = bedLinenIncluded ? babyBeds   : 0;
+  req.body.singleBeds = effectiveSingleBeds;
+  req.body.doubleBeds = effectiveDoubleBeds;
+  req.body.babyBeds   = effectiveBabyBeds;
 
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin can drop this
@@ -388,6 +502,10 @@ function update(req, res) {
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
+  // Same coercion as `create`: direct → gross = net (see `isDirectPlatform` comment).
+  if (isDirectPlatform(req.body.platform)) {
+    req.body.clientGrossAmount = quote.finalPrice;
+  }
   const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
   if (grossError) return res.status(400).json({ error: grossError });
 
@@ -436,10 +554,14 @@ function update(req, res) {
     );
     if (validationError) return res.status(409).json(validationError);
 
-    const capacityError = checkCapacity({ propertyId, adults, children, teens, babies, babyBeds, singleBeds, doubleBeds, forceCapacity });
+    const capacityError = checkCapacity({
+      propertyId, adults, children, teens, babies,
+      babyBeds: effectiveBabyBeds, singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
+      forceCapacity,
+    });
     if (capacityError) return res.status(400).json({ error: capacityError });
 
-    const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds, excludeId: id });
+    const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: id });
     if (babyError) return res.status(400).json({ error: babyError });
   }
 

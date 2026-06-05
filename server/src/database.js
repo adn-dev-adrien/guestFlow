@@ -1607,6 +1607,48 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- NORMALISE EMPTY PLATFORM TO 'direct' ----------
+// specs/bed-config-in-linen-card.md §10 hotfix follow-up #4. Data invariant: the
+// `reservations.platform` column never holds NULL or empty/whitespace. Legacy rows that
+// pre-date the controller-level coercion get backfilled here. Idempotent via
+// `migrations.platform_empty_to_direct_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'platform_empty_to_direct_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runNormaliseEmptyPlatformMigration } = require('./utils/normaliseEmptyPlatformMigration');
+    const tx = db.transaction(() => {
+      const { normalisedCount } = runNormaliseEmptyPlatformMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:platform-empty-to-direct] normalised ${normalisedCount} reservation(s)`);
+    });
+    tx();
+  }
+}
+
+// ---------- ZERO BED COUNTS WHEN NO BED-LINEN OPTION ----------
+// specs/bed-config-in-linen-card.md §5. One-shot migration: zero
+// `singleBeds / doubleBeds / babyBeds` for every reservation that has no
+// `countsAsBedLinen = 1` option in reservation_options AND whose property has no such
+// option in property_option_defaults. From this boot onwards, the reservationsController
+// enforces the same invariant on every save — see `create` / `update` and the
+// `hasBedLinenOption` helper. Idempotent via `migrations.zero_beds_when_no_bed_linen_option_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'zero_beds_when_no_bed_linen_option_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runZeroBedsWhenNoBedLinenMigration } = require('./utils/zeroBedsWhenNoBedLinenMigration');
+    const tx = db.transaction(() => {
+      const { zeroedCount } = runZeroBedsWhenNoBedLinenMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:zero-beds-when-no-bed-linen-option] zeroed ${zeroedCount} reservation(s)`);
+    });
+    tx();
+  }
+}
+
 const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
 ensureDefaultBedLinenOption(db);
 db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;
