@@ -60,12 +60,15 @@ const DDL = `
   );
 `;
 
-function makeStack({ laundryWeekday = 2 } = {}) {
+function makeStack({ laundryWeekday = 2, skippedDates = [] } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
   const model = laundryModel.buildModel(db);
   const settingsModel = { read: () => ({ laundryWeekday }) };
-  const controller = buildController({ laundryModel: model, settingsModel });
+  // No `laundry_trip_skips` table in this fixture — inject an in-memory stub. Defaults to
+  // an empty list so every legacy assertion stays byte-identical to the pre-skip baseline.
+  const laundryTripSkipsModel = { listAll: () => [...skippedDates] };
+  const controller = buildController({ laundryModel: model, settingsModel, laundryTripSkipsModel });
   return { db, model, controller };
 }
 
@@ -342,5 +345,64 @@ test('END-TO-END: explicit reservation_options row STILL wins over the property 
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // baby suppressed by the explicit row
     largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// specs/skip-laundry-trip.md §3.1 rule 6 — full-stack regression for the user-reported bug
+// "la carte blanchisserie suivante ne change pas" (2026-06-05). Two reservations, one ends
+// in the pre-skip week, the other in the skip week. After marking the in-between trip as
+// skipped, the next non-skipped card must absorb BOTH reservations into À apporter.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the next non-skipped card', () => {
+  const { db, controller } = makeStack({
+    laundryWeekday: 2,
+    skippedDates: ['2026-06-02'], // Tuesday 2026-06-02 marked as not-made.
+  });
+  const { bedId, bathId } = seedSeeds(db);
+
+  // Reservation A — ends Friday 2026-05-29. Without the skip its batch would belong to the
+  // 2026-06-02 trip. With the skip, it's deferred to 2026-06-09.
+  const rA = makeReservation(db, {
+    startDate: '2026-05-26', endDate: '2026-05-29',
+    singleBeds: 2, doubleBeds: 1, babyBeds: 0,
+    adults: 2, children: 1,
+  });
+  linkOption(db, rA, bedId, 1);
+  linkOption(db, rA, bathId, 1.0);
+
+  // Reservation B — ends Saturday 2026-06-06. Belongs to the 2026-06-09 trip natively.
+  const rB = makeReservation(db, {
+    startDate: '2026-06-02', endDate: '2026-06-06',
+    singleBeds: 0, doubleBeds: 1, babyBeds: 1,
+    adults: 2, babies: 1,
+  });
+  linkOption(db, rB, bedId, 1);
+  linkOption(db, rB, bathId, 1.0);
+
+  const res = makeRes();
+  controller.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-09' } }, res);
+  const byDate = Object.fromEntries(res.body.laundryDays.map((d) => [d.date, d]));
+
+  // The skipped card emits zeros — the client masks it with the "Voyage non réalisé" caption.
+  assert.deepEqual(byDate['2026-06-02'].dropOff, {
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
+  assert.deepEqual(byDate['2026-06-02'].pickUp, {
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  });
+
+  // The next non-skipped card (2026-06-09) ABSORBS rA + rB into À apporter — this is the
+  // exact behaviour the user reported as missing.
+  assert.deepEqual(byDate['2026-06-09'].dropOff, {
+    singleBeds: 2 + 0,
+    doubleBeds: 1 + 1,
+    babyBeds:   0 + 1,
+    // Towels: rA = 3 persons (2 adults + 1 child) × 1 = 3 large + 3 small.
+    //         rB = 2 persons (2 adults; baby excluded) × 1 = 2 large + 2 small.
+    largeTowels: 3 + 2,
+    mediumTowels: 0,
+    smallTowels: 3 + 2,
   });
 });

@@ -248,14 +248,28 @@ const api = {
   getMyEmailStatus: () => request('/users/me/email-status'),
   // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
   // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
-  getLaundryPlanningSummary: ({ from, to }) =>
-    request(`/planning/laundry?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last
+  // reservation endDate). Use the explicit form when paginating an infinite-scroll viewport;
+  // omit it for "give me everything that matters" calls like a post-toggle refetch
+  // (specs/skip-laundry-trip.md §4.3 — hotfix 2026-06-05 follow-up #3).
+  getLaundryPlanningSummary: ({ from, to } = {}) => {
+    const params = [`from=${encodeURIComponent(from)}`];
+    if (to) params.push(`to=${encodeURIComponent(to)}`);
+    return request(`/planning/laundry?${params.join('&')}`);
+  },
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
   getLinenInventory: () => request('/planning/linen-inventory'),
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
+  // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
+  // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
+  // non-skipped trip. Global per date (one human, one trip). Spec
+  // specs/skip-laundry-trip.md §4.3.
+  listLaundrySkips: () => request('/laundry/skips'),
+  addLaundrySkip: (date) => request('/laundry/skips', { method: 'POST', body: { date } }),
+  removeLaundrySkip: (date) => request(`/laundry/skips/${date}`, { method: 'DELETE' }),
   // Dashboard iCal date-drift approvals — pending date-change proposals on locked iCal
   // reservations (specs/ical-sync-override-locked-dates.md §4.3).
   getIcalDateDriftAlert: () => request('/dashboard/ical-date-drift'),

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  addDays, weekdayOf, findLaundryDaysInRange, prevLaundryDay, __test,
+  addDays, weekdayOf, findLaundryDaysInRange, prevLaundryDay, previousNonSkippedLaundryDay, __test,
 } = require('../utils/laundryWindow');
 
 // Pure ISO date math — no DB. Pinned cases for specs/weekly-bed-linen-tracking.md §3.3.
@@ -104,4 +104,40 @@ test('prevLaundryDay: 7 days earlier, across month boundary', () => {
 test('prevLaundryDay: DST-safe across the spring forward', () => {
   // 2026-04-04 minus 7 days → 2026-03-28 (crosses the 2026-03-29 DST switch in France).
   assert.equal(prevLaundryDay('2026-04-04'), '2026-03-28');
+});
+
+test('previousNonSkippedLaundryDay: empty skip set is identical to prevLaundryDay', () => {
+  // No skip → behaves like a thin alias. Backward-compat invariant.
+  assert.equal(previousNonSkippedLaundryDay('2026-06-09', new Set()), '2026-06-02');
+  assert.equal(previousNonSkippedLaundryDay('2026-06-09', null), '2026-06-02');
+});
+
+test('previousNonSkippedLaundryDay: walks back 7 days through a single skipped trip', () => {
+  // 2026-06-02 skipped → previous non-skipped from 2026-06-09 is 2026-05-26.
+  assert.equal(
+    previousNonSkippedLaundryDay('2026-06-09', new Set(['2026-06-02'])),
+    '2026-05-26'
+  );
+});
+
+test('previousNonSkippedLaundryDay: walks back through multiple consecutive skips', () => {
+  assert.equal(
+    previousNonSkippedLaundryDay('2026-06-16', new Set(['2026-06-02', '2026-06-09'])),
+    '2026-05-26'
+  );
+});
+
+test('previousNonSkippedLaundryDay: returns null when the entire lookback window is skipped', () => {
+  // 4 weeks of consecutive skips with maxLookback = 28 → no candidate found.
+  const skipped = new Set(['2026-06-09', '2026-06-02', '2026-05-26', '2026-05-19']);
+  assert.equal(previousNonSkippedLaundryDay('2026-06-16', skipped), null);
+});
+
+test('previousNonSkippedLaundryDay: longer lookback can find a candidate further back', () => {
+  const skipped = new Set(['2026-06-09', '2026-06-02', '2026-05-26', '2026-05-19']);
+  // With 35-day lookback (5 weeks), 2026-05-12 is reachable.
+  assert.equal(
+    previousNonSkippedLaundryDay('2026-06-16', skipped, 35),
+    '2026-05-12'
+  );
 });

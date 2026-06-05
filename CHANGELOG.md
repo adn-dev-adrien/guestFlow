@@ -4,6 +4,116 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Skip a laundry trip** (spec `skip-laundry-trip.md`, 2026-06-06).
+  The operator (Adrien) can now mark a specific laundry trip date as
+  not-made from the Planning page — a click on the `LaundryDayCard`
+  header IconButton greys the card out, replaces the 3 detail blocks
+  with a muted *"Voyage non réalisé — reporté au prochain voyage"*
+  caption, and persists the decision in a new global table.
+
+  **Motivation** — reality intrudes: sometimes the trip doesn't
+  happen (illness, travel, day off). Today the projection keeps
+  assuming the trip went, the displayed clean stock diverges from
+  the bins on the shelf, and the shortage alert can over- or under-
+  shoot. The skip toggle closes that loop in one click.
+
+  **Engine cascade** — on a skipped date the engine performs neither
+  the drop-off nor the pick-up; both backlogs flow forward to the
+  next non-skipped trip. The pickup lookup widened from `drop date
+  = cursor − 7` to `drop date <= cursor − 7` so a deferred batch is
+  finally picked up alongside the regular 7-days-ago batch on the
+  next successful trip. The initial state computation (when `from`
+  is after a skipped trip) uses a new
+  `previousOrSameNonSkippedLaundryDay` helper that walks back 7
+  days at a time until finding a non-skipped Tuesday, so past skips
+  surface as deferred dirty at engine startup — not just in the
+  forward loop. Conservation invariant
+  (`clean + inCirculation + dirty + atLaundry = totalStock`) holds
+  across every test case (pinned in the new
+  `linen-inventory-skipped-trip.unit.test.js`).
+
+  **Data model** — new table `laundry_trip_skips(tripDate TEXT PK,
+  createdAt)`, additive, starts empty, no migration. Global scope per
+  spec §3.1 rule 1: one human, one trip per day, the toggle is per
+  date (not per property). Endpoint trio `/api/laundry/skips` (GET +
+  POST + DELETE), admin-only via the default `enforceRoleAccess`
+  middleware. Idempotent on both POST and DELETE; 400 on a malformed
+  date.
+
+  **Shortage alert + Dashboard** — no new UI. The existing
+  `LinenShortageAlert` re-renders with the post-skip projection
+  numbers automatically because `linenInventoryModel.simulate` loads
+  the skip set as a single point of injection. A skipped future trip
+  that pushes the clean stock below 0 → alert grows. An un-skipped
+  trip → alert shrinks.
+
+  **Tests** — 24 new server unit cases + 6 new Vitest cases + 2 new
+  Playwright E2E cases. Server tests 967 → 991 green; Vitest 223 →
+  229 / 229 green; E2E 19 → 21 / 1 skip / 0 fail; build clean.
+
+  **Hotfix 2026-06-05 (same PR)** — first round of testing surfaced a
+  visible gap: the "Disponible après ce dépôt" line did react to a
+  skip (driven by `linenInventoryModel.simulate`, already skip-aware),
+  but the "À apporter" / "À récupérer" counts on the next non-skipped
+  card stayed on their pre-skip values. Two parallel server paths
+  feed the same UI card and only one of them was skip-aware. The
+  user reported it as *"la carte blanchisserie suivante ne change
+  pas"*. Fixed by wiring the skip set into
+  `planningController.laundrySummary` + adding
+  `utils/laundryWindow.previousNonSkippedLaundryDay` to derive the
+  widened drop-off / pick-up windows. A skipped trip itself emits
+  zeroed blocks — the client masks them with the existing "Voyage
+  non réalisé" caption. +11 server tests (5 helper + 5 controller +
+  1 full-stack regression case pinning the user-reported scenario).
+  Server tests 991 → 1002 green.
+
+  **Hotfix 2026-06-05 follow-up (same PR)** — second round of testing
+  surfaced one more gap: with the server now skip-aware end-to-end, a
+  full page reload showed the right cards, but the LIVE toggle still
+  showed the old values. Root cause was in
+  `PlanningPage.handleToggleLaundrySkip`: after persisting the skip,
+  it only re-fetched `getLinenInventory` (the "Disponible" line) and
+  not `getLaundryPlanningSummary` (the À apporter / À récupérer
+  counts). The original handler carried a stale comment claiming the
+  summary endpoint was unaffected by skips — true before the previous
+  hotfix, false after it. Fixed by refetching BOTH endpoints in
+  parallel inside the toggle handler. Verified live in a browser:
+  toggling the first card flips it to "Voyage non réalisé" AND bumps
+  the next card's drop-off counts up (11 → 15 doubles, 12 → 15
+  simples) in the same render pass.
+
+  **Hotfix 2026-06-05 follow-up #2 (same PR)** — third round caught a
+  scroll-related regression. Adrien skipped trips 1 and 2 in a row
+  (2026-06-09 then 2026-06-16) and the trip-3 card (2026-06-23)
+  *disappeared* instead of absorbing the 3-week backlog. First patch
+  used `lastLoadedRef.current` (the end of the last infinite-scroll
+  page) as the upper bound of the refetch. Superseded by follow-up #3
+  below — the right fix is server-side.
+
+  **Hotfix 2026-06-05 follow-up #3 (same PR)** — Adrien correctly
+  pushed back on follow-up #2: the toggle was relying on UI state
+  (`lastLoadedRef.current`, a scroll bookmark), which conflates
+  display with business logic. Per CLAUDE.md §6.0 the projection
+  horizon is a backend concern.
+  - **Server** — `GET /api/planning/laundry` now treats `to` as
+    OPTIONAL. When omitted, the controller calls
+    `linenInventoryModel.simulate()` and uses its `horizon` (= last
+    reservation endDate) as the upper bound. Empty result when there
+    are no future reservations.
+  - **Client** — `api.getLaundryPlanningSummary({ from })` (no `to`)
+    is the new short form. `handleToggleLaundrySkip` uses it for the
+    post-toggle refetch so the visible range is always consistent
+    with the simulation, regardless of scroll position. The
+    infinite-scroll path keeps the explicit `from`/`to` form for
+    paginated next-page fetches.
+  - +4 server tests pin the new contract (default-to-horizon path,
+    null-horizon path, explicit-`to` wins, `from` validation still
+    400). Server tests now 1006/1006 green.
+  - Verified live: reset skips, navigate fresh (no scroll), skip
+    trip 1, skip trip 2, scroll down → trip-3 card visible with
+    17 doubles + 15 simples + 19 grandes + 19 petites in À apporter.
+
 ### Fixed
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug

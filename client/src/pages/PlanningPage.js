@@ -400,6 +400,10 @@ export default function PlanningPage() {
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
   // → per-type clean snapshot to display as the 3rd block on each laundry day.
   const [inventoryByDate, setInventoryByDate] = useState({});
+  // specs/skip-laundry-trip.md §4.2 — global set of ISO dates the operator marked as
+  // not-made. Loaded once on mount + kept in sync by the toggle handler. Empty Set on
+  // initial render so the cards default to "not skipped" while the request is in flight.
+  const [skippedLaundryDates, setSkippedLaundryDates] = useState(() => new Set());
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -410,6 +414,58 @@ export default function PlanningPage() {
   useEffect(() => {
     api.getProperties().then(setProperties);
   }, []);
+
+  // specs/skip-laundry-trip.md §4.2 — load the global laundry-skip set once on mount. Silent
+  // fallback to empty Set on failure: every LaundryDayCard then renders in its default
+  // (non-skipped) state, the toggle still works, and a subsequent successful toggle/refetch
+  // will hydrate the state. No user-visible error on this read.
+  useEffect(() => {
+    api.listLaundrySkips()
+      .then((res) => setSkippedLaundryDates(new Set(res?.skips || [])))
+      .catch(() => setSkippedLaundryDates(new Set()));
+  }, []);
+
+  // Per-card skip toggle. Optimistic update first (instant UI feedback), then API call. On
+  // failure: revert to the previous Set + surface a snackbar (rule 12 in the spec). After
+  // success: refetch BOTH the laundry summary AND the linen inventory.
+  //
+  // 2026-06-05 — fixed a regression: the previous version only refetched the inventory,
+  // assuming the summary endpoint was "raw reservation aggregation, not affected by skips".
+  // That assumption was true initially, then broke when the hotfix made
+  // `planningController.laundrySummary` skip-aware (so the deferred drop-off / pick-up
+  // counts surface on the next non-skipped card). Without this refetch, the À apporter /
+  // À récupérer numbers stayed frozen on their pre-skip values — exactly the user-visible
+  // bug "la carte blanchisserie suivante ne change pas".
+  const handleToggleLaundrySkip = useCallback(async (date, nextValue) => {
+    const previous = skippedLaundryDates;
+    const next = new Set(previous);
+    if (nextValue) next.add(date); else next.delete(date);
+    setSkippedLaundryDates(next);
+    try {
+      if (nextValue) await api.addLaundrySkip(date);
+      else await api.removeLaundrySkip(date);
+      // Refetch up to the BUSINESS horizon, not the UI horizon. The server knows the
+      // inventory horizon (= last reservation endDate); we just ask for "everything from
+      // today" and let it cap. This keeps the toggle handler independent from the scroll
+      // position — Adrien specifically asked for this on 2026-06-05 (the previous fix
+      // relied on `lastLoadedRef.current` which conflated business state with UI state and
+      // broke when the user had scrolled past the affected cards).
+      const [summary, inventory] = await Promise.all([
+        api.getLaundryPlanningSummary({ from: startDate }).catch(() => ({ laundryDays: [] })),
+        api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+      ]);
+      const lByDate = {};
+      for (const ld of (summary?.laundryDays || [])) {
+        lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
+      }
+      setLaundryByDate(lByDate);
+      setInventoryByDate(inventory?.byLaundryDay || {});
+    } catch (err) {
+      setSkippedLaundryDates(previous);
+      // eslint-disable-next-line no-alert
+      window.alert(`Impossible d'enregistrer le voyage non réalisé. ${err?.message || ''}`);
+    }
+  }, [skippedLaundryDates, startDate]);
 
   // Detect scheduling conflicts
   const detectAlerts = useCallback((days, props = []) => {
@@ -785,6 +841,10 @@ export default function PlanningPage() {
             };
             return sum(data.dropOff) + sum(data.pickUp) > 0;
           }),
+          // specs/skip-laundry-trip.md §3.3 rule 11 — a skipped card is ALWAYS shown so the
+          // operator can revert it. Add every skipped date to the date set; the LaundryDayCard
+          // receives a {} placeholder for `data` below when laundryByDate has nothing.
+          ...skippedLaundryDates,
         ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
@@ -829,8 +889,20 @@ export default function PlanningPage() {
               </Box>
 
               {/* Weekly bed-linen card (specs/weekly-bed-linen-tracking.md). Renders only on
-                  laundry days that actually have something to bring or pick up. */}
-              <LaundryDayCard data={laundryByDate[date]} inventoryAfter={inventoryByDate[date]} />
+                  laundry days that actually have something to bring or pick up — unless the
+                  operator marked it as skipped (specs/skip-laundry-trip.md §3.3 rule 11), in
+                  which case it's always shown so the toggle can be reverted. */}
+              <LaundryDayCard
+                // Skipped date with no underlying laundry payload (e.g. a Tuesday with no
+                // arrivals + no reservation ending in the prior week): pass an empty-shape
+                // placeholder so the card renders, the IconButton appears, and the operator
+                // can un-skip from the same place. The card's body shows the muted caption.
+                data={laundryByDate[date] || (skippedLaundryDates.has(date) ? { dropOff: {}, pickUp: {} } : null)}
+                inventoryAfter={inventoryByDate[date]}
+                date={date}
+                isSkipped={skippedLaundryDates.has(date)}
+                onToggleSkip={handleToggleLaundrySkip}
+              />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>
