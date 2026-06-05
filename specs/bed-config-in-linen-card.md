@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/bed-config-in-linen-card` _(user-managed)_ |
 | **Created** | 2026-06-05 |
 | **Author** | Adrien |
@@ -419,17 +419,20 @@ manual UI check.
 _(Filled in as commits land. Update this section in the same commit
 that ships each step, per CLAUDE.md §4.1.)_
 
-- [ ] Server: migration block in `database.js` + tests.
-- [ ] Server: invariant in `reservationsController` (create + update)
-      + tests.
-- [ ] Client: `ReservationFormContext` exposes
+- [x] Server: migration block in `database.js` + tests
+      (`utils/zeroBedsWhenNoBedLinenMigration.js` + 5 unit cases).
+- [x] Server: invariant in `reservationsController` (create + update)
+      + 5 unit cases pinning the contract.
+- [x] Client: `ReservationFormContext` exposes
       `firstEnabledBedLinenOptionId` + `bedLinenOptionEnabled`.
-- [ ] Client: `GuestsBedsSection` stripped (renamed, inputs +
-      button + warning removed).
-- [ ] Client: `ExtrasSection` renders the bed inputs sub-block
-      inside the first enabled bed-linen-flagged option card.
-- [ ] Client: `setOptionEnabled(optionId, false)` for a bed-linen-
+- [x] Client: `GuestsBedsSection` stripped (renamed `Voyageurs`,
+      inputs + button + warning removed).
+- [x] Client: `ExtrasSection` renders the `BedLinenInputsBlock`
+      sub-component inside the first enabled bed-linen-flagged
+      option card.
+- [x] Client: `setOptionEnabled(optionId, false)` for a bed-linen-
       flagged option auto-zeroes `form.singleBeds / doubleBeds /
       babyBeds`.
-- [ ] Client tests (Vitest) + manual UI check.
-- [ ] Docs: spec status → Implemented, CHANGELOG entry.
+- [x] Client tests (Vitest 4 + 2) + manual UI check on
+      reservation #12077 (dev DB).
+- [x] Docs: spec status → Implemented, CHANGELOG entry.

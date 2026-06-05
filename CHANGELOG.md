@@ -4,6 +4,62 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Bed configuration moves inside the "Linge de lit" option card**
+  (spec `bed-config-in-linen-card.md`, 2026-06-05). The 3 bed
+  counters (Lits doubles / simples / bébé) + the "Suggérer les
+  lits" button + the capacity-mismatch warning leave the
+  "Voyageurs et couchages" card (renamed to "Voyageurs") and move
+  into the "Linge de lit" option card inside the
+  "Options et ressources" section. The sub-block is rendered ONLY
+  when the bed-linen Switch is ON; toggling it OFF auto-zeroes the
+  form state for the 3 bed counts.
+
+  **Why** — pre-change, the operator could enter bed counts on a
+  reservation without ticking the bed-linen option (the counts then
+  sat in the DB but contributed zero to the laundry aggregation), OR
+  tick the option while leaving the counts at 0 (silent "0 sheets
+  to drop off" for a reservation that obviously has beds). The two
+  surfaces are now coupled in the UI and on the server.
+
+  **Server invariant** — `reservationsController.create` and
+  `update` coerce `singleBeds / doubleBeds / babyBeds` to `0`
+  whenever the final `reservation_options` (after the property-
+  defaults auto-merge on create; as-submitted on update) contains
+  no option flagged `countsAsBedLinen = 1`. Capacity validation
+  uses the coerced values so a misbehaving client can't trip a
+  "beds exceed property capacity" error on counts that won't
+  even be saved.
+
+  **Migration** — one-shot idempotent
+  `zero_beds_when_no_bed_linen_option_v1` runs at boot, in a single
+  SQL pass via `utils/zeroBedsWhenNoBedLinenMigration.js`. Zeroes
+  the bed counts on every reservation (`kind = 'reservation'`) that
+  has no bed-linen-flagged option in `reservation_options` AND
+  whose property has no bed-linen-flagged option in
+  `property_option_defaults`. Devis (`kind = 'devis'`) are skipped
+  — they don't feed the laundry and they convert through the
+  reservation controller anyway. **No data loss** for the laundry
+  feature: the affected rows already contributed `0` to the
+  aggregation (the SQL in `laundryModel.js` requires a flagged
+  option to count).
+
+  **Multi-option edge** — if the catalog carries more than one
+  option flagged `countsAsBedLinen = 1` (rare; the seeded "Linge
+  de lit" is the typical singleton), the inputs render exactly
+  once, under the FIRST enabled bed-linen-flagged option in
+  catalog order. The same form state (`form.singleBeds` etc.)
+  backs them, so editing in one place is the only source of
+  truth.
+
+  **Tests** — +10 server (5 migration + 5 controller invariant),
+  +6 Vitest (4 `ExtrasSection.bed-linen-inputs` + 2
+  `GuestsBedsSection.no-beds`). Server suite 1006 → 1016 green;
+  Vitest 228 → 234 green; vite build clean (465 KB gzip ≈
+  baseline). Manual verification on reservation #12077 (dev DB):
+  Switch ON → sub-block + 3 inputs + button appear, Switch OFF →
+  sub-block disappears.
+
 ### Added
 - **Skip a laundry trip** (spec `skip-laundry-trip.md`, 2026-06-06).
   The operator (Adrien) can now mark a specific laundry trip date as
