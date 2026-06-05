@@ -224,7 +224,12 @@ const api = {
   // accountant role guard, see middleware/enforceRoleAccess.js).
   // accounting-platform-commission-and-no-deposit.md §4.3.
   getPlatformAccounts: () => request('/accounting/platform-accounts'),
-  savePlatformAccounts: (payload) => request('/accounting/platform-accounts', { method: 'PUT', body: JSON.stringify(payload) }),
+  // Pass the raw payload — the `request` helper above JSON.stringifies it once. The earlier
+  // version of this line also called JSON.stringify, which produced a double-encoded body
+  // (`"{\"defaultAccount\":...}"`) → body-parser rejected with 400, no row ever got persisted,
+  // and the page silently appeared to save while actually doing nothing (see 2026-06-05 bug
+  // report).
+  savePlatformAccounts: (payload) => request('/accounting/platform-accounts', { method: 'PUT', body: payload }),
   // Rescan the union of `ical_sources` + `reservations.platform` so any platform that wasn't
   // ramassée at boot (e.g. fresh manual reservation) appears on the page without a server
   // restart. Returns `{ defaultAccount, vatRateCommission, platforms, newCount }`.

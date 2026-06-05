@@ -187,7 +187,7 @@ export default function PlatformAccountsPage() {
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1100, mx: 'auto' }}>
       <PageActionBar
-        title="Plan comptable plateformes"
+        title="Plan comptable"
         backTo="/comptabilite"
         onSave={handleSave}
         saveDisabled={!isDirty || saving}
