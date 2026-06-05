@@ -376,4 +376,16 @@ that ships each step, per CLAUDE.md §4.1.)_
       toggling the skip flips card 1 to "Voyage non réalisé" AND
       bumps card 2's drop-off counts up in the same render pass
       (11 → 11 + 4 = 15 doubles ; 12 → 12 + 3 = 15 simples).
+- [x] **Hotfix 2026-06-05 follow-up #2** — after skipping two trips
+      in a row, the trip-3 card *disappeared* instead of absorbing
+      the 3-week backlog. The toggle's refetch used `from = startDate`
+      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window)
+      and `setLaundryByDate` REPLACES the whole map — wiping any
+      dates the user had already scrolled into view via infinite
+      scroll. Fixed by using `lastLoadedRef.current` as the upper
+      bound of the refetch so the entire visible range stays
+      consistent. Verified live: skip trip 1 + trip 2 → trip 3 card
+      stays visible with the full 3-week batch
+      (17 doubles + 15 simples + 19 grandes + 19 petites in
+      À apporter).
 - [x] Docs: CHANGELOG entry, spec status → Implemented.

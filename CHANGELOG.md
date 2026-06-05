@@ -83,6 +83,23 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   the next card's drop-off counts up (11 → 15 doubles, 12 → 15
   simples) in the same render pass.
 
+  **Hotfix 2026-06-05 follow-up #2 (same PR)** — third round caught a
+  scroll-related regression. Adrien skipped trips 1 and 2 in a row
+  (2026-06-09 then 2026-06-16) and the trip-3 card (2026-06-23)
+  *disappeared* instead of absorbing the 3-week backlog. Root cause:
+  the toggle handler refetched `from = startDate` to
+  `startDate + DAYS_AHEAD - 1` (= the initial 14-day window) and
+  `setLaundryByDate` REPLACES the whole map. Any laundry dates the
+  user had already scrolled into view via infinite-scroll (2026-06-23
+  and beyond) were wiped from the state, and since `laundryByDate`
+  drives the "show this Tuesday even with no arrivals" merge in the
+  date-set, the card vanished. Fixed by using `lastLoadedRef.current`
+  (the end of the last infinite-scroll page) as the upper bound of
+  the refetch, so the whole visible range stays consistent after a
+  toggle. Verified live: skipping trip 1 + trip 2 keeps trip 3
+  visible with `17 doubles + 15 simples + 19 grandes + 19 petites`
+  in À apporter (= the full 3-week absorbed batch).
+
 ### Fixed
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug

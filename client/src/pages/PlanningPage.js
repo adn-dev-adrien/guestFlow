@@ -444,8 +444,15 @@ export default function PlanningPage() {
     try {
       if (nextValue) await api.addLaundrySkip(date);
       else await api.removeLaundrySkip(date);
+      // Refetch the FULL visible window — `lastLoadedRef.current` is the end of the last
+      // infinite-scroll page. Stopping at `startDate + DAYS_AHEAD - 1` would drop any
+      // laundry cards the user already scrolled into view (e.g. 2026-06-23 after two prior
+      // pages were loaded) — they'd vanish on the next toggle because the new payload
+      // doesn't contain them and `setLaundryByDate` REPLACES the whole map.
+      // 2026-06-05 bug fix: user skipped two consecutive trips → the third (further-down)
+      // card disappeared instead of absorbing the 3-week backlog.
       const from = startDate;
-      const to = addDays(from, DAYS_AHEAD - 1);
+      const to = lastLoadedRef.current || addDays(from, DAYS_AHEAD - 1);
       const [summary, inventory] = await Promise.all([
         api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
         api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
