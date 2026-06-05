@@ -13,6 +13,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import NoteIcon from '@mui/icons-material/Note';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -296,6 +297,19 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
               </Typography>
             </Box>
           )}
+
+          {/* Cleaning duration badge — rendered at the very end of the card per Adrien
+              2026-06-05. Only present when a tight transition triggered the alert (= the
+              alert object carries `cleaningDisplay`). Same icon + position on the
+              departure card so the two ends of the conflict look symmetric. */}
+          {alertInfo?.cleaningDisplay && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
+              <CleaningServicesIcon sx={{ fontSize: 16, color: 'error.main', flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.dark' }}>
+                Ménage : {alertInfo.cleaningDisplay}
+              </Typography>
+            </Box>
+          )}
         </Box>
       </CardContent>
     </Card>
@@ -413,6 +427,18 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
               <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
               <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
                 {reservation.notes}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Cleaning duration badge — symmetric with `ReservationCard`. Same icon, same
+              copy, same colour: when a tight transition triggered the alert the operator
+              sees "Ménage : Xh" at the very end of BOTH cards involved in the conflict. */}
+          {alertInfo?.cleaningDisplay && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
+              <CleaningServicesIcon sx={{ fontSize: 16, color: 'error.main', flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.dark' }}>
+                Ménage : {alertInfo.cleaningDisplay}
               </Typography>
             </Box>
           )}
@@ -565,14 +591,21 @@ export default function PlanningPage() {
             alerts[r.id] = {
               type: 'red',
               explanation: `${prevRes.firstName} ${prevRes.lastName} part le ${departureDate} à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
+              // Surfaced as a dedicated icon + badge at the very end of the card so the
+              // operator sees the cleaning duration at a glance, no need to parse the
+              // explanation sentence. Both the arrival AND the departure of the same
+              // conflict carry the same field — see comment at the prevRes alert below.
+              cleaningDisplay,
             };
             if (!alerts[prevRes.id]) {
               // Mirror the cleaning info on the corresponding departure card so the
               // operator sees the same context on BOTH ends of the tight transition
-              // (Adrien 2026-06-05: "reporte l'info ménage sur la carte départ").
+              // (Adrien 2026-06-05: "reporte l'info ménage sur la carte départ" + "le
+              // même petit logo en toute fin de la carte").
               alerts[prevRes.id] = {
                 type: 'red',
                 explanation: `Arrivée de ${r.firstName} ${r.lastName} ${displayDate(r.startDate)} à ${r.checkInTime || '15:00'}, ménage: ${cleaningDisplay}`,
+                cleaningDisplay,
               };
             }
           }
