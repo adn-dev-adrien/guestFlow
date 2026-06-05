@@ -83,7 +83,7 @@ it carries **no commission**.
   and the 46710000 pass-through — unchanged.
 - The accountant role gating, the existing Comptabilité page UX + the open
   Pièce-numbering question from the original spec — unchanged. The new
-  "Plan comptable plateformes" page widens the accountant's allow-list by
+  "Plan comptable" page widens the accountant's allow-list by
   one route pair only.
 - The 3-bucket accounting model (deposit / balance / complement) — kept; the
   platform constraint just forces `depositAmount = 0` on platform reservations,
@@ -288,7 +288,7 @@ Make every monthly CSV match the écriture model the accountant validated:
     debit lines) — was already the case in spirit but now matches the actual
     journal line totals.
 
-### 3.7 Dedicated "Plan comptable plateformes" page (admin + accountant)
+### 3.7 Dedicated "Plan comptable" page (admin + accountant)
 
 16. **New page** at **`/comptabilite/plateformes`** — a dedicated read-write
     table where both **admin** and **accountant** roles can configure the
@@ -296,7 +296,7 @@ Make every monthly CSV match the écriture model the accountant validated:
     iCal sources, regardless of property). NOT placed inside Paramètres → iCal
     (the accountant can't reach Paramètres). NOT placed inside the existing
     `/comptabilite` page either, to keep that one focused on the month export.
-17. **Page layout** — `PageActionBar title="Plan comptable plateformes"`,
+17. **Page layout** — `PageActionBar title="Plan comptable"`,
     Save / Cancel canonical actions:
     - **Top card "Compte par défaut"**: a single number input "Compte
       commission par défaut" (8 chiffres, default `622600`). Persists to
@@ -345,7 +345,7 @@ Make every monthly CSV match the écriture model the accountant validated:
     - Other `/api/ical-sources/*` routes and the `vatRateCommission` write
       (`PUT /api/settings`) stay **admin-only**.
 20. **Sidebar wiring**:
-    - **Admin**: new sub-item *"Plan comptable plateformes"* under the
+    - **Admin**: new sub-item *"Plan comptable"* under the
       existing **Suivi financier** group (next to *Comptabilité*).
     - **Accountant**: minimal sidebar — *Comptabilité*, **NEW** *Plan comptable
       plateformes*, *Mot de passe*, *Se déconnecter*. The accountant's
@@ -551,7 +551,7 @@ UPDATE reservations
 
 ## 6. UI / UX
 
-- **Nouveau page `/comptabilite/plateformes`** ("Plan comptable plateformes")
+- **Nouveau page `/comptabilite/plateformes`** ("Plan comptable")
   — accessible aux deux rôles (admin + comptable). `PageActionBar` avec Save /
   Cancel. Deux cartes:
   - **Compte par défaut** (carte du haut): un seul `HelpedTextField` "Compte
@@ -576,15 +576,15 @@ UPDATE reservations
     *"TVA déductible commissions appliquée: 20 %  (modifiable dans Réglages
     → Général)"*. Pour les admins, le `20 %` est un lien vers `/settings`;
     pour le comptable c'est du texte simple (il ne peut pas y aller).
-  - **Sidebar admin**: nouveau sous-item *"Plan comptable plateformes"* sous
+  - **Sidebar admin**: nouveau sous-item *"Plan comptable"* sous
     *Suivi financier* (à côté de *Comptabilité*). **Sidebar comptable**:
-    *Comptabilité* → *Plan comptable plateformes* → *Mot de passe* → *Se
+    *Comptabilité* → *Plan comptable* → *Mot de passe* → *Se
     déconnecter*.
 - **Paramètres (admin) → Général → Taux de TVA** — la carte existante
   `SettingsVatSection` gagne **un 3ème champ** *"TVA déductible commissions"*
   (% number input, default 20). Même shape `HelpedTextField` que les deux
   champs existants. Helper text: *"Taux appliqué aux commissions plateforme
-  marquées 'TVA déductible' dans le Plan comptable plateformes."*
+  marquées 'TVA déductible' dans le Plan comptable."*
 - **Reservation FinanceSection** —
   - Direct booking: unchanged.
   - Platform booking: Acompte block replaced by a single-line caption ("Pas

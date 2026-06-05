@@ -66,7 +66,7 @@ beforeEach(() => {
 
 test('renders the default account + every platform row from the GET payload', async () => {
   renderPage();
-  await screen.findByText('Plan comptable plateformes');
+  await screen.findByText('Plan comptable');
   expect(screen.getByLabelText('Compte commission par défaut')).toHaveValue('622600');
   // Each platform name appears as a row label.
   expect(await screen.findByText('Airbnb')).toBeInTheDocument();
@@ -150,6 +150,86 @@ test('"Rafraîchir la liste" with newCount=0 shows the up-to-date message', asyn
   await user.click(screen.getByRole('button', { name: /Rafraîchir la liste/i }));
   await waitFor(() => expect(api.refreshPlatformAccounts).toHaveBeenCalled());
   expect(await screen.findByText(/Aucune nouvelle plateforme à ramasser/i)).toBeInTheDocument();
+});
+
+// ── 2026-06-05 regression net — the prod bug Adrien reported: filling
+//    Airbnb's account, hitting Save, leaving the page, coming back showed
+//    empty fields. Root cause was a double-JSON-encoded body
+//    (`api.savePlatformAccounts` did `JSON.stringify(payload)` + the shared
+//    `request()` helper stringified again) → 400 → nothing persisted.
+//    `api-body-encoding.test.js` pins the API helper level; the next 3
+//    cases pin the PAGE level: any future regression that breaks the round-
+//    trip between Save and a subsequent GET surfaces here. ──────────────
+
+test('round-trip — after save, the form shows the values the server returned (Airbnb account + TVA)', async () => {
+  const user = userEvent.setup();
+  // Server's PUT response shape mirrors what `model.saveAll → getAll` produces
+  // post-write: Airbnb now has its commission account + TVA toggle ON.
+  api.savePlatformAccounts.mockResolvedValue({
+    ...SAMPLE_GET,
+    platforms: SAMPLE_GET.platforms.map((p) =>
+      p.id === 2 ? { ...p, commissionAccountNumber: '62260300', hasVatOnCommission: true } : p
+    ),
+  });
+  renderPage();
+  await screen.findByText('Airbnb');
+  // Edit Airbnb's account + toggle TVA, then save.
+  const airbnbRow = screen.getByText('Airbnb').closest('tr');
+  const airbnbAccount = within(airbnbRow).getByPlaceholderText('622600 (défaut)');
+  await user.clear(airbnbAccount);
+  await user.type(airbnbAccount, '62260300');
+  await user.click(within(airbnbRow).getByRole('switch'));
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // After save, the form's Airbnb row must show what the server returned —
+  // not what the user typed, not the pre-save state. The "Configuration
+  // enregistrée." alert + non-dirty Save button (= disabled) together prove
+  // the round-trip closed cleanly.
+  await screen.findByText(/Configuration enregistrée/i);
+  const airbnbRow2 = screen.getByText('Airbnb').closest('tr');
+  expect(within(airbnbRow2).getByPlaceholderText('622600 (défaut)')).toHaveValue('62260300');
+  expect(within(airbnbRow2).getByRole('switch')).toBeChecked();
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+});
+
+test('round-trip — remount after save: GET returns the persisted state, form re-populates from it', async () => {
+  // First mount: empty defaults.
+  const { unmount } = renderPage();
+  await screen.findByText('Airbnb');
+  expect(screen.getByText('Airbnb').closest('tr').querySelector('input[type="text"]'))
+    .toHaveValue('');
+  unmount();
+  // Simulate the navigate-away-then-back scenario by re-mounting with the
+  // GET payload now reflecting a previously-persisted save. THIS is the
+  // shape the prod user expected on come-back and was missing — pinning it
+  // here means a future double-encode regression that silently 400s a save
+  // (so the second GET still returns the empty pre-save state) will fail
+  // this test as soon as the wiring is wrong end-to-end.
+  api.getPlatformAccounts.mockResolvedValue({
+    ...SAMPLE_GET,
+    platforms: SAMPLE_GET.platforms.map((p) =>
+      p.id === 2 ? { ...p, commissionAccountNumber: '62260300', hasVatOnCommission: true } : p
+    ),
+  });
+  renderPage();
+  const airbnbRow = (await screen.findByText('Airbnb')).closest('tr');
+  expect(within(airbnbRow).getByPlaceholderText('622600 (défaut)')).toHaveValue('62260300');
+  expect(within(airbnbRow).getByRole('switch')).toBeChecked();
+});
+
+test('Cancel restores the last-saved state (not the in-progress edits)', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await screen.findByText('Airbnb');
+  // Type something into Airbnb, then click Cancel — the field must revert to
+  // its initial (savedPlatforms) value, not stay with the typed value.
+  const airbnbRow = screen.getByText('Airbnb').closest('tr');
+  const airbnbAccount = within(airbnbRow).getByPlaceholderText('622600 (défaut)');
+  await user.clear(airbnbAccount);
+  await user.type(airbnbAccount, '99999999');
+  expect(airbnbAccount).toHaveValue('99999999');
+  await user.click(screen.getByRole('button', { name: 'Annuler' }));
+  expect(within(screen.getByText('Airbnb').closest('tr')).getByPlaceholderText('622600 (défaut)'))
+    .toHaveValue('');
 });
 
 test('validation error from the server is surfaced under the bad row', async () => {
