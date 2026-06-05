@@ -221,8 +221,10 @@ test('Chloé scenario — end-to-end via entryToRows: the actual CSV rows produc
   const entries = model.encaissementsByMonth({ month: 5, year: 2026 });
   assert.equal(entries.length, 1);
 
-  // Capture console.warn so we can assert no warning fires (the defensive log only triggers
-  // above 1 € residue — clean entries must stay below that threshold).
+  // Capture console.warn so we can assert the export emits NO log noise on a healthy entry.
+  // The defensive "credit/debit residue" warn from PR #125 was removed on 2026-06-05 (it fired
+  // on legitimate legacy entries — see accountingExport.js for the rationale). This assertion
+  // stays as a regression net: if anyone re-adds a noisy log path here, this test catches it.
   const warnings = [];
   const originalWarn = console.warn;
   console.warn = (msg) => warnings.push(String(msg));
@@ -233,9 +235,8 @@ test('Chloé scenario — end-to-end via entryToRows: the actual CSV rows produc
     console.warn = originalWarn;
   }
 
-  // No big-residue warning fires on a healthy entry.
   assert.equal(warnings.filter((w) => w.includes('credit/debit residue')).length, 0,
-    'no large-residue warning should fire on a healthy entry post-fix');
+    'no residue warning should fire — silent absorption is the production behaviour');
 
   // Find each row's debit/credit (indices 7=Débit, 8=Crédit per CSV_HEADERS).
   const DEBIT = 7;

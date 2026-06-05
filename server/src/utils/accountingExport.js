@@ -155,39 +155,25 @@ function entryToRows(entry) {
   // Rounding residue: nudge the last credit so Σ credits == gross debit (to the cent).
   //
   // A few cents of residue is legitimate (per-bucket HT and VAT are independently rounded
-  // to the cent, so the sum can drift by ±0.01–0.02 € on a typical entry). Anything larger
-  // means the buckets don't actually account for the encaissement TTC — and silently
-  // absorbing a big residue onto a single line produces a NEGATIVE VAT (or a negative
-  // revenue) on the export, which is comptablement aberrant.
+  // to the cent, so the sum drifts by ±0.01–0.02 € on a typical entry). Absorbing that drift
+  // onto the last credit line keeps the entry balanced for the accountant.
   //
-  // The 2026-06-05 prod bug surfaced exactly this shape: a stale `quote` rebuilt without
-  // the operator's `customPrice` override + `offeredOptionIds` produced an options bucket
-  // of 79,82 € HT on a reservation whose actual options had been offered to 0 €. The
-  // residue was -87,80 €, dumped onto the VAT line → 70,43 + (-87,80) = -17,36 €. The
-  // accountant saw a TVA collectée négative and immediately flagged it.
+  // A previous iteration (PR #125) emitted a `console.warn` whenever the residue exceeded 1 €,
+  // on the theory that "anything larger means the buckets don't actually account for the
+  // encaissement TTC" — that catches the 2026-06-05 Chloé bug (stale quote → -87,80 € residue
+  // → negative VAT). The warning was removed for prod (2026-06-05) because it fires on
+  // legitimate legacy entries too: reservation #12078 produced 75,61 € / 176,39 € residues on
+  // the deposit + balance pro-ratas, which are mathematically right under their own logic but
+  // far outside the 1 € ceiling. The signal-to-noise didn't justify keeping the log.
   //
-  // We don't throw on a large residue because some existing legacy entries (deposit
-  // pro-ratas with synthetic bucket fixtures) can legitimately produce a few euros of
-  // residue. Instead we emit a single-line `console.warn` when the residue exceeds 1 €
-  // (well above the 0,06 € rounding ceiling, well below typical real-world bug shapes).
-  // The warning carries enough context (reservationId + kind + sums) so the operator can
-  // jump straight to the offending reservation. Plain `console.warn` so the log line is
-  // visible in `pm2 logs guestflow` without changing the logger plumbing.
+  // The silent-absorb behaviour was always the production output; we only dropped the log.
+  // If a future bug produces a comptablement-aberrant negative VAT line, the regression test
+  // `accounting-export-legacy-path-stale-quote` catches it via the actual VAT amount, not via
+  // the side effect of a log line.
   const allCredits = [...revenueLines, ...vatLines, ...taxLines];
   if (allCredits.length > 0) {
     const sum = round2(allCredits.reduce((a, l) => a + l.amount, 0));
     const residue = round2(grossDebitTtc - sum);
-    if (Math.abs(residue) > 1) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[accounting-export] reservation #${entry.reservationId} ${entry.kind}: ` +
-        `credit/debit residue = ${residue.toFixed(2)} € (sum=${sum.toFixed(2)} €, ` +
-        `grossDebit=${grossDebitTtc.toFixed(2)} €). Likely a stale quote-recompute path ` +
-        `producing bucket totals that disagree with row.finalPrice — check the engine ` +
-        `inputs in accountingModel.computeQuoteForReservation. Absorbing onto the last ` +
-        `credit line will produce a non-sensical (possibly negative) value.`
-      );
-    }
     if (residue !== 0) {
       allCredits[allCredits.length - 1].amount = round2(allCredits[allCredits.length - 1].amount + residue);
     }
