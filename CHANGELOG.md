@@ -5,6 +5,66 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Fixed
+- **Plan comptable — `PUT /api/accounting/platform-accounts` no longer
+  double-encodes the body + page renamed to "Plan comptable"**
+  (2026-06-05). User report from prod: filling the form, hitting
+  Save, leaving and coming back showed empty fields — nothing was
+  ever persisted.
+
+  Live Playwright capture of the failing request body on the dev
+  server (rebuilt with prod-shape data):
+  ```
+  "{\"defaultAccount\":\"622600\",\"platforms\":[…]}"
+  ```
+  The body was JSON-stringified TWICE: once by
+  `api.savePlatformAccounts` (`body: JSON.stringify(payload)`),
+  then again by the shared `request()` helper in `client/src/api.js`
+  (line 10 — single source of truth for body serialisation across
+  the whole client). Express's body-parser rejected with
+  `SyntaxError: Unexpected token '"', "{\"defau"...` and returned
+  a `400 Bad Request`. The PUT response was an HTML error page,
+  the alert surfaced "Bad Request", but the form's optimistic
+  state still showed the typed values — so the user perceived the
+  save as successful until the next reload returned the unchanged
+  GET payload.
+
+  **Fix** (`client/src/api.js` line 227): drop the redundant
+  `JSON.stringify(payload)` and pass the raw object to
+  `request()`, matching every other endpoint in the file. Comment
+  added pointing back to this report so the next reader doesn't
+  re-introduce the same mistake.
+
+  **Regression net (two layers)**:
+  - **API helper** (`client/src/__tests__/api-body-encoding.test.js`,
+    2 cases) — (1) `savePlatformAccounts` produces a body that
+    parses straight to the original payload, with the first
+    character `{` (the smoking gun of double-encoding is a leading
+    `"`); (2) source-level scan asserts NO `body: JSON.stringify(…)`
+    exists in `api.js` outside the `request()` helper. Catches any
+    future endpoint that re-encodes by mistake.
+  - **Page-level round-trips** (`client/src/pages/__tests__/PlatformAccountsPage.test.js`,
+    3 new cases on top of the 8 already shipped):
+    (a) **Save round-trip** — after a save, the form reflects the
+        server response (typed value + TVA toggle), the "Configuration
+        enregistrée" alert is shown, and the Save button goes back to
+        disabled. Would have failed loudly under the double-encode
+        bug because `savePlatformAccounts` rejected with 400 and the
+        alert showed "Bad Request" instead of "Configuration
+        enregistrée".
+    (b) **Remount round-trip** — unmounting the page and remounting
+        with the new GET payload re-populates the form with the
+        persisted values. This pins the exact prod scenario Adrien
+        hit: leave the page → come back → fields should show what was
+        just saved, never empty.
+    (c) **Cancel restores last-saved state** — typing then clicking
+        Cancel reverts to the initial value, not the typed one.
+  Vitest **218 → 223 / 223 green**.
+
+  **Page rename**: `/comptabilite/plateformes` was titled "Plan
+  comptable plateformes" (header + sidebar + helper text in
+  Settings → Général). Renamed to "Plan comptable" everywhere
+  (3 client strings + 1 test assertion + 8 spec references).
+
 - **Platform colours restored on EVERY calendar surface + the finance
   summary, with a filesystem invariant test that prevents the
   regression from re-appearing silently** (2026-06-05). Initial fix

@@ -60,7 +60,7 @@ export default function SettingsVatSection({
             fullWidth
             disabled={disabled}
             error={Boolean(errors.vatRateCommission)}
-            helperText={errors.vatRateCommission || "Taux appliqué aux commissions plateforme marquées 'TVA déductible' dans le Plan comptable plateformes."}
+            helperText={errors.vatRateCommission || "Taux appliqué aux commissions plateforme marquées 'TVA déductible' dans le Plan comptable."}
             sx={{ maxWidth: { sm: 320 } }}
             slotProps={{
               htmlInput: { min: 0, max: 100, step: 0.5 }

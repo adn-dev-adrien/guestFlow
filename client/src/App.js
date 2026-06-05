@@ -368,7 +368,7 @@ function NavContent({ onItemClick }) {
                     selected={location.pathname === '/comptabilite/plateformes'}
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
-                    <ListItemText primary="Plan comptable plateformes" slotProps={{
+                    <ListItemText primary="Plan comptable" slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
