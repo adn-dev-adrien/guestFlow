@@ -213,3 +213,25 @@ test('update: bed-linen-flagged property default is re-merged → counts persist
   controller.update(req, fakeRes());
   assert.deepEqual(captures.updated, { id: 44, singleBeds: 3, doubleBeds: 2, babyBeds: 0 });
 });
+
+test('update: NON-bed-linen property default is NOT re-merged (historical preservation still holds for other defaults)', () => {
+  // specs/bed-config-in-linen-card.md §3 rule 4.bis explicitly limits the re-merge to
+  // `countsAsBedLinen = 1` options. A "Ménage" or "Petit-déjeuner" default that the
+  // operator removed from this specific reservation must stay removed (rule 30 in other
+  // specs). Without this scoping, every other property default would silently reappear
+  // on every edit — a regression we pin against.
+  const captures = {};
+  const controller = buildController({
+    defaults: [{ optionId: 2, offered: false }], // property default: option 2 = a NON-linen option
+    bedLinenFlaggedIds: new Set([1]), // option 2 is NOT bed-linen-flagged
+    captures,
+  });
+  const req = {
+    params: { id: '45' },
+    // Payload omits the non-linen default + has no bed-linen option either.
+    body: basicBody({ singleBeds: 4, doubleBeds: 0, babyBeds: 0, options: [] }),
+  };
+  controller.update(req, fakeRes());
+  // Bed counts → 0 (no bed-linen anywhere → invariant fires).
+  assert.deepEqual(captures.updated, { id: 45, singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+});

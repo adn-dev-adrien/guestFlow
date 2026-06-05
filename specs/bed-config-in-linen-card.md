@@ -474,3 +474,24 @@ that ships each step, per CLAUDE.md §4.1.)_
       `firstEnabledBedLinenOptionId` to include property-default
       lookups (so the bed inputs sub-block surfaces correctly). +2
       tests (1 server, 1 Vitest).
+- [x] **Hotfix 2026-06-05 follow-up #2** — Adrien hit `400
+      GROSS_BELOW_NET` after adding the bed-linen option on a direct
+      reservation. Root cause was independent of this spec but
+      surfaced through it: the form's gross input
+      (`FinanceSection.js`) is rendered ONLY for non-direct
+      platforms, so the stored `clientGrossAmount` sits frozen the
+      moment `finalPrice` recomputes. The reservations controller
+      now coerces `clientGrossAmount = quote.finalPrice` when
+      `platform === 'direct'` before the validator runs (`create`
+      AND `update`). Platform reservations stay authoritative on
+      the operator-entered gross. +5 server tests
+      (`reservations-controller-gross-coercion.unit.test.js`).
+- [x] **Hotfix 2026-06-05 follow-up #3 — coverage extension** —
+      added 2 extra Vitest cases on the property-default
+      enforcement: a non-bed-linen catalog option stays toggleable
+      when a bed-linen option is forced (= the locking is scoped
+      correctly), and explicit-in-selectedOptions + forced-by-
+      property both honour the disabled Switch (no double-toggle
+      confusion). Added 1 extra server test pinning that non-bed-
+      linen property defaults are NOT re-merged on update
+      (historical preservation still holds for them).

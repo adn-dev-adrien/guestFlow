@@ -75,12 +75,41 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     checked + disabled, 3 bed inputs visible, caption shown, sub-
     block rendered.
 
-  **Tests** — +10 server (5 migration + 5 controller invariant + 1
-  property-default re-merge), +7 Vitest (5
+  **Hotfix 2026-06-05 follow-up #2 — GROSS_BELOW_NET on direct
+  bookings (same PR)** — Adrien hit `400 GROSS_BELOW_NET` after
+  adding the bed-linen option on reservation #12089 (direct booking,
+  Gite property). Root cause is independent of this spec but
+  surfaces through it: the form's gross input
+  (`client/src/components/reservation/FinanceSection.js:129`) is
+  rendered ONLY for non-direct platforms, so the stored
+  `clientGrossAmount` sits frozen the moment `finalPrice`
+  recomputes. The boot-time migration backfills
+  `clientGrossAmount = finalPrice` for direct rows but doesn't
+  re-fire on subsequent saves. The reservations controller now
+  coerces `clientGrossAmount = quote.finalPrice` when
+  `platform === 'direct'` (or empty) before the validator runs, in
+  both `create` AND `update`. Platform reservations stay
+  authoritative on the operator-entered gross (the input is visible
+  + editable for them).
+  Tests: +5 server cases in
+  `reservations-controller-gross-coercion.unit.test.js`.
+
+  **Coverage extension** — added 1 server test pinning that
+  NON-bed-linen property defaults are NOT re-merged on update
+  (historical preservation still holds for non-linen defaults), and
+  2 extra Vitest cases on the property-default enforcement: a
+  non-bed-linen catalog option stays toggleable when a bed-linen
+  option is forced, and the disabled Switch stays disabled when the
+  bed-linen option is explicit in `selectedOptions` AND forced by
+  property default (no double-toggle confusion).
+
+  **Tests (total for this spec + follow-ups)** — +17 server (5
+  migration + 5 controller invariant + 1 property-default re-merge
+  + 1 non-linen-default scoping + 5 gross coercion), +9 Vitest (7
   `ExtrasSection.bed-linen-inputs` + 2 `GuestsBedsSection.no-beds`).
-  Server suite 1006 → 1017 green; Vitest 228 → 235 green; vite build
+  Server suite 1006 → 1023 green; Vitest 228 → 237 green; vite build
   clean (465 KB gzip ≈ baseline). Manual verification on
-  reservation #12077 (dev DB):
+  reservation #12077 (dev DB) and live save on #12089:
   Switch ON → sub-block + 3 inputs + button appear, Switch OFF →
   sub-block disappears.
 

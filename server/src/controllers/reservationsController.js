@@ -19,6 +19,17 @@ const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsMod
 
 const model = reservationsModel;
 
+// Direct bookings have no platform commission → the customer pays the owner directly, so
+// `clientGrossAmount` MUST equal `finalPrice`. The form doesn't render the gross input for
+// directs (FinanceSection.js only shows it for platform reservations), so the stored value
+// drifts the moment finalPrice recomputes (e.g. the operator adds an option). Without this
+// coercion the validator rightfully rejects gross < net with a 400 GROSS_BELOW_NET, but
+// from the operator's POV it's a phantom error — they never controlled the value.
+// Spec: specs/bed-config-in-linen-card.md §10 hotfix follow-up #2 (2026-06-05).
+function isDirectPlatform(platform) {
+  return !platform || String(platform).toLowerCase() === 'direct';
+}
+
 // specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
 // maps to a `countsAsBedLinen = 1` row in `options`. Used by create + update to gate the
 // bed-counts coercion: if the saved reservation has no bed-linen contract, `singleBeds /
@@ -316,6 +327,11 @@ function create(req, res) {
     });
   }
 
+  // Direct: derive gross from net before the validator runs (the client form never edits this
+  // field for direct bookings — see comment on `isDirectPlatform` above).
+  if (isDirectPlatform(req.body.platform)) {
+    req.body.clientGrossAmount = quote.finalPrice;
+  }
   const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
   if (grossError) return res.status(400).json({ error: grossError });
 
@@ -467,6 +483,10 @@ function update(req, res) {
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
+  // Same coercion as `create`: direct → gross = net (see `isDirectPlatform` comment).
+  if (isDirectPlatform(req.body.platform)) {
+    req.body.clientGrossAmount = quote.finalPrice;
+  }
   const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
   if (grossError) return res.status(400).json({ error: grossError });
 

@@ -164,6 +164,49 @@ test('bed-linen option forced by property default → Switch checked + disabled 
   expect(screen.getByText(/Inclus par défaut/i)).toBeInTheDocument();
 });
 
+test('a non-bed-linen option in the same catalog stays toggleable when the bed-linen option is forced', () => {
+  // The forcing applies ONLY to bed-linen-flagged options. A regular option (e.g. "Départ
+  // tardif") on the same property must keep its normal Switch behaviour. Without scoping
+  // the forcing to bed-linen-flagged ids, ALL property defaults would silently lock — a
+  // regression we pin against.
+  const setOptionEnabled = vi.fn();
+  renderWith(buildContext({
+    propertyOptions: [BED_LINEN_OPT, REGULAR_OPT],
+    selectedOptions: [],
+    firstEnabledBedLinenOptionId: 1,
+    bedLinenForcedOptionIds: new Set([1]), // ONLY the bed-linen option (id=1) is forced
+    setOptionEnabled,
+  }));
+  // We want to assert the REGULAR_OPT's activation Switch is not disabled. The forced
+  // bed-linen card renders the activation Switch + a complement-routing Switch (since the
+  // option is shown as enabled), so the regular option's activation Switch is NOT at index
+  // 1. Locate it by walking the DOM in reverse: it's the last activation switch (one per
+  // option card), and the regular option card has exactly one switch (it's not enabled).
+  const allSwitches = screen.getAllByRole('switch');
+  const regularSwitch = allSwitches[allSwitches.length - 1];
+  expect(regularSwitch).not.toBeDisabled();
+  expect(regularSwitch).not.toBeChecked();
+  // Confirm the bed-linen Switch is still disabled by checking the FIRST switch is the
+  // forced one.
+  expect(allSwitches[0]).toBeDisabled();
+  expect(allSwitches[0]).toBeChecked();
+});
+
+test('bed-linen explicitly in selectedOptions AND in bedLinenForcedOptionIds → still Switch-disabled (no double-toggle confusion)', () => {
+  // After a save round-trip on a new reservation, the option lives in both signals:
+  // (a) form.selectedOptions (the server persisted it via auto-merge), and (b) the forced
+  // set (the property still declares it as a default). The Switch should stay disabled —
+  // the property contract overrides any operator state.
+  renderWith(buildContext({
+    selectedOptions: [{ optionId: 1, quantity: 1 }],
+    firstEnabledBedLinenOptionId: 1,
+    bedLinenForcedOptionIds: new Set([1]),
+  }));
+  const sw = screen.getAllByRole('switch')[0];
+  expect(sw).toBeChecked();
+  expect(sw).toBeDisabled();
+});
+
 test('multiple bed-linen-flagged options both enabled → bed inputs render exactly ONCE under the first', () => {
   renderWith(buildContext({
     propertyOptions: [BED_LINEN_OPT, REGULAR_OPT, SECOND_BED_LINEN_OPT],
