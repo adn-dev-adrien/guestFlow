@@ -115,7 +115,7 @@ export default function LogoUpload({
             <Typography variant="caption" color="text.disabled">{placeholder}</Typography>
           </Box>
         )}
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Button
             variant="outlined"
             size="small"

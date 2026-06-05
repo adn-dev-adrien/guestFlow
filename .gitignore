@@ -165,3 +165,7 @@ e2e/.auth/
 playwright-report/
 test-results/
 .last-run.json
+
+# Playwright MCP server scratch dir (snapshots / console logs from in-session
+# Claude Code investigations — not a deliverable, regenerated every session).
+.playwright-mcp/

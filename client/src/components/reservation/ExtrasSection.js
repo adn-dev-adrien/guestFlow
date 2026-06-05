@@ -78,7 +78,7 @@ export default function ExtrasSection() {
                       }}
                     >
                       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-start' }, justifyContent: 'space-between' }}>
                           <Box flex={1}>
                             <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
                             <Typography variant="body2" color="text.secondary">
@@ -87,7 +87,7 @@ export default function ExtrasSection() {
                                 : `${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
                             </Typography>
                           </Box>
-                          <Stack alignItems="flex-end" spacing={0.5}>
+                          <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                             <FormControlLabel
                               sx={{ m: 0 }}
                               control={<Switch checked={enabled} disabled={isAutoTimedOption} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
@@ -99,7 +99,7 @@ export default function ExtrasSection() {
                         </Stack>
 
                         {enabled && !isAutoTimedOption && (
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
                             <TextField
                               size="small"
                               type="number"
@@ -111,7 +111,7 @@ export default function ExtrasSection() {
                                 htmlInput: { min: 1 }
                               }}
                             />
-                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                            <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
                               {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                   Small Switch — same visual family as the activation Switch above, just
                                   smaller, so the operator perceives it as the same kind of widget at a
@@ -144,13 +144,13 @@ export default function ExtrasSection() {
                         )}
 
                         {enabled && isAutoTimedOption && (
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between" flexWrap="wrap">
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between', flexWrap: 'wrap' }}>
                             {selected?.autoFullNightApplied
                               ? <Chip size="small" variant="outlined" label="Nuit complète appliquée" />
                               : selected?.autoExtraHours > 0
                                 ? <Chip size="small" variant="outlined" label={`${Number(selected.autoExtraHours).toFixed(1).replace('.0', '')}h supplémentaire${selected.autoExtraHours >= 2 ? 's' : ''}`} />
                                 : null}
-                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                            <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
                               {/* Force-to-complement override for auto-options (spec force-item-to-complement.md §3.1).
                                   Same small Switch + Tooltip pattern as regular options above. Common
                                   case: late check-out surcharge collected at check-out → belongs in the
@@ -192,7 +192,7 @@ export default function ExtrasSection() {
           <>
             {propertyOptions.length > 0 && <Divider />}
             <Box>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+              <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="subtitle2">Options personnalisées</Typography>
                 <Button size="small" variant="outlined" onClick={addCustomOption} disabled={isReservationLocked}>
                   Ajouter une ligne
@@ -296,7 +296,7 @@ export default function ExtrasSection() {
                         }}
                       >
                         <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'flex-start' }} justifyContent="space-between">
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-start' }, justifyContent: 'space-between' }}>
                             <Box flex={1}>
                               <Typography sx={{ fontWeight: 600 }}>{resource.name}</Typography>
                               <Typography variant="body2" color={resourceConflict ? 'error.main' : 'text.secondary'}>
@@ -310,7 +310,7 @@ export default function ExtrasSection() {
                                 </Typography>
                               )}
                             </Box>
-                            <Stack alignItems="flex-end" spacing={0.5}>
+                            <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                               <FormControlLabel
                                 sx={{ m: 0 }}
                                 control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable} />}
@@ -320,7 +320,7 @@ export default function ExtrasSection() {
                           </Stack>
 
                           {enabled && (
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ mt: 1 }} justifyContent="space-between">
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
                               <TextField
                                 size="small"
                                 type="number"
@@ -336,7 +336,7 @@ export default function ExtrasSection() {
                                     : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }
                                 }}
                               />
-                              <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                              <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
                                 {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                     Small Switch + Tooltip pattern, mirrors the option block above. Hidden
                                     on platform reservations

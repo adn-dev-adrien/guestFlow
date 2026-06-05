@@ -147,7 +147,7 @@ export default function DevisPage() {
       <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 1, sm: 2 } }}>
       <Card variant="outlined" sx={{ bgcolor: '#fff', mt: 2 }}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+          <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel>Statut</InputLabel>
               <Select
@@ -222,7 +222,7 @@ export default function DevisPage() {
                         </Typography>
                       </TableCell>
                       <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'center' }}>
                           <Tooltip title="Modifier">
                             <IconButton size="small" onClick={() => handleEditDevis(d)}>
                               <EditIcon fontSize="small" />
