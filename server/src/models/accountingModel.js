@@ -133,6 +133,27 @@ function computeQuoteForReservation(database, row) {
       COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
     FROM reservation_resources WHERE reservationId = ?
   `).all(row.id);
+  // 2026-06-05 — the legacy path of `buildEntry` (taken when ALL contribs are NULL on a
+  // reservation, e.g. a Solde flipped before the force-item-to-complement feature shipped)
+  // reads buckets straight off this recomputed `quote`. To keep the buckets aligned with the
+  // money actually persisted on the row, the engine MUST see the same routing+overrides the
+  // controller fed it on save. Specifically:
+  //
+  //   - `offeredOptionIds` / `offered`: without them the engine rebuilds option lines at their
+  //     catalog price (offered options resurface — e.g. an 80 € ménage that the operator
+  //     offered to 0 €), `quote.optionsTotal` grows, and the legacy bucket emits a phantom
+  //     70600010 (`Prestation complémentaire`) credit. The residue absorption on the last
+  //     credit (`accountingExport.js → entryToRows`) then drives the VAT line NEGATIVE to
+  //     keep Σ credits == grossDebit. Symptom: a `Frais Gîtes de France` export with
+  //     `44571100 VAT 10% = -17,36 €` reported on Chloé Le Lann's reservation
+  //     (resa #5 on prod, balancePaidDate 2026-05-07).
+  //   - `customPrice`: without it the engine recomputes accommodation from the pricing rules
+  //     and ignores the operator's manual override stored on `reservations.customPrice`. Same
+  //     residue-absorption side-effect, just on the accommodation bucket.
+  //
+  // Passing both fields makes the legacy path's buckets match `row.finalPrice` exactly →
+  // residue collapses to ≤ 1 cent of pure rounding noise → no negative VAT.
+  const offeredOptionIds = options.filter((o) => Number(o.offered) === 1).map((o) => Number(o.optionId));
   return calculateReservationQuote({
     db: database,
     propertyId: row.propertyId,
@@ -146,7 +167,12 @@ function computeQuoteForReservation(database, row) {
     babies: row.babies,
     discountPercent: row.discountPercent,
     customPrice: row.customPrice,
-    selectedOptions: options.map((o) => ({ optionId: o.optionId, quantity: o.quantity, inComplement: o.inComplement })),
+    selectedOptions: options.map((o) => ({
+      optionId: o.optionId,
+      quantity: o.quantity,
+      inComplement: o.inComplement,
+      offered: Boolean(o.offered),
+    })),
     customOptions: customOptions.map((c) => ({
       customOptionId: c.customOptionId,
       customKey: String(c.customOptionId),
@@ -157,7 +183,13 @@ function computeQuoteForReservation(database, row) {
       acompteContribTtc: c.acompteContribTtc,
       soldeContribTtc: c.soldeContribTtc,
     })),
-    selectedResources: resources.map((r) => ({ resourceId: r.resourceId, quantity: r.quantity, inComplement: r.inComplement })),
+    selectedResources: resources.map((r) => ({
+      resourceId: r.resourceId,
+      quantity: r.quantity,
+      inComplement: r.inComplement,
+      offered: Boolean(r.offered),
+    })),
+    offeredOptionIds,
     depositPaid: false,
     balancePaid: false,
     platform: row.platform,

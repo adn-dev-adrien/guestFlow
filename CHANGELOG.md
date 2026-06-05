@@ -5,6 +5,71 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Fixed
+- **Accounting export — legacy path now sees `customPrice` + offered
+  options, no more negative VAT row** (2026-06-05). Live prod bug
+  reported on Chloé Le Lann's reservation
+  (#5, Gitedefrance, balancePaidDate 2026-05-07): the monthly export
+  was producing
+
+  ```
+  CRÉDIT 70600000 Location gîte           624,54 €
+  CRÉDIT 70600010 Prestation comp.         79,82 €
+  CRÉDIT 44571100 TVA 10 %                -17,36 €   ← phantom
+  ```
+
+  Σ crédits still equalled Σ débits (687 €) — the accounting *was*
+  balanced — but the VAT row showed −17,36 € for a reservation whose
+  options were all offered to 0 €. The accountant rightly flagged it.
+
+  **Root cause** — the engine's `buildEntry` has two paths: a
+  contrib-driven path (used when at least one `*ContribTtc` column is
+  non-NULL) and a legacy fallback that derives buckets from a freshly
+  recomputed `quote`. Chloé's reservation had all contribs NULL (the
+  Solde was flipped 2026-05-07, **before** the
+  `force-item-to-complement` feature shipped and started capturing
+  per-line contribs at the 0→1 flip), so the legacy path fired.
+
+  `accountingModel.computeQuoteForReservation` was passing
+  `selectedOptions` / `selectedResources` without the `offered`
+  flag and was forgetting `offeredOptionIds` entirely. It was also
+  passing `customPrice` but no test exercised that input. Net effect:
+  the recomputed quote silently put the offered ménage back at its
+  80 € catalog price, the legacy bucket emitted a 79,82 € credit on
+  70600010, and the residue-absorption on the last credit line dumped
+  the resulting -87,80 € mismatch onto the VAT row.
+
+  **Fix** — `computeQuoteForReservation` now passes
+  `customPrice: row.customPrice`, `offeredOptionIds` (computed from
+  `reservation_options.offered = 1`), AND `offered: Boolean(o.offered)`
+  on each `selectedOptions` / `selectedResources` entry. The legacy
+  path's buckets now match `row.finalPrice` exactly → residue
+  collapses to ≤ 1 cent of pure rounding noise → VAT stays positive.
+
+  **Defensive guard** — `accountingExport.js` now emits a single-line
+  `console.warn` when the credit-vs-debit residue exceeds 1 € (well
+  above the 0,06 € rounding ceiling, well below typical real-world
+  bug shapes). The warning carries the reservationId + kind + sums so
+  the operator can jump straight to the offending reservation in
+  `pm2 logs guestflow`. The absorption still nudges the last credit
+  silently for small residues (where the existing test fixtures
+  legitimately rely on it).
+
+  **Regression net** —
+  `server/src/tests/accounting-export-legacy-path-stale-quote.unit.test.js`
+  reproduces Chloé's exact prod state (in-memory DB + offered options
+  + customPrice override + NULL contribs + Gitedefrance commission)
+  and pins:
+  - the legacy bucket shape (accommodation HT 569,09 + VAT 56,91, no
+    options bucket);
+  - the `legacyFraction` carries `grossRatio` (= 1,09744);
+  - effective HT × fraction = 624,55 €, effective VAT × fraction =
+    62,45 € (positive);
+  - end-to-end CSV: no 70600010 row, no negative credit, no
+    large-residue warning, Σ debits = Σ credits = 687 €.
+
+  Server tests **964 → 967 / 967 green** (3 new cases; 2 pre-existing
+  parallel-runner flakes from prior PRs still clear in isolation).
+
 - **Plan comptable — `PUT /api/accounting/platform-accounts` no longer
   double-encodes the body + page renamed to "Plan comptable"**
   (2026-06-05). User report from prod: filling the form, hitting
