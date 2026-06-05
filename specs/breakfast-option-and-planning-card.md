@@ -322,3 +322,22 @@ that ships each step, per CLAUDE.md §4.1.)_
       2026-06-04 → 2026-06-07): 3 cards rendered for the dates
       06-05, 06-06, 06-07 with the right person count.
 - [x] Docs: spec status → Implemented, CHANGELOG entry.
+- [x] **Hotfix 2026-06-05 follow-up — clickable planning cards** —
+      Adrien asked that ALL planning cards (arrivals, departures,
+      breakfast) open the corresponding reservation form on click.
+      Wired `useNavigate` + `withFrom('/planning')` in `PlanningPage`,
+      exposed an `onOpen(reservationId)` prop on both inline cards
+      (`ReservationCard` for arrivals, `DepartureMiniRow` for
+      departures) — the whole Card root is clickable with a cursor +
+      hover affordance, and the per-row checkbox's `onClick` /
+      wrapper `onClick` are `stopPropagation`'d so toggling
+      ready/done doesn't trigger navigation. Extended
+      `BreakfastDayCard` with a new `onItemClick(reservationId)`
+      prop: each row becomes a `role="button"` with keyboard support
+      (Enter / Space). Verified live on dev server: arrival card
+      navigates to `/reservations/12103?from=/planning`, departure
+      to `/reservations/12081?from=/planning`, breakfast row to
+      `/reservations/12082?from=/planning`. Checkbox click stays on
+      the planning. +3 Vitest cases on `BreakfastDayCard` (onItemClick
+      forwards id; Enter triggers handler; omitted prop = no button
+      role).

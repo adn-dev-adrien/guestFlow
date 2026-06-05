@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Checkbox, Chip, Divider,
   LinearProgress, TextField, Button, Tooltip, IconButton, Table, TableBody, TableCell, TableRow
@@ -19,6 +20,7 @@ import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
 import { displayDate } from '../utils/formatters';
+import { withFrom } from '../utils/navigation';
 import api from '../api';
 
 const DAYS_AHEAD = 14;
@@ -137,8 +139,13 @@ function ResourceBookingsSection({ bookings }) {
   );
 }
 
-function ReservationCard({ reservation, onToggleReady, alertInfo }) {
+function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
   const r = reservation;
+  const clickable = typeof onOpen === 'function';
+  const handleCardClick = clickable ? () => onOpen(r.id) : undefined;
+  // Stop propagation on interactive child controls so they don't bubble up to the card's
+  // navigate-on-click handler.
+  const stop = (e) => e.stopPropagation();
   const done = !!r.checkInReady;
   const adults = Number(r.adults || 0);
   const children = Number(r.children || 0);
@@ -167,6 +174,7 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   return (
     <Card
       variant="outlined"
+      onClick={handleCardClick}
       sx={{
         mb: 1.5,
         borderRadius: 2,
@@ -174,17 +182,20 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
         bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
+        cursor: clickable ? 'pointer' : 'default',
+        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         {/* Top row: checkbox + ARRIVÉE badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
           <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
               checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
               checked={done}
               onChange={() => onToggleReady(r)}
+              onClick={stop}
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
@@ -291,8 +302,11 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   );
 }
 
-function DepartureMiniRow({ reservation, onToggleDone }) {
+function DepartureMiniRow({ reservation, onToggleDone, onOpen }) {
   const done = Boolean(reservation.checkOutDone);
+  const clickable = typeof onOpen === 'function';
+  const handleCardClick = clickable ? () => onOpen(reservation.id) : undefined;
+  const stop = (e) => e.stopPropagation();
   const checkOutTime = reservation.checkOutTime || '10:00';
   const adults = Number(reservation.adults || 0);
   const children = Number(reservation.children || 0);
@@ -301,6 +315,7 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
   return (
     <Card
       variant="outlined"
+      onClick={handleCardClick}
       sx={{
         mb: 1.5,
         borderRadius: 2,
@@ -310,17 +325,20 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
         bgcolor: done ? 'rgba(76,175,80,0.06)' : DEPARTURE_BG,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
+        cursor: clickable ? 'pointer' : 'default',
+        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         {/* Top row: checkbox + DÉPART badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
           <Tooltip title={done ? 'Départ validé' : 'Valider le départ'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
               checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
               checked={done}
               onChange={() => onToggleDone(reservation)}
+              onClick={stop}
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
@@ -387,6 +405,15 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
 }
 
 export default function PlanningPage() {
+  const navigate = useNavigate();
+  // Reused by every "card / row click → open reservation" handler below (arrivals,
+  // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
+  // back button return here.
+  const openReservation = useCallback((reservationId) => {
+    if (!reservationId) return;
+    navigate(withFrom(`/reservations/${reservationId}`, '/planning'));
+  }, [navigate]);
+
   const [loading, setLoading] = useState(true);
   const [planningDays, setPlanningDays] = useState([]);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -929,14 +956,15 @@ export default function PlanningPage() {
               {/* Breakfast card (specs/breakfast-option-and-planning-card.md §6.1). Sits
                   between laundry and departures so the operator's morning scan is:
                   laundry → breakfasts → who's leaving today. The card hides itself when
-                  no reservation contributes (rule 7). */}
-              <BreakfastDayCard data={breakfastByDate[date]} />
+                  no reservation contributes (rule 7). Each row is clickable and opens
+                  the corresponding reservation form. */}
+              <BreakfastDayCard data={breakfastByDate[date]} onItemClick={openReservation} />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {dayDepartures.map((r) => (
-                      <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} />
+                      <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} onOpen={openReservation} />
                     ))}
                   </Box>
                 </Box>
@@ -948,6 +976,7 @@ export default function PlanningPage() {
                   reservation={r}
                   onToggleReady={handleToggleReady}
                   alertInfo={alertMap[r.id]}
+                  onOpen={openReservation}
                 />
               ))}
 

@@ -44,6 +44,23 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   cards rendered on dates 06-05, 06-06, 06-07, arrival day (06-04)
   correctly excluded, departure day (06-07) correctly included.
 
+  **Hotfix 2026-06-05 follow-up — clickable planning cards (same
+  PR)** — All planning cards (arrivals, departures, breakfast) now
+  open the corresponding reservation form on click. Wired
+  `useNavigate` + `withFrom('/planning')` in `PlanningPage` and
+  exposed an `onOpen(reservationId)` prop on `ReservationCard`
+  (arrivals) + `DepartureMiniRow` (departures): the whole Card body
+  is clickable with cursor + hover affordance. The per-row checkbox
+  is `stopPropagation`'d so toggling ready/done doesn't trigger
+  navigation. `BreakfastDayCard` gains an `onItemClick` prop —
+  per-row click (one row = one reservation), `role="button"`,
+  keyboard support (Enter / Space). +3 Vitest cases on
+  `BreakfastDayCard` (245 → 248 green). Live verified: arrival
+  card → /reservations/12103?from=/planning, departure
+  → /reservations/12081?from=/planning, breakfast row
+  → /reservations/12082?from=/planning. Checkbox click stays on
+  /planning.
+
 ### Changed
 - **Bed configuration moves inside the "Linge de lit" option card**
   (spec `bed-config-in-linen-card.md`, 2026-06-05). The 3 bed

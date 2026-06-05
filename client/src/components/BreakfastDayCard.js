@@ -15,6 +15,11 @@
  *   data — { items: [{ reservationId, clientName, propertyName, persons }],
  *            totalPersons: number }
  *     Pass `undefined` / `null` → renders nothing.
+ *   onItemClick — `(reservationId: number) => void`. Optional. When provided, each row
+ *     becomes clickable (cursor pointer + hover highlight) and triggers the handler.
+ *     Used by `PlanningPage` to navigate to the reservation form. The card-level "click
+ *     anywhere" approach doesn't fit here because each row maps to a different
+ *     reservation; the operator needs row-level granularity.
  */
 import React from 'react';
 import { Card, CardContent, Box, Typography, Stack, Divider } from '@mui/material';
@@ -36,9 +41,10 @@ function pluraliseBreakfasts(n) {
   return n > 1 ? 'petits déjeuners' : 'petit déjeuner';
 }
 
-export default function BreakfastDayCard({ data }) {
+export default function BreakfastDayCard({ data, onItemClick }) {
   if (!data || !Array.isArray(data.items) || data.items.length === 0) return null;
   const total = Number(data.totalPersons || 0);
+  const clickable = typeof onItemClick === 'function';
 
   return (
     <Card variant="outlined" sx={{ mb: 1.25, bgcolor: BREAKFAST_BG, borderColor: BREAKFAST_BORDER }}>
@@ -51,7 +57,30 @@ export default function BreakfastDayCard({ data }) {
         </Box>
         <Stack spacing={0.5}>
           {data.items.map((item) => (
-            <Typography key={item.reservationId} variant="body2" sx={{ color: 'text.primary' }}>
+            <Typography
+              key={item.reservationId}
+              variant="body2"
+              role={clickable ? 'button' : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onClick={clickable ? () => onItemClick(item.reservationId) : undefined}
+              onKeyDown={clickable ? (e) => {
+                // Keyboard affordance for accessibility — Enter / Space activate the row.
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onItemClick(item.reservationId);
+                }
+              } : undefined}
+              sx={{
+                color: 'text.primary',
+                cursor: clickable ? 'pointer' : 'default',
+                borderRadius: 1,
+                px: clickable ? 0.5 : 0,
+                mx: clickable ? -0.5 : 0,
+                transition: 'background-color 0.15s',
+                '&:hover': clickable ? { bgcolor: 'rgba(0, 0, 0, 0.04)' } : undefined,
+                '&:focus-visible': clickable ? { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 } : undefined,
+              }}
+            >
               <Box component="span" sx={{ fontWeight: 600 }}>{item.clientName}</Box>
               {item.propertyName && (
                 <Box component="span" sx={{ color: 'text.secondary', ml: 0.5 }}>

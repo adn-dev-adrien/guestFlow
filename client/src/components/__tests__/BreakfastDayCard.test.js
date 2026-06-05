@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
 
 import BreakfastDayCard from '../BreakfastDayCard';
 
@@ -67,4 +68,56 @@ test('item without propertyName → no parenthesis rendered (defensive)', () => 
   expect(screen.getByText('Anonymous')).toBeInTheDocument();
   // No '(...)' span — `propertyName` falsy means the conditional renders nothing.
   expect(screen.queryByText(/\(\s*\)/)).not.toBeInTheDocument();
+});
+
+// specs/breakfast-option-and-planning-card.md §10 hotfix follow-up (2026-06-05). When
+// `onItemClick` is provided, each row becomes a clickable navigation target — clicking
+// it forwards the reservation id to the handler. Without the prop, the rows stay
+// passive (read-only surfaces).
+
+test('onItemClick provided → each row is a button role with the right cursor + click forwards the id', () => {
+  const onItemClick = vi.fn();
+  render(
+    <BreakfastDayCard
+      data={{
+        items: [
+          { reservationId: 42, clientName: 'Famille A', propertyName: 'Gîte', persons: 3 },
+          { reservationId: 99, clientName: 'M. B', propertyName: 'Studio', persons: 2 },
+        ],
+        totalPersons: 5,
+      }}
+      onItemClick={onItemClick}
+    />
+  );
+  const buttons = screen.getAllByRole('button');
+  expect(buttons).toHaveLength(2);
+  fireEvent.click(buttons[1]);
+  expect(onItemClick).toHaveBeenCalledWith(99);
+});
+
+test('onItemClick provided → keyboard Enter on a row also triggers the handler (a11y)', () => {
+  const onItemClick = vi.fn();
+  render(
+    <BreakfastDayCard
+      data={{
+        items: [{ reservationId: 7, clientName: 'A', propertyName: 'P', persons: 1 }],
+        totalPersons: 1,
+      }}
+      onItemClick={onItemClick}
+    />
+  );
+  fireEvent.keyDown(screen.getByRole('button'), { key: 'Enter' });
+  expect(onItemClick).toHaveBeenCalledWith(7);
+});
+
+test('onItemClick omitted → rows are NOT buttons (no clickable affordance, read-only)', () => {
+  render(
+    <BreakfastDayCard
+      data={{
+        items: [{ reservationId: 1, clientName: 'A', propertyName: 'P', persons: 1 }],
+        totalPersons: 1,
+      }}
+    />
+  );
+  expect(screen.queryByRole('button')).not.toBeInTheDocument();
 });
