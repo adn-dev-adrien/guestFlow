@@ -12,6 +12,13 @@ const { simulateInventory, findHorizon } = require('../utils/linenInventory');
 
 function buildModel(database, deps = {}) {
   const settingsModel = deps.settingsModel || require('./settingsModel');
+  // specs/skip-laundry-trip.md §4.1 — the skips model is the single source of truth for
+  // which dates the operator marked as not-made. Injected via `deps` for tests; defaults
+  // to a fresh factory instance bound to the same `database` so unit tests against an
+  // in-memory schema see THEIR skips, not the production model's (which would be bound to
+  // the global `../database` module at import time).
+  const laundryTripSkipsModel = deps.laundryTripSkipsModel
+    || require('./laundryTripSkipsModel').create(database);
 
   const fetchReservationsStmt = database.prepare(`
     SELECT id, kind, propertyId, startDate, endDate,
@@ -73,10 +80,11 @@ function buildModel(database, deps = {}) {
     const options = fetchOptionsStmt.all();
     const reservationOptions = fetchReservationOptionsStmt.all();
     const propertyDefaults = fetchPropertyDefaultsStmt.all();
+    const skippedDates = new Set(laundryTripSkipsModel.listAll());
 
     const result = simulateInventory({
       stock, reservations, options, reservationOptions, propertyDefaults,
-      laundryWeekday, from: today, to: horizon,
+      laundryWeekday, from: today, to: horizon, skippedDates,
     });
 
     return { horizon, ...result };

@@ -193,6 +193,27 @@ function previousOrSameLaundryDay(iso, weekday) {
 }
 
 /**
+ * Like `previousOrSameLaundryDay` but skips dates the operator marked as not-made
+ * (`skippedDates`). Walks backward in 7-day steps until finding a non-skipped Tuesday, or
+ * gives up after `maxLookbackDays`. Returns null when no non-skipped trip exists within the
+ * lookback (= "haven't done laundry in N weeks" — the simulation then starts from a fully
+ * clean stock, which is a defensible degenerate state).
+ *
+ * specs/skip-laundry-trip.md §3.1 rule 4 — past skips must influence the initial-state
+ * computation, not just the forward loop.
+ */
+function previousOrSameNonSkippedLaundryDay(iso, weekday, skippedDates, maxLookbackDays = 28) {
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
+  let candidate = previousOrSameLaundryDay(iso, weekday);
+  let attempts = Math.floor(maxLookbackDays / 7) + 1;
+  while (candidate && skippedDates && skippedDates.has(candidate) && attempts > 0) {
+    candidate = addDays(candidate, -7);
+    attempts -= 1;
+  }
+  return candidate;
+}
+
+/**
  * Core engine. Walks day by day from `from` to `to` and returns:
  *   {
  *     days: [{ date, clean, inCirculation, dirty, atLaundry,
@@ -209,6 +230,11 @@ function previousOrSameLaundryDay(iso, weekday) {
 function simulateInventory({
   stock, reservations, options, reservationOptions, propertyDefaults,
   laundryWeekday, from, to,
+  // specs/skip-laundry-trip.md §3.2 — a Set<string> of laundry dates the operator marked as
+  // not-made. On a skipped date the engine performs NEITHER the pick-up NOR the drop-off,
+  // both backlogs flow forward to the next non-skipped trip. Default `new Set()` keeps every
+  // pre-feature caller (and every existing test fixture) behaviour-identical.
+  skippedDates = new Set(),
 }) {
   // --- Pre-compute per-reservation contracts (skips devis + zero contracts) ---
   const contractsByReservationId = buildContractsByReservationId({
@@ -235,15 +261,17 @@ function simulateInventory({
       addInto(inCirculation, contractsByReservationId.get(Number(r.id)));
     }
   }
-  // atLaundry = drops that occurred at the most recent laundry day in (from-7, from] and that
-  // haven't been picked up yet. The pick-up happens on the next laundry day = previous-L + 7.
-  // For initial state we approximate: atLaundry = drops at previousLaundryDay if that day is
-  // in (from - 7, from] (i.e. less than 7 days ago).
-  const initLaundryDay = previousOrSameLaundryDay(from, laundryWeekday);
+  // atLaundry = drops that occurred at the most recent NON-SKIPPED laundry day on/before
+  // `from` and that haven't been picked up yet. With the skip feature, `initLaundryDay` is
+  // the most recent Tuesday that the operator actually went — could be further back than
+  // 7 days if intervening Tuesdays were skipped. Anything dropped on a skipped Tuesday
+  // didn't happen → those reservations stay in `dirty` (handled below).
+  const initLaundryDay = previousOrSameNonSkippedLaundryDay(from, laundryWeekday, skippedDates);
   const atLaundry = zeroByType();
   if (initLaundryDay && initLaundryDay > addDays(from, -7) && initLaundryDay <= from) {
     // Drops at initLaundryDay = sum of contracts of reservations whose endDate is in
-    // (initLaundryDay - 7, initLaundryDay].
+    // (initLaundryDay - 7, initLaundryDay]. Bounded by 7-day lookback so atLaundry can be
+    // computed without loading the full reservation history.
     const dropWindowStart = addDays(initLaundryDay, -7);
     for (const r of activeReservations) {
       if (r.endDate > dropWindowStart && r.endDate <= initLaundryDay) {
@@ -251,7 +279,9 @@ function simulateInventory({
       }
     }
   }
-  // dirty = reservations whose endDate is in (lastLaundryDay, from], not yet dropped.
+  // dirty = reservations whose endDate is in (lastSuccessfulLaundryDay, from], i.e. NOT yet
+  // dropped at the laundry. When intervening Tuesdays are skipped, this naturally
+  // accumulates the deferred batches because their endDate falls in the same window.
   const dirty = zeroByType();
   const dirtyWindowStart = initLaundryDay || addDays(from, -7);
   for (const r of activeReservations) {
@@ -283,18 +313,33 @@ function simulateInventory({
   let iter = 0;
 
   while (cursor <= to && iter < maxIter) {
-    // 1) Pick-ups happen BEFORE check-ins (rule 6) — only on laundry days.
-    if (weekdayOf(cursor) === laundryWeekday) {
-      const previousLaundryDay = addDays(cursor, -7);
-      const returning = dropsByLaundryDay.get(previousLaundryDay);
-      if (returning) {
+    // specs/skip-laundry-trip.md §3.2 rules 5-7: a skipped laundry date performs NEITHER the
+    // pick-up NOR the drop-off. The dirty stays dirty, the atLaundry stays at the laundry —
+    // both backlogs flow forward to the next non-skipped trip naturally because the maps
+    // `dirty` and `dropsByLaundryDay` aren't mutated on that day.
+    const isLaundryDay = weekdayOf(cursor) === laundryWeekday;
+    const isSkipped = isLaundryDay && skippedDates.has(cursor);
+
+    // 1) Pick-ups happen BEFORE check-ins (rule 6) — only on laundry days, and only when the
+    // trip wasn't skipped. The lookup is `<= cursor - 7` (not strict `= cursor - 7`) so a
+    // batch deferred by a previous skip is finally collected on the next non-skipped trip,
+    // alongside the normal 7-days-ago batch. Without the `<=`, the deferred batch would loop
+    // forever in `dropsByLaundryDay` and the at-laundry stock would drift permanently.
+    if (isLaundryDay && !isSkipped) {
+      const pickupCutoff = addDays(cursor, -7);
+      const readyKeys = [];
+      for (const dropDate of dropsByLaundryDay.keys()) {
+        if (dropDate <= pickupCutoff) readyKeys.push(dropDate);
+      }
+      for (const dropDate of readyKeys) {
+        const returning = dropsByLaundryDay.get(dropDate);
         subtractInto(atLaundry, returning);
         addInto(clean, returning);
-        dropsByLaundryDay.delete(previousLaundryDay);
+        dropsByLaundryDay.delete(dropDate);
       }
     }
 
-    // 2) Check-ins on `cursor` — clean → inCirculation.
+    // 2) Check-ins on `cursor` — clean → inCirculation. Always run, independent of skip.
     const arrivalsToday = startsByDate.get(cursor) || [];
     for (const r of arrivalsToday) {
       const c = contractsByReservationId.get(Number(r.id));
@@ -302,8 +347,8 @@ function simulateInventory({
       subtractInto(clean, c);
     }
 
-    // 3) Laundry-day drop: dirty → atLaundry, dirty resets to 0.
-    if (weekdayOf(cursor) === laundryWeekday) {
+    // 3) Laundry-day drop: dirty → atLaundry, dirty resets to 0. Skipped trips don't drop.
+    if (isLaundryDay && !isSkipped) {
       if (ALL_TYPES.some((t) => dirty[t] > 0)) {
         const dropSnap = cloneByType(dirty);
         addInto(atLaundry, dropSnap);

@@ -918,6 +918,19 @@ db.exec(`
   )
 `);
 
+// ---------- LAUNDRY TRIP SKIPS ----------
+// specs/skip-laundry-trip.md §5. Global per-date skip — when the operator marks a laundry
+// trip as not made, the simulation engine (utils/linenInventory.js) defers that day's
+// drop-off + pick-up to the next non-skipped trip. Additive table, starts empty, no
+// migration. Date format YYYY-MM-DD (10 chars) enforced via CHECK so a malformed insert
+// fails at the DB boundary.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS laundry_trip_skips (
+    tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // ---------- APP SETTINGS ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS app_settings (

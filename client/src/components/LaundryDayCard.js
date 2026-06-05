@@ -11,12 +11,24 @@
  *
  * Props:
  *   data — { dropOff: { singleBeds, doubleBeds, babyBeds }, pickUp: same } from the server.
- *   Pass `undefined` / `null` → renders nothing.
+ *     Pass `undefined` / `null` → renders nothing.
+ *   inventoryAfter — per-type `clean` snapshot at end-of-day on this laundry day. Optional.
+ *   date — ISO `YYYY-MM-DD` of this laundry day. Required when `onToggleSkip` is provided
+ *     (the handler is called with this date).
+ *   isSkipped — boolean. When true: the card greys out (opacity 0.45), the 3 detail blocks
+ *     are replaced by a single muted caption "Voyage non réalisé — reporté au prochain
+ *     voyage", and the header IconButton swaps to "Réactiver". Hide-when-empty rule is
+ *     bypassed (a skipped card is always rendered, even if its pre-skip counts were 0).
+ *     Spec: specs/skip-laundry-trip.md §3.3 + §6.
+ *   onToggleSkip — `(date, nextValue) => Promise<void>`. When provided, the header shows an
+ *     IconButton to flip the skip flag. Omit (or pass null) on read-only surfaces.
  */
 import React from 'react';
-import { Card, CardContent, Box, Typography, Stack } from '@mui/material';
+import { Card, CardContent, Box, Typography, Stack, IconButton, Tooltip } from '@mui/material';
 import { cyan } from '@mui/material/colors';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 
 // Laundry-themed palette (2026-06-02). Cyan reads as "fresh / water / linen" without leaning
 // clinical or flashy. Three tones cascade — bg subtle → border just defined enough to pop off
@@ -147,13 +159,15 @@ function InventoryLine({ label, parts }) {
   );
 }
 
-export default function LaundryDayCard({ data, inventoryAfter }) {
+export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped = false, onToggleSkip }) {
   if (!data) return null;
   // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
-  // spec rule 13 — keeps a quiet week silent.
+  // spec rule 13 — keeps a quiet week silent. EXCEPTION (specs/skip-laundry-trip.md §3.3
+  // rule 11): a skipped card is ALWAYS shown so the operator can see (and undo) their own
+  // decision, even if the pre-skip counts would have been 0.
   const dropTotal = totalSheets(data.dropOff) + totalTowels(data.dropOff);
   const pickTotal = totalSheets(data.pickUp) + totalTowels(data.pickUp);
-  if (dropTotal === 0 && pickTotal === 0) return null;
+  if (dropTotal === 0 && pickTotal === 0 && !isSkipped) return null;
 
   // §3.5 — third block: post-drop available stock. Hidden when no inventory data is provided
   // (e.g. stock untracked = nothing to display).
@@ -161,31 +175,71 @@ export default function LaundryDayCard({ data, inventoryAfter }) {
   const towelParts = formatInventoryParts(inventoryAfter, ['large', 'medium', 'small'], TOWEL_LABELS);
   const hasInventoryLine = bedParts.length + towelParts.length > 0;
 
+  // specs/skip-laundry-trip.md §3.3 — the IconButton flips the skip state via the parent's
+  // handler. Optimistic UI lives in PlanningPage; this component just signals "the operator
+  // clicked the toggle for THIS date".
+  const canToggleSkip = typeof onToggleSkip === 'function' && Boolean(date);
+  const handleClickSkip = canToggleSkip
+    ? () => onToggleSkip(date, !isSkipped)
+    : undefined;
+  const skipTooltip = isSkipped
+    ? 'Marquer ce voyage blanchisserie comme réalisé'
+    : 'Marquer ce voyage blanchisserie comme non réalisé';
+
   return (
-    <Card variant="outlined" sx={{ mb: 1.25, bgcolor: LAUNDRY_BG, borderColor: LAUNDRY_BORDER }}>
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1.25,
+        bgcolor: LAUNDRY_BG,
+        borderColor: LAUNDRY_BORDER,
+        opacity: isSkipped ? 0.45 : 1,
+        transition: 'opacity 0.2s ease',
+      }}
+    >
       <CardContent sx={{ py: 1.25, px: 2, '&:last-child': { pb: 1.25 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <LocalLaundryServiceIcon fontSize="small" sx={{ color: LAUNDRY_ACCENT }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: LAUNDRY_ACCENT }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: LAUNDRY_ACCENT, flexGrow: 1 }}>
             Linge à la blanchisserie
           </Typography>
+          {canToggleSkip && (
+            <Tooltip title={skipTooltip} arrow>
+              <IconButton
+                size="small"
+                onClick={handleClickSkip}
+                aria-label={skipTooltip}
+                sx={{ color: LAUNDRY_ACCENT }}
+              >
+                {isSkipped ? <EventAvailableIcon fontSize="small" /> : <EventBusyIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={1.5}
-          divider={<Box sx={{ display: { xs: 'none', sm: 'block' }, borderLeft: '1px solid', borderColor: 'divider' }} />}
-        >
-          <SideBlock title="À apporter" side={data.dropOff} />
-          <SideBlock title="À récupérer" side={data.pickUp} />
-        </Stack>
-        {hasInventoryLine && (
-          <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Disponible après ce dépôt
-            </Typography>
-            <InventoryLine label="Draps :" parts={bedParts} />
-            <InventoryLine label="Serviettes :" parts={towelParts} />
-          </Box>
+        {isSkipped ? (
+          <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+            Voyage non réalisé — reporté au prochain voyage
+          </Typography>
+        ) : (
+          <>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1.5}
+              divider={<Box sx={{ display: { xs: 'none', sm: 'block' }, borderLeft: '1px solid', borderColor: 'divider' }} />}
+            >
+              <SideBlock title="À apporter" side={data.dropOff} />
+              <SideBlock title="À récupérer" side={data.pickUp} />
+            </Stack>
+            {hasInventoryLine && (
+              <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Disponible après ce dépôt
+                </Typography>
+                <InventoryLine label="Draps :" parts={bedParts} />
+                <InventoryLine label="Serviettes :" parts={towelParts} />
+              </Box>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
