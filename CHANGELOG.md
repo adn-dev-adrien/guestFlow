@@ -45,14 +45,17 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   path's buckets now match `row.finalPrice` exactly → residue
   collapses to ≤ 1 cent of pure rounding noise → VAT stays positive.
 
-  **Defensive guard** — `accountingExport.js` now emits a single-line
-  `console.warn` when the credit-vs-debit residue exceeds 1 € (well
-  above the 0,06 € rounding ceiling, well below typical real-world
-  bug shapes). The warning carries the reservationId + kind + sums so
-  the operator can jump straight to the offending reservation in
-  `pm2 logs guestflow`. The absorption still nudges the last credit
-  silently for small residues (where the existing test fixtures
-  legitimately rely on it).
+  **Defensive guard — removed 2026-06-05** — PR #125 originally added a
+  single-line `console.warn` when the credit-vs-debit residue exceeded
+  1 €. After deploy the threshold proved too aggressive: legitimate
+  legacy entries (e.g. reservation #12078 with 75,61 € deposit + 176,39 €
+  balance residues from the deposit-pro-rata path) tripped it every
+  export, producing log noise that hid real issues. The warning was
+  removed; the silent absorption remains (it was always the production
+  behaviour). A future negative-VAT regression is now caught by the
+  existing `accounting-export-legacy-path-stale-quote` regression test
+  (which asserts the VAT amount directly), not by side-effect log
+  inspection.
 
   **Regression net** —
   `server/src/tests/accounting-export-legacy-path-stale-quote.unit.test.js`
