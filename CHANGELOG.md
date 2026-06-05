@@ -44,6 +44,22 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   cards rendered on dates 06-05, 06-06, 06-07, arrival day (06-04)
   correctly excluded, departure day (06-07) correctly included.
 
+  **Hotfix 2026-06-05 follow-up — cleaning info mirrored on the
+  departure tile (same PR)** — Adrien asked that the small "ménage:
+  Xh" badge that already shows on the next ARRIVAL card in a tight-
+  transition alert also appear on the corresponding DEPARTURE card,
+  so both ends of the conflict carry the same context. Wired
+  `alertInfo` through to `DepartureMiniRow` (it already exists on
+  `ReservationCard`) + extended the alert's `prevRes` explanation
+  to embed the cleaning duration in the same shape as the arrival
+  alert (`Arrivée de {client} {date} à {time}, ménage: {Xh}`). The
+  red/orange/blue alert background is now also applied symmetrically
+  on the departure card. Verified live on dev server: a Gite
+  departure with a same-day next arrival shows the new badge
+  alongside the existing tight-transition red border. No new tests
+  — purely a string + a prop wired through; existing 245 Vitest
+  cases still green.
+
   **Hotfix 2026-06-05 follow-up — clickable planning cards (same
   PR)** — All planning cards (arrivals, departures, breakfast) now
   open the corresponding reservation form on click. Wired

@@ -302,11 +302,17 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
   );
 }
 
-function DepartureMiniRow({ reservation, onToggleDone, onOpen }) {
+function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
   const done = Boolean(reservation.checkOutDone);
   const clickable = typeof onOpen === 'function';
   const handleCardClick = clickable ? () => onOpen(reservation.id) : undefined;
   const stop = (e) => e.stopPropagation();
+  // Symmetric alert background with `ReservationCard`: when there's a tight transition,
+  // the operator sees the same coloured pull on the departure as on the next arrival.
+  let alertBgColor = DEPARTURE_BG;
+  if (alertInfo?.type === 'red') alertBgColor = 'rgba(244, 67, 54, 0.14)';
+  else if (alertInfo?.type === 'orange') alertBgColor = 'rgba(244, 67, 54, 0.10)';
+  else if (alertInfo?.type === 'blue') alertBgColor = 'rgba(33, 150, 243, 0.08)';
   const checkOutTime = reservation.checkOutTime || '10:00';
   const adults = Number(reservation.adults || 0);
   const children = Number(reservation.children || 0);
@@ -322,7 +328,7 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen }) {
         borderColor: done ? 'success.main' : 'divider',
         // Default bg = DEPARTURE_BG (very soft grey — quieter than the arrival peach on purpose,
         // departures need less visual pull than incoming bookings).
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : DEPARTURE_BG,
+        bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
         cursor: clickable ? 'pointer' : 'default',
@@ -363,6 +369,18 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen }) {
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
               {reservation.propertyName}
             </Typography>
+            {alertInfo?.explanation && (
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 600,
+                  color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
+                  lineHeight: 1.3,
+                }}
+              >
+                {alertInfo.explanation}
+              </Typography>
+            )}
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
@@ -549,9 +567,12 @@ export default function PlanningPage() {
               explanation: `${prevRes.firstName} ${prevRes.lastName} part le ${departureDate} à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
             };
             if (!alerts[prevRes.id]) {
+              // Mirror the cleaning info on the corresponding departure card so the
+              // operator sees the same context on BOTH ends of the tight transition
+              // (Adrien 2026-06-05: "reporte l'info ménage sur la carte départ").
               alerts[prevRes.id] = {
                 type: 'red',
-                explanation: `Départ le ${departureDate} trop proche de l'arrivée de ${r.firstName} ${r.lastName}`,
+                explanation: `Arrivée de ${r.firstName} ${r.lastName} ${displayDate(r.startDate)} à ${r.checkInTime || '15:00'}, ménage: ${cleaningDisplay}`,
               };
             }
           }
@@ -964,7 +985,13 @@ export default function PlanningPage() {
                 <Box sx={{ mb: 1.25 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {dayDepartures.map((r) => (
-                      <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} onOpen={openReservation} />
+                      <DepartureMiniRow
+                        key={`dep-${r.id}`}
+                        reservation={r}
+                        onToggleDone={handleToggleDepartureDone}
+                        onOpen={openReservation}
+                        alertInfo={alertMap[r.id]}
+                      />
                     ))}
                   </Box>
                 </Box>
