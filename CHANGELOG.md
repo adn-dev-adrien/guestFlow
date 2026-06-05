@@ -4,6 +4,46 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Breakfast option + per-day planning card** (spec
+  `breakfast-option-and-planning-card.md`, 2026-06-05). `Petit
+  déjeuner` joins `Linge de lit` and `Linge de toilette` as the third
+  typed-default catalog option — seeded at every boot (`autoOptionType
+  = 'breakfast'`, `priceType = 'per_person_per_night'`, `price = 0`)
+  via `utils/breakfastSeed.js`. The seed promotes any existing
+  operator-created `Petit déjeuner` / `Petit-déjeuner` row to the
+  typed marker, so prod servers gain the feature without manual
+  cleanup.
+
+  **Planning page** — a new `BreakfastDayCard` appears under each day
+  where ≥1 reservation has the breakfast option AND the customer is
+  present in the morning (= `startDate < D AND endDate >= D`, half-
+  open `(startDate, endDate]` window). Each card lists the
+  contributing reservations as `{clientName} ({propertyName}) : {N}
+  pers.` and totals them in bold. Babies are excluded from the count
+  (matching the bathroom-linen convention). The card uses an amber
+  palette + croissant icon to visually separate it from the cyan
+  laundry card. Mounted between `LaundryDayCard` and the departures
+  block — operator scan: laundry → breakfasts → who's leaving today.
+
+  **API** — new `GET /api/planning/breakfast?from&to` returns
+  `{ breakfastByDate: { 'YYYY-MM-DD': { items: [...], totalPersons } } }`.
+  Same property-default fallback pattern as the laundry aggregators
+  (UNION ALL of explicit `reservation_options` ∪
+  `property_option_defaults`; explicit row wins via `NOT EXISTS`,
+  property fallback injects `qtySum = 1.0`).
+
+  **Tests** — +25 (10 model + 5 seed + 5 controller server, + 5
+  Vitest). Server suite 1033 → 1053 green (in-isolation; occasional
+  parallel-runner flakes still surface suite-wide, all reproduce as
+  pass alone). Vitest 237 → 242 green. Vite build clean (466 KB gzip
+  ≈ baseline +0.6 KB).
+
+  Live verified on dev server reservation #12082 (Gite property,
+  2026-06-04 → 2026-06-07, tagged breakfast option, 8 persons): 3
+  cards rendered on dates 06-05, 06-06, 06-07, arrival day (06-04)
+  correctly excluded, departure day (06-07) correctly included.
+
 ### Changed
 - **Bed configuration moves inside the "Linge de lit" option card**
   (spec `bed-config-in-linen-card.md`, 2026-06-05). The 3 bed

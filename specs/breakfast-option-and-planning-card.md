@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/breakfast-option-and-planning-card` _(user-managed)_ |
 | **Created** | 2026-06-05 |
 | **Author** | Adrien |
@@ -306,11 +306,19 @@ Expected: existing **237** + **4** = **241** Vitest cases.
 _(Filled in as commits land. Update this section in the same commit
 that ships each step, per CLAUDE.md §4.1.)_
 
-- [ ] Server: `breakfastSeed.js` + wiring in `database.js` + tests.
-- [ ] Server: `breakfastModel.js` + tests.
-- [ ] Server: `planningController.breakfastSummary` + route + tests.
-- [ ] Client: `api.getBreakfastPlanningSummary` + state in
-      `PlanningPage` + day-set inclusion + card mount.
-- [ ] Client: `BreakfastDayCard` + Vitest.
-- [ ] Manual UI verification.
-- [ ] Docs: spec status → Implemented, CHANGELOG entry.
+- [x] Server: `breakfastSeed.js` + wiring in `database.js` + 5 unit
+      tests (insert + promotion + idempotent + 2 alias variants).
+- [x] Server: `breakfastModel.js` + 10 unit tests (the 6 planned plus
+      4 bonus edge cases: explicit row wins, long-stay clamping,
+      empty client fallback, multiple reservations on the same morning).
+- [x] Server: `planningController.breakfastSummary` + route + 5 unit
+      tests (payload shape + 4 validation paths).
+- [x] Client: `api.getBreakfastPlanningSummary` + state in
+      `PlanningPage` + day-set inclusion + card mount between
+      LaundryDayCard and the departures block.
+- [x] Client: `BreakfastDayCard` + 5 Vitest cases (4 planned + 1
+      bonus for the no-propertyName defensive case).
+- [x] Manual UI verification on reservation #12082 (Gite,
+      2026-06-04 → 2026-06-07): 3 cards rendered for the dates
+      06-05, 06-06, 06-07 with the right person count.
+- [x] Docs: spec status → Implemented, CHANGELOG entry.
