@@ -427,8 +427,15 @@ export default function PlanningPage() {
 
   // Per-card skip toggle. Optimistic update first (instant UI feedback), then API call. On
   // failure: revert to the previous Set + surface a snackbar (rule 12 in the spec). After
-  // success: refetch the linen inventory so the carte's drop/pickup counts + the "Disponible"
-  // line reflect the post-skip simulation.
+  // success: refetch BOTH the laundry summary AND the linen inventory.
+  //
+  // 2026-06-05 — fixed a regression: the previous version only refetched the inventory,
+  // assuming the summary endpoint was "raw reservation aggregation, not affected by skips".
+  // That assumption was true initially, then broke when the hotfix made
+  // `planningController.laundrySummary` skip-aware (so the deferred drop-off / pick-up
+  // counts surface on the next non-skipped card). Without this refetch, the À apporter /
+  // À récupérer numbers stayed frozen on their pre-skip values — exactly the user-visible
+  // bug "la carte blanchisserie suivante ne change pas".
   const handleToggleLaundrySkip = useCallback(async (date, nextValue) => {
     const previous = skippedLaundryDates;
     const next = new Set(previous);
@@ -437,18 +444,24 @@ export default function PlanningPage() {
     try {
       if (nextValue) await api.addLaundrySkip(date);
       else await api.removeLaundrySkip(date);
-      // Refetch the simulation so every card downstream reflects the new shape (deferred
-      // batches surface on subsequent cards' counts). The summary endpoint isn't affected
-      // (it aggregates the raw reservations, not the engine's projection), so we only re-
-      // pull the inventory.
-      const inventory = await api.getLinenInventory().catch(() => ({ byLaundryDay: {} }));
+      const from = startDate;
+      const to = addDays(from, DAYS_AHEAD - 1);
+      const [summary, inventory] = await Promise.all([
+        api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
+        api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+      ]);
+      const lByDate = {};
+      for (const ld of (summary?.laundryDays || [])) {
+        lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
+      }
+      setLaundryByDate(lByDate);
       setInventoryByDate(inventory?.byLaundryDay || {});
     } catch (err) {
       setSkippedLaundryDates(previous);
       // eslint-disable-next-line no-alert
       window.alert(`Impossible d'enregistrer le voyage non réalisé. ${err?.message || ''}`);
     }
-  }, [skippedLaundryDates]);
+  }, [skippedLaundryDates, startDate]);
 
   // Detect scheduling conflicts
   const detectAlerts = useCallback((days, props = []) => {

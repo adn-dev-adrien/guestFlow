@@ -365,4 +365,15 @@ that ships each step, per CLAUDE.md §4.1.)_
       Wired the skip set into the controller + added
       `utils/laundryWindow.previousNonSkippedLaundryDay` for the
       widened window math + +11 server tests pinning the contract.
+- [x] **Hotfix 2026-06-05 follow-up** — even with the server fix above,
+      the LIVE toggle (no page reload) still showed stale counts
+      because `PlanningPage.handleToggleLaundrySkip` only refetched
+      the inventory, not the summary. The original handler had a
+      "summary endpoint isn't affected by skips" comment that was
+      true pre-hotfix and stale post-hotfix. Fixed by refetching BOTH
+      `api.getLaundryPlanningSummary` AND `api.getLinenInventory` in
+      parallel after the toggle. Verified end-to-end in a live browser:
+      toggling the skip flips card 1 to "Voyage non réalisé" AND
+      bumps card 2's drop-off counts up in the same render pass
+      (11 → 11 + 4 = 15 doubles ; 12 → 12 + 3 = 15 simples).
 - [x] Docs: CHANGELOG entry, spec status → Implemented.

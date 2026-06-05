@@ -68,6 +68,21 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   1 full-stack regression case pinning the user-reported scenario).
   Server tests 991 → 1002 green.
 
+  **Hotfix 2026-06-05 follow-up (same PR)** — second round of testing
+  surfaced one more gap: with the server now skip-aware end-to-end, a
+  full page reload showed the right cards, but the LIVE toggle still
+  showed the old values. Root cause was in
+  `PlanningPage.handleToggleLaundrySkip`: after persisting the skip,
+  it only re-fetched `getLinenInventory` (the "Disponible" line) and
+  not `getLaundryPlanningSummary` (the À apporter / À récupérer
+  counts). The original handler carried a stale comment claiming the
+  summary endpoint was unaffected by skips — true before the previous
+  hotfix, false after it. Fixed by refetching BOTH endpoints in
+  parallel inside the toggle handler. Verified live in a browser:
+  toggling the first card flips it to "Voyage non réalisé" AND bumps
+  the next card's drop-off counts up (11 → 15 doubles, 12 → 15
+  simples) in the same render pass.
+
 ### Fixed
 - **Accounting export — legacy path now sees `customPrice` + offered
   options, no more negative VAT row** (2026-06-05). Live prod bug
