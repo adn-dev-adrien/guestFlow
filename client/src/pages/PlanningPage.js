@@ -272,15 +272,30 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
             </Typography>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Famille:
-            </Typography>
-            <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-          </Box>
+          {/* Famille row — only the non-zero categories surface, to keep the line
+              compact (Adrien 2026-06-06: "famille contient uniquement les éléments qui
+              ne sont pas à zéro"). When every category is 0 the row collapses to a
+              single "Famille:" label, which still reads as a deliberate explicit "0
+              guest" rather than a missing block. */}
+          {(adults + children + teens + babies > 0) && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                Famille:
+              </Typography>
+              {adults > 0 && (
+                <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              )}
+              {children > 0 && (
+                <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              )}
+              {teens > 0 && (
+                <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              )}
+              {babies > 0 && (
+                <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
+              )}
+            </Box>
+          )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
@@ -461,14 +476,9 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
             </Box>
           )}
 
-          {reservation.notes && (
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
-              <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
-                {reservation.notes}
-              </Typography>
-            </Box>
-          )}
+          {/* Notes intentionally NOT rendered on the departure tile (Adrien 2026-06-06):
+              they're already shown on the arrival side of the reservation, and the
+              departure card is meant to stay compact ("checkout time + cleaning"). */}
         </Box>
       </CardContent>
     </Card>
