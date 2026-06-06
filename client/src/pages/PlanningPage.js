@@ -297,19 +297,11 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
               </Typography>
             </Box>
           )}
-
-          {/* Cleaning duration badge — rendered at the very end of the card per Adrien
-              2026-06-05. Only present when a tight transition triggered the alert (= the
-              alert object carries `cleaningDisplay`). Same icon + position on the
-              departure card so the two ends of the conflict look symmetric. */}
-          {alertInfo?.cleaningDisplay && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-              <CleaningServicesIcon sx={{ fontSize: 16, color: 'error.main', flexShrink: 0 }} />
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.dark' }}>
-                Ménage : {alertInfo.cleaningDisplay}
-              </Typography>
-            </Box>
-          )}
+          {/* No standalone "Ménage : Xh" badge here (Adrien 2026-06-06: "supprime moi le
+              Ménage en rouge sur la carte arrivée"). The cleaning duration stays embedded
+              in the alert explanation text under the property name, where it reads as
+              "[client] part le X à Y, ménage: Zh" — that's enough context on the arrival
+              side. The standalone badge lives only on the departure card now. */}
         </Box>
       </CardContent>
     </Card>
@@ -590,17 +582,14 @@ export default function PlanningPage() {
             alerts[r.id] = {
               type: 'red',
               explanation: `${prevRes.firstName} ${prevRes.lastName} part le ${departureDate} à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
-              // Surfaced as a dedicated icon + badge at the very end of the card so the
-              // operator sees the cleaning duration at a glance, no need to parse the
-              // explanation sentence. Both the arrival AND the departure of the same
-              // conflict carry the same field — see comment at the prevRes alert below.
-              cleaningDisplay,
+              // No `cleaningDisplay` field on the arrival side — Adrien 2026-06-06 asked
+              // for the standalone red "Ménage" badge to be removed from the arrival
+              // card. The cleaning duration stays embedded in the explanation sentence
+              // (rendered as a caption next to the property name). Only the departure
+              // side carries the field, which `DepartureMiniRow` surfaces as a
+              // prominent block in the place freed by the removed "Famille" row.
             };
             if (!alerts[prevRes.id]) {
-              // Mirror the cleaning info on the corresponding departure card so the
-              // operator sees the same context on BOTH ends of the tight transition
-              // (Adrien 2026-06-05: "reporte l'info ménage sur la carte départ" + "le
-              // même petit logo en toute fin de la carte").
               alerts[prevRes.id] = {
                 type: 'red',
                 explanation: `Arrivée de ${r.firstName} ${r.lastName} ${displayDate(r.startDate)} à ${r.checkInTime || '15:00'}, ménage: ${cleaningDisplay}`,
