@@ -328,10 +328,6 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
   else if (alertInfo?.type === 'orange') alertBgColor = 'rgba(244, 67, 54, 0.10)';
   else if (alertInfo?.type === 'blue') alertBgColor = 'rgba(33, 150, 243, 0.08)';
   const checkOutTime = reservation.checkOutTime || '10:00';
-  const adults = Number(reservation.adults || 0);
-  const children = Number(reservation.children || 0);
-  const teens = Number(reservation.teens || 0);
-  const babies = Number(reservation.babies || 0);
   return (
     <Card
       variant="outlined"
@@ -412,33 +408,36 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Famille:
-            </Typography>
-            <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-          </Box>
+          {/* Where the "Famille:" chip row used to live (Adrien 2026-06-06). The departure
+              tile doesn't need the family breakdown — that detail belongs to the arrival
+              card where the operator prepares the welcome. In its place: a prominent
+              cleaning indicator when a tight transition triggered the alert. Same icon
+              as the arrival card, just sized up + given its own row so the eye lands on
+              "Ménage" before scanning the notes. */}
+          {alertInfo?.cleaningDisplay && (
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mt: 0.5,
+              p: 0.75,
+              borderRadius: 1,
+              bgcolor: 'rgba(244, 67, 54, 0.06)',
+              border: '1px solid',
+              borderColor: 'error.light',
+            }}>
+              <CleaningServicesIcon sx={{ fontSize: 24, color: 'error.main', flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.dark' }}>
+                Ménage : {alertInfo.cleaningDisplay}
+              </Typography>
+            </Box>
+          )}
 
           {reservation.notes && (
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
               <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
               <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
                 {reservation.notes}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Cleaning duration badge — symmetric with `ReservationCard`. Same icon, same
-              copy, same colour: when a tight transition triggered the alert the operator
-              sees "Ménage : Xh" at the very end of BOTH cards involved in the conflict. */}
-          {alertInfo?.cleaningDisplay && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-              <CleaningServicesIcon sx={{ fontSize: 16, color: 'error.main', flexShrink: 0 }} />
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.dark' }}>
-                Ménage : {alertInfo.cleaningDisplay}
               </Typography>
             </Box>
           )}

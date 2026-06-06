@@ -4,9 +4,15 @@ import { vi } from 'vitest';
 
 import BreakfastDayCard from '../BreakfastDayCard';
 
-// specs/breakfast-option-and-planning-card.md §6.1 + §7.2. Renderer-only contract:
-// hidden when data is missing, otherwise lists each item + a total. Plural / singular
-// on the total label is pinned so the wording stays correct.
+// specs/breakfast-option-and-planning-card.md §6.1 + §7.2 + 2026-06-06 redesign.
+// Renderer-only contract:
+//   - hidden when data is missing or items is empty;
+//   - per-row format `{propertyName} • {clientName} : {N} petit(s) déjeuner(s)` with a
+//     leading HomeWorkIcon (same icon family as the arrival / departure cards) and a
+//     header BreakfastDining croissant sized up;
+//   - total uses "petit déjeuner" / "petits déjeuners" pluralization.
+//   - when onItemClick is provided, each row becomes a `button` role with keyboard
+//     support; without the prop the rows stay inert (read-only contract).
 
 test('data undefined → renders nothing (no DOM)', () => {
   const { container } = render(<BreakfastDayCard data={undefined} />);
@@ -18,7 +24,7 @@ test('items: [] → renders nothing', () => {
   expect(container.firstChild).toBeNull();
 });
 
-test('2 items → both rows + total with the right number', () => {
+test('2 items → both rows render property + client + breakfast count + total', () => {
   render(
     <BreakfastDayCard
       data={{
@@ -32,50 +38,32 @@ test('2 items → both rows + total with the right number', () => {
   );
   // Header.
   expect(screen.getByText('Petit déjeuner')).toBeInTheDocument();
-  // Per-row rendering pins both clients + property names.
+  // Property + client surfaces.
+  expect(screen.getByText('Gîte')).toBeInTheDocument();
+  expect(screen.getByText('Studio')).toBeInTheDocument();
   expect(screen.getByText('Famille Dupont')).toBeInTheDocument();
-  expect(screen.getByText('(Gîte)')).toBeInTheDocument();
   expect(screen.getByText('M. Martin')).toBeInTheDocument();
-  expect(screen.getByText('(Studio)')).toBeInTheDocument();
-  // Per-row person counts.
-  expect(screen.getByText('4 pers.')).toBeInTheDocument();
-  expect(screen.getByText('2 pers.')).toBeInTheDocument();
+  // Per-row breakfast counts use the new wording.
+  expect(screen.getByText('4 petits déjeuners')).toBeInTheDocument();
+  expect(screen.getByText('2 petits déjeuners')).toBeInTheDocument();
   // Total — plural form (> 1).
   expect(screen.getByText(/Total : 6 petits déjeuners/i)).toBeInTheDocument();
 });
 
-test('singular total — 1 item carrying 1 person → "1 petit déjeuner"', () => {
+test('singular form — 1 item carrying 1 person → "1 petit déjeuner" on both the row and the total', () => {
   render(
     <BreakfastDayCard
       data={{
-        items: [{ reservationId: 7, clientName: 'M. Solo', propertyName: '', persons: 1 }],
+        items: [{ reservationId: 7, clientName: 'M. Solo', propertyName: 'Cabane', persons: 1 }],
         totalPersons: 1,
       }}
     />
   );
+  expect(screen.getByText('1 petit déjeuner')).toBeInTheDocument();
   expect(screen.getByText(/Total : 1 petit déjeuner$/i)).toBeInTheDocument();
 });
 
-test('item without propertyName → no parenthesis rendered (defensive)', () => {
-  render(
-    <BreakfastDayCard
-      data={{
-        items: [{ reservationId: 8, clientName: 'Anonymous', propertyName: '', persons: 3 }],
-        totalPersons: 3,
-      }}
-    />
-  );
-  expect(screen.getByText('Anonymous')).toBeInTheDocument();
-  // No '(...)' span — `propertyName` falsy means the conditional renders nothing.
-  expect(screen.queryByText(/\(\s*\)/)).not.toBeInTheDocument();
-});
-
-// specs/breakfast-option-and-planning-card.md §10 hotfix follow-up (2026-06-05). When
-// `onItemClick` is provided, each row becomes a clickable navigation target — clicking
-// it forwards the reservation id to the handler. Without the prop, the rows stay
-// passive (read-only surfaces).
-
-test('onItemClick provided → each row is a button role with the right cursor + click forwards the id', () => {
+test('onItemClick provided → each row is a button + click forwards the reservation id', () => {
   const onItemClick = vi.fn();
   render(
     <BreakfastDayCard
@@ -120,4 +108,18 @@ test('onItemClick omitted → rows are NOT buttons (no clickable affordance, rea
     />
   );
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
+});
+
+test('item without propertyName → the property block is skipped (no empty label rendered)', () => {
+  render(
+    <BreakfastDayCard
+      data={{
+        items: [{ reservationId: 8, clientName: 'Anonymous', propertyName: '', persons: 3 }],
+        totalPersons: 3,
+      }}
+    />
+  );
+  // The client + count still render.
+  expect(screen.getByText('Anonymous')).toBeInTheDocument();
+  expect(screen.getByText('3 petits déjeuners')).toBeInTheDocument();
 });
