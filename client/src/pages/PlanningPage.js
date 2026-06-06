@@ -1,23 +1,32 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Checkbox, Chip, Divider,
-  LinearProgress, TextField, Button, Tooltip, IconButton, Table, TableBody, TableCell, TableRow
+  LinearProgress, TextField, Button, Tooltip, IconButton,
 } from '@mui/material';
 import { orange, grey } from '@mui/material/colors';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PersonIcon from '@mui/icons-material/Person';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import NoteIcon from '@mui/icons-material/Note';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+// Travel-style "boarding board" semantic: plane landing (arrival) / taking off
+// (departure). Adrien preferred this set after trying the door-bracket login/logout
+// variant — kept here for the visual playfulness that fits a vacation rental app.
+import FlightLandIcon from '@mui/icons-material/FlightLand';
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
+import BreakfastDayCard from '../components/BreakfastDayCard';
 import { displayDate } from '../utils/formatters';
+import { withFrom } from '../utils/navigation';
 import api from '../api';
 
 const DAYS_AHEAD = 14;
@@ -136,8 +145,13 @@ function ResourceBookingsSection({ bookings }) {
   );
 }
 
-function ReservationCard({ reservation, onToggleReady, alertInfo }) {
+function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
   const r = reservation;
+  const clickable = typeof onOpen === 'function';
+  const handleCardClick = clickable ? () => onOpen(r.id) : undefined;
+  // Stop propagation on interactive child controls so they don't bubble up to the card's
+  // navigate-on-click handler.
+  const stop = (e) => e.stopPropagation();
   const done = !!r.checkInReady;
   const adults = Number(r.adults || 0);
   const children = Number(r.children || 0);
@@ -166,6 +180,7 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
   return (
     <Card
       variant="outlined"
+      onClick={handleCardClick}
       sx={{
         mb: 1.5,
         borderRadius: 2,
@@ -173,29 +188,55 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
         bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
+        cursor: clickable ? 'pointer' : 'default',
+        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         {/* Top row: checkbox + ARRIVÉE badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
           <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
               checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
               checked={done}
               onChange={() => onToggleReady(r)}
+              onClick={stop}
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
+          {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal
+              "arrival" semantic. Bigger height + solid bg + white text for max pop. */}
           <Chip
+            icon={<FlightLandIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="ARRIVÉE"
             size="small"
             sx={{
-              height: 18,
-              fontSize: 10,
+              height: 26,
+              fontSize: 12,
               fontWeight: 800,
-              color: done ? 'success.dark' : 'warning.dark',
-              bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              px: 0.5,
+              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
+            }}
+          />
+          {/* Time pill — promoted to the top row (Adrien 2026-06-06: "met moi l'heure
+              juste à droite du de Arrivée [...] avec un encadrement arrondi et en gras
+              que ce soit visible" + "rajoute ta petite horloge à gauche de l'heure").
+              The duplicate clock + "Arrivée HH:MM" block on the line below is removed. */}
+          <Chip
+            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            label={r.checkInTime || '15:00'}
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: 13,
+              fontWeight: 800,
+              borderRadius: 1.5,
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
             }}
           />
           {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
@@ -222,19 +263,13 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {r.firstName} {r.lastName}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" color="text.secondary">
-                Arrivée {r.checkInTime || '15:00'}
-              </Typography>
-            </Box>
+          {/* Second-line block reduced to the client name. The clock icon + "Arrivée
+              HH:MM" duplicate of the top time pill is removed (Adrien 2026-06-06). */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {r.firstName} {r.lastName}
+            </Typography>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
@@ -284,54 +319,88 @@ function ReservationCard({ reservation, onToggleReady, alertInfo }) {
               </Typography>
             </Box>
           )}
+          {/* No standalone "Ménage : Xh" badge here (Adrien 2026-06-06: "supprime moi le
+              Ménage en rouge sur la carte arrivée"). The cleaning duration stays embedded
+              in the alert explanation text under the property name, where it reads as
+              "[client] part le X à Y, ménage: Zh" — that's enough context on the arrival
+              side. The standalone badge lives only on the departure card now. */}
         </Box>
       </CardContent>
     </Card>
   );
 }
 
-function DepartureMiniRow({ reservation, onToggleDone }) {
+function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
   const done = Boolean(reservation.checkOutDone);
+  const clickable = typeof onOpen === 'function';
+  const handleCardClick = clickable ? () => onOpen(reservation.id) : undefined;
+  const stop = (e) => e.stopPropagation();
+  // Symmetric alert background with `ReservationCard`: when there's a tight transition,
+  // the operator sees the same coloured pull on the departure as on the next arrival.
+  let alertBgColor = DEPARTURE_BG;
+  if (alertInfo?.type === 'red') alertBgColor = 'rgba(244, 67, 54, 0.14)';
+  else if (alertInfo?.type === 'orange') alertBgColor = 'rgba(244, 67, 54, 0.10)';
+  else if (alertInfo?.type === 'blue') alertBgColor = 'rgba(33, 150, 243, 0.08)';
   const checkOutTime = reservation.checkOutTime || '10:00';
-  const adults = Number(reservation.adults || 0);
-  const children = Number(reservation.children || 0);
-  const teens = Number(reservation.teens || 0);
-  const babies = Number(reservation.babies || 0);
   return (
     <Card
       variant="outlined"
+      onClick={handleCardClick}
       sx={{
         mb: 1.5,
         borderRadius: 2,
         borderColor: done ? 'success.main' : 'divider',
         // Default bg = DEPARTURE_BG (very soft grey — quieter than the arrival peach on purpose,
         // departures need less visual pull than incoming bookings).
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : DEPARTURE_BG,
+        bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
+        cursor: clickable ? 'pointer' : 'default',
+        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         {/* Top row: checkbox + DÉPART badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
           <Tooltip title={done ? 'Départ validé' : 'Valider le départ'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
               checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
               checked={done}
               onChange={() => onToggleDone(reservation)}
+              onClick={stop}
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
+          {/* DÉPART badge — FlightTakeoff (plane lifting off) = symmetric counterpart
+              to the ARRIVÉE Land icon. Same airport-board family, distinct silhouette. */}
           <Chip
+            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="DÉPART"
             size="small"
             sx={{
-              height: 18,
-              fontSize: 10,
+              height: 26,
+              fontSize: 12,
               fontWeight: 800,
-              color: done ? 'success.dark' : 'warning.dark',
-              bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              px: 0.5,
+              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
+            }}
+          />
+          {/* Time pill — symmetric with the arrival card (Adrien 2026-06-06). */}
+          <Chip
+            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            label={checkOutTime}
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: 13,
+              fontWeight: 800,
+              borderRadius: 1.5,
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
             }}
           />
           {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
@@ -344,32 +413,53 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
               {reservation.propertyName}
             </Typography>
+            {alertInfo?.explanation && (
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 600,
+                  color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
+                  lineHeight: 1.3,
+                }}
+              >
+                {alertInfo.explanation}
+              </Typography>
+            )}
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {reservation.firstName} {reservation.lastName}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" color="text.secondary">
-                Départ {checkOutTime}
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Famille:
+          {/* Second-line block reduced to the client name. Clock + "Départ HH:MM"
+              duplicate of the top time pill is removed (Adrien 2026-06-06). */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {reservation.firstName} {reservation.lastName}
             </Typography>
-            <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
           </Box>
+
+          {/* Where the "Famille:" chip row used to live (Adrien 2026-06-06). The departure
+              tile doesn't need the family breakdown — that detail belongs to the arrival
+              card where the operator prepares the welcome. In its place: a prominent
+              cleaning indicator when a tight transition triggered the alert. Same icon
+              as the arrival card, just sized up + given its own row so the eye lands on
+              "Ménage" before scanning the notes. */}
+          {alertInfo?.cleaningDisplay && (
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mt: 0.5,
+              p: 0.75,
+              borderRadius: 1,
+              bgcolor: 'rgba(244, 67, 54, 0.06)',
+              border: '1px solid',
+              borderColor: 'error.light',
+            }}>
+              <CleaningServicesIcon sx={{ fontSize: 24, color: 'error.main', flexShrink: 0 }} />
+              <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.dark' }}>
+                Ménage : {alertInfo.cleaningDisplay}
+              </Typography>
+            </Box>
+          )}
 
           {reservation.notes && (
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
@@ -386,6 +476,15 @@ function DepartureMiniRow({ reservation, onToggleDone }) {
 }
 
 export default function PlanningPage() {
+  const navigate = useNavigate();
+  // Reused by every "card / row click → open reservation" handler below (arrivals,
+  // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
+  // back button return here.
+  const openReservation = useCallback((reservationId) => {
+    if (!reservationId) return;
+    navigate(withFrom(`/reservations/${reservationId}`, '/planning'));
+  }, [navigate]);
+
   const [loading, setLoading] = useState(true);
   const [planningDays, setPlanningDays] = useState([]);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -397,6 +496,10 @@ export default function PlanningPage() {
   // payload `{ dropOff, pickUp }`. Server emits zero-everywhere days too; LaundryDayCard hides
   // them silently so we don't need to filter here.
   const [laundryByDate, setLaundryByDate] = useState({});
+  // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.2). Map ISO date
+  // → `{ items: [{ reservationId, clientName, propertyName, persons }], totalPersons }`.
+  // Empty days are not included; `BreakfastDayCard` hides itself if data is missing.
+  const [breakfastByDate, setBreakfastByDate] = useState({});
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
   // → per-type clean snapshot to display as the 3rd block on each laundry day.
   const [inventoryByDate, setInventoryByDate] = useState({});
@@ -515,11 +618,18 @@ export default function PlanningPage() {
             alerts[r.id] = {
               type: 'red',
               explanation: `${prevRes.firstName} ${prevRes.lastName} part le ${departureDate} à ${prevCheckOut}, ménage: ${cleaningDisplay}`,
+              // No `cleaningDisplay` field on the arrival side — Adrien 2026-06-06 asked
+              // for the standalone red "Ménage" badge to be removed from the arrival
+              // card. The cleaning duration stays embedded in the explanation sentence
+              // (rendered as a caption next to the property name). Only the departure
+              // side carries the field, which `DepartureMiniRow` surfaces as a
+              // prominent block in the place freed by the removed "Famille" row.
             };
             if (!alerts[prevRes.id]) {
               alerts[prevRes.id] = {
                 type: 'red',
-                explanation: `Départ le ${departureDate} trop proche de l'arrivée de ${r.firstName} ${r.lastName}`,
+                explanation: `Arrivée de ${r.firstName} ${r.lastName} ${displayDate(r.startDate)} à ${r.checkInTime || '15:00'}, ménage: ${cleaningDisplay}`,
+                cleaningDisplay,
               };
             }
           }
@@ -556,13 +666,16 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
       // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
       api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
       // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
       api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+      // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
+      // Non-blocking like the others; an empty map keeps the planning fully functional.
+      api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
     ]);
     const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
     const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -610,6 +723,8 @@ export default function PlanningPage() {
       lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
     }
     setLaundryByDate(lByDate);
+    // Breakfast map (date → { items, totalPersons }) directly from the server payload.
+    setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
 
     // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
     // horizon; LaundryDayCard filters the types it actually renders.
@@ -646,6 +761,14 @@ export default function PlanningPage() {
               }
               return merged;
             });
+          })
+          .catch(() => {});
+        // Same incremental pattern for breakfast: fetch the next window and merge into
+        // the existing map so the new days surface their BreakfastDayCard on scroll.
+        api.getBreakfastPlanningSummary({ from: nextStart, to: nextEnd })
+          .then((summary) => {
+            const next = summary?.breakfastByDate || {};
+            setBreakfastByDate((prev) => ({ ...prev, ...next }));
           })
           .catch(() => {});
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
@@ -763,42 +886,9 @@ export default function PlanningPage() {
             )}
           </Box>
 
-          {/* Legend */}
-          {Object.values(alertMap).length > 0 && (
-            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
-                Alertes de conflit :
-              </Typography>
-              <Table size="small" sx={{ '& td': { border: 'none', px: 0.5, pt: 0, pb: 0.5 } }}>
-                <TableBody>
-                  <TableRow>
-                    <TableCell sx={{ width: 24 }}>
-                      <Box sx={{ width: 20, height: 20, bgcolor: 'rgba(255, 152, 0, 0.2)', borderRadius: 0.5 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">Départs simultanés (plusieurs logements)</Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ width: 24 }}>
-                      <Box sx={{ width: 20, height: 20, bgcolor: 'rgba(244, 67, 54, 0.2)', borderRadius: 0.5 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">Nettoyage insuffisant (même logement)</Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ width: 24 }}>
-                      <Box sx={{ width: 20, height: 20, bgcolor: 'rgba(33, 150, 243, 0.2)', borderRadius: 0.5 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">Arrivée pendant nettoyage (autre logement)</Typography>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </Box>
-          )}
+          {/* Color legend removed 2026-06-06 — the per-card alert explanation text is
+              clear enough on its own; the legend block added clutter at the top of the
+              page without surfacing actionable info. */}
         </CardContent>
       </Card>
       {loading && <LinearProgress />}
@@ -845,6 +935,10 @@ export default function PlanningPage() {
           // operator can revert it. Add every skipped date to the date set; the LaundryDayCard
           // receives a {} placeholder for `data` below when laundryByDate has nothing.
           ...skippedLaundryDates,
+          // specs/breakfast-option-and-planning-card.md §3 rule 8 — a date that has ONLY a
+          // breakfast card (no arrival/departure/laundry) must still render so the operator
+          // sees it. Filter to days where there's actually at least one item.
+          ...Object.keys(breakfastByDate).filter((d) => (breakfastByDate[d]?.items?.length || 0) > 0),
         ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
@@ -904,11 +998,24 @@ export default function PlanningPage() {
                 onToggleSkip={handleToggleLaundrySkip}
               />
 
+              {/* Breakfast card (specs/breakfast-option-and-planning-card.md §6.1). Sits
+                  between laundry and departures so the operator's morning scan is:
+                  laundry → breakfasts → who's leaving today. The card hides itself when
+                  no reservation contributes (rule 7). Each row is clickable and opens
+                  the corresponding reservation form. */}
+              <BreakfastDayCard data={breakfastByDate[date]} onItemClick={openReservation} />
+
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {dayDepartures.map((r) => (
-                      <DepartureMiniRow key={`dep-${r.id}`} reservation={r} onToggleDone={handleToggleDepartureDone} />
+                      <DepartureMiniRow
+                        key={`dep-${r.id}`}
+                        reservation={r}
+                        onToggleDone={handleToggleDepartureDone}
+                        onOpen={openReservation}
+                        alertInfo={alertMap[r.id]}
+                      />
                     ))}
                   </Box>
                 </Box>
@@ -920,6 +1027,7 @@ export default function PlanningPage() {
                   reservation={r}
                   onToggleReady={handleToggleReady}
                   alertInfo={alertMap[r.id]}
+                  onOpen={openReservation}
                 />
               ))}
 

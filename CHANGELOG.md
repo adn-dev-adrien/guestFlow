@@ -4,6 +4,105 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Breakfast option + per-day planning card** (spec
+  `breakfast-option-and-planning-card.md`, 2026-06-05). `Petit
+  déjeuner` joins `Linge de lit` and `Linge de toilette` as the third
+  typed-default catalog option — seeded at every boot (`autoOptionType
+  = 'breakfast'`, `priceType = 'per_person_per_night'`, `price = 0`)
+  via `utils/breakfastSeed.js`. The seed promotes any existing
+  operator-created `Petit déjeuner` / `Petit-déjeuner` row to the
+  typed marker, so prod servers gain the feature without manual
+  cleanup.
+
+  **Planning page** — a new `BreakfastDayCard` appears under each day
+  where ≥1 reservation has the breakfast option AND the customer is
+  present in the morning (= `startDate < D AND endDate >= D`, half-
+  open `(startDate, endDate]` window). Each card lists the
+  contributing reservations as `{clientName} ({propertyName}) : {N}
+  pers.` and totals them in bold. Babies are excluded from the count
+  (matching the bathroom-linen convention). The card uses an amber
+  palette + croissant icon to visually separate it from the cyan
+  laundry card. Mounted between `LaundryDayCard` and the departures
+  block — operator scan: laundry → breakfasts → who's leaving today.
+
+  **API** — new `GET /api/planning/breakfast?from&to` returns
+  `{ breakfastByDate: { 'YYYY-MM-DD': { items: [...], totalPersons } } }`.
+  Same property-default fallback pattern as the laundry aggregators
+  (UNION ALL of explicit `reservation_options` ∪
+  `property_option_defaults`; explicit row wins via `NOT EXISTS`,
+  property fallback injects `qtySum = 1.0`).
+
+  **Tests** — +25 (10 model + 5 seed + 5 controller server, + 5
+  Vitest). Server suite 1033 → 1053 green (in-isolation; occasional
+  parallel-runner flakes still surface suite-wide, all reproduce as
+  pass alone). Vitest 237 → 242 green. Vite build clean (466 KB gzip
+  ≈ baseline +0.6 KB).
+
+  Live verified on dev server reservation #12082 (Gite property,
+  2026-06-04 → 2026-06-07, tagged breakfast option, 8 persons): 3
+  cards rendered on dates 06-05, 06-06, 06-07, arrival day (06-04)
+  correctly excluded, departure day (06-07) correctly included.
+
+  **Hotfix 2026-06-05 follow-up — cleaning info mirrored on the
+  departure tile (same PR)** — Adrien asked that the small "ménage:
+  Xh" badge that already shows on the next ARRIVAL card in a tight-
+  transition alert also appear on the corresponding DEPARTURE card,
+  so both ends of the conflict carry the same context. Wired
+  `alertInfo` through to `DepartureMiniRow` (it already exists on
+  `ReservationCard`) + extended the alert's `prevRes` explanation
+  to embed the cleaning duration in the same shape as the arrival
+  alert (`Arrivée de {client} {date} à {time}, ménage: {Xh}`). The
+  red/orange/blue alert background is now also applied symmetrically
+  on the departure card. Verified live on dev server: a Gite
+  departure with a same-day next arrival shows the new badge
+  alongside the existing tight-transition red border. No new tests
+  — purely a string + a prop wired through; existing 245 Vitest
+  cases still green.
+
+  **Hotfix 2026-06-05 follow-up — clickable planning cards (same
+  PR)** — All planning cards (arrivals, departures, breakfast) now
+  open the corresponding reservation form on click. Wired
+  `useNavigate` + `withFrom('/planning')` in `PlanningPage` and
+  exposed an `onOpen(reservationId)` prop on `ReservationCard`
+  (arrivals) + `DepartureMiniRow` (departures): the whole Card body
+  is clickable with cursor + hover affordance. The per-row checkbox
+  is `stopPropagation`'d so toggling ready/done doesn't trigger
+  navigation. `BreakfastDayCard` gains an `onItemClick` prop —
+  per-row click (one row = one reservation), `role="button"`,
+  keyboard support (Enter / Space). +3 Vitest cases on
+  `BreakfastDayCard` (245 → 248 green). Live verified: arrival
+  card → /reservations/12103?from=/planning, departure
+  → /reservations/12081?from=/planning, breakfast row
+  → /reservations/12082?from=/planning. Checkbox click stays on
+  /planning.
+
+  **Hotfix 2026-06-06 — planning UI polish sweep (same PR)** — a
+  small UX iteration loop, all on the planning page:
+  - Cleaning info badge: first added on the arrival card too, then
+    removed (the alert explanation text already carries it). On the
+    DEPARTURE card only, a prominent red block (`CleaningServices`
+    icon + bold "Ménage : Xh") sits where the now-removed "Famille"
+    chip row used to be — the family breakdown belongs to the
+    arrival card (welcome prep), the departure tile is about
+    checkout time + cleaning.
+  - Time pill on the top row of arrivals + departures: rounded,
+    bold, solid orange/green (warning / success when done) bg, with
+    an `AccessTimeIcon` to the left. The old `Person + name + clock
+    + "Arrivée HH:MM"` second-line block is replaced by a single
+    `Person + name` row — no duplication.
+  - Top-of-page color legend ("Alertes de conflit") removed; per-card
+    explanations are clear enough.
+  - Icons sweep: `BreakfastDining` (croissant+cup) →
+    `BakeryDining` (pure viennoiserie croissant); ARRIVÉE chip gets
+    a big `FlightLandIcon` (plane landing) on the left; DÉPART chip
+    gets a `FlightTakeoffIcon` (plane taking off). Distinct mirror
+    silhouettes for the airport-board family.
+  - Breakfast card rows redesigned: bigger croissant in the header,
+    each row prefixed with the same `HomeWorkIcon` as on the
+    arrival/departure cards, format `🏠 {property} • {client} : {N}
+    petit(s) déjeuner(s)`. Multi-property days iterate one row each.
+
 ### Changed
 - **Bed configuration moves inside the "Linge de lit" option card**
   (spec `bed-config-in-linen-card.md`, 2026-06-05). The 3 bed
