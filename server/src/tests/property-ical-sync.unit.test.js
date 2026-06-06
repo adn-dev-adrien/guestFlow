@@ -51,6 +51,15 @@ const DDL = `
     acknowledgedAt TEXT,
     outcome TEXT
   );
+  /* establishment_closures was added 2026-06-06 — the sync engine now consults it via
+     the closure guard in propertyIcalModel. Pre-existing sync tests don't seed closures
+     so the table is just empty in this fixture (the guard finds no row → no skip). */
+  CREATE TABLE establishment_closures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER,
+    label TEXT NOT NULL DEFAULT 'Fermeture établissement',
+    startDate TEXT NOT NULL, endDate TEXT NOT NULL,
+    createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
+  );
 `;
 
 function icsFeed(events) {
@@ -311,19 +320,25 @@ test('summary fallback (step 3.5): LOCKED moved booking with NEW UID → date-dr
 test('summary fallback (step 3.5): AMBIGUOUS summary (≥2 same-source mappings) → no re-claim, INSERT new', async () => {
   // Two existing mappings with the SAME summaryNormalized → uniqueness gate blocks the
   // re-claim, the new event falls through to the standard INSERT path. Protects against
-  // false-positive remaps on generic summaries (e.g. "Booked Ical", "Closed Period").
+  // false-positive remaps on generic summaries (e.g. "Booked Ical").
+  //
+  // 2026-06-06 — switched the fixture summary from "Closed Period" to "Booked Ical"
+  // because `isUnavailableIcalEvent` now drops the former at parse time (Adrien asked
+  // for that filter, see properties-ical.unit.test.js). "Booked Ical" is the other
+  // generic phrasing the comment already called out and still flows through the
+  // pipeline, so the ambiguity contract this test pins is unchanged.
   const { db, model, source } = freshModel();
   stubFetch([
-    { uid: 'A1', start: '20260601', end: '20260602', summary: 'Closed Period' },
-    { uid: 'A2', start: '20260701', end: '20260702', summary: 'Closed Period' },
+    { uid: 'A1', start: '20260601', end: '20260602', summary: 'Booked Ical' },
+    { uid: 'A2', start: '20260701', end: '20260702', summary: 'Booked Ical' },
   ]);
   await model.syncSource(source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 2);
 
   stubFetch([
-    { uid: 'A1', start: '20260601', end: '20260602', summary: 'Closed Period' },
-    { uid: 'A2', start: '20260701', end: '20260702', summary: 'Closed Period' },
-    { uid: 'A3', start: '20261010', end: '20261011', summary: 'Closed Period' },
+    { uid: 'A1', start: '20260601', end: '20260602', summary: 'Booked Ical' },
+    { uid: 'A2', start: '20260701', end: '20260702', summary: 'Booked Ical' },
+    { uid: 'A3', start: '20261010', end: '20261011', summary: 'Booked Ical' },
   ]);
   const result = await model.syncSource(source);
   assert.equal(result.createdCount, 1, 'ambiguous summary → INSERT new, no false remap');

@@ -61,6 +61,20 @@ test('isUnavailableIcalEvent detects common unavailable markers', () => {
   assert.equal(isUnavailableIcalEvent('Airbnb (Not available)', ''), true);
 });
 
+test('isUnavailableIcalEvent detects "Closed Period" — Airbnb host-block label (2026-06-06)', () => {
+  // Airbnb labels host-blocked date ranges as "Closed - Not available" or simply
+  // "Closed Period". Pre-fix the regex only matched "Not available", missing the
+  // bare "Closed Period" variant — Adrien reported one such event sneaking in.
+  assert.equal(isUnavailableIcalEvent('Closed Period', ''), true);
+  assert.equal(isUnavailableIcalEvent('closed period', ''), true);
+  assert.equal(isUnavailableIcalEvent('Closed-Period', ''), true);
+  assert.equal(isUnavailableIcalEvent('Closed   Period', ''), true);
+  // Match in DESCRIPTION too, not just SUMMARY.
+  assert.equal(isUnavailableIcalEvent('Airbnb', 'Reason: Closed Period'), true);
+  // Not a false-positive on similar but unrelated phrasings.
+  assert.equal(isUnavailableIcalEvent('Closed door key on arrival', ''), false);
+});
+
 test('parseIcsEvents parses VEVENT and ignores CANCELLED events', () => {
   const ics = [
     'BEGIN:VCALENDAR',

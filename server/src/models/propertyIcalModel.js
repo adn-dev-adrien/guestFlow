@@ -21,6 +21,15 @@ const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
 const { formatPlatformName } = require('../utils/platformNameFormat');
 const icalCancellationModel = require('./icalCancellationModel');
+// Establishment closures (2026-06-06): every iCal event is checked against the
+// closure table BEFORE touching the local reservations table. Until this guard
+// landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
+// `validateAvailability` (which only runs on the HTTP API path) — so a remote
+// platform could silently override an operator-declared closure with a new
+// reservation. The guard treats closure-overlapping events the same way the
+// `isUnavailableIcalEvent` filter treats "Closed Period" entries: skip the event,
+// leave the local DB alone, count it in the sync result for visibility.
+const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
   collectsTouristTax,
@@ -33,6 +42,11 @@ function createPropertyIcalModel(database) {
   // matching companion models).
   const driftModel = icalDateDriftModel.buildModel(database);
   const cancellationModel = icalCancellationModel.buildModel(database);
+  // 2026-06-06 — same DB-binding rationale for the closure model: tests build a fresh
+  // property-ical model on :memory:, and the closure guard must consult THAT in-memory
+  // closures table, not the prod one. Default export of establishmentClosuresModel is
+  // bound to the prod DB; `.create(database)` returns a fresh instance bound to ours.
+  const closuresModel = establishmentClosuresModel.create(database);
 
   function getOrCreateIcalClient(guestName, platformLabel) {
     const { firstName, lastName } = resolveIcalClientIdentity(guestName, platformLabel);
@@ -243,6 +257,7 @@ function createPropertyIcalModel(database) {
         let unchangedCount = 0;
         let lockedCount = 0;
         let removedCount = 0;
+        let skippedClosureCount = 0;
 
         const syncTx = database.transaction((eventList) => {
           const seenUids = new Set(eventList.map((event) => event.uid));
@@ -255,6 +270,24 @@ function createPropertyIcalModel(database) {
           );
 
           for (const event of eventList) {
+            // 2026-06-06 — Closure guard. An operator-declared establishment closure on
+            // this property's dates MUST win over any incoming iCal event. Without this
+            // check, the sync would happily INSERT the reservation (the prepared
+            // statement above bypasses `validateAvailability`), and the operator would
+            // discover the override only by reading the planning. Same skip-style as
+            // `isUnavailableIcalEvent`: don't insert, don't touch any existing mapping,
+            // don't raise an alert — the closure was explicit, the operator already
+            // knows about it.
+            const coveringClosure = closuresModel.findCoveringClosure(
+              source.propertyId,
+              event.startDate,
+              event.endDate,
+            );
+            if (coveringClosure) {
+              skippedClosureCount += 1;
+              continue;
+            }
+
             const eventHash = buildEventHash(event);
             const summaryNormalized = normalizeIcalSummary(event.summary);
             let mapping = getMapping.get(source.id, event.uid);
@@ -463,6 +496,7 @@ function createPropertyIcalModel(database) {
           unchangedCount,
           lockedCount,
           removedCount,
+          skippedClosureCount,
           rawIcal: icsText,
           parsedEvents: events,
         };
@@ -485,7 +519,10 @@ function createPropertyIcalModel(database) {
         `).run(
           // `removedCount` now counts soft-cancellation alerts raised on the Dashboard,
           // not deletions (specs/ical-cancellation-approval.md §3 rule 8).
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider, ${result.unchangedCount} inchangé(s)`,
+          // `skippedClosureCount` (2026-06-06) — events dropped because they fell on a
+          // declared establishment closure. Surfaced for operator visibility in
+          // `ical_sources.lastSyncMessage`.
+          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}, ${result.unchangedCount} inchangé(s)`,
           result.createdCount + result.updatedCount,
           source.id,
         );

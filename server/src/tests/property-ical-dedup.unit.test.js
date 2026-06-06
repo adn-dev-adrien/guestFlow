@@ -47,6 +47,14 @@ const DDL = `
     acknowledgedAt TEXT,
     outcome TEXT
   );
+  /* establishment_closures was added 2026-06-06 — sync engine consults it via the
+     closure guard. Empty fixture in this dedup test (no closures seeded). */
+  CREATE TABLE establishment_closures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER,
+    label TEXT NOT NULL DEFAULT 'Fermeture établissement',
+    startDate TEXT NOT NULL, endDate TEXT NOT NULL,
+    createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
+  );
 `;
 
 function icsFeed(events) {
