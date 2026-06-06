@@ -17,11 +17,11 @@ import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-// Check-in / check-out semantic: a door-bracket with an arrow entering (Login) or
-// exiting (Logout). Mirror images, instantly readable as "the guest is coming in / going
-// out" — the exact mental model the operator uses on the planning. Adrien 2026-06-06.
-import LoginIcon from '@mui/icons-material/Login';
-import LogoutIcon from '@mui/icons-material/Logout';
+// Travel-style "boarding board" semantic: plane landing (arrival) / taking off
+// (departure). Adrien preferred this set after trying the door-bracket login/logout
+// variant — kept here for the visual playfulness that fits a vacation rental app.
+import FlightLandIcon from '@mui/icons-material/FlightLand';
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
@@ -205,10 +205,10 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
-          {/* ARRIVÉE badge — Login icon (arrow entering a door bracket) = check-in
-              semantic. Bigger height + solid bg + white text for maximum visibility. */}
+          {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal
+              "arrival" semantic. Bigger height + solid bg + white text for max pop. */}
           <Chip
-            icon={<LoginIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<FlightLandIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="ARRIVÉE"
             size="small"
             sx={{
@@ -372,10 +372,10 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
-          {/* DÉPART badge — Logout icon (arrow exiting a door bracket) = check-out
-              semantic. Mirror image of the Login icon used on the arrival card. */}
+          {/* DÉPART badge — FlightTakeoff (plane lifting off) = symmetric counterpart
+              to the ARRIVÉE Land icon. Same airport-board family, distinct silhouette. */}
           <Chip
-            icon={<LogoutIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="DÉPART"
             size="small"
             sx={{
