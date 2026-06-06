@@ -30,6 +30,13 @@ function normalizeProgressiveOptionTiers(raw) {
 }
 
 function createOptionsModel(database) {
+  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6). When the EN columns are
+  // missing (minimal test schemas), the SQL gracefully drops the references.
+  const HAS_OPTION_TITLE_EN = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'titleEn'); }
+    catch { return false; }
+  })();
+
   const propertyIdsFor = (optionId) => database
     .prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId')
     .all(optionId)
@@ -53,7 +60,17 @@ function createOptionsModel(database) {
     },
 
     create(payload = {}) {
-      const insertOption = database.prepare(`
+      const insertOption = database.prepare(HAS_OPTION_TITLE_EN ? `
+        INSERT INTO options (
+          title, description, priceType, price, optionProgressiveTiers,
+          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+          countsAsBedLinen, countsAsBathroomLinen,
+          linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
+          towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson,
+          titleEn, descriptionEn
+        )
+        VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?,  ?, ?,  ?, ?, ?,  ?, ?, ?,  ?, ?)
+      ` : `
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
@@ -65,7 +82,7 @@ function createOptionsModel(database) {
       `);
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       const optionId = database.transaction(() => {
-        const result = insertOption.run(
+        const args = [
           sentenceCase(payload.title),
           sentenceCase(payload.description),
           payload.priceType || 'per_stay',
@@ -86,7 +103,14 @@ function createOptionsModel(database) {
           Math.max(0, Math.floor(Number(payload.towelLargePerPerson  ?? 1))),
           Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
           Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
-        );
+        ];
+        if (HAS_OPTION_TITLE_EN) {
+          // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — trimmed strings,
+          // empty by default. Not run through sentenceCase: the operator decides EN casing.
+          args.push(String(payload.titleEn || '').trim());
+          args.push(String(payload.descriptionEn || '').trim());
+        }
+        const result = insertOption.run(...args);
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         return id;
@@ -95,7 +119,16 @@ function createOptionsModel(database) {
     },
 
     update(id, payload = {}) {
-      const updateOption = database.prepare(`
+      const updateOption = database.prepare(HAS_OPTION_TITLE_EN ? `
+        UPDATE options SET
+          title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
+          autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
+          countsAsBedLinen = ?, countsAsBathroomLinen = ?,
+          linenIncludesSingle = ?, linenIncludesDouble = ?, linenIncludesBaby = ?,
+          towelLargePerPerson = ?, towelMediumPerPerson = ?, towelSmallPerPerson = ?,
+          titleEn = ?, descriptionEn = ?
+        WHERE id = ?
+      ` : `
         UPDATE options SET
           title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
           autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
@@ -107,7 +140,7 @@ function createOptionsModel(database) {
       const deleteLinks = database.prepare('DELETE FROM property_options WHERE optionId = ?');
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       database.transaction(() => {
-        updateOption.run(
+        const args = [
           sentenceCase(payload.title),
           sentenceCase(payload.description),
           payload.priceType || 'per_stay',
@@ -125,8 +158,13 @@ function createOptionsModel(database) {
           Math.max(0, Math.floor(Number(payload.towelLargePerPerson  ?? 1))),
           Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
           Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
-          id,
-        );
+        ];
+        if (HAS_OPTION_TITLE_EN) {
+          args.push(String(payload.titleEn || '').trim());
+          args.push(String(payload.descriptionEn || '').trim());
+        }
+        args.push(id);
+        updateOption.run(...args);
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
       })();

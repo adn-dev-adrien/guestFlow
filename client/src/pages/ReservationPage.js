@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
   MenuItem, Typography, CircularProgress, Chip, Stack, Card, CardContent,
-  Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery
+  Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery,
+  ToggleButton, ToggleButtonGroup, Tooltip
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -751,6 +752,8 @@ export default function ReservationPage() {
             startDate: devis.startDate,
             endDate: devis.endDate,
             propertyId: devis.propertyId,
+            // 2026-06-06 — bilingual PDF (specs/devis-english-language.md §3 rule 1).
+            pdfLanguage: devis.pdfLanguage || 'fr',
             depositPaid: false,
             depositPaidDate: '',
             balancePaid: false,
@@ -1703,6 +1706,9 @@ export default function ReservationPage() {
           selectedOptions: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
           selectedResources: quote.resourceLines,
+          // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md §3 rule 1).
+          // Defaults to 'fr' for new devis; persists whatever the operator picked.
+          pdfLanguage: form.pdfLanguage || 'fr',
         };
 
         if (editingDevisId) {
@@ -2149,6 +2155,25 @@ export default function ReservationPage() {
             ))}
           </Select>
         </FormControl>
+      ),
+    }] : []),
+    ...(isDevisMode ? [{
+      // Bilingual devis PDF (specs/devis-english-language.md §3 rule 1 + §6.1) — FR / EN toggle
+      // beside the Statut Select. Default 'fr'. Marking the form dirty is handled by `updateForm`.
+      node: (
+        <Tooltip title="Langue du PDF de devis">
+          <ToggleButtonGroup
+            size="small"
+            value={form.pdfLanguage || 'fr'}
+            exclusive
+            onChange={(e, next) => { if (next) updateForm({ pdfLanguage: next }); }}
+            aria-label="Langue du devis"
+            sx={{ height: 36 }}
+          >
+            <ToggleButton value="fr" sx={{ px: 1.5 }}>FR</ToggleButton>
+            <ToggleButton value="en" sx={{ px: 1.5 }}>EN</ToggleButton>
+          </ToggleButtonGroup>
+        </Tooltip>
       ),
     }] : []),
     ...(isDevisMode

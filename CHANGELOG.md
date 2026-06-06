@@ -4,6 +4,51 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Bilingual devis PDF (FR / EN)** (spec
+  `devis-english-language.md`, 2026-06-06). The devis edit page gains a
+  small **FR / EN** toggle next to the Statut select; the choice is
+  persisted on the row (`reservations.pdfLanguage`, default `'fr'`) and
+  drives the `GET /api/devis/:id/pdf` rendering. Every literal the PDF
+  prints flows through `utils/devisPdfLabels.js` (one source of truth
+  for both languages, with FR ↔ EN key parity asserted by unit tests).
+  Dates render in `dd/mm/yyyy` for FR and `D MMMM YYYY` for EN
+  (unambiguous internationally) via a new `formatDateLocalised` helper.
+
+  **Translated options & resources.** Options gain `titleEn` +
+  `descriptionEn`; resources gain `nameEn`. The OptionsPage and
+  ResourcesPage forms expose the EN inputs side-by-side with the FR
+  ones; empty values fall back to the FR text at render time so existing
+  prod data keeps producing usable PDFs. The 3 typed-default options
+  (Linge de lit / Linge de toilette / Petit déjeuner) seed their EN
+  translation (`Bed linen` / `Bath linen` / `Breakfast`) at boot — both
+  on fresh installs and as a backfill for prod servers that promoted
+  before the EN column existed. The default `Lit bébé` resource seeds
+  with `nameEn = 'Baby bed'`.
+
+  **Footer.** A new `quoteFooterTextEn` setting sits beside the existing
+  `quoteFooterText` in `/settings`; each language uses its own custom
+  footer when set, else a sensible static default in the matching
+  language (no cross-language fallback — an EN PDF showing French
+  copy would read as broken).
+
+  **Coverage.** +52 server-side cases (`devis-pdf-labels`,
+  `devis-helpers-date-en`, `devis-pdf-en`, `devis-model-pdf-language`,
+  `options-resources-en-fields`, `seeds-en-translation`) + +16 Vitest
+  cases (`SettingsQuoteSection.bilingual`,
+  `devis-en-language-payload`). Server suite stable at ~1115; client
+  suite 284 → 300 green.
+
+  **Migration.** `reservations.pdfLanguage TEXT NOT NULL DEFAULT 'fr'`,
+  `options.titleEn TEXT NOT NULL DEFAULT ''`,
+  `options.descriptionEn TEXT NOT NULL DEFAULT ''`,
+  `resources.nameEn TEXT NOT NULL DEFAULT ''`,
+  `app_settings.quoteFooterTextEn TEXT DEFAULT ''`. Additive; no row
+  rewrites. The model factories (`devisModel`, `optionsModel`,
+  `resourcesModel`, `settingsModel`) detect missing columns at build
+  time and gracefully drop the references — so minimal test schemas
+  that haven't added the columns still run unchanged.
+
 ### Changed
 - **Selective cleanup popup on `/clients`** (spec
   `clients.md` §3 rule 8, 2026-06-06). Clicking the **Cleanup clients**

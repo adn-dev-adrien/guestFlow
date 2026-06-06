@@ -34,6 +34,8 @@ const COMPANY_FIELDS = [
 
 const QUOTE_FIELDS = [
   { input: 'footerText', column: 'quoteFooterText' },
+  // English-language footer for the bilingual devis PDF (specs/devis-english-language.md §3 rule 11).
+  { input: 'footerTextEn', column: 'quoteFooterTextEn' },
   { input: 'validityDays', column: 'quoteValidityDays', validator: validation.validateQuoteValidityDays },
 ];
 

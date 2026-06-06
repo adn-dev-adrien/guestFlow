@@ -750,6 +750,12 @@ tryAddOptionColumn('towelLargePerPerson',  "ALTER TABLE options ADD COLUMN towel
 tryAddOptionColumn('towelMediumPerPerson', "ALTER TABLE options ADD COLUMN towelMediumPerPerson INTEGER NOT NULL DEFAULT 0");
 tryAddOptionColumn('towelSmallPerPerson',  "ALTER TABLE options ADD COLUMN towelSmallPerPerson INTEGER NOT NULL DEFAULT 1");
 
+// 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). English title +
+// description for each option, used by the PDF renderer when the devis carries pdfLanguage='en'.
+// Empty fallback to the FR title — graceful intermediate state for untranslated options.
+tryAddOptionColumn('titleEn',       "ALTER TABLE options ADD COLUMN titleEn TEXT NOT NULL DEFAULT ''");
+tryAddOptionColumn('descriptionEn', "ALTER TABLE options ADD COLUMN descriptionEn TEXT NOT NULL DEFAULT ''");
+
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
   db.exec("ALTER TABLE devis_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
@@ -783,6 +789,10 @@ tryAddResourceColumn('closedDays', "ALTER TABLE resources ADD COLUMN closedDays 
 tryAddResourceColumn('openDays', "ALTER TABLE resources ADD COLUMN openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]'");
 tryAddResourceColumn('turnoverMinutes', 'ALTER TABLE resources ADD COLUMN turnoverMinutes INTEGER NOT NULL DEFAULT 0');
 tryAddResourceColumn('minimumUsageMinutes', 'ALTER TABLE resources ADD COLUMN minimumUsageMinutes INTEGER NOT NULL DEFAULT 0');
+
+// 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). English name surfaced
+// by the PDF when the devis carries pdfLanguage='en'. Empty fallback to FR `name`.
+tryAddResourceColumn('nameEn', "ALTER TABLE resources ADD COLUMN nameEn TEXT NOT NULL DEFAULT ''");
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_property_resource_prices_resource ON property_resource_prices(resourceId)');
 const propertyResourcePriceCols = db.prepare("PRAGMA table_info(property_resource_prices)").all().map(c => c.name);
@@ -1063,6 +1073,10 @@ tryAddAppSettingsCol('companyIban', "ALTER TABLE app_settings ADD COLUMN company
 tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyBic TEXT DEFAULT ''");
 tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
 tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
+// 2026-06-06 — English-language footer for the bilingual devis PDF
+// (specs/devis-english-language.md §3 rule 11). Optional — empty defaults to the static
+// English text in devisPdfLabels.
+tryAddAppSettingsCol('quoteFooterTextEn', "ALTER TABLE app_settings ADD COLUMN quoteFooterTextEn TEXT DEFAULT ''");
 
 // Global VAT rate (single-rate model — specs/single-vat-rate.md §5). The previous 2-rate model
 // (accommodation 10 % / standard 20 %) was collapsed because every revenue stream on GuestFlow
@@ -1149,6 +1163,9 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('devisStatus')) db.exec('ALTER TABLE reservations ADD COLUMN devisStatus TEXT');
   if (!rcols.includes('validUntil')) db.exec('ALTER TABLE reservations ADD COLUMN validUntil TEXT');
   if (!rcols.includes('convertedReservationId')) db.exec('ALTER TABLE reservations ADD COLUMN convertedReservationId INTEGER');
+  // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). 'fr' (default) | 'en'.
+  // Existing devis backfill to 'fr' via the DEFAULT clause; the PDF endpoint reads this column.
+  if (!rcols.includes('pdfLanguage')) db.exec("ALTER TABLE reservations ADD COLUMN pdfLanguage TEXT NOT NULL DEFAULT 'fr'");
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
 
@@ -1198,8 +1215,15 @@ const babyBed = db.prepare(`
     AND NOT EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id)
 `).get();
 if (!babyBed) {
-  db.prepare('INSERT INTO resources (name, quantity, price, note) VALUES (?, ?, ?, ?)')
-    .run('Lit bébé', 1, 0, 'Ressource par défaut');
+  db.prepare('INSERT INTO resources (name, nameEn, quantity, price, note) VALUES (?, ?, ?, ?, ?)')
+    .run('Lit bébé', 'Baby bed', 1, 0, 'Ressource par défaut');
+}
+// 2026-06-06 — backfill the EN translation on prod servers that seeded "Lit bébé" before
+// the nameEn column existed. Idempotent: only touches the row when the column is empty.
+try {
+  db.prepare("UPDATE resources SET nameEn = 'Baby bed' WHERE LOWER(name) = LOWER('Lit bébé') AND (nameEn IS NULL OR nameEn = '')").run();
+} catch (e) {
+  // nameEn column not yet present (very early boot path) — silent; the next boot will catch up.
 }
 
 // Migration: add missing columns to options table if they don't exist.

@@ -15,6 +15,11 @@
  *      on it).
  */
 
+const SEED_DEFINITION_EN = Object.freeze({
+  title: 'Bath linen',
+  description: 'Towels (large, medium, small). Per-guest count drives the LaundryDayCard.',
+});
+
 const SEED_DEFINITION = Object.freeze({
   title: 'Linge de toilette',
   description: 'Serviette de bain + serviette de toilette par personne. Compte les serviettes à apporter / récupérer à la blanchisserie.',
@@ -50,6 +55,16 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
       logger.log(`[seed:bathroom-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
+    // 2026-06-06 — backfill EN translation on rows with empty titleEn (typed/promoted/legacy).
+    if (cols.includes('titleEn')) {
+      database.prepare(`
+        UPDATE options
+           SET titleEn = ?, descriptionEn = COALESCE(NULLIF(descriptionEn, ''), ?)
+         WHERE autoOptionType = 'bathroom_linen'
+           AND (titleEn IS NULL OR titleEn = '')
+      `).run(SEED_DEFINITION_EN.title, SEED_DEFINITION_EN.description);
+    }
+
     const hasTypedSeed = database.prepare(
       "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'bathroom_linen'"
     ).get().n > 0;
@@ -58,25 +73,35 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    database.prepare(`
-      INSERT INTO options (
-        title, description, priceType, price, optionProgressiveTiers,
-        autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-        countsAsBedLinen, countsAsBathroomLinen
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      SEED_DEFINITION.title,
-      SEED_DEFINITION.description,
-      'per_stay',
-      0,
-      '[]',
-      SEED_DEFINITION.autoOptionType,
-      0,
-      'fixed',
-      null,
-      0, // countsAsBedLinen = 0 (this is the towels seed, not the sheets seed)
-      1,
-    );
+    const hasEnCols = cols.includes('titleEn') && cols.includes('descriptionEn');
+    if (hasEnCols) {
+      database.prepare(`
+        INSERT INTO options (
+          title, description, priceType, price, optionProgressiveTiers,
+          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+          countsAsBedLinen, countsAsBathroomLinen, titleEn, descriptionEn
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        SEED_DEFINITION.title, SEED_DEFINITION.description,
+        'per_stay', 0, '[]',
+        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
+        0, 1,
+        SEED_DEFINITION_EN.title, SEED_DEFINITION_EN.description,
+      );
+    } else {
+      database.prepare(`
+        INSERT INTO options (
+          title, description, priceType, price, optionProgressiveTiers,
+          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+          countsAsBedLinen, countsAsBathroomLinen
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        SEED_DEFINITION.title, SEED_DEFINITION.description,
+        'per_stay', 0, '[]',
+        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
+        0, 1,
+      );
+    }
     logger.log('[seed:bathroom-linen] seeded default option');
     return { action: 'seeded' };
   } catch (error) {
@@ -88,5 +113,6 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
 module.exports = {
   ensureDefaultBathroomLinenOption,
   SEED_DEFINITION,
+  SEED_DEFINITION_EN,
   KNOWN_TITLE_ALIASES,
 };

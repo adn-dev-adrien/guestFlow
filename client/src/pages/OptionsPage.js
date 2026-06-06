@@ -21,6 +21,9 @@ const OPTION_PRICE_TYPES = [
 const emptyOption = {
   title: '',
   description: '',
+  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — empty = fallback to FR.
+  titleEn: '',
+  descriptionEn: '',
   priceType: 'per_stay',
   price: 0,
   propertyIds: [],
@@ -53,6 +56,35 @@ function normalizeProgressiveTiers(raw) {
     });
   });
   return Array.from(byParticipant.values()).sort((a, b) => a.participantNumber - b.participantNumber);
+}
+
+// Bilingual devis PDF (specs/devis-english-language.md §3 rule 6 + §6.2). One small reusable
+// fragment shared between OptionsPage and ResourcesPage so both forms get the EN translation
+// inputs without duplicating the markup. `titleKey` defaults to `titleEn` so it works as-is
+// for resources too (the form key changes; the underlying TextField is the same).
+function EnglishTextFields({ form, setForm, titleKey, descriptionKey, titleLabel, descriptionLabel }) {
+  const label = titleLabel || 'Titre (anglais)';
+  return (
+    <>
+      <TextField
+        label={label}
+        value={form[titleKey] || ''}
+        onChange={(e) => setForm({ ...form, [titleKey]: e.target.value })}
+        helperText="Utilisé sur le PDF de devis en anglais. Laisser vide → reprend le titre français."
+        fullWidth
+      />
+      {descriptionKey ? (
+        <TextField
+          label={descriptionLabel || 'Description (anglais)'}
+          value={form[descriptionKey] || ''}
+          onChange={(e) => setForm({ ...form, [descriptionKey]: e.target.value })}
+          fullWidth
+          multiline
+          rows={2}
+        />
+      ) : null}
+    </>
+  );
 }
 
 function ProgressivePricingFields({ form, setForm }) {
@@ -171,10 +203,16 @@ export default function OptionsPage() {
         towelLargePerPerson:  item.towelLargePerPerson  == null ? 1 : Number(item.towelLargePerPerson),
         towelMediumPerPerson: item.towelMediumPerPerson == null ? 0 : Number(item.towelMediumPerPerson),
         towelSmallPerPerson:  item.towelSmallPerPerson  == null ? 1 : Number(item.towelSmallPerPerson),
+        // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6).
+        titleEn: item.titleEn || '',
+        descriptionEn: item.descriptionEn || '',
       })}
       toPayload={(form) => ({
         title: form.title,
         description: form.description || '',
+        // Bilingual devis PDF — empty string when the operator leaves it blank.
+        titleEn: (form.titleEn || '').trim(),
+        descriptionEn: (form.descriptionEn || '').trim(),
         price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
         priceType: form.priceType || 'per_stay',
         optionProgressiveTiers: normalizeProgressiveTiers(form.optionProgressiveTiers),
@@ -194,6 +232,9 @@ export default function OptionsPage() {
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
       renderExtraFormFields={(form, setForm) => (
         <>
+          {/* Bilingual devis PDF (specs/devis-english-language.md §3 rule 6 + §6.2) — surface
+              the EN translations on the same form. Empty = fallback to FR in the EN PDF. */}
+          <EnglishTextFields form={form} setForm={setForm} titleKey="titleEn" descriptionKey="descriptionEn" />
           <ProgressivePricingFields form={form} setForm={setForm} />
           {/* §3.5.ter — per-type controls visible iff the flag is set. The flag itself stays
               hidden (set by the server-side seed); these controls let Adrien tune which bed
