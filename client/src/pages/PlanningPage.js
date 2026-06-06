@@ -17,8 +17,11 @@ import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import FlightLandIcon from '@mui/icons-material/FlightLand';
-import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
+// Check-in / check-out semantic: a door-bracket with an arrow entering (Login) or
+// exiting (Logout). Mirror images, instantly readable as "the guest is coming in / going
+// out" — the exact mental model the operator uses on the planning. Adrien 2026-06-06.
+import LoginIcon from '@mui/icons-material/Login';
+import LogoutIcon from '@mui/icons-material/Logout';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
@@ -202,13 +205,10 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
-          {/* ARRIVÉE badge — maxed-out for visibility (Adrien 2026-06-06: "trouve moi
-              aussi un jolie logo pour Départ et Arrivée, il faut que ce soit un maximum
-              visuel" + "je veux un logo différent pour départ et arrivée"). FlightLand
-              icon = plane touching down → universal "arrival" semantic; bigger height +
-              solid bg + white text for maximum pop. */}
+          {/* ARRIVÉE badge — Login icon (arrow entering a door bracket) = check-in
+              semantic. Bigger height + solid bg + white text for maximum visibility. */}
           <Chip
-            icon={<FlightLandIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<LoginIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="ARRIVÉE"
             size="small"
             sx={{
@@ -372,11 +372,10 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
-          {/* DÉPART badge — symmetric with ARRIVÉE. FlightTakeoff icon = plane lifting
-              off → distinct from the landing arrival; matches the universal travel
-              terminology (Arrival / Departure boards). */}
+          {/* DÉPART badge — Logout icon (arrow exiting a door bracket) = check-out
+              semantic. Mirror image of the Login icon used on the arrival card. */}
           <Chip
-            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<LogoutIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="DÉPART"
             size="small"
             sx={{
