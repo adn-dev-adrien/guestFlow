@@ -1657,6 +1657,14 @@ const { ensureDefaultBathroomLinenOption } = require('./utils/bathroomLinenSeed'
 ensureDefaultBathroomLinenOption(db);
 db.ensureDefaultBathroomLinenOption = ensureDefaultBathroomLinenOption;
 
+// specs/breakfast-option-and-planning-card.md §3 rule 1. Same idempotent typed-default
+// pattern as the two linen seeds above: ensures the catalog carries exactly one
+// `autoOptionType = 'breakfast'` row, promoting any existing operator-created variant
+// before inserting a fresh row.
+const { ensureDefaultBreakfastOption } = require('./utils/breakfastSeed');
+ensureDefaultBreakfastOption(db);
+db.ensureDefaultBreakfastOption = ensureDefaultBreakfastOption;
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

@@ -11,6 +11,7 @@ const laundryModel = require('../models/laundryModel');
 const settingsModel = require('../models/settingsModel');
 const linenInventoryModel = require('../models/linenInventoryModel');
 const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
+const breakfastModel = require('../models/breakfastModel');
 const {
   findLaundryDaysInRange,
   prevLaundryDay,
@@ -33,6 +34,7 @@ function buildController({
   settingsModel: injectedSettingsModel = settingsModel,
   linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
   laundryTripSkipsModel: injectedLaundryTripSkipsModel = laundryTripSkipsModel,
+  breakfastModel: injectedBreakfastModel = breakfastModel,
 } = {}) {
   return {
     /**
@@ -150,6 +152,38 @@ function buildController({
         }
       }
       return res.json({ horizon: result.horizon, byLaundryDay });
+    },
+
+    /**
+     * GET /api/planning/breakfast?from=YYYY-MM-DD&to=YYYY-MM-DD
+     *
+     * Returns the per-day breakfast list for the requested window
+     * (specs/breakfast-option-and-planning-card.md §3 + §4).
+     *
+     * Payload shape:
+     *   { breakfastByDate: {
+     *       'YYYY-MM-DD': {
+     *         items: [{ reservationId, clientName, propertyName, persons }, ...],
+     *         totalPersons: number,
+     *       }, ...
+     *     } }
+     *
+     * Empty `breakfastByDate` when no reservation contributes in the window. The model
+     * applies the half-open `(startDate, endDate]` "présent le matin" rule, the
+     * babies-excluded person count, and the property-default fallback. The client just
+     * mounts the card and trusts the payload.
+     */
+    breakfastSummary(req, res) {
+      const from = (req.query && req.query.from) || '';
+      const to = (req.query && req.query.to) || '';
+      if (!isIsoDate(from) || !isIsoDate(to)) {
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      }
+      if (from > to) {
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      }
+      const breakfastByDate = injectedBreakfastModel.breakfastByDate({ from, to });
+      return res.json({ breakfastByDate });
     },
   };
 }

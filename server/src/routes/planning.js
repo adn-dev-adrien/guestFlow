@@ -11,5 +11,6 @@ const controller = require('../controllers/planningController');
 
 router.get('/laundry', controller.laundrySummary);
 router.get('/linen-inventory', controller.linenInventory);
+router.get('/breakfast', controller.breakfastSummary);
 
 module.exports = router;

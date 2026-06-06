@@ -257,6 +257,12 @@ const api = {
     if (to) params.push(`to=${encodeURIComponent(to)}`);
     return request(`/planning/laundry?${params.join('&')}`);
   },
+  // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.3). Returns the
+  // dates in [from, to] where ≥1 reservation has the breakfast option AND the customer is
+  // present in the morning (= `startDate < D AND endDate >= D`). Payload:
+  // `{ breakfastByDate: { 'YYYY-MM-DD': { items: [{ clientName, propertyName, persons }], totalPersons } } }`.
+  getBreakfastPlanningSummary: ({ from, to }) =>
+    request(`/planning/breakfast?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
   getLinenInventory: () => request('/planning/linen-inventory'),
