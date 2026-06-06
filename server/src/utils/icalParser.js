@@ -151,7 +151,12 @@ function isUnavailableIcalEvent(summary, description) {
   const text = `${String(summary || '')}\n${String(description || '')}`
     .replace(/ /g, ' ')
     .toLowerCase();
-  return /(blocked|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i.test(text);
+  // 2026-06-06 — "closed period" is the Airbnb-side label when the host has blocked a
+  // date range (vs. "Not available" which is the Booking.com phrasing). Treating it as
+  // an unavailability marker drops these events at parse time, before sync touches the
+  // local reservations table. Pairs with the closure-overlap guard in
+  // `propertyIcalModel.syncSource` (which catches conflicts even when the summary lies).
+  return /(blocked|closed[\s-]*period|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i.test(text);
 }
 
 function parseIcsEvents(icsText) {
