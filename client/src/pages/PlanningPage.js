@@ -297,12 +297,18 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
             </Box>
           )}
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Lits:
-            </Typography>
-            <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
-          </Box>
+          {/* Lits row — rendered only when at least one regular bed (double or single)
+              is configured (Adrien 2026-06-06: "que si lit double ou simple > 0"). A
+              reservation with only baby beds skips this block; the catalog options /
+              resources rows downstream still surface anything bed-linen-related. */}
+          {(Number(r.doubleBeds || 0) > 0 || Number(r.singleBeds || 0) > 0) && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                Lits:
+              </Typography>
+              <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
+            </Box>
+          )}
 
           {optionsText.length > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
