@@ -2,11 +2,10 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Checkbox, Chip, Divider,
-  LinearProgress, TextField, Button, Tooltip, IconButton, Table, TableBody, TableCell, TableRow
+  LinearProgress, TextField, Button, Tooltip, IconButton,
 } from '@mui/material';
 import { orange, grey } from '@mui/material/colors';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PersonIcon from '@mui/icons-material/Person';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -17,6 +16,7 @@ import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
@@ -211,6 +211,24 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
               bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
             }}
           />
+          {/* Time pill — promoted to the top row (Adrien 2026-06-06: "met moi l'heure
+              juste à droite du de Arrivée [...] avec un encadrement arrondi et en gras
+              que ce soit visible" + "rajoute ta petite horloge à gauche de l'heure").
+              The duplicate clock + "Arrivée HH:MM" block on the line below is removed. */}
+          <Chip
+            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            label={r.checkInTime || '15:00'}
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: 13,
+              fontWeight: 800,
+              borderRadius: 1.5,
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
+            }}
+          />
           {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
         </Box>
 
@@ -235,19 +253,13 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {r.firstName} {r.lastName}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" color="text.secondary">
-                Arrivée {r.checkInTime || '15:00'}
-              </Typography>
-            </Box>
+          {/* Second-line block reduced to the client name. The clock icon + "Arrivée
+              HH:MM" duplicate of the top time pill is removed (Adrien 2026-06-06). */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {r.firstName} {r.lastName}
+            </Typography>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
@@ -361,6 +373,21 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
               bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
             }}
           />
+          {/* Time pill — symmetric with the arrival card (Adrien 2026-06-06). */}
+          <Chip
+            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            label={checkOutTime}
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: 13,
+              fontWeight: 800,
+              borderRadius: 1.5,
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
+            }}
+          />
           {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
         </Box>
 
@@ -385,19 +412,13 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {reservation.firstName} {reservation.lastName}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" color="text.secondary">
-                Départ {checkOutTime}
-              </Typography>
-            </Box>
+          {/* Second-line block reduced to the client name. Clock + "Départ HH:MM"
+              duplicate of the top time pill is removed (Adrien 2026-06-06). */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {reservation.firstName} {reservation.lastName}
+            </Typography>
           </Box>
 
           {/* Where the "Famille:" chip row used to live (Adrien 2026-06-06). The departure
@@ -850,42 +871,9 @@ export default function PlanningPage() {
             )}
           </Box>
 
-          {/* Legend */}
-          {Object.values(alertMap).length > 0 && (
-            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
-                Alertes de conflit :
-              </Typography>
-              <Table size="small" sx={{ '& td': { border: 'none', px: 0.5, pt: 0, pb: 0.5 } }}>
-                <TableBody>
-                  <TableRow>
-                    <TableCell sx={{ width: 24 }}>
-                      <Box sx={{ width: 20, height: 20, bgcolor: 'rgba(255, 152, 0, 0.2)', borderRadius: 0.5 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">Départs simultanés (plusieurs logements)</Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ width: 24 }}>
-                      <Box sx={{ width: 20, height: 20, bgcolor: 'rgba(244, 67, 54, 0.2)', borderRadius: 0.5 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">Nettoyage insuffisant (même logement)</Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ width: 24 }}>
-                      <Box sx={{ width: 20, height: 20, bgcolor: 'rgba(33, 150, 243, 0.2)', borderRadius: 0.5 }} />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption">Arrivée pendant nettoyage (autre logement)</Typography>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </Box>
-          )}
+          {/* Color legend removed 2026-06-06 — the per-card alert explanation text is
+              clear enough on its own; the legend block added clutter at the top of the
+              page without surfacing actionable info. */}
         </CardContent>
       </Card>
       {loading && <LinearProgress />}
