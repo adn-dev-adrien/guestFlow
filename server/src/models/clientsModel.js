@@ -144,6 +144,51 @@ function createModel(database) {
     };
   }
 
+  // List clients with neither a reservation nor a devis — the candidates surfaced in the selective
+  // cleanup popup. Same filter as the bulk `cleanupOrphans` (devis-linked clients are protected).
+  function listOrphans() {
+    return database.prepare(`
+      SELECT c.id, c.firstName, c.lastName, c.email, c.phone
+        FROM clients c
+       WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+       ORDER BY c.lastName, c.firstName
+    `).all();
+  }
+
+  // Delete only the ids that are STILL orphan at this exact moment (re-checked per id to defuse the
+  // race where a reservation is created between the popup's preview fetch and the user's Supprimer
+  // click). Non-orphan / non-existent ids land in `skippedCount` — silent, no error.
+  function cleanupOrphansByIds(rawIds) {
+    const ids = Array.from(new Set(
+      (Array.isArray(rawIds) ? rawIds : [])
+        .map((v) => Number(v))
+        .filter((n) => Number.isInteger(n) && n > 0),
+    ));
+    if (ids.length === 0) return { deletedCount: 0, skippedCount: 0 };
+
+    const isOrphan = database.prepare(`
+      SELECT 1 FROM clients c
+       WHERE c.id = ?
+         AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+    `);
+    const del = database.prepare('DELETE FROM clients WHERE id = ?');
+
+    const tx = database.transaction((toDelete) => {
+      let deletedCount = 0;
+      let skippedCount = 0;
+      for (const id of toDelete) {
+        if (isOrphan.get(id)) {
+          del.run(id);
+          deletedCount += 1;
+        } else {
+          skippedCount += 1;
+        }
+      }
+      return { deletedCount, skippedCount };
+    });
+    return tx(ids);
+  }
+
   // Delete clients with neither a reservation nor a devis; report how many were kept for having a devis.
   function cleanupOrphans() {
     // devis are now reservations(kind='devis'); a client with any booking row (reservation or devis)
@@ -178,6 +223,8 @@ function createModel(database) {
     listDevisForClient,
     getDeleteImpact,
     cleanupOrphans,
+    listOrphans,
+    cleanupOrphansByIds,
   };
 }
 

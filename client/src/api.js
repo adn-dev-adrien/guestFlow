@@ -40,6 +40,8 @@ const api = {
   getClient: (id) => request(`/clients/${id}`),
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
+  getOrphanClientsPreview: () => request('/clients/cleanup-orphans/preview'),
+  cleanupOrphanClientsByIds: (ids) => request('/clients/cleanup-orphans/delete', { method: 'POST', body: { ids } }),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
   deleteClient: (id, options = {}) => {

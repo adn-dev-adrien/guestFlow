@@ -69,7 +69,21 @@ list.
    delete is dropped). Force deletes everything (reservations + devis).
 7. **Cleanup orphans** unchanged in behavior: delete clients with **no** reservations **and no** devis;
    report `deletedCount` + `keptWithDevisCount`. Logic moves into the model.
-8. **`ClientsPage` + `ClientFormFields` render only / single field.** `ClientFormFields` shows one phone
+8. **Selective cleanup popup (added 2026-06-06).** Clicking **Cleanup clients** no longer deletes
+   immediately. The page fetches the orphan list (clients with no reservation **and** no devis), opens a
+   popup listing one row per client (last name + first name + email + phone) with a **checkbox checked by
+   default** on each row, plus a "Tout cocher / décocher" master toggle. Two actions:
+   - **Annuler** — close the popup, no DB change.
+   - **Supprimer** — call the delete-by-ids endpoint with the currently-checked ids. Disabled when zero
+     rows are checked.
+
+   After a successful delete the popup closes, the client list reloads, and a toast/alert reports
+   `deletedCount` + (if any) `skippedCount` (orphans that gained a reservation between preview and
+   delete — the server re-validates each id and silently skips non-orphans to avoid a race).
+
+   The pre-existing bulk `POST /clients/cleanup-orphans` stays for headless / programmatic callers but
+   is no longer called by the UI.
+9. **`ClientsPage` + `ClientFormFields` render only / single field.** `ClientFormFields` shows one phone
    `TextField` (remove add/remove list). `ClientsPage` drops the client-side reservation sort + nights
    math and consumes the server-shaped `delete-impact` (reservations + devis); the delete dialog also
    lists the impacted **devis**.
@@ -94,8 +108,8 @@ list.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `clients.js` | T | Thin: parse → call `clientsController` → respond. No SQL/logic left. |
-| `controllers/` | `clientsController.js` | C | Orchestrates list/get/create/update/delete/force/delete-impact/cleanup; validation + normalization wiring; HTTP statuses (`400`, `404`, `409 CLIENT_IN_USE`). |
-| `models/` | `clientsModel.js` | C | All DB access: client CRUD (single `phone`), search, impact aggregation (reservations + devis, sorted, with `nights`), orphan cleanup. Returns API-shaped objects. |
+| `controllers/` | `clientsController.js` | C | Orchestrates list/get/create/update/delete/force/delete-impact/cleanup; validation + normalization wiring; HTTP statuses (`400`, `404`, `409 CLIENT_IN_USE`). **2026-06-06:** also exposes `cleanupOrphansPreview` (list-only) + `cleanupOrphansDelete` (by-ids, with per-id re-validation). |
+| `models/` | `clientsModel.js` | C | All DB access: client CRUD (single `phone`), search, impact aggregation (reservations + devis, sorted, with `nights`), orphan cleanup. **2026-06-06:** adds `listOrphans()` (server-sorted by lastName/firstName) + `cleanupOrphansByIds(ids)` (deletes only ids that are still orphan; returns `{ deletedCount, skippedCount }`). Returns API-shaped objects. |
 | `utils/` | `clientValidation.js` | T | Simplify to a single `phone` (keep `isValidEmail`/`isValidPhone`; `validateClientPayload` validates one phone). |
 | `utils/` | `textFormatters.js` | — | Reused (`sentenceCase`). |
 | `utils/` | `clientPhoneMigration.js` | C | Pure, unit-tested migration helper (`migrateClientPhonesToSingle(db)`): keep the first `phoneNumbers` entry in `phone`, drop the column; idempotent. |
@@ -109,15 +123,16 @@ list.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `ClientFormFields.js` | T | One phone `TextField` (remove the add/remove multi-phone list + per-row errors). |
-| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). |
+| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. |
 | `pages/` | `ReservationPage.js` | T | Inline "create client" dialog: single `phone` (drop `phoneNumbers` from `EMPTY_CLIENT` + payload). |
+| `components/` | `ClientCleanupDialog.js` | C | **NEW (2026-06-06):** focused dialog showing the orphan list with per-row checkboxes (default checked) + master toggle + Annuler / Supprimer. Calls the delete-by-ids API on confirm, surfaces deleted/skipped counts. |
 
 **Component reuse declaration:**
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `PageActionBar`, `FormDialog`, `ConfirmDialog`, `ClientFormFields`, the existing list scaffold ClientsPage uses | Reused. `ClientFormFields` is simplified, not replaced. |
-| **Created (new generic)** | (none planned) | Keep the impact list inline unless a second consumer appears. |
+| **Consumed (existing generic)** | `PageActionBar`, `FormDialog`, `ConfirmDialog`, `ClientFormFields`, the existing list scaffold ClientsPage uses | Reused. `ClientFormFields` is simplified, not replaced. `ClientCleanupDialog` wraps `FormDialog`. |
+| **Created (new generic)** | `ClientCleanupDialog` _(2026-06-06)_ | Tied to the orphan-list semantics (a checklist popup over a domain-specific endpoint). Kept page-specific for now; if a second "select-then-delete" flow appears, factor a generic `ChecklistDeleteDialog`. |
 
 ### 4.3 API contract
 
@@ -129,7 +144,9 @@ list.
 | POST | `/clients` | client body (`phone`) | created `client` | `400` on invalid email/phone. |
 | PUT | `/clients/:id` | client body (`phone`) | updated `client` | `400` / `404`. |
 | DELETE | `/clients/:id?force=` | — | `{ ok }` or `409 CLIENT_IN_USE` (+impact) | Force cascades reservations + devis. |
-| POST | `/clients/cleanup-orphans` | — | `{ ok, deletedCount, keptWithDevisCount }` | No-reservation **and** no-devis clients. |
+| POST | `/clients/cleanup-orphans` | — | `{ ok, deletedCount, keptWithDevisCount }` | Bulk delete-all (kept for back-compat / headless callers — UI no longer uses it). |
+| GET | `/clients/cleanup-orphans/preview` | — | `{ orphans: [{ id, firstName, lastName, email, phone }] }` | _(NEW 2026-06-06)_ Server-sorted by `lastName, firstName`. Same orphan filter as the bulk endpoint. |
+| POST | `/clients/cleanup-orphans/delete` | `{ ids: number[] }` | `{ ok, deletedCount, skippedCount }` | _(NEW 2026-06-06)_ Re-validates each id is still orphan; non-orphans counted in `skippedCount`. `400` on missing/empty/non-numeric `ids`. |
 
 **Breaking change (internal):** responses drop `phoneNumbers`; requests accept `phone` (a sent
 `phoneNumbers` is ignored). All in-repo consumers are updated in this same PR (no shim).
@@ -164,7 +181,20 @@ drop is irreversible.
 - **Clients list:** shows the single phone (already the case for the main number).
 - **Delete confirmation dialog:** now lists impacted **reservations** _and_ **devis** (counts + rows),
   server-sorted, reservations showing `nights`; force-delete copy reflects that both are removed.
-- **Cleanup orphans:** unchanged.
+- **Cleanup orphans (2026-06-06):** clicking **Cleanup clients** opens `<ClientCleanupDialog>`:
+  - Title: "Nettoyer la base clients".
+  - Subtitle (caption): "Sélectionne les clients à supprimer. Seuls les clients sans réservation ni
+    devis apparaissent ici."
+  - Empty state: "Aucun client à supprimer — tous les clients ont au moins une réservation ou un devis."
+  - List: one row per orphan, layout `[checkbox] Nom Prénom · email · phone`. Master "Tout cocher /
+    décocher" above the list reflects the current selection (indeterminate when mixed).
+  - Footer: **Annuler** (text button) + **Supprimer (N)** (filled error-coloured button; disabled when
+    `N === 0`, busy spinner while deleting).
+  - After success: dialog closes, list reloads, an info dialog reports
+    `"X client(s) supprimé(s)"` and — only if `skippedCount > 0` — appends `" · Y client(s) ignoré(s)
+    car ils ont gagné une réservation entre-temps."`.
+  - **Mobile (`xs`):** `FormDialog` `fullScreen`; rows stack with the checkbox left + label wrapping;
+    the master toggle stays at the top.
 - **Responsive:** unchanged; one fewer dynamic list to stack on `xs`.
 
 ## 7. Test plan
@@ -177,7 +207,29 @@ drop is irreversible.
       when reservations **or** devis exist; `force` deletes; success shapes (no `phoneNumbers`).
 - [x] `tests/client-phone-migration.unit.test.js` — `phoneNumbers: ["A","B"]` → `phone = "A"`, extras
       discarded, column dropped; empty `phoneNumbers` keeps existing `phone`; idempotent on re-run.
-- [x] Full server suite green (**274**).
+- [ ] **NEW (2026-06-06)** `tests/clients-cleanup-orphans.unit.test.js` — model + controller:
+      - `listOrphans()` returns only clients with **no reservation and no devis**, sorted
+        `lastName, firstName`, with the right columns.
+      - `cleanupOrphansByIds([])` → `{ deletedCount: 0, skippedCount: 0 }`, no DB write.
+      - `cleanupOrphansByIds([orphanA, withReservation])` → orphanA deleted,
+        withReservation skipped; counts match.
+      - `cleanupOrphansByIds([orphanA, withDevis])` → orphanA deleted, withDevis skipped (devis-linked
+        clients are protected).
+      - `cleanupOrphansByIds([42_unknown])` → `skippedCount: 1`, no error.
+      - Controller `GET /cleanup-orphans/preview` returns the orphan array (no count noise).
+      - Controller `POST /cleanup-orphans/delete` with `ids: []` → `400 INVALID_IDS`.
+      - Controller `POST /cleanup-orphans/delete` with `ids: ['x']` → `400 INVALID_IDS`.
+      - Controller happy path returns `{ ok, deletedCount, skippedCount }`.
+- [x] Full server suite green (**274** + delta from the new cases).
+
+### Client unit tests (Vitest)
+- [ ] **NEW (2026-06-06)** `client/src/components/__tests__/ClientCleanupDialog.test.jsx`:
+      - Empty list → renders the empty-state message + a disabled **Supprimer** button.
+      - 3 orphans → 3 checkboxes all checked, master toggle checked, **Supprimer (3)**.
+      - Uncheck one row → master toggle goes indeterminate, **Supprimer (2)**.
+      - Click master "Tout décocher" → all rows uncheck, **Supprimer** disabled.
+      - Click **Annuler** → calls `onClose`, never calls the delete API.
+      - Click **Supprimer** with 2 selected → calls `onConfirm(selectedIds)` with the two ids only.
 
 ### Manual UI verification (in browser)
 - [x] "Nouveau client" form shows a single **Téléphone** field (no add/remove); `0` console errors.
@@ -197,4 +249,15 @@ drop is irreversible.
 
 - Q: Drop the `phoneNumbers` column now? — A (proposed): **yes**, after migrating the first number into
   `phone` (prod multi-number clients keep the 1st, lose the rest — per decision). Confirm at spec
-  validation.
+  validation. **Resolved 2026-05-28: dropped.**
+
+### Resolved (2026-06-06)
+- Q: Cleanup popup scope — devis-linked clients listed or hidden?
+  **A: hidden.** Same filter as the bulk endpoint (no reservation **and** no devis). Devis-linked clients
+  stay protected, the popup stays small and predictable.
+- Q: Delete strategy — N×`DELETE /clients/:id` or a new batch endpoint?
+  **A: new batch endpoint `POST /clients/cleanup-orphans/delete`** with `ids: number[]`. One round-trip,
+  transactional, server re-validates each id (race-safe).
+- Q: Preview surface — new GET endpoint or repurpose the existing POST?
+  **A: new `GET /clients/cleanup-orphans/preview`.** The bulk POST keeps its semantics (kept for
+  back-compat / headless callers).

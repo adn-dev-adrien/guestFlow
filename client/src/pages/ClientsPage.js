@@ -14,6 +14,7 @@ import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DataPageScaffold from '../components/DataPageScaffold';
 import FormDialog from '../components/FormDialog';
 import ClientFormFields from '../components/ClientFormFields';
+import ClientCleanupDialog from '../components/ClientCleanupDialog';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
@@ -73,6 +74,7 @@ export default function ClientsPage() {
     loading: false,
     error: '',
   });
+  const [cleanupDialog, setCleanupDialog] = useState({ open: false, orphans: [], loading: false, busy: false });
   const emailError = !isValidEmail(form.email);
   const phoneError = !isValidPhone(form.phone);
 
@@ -391,26 +393,47 @@ export default function ClientsPage() {
     openReservationFromClients(reservation.id, reservation.clientId, 'client');
   };
 
+  // Open the selective cleanup popup: fetch the orphan list, then show the dialog.
+  // The legacy bulk `cleanupOrphanClients()` API stays available but the UI no longer calls it.
   const handleCleanupOrphanClients = async () => {
-    const ok = await confirm({
-      title: 'Nettoyer la base clients',
-      message: 'Supprimer tous les clients sans réservation ? Les clients liés à un devis seront conservés.',
-      confirmLabel: 'Nettoyer',
-      confirmColor: 'warning',
-    });
-    if (!ok) return;
-
+    setCleanupDialog({ open: true, orphans: [], loading: true, busy: false });
     try {
-      const result = await api.cleanupOrphanClients();
-      await reload(search);
-      await alert({
-        title: 'Nettoyage terminé',
-        message: `${result.deletedCount || 0} client(s) supprimé(s). ${result.keptWithDevisCount || 0} client(s) conservé(s) car liés à un devis.`,
-      });
+      const { orphans = [] } = await api.getOrphanClientsPreview();
+      setCleanupDialog({ open: true, orphans, loading: false, busy: false });
     } catch (error) {
+      setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
       await alert({
         title: 'Erreur',
-        message: error?.message || 'Impossible d\'effectuer le nettoyage des clients.',
+        message: error?.message || 'Impossible de charger la liste des clients à supprimer.',
+      });
+    }
+  };
+
+  const handleCleanupClose = () => {
+    setCleanupDialog((prev) => (prev.busy ? prev : { ...prev, open: false }));
+  };
+
+  const handleCleanupConfirm = async (ids) => {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    setCleanupDialog((prev) => ({ ...prev, busy: true }));
+    try {
+      const result = await api.cleanupOrphanClientsByIds(ids);
+      setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
+      await reload(search);
+      const deleted = Number(result?.deletedCount || 0);
+      const skipped = Number(result?.skippedCount || 0);
+      const skippedSuffix = skipped > 0
+        ? ` · ${skipped} client(s) ignoré(s) car ils ont gagné une réservation entre-temps.`
+        : '';
+      await alert({
+        title: 'Nettoyage terminé',
+        message: `${deleted} client(s) supprimé(s).${skippedSuffix}`,
+      });
+    } catch (error) {
+      setCleanupDialog((prev) => ({ ...prev, busy: false }));
+      await alert({
+        title: 'Erreur',
+        message: error?.message || 'Impossible de supprimer les clients sélectionnés.',
       });
     }
   };
@@ -561,6 +584,14 @@ export default function ClientsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ClientCleanupDialog
+        open={cleanupDialog.open}
+        orphans={cleanupDialog.orphans}
+        onClose={handleCleanupClose}
+        onConfirm={handleCleanupConfirm}
+        busy={cleanupDialog.busy}
+      />
     </Box>
   );
 }
