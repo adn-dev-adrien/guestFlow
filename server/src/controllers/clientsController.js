@@ -65,7 +65,25 @@ function createController(model) {
     return res.json({ ok: true, ...model.cleanupOrphans() });
   }
 
-  return { list, getOne, getDeleteImpact, create, update, remove, cleanupOrphans };
+  // GET /clients/cleanup-orphans/preview — list of clients the selective cleanup popup may delete.
+  function cleanupOrphansPreview(req, res) {
+    return res.json({ orphans: model.listOrphans() });
+  }
+
+  // POST /clients/cleanup-orphans/delete — delete by ids, re-validating each id is still orphan.
+  function cleanupOrphansDelete(req, res) {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
+    const allNumeric = Array.isArray(ids) && ids.every((v) => Number.isInteger(Number(v)) && Number(v) > 0);
+    if (!ids || ids.length === 0 || !allNumeric) {
+      return res.status(400).json({ error: 'INVALID_IDS' });
+    }
+    return res.json({ ok: true, ...model.cleanupOrphansByIds(ids) });
+  }
+
+  return {
+    list, getOne, getDeleteImpact, create, update, remove,
+    cleanupOrphans, cleanupOrphansPreview, cleanupOrphansDelete,
+  };
 }
 
 const defaultController = createController(require('../models/clientsModel'));
