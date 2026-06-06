@@ -77,6 +77,32 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   → /reservations/12082?from=/planning. Checkbox click stays on
   /planning.
 
+  **Hotfix 2026-06-06 — planning UI polish sweep (same PR)** — a
+  small UX iteration loop, all on the planning page:
+  - Cleaning info badge: first added on the arrival card too, then
+    removed (the alert explanation text already carries it). On the
+    DEPARTURE card only, a prominent red block (`CleaningServices`
+    icon + bold "Ménage : Xh") sits where the now-removed "Famille"
+    chip row used to be — the family breakdown belongs to the
+    arrival card (welcome prep), the departure tile is about
+    checkout time + cleaning.
+  - Time pill on the top row of arrivals + departures: rounded,
+    bold, solid orange/green (warning / success when done) bg, with
+    an `AccessTimeIcon` to the left. The old `Person + name + clock
+    + "Arrivée HH:MM"` second-line block is replaced by a single
+    `Person + name` row — no duplication.
+  - Top-of-page color legend ("Alertes de conflit") removed; per-card
+    explanations are clear enough.
+  - Icons sweep: `BreakfastDining` (croissant+cup) →
+    `BakeryDining` (pure viennoiserie croissant); ARRIVÉE chip gets
+    a big `FlightLandIcon` (plane landing) on the left; DÉPART chip
+    gets a `FlightTakeoffIcon` (plane taking off). Distinct mirror
+    silhouettes for the airport-board family.
+  - Breakfast card rows redesigned: bigger croissant in the header,
+    each row prefixed with the same `HomeWorkIcon` as on the
+    arrival/departure cards, format `🏠 {property} • {client} : {N}
+    petit(s) déjeuner(s)`. Multi-property days iterate one row each.
+
 ### Changed
 - **Bed configuration moves inside the "Linge de lit" option card**
   (spec `bed-config-in-linen-card.md`, 2026-06-05). The 3 bed
