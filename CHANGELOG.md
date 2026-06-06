@@ -15,16 +15,25 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   Dates render in `dd/mm/yyyy` for FR and `D MMMM YYYY` for EN
   (unambiguous internationally) via a new `formatDateLocalised` helper.
 
-  **Translated options & resources.** Options gain `titleEn` +
-  `descriptionEn`; resources gain `nameEn`. The OptionsPage and
-  ResourcesPage forms expose the EN inputs side-by-side with the FR
-  ones; empty values fall back to the FR text at render time so existing
-  prod data keeps producing usable PDFs. The 3 typed-default options
-  (Linge de lit / Linge de toilette / Petit déjeuner) seed their EN
-  translation (`Bed linen` / `Bath linen` / `Breakfast`) at boot — both
-  on fresh installs and as a backfill for prod servers that promoted
-  before the EN column existed. The default `Lit bébé` resource seeds
-  with `nameEn = 'Baby bed'`.
+  **Translated options & resources.** Options gain a single `titleEn`
+  column (no `descriptionEn` — the option description isn't printed in
+  the devis PDF, only the title is). Resources gain `nameEn`. The
+  OptionsPage and ResourcesPage forms expose the EN inputs side-by-side
+  with the FR ones; empty values fall back to the FR text at render time
+  so existing prod data keeps producing usable PDFs. The **5 typed-
+  default options** seed their EN title at boot — both on fresh installs
+  and as an idempotent backfill on prod servers that promoted before
+  the column existed:
+
+  | autoOptionType | titleEn |
+  |---|---|
+  | `bed_linen` | Bed linen |
+  | `bathroom_linen` | Bath linen |
+  | `breakfast` | Breakfast |
+  | `early_check_in` | Early check-in |
+  | `late_check_out` | Late check-out |
+
+  The default `Lit bébé` resource seeds with `nameEn = 'Baby bed'`.
 
   **Footer.** A new `quoteFooterTextEn` setting sits beside the existing
   `quoteFooterText` in `/settings`; each language uses its own custom
@@ -41,7 +50,6 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
   **Migration.** `reservations.pdfLanguage TEXT NOT NULL DEFAULT 'fr'`,
   `options.titleEn TEXT NOT NULL DEFAULT ''`,
-  `options.descriptionEn TEXT NOT NULL DEFAULT ''`,
   `resources.nameEn TEXT NOT NULL DEFAULT ''`,
   `app_settings.quoteFooterTextEn TEXT DEFAULT ''`. Additive; no row
   rewrites. The model factories (`devisModel`, `optionsModel`,

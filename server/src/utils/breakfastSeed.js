@@ -32,10 +32,10 @@ const SEED_DEFINITION = Object.freeze({
   autoOptionType: 'breakfast',
 });
 
-// English translation surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// English title surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// No `descriptionEn`: the option description isn't printed in the devis PDF.
 const SEED_DEFINITION_EN = Object.freeze({
   title: 'Breakfast',
-  description: 'Breakfast served in the morning (from the day after arrival through the day of departure). Appears on the Planning for each day the booking is present.',
 });
 
 // Title aliases promoted to the typed seed at boot. Same defensive strategy as the linen
@@ -71,14 +71,14 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
       logger.log(`[seed:breakfast] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
-    // 2026-06-06 — backfill EN translation on rows with empty titleEn.
+    // 2026-06-06 — backfill EN title on rows with empty titleEn.
     if (cols.includes('titleEn')) {
       database.prepare(`
         UPDATE options
-           SET titleEn = ?, descriptionEn = COALESCE(NULLIF(descriptionEn, ''), ?)
+           SET titleEn = ?
          WHERE autoOptionType = 'breakfast'
            AND (titleEn IS NULL OR titleEn = '')
-      `).run(SEED_DEFINITION_EN.title, SEED_DEFINITION_EN.description);
+      `).run(SEED_DEFINITION_EN.title);
     }
 
     const hasTypedSeed = database.prepare(
@@ -89,20 +89,19 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    const hasEnCols = cols.includes('titleEn') && cols.includes('descriptionEn');
-    if (hasEnCols) {
+    if (cols.includes('titleEn')) {
       database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen, titleEn, descriptionEn
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          countsAsBedLinen, countsAsBathroomLinen, titleEn
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         SEED_DEFINITION.title, SEED_DEFINITION.description,
         'per_person_per_night', 0, '[]',
         SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
         0, 0,
-        SEED_DEFINITION_EN.title, SEED_DEFINITION_EN.description,
+        SEED_DEFINITION_EN.title,
       );
     } else {
       database.prepare(`

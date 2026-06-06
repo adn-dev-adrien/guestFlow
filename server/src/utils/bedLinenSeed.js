@@ -28,9 +28,9 @@ const SEED_DEFINITION = Object.freeze({
   title: 'Linge de lit',
   description: 'Parure complète (drap, drap-housse, taie d\'oreiller). Compte les parures à apporter / récupérer à la blanchisserie.',
   autoOptionType: 'bed_linen',
-  // English translation surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+  // English title surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+  // No `descriptionEn`: the option description isn't printed in the devis PDF.
   titleEn: 'Bed linen',
-  descriptionEn: 'Complete set (flat sheet, fitted sheet, pillowcase). Counts the sets to bring to / collect from the laundry.',
 });
 
 // Title aliases promoted into the typed seed at boot (2026-06-02 follow-up). Adrien confirmed
@@ -78,16 +78,16 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
       logger.log(`[seed:bed-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
-    // 2026-06-06 — backfill the EN translation on rows where titleEn is empty (typed seed,
-    // promoted seed, or prod rows that pre-date the EN column). Silent on noop boots. Guarded
-    // because `titleEn` might not exist yet on a partially-migrated DB.
+    // 2026-06-06 — backfill the EN title on rows where titleEn is empty (typed seed, promoted
+    // seed, or prod rows that pre-date the EN column). Silent on noop boots. Guarded because
+    // `titleEn` might not exist yet on a partially-migrated DB.
     if (cols.includes('titleEn')) {
       database.prepare(`
         UPDATE options
-           SET titleEn = ?, descriptionEn = COALESCE(NULLIF(descriptionEn, ''), ?)
+           SET titleEn = ?
          WHERE autoOptionType = 'bed_linen'
            AND (titleEn IS NULL OR titleEn = '')
-      `).run(SEED_DEFINITION.titleEn, SEED_DEFINITION.descriptionEn);
+      `).run(SEED_DEFINITION.titleEn);
     }
 
     const hasTypedSeed = database.prepare(
@@ -100,20 +100,19 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    const hasEnCols = cols.includes('titleEn') && cols.includes('descriptionEn');
-    if (hasEnCols) {
+    if (cols.includes('titleEn')) {
       database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, titleEn, descriptionEn
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          countsAsBedLinen, titleEn
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         SEED_DEFINITION.title, SEED_DEFINITION.description,
         'per_stay', 0, '[]',
         SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
         1,
-        SEED_DEFINITION.titleEn, SEED_DEFINITION.descriptionEn,
+        SEED_DEFINITION.titleEn,
       );
     } else {
       database.prepare(`

@@ -40,17 +40,19 @@ describe('api: bilingual fields plumbed through', () => {
     expect(api.updateDevis).toHaveBeenCalledWith(42, expect.objectContaining({ pdfLanguage: 'fr' }));
   });
 
-  test('api.createOption forwards titleEn + descriptionEn', async () => {
+  test('api.createOption forwards titleEn (description is NOT translated — see spec §3 rule 6)', async () => {
     api.createOption.mockResolvedValue({ id: 7 });
     await api.createOption({
       title: 'Ménage', titleEn: 'Cleaning',
-      description: 'Final', descriptionEn: 'Final cleaning service',
+      description: 'Final',
       priceType: 'per_stay', price: 80,
     });
     expect(api.createOption).toHaveBeenCalledWith(expect.objectContaining({
       titleEn: 'Cleaning',
-      descriptionEn: 'Final cleaning service',
     }));
+    // Defensive: no descriptionEn key sneaks into the payload.
+    const sentArgs = api.createOption.mock.calls[0][0];
+    expect(sentArgs).not.toHaveProperty('descriptionEn');
   });
 
   test('api.createResource forwards nameEn', async () => {
@@ -62,13 +64,13 @@ describe('api: bilingual fields plumbed through', () => {
 
 describe('Form payload shapes (mirrors what the pages send)', () => {
   // The OptionsPage `toPayload` shape — copied verbatim from the page so a regression on the
-  // trim / fallback rules surfaces here.
+  // trim / fallback rules surfaces here. Title-only: the option description isn't printed in
+  // the devis PDF, so we don't carry an EN counterpart.
   function optionsToPayload(form) {
     return {
       title: form.title,
       description: form.description || '',
       titleEn: (form.titleEn || '').trim(),
-      descriptionEn: (form.descriptionEn || '').trim(),
     };
   }
 
@@ -79,14 +81,14 @@ describe('Form payload shapes (mirrors what the pages send)', () => {
     };
   }
 
-  test('OptionsPage payload: trims EN strings + empty defaults to empty', () => {
-    expect(optionsToPayload({ title: 'A', titleEn: '  Cleaning  ', description: 'd', descriptionEn: '  ' }))
-      .toEqual({ title: 'A', description: 'd', titleEn: 'Cleaning', descriptionEn: '' });
+  test('OptionsPage payload: trims titleEn + empty defaults to empty (no descriptionEn key)', () => {
+    expect(optionsToPayload({ title: 'A', titleEn: '  Cleaning  ', description: 'd' }))
+      .toEqual({ title: 'A', description: 'd', titleEn: 'Cleaning' });
   });
 
-  test('OptionsPage payload: missing EN fields become empty strings (not undefined)', () => {
+  test('OptionsPage payload: missing titleEn becomes empty string (not undefined)', () => {
     expect(optionsToPayload({ title: 'A' }))
-      .toEqual({ title: 'A', description: '', titleEn: '', descriptionEn: '' });
+      .toEqual({ title: 'A', description: '', titleEn: '' });
   });
 
   test('ResourcesPage payload: trims nameEn + empty defaults to empty', () => {

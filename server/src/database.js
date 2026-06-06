@@ -750,11 +750,11 @@ tryAddOptionColumn('towelLargePerPerson',  "ALTER TABLE options ADD COLUMN towel
 tryAddOptionColumn('towelMediumPerPerson', "ALTER TABLE options ADD COLUMN towelMediumPerPerson INTEGER NOT NULL DEFAULT 0");
 tryAddOptionColumn('towelSmallPerPerson',  "ALTER TABLE options ADD COLUMN towelSmallPerPerson INTEGER NOT NULL DEFAULT 1");
 
-// 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). English title +
-// description for each option, used by the PDF renderer when the devis carries pdfLanguage='en'.
-// Empty fallback to the FR title — graceful intermediate state for untranslated options.
-tryAddOptionColumn('titleEn',       "ALTER TABLE options ADD COLUMN titleEn TEXT NOT NULL DEFAULT ''");
-tryAddOptionColumn('descriptionEn', "ALTER TABLE options ADD COLUMN descriptionEn TEXT NOT NULL DEFAULT ''");
+// 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). English title for each
+// option, used by the PDF renderer when the devis carries pdfLanguage='en'. Empty falls back
+// to the FR title. Description is intentionally NOT translated: the option's description is
+// not printed in the devis PDF (only the title), so a `descriptionEn` would be dead weight.
+tryAddOptionColumn('titleEn', "ALTER TABLE options ADD COLUMN titleEn TEXT NOT NULL DEFAULT ''");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
@@ -1263,10 +1263,13 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
   const pid = Number(propertyId);
   if (!Number.isFinite(pid) || pid <= 0) return;
 
+  // English titles surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+  // The PDF appends the extra-hour suffix at render time; `titleEn` here is the bare name.
   const defaults = [
     {
       autoOptionType: 'early_check_in',
       title: 'Arrivée anticipée',
+      titleEn: 'Early check-in',
       description: "Option automatique si arrivée avant l'heure par défaut",
       autoEnabled: 1,
       autoPricingMode: 'proportional',
@@ -1275,6 +1278,7 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     {
       autoOptionType: 'late_check_out',
       title: 'Départ tardif',
+      titleEn: 'Late check-out',
       description: "Option automatique si départ après l'heure par défaut",
       autoEnabled: 1,
       autoPricingMode: 'proportional',
@@ -1282,24 +1286,30 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     },
   ];
 
+  // Whether the EN title column exists at this exact moment (the column migration above adds
+  // it; this guard keeps the seeder safe on minimal test schemas that don't have it).
+  const optionCols = db.prepare("PRAGMA table_info(options)").all().map((c) => c.name);
+  const hasTitleEn = optionCols.includes('titleEn');
+
   const findScopedByType = db.prepare(`
-    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold${hasTitleEn ? ', o.titleEn' : ''}
     FROM options o
     INNER JOIN property_options po ON po.optionId = o.id
     WHERE po.propertyId = ? AND o.autoOptionType = ?
     LIMIT 1
   `);
   const findGlobalByType = db.prepare(`
-    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold${hasTitleEn ? ', o.titleEn' : ''}
     FROM options o
     WHERE o.autoOptionType = ?
       AND NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
     LIMIT 1
   `);
-  const insertOption = db.prepare(`
-    INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
-    VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)
-  `);
+  const insertOption = db.prepare(hasTitleEn
+    ? `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold, titleEn)
+       VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?, ?)`
+    : `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+       VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)`);
   const insertLink = db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)');
   const upgradeLegacyTimedOption = db.prepare(`
     UPDATE options
@@ -1309,6 +1319,11 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
       autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
     WHERE id = ?
   `);
+  // Backfill the EN title on legacy rows that already exist without it. Idempotent: only
+  // touches rows where `titleEn` is currently empty.
+  const backfillTitleEn = hasTitleEn
+    ? db.prepare("UPDATE options SET titleEn = ? WHERE id = ? AND (titleEn IS NULL OR titleEn = '')")
+    : null;
 
   const tx = db.transaction(() => {
     for (const def of defaults) {
@@ -1323,17 +1338,31 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
         if (isLegacyDisabledFixedZero) {
           upgradeLegacyTimedOption.run(def.autoFullNightThreshold, Number(candidate.id));
         }
+        // Backfill the EN title on every existing typed row regardless of the legacy upgrade.
+        if (backfillTitleEn && (!candidate.titleEn || candidate.titleEn === '')) {
+          backfillTitleEn.run(def.titleEn, Number(candidate.id));
+        }
         continue;
       }
 
-      const created = insertOption.run(
-        def.title,
-        def.description,
-        def.autoOptionType,
-        Number(def.autoEnabled || 0),
-        def.autoPricingMode || 'fixed',
-        def.autoFullNightThreshold,
-      );
+      const created = hasTitleEn
+        ? insertOption.run(
+            def.title,
+            def.description,
+            def.autoOptionType,
+            Number(def.autoEnabled || 0),
+            def.autoPricingMode || 'fixed',
+            def.autoFullNightThreshold,
+            def.titleEn,
+          )
+        : insertOption.run(
+            def.title,
+            def.description,
+            def.autoOptionType,
+            Number(def.autoEnabled || 0),
+            def.autoPricingMode || 'fixed',
+            def.autoFullNightThreshold,
+          );
       insertLink.run(pid, Number(created.lastInsertRowid));
     }
   });

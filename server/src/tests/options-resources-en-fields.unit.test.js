@@ -19,7 +19,7 @@ function freshOptionsDb() {
       countsAsBedLinen INTEGER DEFAULT 0, countsAsBathroomLinen INTEGER DEFAULT 0,
       linenIncludesSingle INTEGER DEFAULT 1, linenIncludesDouble INTEGER DEFAULT 1, linenIncludesBaby INTEGER DEFAULT 1,
       towelLargePerPerson INTEGER DEFAULT 1, towelMediumPerPerson INTEGER DEFAULT 0, towelSmallPerPerson INTEGER DEFAULT 1,
-      titleEn TEXT NOT NULL DEFAULT '', descriptionEn TEXT NOT NULL DEFAULT ''
+      titleEn TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER);
   `);
@@ -46,21 +46,19 @@ function freshResourcesDb() {
 
 // ---- options ----
 
-test('optionsModel.create persists titleEn + descriptionEn (trimmed)', () => {
+test('optionsModel.create persists titleEn (trimmed). Description is intentionally not translated.', () => {
   const { db, model } = freshOptionsDb();
-  const { id } = model.create({ title: 'Linge de lit', titleEn: '  Bed linen  ', descriptionEn: '  Sheets and pillowcases  ' });
-  const row = db.prepare('SELECT title, titleEn, descriptionEn FROM options WHERE id = ?').get(id);
+  const { id } = model.create({ title: 'Linge de lit', titleEn: '  Bed linen  ' });
+  const row = db.prepare('SELECT title, titleEn FROM options WHERE id = ?').get(id);
   assert.equal(row.title, 'Linge de lit');
   assert.equal(row.titleEn, 'Bed linen');
-  assert.equal(row.descriptionEn, 'Sheets and pillowcases');
 });
 
-test('optionsModel.create handles missing EN fields → stored as empty string (no NULL)', () => {
+test('optionsModel.create handles missing titleEn → stored as empty string (no NULL)', () => {
   const { db, model } = freshOptionsDb();
   const { id } = model.create({ title: 'Sauna' });
-  const row = db.prepare('SELECT titleEn, descriptionEn FROM options WHERE id = ?').get(id);
+  const row = db.prepare('SELECT titleEn FROM options WHERE id = ?').get(id);
   assert.equal(row.titleEn, '');
-  assert.equal(row.descriptionEn, '');
 });
 
 test('optionsModel.create does NOT apply sentenceCase to titleEn — operator owns the EN casing', () => {
@@ -71,22 +69,32 @@ test('optionsModel.create does NOT apply sentenceCase to titleEn — operator ow
   assert.equal(row.titleEn, 'CAPITAL CASE', 'EN title preserved as-is');
 });
 
-test('optionsModel.update persists new titleEn + descriptionEn', () => {
+test('optionsModel.update persists a new titleEn', () => {
   const { db, model } = freshOptionsDb();
   const { id } = model.create({ title: 'Sauna', titleEn: 'Sauna' });
-  model.update(id, { title: 'Sauna', titleEn: 'Steam sauna', descriptionEn: 'Private session' });
-  const row = db.prepare('SELECT titleEn, descriptionEn FROM options WHERE id = ?').get(id);
+  model.update(id, { title: 'Sauna', titleEn: 'Steam sauna' });
+  const row = db.prepare('SELECT titleEn FROM options WHERE id = ?').get(id);
   assert.equal(row.titleEn, 'Steam sauna');
-  assert.equal(row.descriptionEn, 'Private session');
 });
 
-test('optionsModel.update clears EN fields when payload provides empty strings', () => {
+test('optionsModel.update clears titleEn when payload provides an empty string', () => {
   const { db, model } = freshOptionsDb();
-  const { id } = model.create({ title: 'Sauna', titleEn: 'Sauna', descriptionEn: 'desc' });
-  model.update(id, { title: 'Sauna', titleEn: '', descriptionEn: '' });
-  const row = db.prepare('SELECT titleEn, descriptionEn FROM options WHERE id = ?').get(id);
+  const { id } = model.create({ title: 'Sauna', titleEn: 'Sauna' });
+  model.update(id, { title: 'Sauna', titleEn: '' });
+  const row = db.prepare('SELECT titleEn FROM options WHERE id = ?').get(id);
   assert.equal(row.titleEn, '');
-  assert.equal(row.descriptionEn, '');
+});
+
+test('optionsModel: descriptionEn payload is silently ignored — no column exists for it', () => {
+  // The option description isn't printed in the devis PDF, so we don't carry an EN counterpart.
+  // The model accepts the field in the payload (no validation error) but writes nothing.
+  const { db, model } = freshOptionsDb();
+  const { id } = model.create({ title: 'Sauna', titleEn: 'Sauna', descriptionEn: 'Ignored EN' });
+  // No `descriptionEn` column means a SELECT on it would error — assert via PRAGMA instead.
+  const cols = db.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
+  assert.ok(!cols.includes('descriptionEn'), 'descriptionEn column intentionally absent');
+  // The titleEn still landed correctly.
+  assert.equal(db.prepare('SELECT titleEn FROM options WHERE id = ?').get(id).titleEn, 'Sauna');
 });
 
 // ---- resources ----

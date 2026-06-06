@@ -56,12 +56,20 @@ switched.
 5. **Translated discount / offered badges.**
    - `RÉDUCTION LOGEMENT N%` → `ACCOMMODATION DISCOUNT N%`.
    - `OFFERT` → `INCLUDED`.
-6. **Translated options.** Each row in `options` gets two new columns: `titleEn` (string,
-   default `''`) and `descriptionEn` (string, default `''`). The PDF renderer uses `titleEn`
-   when `language === 'en'`; if `titleEn` is empty, falls back to `title` (the French
-   original). The 3 typed-default options (`autoOptionType IN bed_linen / bathroom_linen /
-   breakfast`) are **seeded with their English translation** so a fresh install / promoted
-   prod option lands with `titleEn` populated. The operator fills `titleEn` for custom
+6. **Translated options — title only.** Each row in `options` gets a single new column:
+   `titleEn` (string, default `''`). The option's `description` is intentionally NOT
+   translated — it never appears in the devis PDF, only the title does, so a `descriptionEn`
+   would be dead weight. The PDF renderer uses `titleEn` when `language === 'en'`; if it's
+   empty, falls back to `title` (the French original). The **5 typed-default options** are
+   seeded with their English translation so a fresh install lands with `titleEn` populated:
+   - `autoOptionType = 'bed_linen'` → `Bed linen`
+   - `autoOptionType = 'bathroom_linen'` → `Bath linen`
+   - `autoOptionType = 'breakfast'` → `Breakfast`
+   - `autoOptionType = 'early_check_in'` → `Early check-in`
+   - `autoOptionType = 'late_check_out'` → `Late check-out`
+
+   On every boot, a backfill (idempotent, only touches rows where `titleEn` is empty) updates
+   the matching prod rows that pre-date this column. The operator fills `titleEn` for custom
    options via the existing options form.
 7. **Translated resources.** Same shape: `resources.nameEn` column (default `''`), used
    when `language === 'en'`, falls back to `name`. The default "Lit bébé" seed gains
@@ -89,6 +97,9 @@ switched.
 - **Empty `titleEn` / `nameEn` on a referenced option/resource:** silent fall back to the
   French label. The PDF stays usable; the operator sees the French word in an otherwise
   English PDF and can fix it.
+- **Option `description` is never translated.** It's not printed in the devis PDF (only the
+  title is), so we don't carry a `descriptionEn`. A future PR that decides to print the
+  description in the PDF should add the column at that time, not pre-emptively.
 - **Empty `pdfFooterTextEn` on a setting:** fall back to the hard-coded English default.
 - **Operator switches an existing devis from FR to EN before filling translations:** the PDF
   renders English labels with French option/resource names. That's an acceptable
@@ -119,10 +130,10 @@ switched.
 | `utils/` | `devisPdf.js` | T | Accept `language` arg; replace every hard-coded French literal with `labels(language).<key>`; route option/resource label through a small fallback helper. |
 | `utils/` | `devisPdfLabels.js` | C | NEW. Exports `{ fr: {...}, en: {...} }` for every PDF string + a `labels(language)` accessor that throws on unknown language (fail-loud). |
 | `utils/` | `devisHelpers.js` | T | Add `formatDateEN(isoDate)` (English month names). Keep `formatDateFR`. |
-| `utils/` | `bedLinenSeed.js` | T | Seed/insert `titleEn = 'Bed linen'` + `descriptionEn`. Promotion path also sets `titleEn` if currently empty. |
+| `utils/` | `bedLinenSeed.js` | T | Seed/insert `titleEn = 'Bed linen'`. Promotion path also sets `titleEn` if currently empty. |
 | `utils/` | `bathroomLinenSeed.js` | T | Same for `titleEn = 'Bath linen'`. |
 | `utils/` | `breakfastSeed.js` | T | Same for `titleEn = 'Breakfast'`. |
-| `database.js` | `database.js` | T | Idempotent migration: add `pdfLanguage TEXT NOT NULL DEFAULT 'fr'` to reservations; `titleEn TEXT DEFAULT ''` + `descriptionEn TEXT DEFAULT ''` to options; `nameEn TEXT DEFAULT ''` to resources. Seed the "Lit bébé" default resource with `nameEn = 'Baby bed'` when inserting fresh. |
+| `database.js` | `database.js` | T | Idempotent migration: add `pdfLanguage TEXT NOT NULL DEFAULT 'fr'` to reservations; `titleEn TEXT DEFAULT ''` to options; `nameEn TEXT DEFAULT ''` to resources. Seed the "Lit bébé" default resource with `nameEn = 'Baby bed'`. The per-property `ensureDefaultTimedOptionsForProperty` seeds `Early check-in` / `Late check-out` + backfills existing rows. |
 
 **Notes:**
 - `devisPdfLabels.js` is pure data + a tiny accessor — fully unit-testable.
@@ -155,7 +166,7 @@ switched.
 |---|---|---|---|---|
 | GET | `/api/devis/:id/pdf` | — | PDF bytes | Unchanged shape. Server reads `pdfLanguage` from the devis row. |
 | PUT/POST | `/api/devis/...` | adds `pdfLanguage` to body | unchanged | New optional field, defaults to `'fr'`. Validates `'fr'\|'en'` — 400 on other values. |
-| PUT/POST | `/api/options/...` | adds `titleEn`, `descriptionEn` | unchanged | Optional strings, trimmed server-side. |
+| PUT/POST | `/api/options/...` | adds `titleEn` | unchanged | Optional string, trimmed server-side. `descriptionEn` is deliberately NOT in the payload (description isn't printed in the PDF). |
 | PUT/POST | `/api/resources/...` | adds `nameEn` | unchanged | Optional string, trimmed server-side. |
 | PUT | `/api/settings` | adds `pdfFooterTextEn` | unchanged | Optional. |
 
@@ -170,8 +181,9 @@ Three idempotent migrations in `database.js`:
 1. `reservations.pdfLanguage TEXT NOT NULL DEFAULT 'fr'` — added via the existing
    `if (!cols.includes(...))` pattern around that table. Existing rows backfill to `'fr'`
    via the DEFAULT clause.
-2. `options.titleEn TEXT DEFAULT ''` + `options.descriptionEn TEXT DEFAULT ''` — added via
-   `tryAddOptionColumn` (already used for the other late additions). Existing rows get `''`.
+2. `options.titleEn TEXT NOT NULL DEFAULT ''` — added via `tryAddOptionColumn` (already used
+   for the other late additions). Existing rows get `''`. **No `descriptionEn`**: the option
+   description isn't printed in the devis PDF, so a translation column would be dead weight.
 3. `resources.nameEn TEXT DEFAULT ''` — added the same way.
 
 **Backfill for the typed-default seeds:** the 3 seed scripts (`bedLinenSeed`,
@@ -204,16 +216,16 @@ status fields in the existing devis header strip:
 
 ### 6.2 Options edit dialog (`OptionsPage`)
 
-Two new fields below the existing French ones:
+One new field below the existing French ones:
 
 ```
 Titre*           [ Linge de toilette                    ]
 Titre (anglais)  [ Bath linen                           ]
 Description      [ Optional…                            ]
-Description (anglais) [ Optional…                        ]
 ```
 
-- Both optional. Stored trimmed. Placeholder copy in EN.
+- Optional. Stored trimmed. Placeholder copy in EN. The description has no EN counterpart
+  because the option description isn't printed in the devis PDF.
 
 ### 6.3 Resources edit dialog (`ResourcesPage`)
 
@@ -257,14 +269,18 @@ Pied de page du devis (anglais)
       visible for the un-translated resource.
 - [ ] `tests/devis-helpers-date-en.unit.test.js` — `formatDateEN('2026-06-05')`,
       `'2026-12-25'`, ISO edge `'2026-01-01'`, empty string returns `''`.
-- [ ] `tests/options-controller-en.unit.test.js` — POST/PUT persists `titleEn` /
-      `descriptionEn` trimmed; empty body keeps existing values.
+- [ ] `tests/options-resources-en-fields.unit.test.js` — POST/PUT persists `titleEn` trimmed
+      + preserves operator-chosen EN casing; payload `descriptionEn` is silently ignored
+      (column intentionally absent).
 - [ ] `tests/resources-controller-en.unit.test.js` — POST/PUT persists `nameEn` trimmed.
 - [ ] `tests/devis-controller-language.unit.test.js` — PUT /devis with valid
       `pdfLanguage='en'` persists; `'xx'` → 400; default `'fr'` on creation.
-- [ ] `tests/bed-linen-seed-en.unit.test.js` (extend the existing suite) — fresh install
-      seeds `titleEn = 'Bed linen'`; promotion path backfills `titleEn` on a typed row that
-      had it empty. Same shape for the bathroom + breakfast seeds.
+- [ ] `tests/seeds-en-translation.unit.test.js` — the 3 typed-default seeds (bed_linen,
+      bathroom_linen, breakfast) insert + backfill `titleEn`; idempotent across multiple
+      runs. A "no descriptionEn anywhere" guard makes a future regression fail loud.
+- [ ] `tests/timed-options-en-seed.unit.test.js` — `early_check_in` and `late_check_out`
+      seed with the right EN title (`Early check-in` / `Late check-out`) + backfill
+      existing rows + operator override preserved + idempotent.
 - [ ] Full server suite remains green.
 
 ### Client tests (Vitest)

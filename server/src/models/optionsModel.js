@@ -67,9 +67,9 @@ function createOptionsModel(database) {
           countsAsBedLinen, countsAsBathroomLinen,
           linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
           towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson,
-          titleEn, descriptionEn
+          titleEn
         )
-        VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?,  ?, ?,  ?, ?, ?,  ?, ?, ?,  ?, ?)
+        VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?,  ?, ?,  ?, ?, ?,  ?, ?, ?,  ?)
       ` : `
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
@@ -105,10 +105,10 @@ function createOptionsModel(database) {
           Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
         ];
         if (HAS_OPTION_TITLE_EN) {
-          // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — trimmed strings,
+          // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — trimmed string,
           // empty by default. Not run through sentenceCase: the operator decides EN casing.
+          // Description has no EN counterpart — see the spec rule for why.
           args.push(String(payload.titleEn || '').trim());
-          args.push(String(payload.descriptionEn || '').trim());
         }
         const result = insertOption.run(...args);
         const id = result.lastInsertRowid;
@@ -126,7 +126,7 @@ function createOptionsModel(database) {
           countsAsBedLinen = ?, countsAsBathroomLinen = ?,
           linenIncludesSingle = ?, linenIncludesDouble = ?, linenIncludesBaby = ?,
           towelLargePerPerson = ?, towelMediumPerPerson = ?, towelSmallPerPerson = ?,
-          titleEn = ?, descriptionEn = ?
+          titleEn = ?
         WHERE id = ?
       ` : `
         UPDATE options SET
@@ -161,7 +161,6 @@ function createOptionsModel(database) {
         ];
         if (HAS_OPTION_TITLE_EN) {
           args.push(String(payload.titleEn || '').trim());
-          args.push(String(payload.descriptionEn || '').trim());
         }
         args.push(id);
         updateOption.run(...args);

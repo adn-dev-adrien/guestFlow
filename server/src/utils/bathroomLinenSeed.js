@@ -15,9 +15,10 @@
  *      on it).
  */
 
+// English title used by the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// No `descriptionEn`: the option description isn't printed in the devis PDF.
 const SEED_DEFINITION_EN = Object.freeze({
   title: 'Bath linen',
-  description: 'Towels (large, medium, small). Per-guest count drives the LaundryDayCard.',
 });
 
 const SEED_DEFINITION = Object.freeze({
@@ -55,14 +56,14 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
       logger.log(`[seed:bathroom-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
-    // 2026-06-06 — backfill EN translation on rows with empty titleEn (typed/promoted/legacy).
+    // 2026-06-06 — backfill EN title on rows with empty titleEn (typed/promoted/legacy).
     if (cols.includes('titleEn')) {
       database.prepare(`
         UPDATE options
-           SET titleEn = ?, descriptionEn = COALESCE(NULLIF(descriptionEn, ''), ?)
+           SET titleEn = ?
          WHERE autoOptionType = 'bathroom_linen'
            AND (titleEn IS NULL OR titleEn = '')
-      `).run(SEED_DEFINITION_EN.title, SEED_DEFINITION_EN.description);
+      `).run(SEED_DEFINITION_EN.title);
     }
 
     const hasTypedSeed = database.prepare(
@@ -73,20 +74,19 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    const hasEnCols = cols.includes('titleEn') && cols.includes('descriptionEn');
-    if (hasEnCols) {
+    if (cols.includes('titleEn')) {
       database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-          countsAsBedLinen, countsAsBathroomLinen, titleEn, descriptionEn
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          countsAsBedLinen, countsAsBathroomLinen, titleEn
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         SEED_DEFINITION.title, SEED_DEFINITION.description,
         'per_stay', 0, '[]',
         SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
         0, 1,
-        SEED_DEFINITION_EN.title, SEED_DEFINITION_EN.description,
+        SEED_DEFINITION_EN.title,
       );
     } else {
       database.prepare(`

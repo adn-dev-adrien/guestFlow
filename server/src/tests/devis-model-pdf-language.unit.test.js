@@ -30,7 +30,7 @@ const DDL = `
     priceType TEXT NOT NULL DEFAULT 'per_stay', price REAL NOT NULL DEFAULT 0,
     optionProgressiveTiers TEXT NOT NULL DEFAULT '[]', autoOptionType TEXT,
     autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT NOT NULL DEFAULT 'fixed', autoFullNightThreshold TEXT,
-    titleEn TEXT NOT NULL DEFAULT '', descriptionEn TEXT NOT NULL DEFAULT ''
+    titleEn TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE property_options ( propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, PRIMARY KEY (propertyId, optionId) );
   CREATE TABLE property_option_defaults (propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
