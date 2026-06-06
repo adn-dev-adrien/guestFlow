@@ -4,6 +4,34 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Selective cleanup popup on `/clients`** (spec
+  `clients.md` §3 rule 8, 2026-06-06). Clicking the **Cleanup clients**
+  button no longer triggers an immediate bulk delete. It now opens a
+  popup listing every client with no reservation and no devis, with a
+  checkbox per row (all checked by default) plus a master "Tout cocher
+  / décocher" toggle. The footer offers **Annuler** (pure no-op) and
+  **Supprimer (N)** (disabled when N=0). Only the checked clients are
+  deleted on confirm.
+
+  Backend additions:
+  - `GET /clients/cleanup-orphans/preview` — returns the orphan list
+    server-sorted by `lastName, firstName` with `{ id, firstName,
+    lastName, email, phone }`.
+  - `POST /clients/cleanup-orphans/delete` — `{ ids: number[] }` body,
+    returns `{ ok, deletedCount, skippedCount }`. Each id is
+    re-validated as still-orphan inside a transaction; non-orphan or
+    unknown ids count as `skipped` (race-safe against concurrent
+    reservation creation).
+  - The pre-existing bulk `POST /clients/cleanup-orphans` is kept for
+    headless / programmatic callers but is no longer invoked by the
+    UI.
+
+  10 new server-side cases in
+  `tests/clients-cleanup-orphans.unit.test.js` (1052 → 1062 green). 7
+  new Vitest cases in `components/__tests__/ClientCleanupDialog.test.js`
+  (273 → 280 green).
+
 ### Fixed
 - **iCal sync no longer overrides establishment closures** (2026-06-06).
   Adrien declared a property closure for a week, but an iCal feed
