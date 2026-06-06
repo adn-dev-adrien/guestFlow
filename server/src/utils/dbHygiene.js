@@ -151,9 +151,11 @@ function applyHygiene(db, opts = {}) {
       if (resCols.includes('propertyId')) {
         try {
           db.exec('ALTER TABLE resources DROP COLUMN propertyId');
-          logger.log('[Hygiene] Colonne resources.propertyId supprimée (utiliser propertyIds JSON à la place).');
+          logger.log('[hygiene] dropped legacy resources.propertyId');
         } catch (dropErr) {
-          logger.log('[Hygiene] resources.propertyId conservée (FK SQLite empêche le DROP). Sans impact — l\'application utilise désormais uniquement propertyIds JSON.');
+          // SQLite refuses to drop a column referenced by a FOREIGN KEY definition. The
+          // application no longer reads/writes this column (all callers use propertyIds JSON),
+          // so the situation isn't actionable for the operator — silent.
         }
       }
     }
@@ -161,7 +163,7 @@ function applyHygiene(db, opts = {}) {
     logger.warn(`[Hygiene] Échec inattendu lors du check resources.propertyId : ${err.message}`);
   }
 
-  logger.log('[Hygiene] Index et contraintes appliqués.');
+  // Silent on success. The pass is idempotent; nothing actionable on a steady-state boot.
 }
 
 module.exports = {

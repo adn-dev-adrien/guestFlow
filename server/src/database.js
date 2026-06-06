@@ -4,8 +4,9 @@ const path = require('path');
 // DB_PATH env var lets CI/CD point to a persistent location outside the deployment folder.
 // PERSISTENT_DB is used by deployment scripts. Falls back to the traditional location so existing dev setups are unaffected.
 const dbPath = process.env.DB_PATH || process.env.PERSISTENT_DB || path.join(__dirname, '..', 'guestflow.db');
-console.log('[Database] Using database path:', dbPath);
 const db = new Database(dbPath);
+// Exposed so index.js can surface it in the single boot banner without a second computation.
+db.dbPath = dbPath;
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -1018,7 +1019,7 @@ if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0) {
     const adminId = db.prepare('SELECT id FROM users WHERE email = ?').get(DEFAULT_ADMIN_EMAIL).id;
     db.prepare('INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, ?)').run(adminId, 'admin');
   }
-  console.log('[Database] Seeded default admin user — change the password immediately on first login.');
+  console.log('[seed:admin] default admin created — change the password on first login');
 }
 
 // 4. Backfill user_roles from users.role for legacy installs. One-shot guard: only runs if the join
@@ -1201,83 +1202,38 @@ if (!babyBed) {
     .run('Lit bébé', 1, 0, 'Ressource par défaut');
 }
 
-// Migration: Add missing columns to options table if they don't exist
+// Migration: add missing columns to options table if they don't exist.
+// Silent on steady-state boots (all columns already there). Logs a single summary line on the
+// boots that actually add columns — the operator only hears from us when something changed.
 function migrateOptionsColumns() {
-  try {
-    // Get existing columns using PRAGMA
-    const columns = db.prepare('PRAGMA table_info(options)').all();
-    const columnNames = columns.map(col => col.name);
-    
-    console.log('[Migration] Options table columns:', columnNames);
-    
-    const needed = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold', 'optionProgressiveTiers'];
-    const missing = needed.filter(col => !columnNames.includes(col));
-    
-    if (missing.length > 0) {
-      console.log('[Migration] Adding missing columns to options table:', missing);
-      
-      // Add missing columns one by one with individual error handling
-      if (!columnNames.includes('autoOptionType')) {
-        try {
-          db.exec('ALTER TABLE options ADD COLUMN autoOptionType TEXT');
-          console.log('[Migration] ✅ Added autoOptionType column');
-        } catch (e) {
-          console.log('[Migration] Column autoOptionType might already exist:', e.message);
-        }
+  const NEEDED = [
+    ['autoOptionType',          'TEXT'],
+    ['autoEnabled',             'INTEGER NOT NULL DEFAULT 0'],
+    ['autoPricingMode',         "TEXT NOT NULL DEFAULT 'fixed'"],
+    ['autoFullNightThreshold',  'TEXT'],
+    ['optionProgressiveTiers',  "TEXT NOT NULL DEFAULT '[]'"],
+  ];
+  const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
+  const added = [];
+  for (const [name, type] of NEEDED) {
+    if (existing.has(name)) continue;
+    try {
+      db.exec(`ALTER TABLE options ADD COLUMN ${name} ${type}`);
+      added.push(name);
+    } catch (e) {
+      // Race with a parallel boot that already added the column — harmless, swallow.
+      if (!/duplicate column name/i.test(String(e?.message || ''))) {
+        console.error(`[migration:options-columns] failed adding ${name}: ${e.message}`);
+        throw e;
       }
-      
-      if (!columnNames.includes('autoEnabled')) {
-        try {
-          db.exec('ALTER TABLE options ADD COLUMN autoEnabled INTEGER NOT NULL DEFAULT 0');
-          console.log('[Migration] ✅ Added autoEnabled column');
-        } catch (e) {
-          console.log('[Migration] Column autoEnabled might already exist:', e.message);
-        }
-      }
-      
-      if (!columnNames.includes('autoPricingMode')) {
-        try {
-          db.exec('ALTER TABLE options ADD COLUMN autoPricingMode TEXT NOT NULL DEFAULT \'fixed\'');
-          console.log('[Migration] ✅ Added autoPricingMode column');
-        } catch (e) {
-          console.log('[Migration] Column autoPricingMode might already exist:', e.message);
-        }
-      }
-      
-      if (!columnNames.includes('autoFullNightThreshold')) {
-        try {
-          db.exec('ALTER TABLE options ADD COLUMN autoFullNightThreshold TEXT');
-          console.log('[Migration] ✅ Added autoFullNightThreshold column');
-        } catch (e) {
-          console.log('[Migration] Column autoFullNightThreshold might already exist:', e.message);
-        }
-      }
-
-      if (!columnNames.includes('optionProgressiveTiers')) {
-        try {
-          db.exec("ALTER TABLE options ADD COLUMN optionProgressiveTiers TEXT NOT NULL DEFAULT '[]'");
-          console.log('[Migration] ✅ Added optionProgressiveTiers column');
-        } catch (e) {
-          console.log('[Migration] Column optionProgressiveTiers might already exist:', e.message);
-        }
-      }
-      
-      // Verify migration
-      const columnsAfter = db.prepare('PRAGMA table_info(options)').all();
-      const columnNamesAfter = columnsAfter.map(col => col.name);
-      console.log('[Migration] Options table columns after migration:', columnNamesAfter);
-    } else {
-      console.log('[Migration] All required columns already exist in options table');
     }
-  } catch (err) {
-    console.error('[Migration] Error during migration:', err.message);
-    throw err;
+  }
+  if (added.length > 0) {
+    console.log(`[migration:options-columns] added ${added.length} column(s): ${added.join(', ')}`);
   }
 }
 
-console.log('[Migration] Running options table migration...');
 migrateOptionsColumns();
-console.log('[Migration] Options table migration completed');
 
 function ensureDefaultTimedOptionsForProperty(propertyId) {
   const pid = Number(propertyId);
@@ -1411,19 +1367,21 @@ function generateDevisNumber() {
 db.generateDevisNumber = generateDevisNumber;
 
 // Initialize default timed options for existing properties when schema supports it.
+// Silent when the schema isn't ready or the property table is empty; surfaces a count line
+// only on boots that actually initialised. Real errors bubble up via console.error.
 try {
   const optionColumns = db.prepare('PRAGMA table_info(options)').all().map((col) => col.name);
   const requiredTimedColumns = ['autoOptionType', 'autoEnabled', 'autoPricingMode', 'autoFullNightThreshold'];
   const hasTimedColumns = requiredTimedColumns.every((name) => optionColumns.includes(name));
-  if (!hasTimedColumns) {
-    console.log('[Database] Timed options initialization skipped: options table columns are incomplete');
-  } else {
+  if (hasTimedColumns) {
     const propertyIds = db.prepare('SELECT id FROM properties').all().map((row) => Number(row.id));
     propertyIds.forEach((propertyId) => ensureDefaultTimedOptionsForProperty(propertyId));
-    console.log(`[Database] Timed options initialization checked for ${propertyIds.length} properties`);
+    if (propertyIds.length > 0) {
+      console.log(`[seed:timed-options] checked ${propertyIds.length} property(ies)`);
+    }
   }
 } catch (error) {
-  console.log('[Database] Timed options initialization skipped due to startup error:', error.message);
+  console.error(`[seed:timed-options] failed: ${error.message}`);
 }
 
 db.ensureDefaultTimedOptionsForProperty = ensureDefaultTimedOptionsForProperty;
