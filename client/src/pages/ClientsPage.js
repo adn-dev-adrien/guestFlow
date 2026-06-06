@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, TableRow,
@@ -136,14 +136,44 @@ export default function ClientsPage() {
     handleCloseDialog();
   };
 
+  // 2026-06-06 bug fix — the URL-watch effect must NOT re-open the dialog while the
+  // user is interacting with it. The original effect had `open` in its deps and
+  // checked `open` directly, which produced this race on Save (and on Cancel via a
+  // similar path):
+  //   1. user clicks "Enregistrer" → `handleSave` awaits `updateItem(...)`
+  //   2. `updateItem` calls `reload()` internally → `clients` state changes → effect
+  //      re-runs because `clients` is in deps → `open` is still true → guard passes
+  //   3. `await` returns → `handleCloseDialog` runs → `setOpen(false)` +
+  //      `setClientParam(null)` (router-driven, async-ish)
+  //   4. React re-renders. Effect sees `open=false` + stale `?clientId=6` (router
+  //      hasn't flushed yet) → calls `handleOpen(clientToOpen)` → dialog re-opens
+  //   5. URL never clears (`handleOpen` immediately re-sets `?clientId=6`)
+  // Refactor: track the LAST clientId the effect actually acted on; bail when the
+  // current URL clientId matches it. When the URL clears (`?clientId` removed by the
+  // close handler), reset the ref so a fresh manual click on the same row still
+  // opens the dialog.
+  const lastHandledClientIdRef = useRef(0);
   useEffect(() => {
     const clientIdFromUrl = Number(urlParams.get('clientId') || 0);
     const deleteClientIdFromUrl = Number(urlParams.get('deleteClientId') || 0);
+    // URL cleared (close path): reset the "last handled" so a future re-click on the
+    // same row re-opens normally.
+    if (!clientIdFromUrl) {
+      lastHandledClientIdRef.current = 0;
+      return;
+    }
     if (deleteClientIdFromUrl) return;
-    if (!clientIdFromUrl || open || clients.length === 0) return;
+    if (clients.length === 0) return;
+    // Already opened (or attempted to open) this client during the current URL state:
+    // don't re-open just because `clients` was reloaded after a save.
+    if (clientIdFromUrl === lastHandledClientIdRef.current) return;
     const clientToOpen = clients.find((c) => c.id === clientIdFromUrl);
-    if (clientToOpen) handleOpen(clientToOpen);
-  }, [urlParams, clients, open]);
+    if (clientToOpen) {
+      lastHandledClientIdRef.current = clientIdFromUrl;
+      handleOpen(clientToOpen);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlParams, clients]);
 
   useEffect(() => {
     const deleteClientIdFromUrl = Number(urlParams.get('deleteClientId') || 0);
