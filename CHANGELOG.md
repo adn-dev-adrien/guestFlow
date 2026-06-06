@@ -4,6 +4,35 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **iCal sync no longer overrides establishment closures** (2026-06-06).
+  Adrien declared a property closure for a week, but an iCal feed
+  silently created a reservation overlapping it. Root cause:
+  `propertyIcalModel.syncSource` calls the prepared `INSERT INTO
+  reservations` directly — bypassing `validateAvailability` (which
+  only runs on the HTTP API path), and therefore bypassing the
+  closure check that exists there. Two paired defences:
+  1. **Closure guard at sync time.** Every iCal event is now checked
+     against `establishmentClosuresModel.findCoveringClosure(propertyId,
+     start, end)` BEFORE any mapping resolution. When a covering
+     closure is found, the event is silently skipped — no insert, no
+     update, no mapping changes, no cancellation alert. The skip is
+     counted in `result.skippedClosureCount` and surfaced in
+     `ical_sources.lastSyncMessage` (`N ignoré(s) (fermeture)`).
+     Honours global closures (`propertyId IS NULL`) too.
+  2. **"Closed Period" filtered at parse time.** Airbnb labels host-
+     blocked date ranges as `Closed Period` in the VEVENT SUMMARY.
+     `isUnavailableIcalEvent` (which already dropped `blocked` / `not
+     available` / `indisponible`) now also matches `closed period` /
+     `closed-period` / `closed   period`. Events stamped this way
+     never reach the sync loop, so they can't conflict with a closure
+     even when one hasn't been declared yet.
+  Tests: +6 server cases (1 parser regex sweep + 5 sync-time guard).
+  Two pre-existing iCal test DDLs gained the `establishment_closures`
+  table; one pre-existing test fixture's generic "Closed Period"
+  summary was swapped for "Booked Ical" to stay flowing through the
+  parser. Server tests 1041 → 1047 green in isolation.
+
 ### Added
 - **Breakfast option + per-day planning card** (spec
   `breakfast-option-and-planning-card.md`, 2026-06-05). `Petit
