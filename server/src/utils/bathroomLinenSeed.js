@@ -30,7 +30,7 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
   try {
     const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
     if (!cols.includes('autoOptionType') || !cols.includes('countsAsBathroomLinen')) {
-      logger.log('[Database] Bathroom-linen seed skipped: schema not ready yet');
+      // Schema not migrated yet — silent return (the next boot, after columns are added, will seed).
       return { action: 'skipped-schema' };
     }
     // PROMOTION PATH — unconditional + idempotent (2026-06-03 follow-up; see utils/bedLinenSeed.js
@@ -47,7 +47,7 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
          AND (autoOptionType IS NULL OR autoOptionType = '')
     `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
-      logger.log(`[Database] ✅ Bathroom-linen seed promoted ${promotion.changes} existing option(s) to the typed bathroom_linen marker (kept name/price/description).`);
+      logger.log(`[seed:bathroom-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
     const hasTypedSeed = database.prepare(
@@ -77,10 +77,10 @@ function ensureDefaultBathroomLinenOption(database, { logger = console } = {}) {
       0, // countsAsBedLinen = 0 (this is the towels seed, not the sheets seed)
       1,
     );
-    logger.log('[Database] ✅ Default bathroom-linen option seeded.');
+    logger.log('[seed:bathroom-linen] seeded default option');
     return { action: 'seeded' };
   } catch (error) {
-    logger.log('[Database] Bathroom-linen seed skipped due to startup error:', error.message);
+    console.error(`[seed:bathroom-linen] failed: ${error.message}`);
     return { action: 'error', error: error.message };
   }
 }

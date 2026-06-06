@@ -47,7 +47,7 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
   try {
     const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
     if (!cols.includes('autoOptionType')) {
-      logger.log('[Database] Breakfast seed skipped: schema not ready yet');
+      // Schema not migrated yet — silent return (the next boot, after columns are added, will seed).
       return { action: 'skipped-schema' };
     }
     // PROMOTION PATH (runs unconditionally every boot). Same shape + rationale as the
@@ -62,7 +62,7 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
          AND (autoOptionType IS NULL OR autoOptionType = '')
     `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
-      logger.log(`[Database] ✅ Breakfast seed promoted ${promotion.changes} existing option(s) to the typed breakfast marker (kept name/price/description).`);
+      logger.log(`[seed:breakfast] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
     const hasTypedSeed = database.prepare(
@@ -92,10 +92,10 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
       0, // countsAsBedLinen
       0, // countsAsBathroomLinen
     );
-    logger.log('[Database] ✅ Default breakfast option seeded.');
+    logger.log('[seed:breakfast] seeded default option');
     return { action: 'seeded' };
   } catch (error) {
-    logger.log('[Database] Breakfast seed skipped due to startup error:', error.message);
+    console.error(`[seed:breakfast] failed: ${error.message}`);
     return { action: 'error', error: error.message };
   }
 }

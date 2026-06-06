@@ -207,8 +207,9 @@ test('applyHygiene: drop column is idempotent — second run is a no-op', () => 
 
 test('applyHygiene: when propertyId is FK-defined (real schema), drop is refused but handled gracefully', () => {
   // Reproduces the production schema: resources.propertyId is part of a FOREIGN KEY definition.
-  // SQLite refuses ALTER TABLE DROP COLUMN in that case; the hygiene pass must NOT throw and
-  // must emit an info-level message explaining the column is harmless (no app code reads it).
+  // SQLite refuses ALTER TABLE DROP COLUMN in that case; the hygiene pass must NOT throw, must
+  // NOT warn (the operator can't act on it, no application code reads the column), and must NOT
+  // emit a noise log on every boot.
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE properties (id INTEGER PRIMARY KEY);
@@ -222,21 +223,19 @@ test('applyHygiene: when propertyId is FK-defined (real schema), drop is refused
   `);
 
   const logger = silentLogger();
-  // Run only the resources-related part by calling applyHygiene with this minimal DB.
-  // Other tables are absent → applyHygiene's tableExists guard skips their indexes.
   applyHygiene(db, { logger });
 
   // Column should still be present (drop was refused).
   const cols = db.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
   assert.ok(cols.includes('propertyId'), 'column should remain because SQLite refuses to drop FK-defined columns');
-  // No warning, just an info-level log explaining the situation.
-  assert.ok(
-    logger.logs.some((l) => /conservée.*FK SQLite/.test(l)),
-    `expected an info log about FK-blocked drop; got logs: ${logger.logs.join(' | ')}`
-  );
+  // Silent: no warning, no info log — the situation is unactionable, log noise on every boot.
   assert.ok(
     !logger.warnings.some((w) => /resources\.propertyId/.test(w)),
     `no warning expected when SQLite refuses the drop; got warnings: ${logger.warnings.join(' | ')}`
+  );
+  assert.ok(
+    !logger.logs.some((l) => /resources\.propertyId|conservée/.test(l)),
+    `no info log expected (silent on unactionable retention); got logs: ${logger.logs.join(' | ')}`
   );
 });
 
