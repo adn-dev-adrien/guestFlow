@@ -25,7 +25,10 @@
 import React from 'react';
 import { Card, CardContent, Box, Typography, Stack, Divider } from '@mui/material';
 import { amber } from '@mui/material/colors';
-import BreakfastDiningIcon from '@mui/icons-material/BreakfastDining';
+// `BakeryDiningIcon` = pure croissant / viennoiserie shape (Adrien 2026-06-06: "remplace
+// le logo du petit déjeuner par un logo de viennoiserie croissant"). The previously-used
+// `BreakfastDiningIcon` mixes a croissant + a cup, less "viennoiserie".
+import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 
 // Breakfast-themed palette. Amber reads as "morning / warm / pastry" — distinct from the
@@ -48,8 +51,8 @@ export default function BreakfastDayCard({ data, onItemClick }) {
     <Card variant="outlined" sx={{ mb: 1.25, bgcolor: BREAKFAST_BG, borderColor: BREAKFAST_BORDER }}>
       <CardContent sx={{ py: 1.25, px: 2, '&:last-child': { pb: 1.25 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          {/* Header croissant sized up per Adrien 2026-06-06 ("plus gros que l'actuel"). */}
-          <BreakfastDiningIcon sx={{ fontSize: 28, color: BREAKFAST_ACCENT }} />
+          {/* Pure croissant / viennoiserie shape (Adrien 2026-06-06). Sized up at 28px. */}
+          <BakeryDiningIcon sx={{ fontSize: 28, color: BREAKFAST_ACCENT }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 700, color: BREAKFAST_ACCENT }}>
             Petit déjeuner
           </Typography>

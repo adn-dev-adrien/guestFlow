@@ -17,6 +17,8 @@ import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import FlightLandIcon from '@mui/icons-material/FlightLand';
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
@@ -200,15 +202,23 @@ function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
+          {/* ARRIVÉE badge — maxed-out for visibility (Adrien 2026-06-06: "trouve moi
+              aussi un jolie logo pour Départ et Arrivée, il faut que ce soit un maximum
+              visuel" + "je veux un logo différent pour départ et arrivée"). FlightLand
+              icon = plane touching down → universal "arrival" semantic; bigger height +
+              solid bg + white text for maximum pop. */}
           <Chip
+            icon={<FlightLandIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="ARRIVÉE"
             size="small"
             sx={{
-              height: 18,
-              fontSize: 10,
+              height: 26,
+              fontSize: 12,
               fontWeight: 800,
-              color: done ? 'success.dark' : 'warning.dark',
-              bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              px: 0.5,
+              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
             }}
           />
           {/* Time pill — promoted to the top row (Adrien 2026-06-06: "met moi l'heure
@@ -362,15 +372,21 @@ function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
               sx={{ p: 0, flexShrink: 0 }}
             />
           </Tooltip>
+          {/* DÉPART badge — symmetric with ARRIVÉE. FlightTakeoff icon = plane lifting
+              off → distinct from the landing arrival; matches the universal travel
+              terminology (Arrival / Departure boards). */}
           <Chip
+            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
             label="DÉPART"
             size="small"
             sx={{
-              height: 18,
-              fontSize: 10,
+              height: 26,
+              fontSize: 12,
               fontWeight: 800,
-              color: done ? 'success.dark' : 'warning.dark',
-              bgcolor: done ? 'rgba(46,125,50,0.12)' : 'rgba(245,124,0,0.12)',
+              color: 'white',
+              bgcolor: done ? 'success.main' : 'warning.main',
+              px: 0.5,
+              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
             }}
           />
           {/* Time pill — symmetric with the arrival card (Adrien 2026-06-06). */}
