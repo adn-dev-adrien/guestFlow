@@ -41,7 +41,8 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
   try {
     const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
     if (!cols.includes('autoOptionType') || !cols.includes('countsAsBedLinen')) {
-      logger.log('[Database] Bed-linen seed skipped: schema not ready yet');
+      // Schema not migrated yet — silent return; the column migrations above will fix it
+      // and the next boot will seed normally. No log line on every restart.
       return { action: 'skipped-schema' };
     }
     // PROMOTION PATH (runs UNCONDITIONALLY on every boot — 2026-06-03 follow-up).
@@ -71,7 +72,7 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
          AND (autoOptionType IS NULL OR autoOptionType = '')
     `).run(...KNOWN_TITLE_ALIASES);
     if (promotion.changes > 0) {
-      logger.log(`[Database] ✅ Bed-linen seed promoted ${promotion.changes} existing option(s) to the typed bed_linen marker (kept name/price/description).`);
+      logger.log(`[seed:bed-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
     const hasTypedSeed = database.prepare(
@@ -102,10 +103,11 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
       null,
       1,
     );
-    logger.log('[Database] ✅ Default bed-linen option seeded.');
+    logger.log('[seed:bed-linen] seeded default option');
     return { action: 'seeded' };
   } catch (error) {
-    logger.log('[Database] Bed-linen seed skipped due to startup error:', error.message);
+    // Surface only when something actually breaks — silent in normal boots.
+    console.error(`[seed:bed-linen] failed: ${error.message}`);
     return { action: 'error', error: error.message };
   }
 }

@@ -197,15 +197,17 @@ try {
   const built = buildServer({ httpsEnabled, app });
   serverHandle = built.server;
   serverProtocol = built.protocol;
-  if (built.tlsInfo) {
-    console.log(`TLS material loaded — cert: ${built.tlsInfo.certPath}, key: ${built.tlsInfo.keyPath}`);
-  }
 } catch (err) {
   logErrorMarker(`Boot failed: ${err.message}`);
   process.exit(1);
 }
 const server = serverHandle.listen(PORT, () => {
-  console.log(`GuestFlow API running on ${serverProtocol}://localhost:${PORT}`);
+  // Single boot banner — env, address, DB path. The only line a healthy steady-state boot prints
+  // unless a migration / seed actually changed something. Goes to stdout (regular logs); the
+  // BOOT START / BOOT COMPLETE markers stay on stderr via logErrorMarker for ops grep.
+  const env = process.env.NODE_ENV || 'development';
+  const commitSuffix = commitShaShort ? `, commit=${commitShaShort}` : '';
+  console.log(`[boot] GuestFlow API on ${serverProtocol}://localhost:${PORT} (NODE_ENV=${env}, DB=${db.dbPath}${commitSuffix})`);
   logErrorMarker(`=== SERVER BOOT COMPLETE (${serverProtocol}, port ${PORT}) ===`);
 
   // Start scheduled tasks (like iCal auto-sync)
