@@ -1,30 +1,18 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Card, CardContent, Checkbox, Chip, Divider,
-  LinearProgress, TextField, Button, Tooltip, IconButton,
+  Box, Typography, Card, CardContent, Chip, Divider,
+  LinearProgress, TextField, Button, IconButton,
 } from '@mui/material';
-import { orange, grey } from '@mui/material/colors';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
-import PersonIcon from '@mui/icons-material/Person';
-import HomeWorkIcon from '@mui/icons-material/HomeWork';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
-import ExtensionIcon from '@mui/icons-material/Extension';
-import NoteIcon from '@mui/icons-material/Note';
-import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-// Travel-style "boarding board" semantic: plane landing (arrival) / taking off
-// (departure). Adrien preferred this set after trying the door-bracket login/logout
-// variant — kept here for the visual playfulness that fits a vacation rental app.
-import FlightLandIcon from '@mui/icons-material/FlightLand';
-import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
+import ReservationCard from '../components/ReservationCard';
+import DepartureMiniRow from '../components/DepartureMiniRow';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
@@ -34,11 +22,11 @@ const DAYS_AHEAD = 14;
 // Day-card palette (PlanningPage). Tuned 2026-06-02 to make arrivals stand out from departures
 // without going flashy, with the laundry card carrying its own laundry-themed tone (see the
 // matching constant in LaundryDayCard).
-//   - Arrivals: warm peach (MUI orange[50]) — welcoming, attention-grabbing.
-//   - Departures: very pale grey (MUI grey[100]) — fades into the page on purpose.
-//   - "Done" green + alert overlays still take priority (see ReservationCard sx).
-const ARRIVAL_BG = orange[50];   // #FFF3E0
-const DEPARTURE_BG = grey[100];  // #F5F5F5
+//   - Arrivals: warm peach (MUI orange[50]) — welcoming, attention-grabbing. See
+//     `components/ReservationCard.js` for the canonical ARRIVAL_BG constant.
+//   - Departures: very pale grey (MUI grey[100]) — fades into the page on purpose. See
+//     `components/DepartureMiniRow.js` for the canonical DEPARTURE_BG constant.
+//   - "Done" green + alert overlays still take priority (each card's sx handles them).
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr);
@@ -63,39 +51,8 @@ function minutesToTime(minutes) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
-  const dbl = Number(doubleBeds || 0);
-  const sgl = Number(singleBeds || 0);
-  const bby = Number(babyBeds || 0);
-  if (dbl === 0 && sgl === 0 && bby === 0) return null;
-
-  const beds = [];
-  if (dbl > 0) beds.push({ type: 'double', count: dbl, color: '#1565c0', label: 'Lit double', bgColor: '#e3f2fd' });
-  if (sgl > 0) beds.push({ type: 'single', count: sgl, color: '#6a1b9a', label: 'Lit simple', bgColor: '#f3e5f5' });
-  if (bby > 0) beds.push({ type: 'baby', count: bby, color: '#e65100', label: 'Lit bébé', bgColor: '#fff8e1' });
-
-  return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mt: 0.5 }}>
-      {beds.map((bed, idx) => {
-        const labels = {
-          double: 'DOUBLE',
-          single: 'SIMPLE',
-          baby: 'BÉBÉ'
-        };
-        return (
-          <Tooltip key={idx} title={bed.label}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: bed.bgColor, borderRadius: 1, px: 1, py: 0.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 900, color: bed.color, fontSize: '11px', letterSpacing: '0.5px' }}>
-                {labels[bed.type]}
-              </Typography>
-              <Typography variant="caption" sx={{ fontWeight: 700, color: bed.color }}>×{bed.count}</Typography>
-            </Box>
-          </Tooltip>
-        );
-      })}
-    </Box>
-  );
-}
+// `BedVisual` was inlined here until 2026-06-06; it now lives co-located with
+// `components/ReservationCard.js`, the only consumer.
 
 function ResourceBookingsSection({ bookings }) {
   if (!bookings || bookings.length === 0) return null;
@@ -145,335 +102,10 @@ function ResourceBookingsSection({ bookings }) {
   );
 }
 
-function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
-  const r = reservation;
-  const clickable = typeof onOpen === 'function';
-  const handleCardClick = clickable ? () => onOpen(r.id) : undefined;
-  // Stop propagation on interactive child controls so they don't bubble up to the card's
-  // navigate-on-click handler.
-  const stop = (e) => e.stopPropagation();
-  const done = !!r.checkInReady;
-  const adults = Number(r.adults || 0);
-  const children = Number(r.children || 0);
-  const teens = Number(r.teens || 0);
-  const babies = Number(r.babies || 0);
-  // Effective billed quantity is computed server-side (billedUnits); the client only renders it.
-  const formatQty = (item) => {
-    const value = Number(item.billedUnits ?? item.quantity ?? 0);
-    return Number.isInteger(value) ? value : Number(value.toFixed(2));
-  };
-
-  // Default bg = ARRIVAL_BG (warm peach so the arrival card stands out from the page).
-  // Alert overlays still override — kept identical for visual continuity with prior screenshots.
-  let alertBgColor = ARRIVAL_BG;
-  if (alertInfo?.type === 'orange') {
-    alertBgColor = 'rgba(244, 67, 54, 0.10)';
-  } else if (alertInfo?.type === 'red') {
-    alertBgColor = 'rgba(244, 67, 54, 0.14)';
-  } else if (alertInfo?.type === 'blue') {
-    alertBgColor = 'rgba(33, 150, 243, 0.08)';
-  }
-
-  const optionsText = (r.options || []).map((o) => `${o.title} ×${formatQty(o)}`);
-  const resourcesText = (r.resources || []).map((rr) => `${rr.name} ×${formatQty(rr)}`);
-
-  return (
-    <Card
-      variant="outlined"
-      onClick={handleCardClick}
-      sx={{
-        mb: 1.5,
-        borderRadius: 2,
-        borderColor: done ? 'success.main' : 'divider',
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
-        opacity: done ? 0.75 : 1,
-        transition: 'all 0.2s',
-        cursor: clickable ? 'pointer' : 'default',
-        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
-      }}
-    >
-      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-        {/* Top row: checkbox + ARRIVÉE badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
-          <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
-            <Checkbox
-              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
-              checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
-              checked={done}
-              onChange={() => onToggleReady(r)}
-              onClick={stop}
-              sx={{ p: 0, flexShrink: 0 }}
-            />
-          </Tooltip>
-          {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal
-              "arrival" semantic. Bigger height + solid bg + white text for max pop. */}
-          <Chip
-            icon={<FlightLandIcon sx={{ fontSize: 18, color: 'white !important' }} />}
-            label="ARRIVÉE"
-            size="small"
-            sx={{
-              height: 26,
-              fontSize: 12,
-              fontWeight: 800,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
-              px: 0.5,
-              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
-            }}
-          />
-          {/* Time pill — promoted to the top row (Adrien 2026-06-06: "met moi l'heure
-              juste à droite du de Arrivée [...] avec un encadrement arrondi et en gras
-              que ce soit visible" + "rajoute ta petite horloge à gauche de l'heure").
-              The duplicate clock + "Arrivée HH:MM" block on the line below is removed. */}
-          <Chip
-            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
-            label={r.checkInTime || '15:00'}
-            size="small"
-            sx={{
-              height: 22,
-              fontSize: 13,
-              fontWeight: 800,
-              borderRadius: 1.5,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
-              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
-            }}
-          />
-          {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
-        </Box>
-
-        {/* Detail block indented to align with the left edge of the ARRIVÉE badge (checkbox 32px + gap 8px) */}
-        <Box sx={{ pl: '40px' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
-              {r.propertyName}
-            </Typography>
-            {alertInfo?.explanation && (
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 600,
-                  color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
-                  lineHeight: 1.3,
-                }}
-              >
-                {alertInfo.explanation}
-              </Typography>
-            )}
-          </Box>
-
-          {/* Second-line block reduced to the client name. The clock icon + "Arrivée
-              HH:MM" duplicate of the top time pill is removed (Adrien 2026-06-06). */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {r.firstName} {r.lastName}
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Famille:
-            </Typography>
-            <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Enfants: ${children}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Ados: ${teens}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-            <Chip label={`Bébés: ${babies}`} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Lits:
-            </Typography>
-            <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
-          </Box>
-
-          {optionsText.length > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              <ExtensionIcon sx={{ fontSize: 16, color: 'text.secondary', mt: 0.25, flexShrink: 0 }} />
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {optionsText.map((label, i) => (
-                  <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-                ))}
-              </Box>
-            </Box>
-          )}
-
-          {resourcesText.length > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              <ExtensionIcon sx={{ fontSize: 16, color: 'info.main', mt: 0.25, flexShrink: 0 }} />
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {resourcesText.map((label, i) => (
-                  <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
-                ))}
-              </Box>
-            </Box>
-          )}
-
-          {r.notes && (
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
-              <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
-                {r.notes}
-              </Typography>
-            </Box>
-          )}
-          {/* No standalone "Ménage : Xh" badge here (Adrien 2026-06-06: "supprime moi le
-              Ménage en rouge sur la carte arrivée"). The cleaning duration stays embedded
-              in the alert explanation text under the property name, where it reads as
-              "[client] part le X à Y, ménage: Zh" — that's enough context on the arrival
-              side. The standalone badge lives only on the departure card now. */}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
-  const done = Boolean(reservation.checkOutDone);
-  const clickable = typeof onOpen === 'function';
-  const handleCardClick = clickable ? () => onOpen(reservation.id) : undefined;
-  const stop = (e) => e.stopPropagation();
-  // Symmetric alert background with `ReservationCard`: when there's a tight transition,
-  // the operator sees the same coloured pull on the departure as on the next arrival.
-  let alertBgColor = DEPARTURE_BG;
-  if (alertInfo?.type === 'red') alertBgColor = 'rgba(244, 67, 54, 0.14)';
-  else if (alertInfo?.type === 'orange') alertBgColor = 'rgba(244, 67, 54, 0.10)';
-  else if (alertInfo?.type === 'blue') alertBgColor = 'rgba(33, 150, 243, 0.08)';
-  const checkOutTime = reservation.checkOutTime || '10:00';
-  return (
-    <Card
-      variant="outlined"
-      onClick={handleCardClick}
-      sx={{
-        mb: 1.5,
-        borderRadius: 2,
-        borderColor: done ? 'success.main' : 'divider',
-        // Default bg = DEPARTURE_BG (very soft grey — quieter than the arrival peach on purpose,
-        // departures need less visual pull than incoming bookings).
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
-        opacity: done ? 0.75 : 1,
-        transition: 'all 0.2s',
-        cursor: clickable ? 'pointer' : 'default',
-        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
-      }}
-    >
-      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-        {/* Top row: checkbox + DÉPART badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
-          <Tooltip title={done ? 'Départ validé' : 'Valider le départ'}>
-            <Checkbox
-              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
-              checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
-              checked={done}
-              onChange={() => onToggleDone(reservation)}
-              onClick={stop}
-              sx={{ p: 0, flexShrink: 0 }}
-            />
-          </Tooltip>
-          {/* DÉPART badge — FlightTakeoff (plane lifting off) = symmetric counterpart
-              to the ARRIVÉE Land icon. Same airport-board family, distinct silhouette. */}
-          <Chip
-            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
-            label="DÉPART"
-            size="small"
-            sx={{
-              height: 26,
-              fontSize: 12,
-              fontWeight: 800,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
-              px: 0.5,
-              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
-            }}
-          />
-          {/* Time pill — symmetric with the arrival card (Adrien 2026-06-06). */}
-          <Chip
-            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
-            label={checkOutTime}
-            size="small"
-            sx={{
-              height: 22,
-              fontSize: 13,
-              fontWeight: 800,
-              borderRadius: 1.5,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
-              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
-            }}
-          />
-          {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
-        </Box>
-
-        {/* Detail block indented to align with the left edge of the DÉPART badge */}
-        <Box sx={{ pl: '40px' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
-              {reservation.propertyName}
-            </Typography>
-            {alertInfo?.explanation && (
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 600,
-                  color: alertInfo.type === 'blue' ? 'info.dark' : 'error.dark',
-                  lineHeight: 1.3,
-                }}
-              >
-                {alertInfo.explanation}
-              </Typography>
-            )}
-          </Box>
-
-          {/* Second-line block reduced to the client name. Clock + "Départ HH:MM"
-              duplicate of the top time pill is removed (Adrien 2026-06-06). */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {reservation.firstName} {reservation.lastName}
-            </Typography>
-          </Box>
-
-          {/* Where the "Famille:" chip row used to live (Adrien 2026-06-06). The departure
-              tile doesn't need the family breakdown — that detail belongs to the arrival
-              card where the operator prepares the welcome. In its place: a prominent
-              cleaning indicator when a tight transition triggered the alert. Same icon
-              as the arrival card, just sized up + given its own row so the eye lands on
-              "Ménage" before scanning the notes. */}
-          {alertInfo?.cleaningDisplay && (
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              mt: 0.5,
-              p: 0.75,
-              borderRadius: 1,
-              bgcolor: 'rgba(244, 67, 54, 0.06)',
-              border: '1px solid',
-              borderColor: 'error.light',
-            }}>
-              <CleaningServicesIcon sx={{ fontSize: 24, color: 'error.main', flexShrink: 0 }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.dark' }}>
-                Ménage : {alertInfo.cleaningDisplay}
-              </Typography>
-            </Box>
-          )}
-
-          {reservation.notes && (
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 1 }}>
-              <NoteIcon sx={{ fontSize: 16, color: 'warning.main', mt: 0.25, flexShrink: 0 }} />
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.4 }}>
-                {reservation.notes}
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
+// `ReservationCard` and `DepartureMiniRow` lived inline here until 2026-06-06. They
+// were extracted to `components/ReservationCard.js` and `components/DepartureMiniRow.js`
+// to enable direct Vitest coverage of the per-tile rules (time pill, Famille
+// zero-filter, Lits gate, cleaning block, etc.).
 
 export default function PlanningPage() {
   const navigate = useNavigate();
