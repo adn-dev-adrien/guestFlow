@@ -7,8 +7,19 @@ const propertyIcalModel = require('./models/propertyIcalModel');
 const schoolHolidaysModel = require('./models/schoolHolidaysModel');
 const { runSync: runSchoolHolidaysSync } = require('./utils/schoolHolidaysSync');
 
+// Email automation auto-send (specs/email-automation.md §3 rule 7).
+const emailTemplatesModel = require('./models/emailTemplatesModel');
+const emailLogModel       = require('./models/emailLogModel');
+const settingsModel       = require('./models/settingsModel');
+const { createEmailService } = require('./utils/emailService');
+const { performAutoEmailPass, isoToday } = require('./utils/emailAutoSendRunner');
+
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
+let emailAutoSendInProgress = false;
+// Track the local-date YYYY-MM-DD of the last successful auto-email run so the per-minute
+// tick doesn't fire the pass more than once per day.
+let lastEmailAutoSendDate = null;
 
 async function performAutoSync() {
   if (syncInProgress) {
@@ -96,6 +107,40 @@ function tickSchoolHolidaysSync(reason) {
   }
 }
 
+async function runEmailAutoSendPass(reason = 'cron') {
+  if (emailAutoSendInProgress) return;
+  emailAutoSendInProgress = true;
+  try {
+    const { sentCount, skippedCount, failedCount } = await performAutoEmailPass({
+      database: db,
+      templatesModel: emailTemplatesModel,
+      logModel: emailLogModel,
+      settingsModel,
+      emailServiceFactory: createEmailService,
+    });
+    if (sentCount > 0 || failedCount > 0) {
+      console.log(`[email-auto-send] ${reason}: ${sentCount} sent, ${skippedCount} skipped, ${failedCount} failed`);
+    }
+  } catch (err) {
+    console.error('[email-auto-send] unexpected error:', err);
+  } finally {
+    emailAutoSendInProgress = false;
+  }
+}
+
+// Per-minute tick. Fires the auto-send pass at the first tick on/after 08:00 local time,
+// once per local day. Catches up if the server was down at 08:00 (any later tick on the
+// same day triggers the pass as long as it hasn't already run).
+function tickEmailAutoSend() {
+  const now = new Date();
+  const hour = now.getHours();
+  if (hour < 8) return;
+  const today = isoToday(now);
+  if (lastEmailAutoSendDate === today) return;
+  lastEmailAutoSendDate = today;
+  runEmailAutoSendPass('daily 08:00 pass').catch((err) => console.error('[email-auto-send] unhandled:', err));
+}
+
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -114,6 +159,12 @@ function startScheduledTasks() {
   const SCHOOL_HOLIDAYS_TICK = 60 * 60 * 1000; // 1 hour
   setInterval(() => tickSchoolHolidaysSync('hourly tick'), SCHOOL_HOLIDAYS_TICK);
   setTimeout(() => tickSchoolHolidaysSync('boot'), 60 * 1000);
+
+  // Email automation: per-minute tick gated on local-hour >= 8 + once-per-day guard.
+  // First tick scheduled 90 s after boot so the cron is hot for the first day-of-server-restart.
+  const EMAIL_AUTO_SEND_TICK = 60 * 1000;
+  setInterval(tickEmailAutoSend, EMAIL_AUTO_SEND_TICK);
+  setTimeout(tickEmailAutoSend, 90 * 1000);
 }
 
 module.exports = {
@@ -121,4 +172,7 @@ module.exports = {
   performAutoSync,
   performSchoolHolidaysSync,
   shouldSyncSchoolHolidays,
+  // Email automation — exposed for tests + ops trigger.
+  runEmailAutoSendPass,
+  tickEmailAutoSend,
 };

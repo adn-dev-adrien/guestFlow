@@ -30,6 +30,7 @@ import DateRangeIcon from '@mui/icons-material/DateRange';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DescriptionIcon from '@mui/icons-material/Description';
+import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SettingsIcon from '@mui/icons-material/Settings';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -62,6 +63,8 @@ import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import AccountingPage from './pages/AccountingPage';
 import PlatformAccountsPage from './pages/PlatformAccountsPage';
+import EmailTemplatesPage from './pages/EmailTemplatesPage';
+import EmailHistoryPage from './pages/EmailHistoryPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -71,6 +74,7 @@ const navItems = [
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
+  { label: 'Emails', path: '/emails/modeles', icon: <MailOutlineIcon /> },
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
@@ -742,6 +746,8 @@ function AppShell() {
           <Route path="/account" element={<UserManagementPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
           <Route path="/comptabilite/plateformes" element={<PlatformAccountsPage />} />
+          <Route path="/emails/modeles"    element={<EmailTemplatesPage />} />
+          <Route path="/emails/historique" element={<EmailHistoryPage />} />
         </Routes>
       </Box>
     </Box>
