@@ -756,6 +756,12 @@ tryAddOptionColumn('towelLargePerPerson',  "ALTER TABLE options ADD COLUMN towel
 tryAddOptionColumn('towelMediumPerPerson', "ALTER TABLE options ADD COLUMN towelMediumPerPerson INTEGER NOT NULL DEFAULT 0");
 tryAddOptionColumn('towelSmallPerPerson',  "ALTER TABLE options ADD COLUMN towelSmallPerPerson INTEGER NOT NULL DEFAULT 1");
 
+// 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). English title for each
+// option, used by the PDF renderer when the devis carries pdfLanguage='en'. Empty falls back
+// to the FR title. Description is intentionally NOT translated: the option's description is
+// not printed in the devis PDF (only the title), so a `descriptionEn` would be dead weight.
+tryAddOptionColumn('titleEn', "ALTER TABLE options ADD COLUMN titleEn TEXT NOT NULL DEFAULT ''");
+
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
   db.exec("ALTER TABLE devis_options ADD COLUMN offered INTEGER NOT NULL DEFAULT 0");
@@ -789,6 +795,10 @@ tryAddResourceColumn('closedDays', "ALTER TABLE resources ADD COLUMN closedDays 
 tryAddResourceColumn('openDays', "ALTER TABLE resources ADD COLUMN openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]'");
 tryAddResourceColumn('turnoverMinutes', 'ALTER TABLE resources ADD COLUMN turnoverMinutes INTEGER NOT NULL DEFAULT 0');
 tryAddResourceColumn('minimumUsageMinutes', 'ALTER TABLE resources ADD COLUMN minimumUsageMinutes INTEGER NOT NULL DEFAULT 0');
+
+// 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). English name surfaced
+// by the PDF when the devis carries pdfLanguage='en'. Empty fallback to FR `name`.
+tryAddResourceColumn('nameEn', "ALTER TABLE resources ADD COLUMN nameEn TEXT NOT NULL DEFAULT ''");
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_property_resource_prices_resource ON property_resource_prices(resourceId)');
 const propertyResourcePriceCols = db.prepare("PRAGMA table_info(property_resource_prices)").all().map(c => c.name);
@@ -1069,6 +1079,10 @@ tryAddAppSettingsCol('companyIban', "ALTER TABLE app_settings ADD COLUMN company
 tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyBic TEXT DEFAULT ''");
 tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
 tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
+// 2026-06-06 — English-language footer for the bilingual devis PDF
+// (specs/devis-english-language.md §3 rule 11). Optional — empty defaults to the static
+// English text in devisPdfLabels.
+tryAddAppSettingsCol('quoteFooterTextEn', "ALTER TABLE app_settings ADD COLUMN quoteFooterTextEn TEXT DEFAULT ''");
 
 // Global VAT rate (single-rate model — specs/single-vat-rate.md §5). The previous 2-rate model
 // (accommodation 10 % / standard 20 %) was collapsed because every revenue stream on GuestFlow
@@ -1155,6 +1169,9 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   if (!rcols.includes('devisStatus')) db.exec('ALTER TABLE reservations ADD COLUMN devisStatus TEXT');
   if (!rcols.includes('validUntil')) db.exec('ALTER TABLE reservations ADD COLUMN validUntil TEXT');
   if (!rcols.includes('convertedReservationId')) db.exec('ALTER TABLE reservations ADD COLUMN convertedReservationId INTEGER');
+  // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). 'fr' (default) | 'en'.
+  // Existing devis backfill to 'fr' via the DEFAULT clause; the PDF endpoint reads this column.
+  if (!rcols.includes('pdfLanguage')) db.exec("ALTER TABLE reservations ADD COLUMN pdfLanguage TEXT NOT NULL DEFAULT 'fr'");
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
 
@@ -1204,8 +1221,15 @@ const babyBed = db.prepare(`
     AND NOT EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id)
 `).get();
 if (!babyBed) {
-  db.prepare('INSERT INTO resources (name, quantity, price, note) VALUES (?, ?, ?, ?)')
-    .run('Lit bébé', 1, 0, 'Ressource par défaut');
+  db.prepare('INSERT INTO resources (name, nameEn, quantity, price, note) VALUES (?, ?, ?, ?, ?)')
+    .run('Lit bébé', 'Baby bed', 1, 0, 'Ressource par défaut');
+}
+// 2026-06-06 — backfill the EN translation on prod servers that seeded "Lit bébé" before
+// the nameEn column existed. Idempotent: only touches the row when the column is empty.
+try {
+  db.prepare("UPDATE resources SET nameEn = 'Baby bed' WHERE LOWER(name) = LOWER('Lit bébé') AND (nameEn IS NULL OR nameEn = '')").run();
+} catch (e) {
+  // nameEn column not yet present (very early boot path) — silent; the next boot will catch up.
 }
 
 // Migration: add missing columns to options table if they don't exist.
@@ -1245,10 +1269,13 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
   const pid = Number(propertyId);
   if (!Number.isFinite(pid) || pid <= 0) return;
 
+  // English titles surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+  // The PDF appends the extra-hour suffix at render time; `titleEn` here is the bare name.
   const defaults = [
     {
       autoOptionType: 'early_check_in',
       title: 'Arrivée anticipée',
+      titleEn: 'Early check-in',
       description: "Option automatique si arrivée avant l'heure par défaut",
       autoEnabled: 1,
       autoPricingMode: 'proportional',
@@ -1257,6 +1284,7 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     {
       autoOptionType: 'late_check_out',
       title: 'Départ tardif',
+      titleEn: 'Late check-out',
       description: "Option automatique si départ après l'heure par défaut",
       autoEnabled: 1,
       autoPricingMode: 'proportional',
@@ -1264,24 +1292,30 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
     },
   ];
 
+  // Whether the EN title column exists at this exact moment (the column migration above adds
+  // it; this guard keeps the seeder safe on minimal test schemas that don't have it).
+  const optionCols = db.prepare("PRAGMA table_info(options)").all().map((c) => c.name);
+  const hasTitleEn = optionCols.includes('titleEn');
+
   const findScopedByType = db.prepare(`
-    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold${hasTitleEn ? ', o.titleEn' : ''}
     FROM options o
     INNER JOIN property_options po ON po.optionId = o.id
     WHERE po.propertyId = ? AND o.autoOptionType = ?
     LIMIT 1
   `);
   const findGlobalByType = db.prepare(`
-    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold
+    SELECT o.id, o.price, o.autoEnabled, o.autoPricingMode, o.autoFullNightThreshold${hasTitleEn ? ', o.titleEn' : ''}
     FROM options o
     WHERE o.autoOptionType = ?
       AND NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
     LIMIT 1
   `);
-  const insertOption = db.prepare(`
-    INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
-    VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)
-  `);
+  const insertOption = db.prepare(hasTitleEn
+    ? `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold, titleEn)
+       VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?, ?)`
+    : `INSERT INTO options (title, description, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+       VALUES (?, ?, 'per_stay', 0, ?, ?, ?, ?)`);
   const insertLink = db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)');
   const upgradeLegacyTimedOption = db.prepare(`
     UPDATE options
@@ -1291,6 +1325,11 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
       autoFullNightThreshold = COALESCE(NULLIF(autoFullNightThreshold, ''), ?)
     WHERE id = ?
   `);
+  // Backfill the EN title on legacy rows that already exist without it. Idempotent: only
+  // touches rows where `titleEn` is currently empty.
+  const backfillTitleEn = hasTitleEn
+    ? db.prepare("UPDATE options SET titleEn = ? WHERE id = ? AND (titleEn IS NULL OR titleEn = '')")
+    : null;
 
   const tx = db.transaction(() => {
     for (const def of defaults) {
@@ -1305,17 +1344,31 @@ function ensureDefaultTimedOptionsForProperty(propertyId) {
         if (isLegacyDisabledFixedZero) {
           upgradeLegacyTimedOption.run(def.autoFullNightThreshold, Number(candidate.id));
         }
+        // Backfill the EN title on every existing typed row regardless of the legacy upgrade.
+        if (backfillTitleEn && (!candidate.titleEn || candidate.titleEn === '')) {
+          backfillTitleEn.run(def.titleEn, Number(candidate.id));
+        }
         continue;
       }
 
-      const created = insertOption.run(
-        def.title,
-        def.description,
-        def.autoOptionType,
-        Number(def.autoEnabled || 0),
-        def.autoPricingMode || 'fixed',
-        def.autoFullNightThreshold,
-      );
+      const created = hasTitleEn
+        ? insertOption.run(
+            def.title,
+            def.description,
+            def.autoOptionType,
+            Number(def.autoEnabled || 0),
+            def.autoPricingMode || 'fixed',
+            def.autoFullNightThreshold,
+            def.titleEn,
+          )
+        : insertOption.run(
+            def.title,
+            def.description,
+            def.autoOptionType,
+            Number(def.autoEnabled || 0),
+            def.autoPricingMode || 'fixed',
+            def.autoFullNightThreshold,
+          );
       insertLink.run(pid, Number(created.lastInsertRowid));
     }
   });
