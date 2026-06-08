@@ -5,15 +5,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
-- **J-7 email — baby-bed notice** (spec `j7-email-baby-beds.md`,
-  2026-06-08). For bookings with one or more babies, the J-7 arrival
-  reminder now says either how many baby beds are provided, or — when no
-  baby bed is available for the dates — that the guest should bring one.
-  Computed server-side as a `{{babyBedNotice}}` variable + `{{#if
-  hasBabyBedNotice}}` flag; added to the default J-7 template body. +7
-  server tests. NOTE: existing (operator-owned) J-7 templates are not
-  auto-updated — add the `{{#if hasBabyBedNotice}}{{babyBedNotice}}{{/if}}`
-  snippet via Paramètres → Emails, or delete the J-7 template to re-seed.
+- **Arithmetic input on reservation price fields** (spec
+  `reservation-price-arithmetic.md`, 2026-06-08). The « Prix hébergement
+  ajusté » and « Prix payé par le client » fields now accept arithmetic
+  expressions (`100+20`, `(100+20)*2`, French comma OK): on Enter or blur
+  the expression is evaluated and the result set (rounded to 2 decimals,
+  clamped ≥0); invalid input reverts. New safe (no-`eval`) evaluator
+  `utils/arithmetic.js` + reusable `ArithmeticTextField` component.
+  +15 client tests.
 - **Dashboard card — new iCal reservations imported today** (spec
   `dashboard-ical-new-reservations.md`, 2026-06-08). A read-only blue
   card on the dashboard lists every reservation imported via iCal during
