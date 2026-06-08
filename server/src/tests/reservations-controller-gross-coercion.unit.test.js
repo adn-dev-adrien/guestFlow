@@ -37,11 +37,15 @@ function fakeRes() {
   };
 }
 
-function buildController({ quoteFinalPrice = 648, captures }) {
+function buildController({ quoteFinalPrice = 648, quoteBalanceAmount, captures }) {
+  // The gross-below check compares against the BALANCE (solde) since 2026-06-08
+  // (specs/force-extras-complement-on-platform.md §10). Default the balance to finalPrice so the
+  // pre-B tests keep the same threshold; B-specific tests pass a smaller balance explicitly.
+  const balanceAmount = quoteBalanceAmount === undefined ? quoteFinalPrice : quoteBalanceAmount;
   const pricingMock = {
     calculateReservationQuote() {
       return {
-        totalPrice: 0, finalPrice: quoteFinalPrice, depositAmount: 0, balanceAmount: 0,
+        totalPrice: 0, finalPrice: quoteFinalPrice, depositAmount: 0, balanceAmount,
         optionLines: [], resourceLines: [], nightlyBreakdown: [],
         depositDueDate: null, balanceDueDate: null, nights: 1, error: null,
       };
@@ -113,12 +117,33 @@ test('create — direct + clientGrossAmount stale below finalPrice → controlle
   assert.equal(captures.inserted.clientGrossAmount, 648, 'gross was rewritten to finalPrice');
 });
 
-test('create — platform=Airbnb + gross below net → still 400 (the operator-entered gross is authoritative)', () => {
+test('create — platform=Airbnb + gross below the balance → still 400 (the operator-entered gross is authoritative)', () => {
   const captures = {};
-  const controller = buildController({ quoteFinalPrice: 648, captures });
+  const controller = buildController({ quoteFinalPrice: 648, captures }); // balance defaults to 648
   const req = { body: bodyFor('Airbnb', 620) };
   const res = fakeRes();
   controller.create(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'GROSS_BELOW_NET');
+});
+
+// specs/force-extras-complement-on-platform.md §10 (2026-06-08): the gross is validated against the
+// SOLDE, not the full stay. When extras sit in the complément (collected on arrival), a gross that
+// covers the balance but is below the full finalPrice must be ACCEPTED.
+test('create — platform + gross ≥ balance but < finalPrice → 200 (extras are in the complément)', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 648, quoteBalanceAmount: 600, captures });
+  const res = fakeRes();
+  controller.create({ body: bodyFor('Airbnb', 620) }, res); // 620 ≥ balance 600, < final 648
+  assert.equal(res.statusCode, 200);
+  assert.equal(captures.inserted.clientGrossAmount, 620);
+});
+
+test('create — platform + gross below the balance → 400', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 648, quoteBalanceAmount: 600, captures });
+  const res = fakeRes();
+  controller.create({ body: bodyFor('Airbnb', 580) }, res); // 580 < balance 600
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'GROSS_BELOW_NET');
 });
