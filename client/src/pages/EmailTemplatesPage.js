@@ -5,16 +5,17 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Box, TableRow, TableCell, IconButton, Chip, Typography, Switch, Button,
-  Stack, FormControl, InputLabel, Select, MenuItem, TextField,
+  Box, Card, Table, TableContainer, TableHead, TableBody, TableRow, TableCell,
+  IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
+  Select, MenuItem, TextField,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HistoryIcon from '@mui/icons-material/History';
-import { Link as RouterLink } from 'react-router-dom';
-import DataPageScaffold from '../components/DataPageScaffold';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import FormDialog from '../components/FormDialog';
+import EmailPendingList from '../components/EmailPendingList';
+import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import api from '../api';
 import { useAppDialogs } from '../components/DialogProvider';
 
@@ -30,6 +31,7 @@ const VARIABLE_BUTTONS = [
   { label: 'Téléphone client', token: '{{clientPhone}}' },
   // Séjour
   { label: 'Logement',         token: '{{propertyName}}' },
+  { label: 'Logement + article', token: '{{propertyWithArticle}}' },
   { label: 'Date arrivée',     token: '{{startDate}}' },
   { label: 'Date départ',      token: '{{endDate}}' },
   { label: 'Heure arrivée',    token: '{{checkInTime}}' },
@@ -45,6 +47,7 @@ const VARIABLE_BUTTONS = [
   { label: 'Config lits',      token: '{{bedConfig}}' },
   // Entreprise
   { label: 'Société',          token: '{{companyName}}' },
+  { label: 'Nom expéditeur',   token: '{{senderName}}' },
   { label: 'Téléphone société',token: '{{companyPhone}}' },
 ];
 
@@ -75,6 +78,7 @@ function describeOffset(n) {
 
 export default function EmailTemplatesPage() {
   const { confirm, alert } = useAppDialogs();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -82,6 +86,9 @@ export default function EmailTemplatesPage() {
   const bodyRef = useRef(null);
   const subjectRef = useRef(null);
   const [focusedField, setFocusedField] = useState('body');
+
+  const [pending, setPending] = useState([]);
+  const [sending, setSending] = useState(null); // { reservationId, templateId, reservationStartDate }
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -93,7 +100,41 @@ export default function EmailTemplatesPage() {
     }
   }, []);
 
+  const reloadPending = useCallback(async () => {
+    try {
+      const rows = await api.getPendingEmails();
+      setPending(rows || []);
+    } catch {
+      setPending([]);
+    }
+  }, []);
+
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { reloadPending(); }, [reloadPending]);
+
+  const handlePreview = (row) => setSending({
+    templateId: row.templateId,
+    reservationId: row.reservationId,
+    reservationStartDate: row.startDate,
+  });
+
+  const handleOpenReservation = (row) => navigate(`/reservations/${row.reservationId}`);
+
+  const handleAcknowledge = async (row) => {
+    const ok = await confirm({
+      title: 'Ignorer cet email',
+      message: `Marquer comme géré l'email "${row.templateName}" pour ${row.clientFullName || 'ce client'} ? Il n'apparaîtra plus dans les emails à envoyer.`,
+      confirmLabel: 'Ignorer',
+      confirmColor: 'warning',
+    });
+    if (!ok) return;
+    try {
+      await api.acknowledgePendingEmail({ templateId: row.templateId, reservationId: row.reservationId });
+      await reloadPending();
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'acquitter l\'email.' });
+    }
+  };
 
   const handleOpen = (row) => {
     if (row) {
@@ -153,7 +194,9 @@ export default function EmailTemplatesPage() {
         await api.createEmailTemplate(payload);
       }
       handleClose();
-      await reload();
+      // A template change (subject/body/offset/mode/enabled) reshapes the manual queue and
+      // its rendered content → refresh both the library and the « Emails à envoyer » list.
+      await Promise.all([reload(), reloadPending()]);
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'enregistrer le modèle.' });
     }
@@ -169,7 +212,7 @@ export default function EmailTemplatesPage() {
     if (!ok) return;
     try {
       await api.deleteEmailTemplate(row.id);
-      await reload();
+      await Promise.all([reload(), reloadPending()]);
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible de supprimer le modèle.' });
     }
@@ -178,7 +221,8 @@ export default function EmailTemplatesPage() {
   const handleToggleEnabled = async (row, next) => {
     try {
       await api.updateEmailTemplate(row.id, { enabled: next });
-      await reload();
+      // Enabling/disabling a manual template adds/removes its rows from the queue.
+      await Promise.all([reload(), reloadPending()]);
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible de modifier le modèle.' });
     }
@@ -186,63 +230,102 @@ export default function EmailTemplatesPage() {
 
   return (
     <Box>
-      <DataPageScaffold
-        title="Modèles d'emails"
-        actionLabel="Nouveau modèle"
-        actionIcon={<AddIcon />}
-        onAction={() => handleOpen(null)}
-        topContent={(
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button startIcon={<HistoryIcon />} component={RouterLink} to="/emails/historique" variant="outlined" size="small">
-              Voir l'historique
-            </Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
+        <Typography variant="h4">Emails</Typography>
+        <Button startIcon={<HistoryIcon />} component={RouterLink} to="/emails/historique" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+          Voir l'historique
+        </Button>
+      </Box>
+
+      {pending.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <Box sx={{ px: 2, pt: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>Emails à envoyer</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Modèles en mode manuel dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours.
+            </Typography>
           </Box>
-        )}
-        minWidth={860}
-        head={(
-          <TableRow>
-            <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Quand</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Mode</TableCell>
-            <TableCell sx={{ fontWeight: 600 }}>Activé</TableCell>
-            <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
-          </TableRow>
-        )}
-        hasItems={items.length > 0}
-        emptyColSpan={5}
-        emptyText={loading ? 'Chargement…' : 'Aucun modèle d\'email'}
-      >
-        {items.map((row) => (
-          <TableRow key={row.id} hover>
-            <TableCell>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <Typography>{row.name}</Typography>
-                {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
-              </Stack>
-            </TableCell>
-            <TableCell>{describeOffset(row.dayOffset)}</TableCell>
-            <TableCell>
-              <Chip
-                label={row.sendMode === 'auto' ? 'Auto' : 'Manuel'}
-                size="small"
-                color={row.sendMode === 'auto' ? 'success' : 'info'}
-                variant="outlined"
-              />
-            </TableCell>
-            <TableCell>
-              <Switch
-                checked={Boolean(row.enabled)}
-                onChange={(e) => handleToggleEnabled(row, e.target.checked)}
-                size="small"
-              />
-            </TableCell>
-            <TableCell align="right">
-              <IconButton onClick={() => handleOpen(row)} size="small"><EditIcon fontSize="small" /></IconButton>
-              <IconButton onClick={() => handleDelete(row)} size="small" color="error"><DeleteIcon fontSize="small" /></IconButton>
-            </TableCell>
-          </TableRow>
-        ))}
-      </DataPageScaffold>
+          <EmailPendingList
+            rows={pending}
+            onPreview={handlePreview}
+            onOpenReservation={handleOpenReservation}
+            onAcknowledge={handleAcknowledge}
+          />
+        </Card>
+      )}
+
+      <Card>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>Modèles d'emails</Typography>
+          <Button startIcon={<AddIcon />} variant="contained" onClick={() => handleOpen(null)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+            Nouveau modèle
+          </Button>
+        </Box>
+        <TableContainer>
+          <Table size="small" sx={{ minWidth: 860 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Quand</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Mode</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Activé</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    {loading ? 'Chargement…' : 'Aucun modèle d\'email'}
+                  </TableCell>
+                </TableRow>
+              ) : items.map((row) => (
+                <TableRow
+                  key={row.id}
+                  hover
+                  onClick={() => handleOpen(row)}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <Typography>{row.name}</Typography>
+                      {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>{describeOffset(row.dayOffset)}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.sendMode === 'auto' ? 'Auto' : 'Manuel'}
+                      size="small"
+                      color={row.sendMode === 'auto' ? 'success' : 'info'}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={Boolean(row.enabled)}
+                      onChange={(e) => handleToggleEnabled(row, e.target.checked)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                    <IconButton onClick={() => handleDelete(row)} size="small" color="error"><DeleteIcon fontSize="small" /></IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Card>
+
+      <EmailManualSendDialog
+        open={!!sending}
+        reservationId={sending?.reservationId}
+        reservationStartDate={sending?.reservationStartDate}
+        defaultTemplateId={sending?.templateId}
+        onClose={() => setSending(null)}
+        onSent={() => { setSending(null); reloadPending(); }}
+      />
 
       <FormDialog
         open={open}

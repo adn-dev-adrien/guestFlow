@@ -74,7 +74,7 @@ const navItems = [
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
-  { label: 'Emails', path: '/emails/modeles', icon: <MailOutlineIcon /> },
+  { label: 'Emails', path: '/emails', icon: <MailOutlineIcon /> },
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
@@ -746,7 +746,8 @@ function AppShell() {
           <Route path="/account" element={<UserManagementPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
           <Route path="/comptabilite/plateformes" element={<PlatformAccountsPage />} />
-          <Route path="/emails/modeles"    element={<EmailTemplatesPage />} />
+          <Route path="/emails"            element={<EmailTemplatesPage />} />
+          <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
         </Routes>
       </Box>
