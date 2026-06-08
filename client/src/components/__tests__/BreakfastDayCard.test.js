@@ -123,3 +123,30 @@ test('item without propertyName → the property block is skipped (no empty labe
   expect(screen.getByText('Anonymous')).toBeInTheDocument();
   expect(screen.getByText('3 petits déjeuners')).toBeInTheDocument();
 });
+
+// specs/breakfast-time.md — the desired breakfast time is shown per row when present.
+test('renders the breakfast time per row when provided', () => {
+  render(
+    <BreakfastDayCard
+      data={{
+        items: [
+          { reservationId: 1, clientName: 'Famille Dupont', propertyName: 'Gîte', persons: 3, breakfastTime: '08:00' },
+          { reservationId: 2, clientName: 'M. Martin', propertyName: 'Studio', persons: 2, breakfastTime: '09:30' },
+        ],
+        totalPersons: 5,
+      }}
+    />
+  );
+  expect(screen.getByText('08:00')).toBeInTheDocument();
+  expect(screen.getByText('09:30')).toBeInTheDocument();
+});
+
+test('no time badge when an item carries no breakfastTime', () => {
+  render(
+    <BreakfastDayCard
+      data={{ items: [{ reservationId: 1, clientName: 'X', propertyName: 'Y', persons: 1 }], totalPersons: 1 }}
+    />
+  );
+  // No HH:MM text rendered.
+  expect(screen.queryByText(/^\d{2}:\d{2}$/)).toBeNull();
+});

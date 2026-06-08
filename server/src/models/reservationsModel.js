@@ -10,6 +10,7 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatPlatformName } = require('../utils/platformNameFormat');
+const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature } = require('../utils/reservationAudit');
 const { computePaymentStatus } = require('../utils/paymentStatus');
@@ -50,6 +51,19 @@ function deriveCommissionAmount(row) {
 }
 
 function createReservationsModel(database) {
+  // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
+  // write so the core INSERT/UPDATE SQL stays untouched; absent in minimal test schemas → no-op.
+  const HAS_RESERVATION_BREAKFAST_TIME = (() => {
+    try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'breakfastTime'); }
+    catch { return false; }
+  })();
+  function persistBreakfastTime(reservationId, payload) {
+    if (!HAS_RESERVATION_BREAKFAST_TIME || !payload || payload.breakfastTime === undefined) return;
+    const raw = String(payload.breakfastTime || '').trim();
+    const value = raw === '' ? null : (formatTimeShort(raw) || null); // '' / invalid → NULL = use option default
+    database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
+  }
+
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
     list({ propertyId, clientId, from, to } = {}) {
@@ -541,6 +555,7 @@ function createReservationsModel(database) {
         depositDisabled ? 1 : 0,
         touristTaxInComplement ? 1 : 0,
       );
+      persistBreakfastTime(result.lastInsertRowid, payload);
       return result.lastInsertRowid;
     },
 
@@ -589,6 +604,7 @@ function createReservationsModel(database) {
         touristTaxInComplement ? 1 : 0,
         reservationId,
       );
+      persistBreakfastTime(reservationId, payload);
     },
 
     // `inComplement` is carried on every write. `acompteContribTtc`/`soldeContribTtc` are
