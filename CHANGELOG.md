@@ -4,6 +4,33 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Public API for the WordPress showcase site** (spec `public-api.md`,
+  2026-06-08). A new, separate, key-authenticated API tree under
+  `/public/v1/*` lets a trusted server-to-server proxy (the WordPress
+  backend) read the catalog and submit booking requests, without ever
+  touching the internal `/api/*` admin API:
+  - `GET /public/v1/properties`, `GET /public/v1/properties/:id`
+    (with a "from €X/night" teaser), `GET …/:id/options`,
+    `GET …/:id/availability` (consolidated blocked dates incl. iCal
+    platform blocks + closures, source-opaque) — all read-only.
+  - `POST /public/v1/quote` — computes a quote through the **existing**
+    pricing engine (`calculateReservationQuote`, never reimplemented);
+    all price-override fields are ignored, platform forced to `direct`.
+  - `POST /public/v1/booking-requests` — creates a **draft devis**
+    (`requestOrigin='public'`, never a confirmed reservation), resolving
+    or creating the client by email; honeypot + dedicated rate limiter.
+  - Auth via a dedicated `PUBLIC_API_KEY` (auto-generated in
+    `server/.env.local` on first boot), distinct from the admin session.
+  - Uniform error envelope `{ error: { code, message, details? } }`.
+
+### Migration
+- **`reservations.requestOrigin` column added** (spec `public-api.md`,
+  2026-06-08). Additive, nullable `TEXT`; `NULL` for every existing row,
+  `'public'` for booking requests created via the public API. Idempotent
+  `ALTER TABLE` in `database.js`. No data loss or behavior change for
+  existing records.
+
 ### Fixed
 - **Mobile calendar now fits the screen width** (spec
   `calendar-mobile-view.md`, 2026-06-08). The main content area

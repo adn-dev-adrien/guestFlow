@@ -59,6 +59,20 @@ function createOptionsModel(database) {
       return option;
     },
 
+    // Options applicable to a single property (via the property_options link). Used by the public
+    // API to expose only the options a visitor can pick for that property (specs/public-api.md).
+    listForProperty(propertyId) {
+      return database.prepare(`
+        SELECT o.* FROM options o
+        JOIN property_options po ON po.optionId = o.id
+        WHERE po.propertyId = ?
+        ORDER BY o.title
+      `).all(Number(propertyId)).map((o) => ({
+        ...o,
+        optionProgressiveTiers: normalizeProgressiveOptionTiers(o.optionProgressiveTiers),
+      }));
+    },
+
     create(payload = {}) {
       const insertOption = database.prepare(HAS_OPTION_TITLE_EN ? `
         INSERT INTO options (
