@@ -136,3 +136,40 @@ test('the 3 encaissement amounts sum back to the total stay price (deposit + bal
   assert.equal(sum, q.totalStayPrice);
   db.close();
 });
+
+// specs/force-extras-complement-on-platform.md — prod regression fix (2026-06-08): on a non-direct
+// platform reservation (incl. iCal imports), an option whose payload carries NO inComplement flag
+// (the UI hides the toggle) must STILL be forced into the Complément bucket by the engine — so
+// complementAmount reflects it and it never leaks into the deposit/balance split.
+test('platform reservation: an option with no inComplement flag is forced into the complément', () => {
+  const db = createDb();
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (1, 'Ménage', 'per_stay', 50)").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 1)').run();
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'airbnb', // non-direct → force extras to complément
+    selectedOptions: [{ optionId: 1, quantity: 1 }], // NO inComplement flag (hidden on platform)
+    depositPaid: false, balancePaid: false,
+  });
+  const optionLine = q.optionLines.find((l) => Number(l.optionId) === 1);
+  assert.equal(optionLine.inComplement, 1, 'option forced into complément by the engine');
+  assert.equal(q.complementAmount, 50, 'complementAmount includes the forced option');
+  // The option price must NOT inflate the deposit/balance split (platform deposit = 0).
+  assert.equal(q.depositAmount, 0, 'non-direct platform → no deposit');
+  assert.equal(q.balanceAmount, q.totalPrice, 'balance = accommodation only, option excluded');
+});
+
+test('direct reservation: an option stays out of the complément unless explicitly flagged', () => {
+  const db = createDb();
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (1, 'Ménage', 'per_stay', 50)").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 1)').run();
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'direct',
+    selectedOptions: [{ optionId: 1, quantity: 1 }],
+    depositPaid: false, balancePaid: false,
+  });
+  const optionLine = q.optionLines.find((l) => Number(l.optionId) === 1);
+  assert.equal(optionLine.inComplement, 0, 'direct → not forced');
+  assert.equal(q.complementAmount, 0);
+});

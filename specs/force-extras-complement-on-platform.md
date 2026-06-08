@@ -432,3 +432,19 @@ that ships each step, per CLAUDE.md §4.1.)_
       directly from the memoized input on platform reservations).
 - [x] Frontend: Vitest tests (4 ExtrasSection + 3 PricingSummary).
 - [ ] Docs: CHANGELOG entry, spec Status → Implemented.
+
+### Hotfix 2026-06-08 follow-up — engine is now authoritative + arrival-card display
+
+- [x] **Regression fixed — the pricing ENGINE now forces extras into the Complément on non-direct
+      platforms**, instead of relying on the client to pass `inComplement: 1` in the quote input. The
+      original design routed the flag client-side (the memoized `quoteInput`); a later refactor stopped
+      setting it, so options added to a platform/iCal reservation leaked into the deposit/balance split
+      while `reservation_options.inComplement` was forced to 1 by the model — an inconsistent state
+      (the DB said "complément", `complementAmount` said 0). Fix: `pricing.js` computes
+      `forceExtrasToComplement = platform !== 'direct'` and ORs it into every option / custom-option /
+      resource / auto-option line's `inComplement` (forced lines get NULL contribs). This mirrors the
+      model's write-time forcing, so `complementAmount` reflects the extras and the deposit/balance
+      split excludes them — for the live preview AND the persisted reservation. +2 engine tests.
+- [x] **Arrival tile shows the complément.** `ReservationCard` (planning arrival card) renders a
+      "Complément à percevoir : X€" chip ("(perçu)" when `complementPaid`) whenever
+      `complementAmount > 0`, so the host knows what to collect at check-in. +3 client tests.
