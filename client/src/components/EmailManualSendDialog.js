@@ -10,6 +10,8 @@ import {
   Typography, Stack, FormControl, InputLabel, Select, MenuItem, TextField,
   CircularProgress, Chip,
 } from '@mui/material';
+import MailOutlineIcon from '@mui/icons-material/MailOutlined';
+import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 
 function offsetLabel(n) {
@@ -37,6 +39,7 @@ export default function EmailManualSendDialog({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [to, setTo] = useState('');
+  const [manualEmail, setManualEmail] = useState(''); // operator-typed recipient when the client has none
   const [missingVariables, setMissingVariables] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -46,6 +49,7 @@ export default function EmailManualSendDialog({
   useEffect(() => {
     if (!open) return;
     setError('');
+    setManualEmail('');
     api.getEmailTemplates()
       .then((rows) => {
         const enabled = rows.filter((r) => r.enabled !== 0);
@@ -83,9 +87,11 @@ export default function EmailManualSendDialog({
     [templates, templateId],
   );
 
+  const recipient = to || manualEmail.trim();
+
   const handleSend = async () => {
-    if (!to) {
-      setError('Aucune adresse email destinataire — vérifie la fiche client.');
+    if (!recipient) {
+      setError('Renseigne une adresse email destinataire.');
       return;
     }
     setSending(true);
@@ -94,7 +100,9 @@ export default function EmailManualSendDialog({
       const res = await api.sendEmail({
         reservationId,
         templateId,
-        overrides: { subject, body },
+        // When the client has no email on file, pass the operator-typed one — the server
+        // sends to it AND saves it on the client record.
+        overrides: { subject, body, ...(to ? {} : { to: manualEmail.trim() }) },
       });
       if (onSent) onSent(res);
       if (onClose) onClose();
@@ -103,7 +111,9 @@ export default function EmailManualSendDialog({
       if (message.includes('EMAIL_NOT_CONFIGURED')) {
         setError('SMTP non configuré. Configure les paramètres SMTP dans /settings avant d\'envoyer des emails.');
       } else if (message.includes('CLIENT_NO_EMAIL')) {
-        setError('Le client n\'a pas d\'adresse email.');
+        setError('Renseigne une adresse email destinataire.');
+      } else if (message.includes('INVALID_EMAIL')) {
+        setError('Adresse email invalide.');
       } else {
         setError(message);
       }
@@ -112,18 +122,52 @@ export default function EmailManualSendDialog({
     }
   };
 
-  const sendDisabled = sending || loading || !to || !templateId;
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
+  const sendDisabled = sending || loading || !templateId || !emailValid;
 
   return (
     <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        Envoyer un email
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          Destinataire : {to || '— (pas d\'adresse email sur la fiche client)'}
-        </Typography>
-      </DialogTitle>
+      <DialogTitle>Aperçu de l'email</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1.5,
+              p: 1.5,
+              bgcolor: 'info.lighter',
+              border: '1px solid',
+              borderColor: 'info.light',
+              borderRadius: 1,
+            }}
+          >
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0, flex: 1 }}>
+              <MailOutlineIcon fontSize="small" color="info" />
+              {to ? (
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Destinataire
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {to}
+                  </Typography>
+                </Box>
+              ) : (
+                <TextField
+                  label="Adresse email du client"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  type="email"
+                  size="small"
+                  fullWidth
+                  disabled={sending}
+                  helperText="Aucune adresse sur la fiche client — elle y sera enregistrée à l'envoi."
+                  sx={{ bgcolor: 'background.paper', flex: 1, minWidth: 0 }}
+                />
+              )}
+            </Stack>
+          </Box>
+
           <FormControl fullWidth size="small">
             <InputLabel>Modèle</InputLabel>
             <Select label="Modèle" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
@@ -184,8 +228,13 @@ export default function EmailManualSendDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={sending}>Annuler</Button>
-        <Button onClick={handleSend} variant="contained" disabled={sendDisabled}>
-          {sending ? <CircularProgress size={18} color="inherit" /> : 'Envoyer'}
+        <Button
+          onClick={handleSend}
+          variant="contained"
+          disabled={sendDisabled}
+          startIcon={sending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+        >
+          Envoyer
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,6 +1,6 @@
 /**
- * EmailPendingAlert — dashboard widget that surfaces the manual-email queue.
- * See specs/email-automation.md §6.2.
+ * EmailPendingAlert — dashboard widget that surfaces the manual-email queue count.
+ * Clicking it navigates to the Emails page. See specs/email-automation.md §6.2 + §6.10.
  */
 
 import React from 'react';
@@ -12,26 +12,21 @@ vi.mock('../../api', () => ({
   __esModule: true,
   default: {
     getPendingEmails: vi.fn(),
-    getEmailTemplates: vi.fn(),
-    acknowledgePendingEmail: vi.fn(),
-    previewEmail: vi.fn(),
-    sendEmail: vi.fn(),
   },
 }));
 
-vi.mock('../DialogProvider', () => ({
+const navigate = vi.fn();
+vi.mock('react-router-dom', () => ({
   __esModule: true,
-  useAppDialogs: () => ({
-    confirm: vi.fn().mockResolvedValue(true),
-    alert: vi.fn().mockResolvedValue(),
-  }),
+  useNavigate: () => navigate,
 }));
 
 import api from '../../api';
 import EmailPendingAlert from '../EmailPendingAlert';
 
 beforeEach(() => {
-  Object.values(api).forEach((m) => m?.mockReset?.());
+  api.getPendingEmails.mockReset();
+  navigate.mockReset();
 });
 
 test('renders nothing while the API call is pending', () => {
@@ -66,15 +61,13 @@ test('mentions the number of clients without an email address', async () => {
   expect(await screen.findByText(/1 client sans adresse email/i)).toBeInTheDocument();
 });
 
-test('clicking the card opens the pending dialog', async () => {
+test('clicking the card navigates to the Emails page', async () => {
   const user = userEvent.setup();
   api.getPendingEmails.mockResolvedValue([
     { templateId: 1, reservationId: 100, templateName: 'J-7', clientFullName: 'Jane', clientEmail: 'jane@s.com', propertyName: 'A', startDate: '2026-06-17' },
   ]);
-  api.getEmailTemplates.mockResolvedValue([]); // dialog re-fetches via EmailPendingDialog
   render(<EmailPendingAlert />);
   await screen.findByText('Emails à vérifier (1)');
   await user.click(screen.getByText('Voir et envoyer'));
-  // The dialog mounts and re-queries the pending list inside it.
-  expect(await screen.findByText('Emails en attente d\'envoi')).toBeInTheDocument();
+  expect(navigate).toHaveBeenCalledWith('/emails');
 });

@@ -17,6 +17,125 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   scolaires excluded by request.
 
 ### Added
+- **Bilingual devis PDF (FR / EN)** (spec
+  `devis-english-language.md`, 2026-06-06). The devis edit page gains a
+  small **FR / EN** toggle next to the Statut select; the choice is
+  persisted on the row (`reservations.pdfLanguage`, default `'fr'`) and
+  drives the `GET /api/devis/:id/pdf` rendering. Every literal the PDF
+  prints flows through `utils/devisPdfLabels.js` (one source of truth
+  for both languages, with FR ↔ EN key parity asserted by unit tests).
+  Dates render in `dd/mm/yyyy` for FR and `D MMMM YYYY` for EN
+  (unambiguous internationally) via a new `formatDateLocalised` helper.
+
+  **Translated options & resources.** Options gain a single `titleEn`
+  column (no `descriptionEn` — the option description isn't printed in
+  the devis PDF, only the title is). Resources gain `nameEn`. The
+  OptionsPage and ResourcesPage forms expose the EN inputs side-by-side
+  with the FR ones; empty values fall back to the FR text at render time
+  so existing prod data keeps producing usable PDFs. The **5 typed-
+  default options** seed their EN title at boot — both on fresh installs
+  and as an idempotent backfill on prod servers that promoted before
+  the column existed:
+
+  | autoOptionType | titleEn |
+  |---|---|
+  | `bed_linen` | Bed linen |
+  | `bathroom_linen` | Bath linen |
+  | `breakfast` | Breakfast |
+  | `early_check_in` | Early check-in |
+  | `late_check_out` | Late check-out |
+
+  The default `Lit bébé` resource seeds with `nameEn = 'Baby bed'`.
+
+  **Footer.** A new `quoteFooterTextEn` setting sits beside the existing
+  `quoteFooterText` in `/settings`; each language uses its own custom
+  footer when set, else a sensible static default in the matching
+  language (no cross-language fallback — an EN PDF showing French
+  copy would read as broken).
+
+  **Coverage.** +52 server-side cases (`devis-pdf-labels`,
+  `devis-helpers-date-en`, `devis-pdf-en`, `devis-model-pdf-language`,
+  `options-resources-en-fields`, `seeds-en-translation`) + +16 Vitest
+  cases (`SettingsQuoteSection.bilingual`,
+  `devis-en-language-payload`). Server suite stable at ~1115; client
+  suite 284 → 300 green.
+
+  **Migration.** `reservations.pdfLanguage TEXT NOT NULL DEFAULT 'fr'`,
+  `options.titleEn TEXT NOT NULL DEFAULT ''`,
+  `resources.nameEn TEXT NOT NULL DEFAULT ''`,
+  `app_settings.quoteFooterTextEn TEXT DEFAULT ''`. Additive; no row
+  rewrites. The model factories (`devisModel`, `optionsModel`,
+  `resourcesModel`, `settingsModel`) detect missing columns at build
+  time and gracefully drop the references — so minimal test schemas
+  that haven't added the columns still run unchanged.
+
+### Changed
+- **Property detail page layout** (spec `properties-mvc.md` §6.1,
+  2026-06-08). `/properties/:id` moves from an even `Grid` (which left big
+  gaps under short cards) to **two explicit columns** on desktop (1 on
+  mobile): left = Informations + Acompte & Solde, right = Horaires &
+  Ménage + Options horaires + Options par défaut; the wide cards
+  (Tarification + its seasons table, Documents, iCal Export, Connexions
+  iCal) span full width below. Explicit columns keep card placement
+  deterministic and spacing regular. Layout-only, no behaviour change.
+- **Editing a template refreshes the « Emails à envoyer » queue.** The
+  pending queue is rendered live (never a stored snapshot), so a
+  template's content always reflects its current version; the Emails
+  page now also re-fetches the queue after any template create / edit /
+  delete / enable-toggle so a changed `dayOffset` / `sendMode` /
+  `enabled` reshapes the on-screen list immediately.
+- **Emails page route** renamed `/emails/modeles` → `/emails` (the page
+  now hosts both the queue and the templates, not just templates). The
+  old path redirects to the new one.
+- **Emails page rework** (spec `email-automation.md` §6.10, 2026-06-08).
+  `/emails/modeles` is now a unified **Emails page** with two cards:
+  « Emails à envoyer » (the manual-email queue, previously only behind
+  the dashboard popup — now an inline list, hidden when empty) and
+  « Modèles d'emails ». Clicking a **template row** opens its edit
+  dialog (the per-row edit icon is dropped). In the queue, clicking a
+  **row** opens the editable preview/send dialog, while clicking the
+  **client name** opens the matching reservation. The dashboard
+  « Emails à vérifier » widget now **navigates** to the Emails page
+  instead of opening a popup; the `EmailPendingDialog` component is
+  removed and replaced by the presentational `EmailPendingList`.
+- **Send an email to a client with no address on file** (spec
+  `email-automation.md` §3 rule 10, 2026-06-08). Every « Emails à
+  envoyer » row is now clickable, even when the client has no email.
+  In that case the send dialog's banner shows an **editable address
+  field**; on a successful send the typed address is **saved onto the
+  client record** (`clients.email`, never overwriting an existing one),
+  so the next email finds it on file. New server guards: `400
+  INVALID_EMAIL` on a malformed typed address, `404 CLIENT_NO_EMAIL`
+  only when nothing is on file and nothing typed.
+
+### Migration
+- `properties.nameArticle` added (`ALTER TABLE properties ADD COLUMN
+  nameArticle TEXT DEFAULT 'au'`), idempotent at boot. Existing rows
+  backfill to `'au'`; no data loss.
+- Shipped J-7 reminder content migrations (idempotent, scoped to the
+  `arrival_reminder_7d` template; operator templates + the
+  "- Logement : {{propertyName}}" line untouched): rewrites the legacy
+  `séjour à {{propertyName}}` phrasing to `séjour {{propertyWithArticle}}`,
+  and the `{{companyName}}` signature to `{{senderName}}` — so installs
+  seeded before these features pick up the article-aware + sender-name
+  defaults.
+
+### Added
+- **Email signature uses the sender name, not the legal name** (spec
+  `email-automation.md` §3 rule 14, 2026-06-08). New `{{senderName}}`
+  token = Settings → Envoi d'emails → « Nom expéditeur »
+  (`smtpFromName`, falls back to the « Raison sociale » `companyName`
+  when blank). The seeded J-7 reminder now signs with it; a boot
+  migration upgrades the old `{{companyName}}` signature on existing
+  installs. `{{companyName}}` stays available for templates that want
+  the legal name.
+- **Property name with the correct French article in client emails**
+  (spec `email-automation.md` §3 rule 13, 2026-06-08). Each property
+  carries an operator-chosen article (`au` / `à la` / `à l'` / `aux`,
+  field on the property detail form with a live preview), and the new
+  `{{propertyWithArticle}}` template token renders « votre séjour au
+  Gite / à la Tente / à l'Aventura Lodge » (the apostrophe form elides).
+  The seeded J-7 reminder now uses it in its subject + opening line.
 - **Client emails — templates, scheduled send + manual review** (spec
   `email-automation.md`, 2026-06-07). GuestFlow can now communicate
   with future guests via plain-text emails.

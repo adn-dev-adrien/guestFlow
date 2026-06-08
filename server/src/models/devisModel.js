@@ -88,6 +88,26 @@ const DEVIS_HISTORY_FIELD_LABELS = {
 };
 
 function createModel(database) {
+  // Whether the `reservations` table carries the bilingual-PDF language column at model build
+  // time. Pre-existing test DBs that build their own minimal schema may omit it — when absent
+  // the SQL drops the column ref so those tests keep passing. Production / dev DBs always have
+  // it (the column migration runs at boot in `database.js`).
+  const HAS_PDF_LANGUAGE_COL = (() => {
+    try {
+      return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'pdfLanguage');
+    } catch { return false; }
+  })();
+  // The bilingual translation columns might be absent in minimal test schemas — drop them from
+  // the enrich SELECT so the join still works. Production / dev DBs always have them.
+  const HAS_OPTION_TITLE_EN = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'titleEn'); }
+    catch { return false; }
+  })();
+  const HAS_RESOURCE_NAME_EN = (() => {
+    try { return database.prepare("PRAGMA table_info(resources)").all().some((c) => c.name === 'nameEn'); }
+    catch { return false; }
+  })();
+
   // ---- settings access ----
   // Read `quoteValidityDays` from the SAME database handle the model was given so tests can
   // override it on their isolated DBs (the prod-bound `settingsModel.read()` would otherwise
@@ -114,8 +134,11 @@ function createModel(database) {
   // ---- enrich (full devis with lines, client, property, schedule) ----
   function enrichDevis(row) {
     if (!row) return null;
+    // 2026-06-06 — surface `titleEn` so the PDF renderer can swap to the English option name
+    // when the devis carries pdfLanguage='en' (specs/devis-english-language.md §3 rule 6).
+    // The `titleEn` ref is conditional on the column existing so minimal test schemas still parse.
     const options = database.prepare(`
-      SELECT ro.*, o.title, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
+      SELECT ro.*, o.title${HAS_OPTION_TITLE_EN ? ', o.titleEn' : ''}, o.priceType as optionPriceType, o.autoOptionType, o.autoFullNightThreshold,
         COALESCE(NULLIF(ro.totalPrice, 0), NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
           round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)) as originalTotalPrice,
         ro.offered as offered
@@ -128,8 +151,9 @@ function createModel(database) {
         rco.amount as originalTotalPrice, COALESCE(rco.offered, 0) as offered, 1 as isCustom
       FROM reservation_custom_options rco WHERE rco.reservationId = ? ORDER BY rco.sortOrder, rco.id
     `).all(row.id);
+    // 2026-06-06 — surface `nameEn` for the EN PDF (specs/devis-english-language.md §3 rule 7).
     const resources = database.prepare(`
-      SELECT rr.*, r.name, r.priceType as resourcePriceType,
+      SELECT rr.*, r.name${HAS_RESOURCE_NAME_EN ? ', r.nameEn' : ''}, r.priceType as resourcePriceType,
         COALESCE(NULLIF(rr.totalPrice, 0), NULLIF(round(COALESCE(rr.unitPrice, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2), 0),
           round(COALESCE(r.price, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2)) as originalTotalPrice,
         rr.offered as offered
@@ -354,13 +378,21 @@ function createModel(database) {
       || null;
 
     const tx = database.transaction(() => {
-      const info = database.prepare(`
-        INSERT INTO reservations (
-          kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
-          singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
-          discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt
-        ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      // Bilingual PDF (specs/devis-english-language.md §3 rule 1): default 'fr', accept 'en'.
+      const insertedPdfLanguage = ['fr', 'en'].includes(String(payloadWithDefaults.pdfLanguage || '').toLowerCase())
+        ? String(payloadWithDefaults.pdfLanguage).toLowerCase() : 'fr';
+      const insertSql = HAS_PDF_LANGUAGE_COL
+        ? `INSERT INTO reservations (
+            kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
+            singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
+            discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt, pdfLanguage
+          ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO reservations (
+            kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, adults, children, teens, babies,
+            singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, totalPrice, touristTaxRate, touristTaxTotal,
+            discountPercent, customPrice, finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, cautionAmount, notes, validUntil, createdAt
+          ) VALUES ('devis', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      const insertParams = [
         devisNumber, Number(payloadWithDefaults.propertyId), Number(payloadWithDefaults.clientId), payloadWithDefaults.startDate, payloadWithDefaults.endDate,
         Number(payloadWithDefaults.adults || 1), Number(payloadWithDefaults.children || 0), Number(payloadWithDefaults.teens || 0), Number(payloadWithDefaults.babies || 0),
         payloadWithDefaults.singleBeds != null && payloadWithDefaults.singleBeds !== '' ? Number(payloadWithDefaults.singleBeds) : null,
@@ -374,7 +406,9 @@ function createModel(database) {
         roundMoney(quote.balanceAmount), quote.balanceDueDate || null,
         roundMoney(payloadWithDefaults.cautionAmount != null ? payloadWithDefaults.cautionAmount : (property.defaultCautionAmount || 0)),
         String(payloadWithDefaults.notes || ''), validUntil, createdAt,
-      );
+      ];
+      if (HAS_PDF_LANGUAGE_COL) insertParams.push(insertedPdfLanguage);
+      const info = database.prepare(insertSql).run(...insertParams);
       const devisId = info.lastInsertRowid;
       persistLines(devisId, quote);
       const afterSnapshot = snapshotFromDb(devisId);
@@ -408,15 +442,31 @@ function createModel(database) {
     })();
 
     const tx = database.transaction(() => {
-      database.prepare(`
-        UPDATE reservations SET
-          propertyId = ?, clientId = ?, devisStatus = ?, startDate = ?, endDate = ?,
-          adults = ?, children = ?, teens = ?, babies = ?, singleBeds = ?, doubleBeds = ?, babyBeds = ?,
-          checkInTime = ?, checkOutTime = ?, platform = ?, totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
-          discountPercent = ?, customPrice = ?, finalPrice = ?, depositAmount = ?, depositDueDate = ?,
-          balanceAmount = ?, balanceDueDate = ?, cautionAmount = ?, notes = ?, validUntil = ?, updatedAt = datetime('now')
-        WHERE id = ? AND kind = 'devis'
-      `).run(
+      // pdfLanguage (specs/devis-english-language.md §3 rule 1): preserve existing when not in
+      // payload; coerce a malformed value back to existing rather than 'fr' (no silent reset).
+      const nextPdfLanguage = (() => {
+        if (payload.pdfLanguage === undefined || payload.pdfLanguage === null) {
+          return existing.pdfLanguage || 'fr';
+        }
+        const v = String(payload.pdfLanguage).toLowerCase();
+        return ['fr', 'en'].includes(v) ? v : (existing.pdfLanguage || 'fr');
+      })();
+      const updateSql = HAS_PDF_LANGUAGE_COL
+        ? `UPDATE reservations SET
+            propertyId = ?, clientId = ?, devisStatus = ?, startDate = ?, endDate = ?,
+            adults = ?, children = ?, teens = ?, babies = ?, singleBeds = ?, doubleBeds = ?, babyBeds = ?,
+            checkInTime = ?, checkOutTime = ?, platform = ?, totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
+            discountPercent = ?, customPrice = ?, finalPrice = ?, depositAmount = ?, depositDueDate = ?,
+            balanceAmount = ?, balanceDueDate = ?, cautionAmount = ?, notes = ?, validUntil = ?, pdfLanguage = ?, updatedAt = datetime('now')
+          WHERE id = ? AND kind = 'devis'`
+        : `UPDATE reservations SET
+            propertyId = ?, clientId = ?, devisStatus = ?, startDate = ?, endDate = ?,
+            adults = ?, children = ?, teens = ?, babies = ?, singleBeds = ?, doubleBeds = ?, babyBeds = ?,
+            checkInTime = ?, checkOutTime = ?, platform = ?, totalPrice = ?, touristTaxRate = ?, touristTaxTotal = ?,
+            discountPercent = ?, customPrice = ?, finalPrice = ?, depositAmount = ?, depositDueDate = ?,
+            balanceAmount = ?, balanceDueDate = ?, cautionAmount = ?, notes = ?, validUntil = ?, updatedAt = datetime('now')
+          WHERE id = ? AND kind = 'devis'`;
+      const updateParams = [
         Number(payload.propertyId || existing.propertyId), Number(payload.clientId || existing.clientId),
         payload.status || existing.devisStatus, payload.startDate || existing.startDate, payload.endDate || existing.endDate,
         Number(payload.adults ?? existing.adults), Number(payload.children ?? existing.children),
@@ -433,8 +483,10 @@ function createModel(database) {
         roundMoney(payload.cautionAmount ?? existing.cautionAmount ?? 0),
         String(payload.notes ?? existing.notes ?? ''),
         resolvedValidUntil,
-        numId,
-      );
+      ];
+      if (HAS_PDF_LANGUAGE_COL) updateParams.push(nextPdfLanguage);
+      updateParams.push(numId);
+      database.prepare(updateSql).run(...updateParams);
       persistLines(numId, quote);
       const afterSnapshot = snapshotFromDb(numId);
       const changes = computeAuditChanges(beforeSnapshot, afterSnapshot);

@@ -27,6 +27,8 @@ const DAY_OPTIONS = [
 
 const emptyResource = {
   name: '', quantity: 1, price: 0, priceType: 'per_stay', propertyIds: [], description: '',
+  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7) — empty = fallback to FR.
+  nameEn: '',
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
 };
@@ -247,9 +249,13 @@ export default function ResourcesPage() {
           }
         })(),
         turnoverMinutes: Number(item.turnoverMinutes || 0),
+        // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7).
+        nameEn: item.nameEn || '',
       })}
       toPayload={(form) => ({
         name: form.name,
+        // Bilingual devis PDF — trimmed; empty = fallback to FR `name` in the EN PDF.
+        nameEn: (form.nameEn || '').trim(),
         quantity: Number(form.quantity) || 0,
         price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
         priceType: form.priceType || 'per_stay',
@@ -287,7 +293,19 @@ export default function ResourcesPage() {
         return n.includes('lit') && (n.includes('bébé') || n.includes('bebe'));
       }}
       getRowSx={(item) => (item.isComplex ? { bgcolor: 'rgba(2, 136, 209, 0.05)' } : {})}
-      renderExtraFormFields={(form, setForm, { properties }) => <ComplexResourceFields form={form} setForm={setForm} properties={properties} />}
+      renderExtraFormFields={(form, setForm, { properties }) => (
+        <>
+          {/* Bilingual devis PDF (specs/devis-english-language.md §3 rule 7 + §6.3). */}
+          <TextField
+            label="Nom (anglais)"
+            value={form.nameEn || ''}
+            onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
+            helperText="Utilisé sur le PDF de devis en anglais. Laisser vide → reprend le nom français."
+            fullWidth
+          />
+          <ComplexResourceFields form={form} setForm={setForm} properties={properties} />
+        </>
+      )}
     />
   );
 }
