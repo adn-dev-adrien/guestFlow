@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, Typography, Card, CardContent, TextField, Button, Grid,
+  Box, Typography, Card, CardContent, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel
@@ -546,13 +546,13 @@ export default function PropertyDetail() {
           )}
         </Box>
       </Box>
-      <Grid container spacing={3}>
+      {/* Two explicit columns on md+ (1 on xs): left = Informations + Acompte,
+          right = Horaires + Options horaires + Options par défaut. alignItems flex-start
+          keeps each column at its own height. Wide / table cards go full-width below. */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, alignItems: 'flex-start' }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* Infos */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Informations</Typography>
@@ -632,14 +632,31 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
+        {/* Acompte & Solde */}
+        <Box sx={{ mb: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                </Box>
+                <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                  htmlInput: { step: 50 }
+                }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+        </Box>{/* fin colonne gauche */}
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* Horaires & Ménage */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Horaires & Ménage</Typography>
@@ -664,13 +681,9 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Options horaires automatiques</Typography>
@@ -735,51 +748,25 @@ export default function PropertyDetail() {
 
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Per-property option defaults — canonical edit surface (specs/weekly-bed-linen-tracking.md §3.7). */}
         {!isNew && (
-          <Grid
-            size={{
-              xs: 12,
-              md: 6
-            }}>
+          <Box sx={{ breakInside: 'avoid', mb: 3 }}>
             <PropertyDefaultOptionsCard
               propertyId={Number(id)}
               options={catalogOptions}
             />
-          </Grid>
+          </Box>
         )}
 
-        {/* Acompte & Solde */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                </Box>
-                <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                  htmlInput: { step: 50 }
-                }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+        </Box>{/* fin colonne droite */}
+      </Box>{/* fin wrapper 2 colonnes */}
 
+      {/* Full-width section: wide / table-bearing cards */}
+      <Box>
         {/* Pricing */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Tarification</Typography>
@@ -950,14 +937,10 @@ export default function PropertyDetail() {
               </TableContainer>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Documents */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Documents</Typography>
@@ -990,17 +973,17 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* iCal Export */}
         {!isNew && (
-          <Grid size={12}>
+          <Box sx={{ mb: 3 }}>
             <IcalExportCard propertyId={property.id} propertyName={property.name} />
-          </Grid>
+          </Box>
         )}
 
         {/* iCal Sync */}
-        <Grid size={12}>
+        <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
@@ -1176,9 +1159,9 @@ export default function PropertyDetail() {
               </TableContainer>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-      </Grid>
+      </Box>
       {/* Unsaved changes dialog */}
       <Dialog open={navGuardOpen} onClose={() => setNavGuardOpen(false)}>
         <DialogTitle>Modifications non sauvegardées</DialogTitle>
