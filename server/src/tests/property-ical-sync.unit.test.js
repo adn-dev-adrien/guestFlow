@@ -60,6 +60,11 @@ const DDL = `
     startDate TEXT NOT NULL, endDate TEXT NOT NULL,
     createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
+  /* Property option defaults + their target tables — the sync now applies them to a freshly
+     created iCal reservation (specs/bed-config-in-linen-card.md §10 follow-up 2026-06-08). */
+  CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, priceType TEXT, price REAL, countsAsBedLinen INTEGER DEFAULT 0);
+  CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER DEFAULT 0, PRIMARY KEY (propertyId, optionId));
+  CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, quantity INTEGER, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER);
 `;
 
 function icsFeed(events) {
@@ -368,4 +373,31 @@ test('syncSourceAndRecord writes the source status row', async () => {
   const row = db.prepare('SELECT lastSyncStatus, lastImportedCount FROM ical_sources WHERE id = 1').get();
   assert.equal(row.lastSyncStatus, 'success');
   assert.equal(row.lastImportedCount, 1);
+});
+
+test('create: an iCal reservation gets the property bed-linen default, marked offered', async () => {
+  // specs/bed-config-in-linen-card.md §10 follow-up (2026-06-08). On "Gite", bed linen is a
+  // property default flagged offered; a freshly-arrived iCal booking must carry that option
+  // (offered=1) so it shows on the reservation immediately, free of charge.
+  const { db, model, source } = freshModel();
+  db.prepare("INSERT INTO options (id, title, priceType, price, countsAsBedLinen) VALUES (7, 'Linge de lit', 'per_stay', 0, 1)").run();
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 7, 1)').run();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  const opt = db.prepare('SELECT * FROM reservation_options').get();
+  assert.ok(opt, 'a reservation_options row was created for the default');
+  assert.equal(opt.optionId, 7);
+  assert.equal(opt.quantity, 1);
+  assert.equal(opt.offered, 1);
+});
+
+test('create: a non-offered property default lands on the iCal reservation as not-offered', async () => {
+  const { db, model, source } = freshModel();
+  db.prepare("INSERT INTO options (id, title, priceType, price, countsAsBedLinen) VALUES (8, 'Ménage', 'per_stay', 50, 0)").run();
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 8, 0)').run();
+  stubFetch([{ uid: 'E2', start: '20260801', end: '20260804', summary: 'Marie Durand' }]);
+  await model.syncSource(source);
+  const opt = db.prepare('SELECT * FROM reservation_options WHERE optionId = 8').get();
+  assert.ok(opt);
+  assert.equal(opt.offered, 0);
 });

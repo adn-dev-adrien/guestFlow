@@ -17,7 +17,7 @@ function BedLinenInputsBlock() {
     maxSingleBeds, maxDoubleBeds,
     exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
     reservationBedCapacity, requiredRegularBeds,
-    maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
+    handleSuggestBeds,
     selectedProp, isReservationLocked,
   } = useReservationForm();
   return (
@@ -26,7 +26,9 @@ function BedLinenInputsBlock() {
         Configuration des lits
       </Typography>
       <Stack spacing={1.5}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+        {/* "Lits bébé" lives in the Voyageurs card (shown whenever babies > 0), not here —
+            specs/bed-config-in-linen-card.md §10 follow-up (2026-06-08). */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
           <TextField
             label="Lits doubles"
             type="number"
@@ -46,20 +48,6 @@ function BedLinenInputsBlock() {
             error={bedsCapacityMismatch || exceedsSingleBedsLimit}
             helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
             slotProps={{ htmlInput: { min: 0, max: maxSingleBeds ?? undefined } }}
-          />
-          <TextField
-            label="Lits bébé"
-            type="number"
-            value={form.babyBeds}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '') { updateForm({ babyBeds: '' }); return; }
-              const n = Math.max(0, Number(val));
-              updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
-            }}
-            fullWidth
-            helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
-            slotProps={{ htmlInput: { min: 0, max: maxBabyBedsByRule } }}
           />
         </Box>
         <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>

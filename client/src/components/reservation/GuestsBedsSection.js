@@ -5,11 +5,13 @@ import { useReservationForm } from './ReservationFormContext';
 /**
  * Voyageurs card: guest counts + capacity warning.
  *
- * specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — bed counters (lits doubles /
- * simples / bébé), "Suggérer les lits" button, and the `bedsCapacityMismatch` warning
- * moved out of this card and into the "Linge de lit" option card inside `ExtrasSection`
- * (rendered there only when the bed-linen option is enabled). Title renamed from
- * "Voyageurs et couchages" → "Voyageurs" to reflect the smaller scope.
+ * specs/bed-config-in-linen-card.md §3 rule 1 (2026-06-05) — the lits doubles / simples counters,
+ * "Suggérer les lits" button, and the `bedsCapacityMismatch` warning live in the "Linge de lit"
+ * option card inside `ExtrasSection` (shown only when the bed-linen option is enabled).
+ *
+ * §10 follow-up (2026-06-08) — the "Lits bébé" counter is the EXCEPTION: a baby bed is an
+ * independent resource needed whenever there are babies, so it is shown HERE (always, when
+ * babies > 0) instead of being hidden behind the bed-linen option. Title kept "Voyageurs".
  *
  * Reads everything from the reservation form context — no props.
  */
@@ -20,7 +22,10 @@ export default function GuestsBedsSection() {
     maxAdultsAllowed, maxBabiesAllowed,
     exceedsAdultsCapacity, exceedsChildrenCapacity, exceedsBabiesCapacity, exceedsTotalCapacity,
     totalGuestsCount, totalGuestsMax,
+    maxBabyBedsByRule, remainingBabyBeds,
   } = useReservationForm();
+
+  const showBabyBed = Number(form.babies || 0) > 0;
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
@@ -81,6 +86,25 @@ export default function GuestsBedsSection() {
               />
             </Box>
           </Box>
+
+          {showBabyBed && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+              <TextField
+                label="Lits bébé"
+                type="number"
+                value={form.babyBeds}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') { updateForm({ babyBeds: '' }); return; }
+                  const n = Math.max(0, Number(val));
+                  updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
+                }}
+                fullWidth
+                helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
+                slotProps={{ htmlInput: { min: 0, max: maxBabyBedsByRule } }}
+              />
+            </Box>
+          )}
 
           {exceedsTotalCapacity && (
             <Typography variant="body2" color="error">

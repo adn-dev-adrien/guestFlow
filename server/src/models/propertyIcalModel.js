@@ -246,6 +246,31 @@ function createPropertyIcalModel(database) {
             notes, cautionAmount, icalOriginalSummary
           ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?, ?, ?)
         `);
+        // Apply the property's default options to a freshly-created iCal reservation so a bed-linen
+        // (or any) default option appears immediately on the booking, marked `offered` per the
+        // property setting (specs/bed-config-in-linen-card.md §10 follow-up). Pricing is left at 0 —
+        // iCal reservations stay unpriced (the platform handles payment); when the operator opens
+        // and saves one, the pricing engine recomputes every option from optionId + quantity.
+        // Guarded: minimal test schemas may lack property_option_defaults / reservation_options, in
+        // which case this is a no-op (prod/dev DBs always have them).
+        let applyPropertyOptionDefaults = () => {};
+        try {
+          const listPropertyOptionDefaults = database.prepare(`
+            SELECT d.optionId, d.offered, o.priceType
+            FROM property_option_defaults d
+            JOIN options o ON o.id = d.optionId
+            WHERE d.propertyId = ?
+          `);
+          const insertReservationOption = database.prepare(`
+            INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
+            VALUES (?, ?, 1, 0, 0, ?, 0, ?)
+          `);
+          applyPropertyOptionDefaults = (reservationId, propertyId) => {
+            for (const d of listPropertyOptionDefaults.all(propertyId)) {
+              insertReservationOption.run(reservationId, d.optionId, d.priceType || 'per_stay', d.offered ? 1 : 0);
+            }
+          };
+        } catch { /* minimal test schema without these tables — skip defaults */ }
         const updateReservation = database.prepare(`
           UPDATE reservations
           SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?, notes = ?, updatedAt = datetime('now')
@@ -370,6 +395,7 @@ function createPropertyIcalModel(database) {
                 event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
+              applyPropertyOptionDefaults(reservationId, source.propertyId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
               createdCount += 1;
@@ -396,6 +422,7 @@ function createPropertyIcalModel(database) {
                 event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
+              applyPropertyOptionDefaults(reservationId, source.propertyId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               if (previousUid && previousUid !== event.uid) {
                 deleteMapping.run(source.id, previousUid);

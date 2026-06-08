@@ -127,3 +127,50 @@ test('getDeleteImpact counts reservations and bookings using the resource', () =
   assert.equal(impact.bookingsCount, 1);
   assert.equal(model.getDeleteImpact(9999), null);
 });
+
+// Baby-bed availability (specs/bed-config-in-linen-card.md §10 follow-up #6) — the "Lit bébé"
+// resource quantity minus the baby beds already taken by OVERLAPPING reservations. This is the
+// logic behind the reservation form's "Dispo restante" + the max on the Lits bébé input: once
+// other reservations have booked all the baby beds for the dates, none are available here.
+function seedBabyBed(db, quantity) {
+  db.prepare("INSERT INTO resources (name, quantity, price) VALUES ('Lit bébé', ?, 0)").run(quantity);
+}
+function addReservation(db, { propertyId = 1, startDate, endDate, babyBeds }) {
+  return db.prepare("INSERT INTO reservations (kind, propertyId, startDate, endDate, babyBeds) VALUES ('reservation', ?, ?, ?, ?)")
+    .run(propertyId, startDate, endDate, babyBeds).lastInsertRowid;
+}
+
+test('baby-bed availability: all free when nothing is reserved', () => {
+  const { model, db } = freshModel();
+  seedBabyBed(db, 2);
+  const a = model.getBabyBedAvailability(1, '2026-07-10', '2026-07-13', null);
+  assert.deepEqual(a, { totalQuantity: 2, reserved: 0, available: 2 });
+});
+
+test('baby-bed availability: an overlapping reservation consumes beds (all taken → 0 available)', () => {
+  const { model, db } = freshModel();
+  seedBabyBed(db, 2);
+  addReservation(db, { startDate: '2026-07-11', endDate: '2026-07-14', babyBeds: 2 });
+  const a = model.getBabyBedAvailability(1, '2026-07-10', '2026-07-13', null);
+  assert.equal(a.totalQuantity, 2);
+  assert.equal(a.reserved, 2);
+  assert.equal(a.available, 0); // user's case: no baby bed left for this reservation
+});
+
+test('baby-bed availability: a non-overlapping reservation does NOT consume beds', () => {
+  const { model, db } = freshModel();
+  seedBabyBed(db, 1);
+  // Ends exactly when ours starts (half-open) → no overlap.
+  addReservation(db, { startDate: '2026-07-01', endDate: '2026-07-10', babyBeds: 1 });
+  const a = model.getBabyBedAvailability(1, '2026-07-10', '2026-07-13', null);
+  assert.equal(a.available, 1);
+});
+
+test('baby-bed availability: excludeReservationId ignores the current reservation (editing)', () => {
+  const { model, db } = freshModel();
+  seedBabyBed(db, 1);
+  const id = addReservation(db, { startDate: '2026-07-10', endDate: '2026-07-13', babyBeds: 1 });
+  // Without excluding, the reservation counts itself → 0 left; excluding it frees the bed.
+  assert.equal(model.getBabyBedAvailability(1, '2026-07-10', '2026-07-13', null).available, 0);
+  assert.equal(model.getBabyBedAvailability(1, '2026-07-10', '2026-07-13', id).available, 1);
+});

@@ -5,6 +5,25 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Fixed
+- **Bed-linen default now appears on iCal-arrived reservations** (spec
+  `bed-config-in-linen-card.md` §10 follow-up #5, 2026-06-08). The iCal
+  sync created a bare reservation and skipped the property's option
+  defaults, so on "Gite" (bed linen is an *offered* default) a freshly
+  imported booking showed no bed-linen option. The sync now applies the
+  property's option defaults to each new iCal reservation, marked
+  `offered` per the property setting (pricing stays 0 until the operator
+  edits). +2 tests.
+- **"Lit bébé" counter is back whenever there are babies** (spec
+  `bed-config-in-linen-card.md` §10 follow-up #6, 2026-06-08). Since bed
+  counters moved into the "Linge de lit" option card, the baby-bed
+  counter was hidden when no bed-linen option was enabled. A baby bed is
+  an independent resource: it now lives in the **Voyageurs** card and
+  shows whenever `babies > 0`, with its live availability ("Dispo
+  restante") from the *Lit bébé* resource — capped at 0 when other
+  reservations have booked every baby bed for the dates. The server
+  invariant no longer zeroes `babyBeds` without a linen option (safe:
+  laundry gates the baby-linen aggregation on the option separately).
+  +4 server availability tests, +4 client display tests.
 - **Mobile calendar now fits the screen width** (spec
   `calendar-mobile-view.md`, 2026-06-08). The main content area
   (`<Box component="main">`) lacked `minWidth: 0`, so the week strip's
