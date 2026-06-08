@@ -3,6 +3,7 @@
 
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
+const { formatTimeShort } = require('../utils/dateFr');
 
 function normalizeProgressiveOptionTiers(raw) {
   let parsed = [];
@@ -36,6 +37,17 @@ function createOptionsModel(database) {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'titleEn'); }
     catch { return false; }
   })();
+  // Breakfast default time (specs/breakfast-time.md). Persisted via a dedicated guarded write so the
+  // big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
+  const HAS_OPTION_BREAKFAST_TIME = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'breakfastTime'); }
+    catch { return false; }
+  })();
+  function persistBreakfastTime(optionId, payload) {
+    if (!HAS_OPTION_BREAKFAST_TIME || payload.breakfastTime === undefined) return;
+    const t = formatTimeShort(payload.breakfastTime) || '09:00';
+    database.prepare('UPDATE options SET breakfastTime = ? WHERE id = ?').run(t, optionId);
+  }
 
   const propertyIdsFor = (optionId) => database
     .prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId')
@@ -113,6 +125,7 @@ function createOptionsModel(database) {
         const result = insertOption.run(...args);
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
+        persistBreakfastTime(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -166,6 +179,7 @@ function createOptionsModel(database) {
         updateOption.run(...args);
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
+        persistBreakfastTime(id, payload);
       })();
       return { ok: true };
     },

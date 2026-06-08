@@ -41,6 +41,9 @@ const emptyOption = {
   towelLargePerPerson: 1,
   towelMediumPerPerson: 0,
   towelSmallPerPerson: 1,
+  // Breakfast default time (specs/breakfast-time.md). Only meaningful for the breakfast-typed
+  // option; editable there. Pre-fills the desired time on each reservation that enables breakfast.
+  breakfastTime: '09:00',
 };
 
 function normalizeProgressiveTiers(raw) {
@@ -70,6 +73,30 @@ function EnglishTitleField({ form, setForm, titleKey, titleLabel }) {
       helperText="Utilisé sur le PDF de devis en anglais. Laisser vide → reprend le titre français."
       fullWidth
     />
+  );
+}
+
+// Breakfast default time (specs/breakfast-time.md). Rendered only for the breakfast-typed option.
+// The HH:MM value pre-fills the "Heure souhaitée" field on each reservation that enables breakfast,
+// and drives the planning sort/display when a reservation has no per-reservation override.
+function BreakfastTimeField({ form, setForm }) {
+  return (
+    <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+        Heure du petit-déjeuner (par défaut)
+      </Typography>
+      <FormHelperText sx={{ mb: 1, mt: 0 }}>
+        Heure proposée par défaut sur chaque réservation ; modifiable par réservation. Sert au tri du planning.
+      </FormHelperText>
+      <TextField
+        label="Heure"
+        type="time"
+        size="small"
+        value={form.breakfastTime || '09:00'}
+        onChange={(e) => setForm({ ...form, breakfastTime: e.target.value })}
+        sx={{ width: { xs: '100%', sm: 160 } }}
+      />
+    </Box>
   );
 }
 
@@ -191,6 +218,8 @@ export default function OptionsPage() {
         towelSmallPerPerson:  item.towelSmallPerPerson  == null ? 1 : Number(item.towelSmallPerPerson),
         // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — title only.
         titleEn: item.titleEn || '',
+        // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
+        breakfastTime: item.breakfastTime || '09:00',
       })}
       toPayload={(form) => ({
         title: form.title,
@@ -209,6 +238,9 @@ export default function OptionsPage() {
         towelLargePerPerson:  Math.max(0, Math.floor(Number(form.towelLargePerPerson)  || 0)),
         towelMediumPerPerson: Math.max(0, Math.floor(Number(form.towelMediumPerPerson) || 0)),
         towelSmallPerPerson:  Math.max(0, Math.floor(Number(form.towelSmallPerPerson)  || 0)),
+        // Breakfast default time (specs/breakfast-time.md). Persisted only for the breakfast
+        // option server-side; harmless for the others.
+        breakfastTime: form.breakfastTime || '09:00',
       })}
       formNameKey="title"
       formDescriptionKey="description"
@@ -220,6 +252,10 @@ export default function OptionsPage() {
               the EN title on the same form. Empty = fallback to FR in the EN PDF. */}
           <EnglishTitleField form={form} setForm={setForm} titleKey="titleEn" />
           <ProgressivePricingFields form={form} setForm={setForm} />
+          {/* Breakfast default time (specs/breakfast-time.md) — only on the breakfast option. */}
+          {form.autoOptionType === 'breakfast' && (
+            <BreakfastTimeField form={form} setForm={setForm} />
+          )}
           {/* §3.5.ter — per-type controls visible iff the flag is set. The flag itself stays
               hidden (set by the server-side seed); these controls let Adrien tune which bed
               types travel to the laundry + how many towels of each size per person. */}
