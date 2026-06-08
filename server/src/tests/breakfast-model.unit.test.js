@@ -23,7 +23,8 @@ const DDL = `
     adults INTEGER DEFAULT 0,
     teens INTEGER DEFAULT 0,
     children INTEGER DEFAULT 0,
-    babies INTEGER DEFAULT 0
+    babies INTEGER DEFAULT 0,
+    breakfastTime TEXT
   );
   CREATE TABLE clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +37,8 @@ const DDL = `
   CREATE TABLE options (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
-    autoOptionType TEXT
+    autoOptionType TEXT,
+    breakfastTime TEXT
   );
   CREATE TABLE reservation_options (
     reservationId INTEGER NOT NULL,
@@ -54,8 +56,8 @@ const DDL = `
 function freshDb() {
   const db = new Database(':memory:');
   db.exec(DDL);
-  // Catalog seed: option id=1 is breakfast-typed; id=2 is a regular option.
-  db.prepare("INSERT INTO options (id, title, autoOptionType) VALUES (1, 'Petit déjeuner', 'breakfast')").run();
+  // Catalog seed: option id=1 is breakfast-typed (default time 08:00); id=2 is a regular option.
+  db.prepare("INSERT INTO options (id, title, autoOptionType, breakfastTime) VALUES (1, 'Petit déjeuner', 'breakfast', '08:00')").run();
   db.prepare("INSERT INTO options (id, title, autoOptionType) VALUES (2, 'Départ tardif', NULL)").run();
   return db;
 }
@@ -67,8 +69,13 @@ function insertClient(db, id, firstName, lastName) {
   db.prepare('INSERT INTO clients (id, firstName, lastName) VALUES (?, ?, ?)').run(id, firstName, lastName);
 }
 function insertReservation(db, props) {
-  const cols = ['id', 'kind', 'propertyId', 'clientId', 'startDate', 'endDate', 'adults', 'teens', 'children', 'babies'];
-  const values = cols.map((c) => (props[c] !== undefined ? props[c] : (c === 'kind' ? 'reservation' : 0)));
+  const cols = ['id', 'kind', 'propertyId', 'clientId', 'startDate', 'endDate', 'adults', 'teens', 'children', 'babies', 'breakfastTime'];
+  const values = cols.map((c) => {
+    if (props[c] !== undefined) return props[c];
+    if (c === 'kind') return 'reservation';
+    if (c === 'breakfastTime') return null;
+    return 0;
+  });
   db.prepare(`INSERT INTO reservations (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...values);
 }
 function linkOption(db, reservationId, optionId, quantity = 1) {
@@ -240,4 +247,41 @@ test('multiple reservations on the same morning → both listed, total summed', 
   const out = model.breakfastByDate({ from: '2026-06-09', to: '2026-06-10' });
   assert.equal(out['2026-06-10'].items.length, 2);
   assert.equal(out['2026-06-10'].totalPersons, 6, '4 + 2 = 6 persons total');
+});
+
+// ── Breakfast time (specs/breakfast-time.md) ──────────────────────────────────────────────
+test('breakfast time: reservation override wins, else the option default (08:00)', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Sans', 'Override');
+  insertClient(db, 200, 'Avec', 'Override');
+  // No per-reservation time → option default 08:00.
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-10', adults: 1 });
+  linkOption(db, 1, 1, 1.0);
+  // Per-reservation override 07:15.
+  insertReservation(db, { id: 2, propertyId: 10, clientId: 200, startDate: '2026-06-09', endDate: '2026-06-10', adults: 1, breakfastTime: '07:15' });
+  linkOption(db, 2, 1, 1.0);
+
+  const out = buildModel(db).breakfastByDate({ from: '2026-06-09', to: '2026-06-15' });
+  const items = out['2026-06-10'].items;
+  const byClient = Object.fromEntries(items.map((i) => [i.clientName, i.breakfastTime]));
+  assert.equal(byClient['Sans Override'], '08:00');   // option default
+  assert.equal(byClient['Avec Override'], '07:15');   // reservation override
+});
+
+test('breakfast time: same-day items are sorted by time ascending', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'A', 'Tard');   // 09:30
+  insertClient(db, 200, 'B', 'Tot');    // 07:00
+  insertClient(db, 300, 'C', 'Defaut'); // 08:00 (option default)
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-10', adults: 1, breakfastTime: '09:30' });
+  linkOption(db, 1, 1, 1.0);
+  insertReservation(db, { id: 2, propertyId: 10, clientId: 200, startDate: '2026-06-09', endDate: '2026-06-10', adults: 1, breakfastTime: '07:00' });
+  linkOption(db, 2, 1, 1.0);
+  insertReservation(db, { id: 3, propertyId: 10, clientId: 300, startDate: '2026-06-09', endDate: '2026-06-10', adults: 1 });
+  linkOption(db, 3, 1, 1.0);
+
+  const items = buildModel(db).breakfastByDate({ from: '2026-06-09', to: '2026-06-15' })['2026-06-10'].items;
+  assert.deepEqual(items.map((i) => i.breakfastTime), ['07:00', '08:00', '09:30']);
 });

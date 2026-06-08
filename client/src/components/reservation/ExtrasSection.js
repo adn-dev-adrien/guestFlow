@@ -91,7 +91,7 @@ const PRICE_TYPE_LABELS = {
 export default function ExtrasSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, propertyOptions, displayableResources,
+    form, updateForm, propertyOptions, displayableResources,
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
@@ -218,6 +218,20 @@ export default function ExtrasSection() {
                               />
                             </Stack>
                           </Stack>
+                        )}
+
+                        {/* Breakfast desired time (specs/breakfast-time.md) — only on the
+                            breakfast-typed option when enabled. Defaults to the option's configured
+                            time; empty form value = use the option default (planning resolves it). */}
+                        {enabled && opt.autoOptionType === 'breakfast' && (
+                          <TextField
+                            size="small"
+                            type="time"
+                            label="Heure souhaitée"
+                            value={form.breakfastTime || opt.breakfastTime || '09:00'}
+                            onChange={(e) => updateForm({ breakfastTime: e.target.value })}
+                            sx={{ mt: 1, width: { xs: '100%', sm: 200 } }}
+                          />
                         )}
 
                         {/* specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed counters
