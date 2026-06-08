@@ -7,12 +7,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ### Changed
 - **Property detail page layout** (spec `properties-mvc.md` §6.1,
   2026-06-08). `/properties/:id` moves from an even `Grid` (which left big
-  gaps under short cards) to a **CSS masonry**: the compact cards
-  (Informations, Horaires & Ménage, Options horaires, Options par défaut,
-  Acompte & Solde) pack into 2 balanced columns on desktop / 1 on mobile,
-  while the wide cards (Tarification + its seasons table, Documents, iCal
-  Export, Connexions iCal) span full width. Layout-only, no behaviour
-  change.
+  gaps under short cards) to **two explicit columns** on desktop (1 on
+  mobile): left = Informations + Acompte & Solde, right = Horaires &
+  Ménage + Options horaires + Options par défaut; the wide cards
+  (Tarification + its seasons table, Documents, iCal Export, Connexions
+  iCal) span full width below. Explicit columns keep card placement
+  deterministic and spacing regular. Layout-only, no behaviour change.
 - **Editing a template refreshes the « Emails à envoyer » queue.** The
   pending queue is rendered live (never a stored snapshot), so a
   template's content always reflects its current version; the Emails

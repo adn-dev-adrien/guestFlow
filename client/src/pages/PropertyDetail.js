@@ -546,10 +546,11 @@ export default function PropertyDetail() {
           )}
         </Box>
       </Box>
-      {/* Masonry: compact cards pack into 2 balanced columns on md+ (no row-height gaps);
-          wide / table-bearing cards (Tarification, Documents, iCal) span full width via
-          columnSpan. 1 column on xs. */}
-      <Box sx={{ columnGap: { md: 3 }, columnCount: { xs: 1, md: 2 } }}>
+      {/* Two explicit columns on md+ (1 on xs): left = Informations + Acompte,
+          right = Horaires + Options horaires + Options par défaut. alignItems flex-start
+          keeps each column at its own height. Wide / table cards go full-width below. */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, alignItems: 'flex-start' }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* Infos */}
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
@@ -633,6 +634,27 @@ export default function PropertyDetail() {
           </Card>
         </Box>
 
+        {/* Acompte & Solde */}
+        <Box sx={{ mb: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
+                </Box>
+                <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
+                  htmlInput: { step: 50 }
+                }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+        </Box>{/* fin colonne gauche */}
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* Horaires & Ménage */}
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
@@ -738,27 +760,13 @@ export default function PropertyDetail() {
           </Box>
         )}
 
-        {/* Acompte & Solde */}
-        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField label="Acompte (jours avant)" type="number" value={form.depositDaysBefore ?? 30} onChange={(e) => updateField('depositDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                  <TextField label="Solde (jours avant)" type="number" value={form.balanceDaysBefore ?? 7} onChange={(e) => updateField('balanceDaysBefore', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
-                </Box>
-                <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
-                  htmlInput: { step: 50 }
-                }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
+        </Box>{/* fin colonne droite */}
+      </Box>{/* fin wrapper 2 colonnes */}
 
+      {/* Full-width section: wide / table-bearing cards */}
+      <Box>
         {/* Pricing */}
-        <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
+        <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Tarification</Typography>
@@ -932,7 +940,7 @@ export default function PropertyDetail() {
         </Box>
 
         {/* Documents */}
-        <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
+        <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Documents</Typography>
@@ -969,13 +977,13 @@ export default function PropertyDetail() {
 
         {/* iCal Export */}
         {!isNew && (
-          <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
+          <Box sx={{ mb: 3 }}>
             <IcalExportCard propertyId={property.id} propertyName={property.name} />
           </Box>
         )}
 
         {/* iCal Sync */}
-        <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
+        <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
