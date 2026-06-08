@@ -288,6 +288,9 @@ const api = {
   getIcalCancellationAlert: () => request('/dashboard/ical-cancellation'),
   approveIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/approve`, { method: 'POST' }),
   rejectIcalCancellation: (id) => request(`/dashboard/ical-cancellation/${id}/reject`, { method: 'POST' }),
+  // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
+  // iCal during the current day (specs/dashboard-ical-new-reservations.md).
+  getIcalNewReservationsToday: () => request('/dashboard/ical-new-today'),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

@@ -166,6 +166,18 @@ function buildController({
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
       return res.json({ ok: true });
     },
+
+    /**
+     * GET /api/dashboard/ical-new-today
+     *
+     * Returns the reservations imported via iCal during the current (UTC) day, fully shaped for
+     * display (specs/dashboard-ical-new-reservations.md). Read-only notification card — empty
+     * `alerts: []` when nothing was imported today.
+     */
+    icalNewReservationsToday(req, res) {
+      const alerts = injectedReservationsModel.listNewIcalReservationsToday();
+      return res.json({ alerts });
+    },
   };
 }
 

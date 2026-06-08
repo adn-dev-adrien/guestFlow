@@ -319,6 +319,39 @@ function createReservationsModel(database) {
       `).all(...cleanIds);
     },
 
+    // Dashboard card (specs/dashboard-ical-new-reservations.md): reservations imported via iCal
+    // during the CURRENT day (UTC, matching the app's datetime('now') convention). Fully shaped
+    // server-side — clientName + platformLabel ready to render, ordered most-recent-import first.
+    listNewIcalReservationsToday() {
+      const rows = database.prepare(`
+        SELECT r.id AS reservationId, r.startDate, r.endDate, r.createdAt,
+               r.sourcePlatformKey, s.name AS sourceName,
+               c.firstName, c.lastName, p.name AS propertyName
+          FROM reservations r
+          LEFT JOIN clients c      ON c.id = r.clientId
+          LEFT JOIN properties p   ON p.id = r.propertyId
+          LEFT JOIN ical_sources s ON s.id = r.sourceIcalSourceId
+         WHERE r.kind = 'reservation'
+           AND r.sourceType = 'ical'
+           AND date(r.createdAt) = date('now')
+         ORDER BY datetime(r.createdAt) DESC, r.id DESC
+      `).all();
+      return rows.map((row) => {
+        const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
+        const platformLabel = String(row.sourceName || '').trim()
+          || (row.sourcePlatformKey ? formatPlatformName(row.sourcePlatformKey) : '');
+        return {
+          reservationId: row.reservationId,
+          clientName: clientName || `#${row.reservationId}`,
+          propertyName: row.propertyName || '',
+          platformLabel,
+          startDate: row.startDate || '',
+          endDate: row.endDate || '',
+          createdAt: row.createdAt || '',
+        };
+      });
+    },
+
     // Full reservation row, used by the contrib-capture path (force-item-to-complement.md)
     // to feed `calculateReservationQuote` with the latest persisted state at flip time.
     getRow(reservationId) {
