@@ -100,6 +100,23 @@ function buildContext({ reservation, client, property, options = [], settings = 
   const cautionAmountNum = Number(r.cautionAmount || 0);
   const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1;
 
+  // Baby-bed notice for the J-7 reminder (specs/j7-email-baby-beds.md). Only relevant when the
+  // booking has at least one baby. If baby beds are provided → tell the guest how many; if the
+  // booking has babies but NO baby bed (none left for the dates) → ask them to bring their own.
+  const babiesNum = Number(r.babies || 0);
+  const babyBedsNum = Number(r.babyBeds || 0);
+  const hasBabyBedNotice = babiesNum > 0;
+  let babyBedNotice = '';
+  if (babiesNum > 0 && babyBedsNum > 0) {
+    const babiesPart = babiesNum > 1 ? 'des bébés' : 'un bébé';
+    babyBedNotice = babyBedsNum > 1
+      ? `Vous voyagez avec ${babiesPart} : ${babyBedsNum} lits bébé vous sont fournis.`
+      : `Vous voyagez avec ${babiesPart} : un lit bébé vous est fourni.`;
+  } else if (babiesNum > 0) {
+    const babiesPart = babiesNum > 1 ? 'des bébés' : 'un bébé';
+    babyBedNotice = `Vous voyagez avec ${babiesPart} : nous ne disposons plus de lit bébé disponible pour vos dates. Merci de prévoir d'en apporter un.`;
+  }
+
   return {
     vars: {
       // Client
@@ -136,6 +153,7 @@ function buildContext({ reservation, client, property, options = [], settings = 
       bedConfig: formatBedConfig({
         singleBeds: r.singleBeds, doubleBeds: r.doubleBeds, babyBeds: r.babyBeds,
       }),
+      babyBedNotice,
       // Company
       companyName:  safeStr(settings.companyName),
       companyPhone: safeStr(settings.companyPhone),
@@ -148,6 +166,7 @@ function buildContext({ reservation, client, property, options = [], settings = 
       hasBedLinenOption,
       cautionNotBanked,
       hasOptions,
+      hasBabyBedNotice,
     },
   };
 }

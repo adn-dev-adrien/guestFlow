@@ -126,3 +126,37 @@ test('whitespace around the variable name is tolerated', () => {
   );
   assert.equal(out.body, 'Hello Jean');
 });
+
+// End-to-end (specs/j7-email-baby-beds.md): the shipped J-7 body renders the baby-bed notice
+// driven by the context builder's hasBabyBedNotice flag + babyBedNotice var.
+const { buildContext } = require('../utils/emailContextBuilder');
+const { ARRIVAL_REMINDER_7D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
+
+function j7Input(reservationOver) {
+  return buildContext({
+    reservation: {
+      startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '15:00', checkOutTime: '10:00',
+      adults: 2, children: 0, teens: 0, finalPrice: 300, ...reservationOver,
+    },
+    client: { firstName: 'Jean', lastName: 'Dupont' },
+    property: { name: 'Gite', nameArticle: 'au' },
+    options: [],
+    settings: { companyName: 'GF', smtpFromName: 'GF' },
+  });
+}
+
+test('J-7 body: babies + a baby bed → notice with the provided bed appears', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 1, babyBeds: 1 }));
+  assert.match(out.body, /un lit bébé vous est fourni/);
+});
+
+test('J-7 body: babies but no baby bed → "bring one" notice appears', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 1, babyBeds: 0 }));
+  assert.match(out.body, /ne disposons plus de lit bébé/);
+  assert.match(out.body, /apporter un/);
+});
+
+test('J-7 body: no babies → no baby-bed notice at all', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 0, babyBeds: 0 }));
+  assert.doesNotMatch(out.body, /lit bébé/);
+});
