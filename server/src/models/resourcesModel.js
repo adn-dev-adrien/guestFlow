@@ -13,6 +13,13 @@ const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
 const OVERLAP = 'r.startDate < ? AND r.endDate > ?';
 
 function createModel(database) {
+  // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7). When the EN column is
+  // missing (minimal test schemas), the SQL gracefully drops the reference.
+  const HAS_RESOURCE_NAME_EN = (() => {
+    try { return database.prepare("PRAGMA table_info(resources)").all().some((c) => c.name === 'nameEn'); }
+    catch { return false; }
+  })();
+
   function getPropertyIds(resourceId) {
     return database.prepare('SELECT propertyId FROM resource_properties WHERE resourceId = ? ORDER BY propertyId')
       .all(Number(resourceId))
@@ -205,6 +212,9 @@ function createModel(database) {
   function columnsFromPayload(payload) {
     return {
       name: sentenceCase(payload.name),
+      // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7) — trimmed string,
+      // empty by default. Not run through sentenceCase: operator decides EN casing.
+      nameEn: String(payload.nameEn || '').trim(),
       quantity: Number(payload.quantity) || 0,
       price: Number(payload.price) || 0,
       priceType: payload.priceType || 'per_stay',
@@ -224,10 +234,12 @@ function createModel(database) {
     const propertyIds = normalizePropertyIds(payload);
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
-      const result = database.prepare(`
-        INSERT INTO resources (name, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
-        VALUES (@name, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes)
-      `).run(cols);
+      const sql = HAS_RESOURCE_NAME_EN
+        ? `INSERT INTO resources (name, nameEn, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
+           VALUES (@name, @nameEn, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes)`
+        : `INSERT INTO resources (name, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
+           VALUES (@name, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes)`;
+      const result = database.prepare(sql).run(cols);
       const resourceId = Number(result.lastInsertRowid);
       writePivots(resourceId, propertyIds, pricing);
       return resourceId;
@@ -241,14 +253,20 @@ function createModel(database) {
     const propertyIds = normalizePropertyIds(payload);
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
-      database.prepare(`
-        UPDATE resources
-        SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
-            isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
-            openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes,
-            updatedAt=datetime('now')
-        WHERE id=@id
-      `).run({ ...cols, id: resourceId });
+      const updateSql = HAS_RESOURCE_NAME_EN
+        ? `UPDATE resources
+           SET name=@name, nameEn=@nameEn, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
+               isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
+               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes,
+               updatedAt=datetime('now')
+           WHERE id=@id`
+        : `UPDATE resources
+           SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
+               isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
+               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes,
+               updatedAt=datetime('now')
+           WHERE id=@id`;
+      database.prepare(updateSql).run({ ...cols, id: resourceId });
       writePivots(resourceId, propertyIds, pricing);
     });
     tx();

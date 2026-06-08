@@ -13,6 +13,30 @@ function formatDateFR(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
+// English-language date formatter used by the EN devis PDF (specs/devis-english-language.md §3 rule 3).
+// Format: `D MMMM YYYY` (e.g. `5 June 2026`) — unambiguous internationally, unlike the numeric
+// `dd/mm/yyyy` which a US reader could parse as mm/dd.
+const EN_MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+function formatDateEN(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).split('-');
+  const monthIdx = Number(m) - 1;
+  if (!Number.isInteger(monthIdx) || monthIdx < 0 || monthIdx > 11) return '';
+  const dayNum = Number(d);
+  if (!Number.isInteger(dayNum) || dayNum <= 0) return '';
+  return `${dayNum} ${EN_MONTH_NAMES[monthIdx]} ${y}`;
+}
+
+// Locale-aware accessor — keeps the PDF call sites short: `formatDateLocalised(date, language)`.
+function formatDateLocalised(dateStr, language) {
+  return String(language || 'fr').toLowerCase() === 'en'
+    ? formatDateEN(dateStr)
+    : formatDateFR(dateStr);
+}
+
 function formatCurrency(amount) {
   return `${Number(amount || 0).toFixed(2).replace('.', ',')} €`;
 }
@@ -64,6 +88,8 @@ function addDaysToIsoDate(isoDate, daysDelta) {
 module.exports = {
   roundMoney,
   formatDateFR,
+  formatDateEN,
+  formatDateLocalised,
   formatCurrency,
   isLineOffered,
   timeToDecimalHour,

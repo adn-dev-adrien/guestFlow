@@ -8,9 +8,10 @@ const path = require("path");
 const fs = require("fs");
 const PDFDocument = require("pdfkit");
 const {
-  roundMoney, formatDateFR, formatCurrency, isLineOffered,
+  roundMoney, formatDateFR, formatDateLocalised, formatCurrency, isLineOffered,
   timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
 } = require("./devisHelpers");
+const { labels } = require("./devisPdfLabels");
 
 // §3.4 rules 15–18 — single source of truth for the tax + grand-total numbers the PDF
 // renders. When the engine quote is provided, every figure flows from it; without a quote
@@ -30,6 +31,20 @@ function resolveLiveTaxTotals(full, quote) {
 
 function generateDevisPdf(full, settings, quote) {
   return new Promise((resolve, reject) => {
+  // 2026-06-06 — bilingual rendering (specs/devis-english-language.md). The devis row
+  // carries `pdfLanguage` ('fr' default, 'en' opt-in). Every literal goes through `L.<key>`
+  // and every date through `fmtDate`. The "at" connector between date + time and the
+  // option / resource label fallbacks (FR titles when the EN translation is empty) all
+  // live in this same scope so the rest of the function stays readable.
+  const language = String(full.pdfLanguage || 'fr').toLowerCase();
+  const L = labels(language);
+  const fmtDate = (iso) => formatDateLocalised(iso, language);
+  const atSeparator = language === 'en' ? 'at' : 'à';
+  // Closures bound to the current language; both delegate to the module-level resolvers exposed
+  // under `__test` so unit tests can prove the renderer follows the same fallback rules.
+  const optionTitle   = (opt) => __resolveOptionTitle(opt, language);
+  const resourceName  = (rsc) => __resolveResourceName(rsc, language);
+
   const property = full.property;
   const client = full.client;
   // Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to every line:
@@ -49,12 +64,15 @@ function generateDevisPdf(full, settings, quote) {
   const TEXT_DARK = '#222222';
   const TEXT_LIGHT = '#555555';
 
+  // `full.__testCompress === false` keeps PDFKit's stream uncompressed so unit tests can grep
+  // the raw bytes for English / French labels. Never set in production calls.
   const doc = new PDFDocument({
     size: 'A4',
     margins: { top: 34, bottom: 34, left: 45, right: 45 },
     bufferPages: true,
+    compress: full.__testCompress !== false,
     info: {
-      Title: `Devis ${full.devisNumber}`,
+      Title: `${L.documentTitle} ${full.devisNumber}`,
       Author: settings.companyName || 'GuestFlow',
     },
   });
@@ -100,9 +118,9 @@ function generateDevisPdf(full, settings, quote) {
 
   // Devis title top-right
   doc.fontSize(18).fillColor('#ffffff').font('Helvetica-Bold')
-    .text('DEVIS', LEFT + PAGE_W * 0.6, BAND_TOP + 10, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
+    .text(L.documentTitle, LEFT + PAGE_W * 0.6, BAND_TOP + 10, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
   doc.fontSize(10).fillColor('#cce0ff').font('Helvetica')
-    .text(`N° ${full.devisNumber}`, LEFT + PAGE_W * 0.6, BAND_TOP + 31, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
+    .text(L.documentNumber(full.devisNumber), LEFT + PAGE_W * 0.6, BAND_TOP + 31, { width: PAGE_W * 0.4 - RIGHT_PAD, align: 'right' });
 
   // ── Company & client block ───────────────────────────────────────────────
   const INFO_TOP = BAND_TOP + 74;
@@ -119,7 +137,7 @@ function generateDevisPdf(full, settings, quote) {
   }
 
   // Company info (right of logo, or at LEFT if no logo)
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text('ÉMETTEUR', EMETTEUR_LEFT, INFO_TOP);
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text(L.issuer, EMETTEUR_LEFT, INFO_TOP);
   let cy = INFO_TOP + 14;
   doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold');
   if (settings.companyName) {
@@ -133,16 +151,16 @@ function generateDevisPdf(full, settings, quote) {
     }
   }
   if (settings.companyPhone) {
-    doc.text(`Tél : ${settings.companyPhone}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
+    doc.text(`${L.phonePrefix}${settings.companyPhone}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
     cy += 13;
   }
   if (settings.companyEmail) {
-    doc.text(`Email : ${settings.companyEmail}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
+    doc.text(`${L.emailPrefix}${settings.companyEmail}`, EMETTEUR_LEFT, cy, { width: EMETTEUR_WIDTH });
     cy += 13;
   }
 
   // Client info (right)
-  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text('CLIENT', COL2, INFO_TOP);
+  doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica-Bold').text(L.client, COL2, INFO_TOP);
   let ccy = INFO_TOP + 14;
   doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica-Bold');
   const clientName = `${client.firstName || ''} ${client.lastName || ''}`.trim();
@@ -156,10 +174,10 @@ function generateDevisPdf(full, settings, quote) {
     doc.text(part, COL2, ccy); ccy += 13;
   }
   for (const phone of phones) {
-    if (phone) { doc.text(`Tél : ${phone}`, COL2, ccy); ccy += 13; }
+    if (phone) { doc.text(`${L.phonePrefix}${phone}`, COL2, ccy); ccy += 13; }
   }
   if (client.email) {
-    doc.text(`Email : ${client.email}`, COL2, ccy); ccy += 13;
+    doc.text(`${L.emailPrefix}${client.email}`, COL2, ccy); ccy += 13;
   }
 
   // ── Devis meta ────────────────────────────────────────────────────────────
@@ -193,9 +211,9 @@ function generateDevisPdf(full, settings, quote) {
 
   // Meta pills
   const metaItems = [
-    { label: 'Date du devis', value: formatDateFR(createdAtIsoDate) },
-    { label: 'Valable jusqu\'au', value: formatDateFR(validUntilIso) },
-    { label: 'Logement', value: property ? property.name : `#${full.propertyId}` },
+    { label: L.date,       value: fmtDate(createdAtIsoDate) },
+    { label: L.validUntil, value: fmtDate(validUntilIso) },
+    { label: L.property,   value: property ? property.name : `#${full.propertyId}` },
   ];
 
   const pillW = PAGE_W / metaItems.length - 6;
@@ -208,23 +226,23 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Séjour section ────────────────────────────────────────────────────────
   const SEJ_TOP = META_TOP + 52;
-  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text('DÉTAIL DU SÉJOUR', LEFT, SEJ_TOP);
+  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text(L.stayHeading, LEFT, SEJ_TOP);
   doc.moveTo(LEFT, SEJ_TOP + 15).lineTo(LEFT + PAGE_W, SEJ_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   const nights = diffDays(full.startDate, full.endDate);
 
   // Ligne 1 : arrivée, départ, durée
   const row1 = [
-    ['Arrivée', `${formatDateFR(full.startDate)} à ${full.checkInTime || '15:00'}`],
-    ['Départ', `${formatDateFR(full.endDate)} à ${full.checkOutTime || '10:00'}`],
-    ['Durée', `${nights} nuit${nights > 1 ? 's' : ''}`],
+    [L.arrival,   `${fmtDate(full.startDate)} ${atSeparator} ${full.checkInTime || '15:00'}`],
+    [L.departure, `${fmtDate(full.endDate)} ${atSeparator} ${full.checkOutTime || '10:00'}`],
+    [L.duration,  L.durationValue(nights)],
   ];
 
   // Ligne 2 : composition voyageurs
-  const row2 = [['Adultes', String(full.adults || 0)]];
-  if (Number(full.teens || 0) > 0) row2.push(['Adolescents', String(full.teens)]);
-  if (Number(full.children || 0) > 0) row2.push(['Enfants', String(full.children)]);
-  if (Number(full.babies || 0) > 0) row2.push(['Bébés', String(full.babies)]);
+  const row2 = [[L.adults, String(full.adults || 0)]];
+  if (Number(full.teens || 0) > 0) row2.push([L.teens, String(full.teens)]);
+  if (Number(full.children || 0) > 0) row2.push([L.children, String(full.children)]);
+  if (Number(full.babies || 0) > 0) row2.push([L.babies, String(full.babies)]);
 
   const ROW_H = 38;
 
@@ -247,7 +265,7 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Pricing table ─────────────────────────────────────────────────────────
   const TABLE_TOP = sy + ROW_H + 6;
-  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text('DÉTAIL TARIFAIRE', LEFT, TABLE_TOP);
+  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text(L.pricingHeading, LEFT, TABLE_TOP);
   doc.moveTo(LEFT, TABLE_TOP + 15).lineTo(LEFT + PAGE_W, TABLE_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   // Table header
@@ -260,11 +278,11 @@ function generateDevisPdf(full, settings, quote) {
 
   doc.rect(LEFT, TH, PAGE_W, 18).fill(BRAND);
   doc.fontSize(8.5).fillColor('#ffffff').font('Helvetica-Bold');
-  doc.text('Désignation', COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
-  doc.text('Qté', COL_QTY, TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text('Prix HT', COL_HT, TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
-  doc.text('TVA %', COL_VAT, TH + 5, { width: PAGE_W * 0.1, align: 'center' });
-  doc.text('Total TTC', COL_TOTAL, TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
+  doc.text(L.colDesignation, COL_DESC + 4, TH + 5, { width: PAGE_W * 0.48 });
+  doc.text(L.colQuantity,    COL_QTY,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  doc.text(L.colUnitPriceHt, COL_HT,       TH + 5, { width: PAGE_W * 0.16 - RIGHT_PAD, align: 'right' });
+  doc.text(L.colVatRate,     COL_VAT,      TH + 5, { width: PAGE_W * 0.1, align: 'center' });
+  doc.text(L.colTotalTtc,    COL_TOTAL,    TH + 5, { width: PAGE_W * 0.14 - RIGHT_PAD, align: 'right' });
 
   let rowY = TH + 18;
   let rowIdx = 0;
@@ -347,7 +365,7 @@ function generateDevisPdf(full, settings, quote) {
     // so the manual accommodation amount is finalPrice minus those extras.
     const engineAccommodationTtc = roundMoney(Number(full.totalPrice || 0));
     const manualAccommodationTtc = roundMoney(Number(full.finalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
-    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, manualAccommodationTtc, vatAccommodation, false, {
+    drawRow(L.accommodation(nights), nights, manualAccommodationTtc, vatAccommodation, false, {
       originalTtc: engineAccommodationTtc,
       forceOriginal: true,
     });
@@ -370,13 +388,11 @@ function generateDevisPdf(full, settings, quote) {
       ? Math.max(0, 1 - (Number(full.discountPercent || 0) / 100))
       : 1;
     for (const g of groups) {
-      const label = g.count === 1
-        ? `Hébergement — 1 nuit (${g.seasonLabel})`
-        : `Hébergement — ${g.count} nuits (${g.seasonLabel})`;
+      const label = L.accommodationWithSeason(g.count, g.seasonLabel);
       const reducedTotal = roundMoney(Number(g.totalPrice || 0) * accommodationFactor);
       drawRow(label, g.count, reducedTotal, vatAccommodation, false, {
         originalTtc: Number(g.totalPrice || 0),
-        badgeText: Number(full.discountPercent || 0) > 0 ? `RÉDUCTION LOGEMENT ${Number(full.discountPercent || 0)}%` : '',
+        badgeText: Number(full.discountPercent || 0) > 0 ? L.accommodationDiscount(Number(full.discountPercent || 0)) : '',
       });
     }
   } else {
@@ -386,15 +402,15 @@ function generateDevisPdf(full, settings, quote) {
       ? Math.max(0, 1 - (Number(full.discountPercent || 0) / 100))
       : 1;
     const reducedAccTotal = roundMoney(Number(accTotal || 0) * accommodationFactor);
-    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, reducedAccTotal, vatAccommodation, false, {
+    drawRow(L.accommodation(nights), nights, reducedAccTotal, vatAccommodation, false, {
       originalTtc: Number(accTotal || 0),
-      badgeText: Number(full.discountPercent || 0) > 0 ? `RÉDUCTION LOGEMENT ${Number(full.discountPercent || 0)}%` : '',
+      badgeText: Number(full.discountPercent || 0) > 0 ? L.accommodationDiscount(Number(full.discountPercent || 0)) : '',
     });
   }
 
   // Options
   for (const opt of full.options || []) {
-    let optionLabel = opt.title || `Option #${opt.optionId}`;
+    let optionLabelText = optionTitle(opt);
     if (opt.autoOptionType === 'early_check_in' || opt.autoOptionType === 'late_check_out') {
       const isEarly = opt.autoOptionType === 'early_check_in';
       const defaultHour = isEarly
@@ -408,16 +424,16 @@ function generateDevisPdf(full, settings, quote) {
         : Math.max(0, requestedHour - defaultHour);
       const hoursLabel = formatHoursLabel(extraHours);
       if (hoursLabel) {
-        optionLabel = `${optionLabel} (${hoursLabel} suppl.)`;
+        optionLabelText = `${optionLabelText} (${L.extraHoursSuffix(hoursLabel)})`;
       }
     }
     const offered = isLineOffered(opt);
     const originalTtc = offered
       ? roundMoney(Number(opt.unitPrice || 0) * Number(opt.billedUnits || opt.quantity || 0))
       : Number(opt.totalPrice || 0);
-    drawRow(optionLabel, opt.billedUnits || opt.quantity || 1, Number(opt.totalPrice || 0), vatOptions, false, {
+    drawRow(optionLabelText, opt.billedUnits || opt.quantity || 1, Number(opt.totalPrice || 0), vatOptions, false, {
       originalTtc,
-      badgeText: offered ? 'OFFERT' : '',
+      badgeText: offered ? L.offered : '',
     });
   }
 
@@ -427,9 +443,9 @@ function generateDevisPdf(full, settings, quote) {
     const originalTtc = offered
       ? roundMoney(Number(rsc.unitPrice || 0) * Number(rsc.billedUnits || rsc.quantity || 0))
       : Number(rsc.totalPrice || 0);
-    drawRow(rsc.name || `Ressource #${rsc.resourceId}`, rsc.quantity || 1, Number(rsc.totalPrice || 0), vatResources, false, {
+    drawRow(resourceName(rsc), rsc.quantity || 1, Number(rsc.totalPrice || 0), vatResources, false, {
       originalTtc,
-      badgeText: offered ? 'OFFERT' : '',
+      badgeText: offered ? L.offered : '',
     });
   }
 
@@ -447,19 +463,19 @@ function generateDevisPdf(full, settings, quote) {
   if (settings.companyIban || settings.companyBic || settings.companyBankName) {
     const bankTop = totY + BANK_BLOCK_Y_OFFSET;
     let bankY = bankTop;
-    doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text('COORDONNÉES BANCAIRES', LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+    doc.fontSize(10).fillColor(BRAND).font('Helvetica-Bold').text(L.bankHeading, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
     bankY += 14;
     doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
     if (settings.companyBankName) {
-      doc.text(`Dénomination du compte : ${settings.companyBankName}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+      doc.text(`${L.bankAccount}${settings.companyBankName}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
       bankY += 13;
     }
     if (settings.companyBic) {
-      doc.text(`BIC : ${settings.companyBic}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+      doc.text(`${L.bankBic}${settings.companyBic}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
       bankY += 13;
     }
     if (settings.companyIban) {
-      doc.text(`IBAN : ${settings.companyIban}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
+      doc.text(`${L.bankIban}${settings.companyIban}`, LEFT, bankY, { width: LEFT_COL_W, align: 'left' });
       bankY += 13;
     }
 
@@ -481,9 +497,9 @@ function generateDevisPdf(full, settings, quote) {
     totY += 16;
   }
 
-  drawTotalLine('Sous-total HT', subtotalHt, false);
+  drawTotalLine(L.subtotalHt, subtotalHt, false);
   const subtotalTtc = roundMoney(subtotalTtcFromRows);
-  drawTotalLine('Sous-total TTC', subtotalTtc, false);
+  drawTotalLine(L.subtotalTtc, subtotalTtc, false);
   // §3.4 rules 15–18 — Tourist tax + grand total flow through `resolveLiveTaxTotals` so
   // the PDF stays consistent with PricingSummary even when the persisted row drifts (e.g.
   // user changed pricing then re-printed without updating the row). Mixing live + persisted
@@ -491,7 +507,7 @@ function generateDevisPdf(full, settings, quote) {
   // on percentage-based tax with department surcharge).
   const { liveTaxTotal, liveFinalPrice } = resolveLiveTaxTotals(full, quote);
   if (liveTaxTotal > 0) {
-    drawTotalLine('Taxe de séjour', liveTaxTotal, false);
+    drawTotalLine(L.touristTax, liveTaxTotal, false);
     let taxablePersons;
     let taxNights;
     let taxUnitLabel;
@@ -506,7 +522,7 @@ function generateDevisPdf(full, settings, quote) {
       taxNights = Math.max(0, diffDays(full.startDate, full.endDate));
       taxUnitLabel = formatCurrency(Number(full.touristTaxRate || 0));
     }
-    const taxDetail = `${taxablePersons} pers. × ${taxNights} nuit${taxNights > 1 ? 's' : ''} × ${taxUnitLabel} / pers./nuit`;
+    const taxDetail = L.touristTaxBreakdown(taxablePersons, taxNights, taxUnitLabel);
     doc.fontSize(8).fillColor(TEXT_LIGHT).font('Helvetica-Oblique')
       .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
     totY += 10;
@@ -516,7 +532,7 @@ function generateDevisPdf(full, settings, quote) {
   const grandTotalTtc = roundMoney(liveFinalPrice + liveTaxTotal);
   doc.rect(TOTAL_RX - 10, totY - 2, TOTAL_LW + 10, 24).fill(BRAND);
   doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
-    .text('TOTAL TTC', TOTAL_RX - 4, totY + 4, { width: 120 });
+    .text(L.grandTotal, TOTAL_RX - 4, totY + 4, { width: 120 });
   doc.text(formatCurrency(grandTotalTtc), TOTAL_RX + 120, totY + 4, { width: 80 - RIGHT_PAD, align: 'right' });
   totY += 30;
   totY = Math.max(totY, bankBottomY);
@@ -524,7 +540,7 @@ function generateDevisPdf(full, settings, quote) {
   // ── Payment schedule ──────────────────────────────────────────────────────
   totY = checkBreak(totY, 60);
   const PAY_TOP = totY + 14;
-  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text('MODALITÉS DE RÈGLEMENT', LEFT, PAY_TOP);
+  doc.fontSize(11).fillColor(BRAND).font('Helvetica-Bold').text(L.paymentHeading, LEFT, PAY_TOP);
   doc.moveTo(LEFT, PAY_TOP + 15).lineTo(LEFT + PAGE_W, PAY_TOP + 15).strokeColor(BRAND).lineWidth(1.5).stroke();
 
   let py = PAY_TOP + 22;
@@ -536,12 +552,12 @@ function generateDevisPdf(full, settings, quote) {
   if (depositAmt > 0) {
     py = checkBreak(py, 34);
     doc.rect(LEFT, py, PAGE_W, 28).fill('#fff8e1');
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text('Acompte :', LEFT + 8, py + 7);
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(L.depositLabel, LEFT + 8, py + 7);
     doc.font('Helvetica-Bold').fillColor(payTextColor)
       .text(formatCurrency(depositAmt), LEFT + 70, py + 7);
     if (full.depositDueDate) {
       doc.font('Helvetica').fillColor(TEXT_LIGHT)
-        .text(`À payer avant le ${formatDateFR(full.depositDueDate)}`, LEFT + 170, py + 7);
+        .text(`${L.payBefore}${fmtDate(full.depositDueDate)}`, LEFT + 170, py + 7);
     }
     py += 34;
   }
@@ -550,12 +566,12 @@ function generateDevisPdf(full, settings, quote) {
   if (balanceAmt > 0) {
     py = checkBreak(py, 30);
     doc.rect(LEFT, py, PAGE_W, 24).fill(LIGHT_GRAY);
-    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text('Solde :', LEFT + 8, py + 7);
+    doc.fontSize(9).fillColor(TEXT_LIGHT).font('Helvetica').text(L.balanceLabel, LEFT + 8, py + 7);
     doc.font('Helvetica-Bold').fillColor(payTextColor)
       .text(formatCurrency(balanceAmt), LEFT + 70, py + 7);
     if (full.balanceDueDate) {
       doc.font('Helvetica').fillColor(TEXT_LIGHT)
-        .text(`À payer avant le ${formatDateFR(full.balanceDueDate)}`, LEFT + 170, py + 7);
+        .text(`${L.payBefore}${fmtDate(full.balanceDueDate)}`, LEFT + 170, py + 7);
     }
     py += 30;
   }
@@ -564,16 +580,17 @@ function generateDevisPdf(full, settings, quote) {
   if (Number(full.cautionAmount || 0) > 0) {
     py = checkBreak(py, 30);
     doc.rect(LEFT, py, PAGE_W, 24).fill('#e8f5e9');
-    doc.fontSize(9).fillColor('#2e7d32').font('Helvetica').text('Caution :', LEFT + 8, py + 7);
+    doc.fontSize(9).fillColor('#2e7d32').font('Helvetica').text(L.cautionLabel, LEFT + 8, py + 7);
     doc.font('Helvetica-Bold').fillColor(payTextColor)
-      .text(`${formatCurrency(full.cautionAmount)} — à remettre le jour de votre arrivée`, LEFT + 70, py + 7);
+      .text(`${formatCurrency(full.cautionAmount)}${L.cautionOnArrival}`, LEFT + 70, py + 7);
     py += 30;
   }
 
   // ── Custom footer text ────────────────────────────────────────────────────
-  const footerText = settings.quoteFooterText ||
-    'Nous vous remercions de votre intérêt et restons à votre disposition pour tout renseignement complémentaire. ' +
-    'Dans l\'attente de votre confirmation, nous vous souhaitons une excellente journée.';
+  // Per-language: each language uses its own operator-customised footer when present, else a
+  // static default in the right language (no cross-fall back: a French footer inside an EN PDF
+  // would read as broken). Delegates to `__resolveFooterText` so the test surface stays small.
+  const footerText = __resolveFooterText(settings, language, labels('en').defaultFooter, labels('fr').defaultFooter);
 
   if (footerText.trim()) {
     const footerH = doc.heightOfString(footerText, { width: PAGE_W }) + 30;
@@ -587,8 +604,8 @@ function generateDevisPdf(full, settings, quote) {
 
   // ── Per-page footer (company name + SIRET/TVA + page n/N) ─────────────────
   const legalParts = [];
-  if (settings.companySiret) legalParts.push(`SIRET : ${settings.companySiret}`);
-  if (settings.companyTva) legalParts.push(`N° TVA : ${settings.companyTva}`);
+  if (settings.companySiret) legalParts.push(`${L.siret}${settings.companySiret}`);
+  if (settings.companyTva) legalParts.push(`${L.vatNumber}${settings.companyTva}`);
   const legalCenter = legalParts.join('   •   ');
 
   const range = doc.bufferedPageRange();
@@ -610,7 +627,7 @@ function generateDevisPdf(full, settings, quote) {
     }
     // Right: page X / N
     doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
-      .text(`Page ${i + 1} / ${totalPages}`, LEFT + PAGE_W * 0.75, ftY, { width: PAGE_W * 0.25, align: 'right' });
+      .text(L.pageNumber(i + 1, totalPages), LEFT + PAGE_W * 0.75, ftY, { width: PAGE_W * 0.25, align: 'right' });
   }
 
   doc.flushPages();
@@ -618,4 +635,35 @@ function generateDevisPdf(full, settings, quote) {
   });
 }
 
-module.exports = { generateDevisPdf, __test: { resolveLiveTaxTotals } };
+// Pure resolvers exposed for unit testing the bilingual fallback logic without rendering a
+// full PDF (PDFKit encodes text as glyph indexes, so the rendered bytes can't be grep'd for
+// language-specific strings). The renderer above uses the same shape inline so behaviour
+// stays in sync.
+function __resolveOptionTitle(opt, language) {
+  const lang = String(language || 'fr').toLowerCase();
+  if (lang === 'en' && opt && String(opt.titleEn || '').trim()) return String(opt.titleEn).trim();
+  return opt && opt.title ? opt.title : `Option #${opt?.optionId}`;
+}
+
+function __resolveResourceName(rsc, language) {
+  const lang = String(language || 'fr').toLowerCase();
+  if (lang === 'en' && rsc && String(rsc.nameEn || '').trim()) return String(rsc.nameEn).trim();
+  return rsc && rsc.name ? rsc.name : `Resource #${rsc?.resourceId}`;
+}
+
+function __resolveFooterText(settings, language, defaultEn, defaultFr) {
+  const lang = String(language || 'fr').toLowerCase();
+  const custom = lang === 'en' ? settings?.quoteFooterTextEn : settings?.quoteFooterText;
+  if (custom && String(custom).trim()) return String(custom);
+  return lang === 'en' ? defaultEn : defaultFr;
+}
+
+module.exports = {
+  generateDevisPdf,
+  __test: {
+    resolveLiveTaxTotals,
+    resolveOptionTitle: __resolveOptionTitle,
+    resolveResourceName: __resolveResourceName,
+    resolveFooterText: __resolveFooterText,
+  },
+};
