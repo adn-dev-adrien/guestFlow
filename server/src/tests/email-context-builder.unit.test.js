@@ -127,3 +127,42 @@ test('nights computation matches diffDays', () => {
   const { vars } = buildContext(baseInput({ reservation: { startDate: '2026-07-10', endDate: '2026-07-14' } }));
   assert.equal(vars.nights, '4');
 });
+
+// ---- propertyWithArticle (specs/email-automation.md §3 rule 13) ----
+
+test('propertyWithArticle joins the stored article with the name', () => {
+  const au   = buildContext(baseInput({ property: { name: 'Gite',  nameArticle: 'au' } })).vars;
+  const ala  = buildContext(baseInput({ property: { name: 'Tente', nameArticle: 'à la' } })).vars;
+  const aux  = buildContext(baseInput({ property: { name: 'Gîtes', nameArticle: 'aux' } })).vars;
+  assert.equal(au.propertyWithArticle,  'au Gite');
+  assert.equal(ala.propertyWithArticle, 'à la Tente');
+  assert.equal(aux.propertyWithArticle, 'aux Gîtes');
+});
+
+test('propertyWithArticle elides (no space) for the apostrophe form', () => {
+  const { vars } = buildContext(baseInput({ property: { name: 'Aventura Lodge', nameArticle: "à l'" } }));
+  assert.equal(vars.propertyWithArticle, "à l'Aventura Lodge");
+});
+
+test('propertyWithArticle falls back to "au" when no article is stored', () => {
+  const { vars } = buildContext(baseInput({ property: { name: 'Gite', nameArticle: undefined } }));
+  assert.equal(vars.propertyWithArticle, 'au Gite');
+});
+
+test('propertyWithArticle is empty when the property has no name', () => {
+  const { vars } = buildContext(baseInput({ property: { name: '', nameArticle: 'au' } }));
+  assert.equal(vars.propertyWithArticle, '');
+  assert.equal(__test.formatPropertyWithArticle('', 'au'), '');
+});
+
+// ---- senderName (specs/email-automation.md §3 rule 14) ----
+
+test('senderName uses the SMTP "Nom expéditeur" (smtpFromName)', () => {
+  const { vars } = buildContext(baseInput({ settings: { smtpFromName: 'Les Gîtes du Sud', companyName: 'SARL Soleil' } }));
+  assert.equal(vars.senderName, 'Les Gîtes du Sud');
+});
+
+test('senderName falls back to companyName when smtpFromName is blank', () => {
+  const { vars } = buildContext(baseInput({ settings: { smtpFromName: '   ', companyName: 'SARL Soleil' } }));
+  assert.equal(vars.senderName, 'SARL Soleil');
+});

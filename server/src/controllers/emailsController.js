@@ -85,11 +85,27 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       ok: true,
       template,
       reservationId: Number(reservationId),
+      clientId: graph.client?.id || null,
       to: String(graph.client?.email || '').trim(),
       subject,
       body,
       missingVariables,
     };
+  }
+
+  // Basic shape check — the authoritative guard before we store an operator-typed address
+  // on the client record / hand it to the SMTP transport.
+  function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+  }
+
+  // Persist an operator-typed recipient onto a client that had no email on file
+  // (specs/email-automation.md §3 rule 10). Never overwrites an existing address.
+  function persistClientEmailIfEmpty(clientId, email) {
+    if (!clientId || !isValidEmail(email)) return;
+    database
+      .prepare("UPDATE clients SET email = ?, updatedAt = datetime('now') WHERE id = ? AND COALESCE(email, '') = ''")
+      .run(String(email).trim(), Number(clientId));
   }
 
   // ---------- HTTP handlers ----------
@@ -116,7 +132,15 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     }
     const result = buildPreview(Number(reservationId), Number(templateId), overrides || {});
     if (result.error) return res.status(result.status).json({ error: result.error });
-    if (!result.to)   return res.status(404).json({ error: 'CLIENT_NO_EMAIL' });
+
+    // Resolve the recipient: the client's email on file wins; otherwise the operator may
+    // type one in the send dialog (overrides.to) for a client that has none. That typed
+    // address is persisted onto the client record after a successful send (§3 rule 9).
+    const overrideTo = String((overrides && overrides.to) || '').trim();
+    const clientHadEmail = Boolean(result.to);
+    const recipient = result.to || overrideTo;
+    if (!recipient) return res.status(404).json({ error: 'CLIENT_NO_EMAIL' });
+    if (!isValidEmail(recipient)) return res.status(400).json({ error: 'INVALID_EMAIL' });
 
     if (!smtpConfigured()) {
       // Audit trail: log the failure so the operator sees the trace on the history page.
@@ -127,14 +151,17 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         errorMessage:    'EMAIL_NOT_CONFIGURED',
         renderedSubject: result.subject,
         renderedBody:    result.body,
-        recipientEmail:  result.to,
+        recipientEmail:  recipient,
       });
       return res.status(409).json({ error: 'EMAIL_NOT_CONFIGURED', emailLogId: failed.id });
     }
 
     try {
       const svc = buildEmailService();
-      await svc.send({ to: result.to, subject: result.subject, text: result.body });
+      await svc.send({ to: recipient, subject: result.subject, text: result.body });
+      // The send succeeded with an operator-typed address → save it on the client so the
+      // next email finds it on file.
+      if (!clientHadEmail) persistClientEmailIfEmpty(result.clientId, recipient);
       const row = logModel.insert({
         templateId:      Number(templateId),
         reservationId:   Number(reservationId),
@@ -142,7 +169,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         errorMessage:    '',
         renderedSubject: result.subject,
         renderedBody:    result.body,
-        recipientEmail:  result.to,
+        recipientEmail:  recipient,
       });
       return res.json({ ok: true, emailLogId: row.id, sentAt: row.sentAt });
     } catch (err) {
@@ -153,7 +180,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         errorMessage:    String(err?.message || 'unknown'),
         renderedSubject: result.subject,
         renderedBody:    result.body,
-        recipientEmail:  result.to,
+        recipientEmail:  recipient,
       });
       const code = err?.code === 'EMAIL_NOT_CONFIGURED' ? 409 : 500;
       return res.status(code).json({

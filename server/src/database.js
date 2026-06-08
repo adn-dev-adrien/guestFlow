@@ -35,6 +35,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS properties (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    nameArticle TEXT DEFAULT 'au',
     photo TEXT DEFAULT '',
     maxAdults INTEGER DEFAULT 2,
     maxChildren INTEGER DEFAULT 0,
@@ -579,6 +580,11 @@ if (!propCols.includes('basePriceIncludedGuests')) {
 }
 if (!propCols.includes('extraGuestPrice')) {
   db.exec("ALTER TABLE properties ADD COLUMN extraGuestPrice REAL DEFAULT 0");
+}
+// French grammatical article for the property name, used to build "votre séjour <article> <name>"
+// in client emails (specs/email-automation.md §3 rule 13). One of: 'au', 'à la', "à l'", 'aux'.
+if (!propCols.includes('nameArticle')) {
+  db.exec("ALTER TABLE properties ADD COLUMN nameArticle TEXT DEFAULT 'au'");
 }
 
 const pricingRuleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map(c => c.name);
@@ -1665,6 +1671,33 @@ db.exec(`
 const { ensureDefaultEmailTemplates } = require('./utils/defaultEmailTemplatesSeed');
 ensureDefaultEmailTemplates(db);
 db.ensureDefaultEmailTemplates = ensureDefaultEmailTemplates;
+
+// Content migration (specs/email-automation.md §3 rule 13): the shipped J-7 reminder gained
+// the {{propertyWithArticle}} token, but the seed is insert-only, so installs seeded before
+// the change still carry the old "séjour à {{propertyName}}" phrasing. Upgrade that exact
+// phrase to the article-aware token. Idempotent (the LIKE guard skips already-migrated rows)
+// and scoped to the shipped template; the plain "- Logement : {{propertyName}}" line is left
+// untouched. If the operator rewrote the body without that phrase, this is a no-op.
+db.prepare(`
+  UPDATE email_templates
+  SET subject   = REPLACE(subject, 'séjour à {{propertyName}}', 'séjour {{propertyWithArticle}}'),
+      body      = REPLACE(body,    'séjour à {{propertyName}}', 'séjour {{propertyWithArticle}}'),
+      updatedAt = datetime('now')
+  WHERE stableKey = 'arrival_reminder_7d'
+    AND (subject LIKE '%séjour à {{propertyName}}%' OR body LIKE '%séjour à {{propertyName}}%')
+`).run();
+
+// Content migration (specs/email-automation.md §3 rule 14): the shipped J-7 reminder now
+// signs with {{senderName}} (Settings → Envoi d'emails → "Nom expéditeur") instead of
+// {{companyName}}. Upgrade the seeded signature on installs created before the change.
+// Idempotent + scoped to the shipped template; operator templates keep {{companyName}}.
+db.prepare(`
+  UPDATE email_templates
+  SET body      = REPLACE(body, '{{companyName}}', '{{senderName}}'),
+      updatedAt = datetime('now')
+  WHERE stableKey = 'arrival_reminder_7d'
+    AND body LIKE '%{{companyName}}%'
+`).run();
 
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.

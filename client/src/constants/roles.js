@@ -46,8 +46,8 @@ export const ROUTE_ROLES = Object.freeze({
   // per-platform commission config, reachable by both admin and accountant.
   '/comptabilite/plateformes': [ADMIN, ACCOUNTANT],
   '/devis':                  [ADMIN],
-  // specs/email-automation.md — admin-only library + history.
-  '/emails/modeles':         [ADMIN],
+  // specs/email-automation.md — admin-only Emails page + history.
+  '/emails':                 [ADMIN],
   '/emails/historique':      [ADMIN],
   '/settings':               [ADMIN],
   '/properties':             [ADMIN],

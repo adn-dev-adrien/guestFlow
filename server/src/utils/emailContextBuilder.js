@@ -49,6 +49,20 @@ function formatBedConfig({ singleBeds, doubleBeds, babyBeds }) {
   return parts.join(', ');
 }
 
+// Combine the property's stored French article with its name for "votre séjour <…>" phrasing
+// (specs/email-automation.md §3 rule 13). The article is operator-chosen per property — the
+// only reliable source, since gender/elision can't be inferred from arbitrary brand names.
+//   'au'    + 'Gite'           → 'au Gite'
+//   'à la'  + 'Tente'          → 'à la Tente'
+//   "à l'"  + 'Aventura Lodge' → "à l'Aventura Lodge"   (elided forms glue, no space)
+//   'aux'   + 'Gîtes'          → 'aux Gîtes'
+function formatPropertyWithArticle(name, article) {
+  const n = safeStr(name).trim();
+  if (!n) return '';
+  const a = safeStr(article).trim() || 'au';
+  return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
+}
+
 /**
  * @param {{
  *   reservation: object,           // reservations row
@@ -107,8 +121,9 @@ function buildContext({ reservation, client, property, options = [], settings = 
       babiesCount:  String(Number(r.babies || 0)),
       totalGuests:  String(totalGuests),
       // Property
-      propertyName:    safeStr(p.name),
-      propertyAddress: '', // see §4.4: column doesn't exist yet, ship as empty string.
+      propertyName:        safeStr(p.name),
+      propertyWithArticle: formatPropertyWithArticle(p.name, p.nameArticle),
+      propertyAddress:     '', // see §4.4: column doesn't exist yet, ship as empty string.
       // Financial
       finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
       depositAmount:   formatCurrency(Number(r.depositAmount || 0)),
@@ -125,6 +140,9 @@ function buildContext({ reservation, client, property, options = [], settings = 
       companyName:  safeStr(settings.companyName),
       companyPhone: safeStr(settings.companyPhone),
       companyEmail: safeStr(settings.companyEmail),
+      // Email sender display name (Settings → Envoi d'emails → "Nom expéditeur"); falls back
+      // to the legal company name when blank. Used for the email signature.
+      senderName:   safeStr(settings.smtpFromName).trim() || safeStr(settings.companyName),
     },
     flags: {
       hasBedLinenOption,
@@ -137,5 +155,5 @@ function buildContext({ reservation, client, property, options = [], settings = 
 module.exports = {
   buildContext,
   // Exposed for tests.
-  __test: { formatBedConfig, joinAddress, diffDays },
+  __test: { formatBedConfig, joinAddress, diffDays, formatPropertyWithArticle },
 };
