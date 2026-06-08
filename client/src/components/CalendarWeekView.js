@@ -212,7 +212,7 @@ export default function CalendarWeekView({
   };
 
   return (
-    <Card sx={{ overflow: 'hidden' }}>
+    <Card sx={{ overflow: 'hidden', width: '100%', maxWidth: '100%' }}>
       {/* Week header + navigation */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, borderBottom: '1px solid', borderColor: 'divider', position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 2 }}>
         <IconButton size="small" onClick={() => goTo(Math.max(0, index - 1))} aria-label="Semaine précédente">

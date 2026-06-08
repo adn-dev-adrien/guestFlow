@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **Mobile calendar now fits the screen width** (spec
+  `calendar-mobile-view.md`, 2026-06-08). The main content area
+  (`<Box component="main">`) lacked `minWidth: 0`, so the week strip's
+  non-shrinkable full-width pages stretched the page wider than the phone
+  (page-level horizontal scroll). Added `minWidth: 0` on `main` (+ a
+  `width/maxWidth: 100%` guard on the week-view card); the page fits the
+  viewport and only the week strip scrolls horizontally.
+
 ### Added
 - **Mobile-friendly calendars** (spec `calendar-mobile-view.md`,
   2026-06-08). On phones (`xs`), the reservation calendar (`/calendar`)
