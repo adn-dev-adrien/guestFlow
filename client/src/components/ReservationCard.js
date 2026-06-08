@@ -32,6 +32,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
+import EuroIcon from '@mui/icons-material/Euro';
 import NoteIcon from '@mui/icons-material/Note';
 import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -245,6 +246,22 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
                   <Chip key={i} label={label} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />
                 ))}
               </Box>
+            </Box>
+          )}
+
+          {/* Complément à percevoir (specs/force-extras-complement-on-platform.md). On platform/iCal
+              reservations the options are collected on arrival — surface the amount + status so the
+              host knows what to collect at check-in. */}
+          {Number(r.complementAmount || 0) > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              <EuroIcon sx={{ fontSize: 16, color: 'warning.dark', flexShrink: 0 }} />
+              <Chip
+                label={`Complément à percevoir : ${Number(r.complementAmount).toFixed(2)}€${r.complementPaid ? ' (perçu)' : ''}`}
+                size="small"
+                color={r.complementPaid ? 'success' : 'warning'}
+                variant={r.complementPaid ? 'outlined' : 'filled'}
+                sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
+              />
             </Box>
           )}
 

@@ -153,3 +153,20 @@ test('options + resources — chips rendered for non-empty lists', () => {
   expect(screen.getByText('Petit déjeuner ×4')).toBeInTheDocument();
   expect(screen.getByText('Bain nordique ×1')).toBeInTheDocument();
 });
+
+// specs/force-extras-complement-on-platform.md — the arrival tile reports the complementary
+// payment + amount (collected on arrival for platform/iCal reservations).
+test('complement — shows "Complément à percevoir" with the amount when complementAmount > 0', () => {
+  render(<ReservationCard reservation={{ ...BASE, complementAmount: 45, complementPaid: false }} onToggleReady={noop} />);
+  expect(screen.getByText(/Complément à percevoir : 45\.00€/)).toBeInTheDocument();
+});
+
+test('complement — marks it (perçu) when complementPaid', () => {
+  render(<ReservationCard reservation={{ ...BASE, complementAmount: 45, complementPaid: true }} onToggleReady={noop} />);
+  expect(screen.getByText(/Complément à percevoir : 45\.00€ \(perçu\)/)).toBeInTheDocument();
+});
+
+test('complement — no chip when complementAmount is 0 / absent', () => {
+  render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
+  expect(screen.queryByText(/Complément à percevoir/)).toBeNull();
+});
