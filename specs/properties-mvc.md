@@ -119,8 +119,28 @@ No schema change, no migration.
 
 ## 6. UI / UX
 
-No visible change. Property list/detail, pricing seasons, documents, options, iCal sources management +
-sync feedback all behave identically. (No `PageActionBar` change in scope.)
+Original MVC scope: no visible change. Property list/detail, pricing seasons, documents, options,
+iCal sources management + sync feedback all behave identically. (No `PageActionBar` change in scope.)
+
+### 6.1 Property detail layout rework (2026-06-08)
+
+`PropertyDetail` (`/properties/:id`) previously laid its cards out in a `<Grid container>` of
+`md=6` items. Because the cards have very uneven heights (e.g. "Horaires & Ménage" = 2 fields vs
+"Informations" / "Tarification" = tall), the row-based Grid left large empty gaps under the short
+cards. Reworked to **two explicit columns** (a flex row, `flexDirection: { xs: 'column', md: 'row' }`,
+`gap: 3`, `alignItems: 'flex-start'` so each column keeps its own height) for the compact cards,
+plus a full-width section below for the wide ones:
+
+- **Left column:** Informations (incl. the article selector) + Acompte & Solde.
+- **Right column:** Horaires & Ménage + Options horaires automatiques + Options par défaut.
+- **Full width below:** **Tarification** (holds the pricing-seasons table, `minWidth 700`),
+  **Documents**, **iCal Export**, **Connexions iCal**.
+
+Explicit columns (rather than a CSS-`columnCount` masonry) are used so card placement is
+deterministic — e.g. Acompte stays in the left column — and inter-card spacing is regular (no
+margin-collapse against a `column-span` element). On `xs` everything stacks into one column. No
+behaviour change — purely layout; logic, role gating, dirty-form guard and endpoints untouched.
+The `Grid` import is dropped from the page.
 
 ## 7. Test plan
 
