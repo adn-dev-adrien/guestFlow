@@ -313,6 +313,28 @@ const api = {
   createEstablishmentClosure: (data) => request('/establishment-closures', { method: 'POST', body: data }),
   updateEstablishmentClosure: (id, data) => request(`/establishment-closures/${id}`, { method: 'PUT', body: data }),
   deleteEstablishmentClosure: (id) => request(`/establishment-closures/${id}`, { method: 'DELETE' }),
+
+  // Email automation (specs/email-automation.md)
+  getEmailTemplates:        () => request('/email-templates'),
+  getEmailTemplate:         (id) => request(`/email-templates/${id}`),
+  createEmailTemplate:      (data) => request('/email-templates', { method: 'POST', body: data }),
+  updateEmailTemplate:      (id, data) => request(`/email-templates/${id}`, { method: 'PUT', body: data }),
+  deleteEmailTemplate:      (id) => request(`/email-templates/${id}`, { method: 'DELETE' }),
+
+  previewEmail: ({ reservationId, templateId }) =>
+    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}`),
+  sendEmail:    ({ reservationId, templateId, overrides }) =>
+    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides } }),
+  getPendingEmails:          () => request('/emails/pending'),
+  acknowledgePendingEmail:   ({ templateId, reservationId }) =>
+    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),
+  getEmailHistory: (params = {}) => {
+    const filtered = Object.entries(params)
+      .filter(([, v]) => v != null && v !== '')
+      .reduce((acc, [k, v]) => { acc[k] = String(v); return acc; }, {});
+    const qs = new URLSearchParams(filtered).toString();
+    return request(`/emails/history${qs ? `?${qs}` : ''}`);
+  },
 };
 
 export default api;

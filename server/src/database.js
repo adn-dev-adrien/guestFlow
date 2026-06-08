@@ -1623,6 +1623,49 @@ const { ensureDefaultBreakfastOption } = require('./utils/breakfastSeed');
 ensureDefaultBreakfastOption(db);
 db.ensureDefaultBreakfastOption = ensureDefaultBreakfastOption;
 
+// ---------- EMAIL AUTOMATION — specs/email-automation.md ----------
+// Two tables: `email_templates` (CRUD-able library) + `email_log` (every send attempt,
+// regardless of mode). Both idempotent at boot. The `stableKey` column on templates is
+// what `defaultEmailTemplatesSeed` uses to detect "already inserted this registry entry"
+// — null for operator-created rows, unique-non-null for registry-seeded ones.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS email_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stableKey TEXT UNIQUE,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    dayOffset INTEGER NOT NULL,
+    sendMode TEXT NOT NULL DEFAULT 'manual',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now')),
+    CHECK (sendMode IN ('auto', 'manual'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_email_templates_enabled_offset
+    ON email_templates(enabled, dayOffset);
+
+  CREATE TABLE IF NOT EXISTS email_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    templateId INTEGER,
+    reservationId INTEGER NOT NULL,
+    sentAt TEXT NOT NULL DEFAULT (datetime('now')),
+    status TEXT NOT NULL,
+    errorMessage TEXT DEFAULT '',
+    renderedSubject TEXT NOT NULL,
+    renderedBody TEXT NOT NULL,
+    recipientEmail TEXT NOT NULL DEFAULT '',
+    CHECK (status IN ('sent', 'failed', 'acknowledged-skip'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_email_log_reservation ON email_log(reservationId);
+  CREATE INDEX IF NOT EXISTS idx_email_log_status_sent ON email_log(status, sentAt DESC);
+  CREATE INDEX IF NOT EXISTS idx_email_log_template_res ON email_log(templateId, reservationId);
+`);
+
+const { ensureDefaultEmailTemplates } = require('./utils/defaultEmailTemplatesSeed');
+ensureDefaultEmailTemplates(db);
+db.ensureDefaultEmailTemplates = ensureDefaultEmailTemplates;
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

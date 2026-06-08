@@ -150,6 +150,9 @@ app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));
 app.use('/api/laundry', require('./routes/laundry'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+// specs/email-automation.md — template library + send / preview / pending / acknowledge / history.
+app.use('/api/email-templates', require('./routes/emailTemplates'));
+app.use('/api/emails',          require('./routes/emails'));
 
 app.get('/api/version', (req, res) => {
   res.json({
