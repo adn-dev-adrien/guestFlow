@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "guestflow/calendar",
+  "version": "1.0.0",
+  "title": "GuestFlow — Calendrier de disponibilités",
+  "category": "widgets",
+  "icon": "calendar-alt",
+  "description": "Affiche le calendrier de disponibilités d'un logement (dates indisponibles grisées).",
+  "textdomain": "guestflow-booking",
+  "attributes": {
+    "propertyId": { "type": "number", "default": 0 },
+    "monthsToShow": { "type": "number", "default": 2 }
+  },
+  "supports": { "html": false, "align": ["wide", "full"] },
+  "editorScript": "guestflow-calendar-editor",
+  "viewScript": "guestflow-calendar-view",
+  "style": "guestflow-style",
+  "editorStyle": "guestflow-style",
+  "render": "file:./render.php"
+}

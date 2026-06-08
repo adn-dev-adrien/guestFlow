@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "guestflow/booking",
+  "version": "1.0.0",
+  "title": "GuestFlow — Devis & demande de réservation",
+  "category": "widgets",
+  "icon": "calendar",
+  "description": "Assistant : dates + voyageurs + options → devis en direct → demande de réservation.",
+  "textdomain": "guestflow-booking",
+  "attributes": {
+    "propertyId": { "type": "number", "default": 0 },
+    "showOptions": { "type": "boolean", "default": true }
+  },
+  "supports": { "html": false, "align": ["wide"] },
+  "editorScript": "guestflow-booking-editor",
+  "viewScript": "guestflow-booking-view",
+  "style": "guestflow-style",
+  "editorStyle": "guestflow-style",
+  "render": "file:./render.php"
+}

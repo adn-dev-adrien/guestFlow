@@ -4,6 +4,24 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **WordPress plugin "GuestFlow Booking"** (spec `wordpress-plugin.md`,
+  2026-06-08) in `integrations/wordpress/guestflow-booking/`. A build-free
+  plugin that connects a WordPress showcase site to GuestFlow's public API:
+  - Three Gutenberg blocks — **Calendrier de disponibilités**, **Devis &
+    demande de réservation** (live quote via the GuestFlow pricing engine →
+    booking request), and **Liste des logements** (cards with "à partir de
+    X €/nuit" + link to a booking page).
+  - A **PHP REST proxy** (`/wp-json/guestflow/v1/*`): the visitor's browser
+    only talks to the plugin; PHP relays to GuestFlow `/public/v1/*` with the
+    API key injected server-side. **The key is never exposed to the browser.**
+  - Settings page (Réglages → GuestFlow): API base URL, API key (masked; a
+    `wp-config` `GUESTFLOW_API_KEY` constant takes precedence), cache TTLs,
+    default property, booking page URL, and a "Test connection" button.
+  - Transient read cache (stale-while-error grace), honeypot + WP REST nonce
+    on the booking write. No build toolchain — plain ES blocks; package via
+    `bin/make-zip.sh`. Inert for the Raspberry Pi deploy (allow-list archive).
+
 ### Fixed
 - **Mobile calendar now fits the screen width** (spec
   `calendar-mobile-view.md`, 2026-06-08). The main content area
