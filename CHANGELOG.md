@@ -13,6 +13,14 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   clamped ≥0); invalid input reverts. New safe (no-`eval`) evaluator
   `utils/arithmetic.js` + reusable `ArithmeticTextField` component.
   +15 client tests.
+- **Dashboard card — new iCal reservations imported today** (spec
+  `dashboard-ical-new-reservations.md`, 2026-06-08). A read-only blue
+  card on the dashboard lists every reservation imported via iCal during
+  the current (UTC) day — guest, property, platform/source, stay dates,
+  and a relative "imported X ago". Clicking a row opens the reservation
+  page. The card auto-rolls daily (no acknowledge / no new table) and is
+  hidden when nothing was imported. New `GET /api/dashboard/ical-new-today`
+  + `IcalNewReservationsAlert` component. +7 server tests, +5 client tests.
 
 ### Fixed
 - **Bed-linen default now appears on iCal-arrived reservations** (spec
