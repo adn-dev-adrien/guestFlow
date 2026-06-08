@@ -1182,11 +1182,12 @@ export default function ReservationPage() {
     }
     setOptionQuantity(optionId, 0);
     // specs/bed-config-in-linen-card.md §3 rule 3 — disabling a `countsAsBedLinen = 1`
-    // option zeroes the bed counters in form state, mirroring the server invariant on save
-    // (rule 7). Keeps the UI consistent: the inputs disappear, and the saved data matches.
+    // option zeroes the single/double bed counters in form state, mirroring the server invariant
+    // on save (rule 7). Baby beds are NOT cleared (§10 follow-up 2026-06-08): they are independent
+    // of the bed-linen option and stay editable in the Voyageurs card whenever babies > 0.
     const opt = propertyOptions.find((o) => o.id === optionId);
     if (opt && Number(opt.countsAsBedLinen || 0) === 1) {
-      updateForm({ singleBeds: '', doubleBeds: '', babyBeds: '' });
+      updateForm({ singleBeds: '', doubleBeds: '' });
     }
   };
 

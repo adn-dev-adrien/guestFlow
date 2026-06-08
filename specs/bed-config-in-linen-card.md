@@ -56,20 +56,25 @@ the new invariant.
 
 ## 3. Functional rules
 
-1. **Bed counts move out of "Voyageurs et couchages"** — the three
-   `TextField`s (Lits doubles / Lits simples / Lits bébé) are
-   removed from `GuestsBedsSection`. The card stays, renamed to
-   **"Voyageurs"** (it still holds the 4 guest counts + the
-   capacity-exceeded warning).
+1. **Bed counts move out of "Voyageurs et couchages"** — the
+   `TextField`s for Lits doubles / Lits simples are removed from
+   `GuestsBedsSection`. The card stays, renamed to **"Voyageurs"** (it
+   still holds the 4 guest counts + the capacity-exceeded warning).
+   **Exception (follow-up #6, 2026-06-08):** the **Lits bébé** counter
+   (+ "Dispo restante") stays in the **Voyageurs** card and is shown
+   whenever `babies > 0` — a baby bed is an independent resource, not a
+   linen item, so it is NOT moved into the linen card.
 2. **Bed counts appear inside the "Linge de lit" option card** —
    when the option is enabled (Switch ON), the three `TextField`s
    are rendered below the existing quantity + complement row, inside
    the same card.
-3. **Bed counts are hidden when the option is OFF** — when the
-   operator turns the Switch OFF (or never turns it ON), the inputs
-   are not rendered. The form state for `singleBeds / doubleBeds /
-   babyBeds` is reset to empty strings the moment the Switch flips
-   to OFF (auto-zero). Toggling back ON starts with empty inputs.
+3. **Single/double bed counts are hidden when the option is OFF** —
+   when the operator turns the Switch OFF (or never turns it ON), the
+   `singleBeds / doubleBeds` inputs are not rendered and their form
+   state is reset to empty strings the moment the Switch flips to OFF
+   (auto-zero). Toggling back ON starts with empty inputs. **`babyBeds`
+   is exempt (follow-up #6):** it is not cleared by the Switch and lives
+   in the Voyageurs card, gated only on `babies > 0`.
 4. **The "Linge de lit" option card is always shown when the option
    is in the property catalog** — whether the property auto-includes
    it as a default or not. No new rendering condition. This is
@@ -99,11 +104,16 @@ the new invariant.
    the "Linge de lit" card. It is rendered only when the option is
    enabled.
 7. **Server-side invariant on save (create + update)** — the
-   reservation controller forces `singleBeds / doubleBeds / babyBeds`
-   to `0` whenever the final `reservation_options` (after the
+   reservation controller forces `singleBeds / doubleBeds` to `0`
+   whenever the final `reservation_options` (after the
    property-defaults merge described below) contains **no** option
    flagged `countsAsBedLinen = 1`. This protects the DB from a
    misbehaving client (or a future spec change that bypasses the UI).
+   **`babyBeds` is exempt (follow-up #6, 2026-06-08):** it is kept
+   regardless of the bed-linen option (independent resource). Safe for
+   laundry — `laundryModel` gates its baby-bed aggregation on the linen
+   option separately, so an un-linen reservation with `babyBeds > 0`
+   never pollutes laundry counts.
 
    **Bed-linen-only property-defaults merge on update** — on `create`
    the controller already merges ALL property defaults into
@@ -363,7 +373,10 @@ Expected: existing **1006** + **5 + 4** = **1015** server tests.
 
 | File | Cases |
 |---|---|
-| **NEW** `client/src/components/__tests__/ExtrasSection.bed-linen-inputs.test.js` | (1) Option enabled → 3 bed `TextField`s + "Suggérer les lits" button rendered inside the option card. (2) Option disabled → no bed `TextField` in the card. (3) Toggling the Switch from ON to OFF auto-zeros the form's `singleBeds / doubleBeds / babyBeds` to `''`. (4) Two bed-linen-flagged options both enabled → bed inputs rendered exactly once (under the first one in catalog order). |
+| **NEW** `client/src/components/__tests__/ExtrasSection.bed-linen-inputs.test.js` | (1) Option enabled → lits doubles/simples `TextField`s + "Suggérer les lits" button inside the option card; **lits bébé is NOT here** (follow-up #6 — moved to Voyageurs). (2) Option disabled → no bed `TextField` in the card. (3) Toggling the Switch from ON to OFF auto-zeros the form's `singleBeds / doubleBeds` to `''` (baby beds untouched). (4) Two bed-linen-flagged options both enabled → bed inputs rendered exactly once. |
+| **NEW** `client/src/components/__tests__/GuestsBedsSection.baby-bed.test.js` (follow-up #6) | (1) `babies > 0` → "Lits bébé" field shown with "Dispo restante". (2) `babies = 0` → no field. (3) all baby beds taken elsewhere → field capped at 0 ("Dispo restante: 0"). (4) typing above availability clamps to `maxBabyBedsByRule`. |
+| **NEW** `server/src/tests/resources-model.unit.test.js` (follow-up #6, baby-bed availability) | total from the *Lit bébé* resource; overlapping reservations consume beds (all taken → 0); non-overlapping don't count; `excludeReservationId` ignores the current reservation. |
+| **NEW** `server/src/tests/property-ical-sync.unit.test.js` (follow-up #5) | an iCal-created reservation receives the property's option defaults in `reservation_options`, `offered` per the property setting (offered + non-offered cases). |
 | **NEW** `client/src/components/__tests__/GuestsBedsSection.no-beds.test.js` | (1) Card title is "Voyageurs" (not "Voyageurs et couchages"). (2) No `TextField` with label `Lits doubles / Lits simples / Lits bébé` is rendered. |
 
 Expected: existing **227** + **4 + 2** = **233** Vitest cases.
@@ -510,3 +523,40 @@ that ships each step, per CLAUDE.md §4.1.)_
       the contract (NULL / '' / '   ' all → 'direct'; real platform
       values preserved). Verified live: PUT to #12089 with
       `platform: ''` returns 200 OK and the DB stores `'direct'`.
+
+- [x] **Hotfix 2026-06-08 follow-up #5 — bed-linen default applied to
+      iCal-arrived reservations** — Adrien reported that on "Gite"
+      (bed linen is a property default flagged *offered*), a booking
+      that just arrived via the iCal sync did **not** show the
+      bed-linen option. Root cause: the iCal sync
+      (`propertyIcalModel.syncSource`) inserts a bare reservation and
+      bypassed the property-option-defaults merge that
+      `reservationsController.create` runs. Fix: after each iCal insert
+      the sync now applies the property's option defaults to
+      `reservation_options` (quantity 1, `offered` per the property
+      setting, pricing left at 0 — iCal reservations stay unpriced and
+      the engine recomputes on the operator's first save). Guarded so
+      minimal test schemas (no `property_option_defaults` /
+      `reservation_options`) no-op. +2 sync tests (offered + non-offered
+      default land on the iCal reservation).
+
+- [x] **Hotfix 2026-06-08 follow-up #6 — baby beds decoupled from the
+      bed-linen option** — Adrien reported losing the "Lit bébé"
+      display (its availability comes from the *Lit bébé* resource via
+      `getBabyBedAvailability`) when `babies > 0`. Since follow-up
+      #1/rule 1 moved every bed counter into the "Linge de lit" option
+      card, the baby-bed counter was hidden whenever no bed-linen
+      option was enabled. A baby bed is an **independent resource**, not
+      a linen item, so: (a) the "Lits bébé" counter (+ "Dispo restante")
+      now lives in the **Voyageurs** card and is shown whenever
+      `babies > 0`, independent of the bed-linen option (moved out of
+      `ExtrasSection`'s `BedLinenInputsBlock` into `GuestsBedsSection`);
+      (b) the server invariant (rule 7) no longer zeroes `babyBeds` when
+      there is no bed-linen option — only single/double beds are zeroed.
+      This is safe for laundry: `laundryModel` independently gates the
+      baby-bed linen aggregation on the presence of a `countsAsBedLinen`
+      option, so storing `babyBeds` without a linen option never
+      pollutes laundry counts. The `bed-linen-invariant` test was
+      updated to assert baby beds are kept (single/double still zeroed).
+      **Note — this narrows rule 7 and rule 1:** baby beds are the
+      documented exception to "bed counters live inside the linen card".
