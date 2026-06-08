@@ -525,6 +525,11 @@ if (!cols.includes('requestOrigin')) {
   // and nullable — existing rows keep NULL and behave exactly as before.
   db.exec("ALTER TABLE reservations ADD COLUMN requestOrigin TEXT");
 }
+if (!cols.includes('breakfastTime')) {
+  // Per-reservation desired breakfast hour (HH:MM); NULL = use the breakfast option's default.
+  // specs/breakfast-time.md. Reported + sorted on the Planning breakfast card.
+  db.exec("ALTER TABLE reservations ADD COLUMN breakfastTime TEXT");
+}
 if (!cols.includes('blocksPreviousNight')) {
   db.exec("ALTER TABLE reservations ADD COLUMN blocksPreviousNight INTEGER NOT NULL DEFAULT 0");
 }
@@ -768,6 +773,11 @@ tryAddOptionColumn('towelSmallPerPerson',  "ALTER TABLE options ADD COLUMN towel
 // to the FR title. Description is intentionally NOT translated: the option's description is
 // not printed in the devis PDF (only the title), so a `descriptionEn` would be dead weight.
 tryAddOptionColumn('titleEn', "ALTER TABLE options ADD COLUMN titleEn TEXT NOT NULL DEFAULT ''");
+
+// 2026-06-08 — breakfast time (specs/breakfast-time.md). Default breakfast hour (HH:MM) carried by
+// the breakfast option (autoOptionType='breakfast'); other options carry it harmlessly. Overridable
+// per reservation via reservations.breakfastTime (migration below). Existing rows get '09:00'.
+tryAddOptionColumn('breakfastTime', "ALTER TABLE options ADD COLUMN breakfastTime TEXT DEFAULT '09:00'");
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {

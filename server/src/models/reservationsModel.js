@@ -10,6 +10,7 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatPlatformName } = require('../utils/platformNameFormat');
+const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature } = require('../utils/reservationAudit');
 const { computePaymentStatus } = require('../utils/paymentStatus');
@@ -50,6 +51,19 @@ function deriveCommissionAmount(row) {
 }
 
 function createReservationsModel(database) {
+  // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
+  // write so the core INSERT/UPDATE SQL stays untouched; absent in minimal test schemas → no-op.
+  const HAS_RESERVATION_BREAKFAST_TIME = (() => {
+    try { return database.prepare("PRAGMA table_info(reservations)").all().some((c) => c.name === 'breakfastTime'); }
+    catch { return false; }
+  })();
+  function persistBreakfastTime(reservationId, payload) {
+    if (!HAS_RESERVATION_BREAKFAST_TIME || !payload || payload.breakfastTime === undefined) return;
+    const raw = String(payload.breakfastTime || '').trim();
+    const value = raw === '' ? null : (formatTimeShort(raw) || null); // '' / invalid → NULL = use option default
+    database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
+  }
+
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
     list({ propertyId, clientId, from, to } = {}) {
@@ -319,6 +333,39 @@ function createReservationsModel(database) {
       `).all(...cleanIds);
     },
 
+    // Dashboard card (specs/dashboard-ical-new-reservations.md): reservations imported via iCal
+    // during the CURRENT day (UTC, matching the app's datetime('now') convention). Fully shaped
+    // server-side — clientName + platformLabel ready to render, ordered most-recent-import first.
+    listNewIcalReservationsToday() {
+      const rows = database.prepare(`
+        SELECT r.id AS reservationId, r.startDate, r.endDate, r.createdAt,
+               r.sourcePlatformKey, s.name AS sourceName,
+               c.firstName, c.lastName, p.name AS propertyName
+          FROM reservations r
+          LEFT JOIN clients c      ON c.id = r.clientId
+          LEFT JOIN properties p   ON p.id = r.propertyId
+          LEFT JOIN ical_sources s ON s.id = r.sourceIcalSourceId
+         WHERE r.kind = 'reservation'
+           AND r.sourceType = 'ical'
+           AND date(r.createdAt) = date('now')
+         ORDER BY datetime(r.createdAt) DESC, r.id DESC
+      `).all();
+      return rows.map((row) => {
+        const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
+        const platformLabel = String(row.sourceName || '').trim()
+          || (row.sourcePlatformKey ? formatPlatformName(row.sourcePlatformKey) : '');
+        return {
+          reservationId: row.reservationId,
+          clientName: clientName || `#${row.reservationId}`,
+          propertyName: row.propertyName || '',
+          platformLabel,
+          startDate: row.startDate || '',
+          endDate: row.endDate || '',
+          createdAt: row.createdAt || '',
+        };
+      });
+    },
+
     // Full reservation row, used by the contrib-capture path (force-item-to-complement.md)
     // to feed `calculateReservationQuote` with the latest persisted state at flip time.
     getRow(reservationId) {
@@ -508,6 +555,7 @@ function createReservationsModel(database) {
         depositDisabled ? 1 : 0,
         touristTaxInComplement ? 1 : 0,
       );
+      persistBreakfastTime(result.lastInsertRowid, payload);
       return result.lastInsertRowid;
     },
 
@@ -556,6 +604,7 @@ function createReservationsModel(database) {
         touristTaxInComplement ? 1 : 0,
         reservationId,
       );
+      persistBreakfastTime(reservationId, payload);
     },
 
     // `inComplement` is carried on every write. `acompteContribTtc`/`soldeContribTtc` are

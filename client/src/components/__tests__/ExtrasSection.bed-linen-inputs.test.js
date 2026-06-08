@@ -104,14 +104,16 @@ function renderWith(ctx) {
   );
 }
 
-test('bed-linen option enabled → 3 bed inputs + "Suggérer les lits" button rendered inside the option card', () => {
+test('bed-linen option enabled → lits doubles/simples + "Suggérer les lits" rendered inside the option card (NOT lits bébé)', () => {
   renderWith(buildContext({
     selectedOptions: [{ optionId: 1, quantity: 1 }],
     firstEnabledBedLinenOptionId: 1,
   }));
   expect(screen.getByLabelText(/Lits doubles/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/Lits simples/i)).toBeInTheDocument();
-  expect(screen.getByLabelText(/Lits bébé/i)).toBeInTheDocument();
+  // specs/bed-config-in-linen-card.md §10 follow-up #6 — "Lits bébé" moved OUT of the linen card
+  // into the Voyageurs card (shown whenever babies > 0). It must NOT be here anymore.
+  expect(screen.queryByLabelText(/Lits bébé/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Suggérer les lits/i })).toBeInTheDocument();
   // The sub-block header is present.
   expect(screen.getByText(/Configuration des lits/i)).toBeInTheDocument();

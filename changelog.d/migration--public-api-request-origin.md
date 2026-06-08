@@ -1,0 +1,1 @@
+- **`reservations.requestOrigin` column added** (spec `public-api.md`, 2026-06-08). Additive, nullable `TEXT`; `NULL` for every existing row, `'public'` for booking requests created via the public API. Idempotent `ALTER TABLE` in `database.js`. No data loss or behavior change for existing records.

@@ -213,6 +213,8 @@ export default function ReservationPage() {
     depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
+    // Desired breakfast time (specs/breakfast-time.md); '' = use the breakfast option's default.
+    breakfastTime: '',
     startDate: '', endDate: '', propertyId: null,
     // Per-item routing to Complément (spec force-item-to-complement.md). The flag is binary:
     // ON = the tourist tax lives 100 % in the Complément entry; OFF = it follows the auto
@@ -583,6 +585,7 @@ export default function ReservationPage() {
             singleBeds: res.singleBeds || '',
             doubleBeds: res.doubleBeds || '',
             babyBeds: res.babyBeds || '',
+            breakfastTime: res.breakfastTime || '',
             extraGuestSurchargeOffered: Boolean(res.extraGuestSurchargeOffered),
             totalPrice: importedBlankPrice ? '' : res.totalPrice || 0,
             touristTaxRate: res.touristTaxRate || 0,
@@ -731,6 +734,7 @@ export default function ReservationPage() {
             singleBeds: devis.singleBeds || '',
             doubleBeds: devis.doubleBeds || '',
             babyBeds: devis.babyBeds || '',
+            breakfastTime: devis.breakfastTime || '',
             extraGuestSurchargeOffered: false,
             totalPrice: devis.totalPrice || 0,
             touristTaxRate: devis.touristTaxRate || 0,
@@ -1182,11 +1186,12 @@ export default function ReservationPage() {
     }
     setOptionQuantity(optionId, 0);
     // specs/bed-config-in-linen-card.md §3 rule 3 — disabling a `countsAsBedLinen = 1`
-    // option zeroes the bed counters in form state, mirroring the server invariant on save
-    // (rule 7). Keeps the UI consistent: the inputs disappear, and the saved data matches.
+    // option zeroes the single/double bed counters in form state, mirroring the server invariant
+    // on save (rule 7). Baby beds are NOT cleared (§10 follow-up 2026-06-08): they are independent
+    // of the bed-linen option and stay editable in the Voyageurs card whenever babies > 0.
     const opt = propertyOptions.find((o) => o.id === optionId);
     if (opt && Number(opt.countsAsBedLinen || 0) === 1) {
-      updateForm({ singleBeds: '', doubleBeds: '', babyBeds: '' });
+      updateForm({ singleBeds: '', doubleBeds: '' });
     }
   };
 
@@ -1687,6 +1692,7 @@ export default function ReservationPage() {
           singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
           doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
           babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
+          breakfastTime: form.breakfastTime || null,
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
@@ -1746,6 +1752,7 @@ export default function ReservationPage() {
           singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
           doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
           babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
+          breakfastTime: form.breakfastTime || null,
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
@@ -1806,6 +1813,7 @@ export default function ReservationPage() {
           singleBeds: form.singleBeds === '' ? null : Number(form.singleBeds),
           doubleBeds: form.doubleBeds === '' ? null : Number(form.doubleBeds),
           babyBeds: form.babyBeds === '' ? null : Number(form.babyBeds),
+          breakfastTime: form.breakfastTime || null,
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,

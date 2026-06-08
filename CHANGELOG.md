@@ -5,33 +5,43 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
-- **Public API for the WordPress showcase site** (spec `public-api.md`,
-  2026-06-08). A new, separate, key-authenticated API tree under
-  `/public/v1/*` lets a trusted server-to-server proxy (the WordPress
-  backend) read the catalog and submit booking requests, without ever
-  touching the internal `/api/*` admin API:
-  - `GET /public/v1/properties`, `GET /public/v1/properties/:id`
-    (with a "from €X/night" teaser), `GET …/:id/options`,
-    `GET …/:id/availability` (consolidated blocked dates incl. iCal
-    platform blocks + closures, source-opaque) — all read-only.
-  - `POST /public/v1/quote` — computes a quote through the **existing**
-    pricing engine (`calculateReservationQuote`, never reimplemented);
-    all price-override fields are ignored, platform forced to `direct`.
-  - `POST /public/v1/booking-requests` — creates a **draft devis**
-    (`requestOrigin='public'`, never a confirmed reservation), resolving
-    or creating the client by email; honeypot + dedicated rate limiter.
-  - Auth via a dedicated `PUBLIC_API_KEY` (auto-generated in
-    `server/.env.local` on first boot), distinct from the admin session.
-  - Uniform error envelope `{ error: { code, message, details? } }`.
-
-### Migration
-- **`reservations.requestOrigin` column added** (spec `public-api.md`,
-  2026-06-08). Additive, nullable `TEXT`; `NULL` for every existing row,
-  `'public'` for booking requests created via the public API. Idempotent
-  `ALTER TABLE` in `database.js`. No data loss or behavior change for
-  existing records.
+- **Arithmetic input on reservation price fields** (spec
+  `reservation-price-arithmetic.md`, 2026-06-08). The « Prix hébergement
+  ajusté » and « Prix payé par le client » fields now accept arithmetic
+  expressions (`100+20`, `(100+20)*2`, French comma OK): on Enter or blur
+  the expression is evaluated and the result set (rounded to 2 decimals,
+  clamped ≥0); invalid input reverts. New safe (no-`eval`) evaluator
+  `utils/arithmetic.js` + reusable `ArithmeticTextField` component.
+  +15 client tests.
+- **Dashboard card — new iCal reservations imported today** (spec
+  `dashboard-ical-new-reservations.md`, 2026-06-08). A read-only blue
+  card on the dashboard lists every reservation imported via iCal during
+  the current (UTC) day — guest, property, platform/source, stay dates,
+  and a relative "imported X ago". Clicking a row opens the reservation
+  page. The card auto-rolls daily (no acknowledge / no new table) and is
+  hidden when nothing was imported. New `GET /api/dashboard/ical-new-today`
+  + `IcalNewReservationsAlert` component. +7 server tests, +5 client tests.
 
 ### Fixed
+- **Bed-linen default now appears on iCal-arrived reservations** (spec
+  `bed-config-in-linen-card.md` §10 follow-up #5, 2026-06-08). The iCal
+  sync created a bare reservation and skipped the property's option
+  defaults, so on "Gite" (bed linen is an *offered* default) a freshly
+  imported booking showed no bed-linen option. The sync now applies the
+  property's option defaults to each new iCal reservation, marked
+  `offered` per the property setting (pricing stays 0 until the operator
+  edits). +2 tests.
+- **"Lit bébé" counter is back whenever there are babies** (spec
+  `bed-config-in-linen-card.md` §10 follow-up #6, 2026-06-08). Since bed
+  counters moved into the "Linge de lit" option card, the baby-bed
+  counter was hidden when no bed-linen option was enabled. A baby bed is
+  an independent resource: it now lives in the **Voyageurs** card and
+  shows whenever `babies > 0`, with its live availability ("Dispo
+  restante") from the *Lit bébé* resource — capped at 0 when other
+  reservations have booked every baby bed for the dates. The server
+  invariant no longer zeroes `babyBeds` without a linen option (safe:
+  laundry gates the baby-linen aggregation on the option separately).
+  +4 server availability tests, +4 client display tests.
 - **Mobile calendar now fits the screen width** (spec
   `calendar-mobile-view.md`, 2026-06-08). The main content area
   (`<Box component="main">`) lacked `minWidth: 0`, so the week strip's

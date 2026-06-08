@@ -968,11 +968,22 @@ function calculateReservationQuote({
   //   `acompteContribTtc` / `soldeContribTtc` → snapshots captured by reservationsController
   //     .updatePayment on `*Paid` 0→1 flips, surfaced from the DB-side locked line. They drive
   //     the per-bucket attribution in accounting (no recomputation here — pure pass-through).
-  const pickContribsAndForce = (selected, locked) => ({
-    inComplement: Number((selected && selected.inComplement != null ? selected.inComplement : locked?.inComplement) || 0) ? 1 : 0,
-    acompteContribTtc: locked && locked.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null,
-    soldeContribTtc: locked && locked.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null,
-  });
+  // specs/force-extras-complement-on-platform.md §3 rule 1 — on a non-direct platform reservation
+  // (incl. iCal imports), EVERY extra is forced into the Complément bucket. The model already
+  // forces `inComplement = 1` on write; the engine MUST mirror it so `complementAmount` reflects
+  // those lines (otherwise the option price leaks into the deposit/balance split while the DB row
+  // says inComplement=1 — the prod regression this fixes). Forced lines carry NULL contribs (they
+  // live 100% in Complément, never in Acompte/Solde).
+  const forceExtrasToComplement = String(platform || 'direct').toLowerCase() !== 'direct';
+  const pickContribsAndForce = (selected, locked) => {
+    const inComplement = (forceExtrasToComplement
+      || Number((selected && selected.inComplement != null ? selected.inComplement : locked?.inComplement) || 0)) ? 1 : 0;
+    return {
+      inComplement,
+      acompteContribTtc: inComplement ? null : (locked && locked.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null),
+      soldeContribTtc: inComplement ? null : (locked && locked.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null),
+    };
+  };
   // Override set for auto-option routing (parallel signal to selectedOptions[i].inComplement,
   // see the function-level comment on `autoOptionsInComplement`).
   const autoInComplementSet = new Set((Array.isArray(autoOptionsInComplement) ? autoOptionsInComplement : []).map(Number));
@@ -1069,9 +1080,10 @@ function calculateReservationQuote({
         priceType: 'per_stay',
         originalTotalPrice: amount,
         totalPrice: offered ? 0 : amount,
-        inComplement: Number(line?.inComplement || 0) ? 1 : 0,
-        acompteContribTtc: line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
-        soldeContribTtc: line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
+        // Non-direct platform forces every extra into the Complément bucket (see pickContribsAndForce).
+        inComplement: (forceExtrasToComplement || Number(line?.inComplement || 0)) ? 1 : 0,
+        acompteContribTtc: (forceExtrasToComplement || Number(line?.inComplement || 0)) ? null : (line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
+        soldeContribTtc: (forceExtrasToComplement || Number(line?.inComplement || 0)) ? null : (line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
       };
     })
     .filter(Boolean);
@@ -1105,7 +1117,7 @@ function calculateReservationQuote({
       // common case: Adrien sometimes wants the surcharge to land in the post-arrival bucket
       // because it's collected on site). The override list wins; falls back to the locked
       // snapshot for already-saved reservations.
-      const forced = autoInComplementSet.has(optionId) || Boolean(locked?.inComplement);
+      const forced = forceExtrasToComplement || autoInComplementSet.has(optionId) || Boolean(locked?.inComplement);
       return {
         ...line,
         unitPrice: merged.unitPrice,
