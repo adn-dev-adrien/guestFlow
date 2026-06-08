@@ -4,6 +4,80 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Client emails — templates, scheduled send + manual review** (spec
+  `email-automation.md`, 2026-06-07). GuestFlow can now communicate
+  with future guests via plain-text emails.
+
+  Reuses the existing SMTP path (the one used for admin first-connection
+  emails): single `emailService.send`, single `From:`, no new transport.
+
+  **Templates library.** New `/emails/modeles` page with full CRUD on
+  the `email_templates` table (sortable list + edit dialog with a
+  variable / conditional picker). Every template carries a `dayOffset`
+  (signed integer, J-7 = 7 days before `startDate`), a `sendMode`
+  (`'auto'` or `'manual'`) and an `enabled` flag.
+
+  **Variables** supported in subject + body (28 tokens listed in spec
+  §4.4): client (firstName / lastName / fullName / email / phone /
+  address), reservation (startDate / endDate / checkInTime /
+  checkOutTime / nights / adults / teens / children / babies /
+  totalGuests), property (propertyName), financial (finalPrice /
+  depositAmount / depositDueDate / balanceAmount / balanceDueDate /
+  cautionAmount), lists (optionsList / bedConfig), company info.
+
+  **Conditional blocks** — single level: `{{#if hasBedLinenOption}}…
+  {{else}}…{{/if}}`, `{{#if cautionNotBanked}}…{{/if}}`, `{{#if
+  hasOptions}}…{{/if}}`. Unknown variables render as empty string;
+  malformed `{{#if}}` blocks are passed through verbatim so the
+  operator sees the literal text in preview.
+
+  **Default template registry** (`utils/defaultEmailTemplatesRegistry.js`)
+  — single source file holding every shipped default template as a
+  self-contained object (`stableKey`, `name`, `subject`, `body`,
+  `dayOffset`, `sendMode`, `enabled`). Adding a new default email is
+  **one file change**: append an object + a one-line test case. No DB
+  migration. Designed so AI-assisted additions stay trivial. The PR
+  ships exactly one default: **"Rappel arrivée — J-7"** (manual mode,
+  warm-but-professional, dynamically includes the bed-config block if
+  the bed-linen option is ticked + the caution-check reminder if no
+  bank deposit was made).
+
+  **Boot-time seed** (`utils/defaultEmailTemplatesSeed.js`) iterates the
+  registry; INSERTs by `stableKey` when missing. Idempotent +
+  non-destructive: operator edits to a previously-seeded row survive
+  across boots. A deleted seeded row gets re-inserted on next boot.
+
+  **Hybrid trigger model.**
+  - **Auto templates** ship daily at 08:00 local time via a new tick in
+    `scheduledTasks.js` → `utils/emailAutoSendRunner.js`. Each
+    matching `(template, reservation)` pair fires exactly once; skipped
+    pairs already in `email_log` with `status='sent'`; devis excluded;
+    failures logged with the error message.
+  - **Manual templates** surface on a new **dashboard widget** with the
+    count of pending emails. The widget renders nothing when the queue
+    is empty. Clicking opens `EmailPendingDialog` listing every pair;
+    each row offers "Voir & envoyer" (preview + edit + send) or
+    "Ignorer" (logs an `acknowledged-skip` row so the pair drops out).
+  - **Manual send from a reservation page** — new "Envoyer un email"
+    action in the reservation's action bar (hidden in devis mode).
+
+  **History page** `/emails/historique` lists every `email_log` row
+  (paginated, filterable by status / template / reservation) with a
+  read-only preview dialog showing the rendered subject + body + error
+  message when failed.
+
+  Total coverage: **92 server cases** (`email-template-renderer`,
+  `email-context-builder`, `date-fr`, `default-email-templates-
+  registry`, `default-email-templates-seed`, `email-templates-model`,
+  `email-log-model`, `email-templates-controller`, `emails-controller`,
+  `email-auto-send-runner`). Server suite 1068 → 1160. **18 Vitest
+  cases** (`EmailLogViewDialog`, `EmailPendingAlert`, `EmailManualSendDialog`,
+  `EmailTemplatesPage`).
+
+  **Migration.** Two new tables (`email_templates`, `email_log`), both
+  idempotent at boot, additive only. No existing data touched.
+
 ### Changed
 - **Selective cleanup popup on `/clients`** (spec
   `clients.md` §3 rule 8, 2026-06-06). Clicking the **Cleanup clients**

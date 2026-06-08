@@ -15,6 +15,7 @@ import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalenda
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
+import EmailPendingAlert from '../components/EmailPendingAlert';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
@@ -118,6 +119,9 @@ export default function Dashboard() {
       {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
           contained: renders nothing when no pending cancellation exists. */}
       <IcalCancellationAlert />
+      {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
+          nothing when no manual email is pending. */}
+      <EmailPendingAlert />
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid

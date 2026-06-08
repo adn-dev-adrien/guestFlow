@@ -8,7 +8,9 @@ import {
 import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DescriptionIcon from '@mui/icons-material/Description';
+import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import PageActionBar from '../components/PageActionBar';
+import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import ClientFormFields from '../components/ClientFormFields';
 import FormDialog from '../components/FormDialog';
@@ -116,6 +118,8 @@ export default function ReservationPage() {
   const [clients, setClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [createClientOpen, setCreateClientOpen] = useState(false);
+  // specs/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
+  const [emailSendOpen, setEmailSendOpen] = useState(false);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
@@ -2139,6 +2143,16 @@ export default function ReservationPage() {
       ? [{ icon: <DescriptionIcon />, tooltip: 'Créer un devis', onClick: handleCreateDevisFromForm, color: 'info' }] : []),
     ...(!isDevisMode && reservationId
       ? [{ icon: <DescriptionIcon />, tooltip: 'Transformer en devis', onClick: handleConvertToDevis, color: 'info' }] : []),
+    // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
+    // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.
+    ...(!isDevisMode && reservationId
+      ? [{
+          icon: <MailOutlineIcon />,
+          tooltip: form.clientId ? 'Envoyer un email' : 'Pas de client lié',
+          onClick: () => setEmailSendOpen(true),
+          color: 'info',
+          disabled: !form.clientId,
+        }] : []),
     ...(isDevisMode ? [{
       node: (
         <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -2433,6 +2447,13 @@ export default function ReservationPage() {
           <Button variant="contained" onClick={handleSaveAndLeave}>Enregistrer</Button>
         </DialogActions>
       </Dialog>
+
+      <EmailManualSendDialog
+        open={emailSendOpen}
+        reservationId={editingReservationId || null}
+        reservationStartDate={form.startDate || null}
+        onClose={() => setEmailSendOpen(false)}
+      />
     </Box>
   );
 }
