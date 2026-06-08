@@ -206,7 +206,13 @@ No schema change. The existing `app_settings` table (singleton, 15+ columns incl
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- The 3 cards stack vertically inside a centered container `maxWidth: { xs: '100%', md: 920 }`.
+- **Layout (reworked 2026-06-08):** the section cards live in a **CSS masonry** container —
+  `columnCount: { xs: 1, lg: 2 }`, `columnGap: 3` — inside a centered wrapper
+  `maxWidth: { xs: '100%', md: 920, lg: 1240 }`. Each section is wrapped in a
+  `break-inside: avoid` box so a card never splits across columns; the cards' own `mb: 3`
+  gives the vertical rhythm. Effect: a single readable column up to `md`, two balanced
+  columns on `lg+` so the small sections (TVA, verrou réservations, blanchisserie) no
+  longer waste the full width. The global alert + `PageActionBar` stay full-width above.
 - All fields are **always editable inline** — no Modifier dialog except for the private key, which uses `MaskedTextField`'s toggle.
 - The Google Calendar section header shows the status as a small chip on the right (`success` / `warning` / `error` / `neutral` color). No `StatusCard` wrapper — just a card with a chip next to the title.
 - Field-level errors (from `400 SETTINGS_INVALID`) appear in red under the offending field.
@@ -216,8 +222,8 @@ No schema change. The existing `app_settings` table (singleton, 15+ columns incl
 | Breakpoint | Cards | PageActionBar | Nav-guard dialog |
 |---|---|---|---|
 | `xs` (≤600px) | Padding `p: 2`. All field pairs (Email/Téléphone, SIRET/TVA, Banque/BIC) stack vertical full-width. Logo preview + buttons stack vertical. "Tester la synchronisation" full-width. | Title hidden, dirty caption visible; Save + Cancel always rendered. | `fullScreen={true}`. |
-| `md` (~900px) | Padding `p: 3`. Field pairs side-by-side. | Standard layout. | Standard `maxWidth="sm"`. |
-| `lg` (≥1200px) | Container capped at 920px. | Same as md. | Same as md. |
+| `md` (~900px) | Padding `p: 3`. Field pairs side-by-side. Single column (masonry `columnCount: 1`). | Standard layout. | Standard `maxWidth="sm"`. |
+| `lg` (≥1200px) | Container `maxWidth: 1240`; **two-column masonry** of section cards. | Same as md. | Same as md. |
 
 ### 6.3 Strings (FR) — humanized vocabulary
 
