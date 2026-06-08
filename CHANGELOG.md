@@ -4,6 +4,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Arithmetic input on reservation price fields** (spec
+  `reservation-price-arithmetic.md`, 2026-06-08). The « Prix hébergement
+  ajusté » and « Prix payé par le client » fields now accept arithmetic
+  expressions (`100+20`, `(100+20)*2`, French comma OK): on Enter or blur
+  the expression is evaluated and the result set (rounded to 2 decimals,
+  clamped ≥0); invalid input reverts. New safe (no-`eval`) evaluator
+  `utils/arithmetic.js` + reusable `ArithmeticTextField` component.
+  +15 client tests.
+
 ### Fixed
 - **Bed-linen default now appears on iCal-arrived reservations** (spec
   `bed-config-in-linen-card.md` §10 follow-up #5, 2026-06-08). The iCal
