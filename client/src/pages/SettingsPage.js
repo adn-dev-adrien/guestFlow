@@ -20,7 +20,7 @@ const EMPTY_FORM = {
     siret: '', tva: '', iban: '', bic: '', bankName: '',
     logoPath: '',
   },
-  quote: { footerText: '', validityDays: 30 },
+  quote: { footerText: '', footerTextEn: '', validityDays: 30 },
   vat: { rate: 10, rateCommission: 20 },
   googleCalendar: {
     calendarId: '',
@@ -447,6 +447,7 @@ function mapClientKeyToErrorKey(group, key) {
   if (group === 'quote') {
     return ({
       footerText: 'quoteFooterText',
+      footerTextEn: 'quoteFooterTextEn',
       validityDays: 'quoteValidityDays',
     })[key];
   }

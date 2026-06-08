@@ -24,7 +24,7 @@
 const ARRIVAL_REMINDER_7D_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
-  'Votre séjour à {{propertyName}} approche, nous nous réjouissons de vous accueillir.',
+  'Votre séjour {{propertyWithArticle}} approche, nous nous réjouissons de vous accueillir.',
   '',
   'Rappel des informations de votre séjour :',
   '- Logement : {{propertyName}}',
@@ -44,14 +44,14 @@ const ARRIVAL_REMINDER_7D_BODY = [
   'Nous restons à votre disposition pour toute question ; n\'hésitez pas à nous joindre par retour de cet email ou au {{companyPhone}}.',
   '',
   'À très bientôt,',
-  '{{companyName}}',
+  '{{senderName}}',
 ].join('\n');
 
 const DEFAULT_TEMPLATES = Object.freeze([
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
     name:      'Rappel arrivée — J-7',
-    subject:   'Préparation de votre séjour à {{propertyName}}',
+    subject:   'Préparation de votre séjour {{propertyWithArticle}}',
     body:      ARRIVAL_REMINDER_7D_BODY,
     dayOffset: -7,
     sendMode:  'manual',

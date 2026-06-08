@@ -54,6 +54,9 @@ const COLUMNS = [
   'companyBic',
   'companyBankName',
   'quoteFooterText',
+  // English-language footer for the bilingual devis PDF (specs/devis-english-language.md §3 rule 11).
+  // Optional — when empty the PDF falls back to a hard-coded English default in devisPdfLabels.
+  'quoteFooterTextEn',
   'quoteValidityDays',
   'companyLogoPath',
   'vatRate',
@@ -130,8 +133,16 @@ const HTTP_MASKED_COLUMNS = {
 };
 
 function createSettingsModel(databaseInstance) {
+  // Filter `COLUMNS` against the actual `app_settings` schema so the model survives test DBs
+  // (and partially-migrated prod DBs) that haven't yet added a column from the canonical list.
+  // The 2026-06-06 addition of `quoteFooterTextEn` is the prompting example — previously a
+  // missing column here would crash every test that builds its own in-memory schema.
+  const actualCols = new Set(
+    databaseInstance.prepare("PRAGMA table_info(app_settings)").all().map((c) => c.name),
+  );
+  const presentCols = COLUMNS.filter((c) => actualCols.has(c));
   const readStmt = databaseInstance.prepare(
-    `SELECT ${COLUMNS.join(', ')}, createdAt, updatedAt FROM app_settings WHERE id = 1`
+    `SELECT ${presentCols.join(', ')}${actualCols.has('createdAt') ? ', createdAt' : ''}${actualCols.has('updatedAt') ? ', updatedAt' : ''} FROM app_settings WHERE id = 1`
   );
 
   const updateLogoStmt = databaseInstance.prepare(

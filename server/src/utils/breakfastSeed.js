@@ -32,6 +32,12 @@ const SEED_DEFINITION = Object.freeze({
   autoOptionType: 'breakfast',
 });
 
+// English title surfaced in the EN devis PDF (specs/devis-english-language.md §3 rule 6).
+// No `descriptionEn`: the option description isn't printed in the devis PDF.
+const SEED_DEFINITION_EN = Object.freeze({
+  title: 'Breakfast',
+});
+
 // Title aliases promoted to the typed seed at boot. Same defensive strategy as the linen
 // seeds: catch the common variations operators might have written by hand before this
 // feature shipped, so no duplicate is inserted alongside the legacy row.
@@ -65,6 +71,16 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
       logger.log(`[seed:breakfast] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
+    // 2026-06-06 — backfill EN title on rows with empty titleEn.
+    if (cols.includes('titleEn')) {
+      database.prepare(`
+        UPDATE options
+           SET titleEn = ?
+         WHERE autoOptionType = 'breakfast'
+           AND (titleEn IS NULL OR titleEn = '')
+      `).run(SEED_DEFINITION_EN.title);
+    }
+
     const hasTypedSeed = database.prepare(
       "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'breakfast'",
     ).get().n > 0;
@@ -73,25 +89,34 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
-    database.prepare(`
-      INSERT INTO options (
-        title, description, priceType, price, optionProgressiveTiers,
-        autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
-        countsAsBedLinen, countsAsBathroomLinen
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      SEED_DEFINITION.title,
-      SEED_DEFINITION.description,
-      'per_person_per_night',
-      0,
-      '[]',
-      SEED_DEFINITION.autoOptionType,
-      0,
-      'fixed',
-      null,
-      0, // countsAsBedLinen
-      0, // countsAsBathroomLinen
-    );
+    if (cols.includes('titleEn')) {
+      database.prepare(`
+        INSERT INTO options (
+          title, description, priceType, price, optionProgressiveTiers,
+          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+          countsAsBedLinen, countsAsBathroomLinen, titleEn
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        SEED_DEFINITION.title, SEED_DEFINITION.description,
+        'per_person_per_night', 0, '[]',
+        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
+        0, 0,
+        SEED_DEFINITION_EN.title,
+      );
+    } else {
+      database.prepare(`
+        INSERT INTO options (
+          title, description, priceType, price, optionProgressiveTiers,
+          autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
+          countsAsBedLinen, countsAsBathroomLinen
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        SEED_DEFINITION.title, SEED_DEFINITION.description,
+        'per_person_per_night', 0, '[]',
+        SEED_DEFINITION.autoOptionType, 0, 'fixed', null,
+        0, 0,
+      );
+    }
     logger.log('[seed:breakfast] seeded default option');
     return { action: 'seeded' };
   } catch (error) {
@@ -103,5 +128,6 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
 module.exports = {
   ensureDefaultBreakfastOption,
   SEED_DEFINITION,
+  SEED_DEFINITION_EN,
   KNOWN_TITLE_ALIASES,
 };

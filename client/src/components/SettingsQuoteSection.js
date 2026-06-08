@@ -2,10 +2,14 @@
  * SettingsQuoteSection — "Paramètres des devis" card.
  *
  * Props:
- *   values:    { footerText, validityDays }
+ *   values:    { footerText, footerTextEn, validityDays }
  *   errors:    { quoteValidityDays? }
  *   onChange:  (key, value) => void
  *   disabled:  boolean
+ *
+ * Bilingual devis PDF (specs/devis-english-language.md §3 rule 11 + §6.4) — two stacked
+ * footer fields, FR above EN. Either can be left empty; the empty one falls back to a
+ * static default in the matching language.
  */
 import React from 'react';
 import { Card, CardContent, Stack, Typography, TextField, Box } from '@mui/material';
@@ -42,7 +46,7 @@ export default function SettingsQuoteSection({
           />
 
           <TextField
-            label="Texte affiché en bas de chaque devis"
+            label="Pied de page du devis (français)"
             value={v.footerText || ''}
             onChange={(e) => onChange('footerText', e.target.value)}
             fullWidth
@@ -50,6 +54,17 @@ export default function SettingsQuoteSection({
             minRows={4}
             disabled={disabled}
             helperText="Laissez vide pour utiliser le message par défaut (bienveillant et commercial)."
+          />
+
+          <TextField
+            label="Pied de page du devis (anglais)"
+            value={v.footerTextEn || ''}
+            onChange={(e) => onChange('footerTextEn', e.target.value)}
+            fullWidth
+            multiline
+            minRows={4}
+            disabled={disabled}
+            helperText="Utilisé sur les devis générés en anglais. Vide → message anglais par défaut."
           />
         </Stack>
       </CardContent>

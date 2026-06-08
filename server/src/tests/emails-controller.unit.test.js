@@ -35,7 +35,8 @@ const DDL = `
   );
   CREATE TABLE clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT, phone TEXT,
-    streetNumber TEXT, street TEXT, postalCode TEXT, city TEXT
+    streetNumber TEXT, street TEXT, postalCode TEXT, city TEXT,
+    updatedAt TEXT
   );
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT);
   CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, optionId INTEGER);
@@ -172,6 +173,53 @@ test('send: 404 CLIENT_NO_EMAIL when client has no email address', async () => {
   await ctl.send({ body: { reservationId: 100, templateId: 10 } }, r);
   assert.equal(r.statusCode, 404);
   assert.equal(r.body.error, 'CLIENT_NO_EMAIL');
+});
+
+test('send: client with no email + operator-typed override.to → sends to it AND saves it on the client', async () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
+  const sent = [];
+  const factory = fakeEmailService({ sendImpl: async (msg) => { sent.push(msg); } });
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: factory });
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10, overrides: { to: 'typed@guest.fr' } } }, r);
+  assert.equal(r.statusCode, 200);
+  assert.equal(sent[0].to, 'typed@guest.fr');
+  // Logged against the typed recipient.
+  assert.equal(db.prepare('SELECT recipientEmail FROM email_log').get().recipientEmail, 'typed@guest.fr');
+  // Persisted onto the client record.
+  assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'typed@guest.fr');
+});
+
+test('send: 404 CLIENT_NO_EMAIL when the client has none AND no override is typed', async () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10, overrides: { to: '   ' } } }, r);
+  assert.equal(r.statusCode, 404);
+  assert.equal(r.body.error, 'CLIENT_NO_EMAIL');
+});
+
+test('send: 400 INVALID_EMAIL when the typed override is malformed', async () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10, overrides: { to: 'not-an-email' } } }, r);
+  assert.equal(r.statusCode, 400);
+  assert.equal(r.body.error, 'INVALID_EMAIL');
+});
+
+test('send: a client that HAS an email ignores override.to and keeps its address', async () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  const sent = [];
+  const factory = fakeEmailService({ sendImpl: async (msg) => { sent.push(msg); } });
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: factory });
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10, overrides: { to: 'hacker@evil.fr' } } }, r);
+  assert.equal(sent[0].to, 'jean@dupont.fr');
+  assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'jean@dupont.fr');
 });
 
 test('send: nodemailer throw → 500 + logs failed with the error message', async () => {
