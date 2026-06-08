@@ -1,10 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// specs/bed-config-in-linen-card.md §3 rule 7 + §7.1.
-// reservationsController.create AND update coerce singleBeds/doubleBeds/babyBeds to 0 when
-// the final reservation_options list (after the property-defaults auto-merge on create;
-// as-submitted on update) contains no option with countsAsBedLinen = 1.
+// specs/bed-config-in-linen-card.md §3 rule 7 + §7.1 (+ §10 follow-up 2026-06-08).
+// reservationsController.create AND update coerce single/double bed counts to 0 when the final
+// reservation_options list (after the property-defaults auto-merge on create; as-submitted on
+// update) contains no option with countsAsBedLinen = 1. BABY BEDS are EXEMPT — they are kept
+// regardless of the bed-linen option (they track an independent resource needed when babies > 0).
 //
 // Same mock skeleton as `reservations-controller-property-defaults.unit.test.js`: we don't
 // spin up the full DB stack, we stub every model + util the controller pulls in, then drive
@@ -117,11 +118,11 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
   });
 }
 
-function basicBody({ singleBeds, doubleBeds, babyBeds, options = [] }) {
+function basicBody({ singleBeds, doubleBeds, babyBeds, babies = 0, options = [] }) {
   return {
     propertyId: 1, clientId: 1,
     startDate: '2099-09-10', endDate: '2099-09-12',
-    adults: 2, children: 0, teens: 0, babies: 0,
+    adults: 2, children: 0, teens: 0, babies,
     checkInTime: '15:00', checkOutTime: '10:00',
     singleBeds, doubleBeds, babyBeds,
     options,
@@ -141,15 +142,17 @@ test('create: bed-linen option in payload + counts > 0 → counts persisted inta
   assert.deepEqual(captures.inserted, { singleBeds: 2, doubleBeds: 3, babyBeds: 0 });
 });
 
-test('create: NO bed-linen option (and no property default) + counts > 0 → counts coerced to 0', () => {
+test('create: NO bed-linen option → single/double coerced to 0, but baby beds kept', () => {
   const captures = {};
   const controller = buildController({
     bedLinenFlaggedIds: new Set([1]),
     captures,
   });
-  const req = { body: basicBody({ singleBeds: 4, doubleBeds: 2, babyBeds: 1, options: [{ optionId: 99, quantity: 1 }] }) };
+  // babies:1 so the (valid) baby bed survives the no-linen invariant — §10 follow-up: baby beds
+  // are independent of the bed-linen option. Single/double still zero (no linen contract).
+  const req = { body: basicBody({ singleBeds: 4, doubleBeds: 2, babyBeds: 1, babies: 1, options: [{ optionId: 99, quantity: 1 }] }) };
   controller.create(req, fakeRes());
-  assert.deepEqual(captures.inserted, { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+  assert.deepEqual(captures.inserted, { singleBeds: 0, doubleBeds: 0, babyBeds: 1 });
 });
 
 test('create: property declares bed-linen as default → auto-merge re-adds the option, counts persisted', () => {
@@ -165,20 +168,20 @@ test('create: property declares bed-linen as default → auto-merge re-adds the 
   assert.deepEqual(captures.inserted, { singleBeds: 3, doubleBeds: 1, babyBeds: 0 });
 });
 
-test('update: bed-linen option removed from payload + counts > 0 → counts coerced to 0', () => {
+test('update: bed-linen option removed → single/double coerced to 0, but baby beds kept', () => {
   const captures = {};
   const controller = buildController({
     bedLinenFlaggedIds: new Set([1]),
     captures,
   });
-  // No bed-linen option in the payload — coercion fires. (`update` does NOT auto-merge
-  // property defaults, so the operator's choice to drop the option sticks.)
+  // No bed-linen option in the payload — single/double coercion fires. (`update` does NOT
+  // auto-merge property defaults, so dropping the option sticks.) Baby beds (babies:1) are kept.
   const req = {
     params: { id: '42' },
-    body: basicBody({ singleBeds: 5, doubleBeds: 2, babyBeds: 1, options: [{ optionId: 99, quantity: 1 }] }),
+    body: basicBody({ singleBeds: 5, doubleBeds: 2, babyBeds: 1, babies: 1, options: [{ optionId: 99, quantity: 1 }] }),
   };
   controller.update(req, fakeRes());
-  assert.deepEqual(captures.updated, { id: 42, singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+  assert.deepEqual(captures.updated, { id: 42, singleBeds: 0, doubleBeds: 0, babyBeds: 1 });
 });
 
 test('update: bed-linen option kept ON + counts > 0 → counts persisted intact', () => {
