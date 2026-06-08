@@ -33,6 +33,11 @@
  */
 
 const { addDays } = require('../utils/laundryWindow');
+const { formatTimeShort } = require('../utils/dateFr');
+
+// Last-resort breakfast time when neither the reservation nor the option carries one
+// (specs/breakfast-time.md). The option column defaults to '09:00', so this rarely triggers.
+const FALLBACK_BREAKFAST_TIME = '09:00';
 
 // Two-line ISO string comparators co-located here (lexicographic compare on the
 // `YYYY-MM-DD` shape is correct date order). Not worth promoting into `laundryWindow`
@@ -54,6 +59,7 @@ function buildModel(database) {
       COALESCE(cli.firstName, '') AS firstName,
       COALESCE(cli.lastName,  '') AS lastName,
       COALESCE(prop.name, '') AS propertyName,
+      res.breakfastTime AS reservationBreakfastTime,
       sub.qtySum AS qtySum
     FROM reservations res
     JOIN (
@@ -92,6 +98,16 @@ function buildModel(database) {
       AND res.endDate   > ?   -- from: exclude reservations already over at window start
   `);
 
+  // Default breakfast hour carried by the (single, typed) breakfast option. Guarded so minimal
+  // test schemas without the `breakfastTime` column simply fall back to FALLBACK_BREAKFAST_TIME.
+  const optionDefaultStmt = (() => {
+    try {
+      return database.prepare(
+        "SELECT breakfastTime FROM options WHERE autoOptionType = 'breakfast' AND breakfastTime IS NOT NULL AND TRIM(breakfastTime) != '' ORDER BY id LIMIT 1",
+      );
+    } catch { return null; }
+  })();
+
   return {
     /**
      * Returns `{ 'YYYY-MM-DD': { items: [{ reservationId, clientName, propertyName,
@@ -99,6 +115,12 @@ function buildModel(database) {
      * object when no reservation contributes.
      */
     breakfastByDate({ from, to }) {
+      // Effective default time = the breakfast option's configured hour, else the hard fallback
+      // (specs/breakfast-time.md rule 4). Resolved once per call.
+      const optionDefaultRow = optionDefaultStmt ? optionDefaultStmt.get() : null;
+      const optionDefaultTime = (optionDefaultRow && formatTimeShort(optionDefaultRow.breakfastTime))
+        || FALLBACK_BREAKFAST_TIME;
+
       const rows = stmt.all(String(to), String(from));
       const result = {};
       for (const r of rows) {
@@ -107,6 +129,8 @@ function buildModel(database) {
                           + (Number(r.children) || 0);
         const persons = Math.round(personsBase * (Number(r.qtySum) || 0));
         if (persons <= 0) continue;
+        // Per-reservation desired time wins; else the option default; else the fallback.
+        const breakfastTime = formatTimeShort(r.reservationBreakfastTime) || optionDefaultTime;
         // Breakfast served on D ∈ (startDate, endDate] clamped to [from, to]
         let cursor = isoMax(addDays(String(r.startDate), 1), String(from));
         const cap   = isoMin(String(r.endDate), String(to));
@@ -119,10 +143,19 @@ function buildModel(database) {
             clientName,
             propertyName: r.propertyName || '',
             persons,
+            breakfastTime,
           });
           result[cursor].totalPersons += persons;
           cursor = addDays(cursor, 1);
         }
+      }
+      // Sort each day's breakfasts by time (earliest first), tie-break by client name then id —
+      // deterministic ordering for the planning card (specs/breakfast-time.md rule 6).
+      for (const date of Object.keys(result)) {
+        result[date].items.sort((a, b) =>
+          (a.breakfastTime || '').localeCompare(b.breakfastTime || '')
+          || a.clientName.localeCompare(b.clientName, 'fr')
+          || a.reservationId - b.reservationId);
       }
       return result;
     },
