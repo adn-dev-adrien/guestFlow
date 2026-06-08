@@ -350,7 +350,10 @@ function create(req, res) {
   if (isDirectPlatform(req.body.platform)) {
     req.body.clientGrossAmount = quote.finalPrice;
   }
-  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
+  // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform only covers the
+  // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
+  // So the gross the guest paid the platform is validated against the balance, not the full stay.
+  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
   if (grossError) return res.status(400).json({ error: grossError });
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
@@ -508,7 +511,10 @@ function update(req, res) {
   if (isDirectPlatform(req.body.platform)) {
     req.body.clientGrossAmount = quote.finalPrice;
   }
-  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
+  // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform only covers the
+  // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
+  // So the gross the guest paid the platform is validated against the balance, not the full stay.
+  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
   if (grossError) return res.status(400).json({ error: grossError });
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);

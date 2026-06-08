@@ -119,7 +119,12 @@ export default function FinanceSection() {
               const commission = grossNumber != null && Number.isFinite(grossNumber)
                 ? Math.max(0, Math.round((grossNumber - net) * 100) / 100)
                 : null;
-              const grossBelowNet = grossNumber != null && Number.isFinite(grossNumber) && grossNumber < net;
+              // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform covers
+              // the SOLDE only (extras/complément are collected on arrival), so the gross is
+              // validated against the balance, not the full stay. Commission display is unchanged
+              // (gross − net encaissé).
+              const balanceRef = Number(pricingQuote?.balanceAmount || 0);
+              const grossBelowNet = grossNumber != null && Number.isFinite(grossNumber) && grossNumber < balanceRef;
               return (
                 <>
                   <Divider />
@@ -140,7 +145,7 @@ export default function FinanceSection() {
                           size="small"
                           error={grossBelowNet}
                           helperText={grossBelowNet
-                            ? `Doit être ≥ ${net.toFixed(2)}€ (montant net que tu touches).`
+                            ? `Doit être ≥ ${balanceRef.toFixed(2)}€ (solde réglé via la plateforme).`
                             : 'Montant TTC réellement payé par le client sur la plateforme.'}
                         />
                       </Grid>
