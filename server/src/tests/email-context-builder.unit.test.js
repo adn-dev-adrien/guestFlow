@@ -166,3 +166,29 @@ test('senderName falls back to companyName when smtpFromName is blank', () => {
   const { vars } = buildContext(baseInput({ settings: { smtpFromName: '   ', companyName: 'SARL Soleil' } }));
   assert.equal(vars.senderName, 'SARL Soleil');
 });
+
+// Baby-bed notice (specs/j7-email-baby-beds.md) — only for bookings with babies.
+test('babyBedNotice: no babies → empty notice + flag false', () => {
+  const { vars, flags } = buildContext(baseInput({ reservation: { babies: 0, babyBeds: 0 } }));
+  assert.equal(vars.babyBedNotice, '');
+  assert.equal(flags.hasBabyBedNotice, false);
+});
+
+test('babyBedNotice: babies + a baby bed provided → tells how many beds, flag true', () => {
+  const { vars, flags } = buildContext(baseInput({ reservation: { babies: 1, babyBeds: 1 } }));
+  assert.equal(flags.hasBabyBedNotice, true);
+  assert.match(vars.babyBedNotice, /un lit bébé vous est fourni/);
+});
+
+test('babyBedNotice: babies + several baby beds → plural count', () => {
+  const { vars } = buildContext(baseInput({ reservation: { babies: 2, babyBeds: 2 } }));
+  assert.match(vars.babyBedNotice, /des bébés/);
+  assert.match(vars.babyBedNotice, /2 lits bébé vous sont fournis/);
+});
+
+test('babyBedNotice: babies but NO baby bed → asks the guest to bring one, flag true', () => {
+  const { vars, flags } = buildContext(baseInput({ reservation: { babies: 1, babyBeds: 0 } }));
+  assert.equal(flags.hasBabyBedNotice, true);
+  assert.match(vars.babyBedNotice, /ne disposons plus de lit bébé/);
+  assert.match(vars.babyBedNotice, /apporter un/);
+});
