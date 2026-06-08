@@ -15,6 +15,7 @@ import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalenda
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
+import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
@@ -119,6 +120,9 @@ export default function Dashboard() {
       {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
           contained: renders nothing when no pending cancellation exists. */}
       <IcalCancellationAlert />
+      {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
+          notification; renders nothing when nothing was imported today. */}
+      <IcalNewReservationsAlert />
       {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
           nothing when no manual email is pending. */}
       <EmailPendingAlert />
