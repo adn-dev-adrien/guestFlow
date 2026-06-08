@@ -356,6 +356,10 @@ Chip clicks navigate to the reservation page (`/reservations/:id`).
 ### 6.4 Responsive behaviour
 
 - Settings sub-page on `xs`: the two cards stack; the 3-input rows stack to 1 column.
+- Settings sub-page **(reworked 2026-06-08)**: container widened to
+  `maxWidth: { md: 900, lg: 1240 }` and the two cards (Parures de lit / Serviettes) sit
+  **side-by-side on `lg+`** via a `columnCount: { xs: 1, lg: 2 }` masonry — consistent with
+  the main Settings page; single column ≤ `md`.
 - Laundry card on `xs`: third block stacks under "À récupérer".
 - Dashboard alert on `xs`: per-type sections stack; chips wrap; touch targets ≥ 44px.
 

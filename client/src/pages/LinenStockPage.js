@@ -88,7 +88,7 @@ export default function LinenStockPage() {
         onCancel={handleCancel}
         cancelDisabled={loading || saving || !isDirty}
       />
-      <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 900 }}>
+      <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: { xs: '100%', md: 900, lg: 1240 }, mx: 'auto' }}>
         {snackbar && (
           <Alert severity={snackbar.severity} sx={{ mb: 2 }} onClose={() => setSnackbar(null)}>
             {snackbar.message}
@@ -101,7 +101,10 @@ export default function LinenStockPage() {
           votre stock jour par jour et alerter en cas de rupture prévue.
         </Typography>
 
-        <Card variant="outlined" sx={{ mb: 3 }}>
+        {/* Two small cards side-by-side on lg+ (masonry), stacked on smaller screens. */}
+        <Box sx={{ columnGap: { lg: 3 }, columnCount: { xs: 1, lg: 2 } }}>
+          <Box sx={{ breakInside: 'avoid' }}>
+            <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -151,9 +154,11 @@ export default function LinenStockPage() {
               </Stack>
             </Stack>
           </CardContent>
-        </Card>
+            </Card>
+          </Box>
 
-        <Card variant="outlined">
+          <Box sx={{ breakInside: 'avoid' }}>
+            <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -203,7 +208,9 @@ export default function LinenStockPage() {
               </Stack>
             </Stack>
           </CardContent>
-        </Card>
+            </Card>
+          </Box>
+        </Box>
       </Box>
       <ConfirmDialog
         open={guardDialogOpen}

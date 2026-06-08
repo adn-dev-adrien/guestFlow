@@ -325,7 +325,7 @@ export default function SettingsPage() {
         cancelDisabled={!isDirty || saving || loading}
       />
 
-      <Box sx={{ maxWidth: { xs: '100%', md: 920 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
+      <Box sx={{ maxWidth: { xs: '100%', md: 920, lg: 1240 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
         {globalMessage && (
           <Alert
             severity={globalMessage.severity}
@@ -336,64 +336,83 @@ export default function SettingsPage() {
           </Alert>
         )}
 
-        <SettingsCompanySection
-          values={draft.company}
-          errors={errors}
-          onChange={updateGroup('company')}
-          onUploadLogo={handleUploadLogo}
-          onDeleteLogo={handleDeleteLogo}
-          disabled={loading || saving}
-        />
+        {/* Masonry: 1 column ≤ md (readable), 2 balanced columns on lg+ to kill desktop
+            empty space. Each section is break-inside:avoid so a card never splits across
+            columns; the cards' own mb:3 provides the vertical rhythm. */}
+        <Box sx={{ columnGap: { lg: 3 }, columnCount: { xs: 1, lg: 2 } }}>
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsCompanySection
+              values={draft.company}
+              errors={errors}
+              onChange={updateGroup('company')}
+              onUploadLogo={handleUploadLogo}
+              onDeleteLogo={handleDeleteLogo}
+              disabled={loading || saving}
+            />
+          </Box>
 
-        <SettingsQuoteSection
-          values={draft.quote}
-          errors={errors}
-          onChange={updateGroup('quote')}
-          disabled={loading || saving}
-        />
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsQuoteSection
+              values={draft.quote}
+              errors={errors}
+              onChange={updateGroup('quote')}
+              disabled={loading || saving}
+            />
+          </Box>
 
-        <SettingsVatSection
-          values={draft.vat}
-          errors={errors}
-          onChange={updateGroup('vat')}
-          disabled={loading || saving}
-        />
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsVatSection
+              values={draft.vat}
+              errors={errors}
+              onChange={updateGroup('vat')}
+              disabled={loading || saving}
+            />
+          </Box>
 
-        <SettingsReservationLockSection
-          value={draft.reservations.allowEditPastReservations}
-          onChange={(next) => updateGroup('reservations')('allowEditPastReservations', next)}
-          disabled={loading || saving}
-        />
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsReservationLockSection
+              value={draft.reservations.allowEditPastReservations}
+              onChange={(next) => updateGroup('reservations')('allowEditPastReservations', next)}
+              disabled={loading || saving}
+            />
+          </Box>
 
-        <SettingsLaundrySection
-          value={draft.laundry.weekday}
-          error={errors.laundryWeekday}
-          onChange={(next) => updateGroup('laundry')('weekday', next)}
-          disabled={loading || saving}
-        />
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsLaundrySection
+              value={draft.laundry.weekday}
+              error={errors.laundryWeekday}
+              onChange={(next) => updateGroup('laundry')('weekday', next)}
+              disabled={loading || saving}
+            />
+          </Box>
 
-        <SettingsGoogleCalendarSection
-          values={draft.googleCalendar}
-          errors={errors}
-          statusLabel={draft.googleCalendar.statusLabel}
-          onChange={updateGroup('googleCalendar')}
-          onChangePrivateKey={updatePrivateKey}
-          onTest={handleTest}
-          testing={testing}
-          testResult={testResult}
-          disabled={loading || saving}
-        />
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsGoogleCalendarSection
+              values={draft.googleCalendar}
+              errors={errors}
+              statusLabel={draft.googleCalendar.statusLabel}
+              onChange={updateGroup('googleCalendar')}
+              onChangePrivateKey={updatePrivateKey}
+              onTest={handleTest}
+              testing={testing}
+              testResult={testResult}
+              disabled={loading || saving}
+            />
+          </Box>
 
-        <SettingsSmtpSection
-          values={draft.smtp}
-          errors={errors}
-          onChange={updateGroup('smtp')}
-          onChangePassword={updateSmtpPassword}
-          onSendTest={handleSmtpTest}
-          testing={smtpTesting}
-          testResult={smtpTestResult}
-          disabled={loading || saving}
-        />
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsSmtpSection
+              values={draft.smtp}
+              errors={errors}
+              onChange={updateGroup('smtp')}
+              onChangePassword={updateSmtpPassword}
+              onSendTest={handleSmtpTest}
+              testing={smtpTesting}
+              testResult={smtpTestResult}
+              disabled={loading || saving}
+            />
+          </Box>
+        </Box>
       </Box>
 
       <ConfirmDialog
