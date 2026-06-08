@@ -37,9 +37,11 @@ function validatePercentage(value) {
 }
 
 /**
- * Platform gross (what the guest paid the platform) must be ≥ the owner's net (`finalPrice`); the
- * difference IS the commission. Below-net implies a negative commission, which is nonsensical.
- * Both null/empty/undefined → "not provided" → valid.
+ * Platform gross (what the guest paid the platform) must be ≥ the `reference` the caller passes —
+ * the **balance** (solde), i.e. what the platform actually covers (the extras/complément are
+ * collected on arrival, not via the platform). Below-reference implies a negative platform
+ * commission, which is nonsensical. Both null/empty/undefined → "not provided" → valid.
+ * (Param kept named `net` for back-compat; callers now pass `quote.balanceAmount`.)
  */
 function validateClientGrossAmount(gross, net) {
   if (gross === '' || gross === null || gross === undefined) return null;

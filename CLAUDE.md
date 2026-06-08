@@ -438,20 +438,26 @@ If visual testing is impossible (no browser available, blocked port, etc.), **sa
 
 ## 10. Documentation
 
-### CHANGELOG.md (required for every merged change)
+### Changelog (required for every merged change) — use fragments, NOT direct edits
 
-Maintain a `CHANGELOG.md` at repo root in [Keep a Changelog](https://keepachangelog.com/) style:
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/) (`Added` / `Changed` /
+`Fixed` / `Removed` / `Migration`). To avoid merge conflicts between parallel branches, **do NOT
+edit the `## [Unreleased]` section of `CHANGELOG.md` directly.** Instead, every change adds its own
+**fragment file** under `changelog.d/` — one file per change, so two branches never touch the same
+lines:
 
 ```
-## [Unreleased]
-### Added
-### Changed
-### Fixed
-### Removed
-### Migration
+changelog.d/<category>--<branch-unique-slug>.md   # content = the markdown bullet(s), no heading
+# e.g. changelog.d/added--j7-email-baby-beds.md
 ```
 
-Move `[Unreleased]` to a versioned section when releasing.
+`<category>` ∈ `added | changed | fixed | removed | migration`. See `changelog.d/README.md` for the
+full convention. Preview with `node scripts/build-changelog.mjs`; at release,
+`node scripts/build-changelog.mjs --release X.Y.Z` folds all fragments **and** any leftover
+`## [Unreleased]` bullets into a dated section and deletes the fragments.
+
+> The pre-2026-06-08 entries still sitting under `## [Unreleased]` are folded in automatically at the
+> next release — no manual migration. New entries: fragments only.
 
 ### README.md (major changes only)
 

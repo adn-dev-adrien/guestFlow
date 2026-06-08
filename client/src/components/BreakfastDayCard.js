@@ -88,6 +88,13 @@ export default function BreakfastDayCard({ data, onItemClick }) {
                   '&:focus-visible': clickable ? { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 } : undefined,
                 }}
               >
+                {/* Desired breakfast time (specs/breakfast-time.md) — leading bold badge; rows
+                    arrive already sorted by time from the server. */}
+                {item.breakfastTime && (
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: BREAKFAST_ACCENT, minWidth: 44, flexShrink: 0 }}>
+                    {item.breakfastTime}
+                  </Typography>
+                )}
                 {/* House icon — same one used on the departure / arrival cards so the
                     operator scans them all with the same eye anchor. */}
                 <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />

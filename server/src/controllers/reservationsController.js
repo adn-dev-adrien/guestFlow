@@ -290,15 +290,17 @@ function create(req, res) {
     return [...(rawReservationOptions || []), ...toAdd];
   })();
 
-  // specs/bed-config-in-linen-card.md §3 rule 7 — bed counts are only meaningful when the
-  // saved reservation carries at least one `countsAsBedLinen = 1` option. We coerce here
-  // BEFORE `checkCapacity` so a misbehaving client can't trip the "exceeds property capacity"
-  // error on values that won't even be persisted. Mutating `req.body` is intentional: the
-  // model layer (`insertReservation`) reads from `req.body` (see reservationsModel.js).
+  // specs/bed-config-in-linen-card.md §3 rule 7 — single/double bed counts are only meaningful
+  // when the saved reservation carries at least one `countsAsBedLinen = 1` option, so we zero them
+  // when no bed-linen option applies. BABY BEDS are exempt (§10 follow-up 2026-06-08): a baby bed is
+  // an independent physical resource needed whenever there are babies, regardless of the bed-linen
+  // option — the laundry aggregation already gates baby-bed linen on the option separately. We coerce
+  // BEFORE `checkCapacity` so a misbehaving client can't trip the "exceeds capacity" error on values
+  // that won't be persisted. Mutating `req.body` is intentional: the model reads from it.
   const bedLinenIncluded = hasBedLinenOption(reservationOptions);
   const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
   const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
-  const effectiveBabyBeds   = bedLinenIncluded ? babyBeds   : 0;
+  const effectiveBabyBeds   = babyBeds;
   req.body.singleBeds = effectiveSingleBeds;
   req.body.doubleBeds = effectiveDoubleBeds;
   req.body.babyBeds   = effectiveBabyBeds;
@@ -348,7 +350,10 @@ function create(req, res) {
   if (isDirectPlatform(req.body.platform)) {
     req.body.clientGrossAmount = quote.finalPrice;
   }
-  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
+  // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform only covers the
+  // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
+  // So the gross the guest paid the platform is validated against the balance, not the full stay.
+  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
   if (grossError) return res.status(400).json({ error: grossError });
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
@@ -440,13 +445,13 @@ function update(req, res) {
   req.body.options = reservationOptions;
 
   // specs/bed-config-in-linen-card.md §3 rule 7 — invariant on save. After the bed-linen-
-  // only property-defaults re-merge above, this only zeros bed counts on reservations that
-  // genuinely have no bed-linen contract (= neither the operator's explicit option nor a
-  // property default applies).
+  // only property-defaults re-merge above, this only zeros single/double bed counts on
+  // reservations that genuinely have no bed-linen contract. BABY BEDS are exempt (§10 follow-up
+  // 2026-06-08): kept regardless of the bed-linen option — they track an independent resource.
   const bedLinenIncluded = hasBedLinenOption(reservationOptions);
   const effectiveSingleBeds = bedLinenIncluded ? singleBeds : 0;
   const effectiveDoubleBeds = bedLinenIncluded ? doubleBeds : 0;
-  const effectiveBabyBeds   = bedLinenIncluded ? babyBeds   : 0;
+  const effectiveBabyBeds   = babyBeds;
   req.body.singleBeds = effectiveSingleBeds;
   req.body.doubleBeds = effectiveDoubleBeds;
   req.body.babyBeds   = effectiveBabyBeds;
@@ -506,7 +511,10 @@ function update(req, res) {
   if (isDirectPlatform(req.body.platform)) {
     req.body.clientGrossAmount = quote.finalPrice;
   }
-  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.finalPrice);
+  // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform only covers the
+  // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
+  // So the gross the guest paid the platform is validated against the balance, not the full stay.
+  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
   if (grossError) return res.status(400).json({ error: grossError });
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);

@@ -20,4 +20,7 @@ router.get('/ical-cancellation', controller.icalCancellation);
 router.post('/ical-cancellation/:id/approve', controller.approveIcalCancellation);
 router.post('/ical-cancellation/:id/reject', controller.rejectIcalCancellation);
 
+// specs/dashboard-ical-new-reservations.md — read-only card listing the day's iCal imports.
+router.get('/ical-new-today', controller.icalNewReservationsToday);
+
 module.exports = router;

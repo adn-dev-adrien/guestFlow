@@ -17,7 +17,7 @@ function BedLinenInputsBlock() {
     maxSingleBeds, maxDoubleBeds,
     exceedsSingleBedsLimit, exceedsDoubleBedsLimit, bedsCapacityMismatch,
     reservationBedCapacity, requiredRegularBeds,
-    maxBabyBedsByRule, remainingBabyBeds, handleSuggestBeds,
+    handleSuggestBeds,
     selectedProp, isReservationLocked,
   } = useReservationForm();
   return (
@@ -26,7 +26,9 @@ function BedLinenInputsBlock() {
         Configuration des lits
       </Typography>
       <Stack spacing={1.5}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+        {/* "Lits bébé" lives in the Voyageurs card (shown whenever babies > 0), not here —
+            specs/bed-config-in-linen-card.md §10 follow-up (2026-06-08). */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
           <TextField
             label="Lits doubles"
             type="number"
@@ -46,20 +48,6 @@ function BedLinenInputsBlock() {
             error={bedsCapacityMismatch || exceedsSingleBedsLimit}
             helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
             slotProps={{ htmlInput: { min: 0, max: maxSingleBeds ?? undefined } }}
-          />
-          <TextField
-            label="Lits bébé"
-            type="number"
-            value={form.babyBeds}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '') { updateForm({ babyBeds: '' }); return; }
-              const n = Math.max(0, Number(val));
-              updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
-            }}
-            fullWidth
-            helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
-            slotProps={{ htmlInput: { min: 0, max: maxBabyBedsByRule } }}
           />
         </Box>
         <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
@@ -103,7 +91,7 @@ const PRICE_TYPE_LABELS = {
 export default function ExtrasSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, propertyOptions, displayableResources,
+    form, updateForm, propertyOptions, displayableResources,
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
@@ -230,6 +218,20 @@ export default function ExtrasSection() {
                               />
                             </Stack>
                           </Stack>
+                        )}
+
+                        {/* Breakfast desired time (specs/breakfast-time.md) — only on the
+                            breakfast-typed option when enabled. Defaults to the option's configured
+                            time; empty form value = use the option default (planning resolves it). */}
+                        {enabled && opt.autoOptionType === 'breakfast' && (
+                          <TextField
+                            size="small"
+                            type="time"
+                            label="Heure souhaitée"
+                            value={form.breakfastTime || opt.breakfastTime || '09:00'}
+                            onChange={(e) => updateForm({ breakfastTime: e.target.value })}
+                            sx={{ mt: 1, width: { xs: '100%', sm: 200 } }}
+                          />
                         )}
 
                         {/* specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed counters
