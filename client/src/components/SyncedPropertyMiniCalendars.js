@@ -176,7 +176,8 @@ export default function SyncedPropertyMiniCalendars({
                   <Button size="small" onClick={() => onOpenProperty?.(property)}>{openPropertyLabel}</Button>
                 </Box>
 
-                <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length}, minmax(42px, 1fr))`, gap: 0.5 }}>
+                <Box sx={{ overflowX: 'auto', mx: -0.5, px: 0.5, WebkitOverflowScrolling: 'touch' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${miniDays.length}, minmax(42px, 1fr))`, gap: 0.5, minWidth: `${miniDays.length * 44}px` }}>
                   {miniDays.map((day) => {
                     const date = parseDateKey(day);
                     const weekLabel = ['D', 'L', 'M', 'M', 'J', 'V', 'S'][date.getUTCDay()];
@@ -225,6 +226,7 @@ export default function SyncedPropertyMiniCalendars({
                       </Box>
                     );
                   })}
+                </Box>
                 </Box>
               </Box>
             );

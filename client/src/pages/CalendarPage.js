@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Box } from '@mui/material';
+import { Box, useMediaQuery, useTheme } from '@mui/material';
 import PageHeader from '../components/PageHeader';
 import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
 import CalendarToolbar from '../components/CalendarToolbar';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
+import CalendarWeekView from '../components/CalendarWeekView';
 import CalendarDayCell from '../components/CalendarDayCell';
 import CalendarNoteDialog from '../components/CalendarNoteDialog';
 import { useAppDialogs } from '../components/DialogProvider';
@@ -46,6 +47,21 @@ export default function CalendarPage() {
 
   const { months, scrollRef, handleScroll, prependMonth, appendMonth, focusOnMonth, recenterToday } =
     useInfiniteMonthScroll(selectedProp);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Mobile week view: extend the loaded month range so the swiped-to week always has data.
+  const ensureWeekLoaded = useCallback((weekStartStr) => {
+    if (!months.length) return;
+    const wkEnd = shiftDate(weekStartStr, 6);
+    const first = months[0];
+    const last = months[months.length - 1];
+    const firstStart = formatDate(first.year, first.month, 1);
+    const lastEnd = formatDate(last.year, last.month, getDaysInMonth(last.year, last.month));
+    if (weekStartStr < firstStart) prependMonth();
+    if (wkEnd > lastEnd) appendMonth();
+  }, [months, prependMonth, appendMonth]);
 
   // ---------- DATA LOADING ----------
   const loadProperties = async () => setProperties(await api.getProperties());
@@ -367,14 +383,32 @@ export default function CalendarPage() {
       />
 
       {selectedProp ? (
-        <CalendarMonthGrid
-          months={months}
-          scrollRef={scrollRef}
-          onScroll={handleScroll}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => isDragging && setIsDragging(false)}
-          renderCell={renderCell}
-        />
+        isMobile ? (
+          <CalendarWeekView
+            today={today}
+            reservations={reservations}
+            devisList={devisList}
+            closures={closures}
+            selectedProp={selectedProp}
+            calendarNotes={calendarNotes}
+            publicHolidays={publicHolidays}
+            schoolHolidays={schoolHolidays}
+            onReservationClick={handleReservationClick}
+            onDevisClick={(devisId) => navigate(`/reservations/new?mode=devis&devisId=${devisId}`)}
+            onOpenNewReservation={openNewReservation}
+            onOpenNote={handleOpenNoteDialog}
+            onWeekChange={ensureWeekLoaded}
+          />
+        ) : (
+          <CalendarMonthGrid
+            months={months}
+            scrollRef={scrollRef}
+            onScroll={handleScroll}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={() => isDragging && setIsDragging(false)}
+            renderCell={renderCell}
+          />
+        )
       ) : (
         <SyncedPropertyMiniCalendars
           properties={properties}

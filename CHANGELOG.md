@@ -4,6 +4,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Mobile-friendly calendars** (spec `calendar-mobile-view.md`,
+  2026-06-08). On phones (`xs`), the reservation calendar (`/calendar`)
+  shows a new **week view**: one week per full-width page with the 7 days
+  as readable vertical rows (arrival / departure / ongoing stay / devis /
+  closure / note), and **horizontal swipe to move between weeks**. Desktop
+  keeps the month grid unchanged. The property mini-calendars now scroll
+  horizontally on a phone instead of squishing. New `CalendarWeekView`
+  component + pure `calendarDaySummary` helpers.
+
 ### Changed
 - **Responsive rework of the Paramètres pages** (specs `settings.md`,
   `linen-inventory-shortage-tracking.md`, `establishment-closures.md`,
