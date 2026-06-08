@@ -21,8 +21,18 @@ import IcalExportCard from '../components/IcalExportCard';
 import PropertyDefaultOptionsCard from '../components/PropertyDefaultOptionsCard';
 import api from '../api';
 
+// Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
+// formatPropertyWithArticle: the apostrophe form elides, the others get a space).
+const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
+function previewWithArticle(name, article) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  const a = article || 'au';
+  return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
+}
+
 const NEW_DEFAULTS = {
-  name: '', maxAdults: 2, maxChildren: 0, maxBabies: 0,
+  name: '', nameArticle: 'au', maxAdults: 2, maxChildren: 0, maxBabies: 0,
   basePriceIncludedGuests: 0,
   extraGuestPrice: 0,
   singleBeds: 0, doubleBeds: 0,
@@ -129,7 +139,7 @@ export default function PropertyDetail() {
     setProperty(p);
     setCatalogOptions(allOptions || []);
     const initial = {
-      name: p.name, maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
+      name: p.name, nameArticle: p.nameArticle || 'au', maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
       extraGuestPrice: p.extraGuestPrice ?? 0,
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
@@ -563,6 +573,21 @@ export default function PropertyDetail() {
                     </Typography>
                   )}
                 </Box>
+                <TextField
+                  select
+                  label="Article du nom (emails clients)"
+                  value={form.nameArticle || 'au'}
+                  onChange={(e) => updateField('nameArticle', e.target.value)}
+                  size="small"
+                  sx={{ width: { xs: '100%', sm: 360 } }}
+                  helperText={previewWithArticle(form.name, form.nameArticle)
+                    ? `Aperçu : « votre séjour ${previewWithArticle(form.name, form.nameArticle)} »`
+                    : 'Utilisé pour « votre séjour … » dans les emails clients.'}
+                >
+                  {NAME_ARTICLES.map((a) => (
+                    <MenuItem key={a} value={a}>{a}</MenuItem>
+                  ))}
+                </TextField>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <TextField label="Max adultes" type="number" value={form.maxAdults ?? 0} onChange={(e) => updateField('maxAdults', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                   <TextField label="Max enfants" type="number" value={form.maxChildren ?? 0} onChange={(e) => updateField('maxChildren', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" helperText="2 à 18 ans" />

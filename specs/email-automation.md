@@ -63,12 +63,14 @@ The operator can:
      `clientPhone`, `clientAddress`.
    - Reservation: `startDate`, `endDate`, `checkInTime`, `checkOutTime`, `nights`,
      `adultsCount`, `childrenCount`, `teensCount`, `babiesCount`, `totalGuests`.
-   - Property: `propertyName`, `propertyAddress`.
+   - Property: `propertyName`, `propertyWithArticle` (name with its French article — see
+     rule 13), `propertyAddress`.
    - Financial: `finalPrice`, `depositAmount`, `depositDueDate`, `balanceAmount`,
      `balanceDueDate`, `cautionAmount`.
    - Lists: `optionsList` (comma-separated titles of selected options), `bedConfig`
      (e.g. `"1 lit double, 2 lits simples, 1 lit bébé"`, omitting zero counts).
-   - Company: `companyName`, `companyPhone`, `companyEmail`.
+   - Company: `companyName`, `senderName` (email sender display name — see rule 14),
+     `companyPhone`, `companyEmail`.
 
    A missing / empty variable renders as the empty string (fail-safe — never leaks a
    `{{varName}}` token to the recipient).
@@ -92,7 +94,7 @@ The operator can:
    {
      stableKey: 'arrival_reminder_7d',   // unique, stable across boots — the seed key
      name:      'Rappel arrivée — J-7',
-     subject:   'Préparation de votre séjour à {{propertyName}}',
+     subject:   'Préparation de votre séjour {{propertyWithArticle}}',
      body:      `... warm + professional plain text with {{tokens}} and {{#if}} blocks ...`,
      dayOffset: -7,
      sendMode:  'manual',                 // 'auto' or 'manual'
@@ -132,15 +134,26 @@ The operator can:
    - **Dismissed** → POST `/api/emails/pending/:templateId/:reservationId/acknowledge` →
      logs `status='acknowledged-skip'`. Also drops out. Useful when the operator already
      contacted the guest by other means.
-10. **Manual send from a reservation page.** A new action in the `ReservationPage` action
-    bar (NOT visible in devis mode): `"Envoyer un email"` opens a dialog that:
+10. **Manual send dialog.** Opened from the `ReservationPage` action bar (NOT visible in
+    devis mode) or from a queue row on the Emails page. It:
     - Lists every enabled template (sorted by `dayOffset` ASC), with the `name` + the
       computed target date for the current reservation (e.g. `"J-7 — envoi prévu le 8 juin
       2026"`).
     - On select → preview rendered subject + body + recipient.
-    - Editable text area (the operator can tweak the body before sending; edits NOT saved
-      to the template).
-    - Send button.
+    - Editable subject + body (the operator can tweak before sending; edits NOT saved to
+      the template).
+    - A **banner** at the top holding the recipient (read-only, or an editable field when
+      the client has none). The footer holds `Annuler` then `Envoyer`.
+    - **Recipient resolution + email backfill.** The recipient is the client's email on
+      file. **When the client has none, the banner shows an editable email field** so the
+      operator can type one (the dialog still opens for email-less clients — the queue row
+      is always clickable). `Envoyer` is disabled until a syntactically valid address is
+      present. On send, the server resolves the recipient as: client email if set, else the
+      typed `overrides.to`. **If the client had no email and the send succeeds, the typed
+      address is persisted onto the client record** (`clients.email`, never overwriting an
+      existing one). A client that already has an email ignores any typed override. Server
+      errors: `404 CLIENT_NO_EMAIL` (none on file and none typed), `400 INVALID_EMAIL`
+      (typed address malformed).
 11. **History page.** A new sidebar entry `Emails → Historique` lists every row of
     `email_log` (most recent first), with: sent date/time, template name, reservation
     (clickable → reservation page), status badge, subject. Per-row "view" opens a dialog
@@ -151,6 +164,29 @@ The operator can:
     up). The scheduled task does nothing if SMTP is not configured — every `auto` send
     that would have fired logs `status='failed'` with `errorMessage='EMAIL_NOT_CONFIGURED'`
     so the operator sees a visible trace.
+13. **Property name with French article** (added 2026-06-08). Emails read "votre séjour
+    **au** Gite / **à la** Tente / **à l'**Aventura Lodge". The correct article cannot be
+    inferred from an arbitrary accommodation / brand name (gender isn't derivable from
+    spelling; brand names aren't in any lexicon), so it is an **operator-chosen attribute
+    on the property**: `properties.nameArticle ∈ { 'au', 'à la', "à l'", 'aux' }`, default
+    `'au'`. The context builder exposes a `{{propertyWithArticle}}` token = article + name,
+    where the apostrophe form **elides** (glued, no space) and the others get a space.
+    `{{propertyName}}` (plain name) stays available for lines like "- Logement : …". The
+    seeded J-7 reminder uses `{{propertyWithArticle}}` in its subject + opening line.
+
+    **Content migration for existing installs.** The seed is insert-only, so installs seeded
+    before this change still carried `séjour à {{propertyName}}` in the shipped J-7 row. An
+    idempotent boot migration (`database.js`) rewrites that exact phrase to `séjour
+    {{propertyWithArticle}}` on the `arrival_reminder_7d` row only, leaving the
+    "- Logement : {{propertyName}}" line and any operator-rewritten body untouched.
+14. **Signature uses the email sender name** (added 2026-06-08). The signature reads the
+    SMTP display name (Settings → Envoi d'emails → "Nom expéditeur", `settings.smtpFromName`,
+    the same name recipients see in the `From:`) rather than the legal company name. The
+    context builder exposes `{{senderName}}` = `smtpFromName` (falls back to `companyName`
+    when blank). `{{companyName}}` stays available for templates that want the legal name.
+    The seeded J-7 reminder signs with `{{senderName}}`; an idempotent boot migration
+    rewrites the old `{{companyName}}` signature to `{{senderName}}` on the
+    `arrival_reminder_7d` row only (operator templates keep `{{companyName}}`).
 
 **Edge cases:**
 - **Reservation cancelled before send day.** Cancelled reservations are out of scope —
@@ -183,11 +219,13 @@ The operator can:
 | `routes/` | `emailTemplates.js` | C | NEW. Thin: CRUD endpoints on `/api/email-templates`. |
 | `routes/` | `emails.js` | C | NEW. Thin: `/api/emails/{preview,send,pending,acknowledge,history}`. |
 | `controllers/` | `emailTemplatesController.js` | C | NEW. Validates payload (sendMode enum, dayOffset range -90..+90, subject/body required, name unique). Surfaces `400` / `404`. |
-| `controllers/` | `emailsController.js` | C | NEW. Orchestrates: preview (renderer), send (renderer → emailService.send → emailLogModel.insert), pending (model), acknowledge, history. Surfaces `409 EMAIL_NOT_CONFIGURED`, `404 RESERVATION_NOT_FOUND`, `404 CLIENT_NO_EMAIL`. |
+| `controllers/` | `emailsController.js` | C | NEW. Orchestrates: preview (renderer), send (recipient resolution + render → emailService.send → emailLogModel.insert → backfill client email when typed), pending (model), acknowledge, history. Surfaces `409 EMAIL_NOT_CONFIGURED`, `404 RESERVATION_NOT_FOUND`, `404 CLIENT_NO_EMAIL`, `400 INVALID_EMAIL`. |
 | `models/` | `emailTemplatesModel.js` | C | NEW. CRUD on `email_templates` + a `listEnabled()` helper for the cron. |
 | `models/` | `emailLogModel.js` | C | NEW. Insert (sent/failed/acknowledged), `existsFor(templateId, reservationId, statuses[])`, pagination, joins for the history view (template + reservation summary). |
 | `utils/` | `emailTemplateRenderer.js` | C | NEW. Pure functions: `renderTemplate(template, context)` (variables + conditionals → `{ subject, body }`). Fail-safe on missing variables; warn on malformed blocks. |
-| `utils/` | `emailContextBuilder.js` | C | NEW. Pure functions: `buildContext({ reservation, client, property, options, settings })` → a flat context object the renderer consumes. Computes derived fields (`nights`, `bedConfig`, `optionsList`, `hasBedLinenOption`, `cautionNotBanked`, …). |
+| `utils/` | `emailContextBuilder.js` | C | NEW. Pure functions: `buildContext({ reservation, client, property, options, settings })` → a flat context object the renderer consumes. Computes derived fields (`nights`, `bedConfig`, `optionsList`, `propertyWithArticle`, `hasBedLinenOption`, `cautionNotBanked`, …). |
+| `models/` | `propertiesModel.js` | T | _(rule 13)_ `create`/`update` persist `nameArticle` via `normalizeNameArticle` (off-list → `'au'`). |
+| `database.js` | `database.js` | T | _(rule 13)_ adds the idempotent `ALTER TABLE properties ADD COLUMN nameArticle` migration + the CREATE TABLE column. |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | C | NEW. Exports a `DEFAULT_TEMPLATES` array — each entry is the full self-contained shape (`stableKey`, `name`, `subject`, `body`, `dayOffset`, `sendMode`, `enabled`). Adding a default = appending one object here. |
 | `utils/` | `defaultEmailTemplatesSeed.js` | C | NEW. Iterates the registry; for each entry, INSERTs into `email_templates` iff no row with that `stableKey` exists. Idempotent + non-destructive (operator edits survive). |
 | `utils/` | `dateFr.js` | C | NEW. `formatDateLong(iso)` → `15 juin 2026`; `formatTimeShort(time)` → `HH:mm`. Tiny pure helpers, reused by the context builder. |
@@ -206,13 +244,15 @@ The operator can:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `EmailTemplatesPage.js` | C | NEW. List + create/edit dialog. Variable + condition picker buttons that insert the token at the cursor. Validation hooks. |
+| `pages/` | `EmailTemplatesPage.js` | C | NEW (the **Emails page**). Two cards: « Emails à envoyer » (`EmailPendingList`) + « Modèles d'emails » (template library). Template row click → edit dialog; queue row click → send dialog; client name → resa. Owns the pending fetch, `EmailManualSendDialog`, acknowledge confirm + reservation navigation. |
 | `pages/` | `EmailHistoryPage.js` | C | NEW. Paginated list of `email_log` rows with filters (status, template, reservation search). |
 | `pages/` | `ReservationPage.js` | T | New `"Envoyer un email"` action in `actionBarBefore` (only when `!isDevisMode` AND client has email). Opens `EmailManualSendDialog`. |
-| `pages/` | `DashboardPage.js` | T | New widget "Emails à vérifier" — count + link to the EmailPendingDialog. Hidden when count = 0. |
-| `components/` | `EmailManualSendDialog.js` | C | NEW. Template picker → preview (editable text area) → send. Also used when an operator clicks "Envoyer" from the pending list. |
-| `components/` | `EmailPendingDialog.js` | C | NEW. Lists the pending manual emails; rows have `Voir & envoyer` (opens `EmailManualSendDialog`) and `Ignorer` (acknowledge). |
+| `components/` | `EmailPendingAlert.js` | C | NEW. Dashboard widget — count of pending manual emails; click **navigates** to `/emails`. Hidden when count = 0 or still loading. |
+| `components/` | `EmailManualSendDialog.js` | C | NEW. Template picker → preview (editable text area) → send. Also used when an operator clicks a queue row on the Emails page. |
+| `components/` | `EmailPendingList.js` | C | NEW. Presentational table of pending manual emails: row click → send, client-name click → resa, `Ignorer` → acknowledge. Parent owns data + dialogs. Replaces the removed `EmailPendingDialog` popup. |
 | `components/` | `EmailLogViewDialog.js` | C | NEW. Read-only modal that shows the rendered subject + body for a historical row. |
+| `pages/` | `PropertyDetail.js` | T | _(rule 13)_ adds the « Article du nom (emails clients) » select (`au` / `à la` / `à l'` / `aux`) with a live "votre séjour …" preview in the inline property form, and threads `nameArticle` through the form defaults + load. |
+| `pages/` | `EmailTemplatesPage.js` | T | _(rule 13)_ adds the `{{propertyWithArticle}}` chip to the variable picker. |
 | `components/` | `Sidebar.js` (or equivalent) | T | Adds an `Emails` group with two sub-items: `Modèles`, `Historique`. |
 | `api.js` | `api.js` | T | Adds helpers: `getEmailTemplates`, `createEmailTemplate`, `updateEmailTemplate`, `deleteEmailTemplate`, `previewEmail({reservationId, templateId})`, `sendEmail({reservationId, templateId, overrides?})`, `getPendingEmails`, `acknowledgePendingEmail`, `getEmailHistory`. |
 
@@ -220,8 +260,8 @@ The operator can:
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing generic)** | `PageActionBar`, `FormDialog`, `ConfirmDialog`, `DataPageScaffold`, `TableCard` | Reused as-is for the templates / history pages. |
-| **Created (new generic)** | (none planned) | The 3 new dialogs are tightly coupled to the email domain; if a similar "render preview + send" pattern appears later (e.g. SMS), extract then. |
+| **Consumed (existing generic)** | `PageHeader`, `TableCard`, `FormDialog`, `ConfirmDialog`, `DataPageScaffold` | The Emails page uses `PageHeader` + two `TableCard` sections (one table-as-card per encadré); history page keeps `DataPageScaffold`. |
+| **Created (new generic)** | (none planned) | The new dialogs + `EmailPendingList` are tightly coupled to the email domain; if a similar "render preview + send" pattern appears later (e.g. SMS), extract then. |
 
 ### 4.3 API contract
 
@@ -233,7 +273,7 @@ The operator can:
 | PUT | `/api/email-templates/:id` | same shape (NO `stableKey`) | updated row | `400` / `404`. A `stableKey` in the payload is silently ignored — only the registry seed can set it. |
 | DELETE | `/api/email-templates/:id` | — | `{ ok }` | `404` if missing. The `email_log` rows survive (FK is nullable on delete; we keep history intact). |
 | GET | `/api/emails/preview?reservationId=N&templateId=M` | — | `{ to, subject, body, missingVariables: [] }` | Renders against the live reservation context. `404` if reservation/template missing. |
-| POST | `/api/emails/send` | `{ reservationId, templateId, overrides?: { subject?, body? } }` | `{ ok, emailLogId, sentAt }` | `409 EMAIL_NOT_CONFIGURED`, `404 RESERVATION_NOT_FOUND`, `404 CLIENT_NO_EMAIL`. |
+| POST | `/api/emails/send` | `{ reservationId, templateId, overrides?: { subject?, body?, to? } }` | `{ ok, emailLogId, sentAt }` | `overrides.to` is the operator-typed recipient, used + persisted to the client only when the client has no email on file (§3 rule 10). `409 EMAIL_NOT_CONFIGURED`, `404 RESERVATION_NOT_FOUND`, `404 CLIENT_NO_EMAIL`, `400 INVALID_EMAIL`. |
 | GET | `/api/emails/pending` | — | `[{ templateId, reservationId, templateName, clientFullName, clientEmail, propertyName, startDate, sendDate, hasClientEmail }]` | Sorted `startDate ASC`. See §3 rule 8 for the join. |
 | POST | `/api/emails/pending/:templateId/:reservationId/acknowledge` | — | `{ ok }` | Logs an `acknowledged-skip` row. |
 | GET | `/api/emails/history?limit=&offset=&reservationId=&templateId=&status=` | — | `{ rows: […], total }` | Paginated. |
@@ -261,6 +301,7 @@ keys; everything else passes through as empty string.
 | `adultsCount` / `teensCount` / `childrenCount` / `babiesCount` | reservation columns | integers |
 | `totalGuests` | sum of adults+teens+children+babies | integer |
 | `propertyName` | `properties.name` | string |
+| `propertyWithArticle` | `properties.nameArticle` + `properties.name` | `au Gite` / `à la Tente` / `à l'Aventura Lodge` / `aux Gîtes` (apostrophe form elides) |
 | `propertyAddress` | TBD (property addresses aren't stored today) | empty string for now, populated when the column lands |
 | `finalPrice` | `reservations.finalPrice` | `123,45 €` |
 | `depositAmount` | `reservations.depositAmount` | same |
@@ -271,6 +312,7 @@ keys; everything else passes through as empty string.
 | `optionsList` | sorted by option title, comma-separated; empty string when no options | string |
 | `bedConfig` | aggregates `singleBeds`, `doubleBeds`, `babyBeds`; e.g. `"1 lit double, 2 lits simples"`; omits zero counts; empty when all zero | string |
 | `companyName` / `companyPhone` / `companyEmail` | `app_settings` | strings |
+| `senderName` | `app_settings.smtpFromName` (fallback `companyName`) | string — email sender display name, used in the signature |
 
 Booleans for conditional blocks:
 
@@ -284,7 +326,18 @@ Booleans for conditional blocks:
 
 ## 5. Data model
 
-Two new tables, both idempotent at boot.
+Two new tables (below) + one new column on `properties`, all idempotent at boot.
+
+**`properties.nameArticle`** (added 2026-06-08, rule 13) — the operator-chosen French
+article for the property name, used by `{{propertyWithArticle}}` in client emails:
+
+```sql
+ALTER TABLE properties ADD COLUMN nameArticle TEXT DEFAULT 'au';
+-- effective values, enforced in propertiesModel (off-list → 'au'): 'au' | 'à la' | "à l'" | 'aux'
+```
+
+Existing rows backfill to `'au'`; the operator adjusts it per property from the property
+detail form. No data loss.
 
 ```sql
 CREATE TABLE IF NOT EXISTS email_templates (
@@ -349,20 +402,53 @@ Documented as a `Migration` note in `CHANGELOG.md`.
 
 ## 6. UI / UX
 
-### 6.1 `EmailTemplatesPage` (`/emails/modeles`)
+### 6.1 `EmailTemplatesPage` (`/emails`) — the **Emails page**
 
-`DataPageScaffold` shape, list view:
+**Reworked 2026-06-08 (see §6.10).** The page is no longer a single table; it hosts a
+`PageHeader` titled **« Emails »** followed by **two encadrés (cards)**, stacked:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Modèles d'emails                                [+ Nouveau modèle]      │
+Emails                                                  [⟲ Voir l'historique]
+
+┌─ Emails à envoyer ──────────────────────────────────────────────────────┐
+│ Client          Logement   Séjour       Modèle           Actions          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Nom                            Quand        Mode      Activé             │
+│ Jean Dupont     Villa A    14 juin      Rappel arrivée   [Ignorer]        │  ← row click → preview/send
+│ jean@dupont.fr                                                            │     name click → resa sheet
+│ Sophie Martin   Le Gîte    15 juin      Rappel arrivée   [Ignorer]        │     row → send dialog
+│ ⚠ Adresse manquante                                                       │     (type email in dialog)
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌─ Modèles d'emails ───────────────────────────────  [+ Nouveau modèle] ───┐
+│ Nom                            Quand        Mode      Activé              │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Rappel arrivée — J-7  [Livré]  J-7          [Manuel]  [✓]   [✎][🗑]   │
-│ Bienvenue le jour J            J            [Auto]    [✓]   [✎][🗑]   │
+│ Rappel arrivée — J-7  [Livré]  J-7          [Manuel]  [✓]          [🗑]  │  ← row click → edit dialog
+│ Bienvenue le jour J            J            [Auto]    [✓]          [🗑]  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Card 1 — « Emails à envoyer »** (`EmailPendingList`): the manual-email queue that used
+to live only behind the dashboard popup, now rendered inline.
+- **Hidden entirely when the queue is empty** (no empty-state card — only Card 2 shows).
+- **Every row is clickable → `EmailManualSendDialog`** (preview, edit subject/body, send),
+  including rows whose client has no email address (they keep the `⚠ Adresse manquante`
+  chip; the operator types the address in the dialog — see §3 rule 10).
+- **Click on the client name → the reservation sheet** (`/reservations/:reservationId`);
+  the click is isolated (`stopPropagation`) so it never triggers the row's send dialog.
+- **`Ignorer`** action → confirm → acknowledge (unchanged behaviour, `stopPropagation`).
+
+**Card 2 — « Modèles d'emails »** (`TableCard`): the template library.
+- **Row click → the edit dialog** for that template (the dedicated `✎` edit icon is
+  removed; the row itself is now the edit affordance).
+- The **enabled `Switch`** and the **`🗑` delete** icon stay in the row and isolate their
+  clicks (`stopPropagation`) so toggling / deleting never opens the edit dialog.
+- `[+ Nouveau modèle]` sits on the card header.
+- **Any template change (create / edit / delete / enable toggle) refreshes Card 1.** The
+  pending queue is never a stored snapshot: `listPending` recomputes the
+  `(template × reservation)` pairs live, and each preview/send re-renders the template
+  against the live context — so editing a template's content, `dayOffset`, `sendMode` or
+  `enabled` flag immediately reshapes the queue and its rendered emails. The page re-fetches
+  the queue after every template mutation so the operator sees the regenerated list at once.
 
 A `[Livré]` chip (`Modèle livré`) is rendered when `template.stableKey != null` so the
 operator can tell registry-seeded templates from their own creations. Both kinds are fully
@@ -404,31 +490,44 @@ text reminds the operator that an unknown variable renders empty.
 └─────────────────────────────────────────────┘
 ```
 
-Hidden entirely when the count is 0. Clicking opens `EmailPendingDialog`.
+Hidden entirely when the count is 0. **Clicking the widget navigates to the Emails page
+(`/emails`)** — specifically its « Emails à envoyer » card (§6.1, Card 1). The
+old `EmailPendingDialog` popup is **removed**: the queue is reviewed inline on the page,
+not in a modal.
 
-### 6.3 `EmailPendingDialog`
+### 6.3 `EmailPendingList` (inline card on the Emails page)
+
+A presentational component rendering the manual-email queue as rows. It replaces the
+removed `EmailPendingDialog`; the parent (`EmailTemplatesPage`) owns the data fetch, the
+`EmailManualSendDialog`, the acknowledge confirm, and the reservation navigation.
 
 ```
-Emails en attente d'envoi
-
-┌────────────────────────────────────────────────────────────────────────┐
-│ Client          Logement       Séjour          Modèle            Actions│
-├────────────────────────────────────────────────────────────────────────┤
-│ Jean Dupont     Villa A        14-17 juin      Rappel arrivée    [Voir & envoyer] [Ignorer]│
-│ Sophie Martin   Le Gîte        15-19 juin      Rappel arrivée    [Voir & envoyer] [Ignorer]│
-└────────────────────────────────────────────────────────────────────────┘
-                                                    [Fermer]
+┌─ Emails à envoyer ──────────────────────────────────────────────────────┐
+│ Client          Logement       Séjour          Modèle            Actions │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Jean Dupont     Villa A        14-17 juin      Rappel arrivée    [Ignorer]│  row → send dialog
+│ jean@dupont.fr                                                            │  name → resa
+│ Sophie Martin   Le Gîte        15-19 juin      Rappel arrivée    [Ignorer]│
+│ ⚠ Adresse manquante                                                      │  not row-clickable
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- "Voir & envoyer" → `EmailManualSendDialog`.
-- "Ignorer" → confirm dialog → POST acknowledge.
+- **Row click → `EmailManualSendDialog`** (every row, even without a client email — the
+  dialog then offers an editable recipient field, §3 rule 10).
+- **Client name click → `/reservations/:reservationId`** (`stopPropagation`).
+- **`Ignorer`** → confirm dialog → POST acknowledge → reload (`stopPropagation`).
 
 ### 6.4 `EmailManualSendDialog`
 
-When opened from a reservation page (action bar) or from the pending list:
+When opened from a reservation page (action bar) or from a queue row on the Emails page:
 
 ```
-Envoyer un email — Jean Dupont (jean@dupont.fr)
+Aperçu de l'email
+
+┌─ banner ──────────────────────────────────────────────────────────────┐
+│ ✉  Destinataire                                                         │
+│    jean@dupont.fr                                                       │
+└────────────────────────────────────────────────────────────────────────┘
 
 Modèle    [ Rappel arrivée — J-7              ▾ ]
 Sujet     [ Préparation de votre séjour à Villa A          ]
@@ -441,10 +540,17 @@ Corps     ┌──────────────────────�
           └──────────────────────────────────────────────┘
 
 Variables manquantes : aucune
-                                              [Annuler] [Envoyer]
+                                                    [Annuler] [Envoyer]
 ```
 
-Subject + body are editable before send (free-form tweak; not persisted to the template).
+- **Banner (bandeau)** at the top of the dialog body: shows the recipient only. When the
+  client **has** an email it is shown read-only; when the client **has none** the banner
+  shows an **editable email field** (the address is saved to the client on a successful
+  send — §3 rule 10).
+- **Footer actions:** `Annuler` then `Envoyer` (Annuler on the left of Envoyer). `Envoyer`
+  is disabled while loading / sending or until a syntactically valid recipient is present.
+- Subject + body are editable before send (free-form tweak; not persisted to the template).
+- On `xs`, the banner stacks: email above a full-width `Envoyer` button.
 
 ### 6.5 `EmailHistoryPage` (`/emails/historique`)
 
@@ -484,8 +590,12 @@ configured.
 
 ### 6.8 Responsive
 
-- `EmailTemplatesPage`, `EmailHistoryPage`: existing `DataPageScaffold` already
-  responsive. On `xs`, table → stacked cards via the scaffold default behaviour.
+- **Emails page** (`EmailTemplatesPage`): the two cards stack vertically on every
+  breakpoint. Each card's table scrolls horizontally inside its `TableCard` container on
+  `xs` (no page-level horizontal scroll). The « Voir l'historique » action moves under the
+  title on `xs`.
+- `EmailHistoryPage`: existing `DataPageScaffold` already responsive. On `xs`, table →
+  stacked cards via the scaffold default behaviour.
 - All dialogs use `FormDialog` with `fullScreen={isMobile}`.
 - Body text area: `minRows={8}` on `md+`, `minRows={12}` on `xs` (more vertical real
   estate when the keyboard is up).
@@ -493,9 +603,43 @@ configured.
 
 ### 6.9 Sticky action bar
 
-- `EmailTemplatesPage`: `<PageActionBar title="Modèles d'emails" />` with a `+` action.
+- **Emails page** (`EmailTemplatesPage`): a `PageHeader` titled « Emails » with a
+  « Voir l'historique » link action; the `+ Nouveau modèle` action lives on the « Modèles
+  d'emails » card header (not the page header), since it is scoped to that card.
 - `EmailHistoryPage`: `<PageActionBar title="Historique des emails" />`, no save action
   (read-only).
+
+### 6.10 Emails page rework (2026-06-08)
+
+Follow-up to the initial email-automation PR. The standalone "Modèles d'emails" table
+becomes a unified **Emails page** with two cards, and the manual-email queue moves out of
+the dashboard popup onto the page:
+
+1. **Two encadrés on `/emails`** — « Emails à envoyer » (top, hidden when empty) +
+   « Modèles d'emails » (always shown).
+2. **Template row click → edit dialog** (the per-row `✎` edit icon is dropped; delete +
+   enabled switch stay and `stopPropagation`).
+3. **Queue row click → `EmailManualSendDialog`** (preview + edit + send); **every row is
+   clickable, even without a client email** — the dialog then offers an editable recipient
+   field (§3 rule 10).
+4. **Queue client-name click → reservation sheet** (`/reservations/:reservationId`).
+5. **Dashboard widget** (`EmailPendingAlert`) now **navigates** to the Emails page instead
+   of opening a popup; the `EmailPendingDialog` popup is **removed**.
+
+New component: `EmailPendingList` (presentational queue table). Removed: `EmailPendingDialog`.
+
+6. **Route renamed** `/emails/modeles` → **`/emails`** (the page is no longer just the
+   templates library). The old `/emails/modeles` path stays as a `<Navigate replace>`
+   redirect so bookmarks don't break; the sidebar entry + `roles.js` route map use `/emails`.
+
+### 6.11 Property name article (2026-06-08)
+
+The property detail form gains an « Article du nom (emails clients) » select — `au` /
+`à la` / `à l'` / `aux` — with a live preview ("votre séjour au Gite"), placed in the
+inline property form just above the capacity fields. The value is stored on
+`properties.nameArticle` and consumed by `{{propertyWithArticle}}` in templates (§3 rule
+13). The variable picker in the template editor exposes the new token as
+« Logement + article ».
 
 ---
 
@@ -507,7 +651,17 @@ configured.
       missing, repeated); conditional `{{#if}}…{{/if}}`; `{{else}}` branch; nested blocks
       pass-through warning; malformed `{{#if}}` left verbatim; subject + body both
       rendered.
-- [ ] `tests/email-context-builder.unit.test.js` — `nights`, `totalGuests`, `bedConfig`
+- [x] `tests/properties-model.unit.test.js` — _(rule 13)_ `normalizeNameArticle` keeps the
+      four canonical articles, trims, and falls back to `'au'` on blank / off-list / undefined.
+- [x] `tests/email-template-article-migration.unit.test.js` — _(rules 13 + 14)_ the boot
+      content migrations: `séjour à {{propertyName}}` → `séjour {{propertyWithArticle}}` and
+      signature `{{companyName}}` → `{{senderName}}`, both idempotent, scoped to the shipped
+      `arrival_reminder_7d` template, leaving operator templates + the plain Logement line alone.
+- [x] `tests/email-context-builder.unit.test.js` — _(rules 13 + 14 added)_ `propertyWithArticle`
+      joins article + name (`au Gite`, `à la Tente`, `aux Gîtes`), elides the apostrophe
+      form (`à l'Aventura Lodge`), defaults to `au`, empty when no name; `senderName` uses
+      `smtpFromName` and falls back to `companyName`. Plus existing:
+      `nights`, `totalGuests`, `bedConfig`
       formatting (omits zero counts), `optionsList` sort, `hasBedLinenOption` truthy/falsy,
       `cautionNotBanked` truthy/falsy, missing client email → empty string + flag.
 - [ ] `tests/date-fr.unit.test.js` — `formatDateLong('2026-06-15')` → `'15 juin 2026'`;
@@ -525,28 +679,57 @@ configured.
       dayOffset / missing subject / missing body; `404` on missing id; happy paths.
 - [ ] `tests/email-log-model.unit.test.js` — insert; `existsFor` matches by status set;
       pagination; history filters.
-- [ ] `tests/emails-controller.unit.test.js` — preview shapes; send happy path (mocked
+- [x] `tests/emails-controller.unit.test.js` — preview shapes; send happy path (mocked
       `emailService.send`); send returns `409 EMAIL_NOT_CONFIGURED`; send returns `404
       CLIENT_NO_EMAIL`; acknowledge logs an `acknowledged-skip` row; pending join
-      filters out already-sent + already-acknowledged pairs.
+      filters out already-sent + already-acknowledged pairs. **Recipient backfill (§3 rule
+      10):** typed `overrides.to` on an email-less client sends to it + persists it on the
+      client; `404 CLIENT_NO_EMAIL` when none typed; `400 INVALID_EMAIL` on a malformed
+      address; a client that already has an email ignores the override.
 - [ ] `tests/email-scheduled-task.unit.test.js` — cron pass: sends every `auto` matched
       reservation; skips already-sent pairs; logs failures; ignores `manual` templates;
       ignores devis (`kind='devis'`).
 - [ ] Full server suite stays green.
 
-### Client tests (Vitest, target ~12 new cases)
+### Client tests (Vitest — 38 cases across 7 files)
 
-- [ ] `client/src/pages/__tests__/EmailTemplatesPage.test.js` — list renders;
-      create-dialog validation (empty subject → submit disabled); variable picker
-      inserts the token at cursor.
-- [ ] `client/src/components/__tests__/EmailManualSendDialog.test.js` — preview reflects
+- [x] `client/src/pages/__tests__/EmailTemplatesPage.test.js` — **Emails page** (§6.10):
+      two cards render; the « Emails à envoyer » card is hidden when the queue is empty and
+      shows rows when not; a template **row click** opens the edit dialog; the delete icon /
+      enabled switch do NOT open the edit dialog; a queue **row click** opens
+      `EmailManualSendDialog`; a queue **client-name click** navigates to
+      `/reservations/:id`; create-dialog validation; variable picker inserts at cursor.
+- [x] `client/src/components/__tests__/EmailManualSendDialog.test.js` (11) — preview reflects
       template; editable subject + body bound to local state; send calls `api.sendEmail`
-      with overrides; preview shows missing variables when any.
-- [ ] `client/src/components/__tests__/EmailPendingDialog.test.js` — empty state hides
-      the widget; rows render; "Ignorer" calls `api.acknowledgePendingEmail`.
-- [ ] `client/src/pages/__tests__/DashboardPage.email-widget.test.js` — widget hidden
-      when count = 0; shows count + button when count > 0; clicking opens
-      EmailPendingDialog.
+      with overrides; missing variables shown; banner surfaces the recipient; footer shows
+      `Annuler` left of `Envoyer`; `Annuler` closes; **email-less client → editable address
+      field, send disabled until valid, malformed address stays disabled, typed address
+      passed as `overrides.to`**; a client that already has an email is read-only and sends
+      no `overrides.to` (§3 rule 10); `EMAIL_NOT_CONFIGURED` error surfaced.
+- [x] `client/src/components/__tests__/EmailPendingList.test.js` — empty list renders
+      nothing; rows render; missing-address row shows the chip but is **still clickable**
+      (fires `onPreview`); row click fires `onPreview`; client-name click fires
+      `onOpenReservation` (and not `onPreview`); `Ignorer` fires `onAcknowledge`.
+      _(Replaces the removed `EmailPendingDialog.test.js`.)_
+- [x] `client/src/components/__tests__/EmailPendingAlert.test.js` — dashboard widget:
+      hidden while loading and when count = 0; shows count + clients-without-email; click
+      **navigates to `/emails`** (no longer opens a popup).
+- [x] `client/src/components/__tests__/EmailLogViewDialog.test.js` (4) — read-only log
+      preview: subject/body/recipient; failure error message.
+- [x] `client/src/pages/__tests__/EmailHistoryPage.test.js` (7) — history loads with status
+      badge + subject; empty state; status + reservation filters re-query; pagination
+      boundaries + next-page offset; view icon opens the detail dialog.
+- [x] `client/src/components/__tests__/SettingsSmtpSection.test.js` (11) — fields render;
+      onChange forwarding; server validation errors; test button enable/disable rules
+      (host + fromEmail + saved-or-drafted password); spinner while testing; result alert;
+      disabled state.
+
+### End-to-end tests (Playwright)
+
+- [x] `e2e/specs/emails/emails-page.spec.js` (3) — the Emails page renders the two cards +
+      the seeded « Rappel arrivée — J-7 » template with zero console errors; a template row
+      click opens the « Modifier le modèle » dialog; « Voir l'historique » navigates to
+      `/emails/historique`.
 
 ### Manual UI verification (after Commit 2)
 
@@ -590,7 +773,7 @@ configured.
 (Resolved during scope discussion 2026-06-07.)
 
 - Q: Multi-template or single template?
-  - A: Multi. CRUD on `/emails/modeles`.
+  - A: Multi. CRUD on `/emails`.
 - Q: FR or bilingual?
   - A: FR only for this PR. Bilingual is a future PR if foreign-client volume grows.
 - Q: Auto, manual, or both?

@@ -13,6 +13,14 @@ const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 
+// Canonical French articles for "votre séjour <article> <name>" in client emails
+// (specs/email-automation.md §3 rule 13). Anything off-list falls back to 'au'.
+const VALID_NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
+function normalizeNameArticle(value) {
+  const v = String(value || '').trim();
+  return VALID_NAME_ARTICLES.includes(v) ? v : 'au';
+}
+
 function createPropertiesModel(database) {
   function findPricingRuleOverlap(propertyId, dateRanges, excludeRuleId = null) {
     if (!dateRanges.length) return null;
@@ -108,10 +116,11 @@ function createPropertiesModel(database) {
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`
-        INSERT INTO properties (name, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO properties (name, nameArticle, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         sentenceCase(body.name),
+        normalizeNameArticle(body.nameArticle),
         photo,
         body.maxAdults || 2,
         body.maxChildren || 0,
@@ -165,10 +174,11 @@ function createPropertiesModel(database) {
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
       database.prepare(`
-        UPDATE properties SET name=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, updatedAt=datetime('now')
+        UPDATE properties SET name=?, nameArticle=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
         sentenceCase(body.name),
+        normalizeNameArticle(body.nameArticle),
         photo,
         body.maxAdults || 2,
         body.maxChildren || 0,
@@ -407,5 +417,7 @@ function createPropertiesModel(database) {
 
 const defaultModel = createPropertiesModel(db);
 defaultModel.buildModel = createPropertiesModel;
+// Exposed for unit tests.
+defaultModel.__test = { normalizeNameArticle, VALID_NAME_ARTICLES };
 
 module.exports = defaultModel;

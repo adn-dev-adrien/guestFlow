@@ -114,3 +114,18 @@ test('getByIdWithDetails exposes collectsTouristTax on each iCal source', () => 
   assert.equal(byKey.airbnb.collectsTouristTax, 1);
   assert.equal(byKey.gitedefrance.collectsTouristTax, 0);
 });
+
+// ---- nameArticle normalization (specs/email-automation.md §3 rule 13) ----
+
+test('normalizeNameArticle keeps the four canonical values and falls back to "au"', () => {
+  const { normalizeNameArticle } = propertiesModel.__test;
+  assert.equal(normalizeNameArticle('au'), 'au');
+  assert.equal(normalizeNameArticle('à la'), 'à la');
+  assert.equal(normalizeNameArticle("à l'"), "à l'");
+  assert.equal(normalizeNameArticle('aux'), 'aux');
+  // Off-list / blank / undefined → safe default.
+  assert.equal(normalizeNameArticle('LE'), 'au');
+  assert.equal(normalizeNameArticle(''), 'au');
+  assert.equal(normalizeNameArticle(undefined), 'au');
+  assert.equal(normalizeNameArticle('  à la  '), 'à la'); // trimmed
+});
