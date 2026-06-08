@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box, Typography, Card, CardContent, TextField, Button, Grid,
+  Box, Typography, Card, CardContent, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel
@@ -546,13 +546,12 @@ export default function PropertyDetail() {
           )}
         </Box>
       </Box>
-      <Grid container spacing={3}>
+      {/* Masonry: compact cards pack into 2 balanced columns on md+ (no row-height gaps);
+          wide / table-bearing cards (Tarification, Documents, iCal) span full width via
+          columnSpan. 1 column on xs. */}
+      <Box sx={{ columnGap: { md: 3 }, columnCount: { xs: 1, md: 2 } }}>
         {/* Infos */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Informations</Typography>
@@ -632,14 +631,10 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Horaires & Ménage */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Horaires & Ménage</Typography>
@@ -664,13 +659,9 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Options horaires automatiques</Typography>
@@ -735,28 +726,20 @@ export default function PropertyDetail() {
 
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Per-property option defaults — canonical edit surface (specs/weekly-bed-linen-tracking.md §3.7). */}
         {!isNew && (
-          <Grid
-            size={{
-              xs: 12,
-              md: 6
-            }}>
+          <Box sx={{ breakInside: 'avoid', mb: 3 }}>
             <PropertyDefaultOptionsCard
               propertyId={Number(id)}
               options={catalogOptions}
             />
-          </Grid>
+          </Box>
         )}
 
         {/* Acompte & Solde */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
@@ -772,14 +755,10 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Pricing */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Tarification</Typography>
@@ -950,14 +929,10 @@ export default function PropertyDetail() {
               </TableContainer>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Documents */}
-        <Grid
-          size={{
-            xs: 12,
-            md: 6
-          }}>
+        <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Documents</Typography>
@@ -990,17 +965,17 @@ export default function PropertyDetail() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* iCal Export */}
         {!isNew && (
-          <Grid size={12}>
+          <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
             <IcalExportCard propertyId={property.id} propertyName={property.name} />
-          </Grid>
+          </Box>
         )}
 
         {/* iCal Sync */}
-        <Grid size={12}>
+        <Box sx={{ breakInside: 'avoid', mb: 3, columnSpan: 'all' }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
@@ -1176,9 +1151,9 @@ export default function PropertyDetail() {
               </TableContainer>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-      </Grid>
+      </Box>
       {/* Unsaved changes dialog */}
       <Dialog open={navGuardOpen} onClose={() => setNavGuardOpen(false)}>
         <DialogTitle>Modifications non sauvegardées</DialogTitle>

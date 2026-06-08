@@ -119,8 +119,24 @@ No schema change, no migration.
 
 ## 6. UI / UX
 
-No visible change. Property list/detail, pricing seasons, documents, options, iCal sources management +
-sync feedback all behave identically. (No `PageActionBar` change in scope.)
+Original MVC scope: no visible change. Property list/detail, pricing seasons, documents, options,
+iCal sources management + sync feedback all behave identically. (No `PageActionBar` change in scope.)
+
+### 6.1 Property detail layout rework (2026-06-08)
+
+`PropertyDetail` (`/properties/:id`) previously laid its cards out in a `<Grid container>` of
+`md=6` items. Because the cards have very uneven heights (e.g. "Horaires & Ménage" = 2 fields vs
+"Informations" / "Tarification" = tall), the row-based Grid left large empty gaps under the short
+cards. Reworked to a **CSS masonry** (`columnCount: { xs: 1, md: 2 }`, `columnGap: 3`):
+
+- **Masonry (2 balanced columns on md+, 1 on xs):** the compact cards — Informations (incl. the
+  article selector), Horaires & Ménage, Options horaires automatiques, Options par défaut, Acompte
+  & Solde. Each is `break-inside: avoid` so a card never splits across a column.
+- **Full width (`column-span: all`):** the wide / table-bearing cards — **Tarification** (holds the
+  pricing-seasons table, `minWidth 700`), **Documents**, **iCal Export**, **Connexions iCal**.
+
+No behaviour change — purely layout. Logic, role gating, dirty-form guard, endpoints untouched.
+The `Grid` import is dropped from the page.
 
 ## 7. Test plan
 
