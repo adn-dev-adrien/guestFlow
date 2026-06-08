@@ -4,6 +4,18 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+- **Responsive rework of the Paramètres pages** (specs `settings.md`,
+  `linen-inventory-shortage-tracking.md`, `establishment-closures.md`,
+  2026-06-08). The Paramètres page and the Stock blanchisserie page now
+  use a CSS **masonry** (1 column ≤ md, 2 balanced columns on lg+) inside
+  a wider centered container (`maxWidth lg: 1240`), so small sections no
+  longer waste the desktop width; both stay single-column + mobile-friendly
+  on phones. The Fermetures table container widened (920 → 1200 on lg).
+  Pages already full-width + responsive (Logements grid, Clients / Options
+  / Ressources via DataPageScaffold, Comptes) were left unchanged. Vacances
+  scolaires excluded by request.
+
 ### Added
 - **Client emails — templates, scheduled send + manual review** (spec
   `email-automation.md`, 2026-06-07). GuestFlow can now communicate

@@ -138,7 +138,7 @@ export default function EstablishmentClosuresPage() {
         }]}
       />
 
-      <Box sx={{ maxWidth: 920, mx: 'auto', px: { xs: 0, sm: 1 } }}>
+      <Box sx={{ maxWidth: { xs: '100%', md: 920, lg: 1200 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
         <TableCard minWidth={760}>
           <TableHead>
             <TableRow>

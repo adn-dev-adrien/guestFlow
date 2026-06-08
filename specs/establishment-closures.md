@@ -203,7 +203,7 @@ Speeds up the overlap-detection queries that look up closures by `(propertyId, d
 
 - `PageActionBar` title: "Fermetures de l'établissement".
 - `actionsBefore` (only icon): `{ icon: <AddIcon />, tooltip: "Ajouter une fermeture", onClick: openCreateDialog, color: 'primary', variant: 'contained' }`. No `onSave`/`onCancel` since this is a list page (the dialog handles its own save).
-- Table inside `TableCard`, max-width 920 centered.
+- Table inside `TableCard`, centered, `maxWidth: { md: 920, lg: 1200 }`.
 - Empty state: "Aucune fermeture configurée".
 - Each row is **clickable** (cursor pointer + hover background): clicking anywhere on the row opens the edit dialog. Only the delete IconButton (right column) is an explicit affordance; it uses `stopPropagation` so it doesn't trigger the row-level edit handler.
 - Row content: property name (or "Tous les logements" italic gray for global), label, start, end, then the delete icon in the Actions column.
@@ -254,7 +254,7 @@ The `'/establishment-closures'` path is also added to the conditions that keep `
 |---|---|
 | `xs` (≤600px) | PageActionBar compact. Table wraps in horizontal-scroll container (`TableCard`'s default). Dialog `fullScreen={true}`. Form fields full-width. |
 | `md` (~900px) | Standard layout. |
-| `lg` (≥1200px) | Container capped at 920px. |
+| `lg` (≥1200px) | Container widened to `maxWidth: 1200` (was 920) so the table fills the desktop width instead of leaving large side gutters (2026-06-08). |
 
 ### 6.5 Calendar visualization
 
