@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
 import api from '../../api';
+import ArithmeticTextField from '../ArithmeticTextField';
 import { useReservationForm } from './ReservationFormContext';
 
 function todayStr() {
@@ -71,30 +72,15 @@ export default function FinanceSection() {
                       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
                         Prix hébergement ajusté
                       </Typography>
-                      <TextField
+                      {/* Accepts arithmetic: typing e.g. "100+20" commits 120 on Enter/blur
+                          (specs/reservation-price-arithmetic.md). */}
+                      <ArithmeticTextField
                         label="Prix ajusté"
-                        type="number"
                         value={form.customPrice}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
-                        }}
-                        onFocus={(e) => e.target.select()}
+                        onCommit={(v) => updateForm({ customPrice: v })}
                         fullWidth
-                        sx={{
-                          mt: 1,
-                          '& input[type=number]': {
-                            MozAppearance: 'textfield',
-                          },
-                          '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                            WebkitAppearance: 'none',
-                            margin: 0,
-                          }
-                        }}
+                        sx={{ mt: 1 }}
                         size="small"
-                        slotProps={{
-                          htmlInput: { min: 0, step: 0.01 }
-                        }}
                       />
                       {form.customPrice !== '' && accommodationBasePriceDisplay && (
                         <Box sx={{ mt: 1 }}>
@@ -145,21 +131,17 @@ export default function FinanceSection() {
                           xs: 12,
                           md: 6
                         }}>
-                        <TextField
+                        {/* Accepts arithmetic (e.g. "350+12,50"), committed on Enter/blur. */}
+                        <ArithmeticTextField
                           label="Prix payé par le client"
-                          type="number"
                           value={form.clientGrossAmount ?? ''}
-                          onChange={(e) => updateForm({ clientGrossAmount: e.target.value === '' ? '' : Number(e.target.value) })}
-                          onFocus={(e) => e.target.select()}
+                          onCommit={(v) => updateForm({ clientGrossAmount: v })}
                           fullWidth
                           size="small"
                           error={grossBelowNet}
                           helperText={grossBelowNet
                             ? `Doit être ≥ ${net.toFixed(2)}€ (montant net que tu touches).`
                             : 'Montant TTC réellement payé par le client sur la plateforme.'}
-                          slotProps={{
-                            htmlInput: { min: 0, step: 0.01 }
-                          }}
                         />
                       </Grid>
                       <Grid

@@ -24,9 +24,14 @@ test('renders the brut price and the adjusted-price field', () => {
   expect(screen.getByLabelText('Prix ajusté')).toBeInTheDocument();
 });
 
-test('typing an adjusted price calls updateForm with the parsed customPrice', () => {
+test('the adjusted price commits an arithmetic expression on blur (specs/reservation-price-arithmetic.md)', () => {
   const ctx = renderFinance();
-  fireEvent.change(screen.getByLabelText('Prix ajusté'), { target: { value: '250' } });
+  const input = screen.getByLabelText('Prix ajusté');
+  // No commit while typing…
+  fireEvent.change(input, { target: { value: '100+150' } });
+  expect(ctx.updateForm).not.toHaveBeenCalledWith(expect.objectContaining({ customPrice: expect.anything() }));
+  // …evaluated + committed on blur.
+  fireEvent.blur(input);
   expect(ctx.updateForm).toHaveBeenCalledWith({ customPrice: 250 });
 });
 
