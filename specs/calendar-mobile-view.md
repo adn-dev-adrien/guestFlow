@@ -75,6 +75,12 @@ No change.
   scroll-snap strip hides its scrollbar.
 - **Mini-calendars (`xs`):** horizontal scroll of the day strip; property label + « Ouvrir »
   stay above.
+- **Fit-to-screen (2026-06-08 follow-up):** the app's `<Box component="main">` is a flex
+  child; it needs `minWidth: 0` so it can shrink to the viewport — otherwise the week strip's
+  non-shrinkable `flex: 0 0 100%` pages give it a large intrinsic min-width and the whole
+  page scrolls horizontally (the calendar looked wider than the phone). With `minWidth: 0`
+  on `main`, the page fits the screen and only the week strip scrolls horizontally.
+  `CalendarWeekView`'s Card is also pinned to `width/maxWidth: 100%` as a guard.
 
 ## 7. Test plan
 
