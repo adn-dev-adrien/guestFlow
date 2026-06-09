@@ -176,6 +176,10 @@ the key is wrong; that's an admin concern shown on the settings page).
 **WordPress options** (single option array `guestflow_booking_settings`):
 - `api_base_url` (string, e.g. `https://guestflow.example.com`)
 - `api_key` (string; stored in wp_options — see §9 on hardening; masked in the UI)
+- `ssl_verify` (int 0/1, default 1) — verify the GuestFlow server's TLS certificate. Default ON
+  (secure). Set to 0 ONLY for a trusted local/LAN server with a self-signed certificate; otherwise
+  `wp_remote_request` rejects the cert and the client returns 502. The `wp-config.php` constant
+  `GUESTFLOW_SSL_VERIFY` wins over this option (production can pin it), mirroring the API-key rule.
 - `cache_ttl` (int seconds, default 600)
 - `availability_cache_ttl` (int seconds, default 300)
 - `default_property_id` (int, optional)
