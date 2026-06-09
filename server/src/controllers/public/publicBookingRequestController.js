@@ -12,7 +12,7 @@ const clientsModel = require('../../models/clientsModel');
 const devisModel = require('../../models/devisModel');
 const { validateStayInput, validateGuest } = require('../../utils/publicInputValidation');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
-const { buildEngineQuote, checkOptionApplicability } = require('./publicQuoteController');
+const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const { ok, fail } = require('./publicHttp');
 
 function checkCapacity(property, { adults, children, teens, babies }) {
@@ -37,6 +37,9 @@ function create(req, res) {
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
   if (optErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Option non disponible pour ce logement.', optErrors);
+
+  const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
+  if (resErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Ressource non disponible pour ce logement.', resErrors);
 
   const property = db.prepare('SELECT maxAdults, maxChildren, maxBabies FROM properties WHERE id = ?').get(v.value.propertyId);
   if (!property) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
@@ -82,6 +85,7 @@ function create(req, res) {
     teens: v.value.teens,
     babies: v.value.babies,
     selectedOptions: v.value.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
+    selectedResources: (v.value.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
     notes: String(req.body.message || '').trim(),
   });

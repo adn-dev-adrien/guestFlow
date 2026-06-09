@@ -68,6 +68,7 @@ function buildController({
   const quoteMock = {
     buildEngineQuote: () => engineQuote,
     checkOptionApplicability: () => optError,
+    checkResourceApplicability: () => null,
   };
 
   const controllerModule = '../controllers/public/publicBookingRequestController';

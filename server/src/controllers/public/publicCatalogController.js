@@ -7,12 +7,13 @@
 const db = require('../../database');
 const propertiesModel = require('../../models/propertiesModel');
 const optionsModel = require('../../models/optionsModel');
+const resourcesModel = require('../../models/resourcesModel');
 const reservationsModel = require('../../models/reservationsModel');
 const establishmentClosuresModel = require('../../models/establishmentClosuresModel');
 const { buildOccupiedDatesFromReservations } = require('../../utils/occupancy');
 const { validateAvailabilityQuery } = require('../../utils/publicInputValidation');
 const {
-  toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicAvailability,
+  toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
 } = require('../../utils/publicProjections');
 const { ok, fail } = require('./publicHttp');
 
@@ -68,6 +69,14 @@ function listOptions(req, res) {
   return ok(res, optionsModel.listForProperty(propertyId).map(toPublicOption));
 }
 
+function listResources(req, res) {
+  const propertyId = Number(req.params.id);
+  if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
+  // resourcesModel.list resolves applicability (resource_properties pivot, empty = global) and the
+  // EFFECTIVE per-property price (property_resource_prices). Public projection strips stock/slots.
+  return ok(res, resourcesModel.list(propertyId).map(toPublicResource));
+}
+
 function getAvailability(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
@@ -81,6 +90,7 @@ module.exports = {
   listProperties,
   getProperty,
   listOptions,
+  listResources,
   getAvailability,
   // shared helpers
   computeBlockedDates,

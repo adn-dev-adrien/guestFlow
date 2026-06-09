@@ -35,11 +35,12 @@ function minimalQuote() {
   };
 }
 
-function buildController({ captures, applicableOptionIds = [7] } = {}) {
+function buildController({ captures, applicableOptionIds = [7], applicableResourceIds = [3] } = {}) {
   return withMocks({
     '../../database': {},
     '../../utils/pricing': { calculateReservationQuote: (input) => { captures.engineInput = input; return minimalQuote(); } },
     '../../models/optionsModel': { listForProperty: () => applicableOptionIds.map((id) => ({ id })) },
+    '../../models/resourcesModel': { list: () => applicableResourceIds.map((id) => ({ id })) },
     './publicCatalogController': { computeBlockedDates: () => [], rangeHasBlockedNight: () => false },
   }, () => {
     const m = '../controllers/public/publicQuoteController';
@@ -82,6 +83,30 @@ test('quote rejects an option not applicable to the property (422)', () => {
   assert.equal(res.statusCode, 422);
   assert.equal(res.body.error.code, 'VALIDATION_FAILED');
   assert.equal(captures.engineInput, undefined, 'engine not called on invalid option');
+});
+
+test('quote passes selected resources to the engine as {resourceId, quantity} only (no smuggled price)', () => {
+  const captures = {};
+  const controller = buildController({ captures, applicableResourceIds: [3] });
+  const res = fakeRes();
+  controller.quote({ body: {
+    propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2,
+    resources: [{ resourceId: 3, quantity: 2, unitPrice: 0, price: 999, offered: true }],
+  } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(captures.engineInput.selectedResources, [{ resourceId: 3, quantity: 2 }]);
+});
+
+test('quote rejects a resource not applicable to the property (422)', () => {
+  const captures = {};
+  const controller = buildController({ captures, applicableResourceIds: [99] }); // 3 not applicable
+  const res = fakeRes();
+  controller.quote({ body: {
+    propertyId: 1, startDate: '2026-09-10', endDate: '2026-09-17', adults: 2,
+    resources: [{ resourceId: 3, quantity: 1 }],
+  } }, res);
+  assert.equal(res.statusCode, 422);
+  assert.equal(captures.engineInput, undefined, 'engine not called on invalid resource');
 });
 
 test('quote returns the public projection with an availability flag', () => {

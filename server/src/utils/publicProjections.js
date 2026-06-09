@@ -62,6 +62,22 @@ function toPublicOption(row) {
 }
 
 /**
+ * Public resource projection: only the fields a visitor needs to pick an add-on resource. `price` is
+ * the EFFECTIVE per-property price (resolved by resourcesModel.list). Stock/quantity, opening hours,
+ * slot config and internal flags are NOT exposed.
+ */
+function toPublicResource(row) {
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    name: row.name,
+    description: row.note || null,
+    priceType: row.priceType,
+    price: Number(row.price || 0),
+  };
+}
+
+/**
  * Collapse a sorted array of ISO dates into contiguous inclusive ranges:
  *   ["2026-07-10","2026-07-11","2026-07-12"] → [{ start: "2026-07-10", end: "2026-07-12" }]
  */
@@ -121,6 +137,15 @@ function toPublicQuote(quote, { available, startDate, endDate }) {
       offered: Boolean(o.offered),
     })),
     optionsTotal: Number(quote.optionsTotal || 0),
+    resources: (quote.resourceLines || []).map((r) => ({
+      resourceId: Number(r.resourceId),
+      name: r.name,
+      quantity: Number(r.quantity || 0),
+      unitPrice: Number(r.unitPrice || 0),
+      total: Number(r.totalPrice || 0),
+      offered: Boolean(r.offered),
+    })),
+    resourcesTotal: Number(quote.resourcesTotal || 0),
     touristTax: {
       total: Number(quote.touristTaxTotal || 0),
       label: quote.touristTaxLabel || null,
@@ -137,6 +162,7 @@ module.exports = {
   toPublicProperty,
   toPublicPropertyDetail,
   toPublicOption,
+  toPublicResource,
   toPublicAvailability,
   toPublicQuote,
   collapseToRanges,

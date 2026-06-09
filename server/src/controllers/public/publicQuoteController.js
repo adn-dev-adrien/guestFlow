@@ -8,6 +8,7 @@
 const db = require('../../database');
 const { calculateReservationQuote } = require('../../utils/pricing');
 const optionsModel = require('../../models/optionsModel');
+const resourcesModel = require('../../models/resourcesModel');
 const { validateStayInput } = require('../../utils/publicInputValidation');
 const { toPublicQuote } = require('../../utils/publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
@@ -20,6 +21,16 @@ function checkOptionApplicability(propertyId, options) {
   const errors = options
     .filter((o) => !applicable.has(Number(o.optionId)))
     .map((o) => ({ field: 'options', issue: `option ${o.optionId} is not available for this property` }));
+  return errors.length ? errors : null;
+}
+
+/** Reject any resource id that is not applicable to the property. Returns an error list or null. */
+function checkResourceApplicability(propertyId, resources) {
+  if (!resources || !resources.length) return null;
+  const applicable = new Set(resourcesModel.list(propertyId).map((r) => Number(r.id)));
+  const errors = resources
+    .filter((r) => !applicable.has(Number(r.resourceId)))
+    .map((r) => ({ field: 'resources', issue: `resource ${r.resourceId} is not available for this property` }));
   return errors.length ? errors : null;
 }
 
@@ -36,6 +47,7 @@ function buildEngineQuote(input) {
     teens: input.teens,
     babies: input.babies,
     selectedOptions: input.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
+    selectedResources: (input.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
   });
 }
@@ -46,6 +58,9 @@ function quote(req, res) {
 
   const optErrors = checkOptionApplicability(v.value.propertyId, v.value.options);
   if (optErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Option non disponible pour ce logement.', optErrors);
+
+  const resErrors = checkResourceApplicability(v.value.propertyId, v.value.resources);
+  if (resErrors) return fail(res, 422, 'VALIDATION_FAILED', 'Ressource non disponible pour ce logement.', resErrors);
 
   const engineQuote = buildEngineQuote(v.value);
   if (engineQuote.error) {
@@ -61,4 +76,4 @@ function quote(req, res) {
   }));
 }
 
-module.exports = { quote, buildEngineQuote, checkOptionApplicability };
+module.exports = { quote, buildEngineQuote, checkOptionApplicability, checkResourceApplicability };
