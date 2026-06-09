@@ -211,7 +211,7 @@ them. The data already flows through the existing Devis UI; a visual badge is a 
 |---|---|---|---|---|---|---|
 | GET | `/public/v1/properties` | public | key | — | `{ data: [PublicProperty] }` | List of bookable properties. |
 | GET | `/public/v1/properties/:id` | public | key | — | `{ data: PublicPropertyDetail }` | 404 if unknown. |
-| GET | `/public/v1/properties/:id/options` | public | key | — | `{ data: [PublicOption] }` | Only options applicable to the property. |
+| GET | `/public/v1/properties/:id/options` | public | key | — | `{ data: [PublicOption] }` | Options applicable to the property = linked + global ("Tous les logements"). |
 | GET | `/public/v1/properties/:id/availability?from=&to=` | public | key | — | `{ data: PublicAvailability }` | Consolidated blocked dates; defaults today…+12mo; max 365d. |
 | POST | `/public/v1/quote` | public | key | `QuoteRequest` | `{ data: PublicQuote }` | Computes via engine; no persistence. |
 | POST | `/public/v1/booking-requests` | public | key | `BookingRequest` | `201 { data: BookingRequestReceipt }` | Pending devis; rate-limited + anti-spam. |
@@ -271,6 +271,13 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 ##### GET `/public/v1/properties/:id/options`
 
 - **Params:** path `id`.
+- **Applicability:** returns options **linked to the property** in `property_options` **plus global
+  options** (those linked to no property at all = "Tous les logements"). This matches the pricing
+  engine's rule (`getApplicableOptions` in [utils/pricing.js](server/src/utils/pricing.js)); the model
+  must not use a plain `INNER JOIN property_options`, which would drop every global option. Covered by
+  `tests/options-model-list-for-property.unit.test.js`. (Options carry a single base price — GuestFlow
+  has no per-property option price; only `offered`-by-default varies per property, applied by the
+  engine in the quote.)
 - **Response 200:**
 ```json
 {
