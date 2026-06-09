@@ -54,6 +54,39 @@ test('validateStayInput accepts a valid stay and whitelists fields', () => {
   assert.equal('platform' in r.value, false);
 });
 
+test('validateStayInput strips EVERY price-influencing field — the public API can never set/adjust/offer a price', () => {
+  // A hostile proxy throws the whole pricing arsenal at the boundary. The whitelist must keep
+  // ONLY the engine inputs (dates, guests, optionId+quantity). No price, no adjustment, no
+  // "offered", no platform, no resources — at any level (specs/public-api.md §3 rules 5-6).
+  const r = validateStayInput({
+    propertyId: 1, startDate: '2026-07-20', endDate: '2026-07-27',
+    adults: 2,
+    // top-level money/override fields — all forbidden
+    customPrice: 999, discountPercent: 80, platform: 'airbnb',
+    clientGrossAmount: 1, depositAmount: 0, cautionAmount: 0, finalPrice: 0,
+    offeredOptionIds: [7, 8], priceOverride: 1, adjustedPrice: 1,
+    // resources are not a public concept at all
+    selectedResources: [{ resourceId: 3, unitPrice: 0, offered: true }],
+    resources: [{ resourceId: 4 }],
+    // per-option price/offer tampering — must collapse to {optionId, quantity}
+    options: [{ optionId: 7, quantity: 2, offered: true, free: true, unitPrice: 0, price: 0 }],
+  });
+  assert.equal(r.ok, true);
+  // the engine input is exactly the safe shape, nothing more
+  assert.deepEqual(Object.keys(r.value).sort(), [
+    'adults', 'babies', 'checkInTime', 'checkOutTime', 'children', 'endDate',
+    'options', 'propertyId', 'startDate', 'teens',
+  ]);
+  assert.deepEqual(r.value.options, [{ optionId: 7, quantity: 2 }], 'option reduced to id+quantity — no offered/free/unitPrice/price');
+  for (const banned of [
+    'customPrice', 'discountPercent', 'platform', 'clientGrossAmount', 'depositAmount',
+    'cautionAmount', 'finalPrice', 'offeredOptionIds', 'priceOverride', 'adjustedPrice',
+    'selectedResources', 'resources',
+  ]) {
+    assert.equal(banned in r.value, false, `${banned} must never reach the engine`);
+  }
+});
+
 test('validateStayInput rejects missing propertyId and bad date order', () => {
   const r = validateStayInput({ startDate: '2026-07-27', endDate: '2026-07-20' });
   assert.equal(r.ok, false);

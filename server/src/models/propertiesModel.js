@@ -113,6 +113,21 @@ function createPropertiesModel(database) {
       return property;
     },
 
+    /**
+     * Strictly READ-ONLY property detail for the PUBLIC API. Unlike getByIdWithDetails it must
+     * never write: no ensureDefaultTimedOptionsForProperty seeding, no side effects. Returns only
+     * the property row + the nightly prices the public "from €X" teaser needs — nothing else is
+     * exposed publicly, so documents/icalSources/optionIds are deliberately omitted.
+     */
+    getByIdPublicReadOnly(id) {
+      const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(id));
+      if (!property) return null;
+      property.pricingRules = database
+        .prepare('SELECT pricePerNight FROM pricing_rules WHERE propertyId = ?')
+        .all(Number(id));
+      return property;
+    },
+
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`
