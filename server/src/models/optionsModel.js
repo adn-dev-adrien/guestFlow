@@ -74,10 +74,14 @@ function createOptionsModel(database) {
     // Options applicable to a single property (via the property_options link). Used by the public
     // API to expose only the options a visitor can pick for that property (specs/public-api.md).
     listForProperty(propertyId) {
+      // Applicable options = those explicitly linked to this property, PLUS global options that are
+      // linked to NO property at all ("Tous les logements"). This mirrors the pricing engine's rule
+      // (getApplicableOptions in utils/pricing.js: `propertyIds.length === 0 || includes(id)`); a
+      // plain INNER JOIN would silently drop every global option.
       return database.prepare(`
         SELECT o.* FROM options o
-        JOIN property_options po ON po.optionId = o.id
-        WHERE po.propertyId = ?
+        WHERE EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
+           OR NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
         ORDER BY o.title
       `).all(Number(propertyId)).map((o) => ({
         ...o,
