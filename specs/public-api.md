@@ -470,6 +470,12 @@ follow-up.
 - [x] `tests/public-quote-controller.unit.test.js` — `platform` hard-set to `direct` + every
       price-override field dropped before the engine + options re-sanitised to `{optionId, quantity}`;
       non-applicable option → 422; public projection + `available` flag. **(3 tests)**
+- [x] `tests/public-api-http-integration.test.js` — drives the REAL `/public/v1` router over a real
+      TCP socket (controllers stubbed, middleware real), 2026-06-09: every route (reads + writes) is
+      **fail-closed without the key → 401** + uniform envelope; wrong key → 401, Bearer & X-API-Key both
+      authenticate; `publicApiLimiter` returns **429** past its per-IP window; `bookingRequestLimiter`
+      is stricter (3rd booking → 429) and does **not** throttle plain reads. Per-test `X-Forwarded-For`
+      isolates the rate-limit buckets. **(5 tests)**
 
 ### Manual / integration verification (all ✅ 2026-06-08, curl against `localhost:4000`)
 - [x] Happy path (server-to-server `curl`): list → detail → options → availability → quote →
@@ -480,8 +486,9 @@ follow-up.
       creates/updates a reservation or edits an existing devis. **Strictly enforced** — even a GET's
       incidental seeding was removed (the property-detail read no longer triggers
       `ensureDefaultTimedOptionsForProperty`); covered by `public-catalog-readonly.unit.test.js`.
-- [ ] Rate limiting: exceed `bookingRequestLimiter` → 429; reads stay under `publicApiLimiter`.
-      *(limiters wired + unit-covered config; not exercised live to avoid tripping the dev limiter.)*
+- [x] Rate limiting: exceed `bookingRequestLimiter` → 429; reads stay under `publicApiLimiter`.
+      Now exercised automatically over HTTP by `tests/public-api-http-integration.test.js` (both
+      limiters emit 429 at their thresholds), in addition to the unit-covered config.
 - [x] Regression: internal `/api/*` still returns 401 UNAUTHENTICATED (the `/api` guard is untouched);
       full server test suite green except pre-existing flaky tests (unrelated, vary per run).
 - [x] Projection leak check: public responses carry only whitelisted fields (no photo/doc URLs, no
