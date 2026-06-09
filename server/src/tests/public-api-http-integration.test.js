@@ -43,6 +43,7 @@ const catalogStub = {
   listProperties: (req, res) => res.json({ data: [] }),
   getProperty: (req, res) => res.json({ data: { id: Number(req.params.id) } }),
   listOptions: (req, res) => res.json({ data: [] }),
+  listResources: (req, res) => res.json({ data: [] }),
   getAvailability: (req, res) => res.json({ data: { blockedDates: [] } }),
 };
 const quoteStub = { quote: (req, res) => res.json({ data: { finalPrice: 0 } }) };
@@ -105,6 +106,7 @@ const READ_ROUTES = [
   ['GET', '/public/v1/properties'],
   ['GET', '/public/v1/properties/1'],
   ['GET', '/public/v1/properties/1/options'],
+  ['GET', '/public/v1/properties/1/resources'],
   ['GET', '/public/v1/properties/1/availability'],
 ];
 const WRITE_ROUTES = [
