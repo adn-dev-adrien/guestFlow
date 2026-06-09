@@ -35,6 +35,7 @@ final class GF_Settings
         return [
             'api_base_url'           => '',
             'api_key'                => '',
+            'ssl_verify'             => 1,
             'cache_ttl'              => 600,
             'availability_cache_ttl' => 300,
             'default_property_id'    => 0,
@@ -73,6 +74,24 @@ final class GF_Settings
         return defined('GUESTFLOW_API_KEY') && trim((string) GUESTFLOW_API_KEY) !== '';
     }
 
+    /**
+     * Whether to verify the GuestFlow server's TLS certificate. Default ON (secure). Set to false
+     * ONLY for a trusted local/LAN server using a self-signed certificate. The wp-config constant
+     * GUESTFLOW_SSL_VERIFY wins over the stored option (so production can pin it).
+     */
+    public function get_ssl_verify(): bool
+    {
+        if (defined('GUESTFLOW_SSL_VERIFY')) {
+            return (bool) GUESTFLOW_SSL_VERIFY;
+        }
+        return (bool) $this->get('ssl_verify', true);
+    }
+
+    public function ssl_verify_from_constant(): bool
+    {
+        return defined('GUESTFLOW_SSL_VERIFY');
+    }
+
     public function is_configured(): bool
     {
         return $this->get_base_url() !== '' && $this->get_api_key() !== '';
@@ -107,6 +126,8 @@ final class GF_Settings
         $out = $this->defaults();
 
         $out['api_base_url']           = esc_url_raw(trim((string) ($input['api_base_url'] ?? '')));
+        // Unchecked checkboxes are simply absent from the POST → treat that as "off".
+        $out['ssl_verify']             = empty($input['ssl_verify']) ? 0 : 1;
         $out['cache_ttl']              = max(0, (int) ($input['cache_ttl'] ?? 600));
         $out['availability_cache_ttl'] = max(0, (int) ($input['availability_cache_ttl'] ?? 300));
         $out['default_property_id']    = max(0, (int) ($input['default_property_id'] ?? 0));
@@ -172,6 +193,21 @@ final class GF_Settings
                                        class="regular-text" autocomplete="off"
                                        placeholder="<?php echo $has_key ? esc_attr('••••••••  (' . esc_html__('inchangée', 'guestflow-booking') . ')') : ''; ?>" />
                                 <p class="description"><?php echo esc_html__("Collez la clé PUBLIC_API_KEY de GuestFlow (server/.env.local). Laissez vide pour conserver l'actuelle.", 'guestflow-booking'); ?></p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php echo esc_html__('Vérification SSL', 'guestflow-booking'); ?></th>
+                        <td>
+                            <?php if ($this->ssl_verify_from_constant()) : ?>
+                                <label><input type="checkbox" checked disabled /> <?php echo esc_html__('Vérifier le certificat TLS du serveur GuestFlow', 'guestflow-booking'); ?></label>
+                                <p class="description"><?php echo esc_html__('Définie via la constante GUESTFLOW_SSL_VERIFY dans wp-config.php (prioritaire).', 'guestflow-booking'); ?></p>
+                            <?php else : ?>
+                                <label>
+                                    <input name="<?php echo esc_attr(GF_BOOKING_OPTION); ?>[ssl_verify]" type="checkbox" value="1" <?php checked(1, (int) $o['ssl_verify']); ?> />
+                                    <?php echo esc_html__('Vérifier le certificat TLS du serveur GuestFlow', 'guestflow-booking'); ?>
+                                </label>
+                                <p class="description"><?php echo esc_html__("Laissez coché en production. Décochez UNIQUEMENT pour un serveur local/LAN à certificat auto-signé (sinon la connexion échoue avec un code 502).", 'guestflow-booking'); ?></p>
                             <?php endif; ?>
                         </td>
                     </tr>

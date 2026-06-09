@@ -51,9 +51,12 @@ final class GF_Api_Client
         }
 
         $args = [
-            'method'  => $method,
-            'timeout' => self::TIMEOUT,
-            'headers' => [
+            'method'    => $method,
+            'timeout'   => self::TIMEOUT,
+            // Default true (secure). Operators can turn this off for a trusted local/LAN GuestFlow
+            // using a self-signed certificate (see GF_Settings::get_ssl_verify).
+            'sslverify' => $settings->get_ssl_verify(),
+            'headers'   => [
                 'Authorization' => 'Bearer ' . $key,
                 'Accept'        => 'application/json',
             ],
