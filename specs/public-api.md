@@ -444,10 +444,15 @@ follow-up.
       and map engine fields correctly; range collapsing. **(7 tests)**
 - [x] `tests/require-public-api-key.unit.test.js` — missing/wrong key → 401; correct key via
       `X-API-Key` and `Bearer` → pass; fail-closed when unconfigured. **(5 tests)**
-- The quote + booking-request **controllers** bind to the production `database` module (same pattern
-      as the existing `reservationsController`/`devisController`, which are not unit-tested either), so
-      their full flow is covered by the manual/integration checks below rather than an isolated DB
-      harness. The reusable pricing/validation/projection logic they call is unit-tested above.
+- [x] `tests/public-booking-request-controller.unit.test.js` — the only public write, security
+      orchestration (2026-06-09): honeypot → 201 fake-success but **persists nothing**; a valid request
+      creates a **draft devis** (`platform='direct'`, marked `requestOrigin='public'`) and **never a
+      reservation**; **price-override / non-whitelisted body fields never reach the persisted record**;
+      blocked dates / min-nights / over-capacity → 409; unknown property → 404; bad guest → 422;
+      existing client reused (not duplicated). Real validation; DB/engine/models mocked. **(9 tests)**
+- [x] `tests/public-quote-controller.unit.test.js` — `platform` hard-set to `direct` + every
+      price-override field dropped before the engine + options re-sanitised to `{optionId, quantity}`;
+      non-applicable option → 422; public projection + `available` flag. **(3 tests)**
 
 ### Manual / integration verification (all ✅ 2026-06-08, curl against `localhost:4000`)
 - [x] Happy path (server-to-server `curl`): list → detail → options → availability → quote →
