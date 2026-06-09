@@ -7,7 +7,7 @@
     "dev": "npm run dev:clean && npm run dev:watch",
     "start": "node src/index.js",
     "reset-admin": "node scripts/reset-admin.js",
-    "test": "node --test \"src/tests/**/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"src/tests/**/*.test.js\""
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
