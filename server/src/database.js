@@ -118,6 +118,22 @@ db.exec(`
   )
 `);
 
+// Per-property option PRICE overrides (specs/per-property-option-prices.md). Mirrors
+// `property_resource_prices`: a row sets the effective unit price of `optionId` for `propertyId`;
+// no row → the option's base `options.price`. Independent of `property_options` (a global option
+// can carry overrides) and of `property_option_defaults` (the offered/free flag).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS property_option_prices (
+    propertyId INTEGER NOT NULL,
+    optionId INTEGER NOT NULL,
+    price REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (propertyId, optionId),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+    FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
+  )
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_property_option_prices_option ON property_option_prices(optionId)');
+
 // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7, 2026-06-03 follow-up).
 // Decoupled from `property_options` (which is the availability filter): a row's presence here
 // means "this option is added by default on every NEW reservation for this property"; `offered`

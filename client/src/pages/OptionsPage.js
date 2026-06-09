@@ -27,6 +27,9 @@ const emptyOption = {
   priceType: 'per_stay',
   price: 0,
   propertyIds: [],
+  // Per-property price overrides (specs/per-property-option-prices.md): { [propertyId]: price }.
+  // Empty = every property uses the base price.
+  propertyPrices: {},
   optionProgressiveTiers: [],
   // Linen flags (specs/weekly-bed-linen-tracking.md). The flag itself stays hidden in the UI —
   // it's set by the server-side seeds and round-tripped silently. But when the form is editing
@@ -96,6 +99,65 @@ function BreakfastTimeField({ form, setForm }) {
         onChange={(e) => setForm({ ...form, breakfastTime: e.target.value })}
         sx={{ width: { xs: '100%', sm: 160 } }}
       />
+    </Box>
+  );
+}
+
+// Per-property price overrides (specs/per-property-option-prices.md). One optional price input per
+// applicable property (the option's selected properties, or ALL when it's global). Blank = inherit
+// the base price; an explicit 0 = free for that property. Hidden for `free` and progressive options
+// (the latter keeps global tiers). The effective price is resolved server-side.
+function PerPropertyPricesField({ form, setForm, properties }) {
+  if (form.priceType === 'per_participant_progressive') {
+    return (
+      <FormHelperText sx={{ mt: 1 }}>
+        Les options à tarif dégressif utilisent les mêmes paliers pour tous les logements.
+      </FormHelperText>
+    );
+  }
+  if (form.priceType === 'free') return null;
+
+  const applicable = (form.propertyIds && form.propertyIds.length > 0)
+    ? (properties || []).filter((p) => form.propertyIds.includes(p.id))
+    : (properties || []);
+  if (!applicable.length) return null;
+
+  const prices = form.propertyPrices || {};
+  const base = Number(form.price || 0);
+  const setPrice = (pid) => (e) => {
+    const next = { ...prices };
+    if (e.target.value === '') delete next[pid];
+    else next[pid] = e.target.value;
+    setForm({ ...form, propertyPrices: next });
+  };
+
+  return (
+    <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+        Prix par logement (optionnel)
+      </Typography>
+      <FormHelperText sx={{ mb: 1, mt: 0 }}>
+        Laissez vide pour utiliser le prix de base ({base} €). Mettez 0 pour rendre l'option gratuite sur ce logement.
+      </FormHelperText>
+      <Stack spacing={1.5}>
+        {applicable.map((p) => (
+          <Box
+            key={p.id}
+            sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}
+          >
+            <Typography variant="body2" sx={{ minWidth: { sm: 180 } }}>{p.name}</Typography>
+            <TextField
+              type="number"
+              size="small"
+              placeholder={`${base} (prix de base)`}
+              value={prices[p.id] ?? ''}
+              onChange={setPrice(p.id)}
+              sx={{ width: { xs: '100%', sm: 200 } }}
+              slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+            />
+          </Box>
+        ))}
+      </Stack>
     </Box>
   );
 }
@@ -205,6 +267,7 @@ export default function OptionsPage() {
       fromItem={(item) => ({
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
+        propertyPrices: (item.propertyPrices && typeof item.propertyPrices === 'object') ? item.propertyPrices : {},
         optionProgressiveTiers: normalizeProgressiveTiers(item.optionProgressiveTiers),
         // The countsAs… flags are hidden in the UI (round-tripped silently); the per-type
         // controls below ARE visible when the flag is set. SQLite stores ints, normalise.
@@ -230,6 +293,23 @@ export default function OptionsPage() {
         priceType: form.priceType || 'per_stay',
         optionProgressiveTiers: normalizeProgressiveTiers(form.optionProgressiveTiers),
         propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
+        // Per-property price overrides (specs/per-property-option-prices.md). None for free /
+        // progressive options. For property-restricted options, drop overrides for properties the
+        // option no longer applies to (the global case keeps all keys — every property is valid).
+        propertyPrices: (() => {
+          if (form.priceType === 'free' || form.priceType === 'per_participant_progressive') return {};
+          const src = form.propertyPrices || {};
+          const restricted = form.propertyIds && form.propertyIds.length > 0
+            ? new Set(form.propertyIds.map(Number))
+            : null;
+          const out = {};
+          Object.entries(src).forEach(([pid, val]) => {
+            if (val === '' || val === null || val === undefined) return;
+            if (restricted && !restricted.has(Number(pid))) return;
+            out[pid] = Number(val);
+          });
+          return out;
+        })(),
         countsAsBedLinen: Boolean(form.countsAsBedLinen),
         countsAsBathroomLinen: Boolean(form.countsAsBathroomLinen),
         linenIncludesSingle: Boolean(form.linenIncludesSingle),
@@ -246,12 +326,14 @@ export default function OptionsPage() {
       formDescriptionKey="description"
       showQuantity={false}
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
-      renderExtraFormFields={(form, setForm) => (
+      renderExtraFormFields={(form, setForm, ctx = {}) => (
         <>
           {/* Bilingual devis PDF (specs/devis-english-language.md §3 rule 6 + §6.2) — surface
               the EN title on the same form. Empty = fallback to FR in the EN PDF. */}
           <EnglishTitleField form={form} setForm={setForm} titleKey="titleEn" />
           <ProgressivePricingFields form={form} setForm={setForm} />
+          {/* Per-property price overrides (specs/per-property-option-prices.md). */}
+          <PerPropertyPricesField form={form} setForm={setForm} properties={ctx.properties || []} />
           {/* Breakfast default time (specs/breakfast-time.md) — only on the breakfast option. */}
           {form.autoOptionType === 'breakfast' && (
             <BreakfastTimeField form={form} setForm={setForm} />

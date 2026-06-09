@@ -645,14 +645,25 @@ function applyOfferedToLine(realTotal, offered) {
 }
 
 function getApplicableOptions(db, propertyId) {
+  const pid = Number(propertyId);
   const options = db.prepare('SELECT * FROM options ORDER BY title').all();
   const propStmt = db.prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId');
+  // Per-property price override (specs/per-property-option-prices.md): the effective unit price for
+  // this property is the override row when present, else the option's base price. Guarded so a
+  // schema without the table keeps the base price. A row with price 0 is an explicit free.
+  let priceStmt = null;
+  try { priceStmt = db.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?'); }
+  catch { priceStmt = null; }
   return options
-    .map((option) => ({
-      ...option,
-      propertyIds: propStmt.all(option.id).map((row) => Number(row.propertyId)),
-    }))
-    .filter((option) => option.propertyIds.length === 0 || option.propertyIds.includes(Number(propertyId)));
+    .map((option) => {
+      const override = priceStmt ? priceStmt.get(option.id, pid) : undefined;
+      return {
+        ...option,
+        price: override ? Number(override.price) : Number(option.price || 0),
+        propertyIds: propStmt.all(option.id).map((row) => Number(row.propertyId)),
+      };
+    })
+    .filter((option) => option.propertyIds.length === 0 || option.propertyIds.includes(pid));
 }
 
 function getApplicableResources(db, propertyId) {

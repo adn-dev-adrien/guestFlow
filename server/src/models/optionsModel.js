@@ -54,11 +54,41 @@ function createOptionsModel(database) {
     .all(optionId)
     .map((r) => r.propertyId);
 
+  // Per-property price overrides (specs/per-property-option-prices.md). Returns { [propertyId]: price }
+  // for the rows that exist; an absent property inherits the option's base price. Guarded so a
+  // minimal test schema without the table degrades to "no overrides".
+  const HAS_OPTION_PROPERTY_PRICES = (() => {
+    try { database.prepare('SELECT 1 FROM property_option_prices LIMIT 1').get(); return true; }
+    catch { return false; }
+  })();
+  const propertyPricesFor = (optionId) => {
+    if (!HAS_OPTION_PROPERTY_PRICES) return {};
+    return database
+      .prepare('SELECT propertyId, price FROM property_option_prices WHERE optionId = ? ORDER BY propertyId')
+      .all(optionId)
+      .reduce((acc, row) => { acc[String(row.propertyId)] = Number(row.price || 0); return acc; }, {});
+  };
+  // Replace the override rows for an option. A blank/empty value means "inherit the base price" (no
+  // row); an explicit number (incl. 0 = free) is persisted. `undefined` payload → leave untouched.
+  function persistPropertyPrices(optionId, payload) {
+    if (!HAS_OPTION_PROPERTY_PRICES || payload.propertyPrices === undefined) return;
+    database.prepare('DELETE FROM property_option_prices WHERE optionId = ?').run(optionId);
+    const insert = database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (?, ?, ?)');
+    for (const [pid, raw] of Object.entries(payload.propertyPrices || {})) {
+      if (raw === null || raw === undefined || raw === '') continue; // blank = inherit
+      const price = Number(raw);
+      const propertyId = Number(pid);
+      if (!Number.isFinite(price) || price < 0 || !Number.isInteger(propertyId) || propertyId <= 0) continue;
+      insert.run(propertyId, optionId, price);
+    }
+  }
+
   const model = {
     list() {
       return database.prepare('SELECT * FROM options ORDER BY title').all().map((o) => ({
         ...o,
         propertyIds: propertyIdsFor(o.id),
+        propertyPrices: propertyPricesFor(o.id),
         optionProgressiveTiers: normalizeProgressiveOptionTiers(o.optionProgressiveTiers),
       }));
     },
@@ -67,6 +97,7 @@ function createOptionsModel(database) {
       const option = database.prepare('SELECT * FROM options WHERE id = ?').get(id);
       if (!option) return null;
       option.propertyIds = propertyIdsFor(id);
+      option.propertyPrices = propertyPricesFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
       return option;
     },
@@ -78,15 +109,30 @@ function createOptionsModel(database) {
       // linked to NO property at all ("Tous les logements"). This mirrors the pricing engine's rule
       // (getApplicableOptions in utils/pricing.js: `propertyIds.length === 0 || includes(id)`); a
       // plain INNER JOIN would silently drop every global option.
-      return database.prepare(`
-        SELECT o.* FROM options o
+      // `price` is the EFFECTIVE price for this property: the per-property override
+      // (property_option_prices) when present, else the option's base price
+      // (specs/per-property-option-prices.md). The LEFT JOIN is guarded by the table's existence at
+      // build time so minimal schemas degrade to the base price.
+      const pid = Number(propertyId);
+      const priceJoin = HAS_OPTION_PROPERTY_PRICES
+        ? 'LEFT JOIN property_option_prices pop ON pop.optionId = o.id AND pop.propertyId = ?'
+        : '';
+      const rows = database.prepare(`
+        SELECT o.*${HAS_OPTION_PROPERTY_PRICES ? ', pop.price AS __propertyPrice' : ''}
+        FROM options o
+        ${priceJoin}
         WHERE EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
            OR NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
         ORDER BY o.title
-      `).all(Number(propertyId)).map((o) => ({
-        ...o,
-        optionProgressiveTiers: normalizeProgressiveOptionTiers(o.optionProgressiveTiers),
-      }));
+      `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
+      return rows.map((o) => {
+        const { __propertyPrice, ...rest } = o;
+        return {
+          ...rest,
+          price: __propertyPrice != null ? Number(__propertyPrice) : Number(rest.price || 0),
+          optionProgressiveTiers: normalizeProgressiveOptionTiers(rest.optionProgressiveTiers),
+        };
+      });
     },
 
     create(payload = {}) {
@@ -144,6 +190,7 @@ function createOptionsModel(database) {
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
+        persistPropertyPrices(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -198,6 +245,7 @@ function createOptionsModel(database) {
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
+        persistPropertyPrices(id, payload);
       })();
       return { ok: true };
     },
