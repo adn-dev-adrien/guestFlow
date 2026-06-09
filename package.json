@@ -10,6 +10,9 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "cd client && npm run build",
     "reset-admin": "cd server && npm run reset-admin",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "npm --prefix server test",
+    "test:client": "npm --prefix client test",
     "test:e2e": "node e2e/wipe-db.js && playwright test",
     "test:e2e:headed": "node e2e/wipe-db.js && playwright test --headed",
     "test:e2e:report": "playwright show-report"
