@@ -303,7 +303,7 @@ function createModel(database) {
   }
 
   // ---- public API ----
-  function list({ propertyId, status, from, to } = {}) {
+  function list({ propertyId, status, from, to, requestOrigin } = {}) {
     let sql = `
       SELECT d.*, d.devisStatus AS status, c.firstName, c.lastName, p.name as propertyName
       FROM reservations d
@@ -315,6 +315,10 @@ function createModel(database) {
     if (status) { sql += ' AND d.devisStatus = ?'; params.push(status); }
     if (from) { sql += ' AND d.endDate >= ?'; params.push(from); }
     if (to) { sql += ' AND d.startDate <= ?'; params.push(to); }
+    // Origin filter (specs/public-api.md follow-up): 'public' = booking requests submitted via the
+    // WordPress public API; 'internal' = everything else (NULL requestOrigin). Only applied when set.
+    if (requestOrigin === 'public') { sql += " AND d.requestOrigin = 'public'"; }
+    else if (requestOrigin === 'internal') { sql += " AND (d.requestOrigin IS NULL OR d.requestOrigin != 'public')"; }
     sql += ' ORDER BY d.createdAt DESC';
     return database.prepare(sql).all(...params);
   }
