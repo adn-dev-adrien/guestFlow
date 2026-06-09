@@ -1,0 +1,72 @@
+name: Unit tests
+
+# Runs the server (node --test) and client (vitest) unit suites — which include the public API
+# coverage (auth, projections, validation/price-immutability, read-only GET, quote + booking
+# flows, and the HTTP integration test for router wiring + rate limiters).
+#
+# Auto-runs on:
+#   - pull_request to master → fires on open, every subsequent push to the PR branch, and re-open.
+#     Plain pull_request (not pull_request_target) keeps secrets safe even for fork PRs.
+#   - push to master → post-merge guard so a squash-merge can't slip a regression past PR checks.
+#
+# Runs on ubuntu-latest (GitHub-hosted) — free for public repos, no Pi runner queue. Mirrors the
+# conventions of e2e.yml (checkout@v6, setup-node@v6, Node 24, better-sqlite3 rebuilt from source).
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Cancel in-progress runs on the same ref when a newer commit lands.
+concurrency:
+  group: unit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: 📚 Install server deps
+        run: cd server && npm ci
+
+      - name: ⚛️ Build native modules against the runtime Node
+        # better-sqlite3 ships prebuilt binaries that may not match the Ubuntu runner's Node ABI.
+        # Forcing a rebuild from source guarantees compatibility — same idiom as e2e.yml/deploy.yml.
+        run: |
+          cd server
+          env npm_config_build_from_source=true npm rebuild better-sqlite3
+
+      - name: 🧪 Run the server unit suite
+        run: cd server && npm test
+
+  client:
+    name: client (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: 📚 Install client deps
+        run: cd client && npm ci
+
+      - name: 🧪 Run the client unit suite
+        run: cd client && npm test
