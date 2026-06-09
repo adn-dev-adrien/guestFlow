@@ -28,7 +28,9 @@ const emptyOption = {
   price: 0,
   propertyIds: [],
   // Per-property price overrides (specs/per-property-option-prices.md): { [propertyId]: price }.
-  // Empty = every property uses the base price.
+  // Empty = every property uses the base price. `perPropertyPricing` is a UI-only toggle (derived
+  // on load from whether overrides exist): ON replaces the single price with one line per property.
+  perPropertyPricing: false,
   propertyPrices: {},
   optionProgressiveTiers: [],
   // Linen flags (specs/weekly-bed-linen-tracking.md). The flag itself stays hidden in the UI —
@@ -103,27 +105,32 @@ function BreakfastTimeField({ form, setForm }) {
   );
 }
 
-// Per-property price overrides (specs/per-property-option-prices.md). One optional price input per
-// applicable property (the option's selected properties, or ALL when it's global). Blank = inherit
-// the base price; an explicit 0 = free for that property. Hidden for `free` and progressive options
-// (the latter keeps global tiers). The effective price is resolved server-side.
-function PerPropertyPricesField({ form, setForm, properties }) {
+// Per-property pricing (specs/per-property-option-prices.md). A toggle activates "a price per
+// property": when ON, the single base price field (rendered by PricedItemsPage) is hidden and one
+// price input is shown per applicable property (the option's selected properties, or ALL when it's
+// global). Blank = inherit the base price; an explicit 0 = free for that property. Not available for
+// `free` options; progressive options keep global tiers. The effective price is resolved server-side.
+function PerPropertyPricingControls({ form, setForm, properties }) {
+  if (form.priceType === 'free') return null;
   if (form.priceType === 'per_participant_progressive') {
     return (
-      <FormHelperText sx={{ mt: 1 }}>
+      <FormHelperText>
         Les options à tarif dégressif utilisent les mêmes paliers pour tous les logements.
       </FormHelperText>
     );
   }
-  if (form.priceType === 'free') return null;
 
   const applicable = (form.propertyIds && form.propertyIds.length > 0)
     ? (properties || []).filter((p) => form.propertyIds.includes(p.id))
     : (properties || []);
-  if (!applicable.length) return null;
-
   const prices = form.propertyPrices || {};
   const base = Number(form.price || 0);
+
+  const onToggle = (e) => {
+    const on = e.target.checked;
+    // Turning OFF clears all overrides (back to the single base price); turning ON keeps any existing.
+    setForm({ ...form, perPropertyPricing: on, propertyPrices: on ? prices : {} });
+  };
   const setPrice = (pid) => (e) => {
     const next = { ...prices };
     if (e.target.value === '') delete next[pid];
@@ -132,32 +139,42 @@ function PerPropertyPricesField({ form, setForm, properties }) {
   };
 
   return (
-    <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-        Prix par logement (optionnel)
-      </Typography>
-      <FormHelperText sx={{ mb: 1, mt: 0 }}>
-        Laissez vide pour utiliser le prix de base ({base} €). Mettez 0 pour rendre l'option gratuite sur ce logement.
-      </FormHelperText>
-      <Stack spacing={1.5}>
-        {applicable.map((p) => (
-          <Box
-            key={p.id}
-            sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}
-          >
-            <Typography variant="body2" sx={{ minWidth: { sm: 180 } }}>{p.name}</Typography>
-            <TextField
-              type="number"
-              size="small"
-              placeholder={`${base} (prix de base)`}
-              value={prices[p.id] ?? ''}
-              onChange={setPrice(p.id)}
-              sx={{ width: { xs: '100%', sm: 200 } }}
-              slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
-            />
+    <Box>
+      <FormControlLabel
+        control={<Checkbox checked={Boolean(form.perPropertyPricing)} onChange={onToggle} />}
+        label="Prix différent selon le logement"
+      />
+      {form.perPropertyPricing && (
+        applicable.length === 0 ? (
+          <FormHelperText sx={{ mt: 0.5 }}>Sélectionnez au moins un logement pour définir un prix par logement.</FormHelperText>
+        ) : (
+          <Box sx={{ mt: 1, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+            <FormHelperText sx={{ mb: 1, mt: 0 }}>
+              Un prix par logement. Laissez vide pour reprendre le prix de base ({base} €) ; mettez 0 pour le rendre gratuit.
+            </FormHelperText>
+            <Stack spacing={1.5}>
+              {applicable.map((p) => (
+                <Box
+                  key={p.id}
+                  sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}
+                >
+                  <Typography variant="body2" sx={{ minWidth: { sm: 180 } }}>{p.name}</Typography>
+                  <TextField
+                    label="Prix (EUR)"
+                    type="number"
+                    size="small"
+                    placeholder={`${base} (prix de base)`}
+                    value={prices[p.id] ?? ''}
+                    onChange={setPrice(p.id)}
+                    sx={{ width: { xs: '100%', sm: 220 } }}
+                    slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+                  />
+                </Box>
+              ))}
+            </Stack>
           </Box>
-        ))}
-      </Stack>
+        )
+      )}
     </Box>
   );
 }
@@ -268,6 +285,8 @@ export default function OptionsPage() {
         ...item,
         propertyIds: Array.isArray(item.propertyIds) ? item.propertyIds : [],
         propertyPrices: (item.propertyPrices && typeof item.propertyPrices === 'object') ? item.propertyPrices : {},
+        // Toggle is ON when the option already has at least one per-property override.
+        perPropertyPricing: Boolean(item.propertyPrices && Object.keys(item.propertyPrices).length > 0),
         optionProgressiveTiers: normalizeProgressiveTiers(item.optionProgressiveTiers),
         // The countsAs… flags are hidden in the UI (round-tripped silently); the per-type
         // controls below ARE visible when the flag is set. SQLite stores ints, normalise.
@@ -297,6 +316,7 @@ export default function OptionsPage() {
         // progressive options. For property-restricted options, drop overrides for properties the
         // option no longer applies to (the global case keeps all keys — every property is valid).
         propertyPrices: (() => {
+          if (!form.perPropertyPricing) return {};
           if (form.priceType === 'free' || form.priceType === 'per_participant_progressive') return {};
           const src = form.propertyPrices || {};
           const restricted = form.propertyIds && form.propertyIds.length > 0
@@ -326,14 +346,18 @@ export default function OptionsPage() {
       formDescriptionKey="description"
       showQuantity={false}
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
+      // Per-property pricing (specs/per-property-option-prices.md): when the toggle is ON, hide the
+      // single base-price field — the per-property lines below take over.
+      shouldHidePrice={(form) => Boolean(form.perPropertyPricing) && form.priceType !== 'free'}
       renderExtraFormFields={(form, setForm, ctx = {}) => (
-        <>
+        // Wrapper adds vertical rhythm so the extra fields don't touch the "Logements" selector above.
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
           {/* Bilingual devis PDF (specs/devis-english-language.md §3 rule 6 + §6.2) — surface
               the EN title on the same form. Empty = fallback to FR in the EN PDF. */}
           <EnglishTitleField form={form} setForm={setForm} titleKey="titleEn" />
           <ProgressivePricingFields form={form} setForm={setForm} />
-          {/* Per-property price overrides (specs/per-property-option-prices.md). */}
-          <PerPropertyPricesField form={form} setForm={setForm} properties={ctx.properties || []} />
+          {/* Per-property pricing toggle + per-property lines (specs/per-property-option-prices.md). */}
+          <PerPropertyPricingControls form={form} setForm={setForm} properties={ctx.properties || []} />
           {/* Breakfast default time (specs/breakfast-time.md) — only on the breakfast option. */}
           {form.autoOptionType === 'breakfast' && (
             <BreakfastTimeField form={form} setForm={setForm} />
@@ -349,7 +373,7 @@ export default function OptionsPage() {
           )}
           {/* §3.7 read-only mirror — list of properties that use this option as a default. */}
           <OptionPropertyDefaultsMirror optionId={form.id} form={form} />
-        </>
+        </Box>
       )}
     />
   );

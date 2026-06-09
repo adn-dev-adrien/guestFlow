@@ -57,9 +57,13 @@ option's base price is used, exactly as today.
    **effective price for that property** (the projection passes through whatever the model resolved). No
    public contract shape change — just the correct value.
 8. **Editing.** On the **Options page** (the option's own page, mirroring how resources are edited on
-   the Resources page), the option form gains an optional price input **per applicable property**. Blank
-   = use base price. "Applicable properties" = the option's selected `propertyIds`, or **all properties**
-   when the option is global.
+   the Resources page), the option form gains a **"Prix différent selon le logement"** toggle. When
+   **OFF** (default), the single base-price field is shown as today. When **ON**, that single price
+   field is **hidden and replaced by one price line per applicable property**. Blank = use base price;
+   explicit 0 = free. "Applicable properties" = the option's selected `propertyIds`, or **all
+   properties** when the option is global. The toggle is initialised ON when the option already has at
+   least one override; turning it OFF clears all overrides. The toggle is UI-only (not persisted) — the
+   "mode" is implied by the presence of override rows.
 9. **Backward compatible.** Until an override row exists, every option behaves exactly as today.
 
 **Edge cases:**
@@ -100,7 +104,8 @@ override persistence mirrors `resourcesModel` (delete-then-insert in a transacti
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `OptionsPage.js` | T | Option form: a "Prix par logement" section with one optional price input per applicable property; include `propertyPrices` in the saved payload; show the map in the edit form. |
+| `pages/` | `OptionsPage.js` | T | Option form: a "Prix différent selon le logement" toggle that hides the single price and shows one price input per applicable property; derive the toggle from existing overrides; include `propertyPrices` in the payload (only when ON); wrap the extra fields so they don't touch the Logements selector. |
+| `components/` | `PricedItemsPage.js` | T | New `shouldHidePrice(form)` prop to hide the generic single-price field when an option is in per-property mode (no effect on the Resources page, which doesn't pass it). |
 | `services/`|  `api.js` / options service | T | Pass `propertyPrices` through create/update. |
 
 **Component reuse declaration:**
@@ -143,17 +148,19 @@ today. No backfill. No risk of loss/corruption.
 
 ## 6. UI / UX
 
-**Options page — option create/edit form.** Below the base "Prix unitaire (EUR)" field, add a section
-**« Prix par logement (optionnel) »**:
-- One row per applicable property: the property name + a number `TextField` (EUR), placeholder = the
-  base price, empty = « hérite du prix de base ».
+**Options page — option create/edit form.** A **« Prix différent selon le logement »** checkbox toggle:
+- **OFF (default):** the single "Prix (EUR)" field is shown (unchanged behavior).
+- **ON:** the single price field is **hidden** and replaced by a **« Prix par logement »** block — one
+  row per applicable property: the property name + a number `TextField` (EUR), placeholder = the base
+  price, empty = « reprend le prix de base », explicit 0 = free.
 - Applicable properties = the option's selected `propertyIds`; if the option is global (none selected),
-  list **all** properties.
-- Hidden entirely for `per_participant_progressive` options (rule 3), with a short helper text
-  explaining progressive pricing stays global.
-- Copy (FR): section title « Prix par logement (optionnel) », helper « Laissez vide pour utiliser le
-  prix de base. », progressive note « Les options à tarif progressif utilisent les mêmes paliers pour
-  tous les logements. »
+  list **all** properties. If ON with no property selected yet → helper « Sélectionnez au moins un
+  logement… ».
+- The toggle is initialised ON when the option already has overrides; turning it OFF clears them. Not
+  shown for `free`; for `per_participant_progressive` a helper note replaces it (tiers stay global).
+- The toggle hides the generic price field via the `shouldHidePrice` prop added to `PricedItemsPage`.
+- **Spacing:** the extra-fields block (EN title, toggle, etc.) is wrapped so it no longer touches the
+  "Logements" selector above (a `gap`/`mt` wrapper) — fixes the fields touching the Logements box.
 
 **Responsive:** `xs` — each property/price row stacks (label above input), full-width inputs, reduced
 padding; `md`+ — label and input on one line. The Options form already renders in a `FormDialog`

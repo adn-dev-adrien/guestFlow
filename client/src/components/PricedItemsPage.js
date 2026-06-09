@@ -39,6 +39,9 @@ export default function PricedItemsPage({
   renderExtraFormFields,
   getRowSx,
   priceTypes,
+  // Optional: hide the single "Prix" field for a given form state (e.g. when an option switches to
+  // per-property pricing and renders its own price-per-property lines in renderExtraFormFields).
+  shouldHidePrice,
 }) {
     const resolvedPriceTypes = priceTypes || PRICE_TYPES;
 
@@ -271,7 +274,7 @@ export default function PricedItemsPage({
               </Select>
             </FormControl>
 
-            {form.priceType !== 'free' && (
+            {form.priceType !== 'free' && !(shouldHidePrice && shouldHidePrice(form)) && (
               <TextField
                 label="Prix (EUR)"
                 type="number"
