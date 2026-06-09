@@ -1,12 +1,13 @@
 import React from 'react';
 import {
-  Box, Button, Checkbox, FormControlLabel, FormHelperText, IconButton, Stack, TextField,
-  Typography,
+  Box, Button, Checkbox, FormControl, FormControlLabel, FormHelperText, IconButton, InputLabel,
+  MenuItem, Select, Stack, Switch, TextField, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
 import PricedItemsPage from '../components/PricedItemsPage';
+import PropertiesMultiSelect from '../components/PropertiesMultiSelect';
 import OptionPropertyDefaultsMirror from '../components/OptionPropertyDefaultsMirror';
 
 const OPTION_PRICE_TYPES = [
@@ -105,21 +106,39 @@ function BreakfastTimeField({ form, setForm }) {
   );
 }
 
-// Per-property pricing (specs/per-property-option-prices.md). A toggle activates "a price per
-// property": when ON, the single base price field (rendered by PricedItemsPage) is hidden and one
-// price input is shown per applicable property (the option's selected properties, or ALL when it's
-// global). Blank = inherit the base price; an explicit 0 = free for that property. Not available for
-// `free` options; progressive options keep global tiers. The effective price is resolved server-side.
-function PerPropertyPricingControls({ form, setForm, properties }) {
+// One price row — the SAME presentation for the single price ("Tous les logements") and each
+// per-property line: a label + a "Prix (EUR)" input. Module-level so the input keeps focus while
+// typing (a component defined inside a render would remount on every keystroke).
+function PriceInputRow({ label, value, placeholder, onChange }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}>
+      <Typography variant="body2" sx={{ minWidth: { sm: 200 } }}>{label}</Typography>
+      <TextField
+        label="Prix (EUR)"
+        type="number"
+        size="small"
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        sx={{ width: { xs: '100%', sm: 240 } }}
+        slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+      />
+    </Box>
+  );
+}
+
+// Price section (specs/per-property-option-prices.md). A Switch (same control family as the
+// reservation page option toggles) flips between a single price ("Tous les logements") and one price
+// per applicable property — BOTH rendered with the same row presentation inside one box. Blank in a
+// per-property line = inherit the base price; explicit 0 = free. Hidden for `free`; progressive keeps
+// global tiers. The effective price is resolved server-side.
+function OptionPriceSection({ form, setForm, properties }) {
   if (form.priceType === 'free') return null;
   if (form.priceType === 'per_participant_progressive') {
-    return (
-      <FormHelperText>
-        Les options à tarif dégressif utilisent les mêmes paliers pour tous les logements.
-      </FormHelperText>
-    );
+    return <ProgressivePricingFields form={form} setForm={setForm} />;
   }
 
+  const on = Boolean(form.perPropertyPricing);
   const applicable = (form.propertyIds && form.propertyIds.length > 0)
     ? (properties || []).filter((p) => form.propertyIds.includes(p.id))
     : (properties || []);
@@ -127,11 +146,11 @@ function PerPropertyPricingControls({ form, setForm, properties }) {
   const base = Number(form.price || 0);
 
   const onToggle = (e) => {
-    const on = e.target.checked;
-    // Turning OFF clears all overrides (back to the single base price); turning ON keeps any existing.
-    setForm({ ...form, perPropertyPricing: on, propertyPrices: on ? prices : {} });
+    const next = e.target.checked;
+    // OFF clears overrides (back to the single base price); ON keeps any existing.
+    setForm({ ...form, perPropertyPricing: next, propertyPrices: next ? prices : {} });
   };
-  const setPrice = (pid) => (e) => {
+  const setPropPrice = (pid) => (e) => {
     const next = { ...prices };
     if (e.target.value === '') delete next[pid];
     else next[pid] = e.target.value;
@@ -139,42 +158,41 @@ function PerPropertyPricingControls({ form, setForm, properties }) {
   };
 
   return (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <FormControlLabel
-        control={<Checkbox checked={Boolean(form.perPropertyPricing)} onChange={onToggle} />}
+        control={<Switch checked={on} onChange={onToggle} />}
         label="Prix différent selon le logement"
       />
-      {form.perPropertyPricing && (
-        applicable.length === 0 ? (
-          <FormHelperText sx={{ mt: 0.5 }}>Sélectionnez au moins un logement pour définir un prix par logement.</FormHelperText>
+      <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+        {!on ? (
+          <Stack spacing={1.5}>
+            <PriceInputRow
+              label="Tous les logements"
+              value={form.price ?? ''}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+          </Stack>
+        ) : applicable.length === 0 ? (
+          <FormHelperText sx={{ m: 0 }}>Sélectionnez au moins un logement pour définir un prix par logement.</FormHelperText>
         ) : (
-          <Box sx={{ mt: 1, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
-            <FormHelperText sx={{ mb: 1, mt: 0 }}>
-              Un prix par logement. Laissez vide pour reprendre le prix de base ({base} €) ; mettez 0 pour le rendre gratuit.
+          <>
+            <FormHelperText sx={{ mt: 0, mb: 1 }}>
+              Laissez vide pour reprendre le prix de base ({base} €) ; mettez 0 pour le rendre gratuit.
             </FormHelperText>
             <Stack spacing={1.5}>
               {applicable.map((p) => (
-                <Box
+                <PriceInputRow
                   key={p.id}
-                  sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}
-                >
-                  <Typography variant="body2" sx={{ minWidth: { sm: 180 } }}>{p.name}</Typography>
-                  <TextField
-                    label="Prix (EUR)"
-                    type="number"
-                    size="small"
-                    placeholder={`${base} (prix de base)`}
-                    value={prices[p.id] ?? ''}
-                    onChange={setPrice(p.id)}
-                    sx={{ width: { xs: '100%', sm: 220 } }}
-                    slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
-                  />
-                </Box>
+                  label={p.name}
+                  placeholder={`${base} (prix de base)`}
+                  value={prices[p.id] ?? ''}
+                  onChange={setPropPrice(p.id)}
+                />
               ))}
             </Stack>
-          </Box>
-        )
-      )}
+          </>
+        )}
+      </Box>
     </Box>
   );
 }
@@ -346,25 +364,49 @@ export default function OptionsPage() {
       formDescriptionKey="description"
       showQuantity={false}
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
-      // Per-property pricing (specs/per-property-option-prices.md): when the toggle is ON, hide the
-      // single base-price field — the per-property lines below take over.
-      shouldHidePrice={(form) => Boolean(form.perPropertyPricing) && form.priceType !== 'free'}
-      renderExtraFormFields={(form, setForm, ctx = {}) => (
-        // Wrapper adds vertical rhythm so the extra fields don't touch the "Logements" selector above.
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-          {/* Bilingual devis PDF (specs/devis-english-language.md §3 rule 6 + §6.2) — surface
-              the EN title on the same form. Empty = fallback to FR in the EN PDF. */}
+      // Bespoke form layout (specs/per-property-option-prices.md §6): explicit field order —
+      // Nom, Titre (anglais), Description, Logements, Type de prix, prix (unique OU par logement
+      // via le Switch), puis les options spécifiques (petit-déjeuner, linge, défauts).
+      renderForm={({ form, setForm, properties, priceTypes }) => (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField
+            label="Nom"
+            value={form.title || ''}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            fullWidth
+            required
+          />
           <EnglishTitleField form={form} setForm={setForm} titleKey="titleEn" />
-          <ProgressivePricingFields form={form} setForm={setForm} />
-          {/* Per-property pricing toggle + per-property lines (specs/per-property-option-prices.md). */}
-          <PerPropertyPricingControls form={form} setForm={setForm} properties={ctx.properties || []} />
+          <TextField
+            label="Description"
+            value={form.description || ''}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            fullWidth
+            multiline
+            rows={2}
+          />
+          <PropertiesMultiSelect
+            properties={properties}
+            value={form.propertyIds}
+            onChange={(ids) => setForm({ ...form, propertyIds: ids })}
+          />
+          <FormControl fullWidth>
+            <InputLabel>Type de prix</InputLabel>
+            <Select
+              value={form.priceType || 'per_stay'}
+              label="Type de prix"
+              onChange={(e) => setForm({ ...form, priceType: e.target.value })}
+            >
+              {priceTypes.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+            </Select>
+          </FormControl>
+          {/* Prix unique (Switch OFF) ou prix par logement (Switch ON) — même présentation. */}
+          <OptionPriceSection form={form} setForm={setForm} properties={properties} />
           {/* Breakfast default time (specs/breakfast-time.md) — only on the breakfast option. */}
           {form.autoOptionType === 'breakfast' && (
             <BreakfastTimeField form={form} setForm={setForm} />
           )}
-          {/* §3.5.ter — per-type controls visible iff the flag is set. The flag itself stays
-              hidden (set by the server-side seed); these controls let Adrien tune which bed
-              types travel to the laundry + how many towels of each size per person. */}
+          {/* §3.5.ter — per-type linen controls visible iff the (hidden) flag is set. */}
           {form.countsAsBedLinen && (
             <BedLinenIncludesFields form={form} setForm={setForm} />
           )}

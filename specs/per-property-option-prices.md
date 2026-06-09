@@ -148,23 +148,36 @@ today. No backfill. No risk of loss/corruption.
 
 ## 6. UI / UX
 
-**Options page — option create/edit form.** A **« Prix différent selon le logement »** checkbox toggle:
-- **OFF (default):** the single "Prix (EUR)" field is shown (unchanged behavior).
-- **ON:** the single price field is **hidden** and replaced by a **« Prix par logement »** block — one
-  row per applicable property: the property name + a number `TextField` (EUR), placeholder = the base
-  price, empty = « reprend le prix de base », explicit 0 = free.
-- Applicable properties = the option's selected `propertyIds`; if the option is global (none selected),
-  list **all** properties. If ON with no property selected yet → helper « Sélectionnez au moins un
-  logement… ».
-- The toggle is initialised ON when the option already has overrides; turning it OFF clears them. Not
-  shown for `free`; for `per_participant_progressive` a helper note replaces it (tiers stay global).
-- The toggle hides the generic price field via the `shouldHidePrice` prop added to `PricedItemsPage`.
-- **Spacing:** the extra-fields block (EN title, toggle, etc.) is wrapped so it no longer touches the
-  "Logements" selector above (a `gap`/`mt` wrapper) — fixes the fields touching the Logements box.
+**Options page — bespoke "Modifier l'option" form.** The option form uses a **custom layout** (via the
+new `renderForm` prop on `PricedItemsPage`) with this explicit field order, all in one evenly-spaced
+column (`gap`) so no fields touch:
 
-**Responsive:** `xs` — each property/price row stacks (label above input), full-width inputs, reduced
-padding; `md`+ — label and input on one line. The Options form already renders in a `FormDialog`
-(`fullScreen` on mobile via the existing pattern) — no new dialog.
+1. **Nom**
+2. **Titre (anglais)**
+3. **Description**
+4. **Logements** (the `PropertiesMultiSelect`, with the "Tous les logements" sentinel)
+5. **Type de prix**
+6. **Price section** — a **`Switch`** « Prix différent selon le logement » (same control family as the
+   reservation-page option toggles, **not a checkbox**), then a box whose presentation is **identical**
+   in both modes:
+   - **OFF (default):** one row « Tous les logements : [Prix (EUR)] » → the single base price.
+   - **ON:** one row per applicable property « <nom logement> : [Prix (EUR)] » → the override; blank =
+     reprend le prix de base, explicit 0 = free.
+   - Both modes use the same `PriceInputRow` (label + "Prix (EUR)" input) inside the same bordered box,
+     so switching the toggle only changes the rows, not the look.
+7. **Specific options** — breakfast default time (breakfast option only), bed/bathroom linen per-type
+   controls (when the hidden flag is set), the property-defaults read-only mirror.
+
+- Applicable properties (ON) = the option's selected `propertyIds`; if global, **all** properties; if ON
+  with none selected → helper « Sélectionnez au moins un logement… ».
+- The toggle is initialised ON when the option already has overrides; turning it OFF clears them. The
+  price section is hidden for `free`; for `per_participant_progressive` it is replaced by the existing
+  progressive-tier editor (tiers stay global).
+- `PropertiesMultiSelect` (new component) is extracted from `PricedItemsPage`'s inline selector and used
+  by both the generic form and this bespoke one.
+
+**Responsive:** `xs` — each price row stacks (label above input), full-width inputs; `md`+ — label and
+input on one line. Renders in the existing `FormDialog` (fullscreen on mobile) — no new dialog.
 
 **PageActionBar:** unchanged — `OptionsPage` keeps its existing action bar; this change only adds fields
 inside the existing option form, no new page-level actions.
