@@ -55,7 +55,9 @@ function listProperties(req, res) {
 }
 
 function getProperty(req, res) {
-  const property = propertiesModel.getByIdWithDetails(Number(req.params.id));
+  // Read-only on purpose: the public API never mutates server state on a GET, so we use the
+  // side-effect-free reader instead of getByIdWithDetails (which seeds default timed options).
+  const property = propertiesModel.getByIdPublicReadOnly(Number(req.params.id));
   if (!property) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
   return ok(res, toPublicPropertyDetail(property));
 }

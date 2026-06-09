@@ -84,7 +84,10 @@ or **[CREATE]** (genuinely new logic).
    (`PUBLIC_API_KEY=…`). No key, no access — fail closed.
 3. **Read-only except booking requests.** Only `POST /public/v1/booking-requests` writes. All
    other public endpoints are `GET` (plus `POST /public/v1/quote`, which **computes** but does
-   **not persist**).
+   **not persist**). This is **strict**: a public GET must trigger **zero** DB writes — including
+   incidental side effects. The property-detail read therefore uses
+   `propertiesModel.getByIdPublicReadOnly` (a pure SELECT), **never** `getByIdWithDetails`, which
+   seeds default timed options as a side effect. Locked by `tests/public-catalog-readonly.unit.test.js`.
 4. **No sensitive data in URLs.** The API key travels in a header, never in the query string or
    path. Guest PII (name/email/phone/message) travels only in a `POST` body, never in a URL.
 5. **Public projections only.** Public responses expose a deliberately reduced field set. They
@@ -92,10 +95,18 @@ or **[CREATE]** (genuinely new logic).
    (`acompteContribTtc`/`soldeContribTtc`), payment state, internal notes, client PII of other
    bookings, platform names attached to availability blocks, or VAT-internal net breakdowns
    unless explicitly listed.
-6. **Quote = engine.** `POST /public/v1/quote` calls `calculateReservationQuote(db, …)` with a
-   sanitized parameter set and returns a **public projection** of its output. It never trusts a
-   client-sent price: `customPrice`, `discountPercent`, payment flags, locked snapshots, and
-   accounting params from the body are **ignored/forbidden** on the public path.
+6. **Quote = engine, with zero price control exposed.** `POST /public/v1/quote` calls
+   `calculateReservationQuote(db, …)` with a sanitized parameter set and returns a **public
+   projection** of its output. The public API may pass **only the engine's pricing inputs** (dates,
+   guest counts, and `optionId`+`quantity`); it can never **set, adjust, discount, or offer** a
+   price, nor choose a platform, nor touch resources. Concretely, `validateStayInput` rebuilds the
+   value from a strict whitelist, so the following from the body are **always dropped before the
+   engine and before persistence**: `customPrice`, `discountPercent`, `platform` (forced to
+   `direct`), `clientGrossAmount`, `depositAmount`, `cautionAmount`, `finalPrice`, `priceOverride`,
+   `adjustedPrice`, `offeredOptionIds`, any per-option `offered`/`free`/`unitPrice`/`price`, and
+   `selectedResources`/`resources` (resources are not a public concept at all). Each option is
+   reduced to `{ optionId, quantity }`. Locked by
+   `tests/public-input-validation.unit.test.js` (price-immutability case).
 7. **Booking request is pending, never confirmed.** A successful `POST
    /public/v1/booking-requests` creates a **draft devis** (`kind='devis'`, `devisStatus='draft'` —
    the natural "awaiting admin review" state of the existing devis lifecycle; the new
@@ -438,7 +449,13 @@ follow-up.
 
 ### Server unit tests
 - [x] `tests/public-input-validation.unit.test.js` — date order/format, oversized availability range,
-      email/phone, unknown option id, forbidden pricing-override fields dropped. **(11 tests)**
+      email/phone, unknown option id, and a full **price-immutability** sweep: every override field
+      (`customPrice`/`discountPercent`/`platform`/`clientGrossAmount`/`depositAmount`/`offeredOptionIds`/
+      per-option `offered`/`free`/`unitPrice`/`price`/`selectedResources`/…) is dropped before the
+      engine; options collapse to `{optionId, quantity}`. **(12 tests)**
+- [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
+      side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
+      public GET performs zero writes; 404 path also writes nothing. **(2 tests)**
 - [x] `tests/public-projections.unit.test.js` — `toPublicProperty`/`Detail`/`Option`/`Availability`/
       `Quote` strip every excluded field (no photo/doc URLs, no accounting buckets, no VAT internals)
       and map engine fields correctly; range collapsing. **(7 tests)**
@@ -460,7 +477,9 @@ follow-up.
       `devisStatus='draft'`) + its client were created in the DB; honeypot request persisted nothing.
 - [x] Auth: every endpoint returns 401 without the key and with a wrong key.
 - [x] Read-only: the only public write is the booking request (a draft devis); no public path
-      creates/updates a reservation or edits an existing devis.
+      creates/updates a reservation or edits an existing devis. **Strictly enforced** — even a GET's
+      incidental seeding was removed (the property-detail read no longer triggers
+      `ensureDefaultTimedOptionsForProperty`); covered by `public-catalog-readonly.unit.test.js`.
 - [ ] Rate limiting: exceed `bookingRequestLimiter` → 429; reads stay under `publicApiLimiter`.
       *(limiters wired + unit-covered config; not exercised live to avoid tripping the dev limiter.)*
 - [x] Regression: internal `/api/*` still returns 401 UNAUTHENTICATED (the `/api` guard is untouched);
