@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "guestflow/properties",
+  "version": "1.0.0",
+  "title": "GuestFlow — Liste des logements",
+  "category": "widgets",
+  "icon": "admin-multisite",
+  "description": "Cartes des logements réservables, avec lien vers la page de réservation.",
+  "textdomain": "guestflow-booking",
+  "attributes": {
+    "columns": { "type": "number", "default": 3 },
+    "bookingPageUrl": { "type": "string", "default": "" }
+  },
+  "supports": { "html": false, "align": ["wide", "full"] },
+  "editorScript": "guestflow-properties-editor",
+  "viewScript": "guestflow-properties-view",
+  "style": "guestflow-style",
+  "editorStyle": "guestflow-style",
+  "render": "file:./render.php"
+}
