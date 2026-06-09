@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box, TableRow, TableCell, TableSortLabel,
   IconButton, Button, TextField,
-  FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DataPageScaffold from './DataPageScaffold';
 import FormDialog from './FormDialog';
+import PropertiesMultiSelect from './PropertiesMultiSelect';
 import { useAppDialogs } from './DialogProvider';
 import useCrudResource from '../hooks/useCrudResource';
 
@@ -39,6 +40,10 @@ export default function PricedItemsPage({
   renderExtraFormFields,
   getRowSx,
   priceTypes,
+  // Optional: fully replace the dialog form body (Nom/Description/Type/Prix/Logements + extras) with
+  // a bespoke layout. Receives ({ form, setForm, properties, priceTypes }). When provided,
+  // renderExtraFormFields is ignored (the custom form renders everything).
+  renderForm,
 }) {
     const resolvedPriceTypes = priceTypes || PRICE_TYPES;
 
@@ -229,6 +234,8 @@ export default function PricedItemsPage({
         submitDisabled={!form[formNameKey]}
         submitLabel="Enregistrer"
       >
+          {renderForm ? renderForm({ form, setForm, properties, priceTypes: resolvedPriceTypes }) : (
+          <>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Nom"
@@ -284,54 +291,16 @@ export default function PricedItemsPage({
               />
             )}
 
-            <FormControl fullWidth>
-              <InputLabel>Logements</InputLabel>
-              <Select
-                multiple
-                value={(!form.propertyIds || form.propertyIds.length === 0) ? [-1] : form.propertyIds}
-                label="Logements"
-                onChange={(e) => {
-                  let newVal = e.target.value;
-                  if (typeof newVal === 'string') newVal = newVal.split(',').map(Number);
-
-                  const normalized = newVal.includes(-1) && newVal.length > 1
-                    ? newVal.filter((v) => v !== -1)
-                    : newVal;
-
-                  if (normalized.includes(-1)) {
-                    setForm({ ...form, propertyIds: [] });
-                    return;
-                  }
-
-                  const allPropertyIds = properties.map((p) => p.id);
-                  const allSelected = allPropertyIds.length > 0
-                    && allPropertyIds.every((id) => normalized.includes(id));
-
-                  if (allSelected) {
-                    setForm({ ...form, propertyIds: [] });
-                  } else {
-                    setForm({ ...form, propertyIds: normalized });
-                  }
-                }}
-                input={<OutlinedInput label="Logements" />}
-                renderValue={(selected) =>
-                  !selected || selected.length === 0 || selected.includes(-1)
-                    ? 'Tous les logements'
-                    : selected.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ')
-                }
-              >
-                <MenuItem value={-1}>Tous les logements</MenuItem>
-                {properties.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>
-                    <Checkbox checked={(form.propertyIds || []).includes(p.id)} />
-                    <ListItemText primary={p.name} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <PropertiesMultiSelect
+              properties={properties}
+              value={form.propertyIds}
+              onChange={(ids) => setForm({ ...form, propertyIds: ids })}
+            />
 
           </Box>
           {renderExtraFormFields && renderExtraFormFields(form, setForm, { properties })}
+          </>
+          )}
       </FormDialog>
     </Box>
   );
