@@ -61,15 +61,20 @@
       numField('babies', GF.t('babies'), 0, 0)
     );
 
-    // Options (skip auto-options like early check-in: they are computed server-side from times).
+    // Hide ONLY the time-derived auto-options (arrival/departure are driven by the date/time
+    // fields, not a quantity). Paid add-ons (bed/bathroom linen, breakfast, …) stay selectable.
+    // See specs/wordpress-plugin.md.
+    var HIDDEN_AUTO = { early_check_in: 1, late_check_out: 1 };
     f.optionInputs = {};
     var optionsBox = null;
-    var pickable = (options || []).filter(function (o) { return !o.autoOptionType; });
+    var pickable = (options || []).filter(function (o) { return !HIDDEN_AUTO[o.autoOptionType]; });
     if (pickable.length) {
       var lines = pickable.map(function (o) {
         var input = GF.el('input', { type: 'number', min: '0', value: '0', onInput: scheduleQuote });
         f.optionInputs[o.id] = input;
-        var label = (o.title || '') + (o.price ? ' (' + GF.euro(o.price) + ')' : '');
+        var unit = o.priceType === 'per_person' ? ' / pers.'
+          : (o.priceType === 'per_person_per_night' ? ' / pers. / nuit' : '');
+        var label = (o.title || '') + (o.price ? ' (' + GF.euro(o.price) + unit + ')' : '');
         return GF.el('div', { class: 'gf-option-line' }, GF.el('span', {}, label), input);
       });
       optionsBox = GF.el('div', {}, GF.el('strong', {}, GF.t('options')), GF.el('div', { class: 'gf-options-list' }, lines));

@@ -209,7 +209,12 @@ respects its container width.
 `showOptions` (bool, default true).
 - Step 1 — dates + guests: date range picker (blocked dates disabled via availability), adults/children/
   teens/babies steppers bounded by the property capacity.
-- Step 2 — options: list from `options`, with quantity inputs; live recompute.
+- Step 2 — options: list from `options`, with quantity inputs; live recompute. Only the
+  **time-derived** auto-options are hidden (`autoOptionType` ∈ {`early_check_in`, `late_check_out`} —
+  they are driven by the arrival/departure time fields, not a quantity). All other options are
+  selectable, **including paid auto-options** (`bed_linen`, `bathroom_linen`, `breakfast`, …). The
+  price label shows the unit (`/ pers.`, `/ pers. / nuit`) for per-person price types. (Options must
+  be linked to the property in GuestFlow's `property_options` to appear at all.)
 - Live quote: on each change, debounced POST to `/quote`; renders nights, accommodation total, options,
   tourist tax (with `label`), final price, deposit/balance schedule. If `available:false` or
   `minNightsBreached`, show inline message and disable submit.
