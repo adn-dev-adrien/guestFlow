@@ -21,6 +21,7 @@ const DDL = `
     checkInTime TEXT, checkOutTime TEXT, platform TEXT, totalPrice REAL, touristTaxRate REAL, touristTaxTotal REAL,
     discountPercent REAL, customPrice REAL, finalPrice REAL, depositAmount REAL, depositDueDate TEXT, depositPaid INTEGER DEFAULT 0,
     balanceAmount REAL, balanceDueDate TEXT, balancePaid INTEGER DEFAULT 0, cautionAmount REAL, notes TEXT, sourceType TEXT,
+    requestOrigin TEXT,
     createdAt TEXT DEFAULT (datetime('now')), updatedAt TEXT DEFAULT (datetime('now'))
   );
   CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, optionId INTEGER, quantity REAL, unitPrice REAL, billedUnits REAL, priceType TEXT, totalPrice REAL, offered INTEGER DEFAULT 0);
@@ -132,4 +133,25 @@ test('convertFromReservation creates a devis copying the reservation lines', () 
   assert.equal(result.data.devisNumber, 'D-TEST-001');
   assert.equal(result.data.options.length, 1);
   assert.equal(result.data.nights.length, 1);
+});
+
+// specs/public-api.md follow-up — devis list can filter by origin (public = WordPress booking
+// requests created with requestOrigin='public'; internal = everything else).
+test('list filters by requestOrigin (public / internal)', () => {
+  const { model, db } = freshModel();
+  const mk = (origin) => db.prepare(
+    "INSERT INTO reservations (kind, devisNumber, devisStatus, propertyId, clientId, startDate, endDate, finalPrice, requestOrigin) VALUES ('devis','D','draft',1,1,'2099-06-01','2099-06-04',300,?)",
+  ).run(origin).lastInsertRowid;
+  const pub = mk('public');
+  const intA = mk(null);
+  const intB = mk('internal-ish-nonpublic'); // any non-'public' value counts as internal
+
+  const all = model.list({});
+  assert.equal(all.length, 3);
+
+  const publics = model.list({ requestOrigin: 'public' });
+  assert.deepEqual(publics.map((d) => d.id), [pub]);
+
+  const internals = model.list({ requestOrigin: 'internal' }).map((d) => d.id).sort((a, b) => a - b);
+  assert.deepEqual(internals, [intA, intB].sort((a, b) => a - b));
 });
