@@ -65,23 +65,23 @@ test('validateStayInput strips EVERY price-influencing field — the public API 
     customPrice: 999, discountPercent: 80, platform: 'airbnb',
     clientGrossAmount: 1, depositAmount: 0, cautionAmount: 0, finalPrice: 0,
     offeredOptionIds: [7, 8], priceOverride: 1, adjustedPrice: 1,
-    // resources are not a public concept at all
-    selectedResources: [{ resourceId: 3, unitPrice: 0, offered: true }],
-    resources: [{ resourceId: 4 }],
-    // per-option price/offer tampering — must collapse to {optionId, quantity}
+    selectedResources: [{ resourceId: 3, unitPrice: 0, offered: true }], // wrong key — ignored
+    // per-option / per-resource price/offer tampering — must collapse to {id, quantity}
     options: [{ optionId: 7, quantity: 2, offered: true, free: true, unitPrice: 0, price: 0 }],
+    resources: [{ resourceId: 4, quantity: 1, unitPrice: 0, offered: true, price: 999 }],
   });
   assert.equal(r.ok, true);
-  // the engine input is exactly the safe shape, nothing more
+  // the engine input is exactly the safe shape, nothing more (options + resources are id+quantity only)
   assert.deepEqual(Object.keys(r.value).sort(), [
     'adults', 'babies', 'checkInTime', 'checkOutTime', 'children', 'endDate',
-    'options', 'propertyId', 'startDate', 'teens',
+    'options', 'propertyId', 'resources', 'startDate', 'teens',
   ]);
   assert.deepEqual(r.value.options, [{ optionId: 7, quantity: 2 }], 'option reduced to id+quantity — no offered/free/unitPrice/price');
+  assert.deepEqual(r.value.resources, [{ resourceId: 4, quantity: 1 }], 'resource reduced to id+quantity — no price/offered');
   for (const banned of [
     'customPrice', 'discountPercent', 'platform', 'clientGrossAmount', 'depositAmount',
     'cautionAmount', 'finalPrice', 'offeredOptionIds', 'priceOverride', 'adjustedPrice',
-    'selectedResources', 'resources',
+    'selectedResources',
   ]) {
     assert.equal(banned in r.value, false, `${banned} must never reach the engine`);
   }

@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  toPublicProperty, toPublicPropertyDetail, toPublicOption,
+  toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource,
   toPublicAvailability, toPublicQuote, collapseToRanges,
 } = require('../utils/publicProjections');
 
@@ -83,6 +83,15 @@ test('toPublicAvailability dedupes, sorts, and adds ranges', () => {
   assert.deepEqual(a.blockedRanges, [{ start: '2026-07-10', end: '2026-07-12' }]);
 });
 
+test('toPublicResource keeps id/name/price/priceType; strips stock & slot internals', () => {
+  const r = toPublicResource({
+    id: 3, name: 'Bain nordique', note: 'Détente sous les étoiles', priceType: 'per_hour', price: 55,
+    // internals that must NOT leak:
+    quantity: 2, isComplex: 1, freeMinutes: 90, openDays: '[1,2,3]', slotDuration: 60, basePrice: 50,
+  });
+  assert.deepEqual(r, { id: 3, name: 'Bain nordique', description: 'Détente sous les étoiles', priceType: 'per_hour', price: 55 });
+});
+
 test('toPublicQuote maps engine output and leaks no VAT/accounting internals', () => {
   const engineQuote = {
     property: { id: 1 },
@@ -91,6 +100,8 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
     totalPrice: 840, extraGuestSurcharge: 25,
     optionLines: [{ optionId: 7, title: 'Petit-déjeuner', quantity: 2, unitPrice: 12, totalPrice: 168, offered: false, acompteContribTtc: 50 }],
     optionsTotal: 168,
+    resourceLines: [{ resourceId: 3, name: 'Bain nordique', quantity: 1, unitPrice: 55, totalPrice: 55, offered: false, soldeContribTtc: 20 }],
+    resourcesTotal: 55,
     touristTaxTotal: 33, touristTaxLabel: 'Taxe', touristTaxCollectedOnArrival: false,
     finalPrice: 1033, depositAmount: 309.9, depositDueDate: '2026-06-20',
     balanceAmount: 723.1, balanceDueDate: '2026-07-13', complementAmount: 0,
@@ -108,6 +119,11 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
   assert.equal(q.options[0].total, 168);
   // The projected option line must not carry the accounting bucket.
   assert.equal('acompteContribTtc' in q.options[0], false);
+  // Resources are projected too, without accounting buckets.
+  assert.equal(q.resourcesTotal, 55);
+  assert.equal(q.resources[0].resourceId, 3);
+  assert.equal(q.resources[0].total, 55);
+  assert.equal('soldeContribTtc' in q.resources[0], false);
   // No VAT / engine-internal fields anywhere on the quote.
   const keys = Object.keys(q);
   assert.equal(keys.includes('vatPercentageAccommodation'), false);

@@ -212,8 +212,9 @@ them. The data already flows through the existing Devis UI; a visual badge is a 
 | GET | `/public/v1/properties` | public | key | — | `{ data: [PublicProperty] }` | List of bookable properties. |
 | GET | `/public/v1/properties/:id` | public | key | — | `{ data: PublicPropertyDetail }` | 404 if unknown. |
 | GET | `/public/v1/properties/:id/options` | public | key | — | `{ data: [PublicOption] }` | Options applicable to the property = linked + global ("Tous les logements"). |
+| GET | `/public/v1/properties/:id/resources` | public | key | — | `{ data: [PublicResource] }` | Resources applicable to the property (`resource_properties` pivot, empty = global), with the **effective per-property price** (`property_resource_prices`). `PublicResource = { id, name, description, priceType, price }` — stock/slots/opening hours stripped. |
 | GET | `/public/v1/properties/:id/availability?from=&to=` | public | key | — | `{ data: PublicAvailability }` | Consolidated blocked dates; defaults today…+12mo; max 365d. |
-| POST | `/public/v1/quote` | public | key | `QuoteRequest` | `{ data: PublicQuote }` | Computes via engine; no persistence. |
+| POST | `/public/v1/quote` | public | key | `QuoteRequest` | `{ data: PublicQuote }` | Computes via engine; no persistence. `QuoteRequest`/booking accept `resources: [{resourceId, quantity}]` (sanitised like options); `PublicQuote` adds `resources[]` + `resourcesTotal`. |
 | POST | `/public/v1/booking-requests` | public | key | `BookingRequest` | `201 { data: BookingRequestReceipt }` | Pending devis; rate-limited + anti-spam. |
 
 HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,

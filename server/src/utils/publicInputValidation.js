@@ -107,6 +107,23 @@ function validateStayInput(body = {}) {
     }
   }
 
+  // Resources mirror options: reduced to { resourceId, quantity } only — no price/offered/inComplement
+  // can be injected from the public client (the per-property effective price is resolved server-side).
+  let resources = [];
+  if (body.resources !== undefined) {
+    if (!Array.isArray(body.resources)) {
+      errors.push({ field: 'resources', issue: 'must be an array' });
+    } else {
+      resources = body.resources.map((r, i) => {
+        const resourceId = toNonNegativeInt(r && r.resourceId, NaN);
+        const quantity = toNonNegativeInt(r && r.quantity, 1);
+        if (!Number.isFinite(resourceId) || resourceId <= 0) errors.push({ field: `resources[${i}].resourceId`, issue: 'required positive integer' });
+        if (Number.isNaN(quantity) || quantity < 1) errors.push({ field: `resources[${i}].quantity`, issue: 'must be a positive integer' });
+        return { resourceId, quantity: Number.isNaN(quantity) ? 1 : quantity };
+      });
+    }
+  }
+
   if (errors.length) return { ok: false, errors };
   return {
     ok: true,
@@ -121,6 +138,7 @@ function validateStayInput(body = {}) {
       teens: counts.teens,
       babies: counts.babies,
       options,
+      resources,
     },
   };
 }
