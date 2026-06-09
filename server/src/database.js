@@ -518,6 +518,13 @@ if (!cols.includes('clientGrossAmount')) {
 if (!cols.includes('extraGuestSurchargeOffered')) {
   db.exec("ALTER TABLE reservations ADD COLUMN extraGuestSurchargeOffered INTEGER NOT NULL DEFAULT 0");
 }
+if (!cols.includes('requestOrigin')) {
+  // Origin marker for rows created by the public API booking-request endpoint
+  // (specs/public-api.md). NULL for everything created by the admin UI / internal flows;
+  // 'public' for a draft devis submitted by a visitor through the WordPress proxy. Additive
+  // and nullable — existing rows keep NULL and behave exactly as before.
+  db.exec("ALTER TABLE reservations ADD COLUMN requestOrigin TEXT");
+}
 if (!cols.includes('breakfastTime')) {
   // Per-reservation desired breakfast hour (HH:MM); NULL = use the breakfast option's default.
   // specs/breakfast-time.md. Reported + sorted on the Planning breakfast card.

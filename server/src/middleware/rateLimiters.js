@@ -29,4 +29,33 @@ const loginLimiter = rateLimit({
   message: { error: 'TOO_MANY_ATTEMPTS' },
 });
 
-module.exports = { apiLimiter, loginLimiter };
+const ONE_HOUR = 60 * 60 * 1000;
+
+/**
+ * Public API limiters (specs/public-api.md §3 rule 9). The public surface is consumed by a single
+ * trusted proxy, so the limits are intentionally tighter than the admin SPA's `apiLimiter`.
+ *
+ * - publicApiLimiter: broad protection across all `/public/v1` routes (default 600 / 15 min / IP).
+ * - bookingRequestLimiter: anti-spam on the only public write (default 5 / hour / IP). The
+ *   per-API-key cap from the spec is enforced upstream by the proxy + the honeypot; here we cap by
+ *   IP since the proxy forwards the visitor's IP via `trust proxy`.
+ *
+ * Both emit the uniform public error envelope so the client parses one shape everywhere.
+ */
+const publicApiLimiter = rateLimit({
+  windowMs: Number(process.env.PUBLIC_API_RATELIMIT_WINDOW_MS) || FIFTEEN_MIN,
+  max: Number(process.env.PUBLIC_API_RATELIMIT_MAX) || 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
+});
+
+const bookingRequestLimiter = rateLimit({
+  windowMs: Number(process.env.BOOKING_REQUEST_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+  max: Number(process.env.BOOKING_REQUEST_RATELIMIT_MAX) || 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de demandes envoyées, réessayez plus tard.' } },
+});
+
+module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter };

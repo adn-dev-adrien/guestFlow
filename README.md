@@ -265,6 +265,22 @@ Optional environment variables (sensible defaults otherwise):
 | `CORS_ORIGINS` | Comma-separated allowed origins (credentialed). Prod is same-origin, so usually unneeded. | `http://localhost:3000` |
 | `LOGIN_RATELIMIT_MAX` / `LOGIN_RATELIMIT_WINDOW_MS` | Login rate limit | `10` / `900000` |
 | `API_RATELIMIT_MAX` / `API_RATELIMIT_WINDOW_MS` | Global API rate limit | `300` / `900000` |
+| `PUBLIC_API_RATELIMIT_MAX` / `PUBLIC_API_RATELIMIT_WINDOW_MS` | Public API rate limit | `600` / `900000` |
+| `BOOKING_REQUEST_RATELIMIT_MAX` / `BOOKING_REQUEST_RATELIMIT_WINDOW_MS` | Public booking-request rate limit | `5` / `3600000` |
+
+### Public API (WordPress showcase site)
+
+GuestFlow exposes a **separate, key-authenticated** public API under `/public/v1/*` for a trusted
+server-to-server proxy (the WordPress showcase site's backend) — distinct from the internal `/api/*`
+admin API, which stays session-guarded and unchanged. See `specs/public-api.md` for the full contract.
+Endpoints: list/detail/options/availability per property (read-only), `POST /public/v1/quote` (uses the
+existing pricing engine), and `POST /public/v1/booking-requests` (creates a *draft devis*, never a
+confirmed reservation).
+
+Auth uses a dedicated `PUBLIC_API_KEY`, **auto-generated into `server/.env.local` on first run** (like
+the other secrets) and sent by the proxy as `Authorization: Bearer <key>` or `X-API-Key: <key>`. Read
+it from `server/.env.local` and configure it in the WordPress proxy. The key is never logged and must
+never be committed.
 
 The production build is created with Vite, which emits zero inline runtime scripts and no
 sourcemaps (`build.sourcemap = false` in `client/vite.config.js`) so the CSP can keep
