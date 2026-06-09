@@ -96,8 +96,20 @@ try {
   logErrorMarker(`Encryption migration failed: ${err.message}`);
 }
 
+// Public API key for the trusted WordPress proxy (specs/public-api.md). Auto-generated and
+// persisted to server/.env.local on first boot. The value is NEVER logged (logs may be shipped);
+// the operator reads it from .env.local and copies it into the WordPress proxy settings.
+getOrCreateSecret('PUBLIC_API_KEY', 32);
+logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
+
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// Public API (specs/public-api.md) — a SEPARATE tree from the internal `/api/*` admin API. It is
+// key-authenticated (X-API-Key / Bearer) and rate-limited inside its own router, and it never
+// passes through the `/api` session guard below. The distinct `/public/v1` path is the safety
+// crux: the admin guard can neither expose nor block it.
+app.use('/public/v1', require('./routes/public'));
 
 // Global API rate limit (per IP), except the public iCal export feed (polled by external services).
 app.use('/api', (req, res, next) => {

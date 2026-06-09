@@ -77,6 +77,15 @@ function createModel(database) {
     return database.prepare('SELECT * FROM clients WHERE id = ?').get(Number(id));
   }
 
+  // Case-insensitive lookup by normalized email. Used by the public booking-request flow to
+  // reuse an existing client instead of duplicating one (specs/public-api.md §3, Q3). Returns
+  // the first match or undefined when the email is empty/unknown.
+  function findByEmail(email) {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized) return undefined;
+    return database.prepare('SELECT * FROM clients WHERE lower(trim(email)) = ? ORDER BY id LIMIT 1').get(normalized);
+  }
+
   function insert(payload) {
     const fields = buildClientFields(payload);
     const result = database.prepare(`
@@ -216,6 +225,7 @@ function createModel(database) {
   return {
     list,
     findById,
+    findByEmail,
     insert,
     update,
     remove,
