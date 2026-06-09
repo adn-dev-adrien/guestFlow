@@ -10,6 +10,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
+import LanguageIcon from '@mui/icons-material/Language';
 import PageActionBar from '../components/PageActionBar';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
@@ -45,6 +46,9 @@ export default function DevisPage() {
   const [devisList, setDevisList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  // Origin filter (specs/public-api.md follow-up): '' = all, 'public' = WordPress booking requests,
+  // 'internal' = operator-created devis.
+  const [originFilter, setOriginFilter] = useState('');
 
   const handleCreateDevis = () => {
     navigate('/reservations/new?mode=devis');
@@ -63,6 +67,7 @@ export default function DevisPage() {
     try {
       const params = {};
       if (statusFilter) params.status = statusFilter;
+      if (originFilter) params.requestOrigin = originFilter;
       const data = await api.getDevis(params);
       setDevisList(data || []);
     } catch (e) {
@@ -70,7 +75,7 @@ export default function DevisPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, originFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -161,6 +166,18 @@ export default function DevisPage() {
                 ))}
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Origine</InputLabel>
+              <Select
+                value={originFilter}
+                label="Origine"
+                onChange={(e) => setOriginFilter(e.target.value)}
+              >
+                <MenuItem value="">Toutes</MenuItem>
+                <MenuItem value="public">Demandes WordPress</MenuItem>
+                <MenuItem value="internal">Devis internes</MenuItem>
+              </Select>
+            </FormControl>
           </Stack>
 
           {loading ? (
@@ -195,9 +212,25 @@ export default function DevisPage() {
                       onClick={() => handleEditDevis(d)}
                     >
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
-                          {d.devisNumber}
-                        </Typography>
+                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                            {d.devisNumber}
+                          </Typography>
+                          {/* Origin badge (specs/public-api.md follow-up) — a booking request sent
+                              from the WordPress showcase site via the public API. */}
+                          {d.requestOrigin === 'public' && (
+                            <Tooltip title="Demande de réservation reçue depuis le site WordPress">
+                              <Chip
+                                icon={<LanguageIcon sx={{ fontSize: 14 }} />}
+                                label="WordPress"
+                                color="info"
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 20, fontSize: 11 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Stack>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Chip
