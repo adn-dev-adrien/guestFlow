@@ -68,16 +68,20 @@ test('Famille filter — all four categories surface when all > 0', () => {
   expect(screen.getByText(/Bébés:\s*1/)).toBeInTheDocument();
 });
 
-test('Lits gate — row rendered when doubleBeds > 0', () => {
+test('Lits gate — row rendered when doubleBeds > 0 (coloured bed icon, no text label)', () => {
   const r = { ...BASE, doubleBeds: 1, singleBeds: 0, babyBeds: 0 };
   render(<ReservationCard reservation={r} onToggleReady={noop} />);
   expect(screen.getByText('Lits:')).toBeInTheDocument();
+  expect(screen.getByLabelText('Lit double')).toBeInTheDocument(); // BedIcon svg, not "DOUBLE" text
+  expect(screen.queryByText('DOUBLE')).not.toBeInTheDocument();
 });
 
-test('Lits gate — row rendered when singleBeds > 0', () => {
+test('Lits gate — row rendered when singleBeds > 0 (single bed icon)', () => {
   const r = { ...BASE, doubleBeds: 0, singleBeds: 3, babyBeds: 0 };
   render(<ReservationCard reservation={r} onToggleReady={noop} />);
   expect(screen.getByText('Lits:')).toBeInTheDocument();
+  expect(screen.getByLabelText('Lit simple')).toBeInTheDocument();
+  expect(screen.queryByText('SIMPLE')).not.toBeInTheDocument();
 });
 
 test('Lits gate — row HIDDEN when both regular bed counts are 0 (even with baby beds)', () => {
