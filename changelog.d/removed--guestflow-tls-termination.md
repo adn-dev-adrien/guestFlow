@@ -1,0 +1,1 @@
+- Removed the in-app TLS termination and the homemade certificate system now that Caddy owns it: the HTTPS server branch + cert loading in `httpsBootstrap.js`, the `issue-letsencrypt-cert-http01.sh` (acme.sh) and `generate-self-signed-cert.sh` scripts, the `server/certs/` material, and the `HTTPS_ENABLED` / `TLS_CERT_PATH` / `TLS_KEY_PATH` env vars from the deploy workflow.

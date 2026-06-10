@@ -347,236 +347,65 @@ The script includes:
 
 The application will be available on port 4000 by default.
 
-#### 🔒 HTTPS — production setup
+#### 🔒 HTTPS — reverse proxy (Caddy)
 
-GuestFlow's production stack on the Raspberry Pi runs Node **directly** on `:4000` over HTTPS
-(no Nginx / Caddy in front). TLS is enabled by the `HTTPS_ENABLED=true` env var and Node loads a
-self-signed cert from the paths in `TLS_CERT_PATH` / `TLS_KEY_PATH`. The GitHub Actions deploy
-workflow generates the cert on first deploy and stores it in `~/guestflow/certs/` (persistent —
-never deleted by subsequent deploys, never regenerated automatically).
+In production, **TLS is terminated by a [Caddy](https://caddyserver.com/) reverse proxy** on the
+Raspberry Pi, not by Node. Caddy is the single public entry point and dispatches by hostname:
 
-| Deployment | `NODE_ENV` | `HTTPS_ENABLED` | Result |
+- `https://domainesolio.com` (+ `www`) → WordPress (`wp_app` Docker container, `127.0.0.1:8080`)
+- `https://guestflow.domainesolio.com` → GuestFlow (Node/Express under PM2, `127.0.0.1:4000`)
+
+Caddy obtains and **auto-renews** the Let's Encrypt certificates by itself — no cron, no acme.sh,
+no manual step. It also redirects HTTP→HTTPS automatically. GuestFlow always serves plain HTTP on
+`:4000`; the `X-Forwarded-Proto: https` header Caddy adds (honored via `app.set('trust proxy', 1)`)
+keeps the app's HTTPS security posture correct.
+
+The `HTTPS_EDGE` env var tells the app an HTTPS edge sits in front of it, so it emits HSTS + the
+CSP `upgrade-insecure-requests` directive + a `Secure` session cookie even though its own socket is
+plain HTTP:
+
+| Deployment | `NODE_ENV` | `HTTPS_EDGE` | Result |
 |---|---|---|---|
 | Local dev | `development` (or unset) | unset | Plain HTTP on `:4000`, no CSP, no HSTS, `Secure` cookie off. |
-| Prod, plain HTTP (rare, only if you explicitly disable TLS) | `production` | unset | Full SPA CSP, **no HSTS**, no upgrade-insecure-requests, `Secure` cookie off. |
-| **Prod, HTTPS direct (default for the Pi)** | `production` | `true` | Full SPA CSP **+ HSTS (1 year, includeSubDomains)** + upgrade-insecure-requests + `Secure` cookie. Requires valid `TLS_CERT_PATH` / `TLS_KEY_PATH` — the server **refuses to boot** otherwise (no silent HTTP downgrade). |
+| Prod, no proxy (rare) | `production` | unset | Full SPA CSP, **no HSTS**, no upgrade-insecure-requests, `Secure` cookie off. |
+| **Prod behind Caddy (default for the Pi)** | `production` | `true` | Full SPA CSP **+ HSTS (1 year, includeSubDomains)** + upgrade-insecure-requests + `Secure` cookie. |
 
 The rule table is pinned by
 [`server/src/tests/security-config.unit.test.js`](server/src/tests/security-config.unit.test.js)
 and [`server/src/tests/https-bootstrap.unit.test.js`](server/src/tests/https-bootstrap.unit.test.js).
 
-##### Generating the self-signed cert manually
+##### Installing / updating the proxy
 
-The deploy workflow runs this automatically when no cert exists. To run it by hand (e.g. to
-regenerate on cert expiry or to swap IPs):
+Run on the Pi, as root:
 
 ```bash
-# Default: auto-detect every local IPv4 + hostname + localhost
-./server/scripts/generate-self-signed-cert.sh
-
-# Explicit SANs
-./server/scripts/generate-self-signed-cert.sh <your-pi-lan-ip> guestflow.local
-
-# Custom output directory (the deploy workflow uses ~/guestflow/certs/)
-OUT_DIR=~/guestflow/certs ./server/scripts/generate-self-signed-cert.sh
-
-# Re-generate even if a cert already exists
-./server/scripts/generate-self-signed-cert.sh --force
+sudo bash scripts/setup-reverse-proxy.sh
 ```
 
-The cert is valid for **1 year**. When it nears expiry, regenerate (`--force`) and restart PM2.
+The script is **idempotent**: it installs Caddy from its official apt repo (only when missing),
+renders [`deploy/caddy/Caddyfile`](deploy/caddy/Caddyfile) into `/etc/caddy/Caddyfile`, validates
+it (`caddy validate`), (re)loads the service with zero downtime, and removes any leftover acme.sh
+renewal cron from the old direct-TLS setup. Override any value via env (`WP_UPSTREAM`, `ACME_EMAIL`,
+`WP_DOMAIN`, `GUESTFLOW_DOMAIN`, …). Watch certificate issuance with `journalctl -u caddy -f`.
 
-##### Trusting the cert in the browser
+##### Manual prerequisites (one-time, outside the script)
 
-The cert is self-signed so browsers will warn on the first visit. Two paths:
-
-- **Easy path — accept once per device**. Open `https://<your-pi-lan-ip>:4000`, Safari shows
-  *"Cette connexion n'est pas privée"*, click *Détails* → *Afficher ce site web*. Chrome:
-  *Avancé* → *Continuer vers...*. After acceptance, HSTS (issued by the server) pins HTTPS on
-  that hostname for 1 year, so the warning is gone until the cert is regenerated.
-
-- **Clean path — install the cert as trusted on each device** (no warning at all). Copy
-  `~/guestflow/certs/server.crt` from the Pi to your Mac / iPhone, double-click to import into
-  the Keychain (Mac) / Profil installé (iPhone), then mark it as *Toujours approuver* for SSL.
-  More involved but no per-device click-through.
-
-##### Real Let's Encrypt cert via Freebox port-forward + HTTP-01 (Adrien's actual prod)
-
-This is the path Adrien's prod uses. The setup answers a specific question: *make
-`https://<your-app>.<your-domain>` reach the Pi at home with a publicly-trusted cert (no
-warning) and a hands-off auto-renewal.*
-
-**Why HTTP-01 and not DNS-01?** The domain registrar (Squarespace) doesn't expose a DNS API.
-DNS-01 would need either a Cloudflare migration (heavy, see the abandoned PR
-`feat/letsencrypt-cert-via-cloudflare`) or a TXT record edited by hand on every renewal. HTTP-01
-sidesteps the registrar entirely — Let's Encrypt resolves the hostname → reaches the Freebox →
-the Freebox port-forwards 80 to the Pi → acme.sh's standalone HTTP server answers the
-challenge. Renewal is the same path, automatic.
-
-**Architecture**
-
-```
-  Browser                 Squarespace DNS                Freebox                       Pi (<your-pi-lan-ip>)
-  ─────────               ─────────────────              ──────────                    ──────────────────
-  https://guestflow…  →   CNAME: guestflow              WAN :80   → forward → :80   acme.sh standalone
-                          → <your-freebox-dyndns>.freeboxos.fr WAN :443  → forward → :4000 Node (HTTPS, port 4000)
-                          (Free's DDNS, IP-tracking)
-```
-
-**Operator steps — do these once, then renewal is automatic**
-
-1. **Squarespace — add the CNAME (1 min)**
-   1. <https://account.squarespace.com/> → *Domains* → `<your-domain>` → *DNS Settings* →
-      *Add Record*.
-   2. **Type** CNAME, **Host** `guestflow`, **Data** `<your-freebox-dyndns>.freeboxos.fr`. ⚠️
-      Free's DDNS lives under `.fr`, **not** `.com`. `.com` resolves to NXDOMAIN and
-      everything downstream (browsers, acme.sh challenge) silently fails — checked
-      against this exact mistake on 2026-05-31.
-   3. Save. Propagation usually <10 min; verify against a public resolver to bypass
-      stale negative caches on your ISP / mobile carrier:
-      ```
-      dig @8.8.8.8 <your-app>.<your-domain> +short
-      ```
-      should chain through `<your-freebox-dyndns>.freeboxos.fr.` then return your current
-      Freebox public IP. If your home / phone resolver still returns NXDOMAIN while
-      `8.8.8.8` resolves correctly, it's just a cached negative TTL — wait it out or
-      pin `8.8.8.8` as the active resolver in `System Settings → Network → DNS`.
-
-2. **Freebox — DHCP reservation for the Pi (5 min, one-time)**
-
-   Pin the Pi at `<your-pi-lan-ip>` so the port forwards never break on the next lease renewal.
-   1. Open <http://mafreebox.freebox.fr/> from your home network.
-   2. *Paramètres de la Freebox* → *Mode avancé* → *DHCP*.
-   3. In the *Baux DHCP statiques* section, *Ajouter*: select the Pi by its current LAN IP /
-      MAC address, set the *adresse IP* to `<your-pi-lan-ip>`. Save.
-   4. Reboot the Pi (or release/renew its DHCP lease) so it picks up the static IP.
-
-3. **Freebox — port forwarding (5 min, one-time)**
-   1. *Paramètres de la Freebox* → *Mode avancé* → *Gestion des ports* → *Redirections de ports*.
-   2. *Ajouter une redirection*:
-      | IP source | Protocole | Port début | Port fin | IP destination | Port destination | Activée |
-      |---|---|---|---|---|---|---|
-      | All | TCP | 80 | 80 | <your-pi-lan-ip> | 80 | ✓ |
-      | All | TCP | 443 | 443 | <your-pi-lan-ip> | 4000 | ✓ |
-   3. Save.
-   4. **Test from outside the LAN** (phone mobile data is the easiest):
-      ```
-      curl -v http://<your-freebox-dyndns>.freeboxos.fr/
-      ```
-      The TCP connection should at least open (then probably 404 or `Connection reset by peer`,
-      since nothing listens on :80 outside cert issuance — that's expected). A pure timeout
-      means the port forward is wrong; a `Connection refused` means the forward exists but
-      points at the wrong LAN IP / port.
-
-4. **Pi — issue the Let's Encrypt cert (1 min, one-time)**
-
-   **SSH the Pi as the user that runs PM2** (e.g. `pi` on the prod Pi — NOT `root`; the
-   script reads `$SUDO_USER` to derive the install paths and the chown target), then:
-   ```bash
-   sudo ~/guestflow/current/server/scripts/issue-letsencrypt-cert-http01.sh \
-     --hostname <your-app>.<your-domain> \
-     --email you@example.com
+1. **DNS** at the registrar of `domainesolio.com`:
+   - `domainesolio.com` → **A** record → home WAN IP (apex can't be a CNAME; use the registrar's
+     ALIAS/ANAME → Freebox dyndns if the WAN IP is dynamic).
+   - `www.domainesolio.com` → **CNAME** → `domainesolio.com`.
+   - `guestflow.domainesolio.com` → **CNAME** → `domainesolio.com` (or the Freebox dyndns host).
+2. **Freebox port-forward**: `WAN:80 → Pi:80` **and** `WAN:443 → Pi:443` (both to Caddy — no
+   longer `443 → :4000`). Pin the Pi at a static LAN IP via a DHCP reservation so the forwards
+   never break on lease renewal.
+3. **WordPress behind a proxy**: `wp-config.php` must trust `X-Forwarded-Proto` so WP knows the
+   request is HTTPS (otherwise redirect loops / mixed content), and `WP_HOME` / `WP_SITEURL` must
+   be `https://domainesolio.com`:
+   ```php
+   if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+       $_SERVER['HTTPS'] = 'on';
+   }
    ```
-
-   That's it. No `--force`, no special second pass. The script:
-   - installs `acme.sh` on first run,
-   - briefly binds port 80 to answer the ACME challenge,
-   - drops the cert + key into `$SUDO_USER`'s `~/guestflow/certs/server.{crt,key}` (the
-     path PM2 reads from),
-   - chowns them to `$SUDO_USER`,
-   - sets a daily renewal cron at 00:27,
-   - reloads PM2 via `sudo -u $SUDO_USER pm2 restart guestflow --update-env`,
-   - runs `openssl verify -CAfile <system-bundle> -untrusted <chain> <chain>` against the
-     installed cert and **exits 1 if the cert isn't publicly trusted**, so a botched
-     install is impossible to miss.
-
-   If you want a dry run first (no Let's Encrypt rate-limit risk, untrusted cert good for
-   smoke-testing the Freebox forward + DNS chain), add `--staging`. Then re-run **without**
-   any flag — the script detects the previous staging endpoint in acme.sh's per-domain
-   conf, wipes the stale state, and re-issues clean against prod. No `--force` needed.
-
-   The script is also **self-recovering** for a couple of acme.sh state-corruption
-   scenarios that have bitten this codebase: when post-install `openssl verify` fails on a
-   prod request, it wipes the per-domain dir (`acme.sh --remove -d <host> --ecc` +
-   `rm -rf <domain>_ecc`), re-runs `--issue` from a clean conf, re-installs, and
-   re-verifies. Exactly one retry; a second failure exits 1 with the manual inspection
-   commands. All later renewals re-use the same install paths automatically — they're
-   persisted by acme.sh's per-domain conf.
-
-   On success the last lines of output should look like:
-   ```
-   subject=CN=<your-app>.<your-domain>
-   issuer=C=US, O=Let's Encrypt, CN=...    ← any LE prod intermediate (R10, R11, E5, E6, YE1, ...)
-   notBefore=... notAfter=...
-   ✓ openssl verify against /etc/ssl/certs/ca-certificates.crt: OK (publicly trusted).
-   ```
-
-5. **Test**
-
-   ```
-   pm2 restart guestflow --update-env    # only if --reloadcmd didn't already do it
-   ```
-   Open `https://<your-app>.<your-domain>` from any device, anywhere. The lock icon is solid
-   green, no warning. The cert chain (click the lock → details) should show
-   *Let's Encrypt R3 → <your-app>.<your-domain>*.
-
-**Renewal** is fully automatic via the acme.sh daily cron. Every ~60 days the cert is
-re-issued, acme.sh briefly binds port 80, installs the new fullchain into the same paths PM2
-already reads, and runs `pm2 restart guestflow`. You don't have to do anything for as long as
-the Freebox port forward stays in place.
-
-**Caveats / failure modes**
-- *Free changes your public IP.* The Freebox DDNS `<your-freebox-dyndns>.freeboxos.fr` updates
-  automatically; the CNAME chain takes care of the rest. No action needed.
-- *Port 80 ever bound to another service on the Pi.* acme.sh's standalone mode fails to bind.
-  Fix: switch to webroot mode (point acme.sh at a directory under Node's static serve). For
-  now, GuestFlow's Node listens only on 4000, so port 80 is free.
-- *ISP blocks inbound port 80.* Rare on Free; verify with `curl -v` from outside the LAN. If
-  blocked, you'd have to fall back to DNS-01 (Cloudflare migration path).
-- *URL access via IP only.* The cert is signed for the hostname; opening
-  `https://<your-pi-lan-ip>:4000` would trigger a hostname-mismatch warning. Always use the
-  hostname URL.
-
-**Troubleshooting — issues caught during the 2026-05-31 bringup**
-
-- *Browsers say `DNS_PROBE_FINISHED_BAD_CONFIG` while `dig @8.8.8.8` resolves fine.* Your local /
-  carrier resolver has a stale **negative** cache from before the CNAME was added (or while it
-  pointed at the wrong DDNS suffix). Public resolvers picked the change up; lazy ones haven't.
-  Either wait the negative TTL out (≤24 h) or pin `8.8.8.8` / `1.1.1.1` as the active resolver
-  on macOS in *System Settings → Network → Details → DNS*, then
-  `sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder`.
-- *acme.sh refuses to issue: "It seems that you are using sudo".* The script handles this
-  automatically (clears `SUDO_*` and pins `HOME=/root` before invoking `acme.sh --issue`). If
-  you ever run `acme.sh` directly, do it from an actual root shell (`sudo -i`), not `sudo
-  acme.sh ...`.
-- *Cert issued but the browser still sees the old self-signed.* The script writes the cert to
-  `$SUDO_USER`'s home (e.g. `/home/pi/guestflow/certs/`), which is what PM2 reads. Earlier
-  versions used `$HOME` which became `/root/guestflow/certs/` under sudo — written but never
-  read. Pinned by the auto-detection block at the top of the script; override with
-  `CERTS_DIR=...` if your install is non-standard. To verify what Node is actually serving:
-  ```
-  echo | openssl s_client -servername <your-app>.<your-domain> -connect localhost:4000 2>/dev/null \
-    | openssl x509 -noout -subject -issuer
-  ```
-- *Cert file on disk is the new one but `openssl s_client` shows the old one.* PM2 / Node
-  didn't actually reload. Root cause when `acme.sh` runs `--reloadcmd`: it inherits the cron
-  root context, but PM2 was registered under `pi`, so `pm2 restart guestflow` from root hits
-  root's empty PM2 daemon and silently does nothing. The script now wraps the reload in
-  `sudo -u <user>` for non-root `CERT_OWNER`. Manual fix on a Pi where the previous install
-  persisted the wrong reloadcmd: re-run the script with `--force` once (it overwrites the
-  persisted `--reloadcmd` via `--install-cert`), or just do an immediate `pm2 restart
-  guestflow` as the right user — the cert file is already correct.
-- *After the cert install, PM2 reports `errored` with `NODE_MODULE_VERSION 127 ... 137` in the
-  logs.* Unrelated to the cert — your Pi's Node binary got bumped (apt unattended-upgrades or
-  manual update) since the last `npm install`, and the precompiled `better-sqlite3` ABI no
-  longer matches. Fix:
-  ```bash
-  cd ~/guestflow/current/server
-  npm rebuild better-sqlite3
-  pm2 restart guestflow --update-env
-  ```
-  If `npm rebuild` itself fails with `gyp` errors, install the build toolchain first:
-  `sudo apt-get install -y build-essential python3`, then re-run with `--build-from-source`.
 
 ##### Clearing HSTS if the browser cached the wrong policy
 

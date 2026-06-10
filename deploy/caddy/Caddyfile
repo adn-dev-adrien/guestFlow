@@ -1,0 +1,25 @@
+# GuestFlow + WordPress reverse proxy — see specs/reverse-proxy-caddy.md
+#
+# This is a TEMPLATE: the placeholders below (__UPPER_SNAKE__) are substituted by
+# scripts/setup-reverse-proxy.sh before the file is written to /etc/caddy/Caddyfile.
+#
+# Caddy terminates TLS at the edge and obtains + auto-renews Let's Encrypt certificates on its
+# own (no cron, no acme.sh). It auto-redirects HTTP→HTTPS. `reverse_proxy` already forwards
+# X-Forwarded-For / X-Forwarded-Proto (= https, the public scheme) / the original Host, which is
+# exactly what the upstreams need behind `trust proxy`.
+
+{
+	email __ACME_EMAIL__
+}
+
+# Public site → WordPress (Docker container wp_app, published on the host).
+__WP_DOMAIN__, www.__WP_DOMAIN__ {
+	encode gzip
+	reverse_proxy __WP_UPSTREAM__
+}
+
+# Admin app → GuestFlow (Node/Express under PM2, plain HTTP on the host).
+__GUESTFLOW_DOMAIN__ {
+	encode gzip
+	reverse_proxy __GUESTFLOW_UPSTREAM__
+}
