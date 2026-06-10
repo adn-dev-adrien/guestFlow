@@ -103,7 +103,7 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
     resourceLines: [{ resourceId: 3, name: 'Bain nordique', quantity: 1, unitPrice: 55, totalPrice: 55, offered: false, soldeContribTtc: 20 }],
     resourcesTotal: 55,
     touristTaxTotal: 33, touristTaxLabel: 'Taxe', touristTaxCollectedOnArrival: false,
-    finalPrice: 1033, depositAmount: 309.9, depositDueDate: '2026-06-20',
+    finalPrice: 1033, totalStayPrice: 1066, depositAmount: 309.9, depositDueDate: '2026-06-20',
     balanceAmount: 723.1, balanceDueDate: '2026-07-13', complementAmount: 0,
     // internals that must NOT leak:
     vatPercentageAccommodation: 10, accommodationNetPrice: 763.6, totalVatAmount: 93.9, engineFinalPrice: 1033,
@@ -114,6 +114,8 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
   assert.equal(q.endDate, '2026-07-27');
   assert.equal(q.available, true);
   assert.equal(q.finalPrice, 1033);
+  // Headline total INCLUDES the tourist tax (1033 + 33), unlike the tax-exclusive finalPrice.
+  assert.equal(q.totalStayPrice, 1066);
   assert.equal(q.deposit.amount, 309.9);
   assert.equal(q.touristTax.total, 33);
   assert.equal(q.options[0].total, 168);

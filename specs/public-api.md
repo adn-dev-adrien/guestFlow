@@ -211,8 +211,8 @@ them. The data already flows through the existing Devis UI; a visual badge is a 
 |---|---|---|---|---|---|---|
 | GET | `/public/v1/properties` | public | key | — | `{ data: [PublicProperty] }` | List of bookable properties. |
 | GET | `/public/v1/properties/:id` | public | key | — | `{ data: PublicPropertyDetail }` | 404 if unknown. |
-| GET | `/public/v1/properties/:id/options` | public | key | — | `{ data: [PublicOption] }` | Options applicable to the property = linked + global ("Tous les logements"). |
-| GET | `/public/v1/properties/:id/resources` | public | key | — | `{ data: [PublicResource] }` | Resources applicable to the property (`resource_properties` pivot, empty = global), with the **effective per-property price** (`property_resource_prices`). `PublicResource = { id, name, description, priceType, price }` — stock/slots/opening hours stripped. |
+| GET | `/public/v1/properties/:id/options` | public | key | — | `{ data: [PublicOption] }` | Options applicable to the property = linked + global ("Tous les logements"). **Ordered cheapest-first** (by `price` ascending). |
+| GET | `/public/v1/properties/:id/resources` | public | key | — | `{ data: [PublicResource] }` | Resources applicable to the property (`resource_properties` pivot, empty = global), with the **effective per-property price** (`property_resource_prices`). `PublicResource = { id, name, description, priceType, price }` — stock/slots/opening hours stripped. **Ordered cheapest-first** (by `price` ascending). |
 | GET | `/public/v1/properties/:id/availability?from=&to=` | public | key | — | `{ data: PublicAvailability }` | Consolidated blocked dates; defaults today…+12mo; max 365d. |
 | POST | `/public/v1/quote` | public | key | `QuoteRequest` | `{ data: PublicQuote }` | Computes via engine; no persistence. `QuoteRequest`/booking accept `resources: [{resourceId, quantity}]` (sanitised like options); `PublicQuote` adds `resources[]` + `resourcesTotal`. |
 | POST | `/public/v1/booking-requests` | public | key | `BookingRequest` | `201 { data: BookingRequestReceipt }` | Pending devis; rate-limited + anti-spam. |
@@ -359,6 +359,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
                     "collectedOnArrival": false },
     "subtotal": 1033,
     "finalPrice": 1033,
+    "totalStayPrice": 1066,
     "deposit": { "amount": 309.90, "dueDate": "2026-06-20" },
     "balance": { "amount": 723.10, "dueDate": "2026-07-13" },
     "complementOnArrival": 0
@@ -367,8 +368,9 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
 ```
   - Mapped from `calculateReservationQuote` fields (`nights`, `nightlyBreakdown`,
     `totalPrice`/`baseAccommodationPrice`, `extraGuestSurcharge`, `optionLines`, `optionsTotal`,
-    `touristTaxTotal`/`touristTaxLabel`/`touristTaxCollectedOnArrival`, `finalPrice`,
-    `depositAmount`/`depositDueDate`, `balanceAmount`/`balanceDueDate`, `complementAmount`,
+    `touristTaxTotal`/`touristTaxLabel`/`touristTaxCollectedOnArrival`, `finalPrice` (tax-EXCLUSIVE),
+    `totalStayPrice` (the headline grand total = `finalPrice` + tourist tax — what a consumer shows as
+    "Total du séjour"), `depositAmount`/`depositDueDate`, `balanceAmount`/`balanceDueDate`, `complementAmount`,
     `minNightsBreached`/`requiredMinNights`). `available` is added by cross-checking the
     requested range against availability (#6).
   - **Excluded:** VAT net breakdowns, accounting contribution buckets, `engineFinalPrice`/override
@@ -466,7 +468,10 @@ follow-up.
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**
 - [x] `tests/public-projections.unit.test.js` — `toPublicProperty`/`Detail`/`Option`/`Availability`/
       `Quote` strip every excluded field (no photo/doc URLs, no accounting buckets, no VAT internals)
-      and map engine fields correctly; range collapsing. **(7 tests)**
+      and map engine fields correctly, incl. `totalStayPrice` (tax-INCLUSIVE headline total, distinct
+      from the tax-exclusive `finalPrice`); range collapsing. **(7 tests)**
+- [x] `tests/public-catalog-sort-by-price.unit.test.js` — `listOptions`/`listResources` return the
+      catalog **cheapest-first** (controller-imposed order; models return unsorted rows). **(2 tests)**
 - [x] `tests/require-public-api-key.unit.test.js` — missing/wrong key → 401; correct key via
       `X-API-Key` and `Bearer` → pass; fail-closed when unconfigured. **(5 tests)**
 - [x] `tests/public-booking-request-controller.unit.test.js` — the only public write, security
@@ -477,7 +482,14 @@ follow-up.
       existing client reused (not duplicated). Real validation; DB/engine/models mocked. **(9 tests)**
 - [x] `tests/public-quote-controller.unit.test.js` — `platform` hard-set to `direct` + every
       price-override field dropped before the engine + options re-sanitised to `{optionId, quantity}`;
-      non-applicable option → 422; public projection + `available` flag. **(3 tests)**
+      non-applicable option → 422; selected resources passed as `{resourceId, quantity}` only +
+      non-applicable resource → 422; public projection + `available` flag. **(5 tests)**
+- [x] `tests/public-quote-progressive-participants.unit.test.js` — end-to-end guard for
+      `per_participant_progressive` options (2026-06-10): drives the REAL quote controller through the
+      REAL pricing engine over an in-memory DB; the client `quantity` is the **participant count** and
+      drives the degressive total surfaced in `options[].total` (tiers 55/45/35 → 1=55, 2=100, 3=135,
+      4=170; base-price fallback for participant 1 → 30/60/65); a different count re-prices the option
+      (no client-side maths — the WordPress widget relies entirely on `/quote`). **(3 tests)**
 - [x] `tests/public-api-http-integration.test.js` — drives the REAL `/public/v1` router over a real
       TCP socket (controllers stubbed, middleware real), 2026-06-09: every route (reads + writes) is
       **fail-closed without the key → 401** + uniform envelope; wrong key → 401, Bearer & X-API-Key both
