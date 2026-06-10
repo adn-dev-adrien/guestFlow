@@ -1,0 +1,1 @@
+- Public options and resources (`GET /public/v1/properties/:id/options` and `/resources`) are now returned **cheapest-first** (by price ascending).

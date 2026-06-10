@@ -63,10 +63,15 @@ function getProperty(req, res) {
   return ok(res, toPublicPropertyDetail(property));
 }
 
+/** Public catalog ordering: cheapest first (ties keep the model's order via a stable sort). */
+function byPriceAsc(a, b) {
+  return Number(a.price || 0) - Number(b.price || 0);
+}
+
 function listOptions(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
-  return ok(res, optionsModel.listForProperty(propertyId).map(toPublicOption));
+  return ok(res, optionsModel.listForProperty(propertyId).map(toPublicOption).sort(byPriceAsc));
 }
 
 function listResources(req, res) {
@@ -74,7 +79,7 @@ function listResources(req, res) {
   if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
   // resourcesModel.list resolves applicability (resource_properties pivot, empty = global) and the
   // EFFECTIVE per-property price (property_resource_prices). Public projection strips stock/slots.
-  return ok(res, resourcesModel.list(propertyId).map(toPublicResource));
+  return ok(res, resourcesModel.list(propertyId).map(toPublicResource).sort(byPriceAsc));
 }
 
 function getAvailability(req, res) {

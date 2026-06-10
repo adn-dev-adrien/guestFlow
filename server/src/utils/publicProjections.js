@@ -152,6 +152,9 @@ function toPublicQuote(quote, { available, startDate, endDate }) {
       collectedOnArrival: Boolean(quote.touristTaxCollectedOnArrival),
     },
     finalPrice: Number(quote.finalPrice || 0),
+    // Grand total of the stay INCLUDING the tourist tax (finalPrice is tax-exclusive). This is the
+    // headline "Total du séjour" a public consumer should display.
+    totalStayPrice: Number(quote.totalStayPrice || 0),
     deposit: { amount: Number(quote.depositAmount || 0), dueDate: quote.depositDueDate || null },
     balance: { amount: Number(quote.balanceAmount || 0), dueDate: quote.balanceDueDate || null },
     complementOnArrival: Number(quote.complementAmount || 0),
