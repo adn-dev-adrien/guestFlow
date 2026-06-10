@@ -36,11 +36,14 @@ import EuroIcon from '@mui/icons-material/Euro';
 import NoteIcon from '@mui/icons-material/Note';
 import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import BedIcon from './BedIcon';
 
 const ARRIVAL_BG = orange[50]; // #FFF3E0 — warm peach so arrival cards stand out.
 
-// Private helper. Draws the {DOUBLE×N / SIMPLE×N / BÉBÉ×N} bed chips. Returns null when
-// every count is 0 — the parent gate keeps it out of the DOM altogether in that case.
+// Private helper. Draws the {🛏 double / 🛏 simple / BÉBÉ ×N} bed chips. Single/double use the
+// coloured BedIcon (single narrower than double, per Adrien 2026-06-10) instead of a text label;
+// baby keeps a short text label. Returns null when every count is 0 — the parent gate keeps it
+// out of the DOM altogether in that case.
 function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   const dbl = Number(doubleBeds || 0);
   const sgl = Number(singleBeds || 0);
@@ -52,15 +55,16 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   if (sgl > 0) beds.push({ type: 'single', count: sgl, color: '#6a1b9a', label: 'Lit simple', bgColor: '#f3e5f5' });
   if (bby > 0) beds.push({ type: 'baby', count: bby, color: '#e65100', label: 'Lit bébé', bgColor: '#fff8e1' });
 
-  const labels = { double: 'DOUBLE', single: 'SIMPLE', baby: 'BÉBÉ' };
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mt: 0.5 }}>
       {beds.map((bed, idx) => (
-        <Tooltip key={idx} title={bed.label}>
+        <Tooltip key={idx} title={`${bed.label} ×${bed.count}`}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: bed.bgColor, borderRadius: 1, px: 1, py: 0.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 900, color: bed.color, fontSize: '11px', letterSpacing: '0.5px' }}>
-              {labels[bed.type]}
-            </Typography>
+            {bed.type === 'baby' ? (
+              <Typography variant="caption" sx={{ fontWeight: 900, color: bed.color, fontSize: '11px', letterSpacing: '0.5px' }}>BÉBÉ</Typography>
+            ) : (
+              <BedIcon type={bed.type} height={18} title={bed.label} />
+            )}
             <Typography variant="caption" sx={{ fontWeight: 700, color: bed.color }}>×{bed.count}</Typography>
           </Box>
         </Tooltip>
