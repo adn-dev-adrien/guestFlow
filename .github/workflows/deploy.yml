@@ -263,30 +263,9 @@ jobs:
           echo "✓ Database symlink created"
           ls -la "$DEPLOY_DIR/current/server/guestflow.db"
 
-      # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
-      # The TLS cert is already provisioned in `~/guestflow/certs/` and persists across
-      # deploys. This step self-skips once the cert exists, but still loads the script and
-      # echoes its check — pure cost for a long-resolved one-time setup. Reactivate before
-      # the cert expires (run on demand via `workflow_dispatch`) OR regenerate manually
-      # with `OUT_DIR=~/guestflow/certs bash server/scripts/generate-self-signed-cert.sh --force`.
-      # - name: 🔒 Provision self-signed TLS cert (one-time, persistent across deploys)
-      #   run: |
-      #     CERTS_DIR="$HOME/guestflow/certs"
-      #     CERT_FILE="$CERTS_DIR/server.crt"
-      #     KEY_FILE="$CERTS_DIR/server.key"
-      #
-      #     mkdir -p "$CERTS_DIR"
-      #
-      #     if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
-      #       echo "✓ TLS cert already provisioned at $CERTS_DIR — leaving it alone."
-      #       echo "  (regenerate manually with --force on the script if the cert nears expiry)"
-      #     else
-      #       echo "ℹ No TLS cert found — generating a fresh self-signed cert."
-      #       chmod +x "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
-      #       OUT_DIR="$CERTS_DIR" "$HOME/guestflow/current/server/scripts/generate-self-signed-cert.sh"
-      #     fi
-      #
-      #     ls -la "$CERTS_DIR"
+      # TLS is terminated by the Caddy reverse proxy on the Pi (specs/reverse-proxy-caddy.md),
+      # not by Node. The app serves plain HTTP on :4000; Caddy owns Let's Encrypt issuance +
+      # auto-renewal. No cert provisioning happens here anymore. Proxy setup: scripts/setup-reverse-proxy.sh.
 
       - name: 📥 Restore uploads
         run: |
@@ -379,15 +358,13 @@ jobs:
           echo "✓ Database verified at: $PERSISTENT_DB"
           echo "✓ Service symlink verified"
           
-          # Start service with explicit DB_PATH + TLS material paths (persistent across deploys).
-          # HTTPS_ENABLED=true → Node serves directly on :4000 over TLS using the self-signed cert
-          # provisioned by the previous step. The browser warns once per device that the cert isn't
-          # signed by a known CA (expected for a LAN-only deploy); after the user accepts, HSTS
-          # makes HTTPS sticky from then on. See README §HTTPS for the cert-trust workflow.
+          # Start service with explicit DB_PATH (persistent across deploys). The app serves plain
+          # HTTP on :4000; the Caddy reverse proxy terminates TLS at the edge and forwards here
+          # (specs/reverse-proxy-caddy.md). HTTPS_EDGE=true tells the app an HTTPS edge is in front
+          # so it keeps the HTTPS security posture (HSTS + upgrade-insecure-requests + Secure cookie)
+          # even though its own socket is plain HTTP.
           NODE_ENV=production \
-          HTTPS_ENABLED=true \
-          TLS_CERT_PATH="$HOME/guestflow/certs/server.crt" \
-          TLS_KEY_PATH="$HOME/guestflow/certs/server.key" \
+          HTTPS_EDGE=true \
           DB_PATH="$PERSISTENT_DB" \
           SKIP_MIGRATIONS=false \
           APP_COMMIT_SHA="${GITHUB_SHA}" \

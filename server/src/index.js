@@ -47,13 +47,14 @@ app.set('trust proxy', 1); // honor X-Forwarded-* behind the prod reverse proxy 
 // first Raspberry Pi deploy (`NODE_ENV=production` without TLS at the edge → Safari upgraded every
 // asset URL to https:// → "Une erreur TLS a provoqué l'échec de la connexion sécurisée"):
 //   NODE_ENV=production   → run as prod (full CSP, JSON errors, prod-only branches elsewhere)
-//   HTTPS_ENABLED=true    → the network edge actually serves HTTPS → enable HSTS + CSP's
-//                            upgrade-insecure-requests + Secure cookies.
-// HTTPS_ENABLED must be explicitly turned on once TLS is in front of the app; leaving it off on a
-// prod deploy is safe (the app stays usable over plain HTTP).
+//   HTTPS_EDGE=true       → an HTTPS edge (the Caddy reverse proxy, specs/reverse-proxy-caddy.md)
+//                            sits in front → enable HSTS + CSP's upgrade-insecure-requests +
+//                            Secure cookies. The app itself only ever serves plain HTTP.
+// HTTPS_EDGE must be explicitly turned on once the proxy is in front of the app; leaving it off on
+// a prod deploy is safe (the app stays usable over plain HTTP, just without the HTTPS posture).
 const isProduction = process.env.NODE_ENV === 'production';
-const httpsEnabled = shouldEnforceHttps(process.env);
-app.use(helmet(buildHelmetOptions({ isProduction, httpsEnabled })));
+const httpsEdge = shouldEnforceHttps(process.env);
+app.use(helmet(buildHelmetOptions({ isProduction, httpsEdge })));
 
 // Helmet doesn't ship Permissions-Policy (it's a newer header that superseded Feature-Policy).
 // We set it ourselves: deny camera/mic/geoloc/payment/etc. to every origin. The app doesn't
@@ -77,7 +78,7 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '256kb' }));
 
 // Server-side sessions persisted in SQLite (survive restarts). Cookie is httpOnly + sameSite + Secure
-// when HTTPS is actually available — a Secure cookie over plain HTTP is silently dropped by the
+// when an HTTPS edge is in front — a Secure cookie over plain HTTP is silently dropped by the
 // browser, which would make every login round-trip fail without an obvious error.
 app.use(session({
   store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
@@ -86,7 +87,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   rolling: true, // sliding 30-day expiration
-  cookie: buildSessionCookieOptions({ httpsEnabled }),
+  cookie: buildSessionCookieOptions({ httpsEdge }),
 }));
 
 // One-time, idempotent: encrypt any legacy cleartext Google credentials at rest.
@@ -203,19 +204,9 @@ app.use('/api', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-// Picks plain HTTP or HTTPS based on HTTPS_ENABLED. When HTTPS is on but the cert/key are
-// missing, `buildServer` throws — better to refuse to boot than to silently downgrade and leak
-// a Secure session cookie over plain transport. See utils/httpsBootstrap.js for the rules.
-let serverHandle;
-let serverProtocol = 'http';
-try {
-  const built = buildServer({ httpsEnabled, app });
-  serverHandle = built.server;
-  serverProtocol = built.protocol;
-} catch (err) {
-  logErrorMarker(`Boot failed: ${err.message}`);
-  process.exit(1);
-}
+// The app always serves plain HTTP; TLS is terminated by the Caddy reverse proxy at the edge
+// (specs/reverse-proxy-caddy.md). See utils/httpsBootstrap.js.
+const { server: serverHandle, protocol: serverProtocol } = buildServer({ app });
 const server = serverHandle.listen(PORT, () => {
   // Single boot banner — env, address, DB path. The only line a healthy steady-state boot prints
   // unless a migration / seed actually changed something. Goes to stdout (regular logs); the
