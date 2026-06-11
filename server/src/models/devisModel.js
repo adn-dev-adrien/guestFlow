@@ -15,6 +15,7 @@ const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { sentenceCase } = require('../utils/textFormatters');
 const { roundMoney, addDaysToIsoDate } = require('../utils/devisHelpers');
+const { enrichHistoryChanges } = require('../utils/reservationAudit');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 
 // Helpers shared between create + convertFromReservation
@@ -342,11 +343,15 @@ function createModel(database) {
   function getHistory(id) {
     const devis = database.prepare("SELECT id FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!devis) return null;
+    const names = {
+      optionNames: Object.fromEntries(database.prepare('SELECT id, title FROM options').all().map((o) => [Number(o.id), o.title])),
+      resourceNames: Object.fromEntries(database.prepare('SELECT id, name FROM resources').all().map((r) => [Number(r.id), r.name])),
+    };
     return database.prepare('SELECT id, eventType, changedFields, createdAt FROM reservation_history WHERE reservationId = ? ORDER BY createdAt DESC').all(Number(id))
       .map((row) => {
         let changes = [];
         try { changes = JSON.parse(row.changedFields || '[]'); } catch { changes = []; }
-        return { id: row.id, eventType: row.eventType, createdAt: row.createdAt, changes };
+        return { id: row.id, eventType: row.eventType, createdAt: row.createdAt, changes: enrichHistoryChanges(changes, names) };
       });
   }
 
