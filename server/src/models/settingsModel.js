@@ -116,8 +116,6 @@ const COLUMNS = [
   'paymentBalanceReminderOffsets',
   'paymentBalanceAbandonOffset',
   'paymentBalanceLinkExpiryDays',
-  'paymentLastMinuteDays',
-  'paymentFullPaymentDueDaysBefore',
   // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
   // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
   'qontoAccessTokenEncrypted',
@@ -147,8 +145,6 @@ const NUMERIC_DEFAULTS = {
   paymentDepositLinkExpiryDays: 1,
   paymentBalanceAbandonOffset: 1,
   paymentBalanceLinkExpiryDays: 1,
-  paymentLastMinuteDays: 30,
-  paymentFullPaymentDueDaysBefore: 7,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
@@ -308,8 +304,6 @@ function createSettingsModel(databaseInstance) {
         balanceReminderOffsets: offsets(row.paymentBalanceReminderOffsets, [-10, -5, 0]),
         balanceAbandonOffset: num(row.paymentBalanceAbandonOffset, 1),
         balanceLinkExpiryDays: num(row.paymentBalanceLinkExpiryDays, 1),
-        lastMinuteDays: num(row.paymentLastMinuteDays, 30),
-        fullPaymentDueDaysBefore: num(row.paymentFullPaymentDueDaysBefore, 7),
       };
     },
 
