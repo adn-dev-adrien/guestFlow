@@ -141,3 +141,26 @@ export function getDayOccupancyConflictMessage({
 
   return 'Ce logement est déjà réservé pour cette date.';
 }
+
+/**
+ * Cleaning-turnover conflict for the Planning view.
+ *
+ * A previous checkout's cleaning window only collides with a later arrival when they are close
+ * enough in REAL time — it must be compared as full datetimes, not minutes-of-day. The historical
+ * bug compared HH:MM only, so a 10:00 checkout on 8 July was flagged as colliding with a 10:00
+ * arrival on 17 July (same time, but 9 days apart). Returns true iff
+ * (checkout date+time + cleaning) is strictly after (arrival date+time).
+ */
+export function cleaningTurnoverConflict({
+  checkoutDate,
+  checkoutTime,
+  cleaningMinutes,
+  arrivalDate,
+  arrivalTime,
+}) {
+  const checkout = Date.parse(`${checkoutDate}T${checkoutTime || '10:00'}:00`);
+  const arrival = Date.parse(`${arrivalDate}T${arrivalTime || '15:00'}:00`);
+  if (Number.isNaN(checkout) || Number.isNaN(arrival)) return false;
+  const cleaningEnd = checkout + (Number(cleaningMinutes) || 0) * 60000;
+  return cleaningEnd > arrival;
+}
