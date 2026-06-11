@@ -2372,31 +2372,36 @@ export default function ReservationPage() {
                       </Typography>
                       <EditOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
                     </Box>
-                    <Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
                       <Button size="small" variant="text" onClick={() => setClientSearchOpen(true)}>
                         Changer le client
+                      </Button>
+                      <Button size="small" variant="text" onClick={openCreateClient}>
+                        + Créer un nouveau client
                       </Button>
                     </Box>
                   </>
                 ) : (
-                  <Autocomplete
-                    options={clients}
-                    getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
-                    value={clients.find(c => c.id === form.clientId) || null}
-                    onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
-                    onChange={(_, val) => { if (val) { updateForm({ clientId: val.id }); setSelectedClient(val); setClientSearchOpen(false); } }}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    renderInput={(params) => <TextField {...params} label="Rechercher un client" autoFocus={clientSearchOpen} />}
-                    noOptionsText={
-                      <Button onClick={openCreateClient} size="small">Créer un nouveau client</Button>
-                    }
-                  />
+                  <>
+                    <Autocomplete
+                      options={clients}
+                      getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
+                      value={clients.find(c => c.id === form.clientId) || null}
+                      onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
+                      onChange={(_, val) => { if (val) { updateForm({ clientId: val.id }); setSelectedClient(val); setClientSearchOpen(false); } }}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      renderInput={(params) => <TextField {...params} label="Rechercher un client" autoFocus={clientSearchOpen} />}
+                      noOptionsText={
+                        <Button onClick={openCreateClient} size="small">Créer un nouveau client</Button>
+                      }
+                    />
+                    <Box>
+                      <Button size="small" variant="text" onClick={openCreateClient}>
+                        + Créer un nouveau client
+                      </Button>
+                    </Box>
+                  </>
                 )}
-                <Box>
-                  <Button size="small" variant="text" onClick={openCreateClient}>
-                    + Créer un nouveau client
-                  </Button>
-                </Box>
               </Stack>
             </CardContent>
           </Card>
