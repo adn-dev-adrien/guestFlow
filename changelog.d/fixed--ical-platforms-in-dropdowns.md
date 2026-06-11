@@ -1,0 +1,1 @@
+- **Plateformes iCal dans les menus déroulants** (spec `ical-platforms-in-dropdowns.md`, 2026-06-11). Une plateforme ajoutée dans les imports iCal d'un logement apparaît désormais dans les menus « Plateforme » (formulaire de réservation + formulaire iCal), via le nouvel endpoint `GET /api/platforms` (plateformes connues ∪ table `platforms`). +5 tests serveur.

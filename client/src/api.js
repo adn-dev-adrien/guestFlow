@@ -132,6 +132,9 @@ const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/reservations${qs ? `?${qs}` : ''}`);
   },
+  // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
+  // specs/ical-platforms-in-dropdowns.md.
+  getPlatforms: () => request('/platforms'),
   getReservation: (id) => request(`/reservations/${id}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
