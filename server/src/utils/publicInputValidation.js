@@ -92,6 +92,13 @@ function validateStayInput(body = {}) {
   }
   if (Number.isFinite(counts.adults) && counts.adults < 1) errors.push({ field: 'adults', issue: 'at least 1 adult required' });
 
+  // Baby beds (couchage) — a non-negative integer, defaulted to 0. Routed to the devis `babyBeds`
+  // field (not a resource line) so it shows in the operator's "Couchage" section
+  // (specs/site-booking-notifications.md §3 rule 16). Capped at the number of babies.
+  let babyBeds = toNonNegativeInt(body.babyBeds, 0);
+  if (Number.isNaN(babyBeds)) { errors.push({ field: 'babyBeds', issue: 'must be a non-negative integer' }); babyBeds = 0; }
+  if (Number.isFinite(counts.babies) && babyBeds > counts.babies) babyBeds = counts.babies;
+
   let options = [];
   if (body.options !== undefined) {
     if (!Array.isArray(body.options)) {
@@ -137,6 +144,7 @@ function validateStayInput(body = {}) {
       children: counts.children,
       teens: counts.teens,
       babies: counts.babies,
+      babyBeds,
       options,
       resources,
     },

@@ -117,8 +117,11 @@ or **[CREATE]** (genuinely new logic).
 8. **Strict input validation at the public boundary.** Every field is validated for type, range,
    and format before any engine/DB call. `propertyId` must exist; `startDate < endDate`; dates
    are ISO `YYYY-MM-DD`; guest counts are non-negative integers within the property capacity;
-   option ids must be applicable to the property; email is RFC-valid; phone is non-empty. On
-   failure → `422 VALIDATION_FAILED` with a `details` array.
+   `babyBeds` is a non-negative integer (couchage), capped server-side at the number of babies and
+   persisted on the devis `babyBeds` field (NOT as a "Lit bébé" resource line — see
+   specs/site-booking-notifications.md §3 rule 16); option ids must be applicable to the property;
+   email is RFC-valid; phone is non-empty. On failure → `422 VALIDATION_FAILED` with a `details`
+   array.
 9. **Rate limiting + anti-spam on writes.** `/public/v1/*` reads use a dedicated
    `publicApiLimiter` (default 600/15 min/IP). `POST /public/v1/booking-requests` adds a stricter
    `bookingRequestLimiter` (default 5/hour/IP **and** 20/hour/API-key) plus a honeypot field

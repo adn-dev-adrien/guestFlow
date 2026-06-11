@@ -89,6 +89,12 @@ to the address configured in the SMTP settings.
     `autoEnabled=0`** (e.g. linen/breakfast set as a default) — the Part 1 filter fix must not let the
     pre-filter drop a defaulted option. This is the cross-check between the bug fix and the existing
     defaults mechanism.
+16. **Baby beds are couchage, not a supplement.** GuestFlow filters the "Lit bébé" resource out of
+    the supplements list (it is modelled by the `reservations.babyBeds` couchage field). The public
+    booking flow must therefore route the visitor's baby-bed count to the devis **`babyBeds` field**
+    (so it shows in the operator's Couchage section), **not** as a `selectedResources` line (which
+    would be persisted but hidden). The public API accepts `babyBeds` (non-negative integer, capped
+    at the number of babies); the WordPress widget sends it as a count, not a resource.
 
 **Edge cases:**
 - Honeypot-tripped booking request → no devis, no email (unchanged behaviour).
@@ -304,3 +310,16 @@ added (`notificationsEnabled`, `notificationRecipientEmail`) instead of 3.
   suite + client build cover the logic and compilation. To exercise end-to-end: submit a site
   booking with breakfast + linen, confirm the devis + dashboard alert + email, and import a new iCal
   reservation to confirm its email.
+
+### Follow-up fixes (2026-06-11, from the user's first test)
+
+- **Baby bed missing from the devis (rule 16).** The WordPress widget sent the baby bed as a
+  hidden 0 € "Lit bébé" resource line, which GuestFlow filters out of the supplements list, while the
+  `babyBeds` couchage field stayed 0 → the operator saw no baby bed. Fixed: `publicInputValidation`
+  accepts `babyBeds` (capped at babies), `publicBookingRequestController` forwards it to the devis
+  `babyBeds` field, and the widget now sends it as a count (no resource push). +2 server tests
+  (+ public-input-validation shape test updated).
+- **Unlabeled "Complément" toggle (adjacent UI fix, spec `force-item-to-complement.md`).** The
+  per-line force-to-complement Switch in the reservation Suppléments section had only a tooltip +
+  aria-label → it read as a bare switch. Added a visible **"Compl."** caption label to all four
+  toggles (option / auto-option / custom option / resource) in `ExtrasSection.js`.

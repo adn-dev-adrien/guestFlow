@@ -199,3 +199,21 @@ test('existing client by email is reused, not duplicated', () => {
   assert.equal(captures.clientInsert, undefined, 'no new client inserted');
   assert.equal(captures.devisCreate.clientId, 7, 'reused existing client');
 });
+
+test('baby beds are forwarded as a couchage count (not a resource), capped at the number of babies', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody({ babies: 1, babyBeds: 3 }) }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(captures.devisCreate.babyBeds, 1, 'capped to the number of babies');
+  assert.deepEqual(captures.devisCreate.selectedResources, [], 'never injected as a resource line');
+});
+
+test('babyBeds defaults to 0 when absent', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  const res = fakeRes();
+  controller.create({ body: validBody() }, res);
+  assert.equal(captures.devisCreate.babyBeds, 0);
+});

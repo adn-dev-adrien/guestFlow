@@ -27,6 +27,8 @@ The accounting export ([accountingModel.js:134](server/src/models/accountingMode
 
 Each option / resource / custom option / tourist tax can be **manually routed to complément** via a per-item toggle (defaults to "auto"). The summary surfaces the routing as a discreet `compl.` chip next to the libellé.
 
+> **2026-06-11 UI fix.** The per-line toggle in the Suppléments section (`ExtrasSection.js`) is a small `Switch`; it previously had only a tooltip + `aria-label`, so it read as an unlabeled switch. It now also shows a visible **"Compl."** caption label, on all four toggles (option / auto-option / custom option / resource).
+
 Additionally, the operator's ventilation rules (what bucket a newly-added item lands in, based on payment state at the time) are made **persistent and auditable**: each item carries its **per-bucket contribution** (`acompteContribTtc`, `soldeContribTtc`) once frozen by a payment flip. The complement contribution is then derivable as `current − acompteContrib − soldeContrib` (auto delta) **+ 100 %** if forced. Same mechanism for accommodation and tourist tax at the reservation level.
 
 Result: every accounting entry (Acompte / Solde / Complément) shows a per-bucket breakdown that **mathematically equals the payment amount** and contains **only** the items / portions actually attached to that bucket — no contamination from later growth.
