@@ -161,4 +161,20 @@ describe('cleaningTurnoverConflict', () => {
       arrivalDate: '2026-07-09', arrivalTime: '10:00',
     })).toBe(false);
   });
+
+  // Operator's acceptance example: A departs 01/01 at 10:00, B arrives 01/01 at 12:00 (same
+  // logement). The cleaning duration is the per-property `cleaningHours` setting.
+  test('2h cleaning that ends exactly at the arrival is OK (no alert)', () => {
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-01-01', checkoutTime: '10:00', cleaningMinutes: 120, // ends 12:00 = arrival
+      arrivalDate: '2026-01-01', arrivalTime: '12:00',
+    })).toBe(false);
+  });
+
+  test('3h cleaning overruns the 12:00 arrival → alert', () => {
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-01-01', checkoutTime: '10:00', cleaningMinutes: 180, // ends 13:00 > 12:00
+      arrivalDate: '2026-01-01', arrivalTime: '12:00',
+    })).toBe(true);
+  });
 });
