@@ -1152,6 +1152,17 @@ tryAddAppSettingsCol('bedLinenStockBaby',   "ALTER TABLE app_settings ADD COLUMN
 tryAddAppSettingsCol('towelStockLarge',     "ALTER TABLE app_settings ADD COLUMN towelStockLarge     INTEGER NOT NULL DEFAULT 0");
 tryAddAppSettingsCol('towelStockMedium',    "ALTER TABLE app_settings ADD COLUMN towelStockMedium    INTEGER NOT NULL DEFAULT 0");
 tryAddAppSettingsCol('towelStockSmall',     "ALTER TABLE app_settings ADD COLUMN towelStockSmall     INTEGER NOT NULL DEFAULT 0");
+// Online payments — all reminder/deadline durations are operator-configurable (no hard-coded delay).
+// Offsets are stored as a JSON array of day-deltas relative to the relevant due date (negative = before,
+// 0 = the due day, positive = after). See specs/online-payments-qonto.md §3.1 + §5.
+tryAddAppSettingsCol('paymentDepositReminderOffsets',  "ALTER TABLE app_settings ADD COLUMN paymentDepositReminderOffsets  TEXT DEFAULT '[-5,0]'");
+tryAddAppSettingsCol('paymentDepositAbandonOffset',    "ALTER TABLE app_settings ADD COLUMN paymentDepositAbandonOffset    INTEGER NOT NULL DEFAULT 1");
+tryAddAppSettingsCol('paymentDepositLinkExpiryDays',   "ALTER TABLE app_settings ADD COLUMN paymentDepositLinkExpiryDays   INTEGER NOT NULL DEFAULT 1");
+tryAddAppSettingsCol('paymentBalanceReminderOffsets',  "ALTER TABLE app_settings ADD COLUMN paymentBalanceReminderOffsets  TEXT DEFAULT '[-10,-5,0]'");
+tryAddAppSettingsCol('paymentBalanceAbandonOffset',    "ALTER TABLE app_settings ADD COLUMN paymentBalanceAbandonOffset    INTEGER NOT NULL DEFAULT 1");
+tryAddAppSettingsCol('paymentBalanceLinkExpiryDays',   "ALTER TABLE app_settings ADD COLUMN paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1");
+tryAddAppSettingsCol('paymentLastMinuteDays',          "ALTER TABLE app_settings ADD COLUMN paymentLastMinuteDays          INTEGER NOT NULL DEFAULT 30");
+tryAddAppSettingsCol('paymentFullPaymentDueDaysBefore',"ALTER TABLE app_settings ADD COLUMN paymentFullPaymentDueDaysBefore INTEGER NOT NULL DEFAULT 7");
 // Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
@@ -1807,6 +1818,30 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_email_log_reservation ON email_log(reservationId);
   CREATE INDEX IF NOT EXISTS idx_email_log_status_sent ON email_log(status, sentAt DESC);
   CREATE INDEX IF NOT EXISTS idx_email_log_template_res ON email_log(templateId, reservationId);
+`);
+
+// Online payment links (specs/online-payments-qonto.md §5). One row per Qonto payment link issued
+// for a reservation/devis. `reference` reconciliation is by reservationId; the polling pass reads
+// `status='open'` rows and flips them to 'paid'. Amounts are stored in cents (integer, exact).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payment_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    qontoPaymentLinkId TEXT,
+    url TEXT NOT NULL DEFAULT '',
+    amountCents INTEGER NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'EUR',
+    status TEXT NOT NULL DEFAULT 'open',
+    qontoPaymentId TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    paidAt TEXT,
+    expiresAt TEXT,
+    CHECK (type IN ('deposit', 'balance', 'full', 'complement')),
+    CHECK (status IN ('open', 'paid', 'expired', 'cancelled'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_payment_links_reservation ON payment_links(reservationId);
+  CREATE INDEX IF NOT EXISTS idx_payment_links_status ON payment_links(status);
 `);
 
 const { ensureDefaultEmailTemplates } = require('./utils/defaultEmailTemplatesSeed');

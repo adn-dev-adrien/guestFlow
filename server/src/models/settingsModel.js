@@ -102,6 +102,17 @@ const COLUMNS = [
   'towelStockLarge',
   'towelStockMedium',
   'towelStockSmall',
+  // Online payments — operator-configurable reminder/deadline durations (specs/online-payments-qonto.md
+  // §3.1 + §5). The two *Offsets are JSON arrays of day-deltas; the rest are integer day-counts. Read
+  // through `paymentTimings()` which parses + applies defaults so no caller hard-codes a duration.
+  'paymentDepositReminderOffsets',
+  'paymentDepositAbandonOffset',
+  'paymentDepositLinkExpiryDays',
+  'paymentBalanceReminderOffsets',
+  'paymentBalanceAbandonOffset',
+  'paymentBalanceLinkExpiryDays',
+  'paymentLastMinuteDays',
+  'paymentFullPaymentDueDaysBefore',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -119,10 +130,18 @@ const NUMERIC_DEFAULTS = {
   towelStockLarge: 0,
   towelStockMedium: 0,
   towelStockSmall: 0,
+  paymentDepositAbandonOffset: 1,
+  paymentDepositLinkExpiryDays: 1,
+  paymentBalanceAbandonOffset: 1,
+  paymentBalanceLinkExpiryDays: 1,
+  paymentLastMinuteDays: 30,
+  paymentFullPaymentDueDaysBefore: 7,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
   smtpFromName: 'GuestFlow',
+  paymentDepositReminderOffsets: '[-5,0]',
+  paymentBalanceReminderOffsets: '[-10,-5,0]',
 };
 
 const DEFAULTS = COLUMNS.reduce((acc, col) => {
@@ -244,6 +263,35 @@ function createSettingsModel(databaseInstance) {
     // DEFAULT 0 (see database.js migration). See specs/admin-unlock-past-reservations.md.
     allowEditPastReservations() {
       return Number(readRaw().allowEditPastReservations) === 1;
+    },
+
+    // Single source of truth for every payment reminder/deadline duration (no caller hard-codes a
+    // delay — specs/online-payments-qonto.md §3.1). Parses the JSON offset arrays and applies the
+    // documented defaults when a value is missing or malformed (partially-migrated DB, bad input).
+    paymentTimings() {
+      const row = readRaw();
+      const num = (v, fallback) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+      };
+      const offsets = (v, fallback) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (!Array.isArray(parsed)) return fallback;
+          const cleaned = parsed.map(Number).filter(Number.isFinite);
+          return cleaned.length ? cleaned : fallback;
+        } catch { return fallback; }
+      };
+      return {
+        depositReminderOffsets: offsets(row.paymentDepositReminderOffsets, [-5, 0]),
+        depositAbandonOffset: num(row.paymentDepositAbandonOffset, 1),
+        depositLinkExpiryDays: num(row.paymentDepositLinkExpiryDays, 1),
+        balanceReminderOffsets: offsets(row.paymentBalanceReminderOffsets, [-10, -5, 0]),
+        balanceAbandonOffset: num(row.paymentBalanceAbandonOffset, 1),
+        balanceLinkExpiryDays: num(row.paymentBalanceLinkExpiryDays, 1),
+        lastMinuteDays: num(row.paymentLastMinuteDays, 30),
+        fullPaymentDueDaysBefore: num(row.paymentFullPaymentDueDaysBefore, 7),
+      };
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.
