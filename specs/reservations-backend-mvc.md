@@ -52,6 +52,13 @@ rules — just a clean, testable structure that future slices (and Bloc 5) build
 5. **Occupancy rules in a pure util.** The night-block + availability logic moves to `utils/occupancy.js`
    as pure, unit-testable functions; the server stays the single authority for conflict rejection.
 6. **Audit logic in a pure util.** Snapshot/diff/history helpers move to `utils/reservationAudit.js`.
+   - **Human-readable history (2026-06-11).** The options/resources diff is stored as a compact
+     signature (`6:1:8.00:c0|…`). `getHistory` (both `reservationsModel` and `devisModel`) resolves
+     option/resource ids → names and money via the pure `enrichHistoryChanges` helper, attaching
+     ready-to-render `fromText`/`toText` to each option/resource change (e.g.
+     `Petit-déjeuner : 0 € (compl.) • Linge de lit : 14 € (compl.)`). Server-owned per the
+     fat-backend rule; the client just renders one line per change (`label : from → to`). Custom
+     options (synthetic id ≥ 1 000 000) read as `Option personnalisée`; an unknown id as `Option #N`.
 7. **No client change.** The 3 client consumers (`CalendarPage`, `ReservationPage`, `MiniPlanningStrip`)
    and their UX helper `utils/reservationConflicts.js` are untouched here (see Out of scope).
 8. **Tests.** The extracted occupancy + audit utils and the model get unit tests; the existing suite

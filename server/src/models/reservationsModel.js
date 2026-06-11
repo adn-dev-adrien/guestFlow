@@ -12,7 +12,7 @@ const { sentenceCase } = require('../utils/textFormatters');
 const { formatPlatformName } = require('../utils/platformNameFormat');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
-const { getOptionsSignature, getResourcesSignature } = require('../utils/reservationAudit');
+const { getOptionsSignature, getResourcesSignature, enrichHistoryChanges } = require('../utils/reservationAudit');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
@@ -205,10 +205,16 @@ function createReservationsModel(database) {
         WHERE reservationId = ?
         ORDER BY datetime(createdAt) DESC, id DESC
       `).all(id);
+      // Resolve option/resource ids → names once so the history diff reads naturally
+      // ("Petit-déjeuner : 8 €" instead of "6:1:8.00:c0"). See specs/reservations-backend-mvc.md.
+      const names = {
+        optionNames: Object.fromEntries(database.prepare('SELECT id, title FROM options').all().map((o) => [Number(o.id), o.title])),
+        resourceNames: Object.fromEntries(database.prepare('SELECT id, name FROM resources').all().map((r) => [Number(r.id), r.name])),
+      };
       return rows.map((row) => {
         let changedFields = [];
         try { changedFields = JSON.parse(row.changedFields || '[]'); } catch { changedFields = []; }
-        return { id: row.id, eventType: row.eventType, createdAt: row.createdAt, changedFields };
+        return { id: row.id, eventType: row.eventType, createdAt: row.createdAt, changedFields: enrichHistoryChanges(changedFields, names) };
       });
     },
 

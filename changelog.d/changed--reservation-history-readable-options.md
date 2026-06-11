@@ -1,0 +1,1 @@
+- Reservation history now shows option/resource **names** and formatted amounts instead of raw ids (e.g. `Petit-déjeuner : 8 € (compl.)` instead of `6:1:8.00:c1`), one readable line per changed field.

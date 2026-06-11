@@ -127,6 +127,71 @@ function buildAuditSnapshotFromPayload(payload, quote) {
   };
 }
 
+function formatHistoryMoney(amount) {
+  const value = Math.round(Number(amount || 0) * 100) / 100;
+  const text = Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',');
+  return `${text} €`;
+}
+
+function optionDisplayName(optionId, optionNames = {}) {
+  const id = Number(optionId);
+  // Custom options are recorded in the signature under synthetic ids (≥ 1_000_000) and carry no name.
+  if (id >= 1000000) return 'Option personnalisée';
+  return optionNames[id] || `Option #${id}`;
+}
+
+function resourceDisplayName(resourceId, resourceNames = {}) {
+  const id = Number(resourceId);
+  return resourceNames[id] || `Ressource #${id}`;
+}
+
+/**
+ * Turns a compact options/resources signature into a human-readable, name-resolved string for the
+ * history UI. The `field` decides the segment layout:
+ *   optionsSignature   → `id:qty:total:cN`
+ *   resourcesSignature → `id:qty:total:offered:cN`
+ * Empty signature → "aucune". Money is FR-formatted; the complément/offert flags become suffix tags.
+ */
+function describeSignatureValue(field, rawSignature, { optionNames = {}, resourceNames = {} } = {}) {
+  const raw = rawSignature == null ? '' : String(rawSignature);
+  if (raw === '') return 'aucune';
+  const isResource = field === 'resourcesSignature';
+  return raw
+    .split('|')
+    .map((part) => {
+      const seg = part.split(':');
+      const id = Number(seg[0]);
+      const quantity = Number(seg[1] || 0);
+      const total = Number(seg[2] || 0);
+      const offered = isResource ? String(seg[3] || '') === '1' : false;
+      const inComplement = String((isResource ? seg[4] : seg[3]) || '') === 'c1';
+      const name = isResource ? resourceDisplayName(id, resourceNames) : optionDisplayName(id, optionNames);
+      const qtyText = quantity > 1 ? ` ×${quantity}` : '';
+      const tags = [offered ? 'offert' : null, inComplement ? 'compl.' : null].filter(Boolean);
+      const tagText = tags.length ? ` (${tags.join(', ')})` : '';
+      return `${name}${qtyText} : ${formatHistoryMoney(total)}${tagText}`;
+    })
+    .join(' • ');
+}
+
+/**
+ * Adds ready-to-render `fromText`/`toText` to option/resource history changes (ids resolved to
+ * names + money formatted), so the client renders the diff without parsing the compact signature.
+ * Other fields are returned untouched (the client formats their primitive value itself).
+ */
+function enrichHistoryChanges(changes, names = {}) {
+  return (Array.isArray(changes) ? changes : []).map((change) => {
+    if (change && (change.field === 'optionsSignature' || change.field === 'resourcesSignature')) {
+      return {
+        ...change,
+        fromText: describeSignatureValue(change.field, change.from, names),
+        toText: describeSignatureValue(change.field, change.to, names),
+      };
+    }
+    return change;
+  });
+}
+
 function computeAuditChanges(beforeSnapshot, afterSnapshot) {
   const keys = Object.keys(HISTORY_FIELD_LABELS);
   const changes = [];
@@ -152,4 +217,7 @@ module.exports = {
   getResourcesSignature,
   buildAuditSnapshotFromPayload,
   computeAuditChanges,
+  formatHistoryMoney,
+  describeSignatureValue,
+  enrichHistoryChanges,
 };
