@@ -14,6 +14,7 @@
 const crypto = require('crypto');
 const settingsModel = require('../models/settingsModel');
 const { buildQontoClient } = require('../utils/qontoClient');
+const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimingsValidation');
 
 const CALLBACK_PATH = '/api/payments/qonto/callback';
 
@@ -41,7 +42,8 @@ function qontoAuthorize(req, res) {
 
 async function qontoCallback(req, res) {
   const { code, state, error } = req.query;
-  const back = (status) => res.redirect(`/settings?qonto=${status}`);
+  // Land back on the dedicated Paiements page (it reads ?qonto=… to show a success/error alert).
+  const back = (status) => res.redirect(`/parametres/paiements?qonto=${status}`);
 
   if (error) return back('error');
   const expected = req.session.qontoOAuthState;
@@ -71,4 +73,36 @@ function qontoStatus(req, res) {
   });
 }
 
-module.exports = { qontoAuthorize, qontoCallback, qontoStatus, resolveRedirectUri };
+// ----- Paiements settings page (specs/online-payments-qonto.md §3.1) -----
+
+// `payment` + Capitalize(key): depositReminderOffsets → paymentDepositReminderOffsets, etc.
+function timingColumn(key) {
+  return `payment${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+}
+
+// Everything the Paiements page renders: the parsed timings + the Qonto connection state.
+function getSettings(req, res) {
+  const client = buildQontoClient();
+  return res.json({
+    timings: settingsModel.paymentTimings(),
+    qonto: {
+      ...settingsModel.qontoConnectionInfo(),
+      configured: client.isConfigured(),
+      sandbox: client.sandbox,
+    },
+  });
+}
+
+// Update the (partial) timings: validate, then persist offset arrays as JSON + the rest as columns.
+function updateSettings(req, res) {
+  const { ok, errors, value } = validatePaymentTimings(req.body || {});
+  if (!ok) return res.status(400).json({ error: 'VALIDATION_FAILED', messages: errors });
+  const payload = {};
+  for (const [key, val] of Object.entries(value)) {
+    payload[timingColumn(key)] = OFFSET_FIELDS.includes(key) ? JSON.stringify(val) : val;
+  }
+  settingsModel.upsert(payload);
+  return res.json({ timings: settingsModel.paymentTimings() });
+}
+
+module.exports = { qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings, resolveRedirectUri };

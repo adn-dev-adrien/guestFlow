@@ -188,8 +188,8 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 | `models/` | `settingsModel.js` | T | New encrypted Qonto columns (client id/secret, OAuth tokens, connection id) **+ payment-timing settings** (deposit/balance reminder offsets, abandonment offsets, last-minute window, expiry) + `qontoConfigured()` / `decryptedQontoSettings()` / `paymentTimings()`. |
 | `models/` | `reservationsModel.js` | T | Occupancy excludes `cancelledUnpaidAt IS NOT NULL`; helpers to mark a reservation released-unpaid and a devis abandoned; list for the unpaid page. |
 | `models/` | `devisModel.js` | T | Deposit-paid → `convertToReservation` (deposit date = today); deposit-overdue → mark devis abandoned. |
-| `controllers/` | `paymentsController.js` | C | Endpoints: create+send a link (deposit/balance/full), regenerate, get status, manual mark, cancel-unpaid. Thin → model/util. |
-| `controllers/` | `paymentSettingsController.js` | C | Read/update the Paiements page: Qonto OAuth connect/callback/status + the payment-timing settings. |
+| `controllers/` | `paymentsController.js` | C | **Done (PR #178 + page PR):** Qonto OAuth `authorize`/`callback`/`status` + Paiements page `getSettings`/`updateSettings` (timings, validated). To come: create+send a link, regenerate, manual mark, cancel-unpaid, connect-provider. |
+| `utils/` | `paymentTimingsValidation.js` | C | **Done.** Pure validator for the editable timings (offset arrays + day fields, ranges); used by `updateSettings`. |
 | `controllers/` | `dashboardController.js` | T | Surface payment dashboard messages (paid, overdue) + the cancel action. |
 | `routes/` | `payments.js` | C | `POST /reservations/:id/payment-links`, `GET …/status`, `POST …/cancel-unpaid`, payment-settings + Qonto OAuth routes. |
 | `utils/` | `emailContextBuilder.js` | T | Add the stay-recap + payment context (amounts, link URL, due date, signature/logo) for the new templates. |
@@ -206,7 +206,7 @@ Polling + reminder passes reuse the scheduler's in-progress-guard pattern (like 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `pages/` | `ReservationPage.js` (devis mode) | T | "Envoyer la demande d'acompte" / "…de solde" / "…du règlement total" (last-minute) action (PageActionBar); shows link status. |
-| `pages/` | `PaymentsSettingsPage.js` | C | Dedicated **Paiements** page: Qonto connect (consumes `StatusCard`) + the editable reminder/deadline timings. |
+| `pages/` | `PaymentsSettingsPage.js` | C | **Done (page PR):** dedicated **Paiements** page at `/parametres/paiements` (settings submenu) — Qonto connection `StatusCard` + "Connecter Qonto" button + editable timings via `PageActionBar`. Provider-connection form to come. Route registered in `roles.js` (`ADMIN`). |
 | `pages/` | `UnpaidReservationsPage.js` | C | Dedicated list of abandoned devis + released reservations (uses `DataPageScaffold`/`TableCard`). |
 | `components/` | dashboard notification items | T | Payment-paid + balance-overdue messages; the overdue one has a **Cancel** button. |
 | `services/` | `api.js` | T | New payment endpoints. |
@@ -217,12 +217,16 @@ list). Email rendering stays server-side.
 
 ### 4.3 API contract (initial sketch)
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| POST | `/api/reservations/:id/payment-links` | `{ type: 'deposit'|'balance'|'complement' }` | `{ url, status, expiresAt }` (creates link + sends the matching email) |
-| GET | `/api/reservations/:id/payment-links` | — | `[{ type, url, status, amount, paidAt }]` |
-| POST | `/api/reservations/:id/cancel-unpaid` | — | `{ ok }` (archive + free dates) |
-| GET/POST | `/api/settings/qonto/*` | OAuth connect/callback/status | — |
+| Method | Endpoint | Body | Response | Status |
+|---|---|---|---|---|
+| GET | `/api/payments/qonto/authorize` | — | 302 → Qonto consent (state in session) | **Done** |
+| GET | `/api/payments/qonto/callback` | `?code&state` | 302 → `/parametres/paiements?qonto=connected\|error\|invalid_state` | **Done** |
+| GET | `/api/payments/qonto/status` | — | `{ connected, connectionStatus, configured, sandbox, connectedAt }` | **Done** |
+| GET | `/api/payments/settings` | — | `{ timings, qonto }` | **Done** |
+| PUT | `/api/payments/settings` | partial timings (`{ depositReminderOffsets:[…], lastMinuteDays, … }`) | `{ timings }` (400 `VALIDATION_FAILED` on bad input) | **Done** |
+| POST | `/api/reservations/:id/payment-links` | `{ type: 'deposit'|'balance'|'full'|'complement' }` | `{ url, status, expiresAt }` (creates link + sends the matching email) | To come |
+| POST | `/api/payments/qonto/connect-provider` | `{ bankAccountId, phone, websiteUrl, businessDescription }` | `{ connectionStatus, onboardingUrl? }` | To come |
+| POST | `/api/reservations/:id/cancel-unpaid` | — | `{ ok }` (archive + free dates) | To come |
 
 ---
 

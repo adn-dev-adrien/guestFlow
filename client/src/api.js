@@ -192,6 +192,10 @@ const api = {
   // App settings
   getSettings: () => request('/settings'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: payload }),
+  // Online payments (specs/online-payments-qonto.md). Qonto connection state + configurable timings.
+  getPaymentSettings: () => request('/payments/settings'),
+  updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
+  getQontoStatus: () => request('/payments/qonto/status'),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
 
