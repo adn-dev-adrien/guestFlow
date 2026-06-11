@@ -68,10 +68,27 @@ function byPriceAsc(a, b) {
   return Number(a.price || 0) - Number(b.price || 0);
 }
 
+/**
+ * Option ids that are OFFERED defaults for a property — included in the price, not a client choice,
+ * so they must not surface as selectable on the public booking form
+ * (specs/property-default-option-applicability.md rule 4). Guarded for schemas without the table.
+ */
+function offeredDefaultOptionIds(propertyId) {
+  try {
+    return new Set(
+      db.prepare('SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1')
+        .all(Number(propertyId)).map((row) => Number(row.optionId))
+    );
+  } catch { return new Set(); }
+}
+
 function listOptions(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
-  return ok(res, optionsModel.listForProperty(propertyId).map(toPublicOption).sort(byPriceAsc));
+  const excluded = offeredDefaultOptionIds(propertyId);
+  return ok(res, optionsModel.listForProperty(propertyId)
+    .filter((opt) => !excluded.has(Number(opt.id)))
+    .map(toPublicOption).sort(byPriceAsc));
 }
 
 function listResources(req, res) {

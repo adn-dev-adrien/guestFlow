@@ -1704,6 +1704,56 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- PROPERTY DEFAULT OPTIONS IMPLY APPLICABILITY ----------
+// specs/property-default-option-applicability.md rule 1. A property default
+// (`property_option_defaults`) means "auto-add this option on every reservation here" — which only
+// works if the option is also APPLICABLE to the property (`property_options`), because every code
+// path that lists a property's options (the reservation form's client filter, the pricing engine,
+// the public catalog) keys off `property_options`. Historically a default could be set without an
+// applicability row (e.g. the Gîte's bed-linen default pointing at an option scoped to another
+// property), so the option never rendered and its bed-config card never showed. Backfill the missing
+// links; `propertyOptionDefaultsModel.set()` keeps them in sync going forward. Idempotent via
+// INSERT OR IGNORE + the migrations flag.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'property_defaults_imply_applicability_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const tx = db.transaction(() => {
+      const info = db.prepare(`
+        INSERT OR IGNORE INTO property_options (propertyId, optionId)
+        SELECT propertyId, optionId FROM property_option_defaults
+      `).run();
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:property-defaults-imply-applicability] linked ${info.changes} option(s)`);
+    });
+    tx();
+  }
+}
+
+// ---------- BACKFILL PROPERTY DEFAULT OPTIONS ONTO EXISTING RESERVATIONS ----------
+// specs/property-default-option-applicability.md §5. One-shot backfill: every property default
+// option (offered or chargeable, per the configured flag) is inserted onto existing
+// `kind='reservation'` rows of that property that lack it — mirroring the iCal-import default insert
+// (0-priced; the engine recomputes on the next save, and `getApplicableOptions` now keeps a
+// property-default option so it persists). This materialises e.g. the Gîte's offered bed-linen
+// default on existing reservations so the in-card bed-config editor finally shows. Idempotent via
+// `migrations.backfill_property_default_options_v1` + the migration's own NOT EXISTS guard.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'backfill_property_default_options_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runBackfillPropertyDefaultOptionsMigration } = require('./utils/backfillPropertyDefaultOptionsMigration');
+    const tx = db.transaction(() => {
+      const { insertedCount } = runBackfillPropertyDefaultOptionsMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:backfill-property-default-options] inserted ${insertedCount} reservation option(s)`);
+    });
+    tx();
+  }
+}
+
 const { ensureDefaultBedLinenOption } = require('./utils/bedLinenSeed');
 ensureDefaultBedLinenOption(db);
 db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;

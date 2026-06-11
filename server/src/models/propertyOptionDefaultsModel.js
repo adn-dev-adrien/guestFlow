@@ -18,6 +18,14 @@ function buildModel(database) {
   const deleteStmt = database.prepare(
     'DELETE FROM property_option_defaults WHERE propertyId = ? AND optionId = ?'
   );
+  // A default implies the option is APPLICABLE to the property: every options code path (the
+  // reservation form's client filter, the pricing engine, the public catalog) keys off
+  // `property_options`. Keep them in sync on write so a newly-set default renders + prices on the
+  // reservation page immediately (specs/property-default-option-applicability.md). Guarded for
+  // minimal test schemas that lack the table.
+  let ensureApplicableStmt = null;
+  try { ensureApplicableStmt = database.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)'); }
+  catch { ensureApplicableStmt = null; }
   const listForPropertyStmt = database.prepare(`
     SELECT optionId, offered
       FROM property_option_defaults
@@ -42,6 +50,7 @@ function buildModel(database) {
       const oid = Number(optionId);
       const off = offered ? 1 : 0;
       upsertStmt.run(pid, oid, off);
+      if (ensureApplicableStmt) ensureApplicableStmt.run(pid, oid);
       return { propertyId: pid, optionId: oid, offered: off === 1 };
     },
 

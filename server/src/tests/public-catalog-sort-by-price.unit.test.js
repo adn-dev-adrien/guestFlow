@@ -27,9 +27,10 @@ function fakeRes() {
 
 // Existence check passes; models return DELIBERATELY UNSORTED rows so the test proves the controller
 // (not the model) imposes the price order.
-function buildController({ options = [], resources = [] }) {
+function buildController({ options = [], resources = [], offeredDefaultIds = [] }) {
   return withMocks({
-    '../../database': { prepare: () => ({ get: () => ({ 1: 1 }) }) },
+    // `get` → property existence check; `all` → offered-default option ids for the property.
+    '../../database': { prepare: () => ({ get: () => ({ 1: 1 }), all: () => offeredDefaultIds.map((id) => ({ optionId: id })) }) },
     '../../models/optionsModel': { listForProperty: () => options },
     '../../models/resourcesModel': { list: () => resources },
   }, () => {
@@ -50,6 +51,23 @@ test('listOptions returns options sorted by price ascending', () => {
   controller.listOptions({ params: { id: '1' } }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.data.map((o) => o.price), [6, 30, 65, 80]);
+});
+
+test('listOptions excludes options that are OFFERED defaults for the property (included, not selectable)', () => {
+  // specs/property-default-option-applicability.md rule 4: an offered default is part of the price,
+  // so the public booking form must not offer it as a choice.
+  const controller = buildController({
+    options: [
+      { id: 1, title: 'Ménage', priceType: 'per_stay', price: 80 },
+      { id: 8, title: 'Linge de lits', priceType: 'per_person', price: 7 },
+    ],
+    offeredDefaultIds: [8],
+  });
+  const res = fakeRes();
+  controller.listOptions({ params: { id: '1' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.data.length, 1);
+  assert.deepEqual(res.body.data.map((o) => o.price), [80]); // the offered linen (7) is gone
 });
 
 test('listResources returns resources sorted by price ascending', () => {
