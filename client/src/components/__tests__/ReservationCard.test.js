@@ -174,3 +174,20 @@ test('complement — no chip when complementAmount is 0 / absent', () => {
   render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
   expect(screen.queryByText(/Complément à percevoir/)).toBeNull();
 });
+
+// Caution to collect: when the security deposit is unpaid, the arrival tile surfaces the amount in
+// red so the host knows to collect it at check-in.
+test('caution — shows "Caution à percevoir" with the amount when unpaid (cautionReceived = 0)', () => {
+  render(<ReservationCard reservation={{ ...BASE, cautionAmount: 300, cautionReceived: 0 }} onToggleReady={noop} />);
+  expect(screen.getByText(/Caution à percevoir : 300\.00€/)).toBeInTheDocument();
+});
+
+test('caution — no chip when the caution has been received', () => {
+  render(<ReservationCard reservation={{ ...BASE, cautionAmount: 300, cautionReceived: 1 }} onToggleReady={noop} />);
+  expect(screen.queryByText(/Caution à percevoir/)).toBeNull();
+});
+
+test('caution — no chip when there is no caution amount', () => {
+  render(<ReservationCard reservation={{ ...BASE, cautionAmount: 0, cautionReceived: 0 }} onToggleReady={noop} />);
+  expect(screen.queryByText(/Caution à percevoir/)).toBeNull();
+});

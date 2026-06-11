@@ -33,6 +33,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import EuroIcon from '@mui/icons-material/Euro';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import NoteIcon from '@mui/icons-material/Note';
 import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -264,6 +265,22 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
                 size="small"
                 color={r.complementPaid ? 'success' : 'warning'}
                 variant={r.complementPaid ? 'outlined' : 'filled'}
+                sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
+              />
+            </Box>
+          )}
+
+          {/* Caution à percevoir — when the security deposit has NOT been received yet, surface the
+              amount to collect from the guest at check-in, in red with a shield icon (mirrors the
+              complement-payment block above). Hidden once the caution is received. */}
+          {Number(r.cautionAmount || 0) > 0 && !r.cautionReceived && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              <ShieldOutlinedIcon sx={{ fontSize: 16, color: 'error.main', flexShrink: 0 }} />
+              <Chip
+                label={`Caution à percevoir : ${Number(r.cautionAmount).toFixed(2)}€`}
+                size="small"
+                color="error"
+                variant="filled"
                 sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
               />
             </Box>
