@@ -41,6 +41,9 @@ function createDb() {
   db.prepare("INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 120, 1)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (1, 'Ménage', 'per_stay', 50)").run();
   db.prepare("INSERT INTO property_options (propertyId, optionId) VALUES (1, 1)").run();
+  // Option 2 mirrors the production breakfast: per_person_per_night, catalog price 8.
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (2, 'Petit-déjeuner', 'per_person_per_night', 8)").run();
+  db.prepare("INSERT INTO property_options (propertyId, optionId) VALUES (1, 2)").run();
   return db;
 }
 
@@ -150,5 +153,60 @@ test('re-offering a locked offered line keeps it at 0 with the real price recove
   assert.equal(line.offered, true);
   assert.equal(line.totalPrice, 0);
   assert.equal(line.originalTotalPrice, 50);
+  db.close();
+});
+
+// --- The production regression: an offered line was persisted with its unit price LOST (0). ---
+// Without a stored unit price, the old reconstruction gave up and the line stayed at 0 even after
+// un-offering. The engine must now fall back to the current catalog price. See
+// specs/pricing-engine-thin-client.md §14.
+
+test('un-offering a locked offered line whose stored unitPrice was lost (0) restores the catalog price — the production bug', () => {
+  const db = createDb();
+  // Reference: option 2 freshly billed (not offered, no locked snapshot).
+  const fresh = calculateReservationQuote({
+    ...BASE_INPUTS, db, discountPercent: 0, customPrice: '',
+    selectedOptions: [{ optionId: 2, quantity: 1 }],
+  });
+  const freshLine = fresh.optionLines.find((l) => Number(l.optionId) === 2);
+  assert.ok(freshLine.totalPrice > 0); // sanity: catalog price (8 × persons × nights) is non-zero
+
+  // Production corruption: the saved offered line lost its unit price (unitPrice 0); billedUnits kept.
+  const lockedOptionLines = [
+    { optionId: 2, quantity: 1, billedUnits: freshLine.billedUnits, unitPrice: 0, priceType: 'per_person_per_night', totalPrice: 0, offered: 1 },
+  ];
+  const quote = calculateReservationQuote({
+    ...BASE_INPUTS, db, discountPercent: 0, customPrice: '',
+    selectedOptions: [{ optionId: 2, quantity: 1 }],
+    offeredOptionIds: [], // user un-offers it
+    lockedOptionLines,
+  });
+  const line = quote.optionLines.find((l) => Number(l.optionId) === 2);
+  assert.equal(line.offered, false);
+  assert.equal(line.totalPrice, freshLine.totalPrice); // restored from catalog, NOT 0
+  assert.ok(line.totalPrice > 0);
+  db.close();
+});
+
+test('a still-offered locked line with lost unitPrice exposes the catalog price as originalTotalPrice (recoverable)', () => {
+  const db = createDb();
+  const fresh = calculateReservationQuote({
+    ...BASE_INPUTS, db, discountPercent: 0, customPrice: '',
+    selectedOptions: [{ optionId: 2, quantity: 1 }],
+  });
+  const freshLine = fresh.optionLines.find((l) => Number(l.optionId) === 2);
+  const lockedOptionLines = [
+    { optionId: 2, quantity: 1, billedUnits: freshLine.billedUnits, unitPrice: 0, priceType: 'per_person_per_night', totalPrice: 0, offered: 1 },
+  ];
+  const quote = calculateReservationQuote({
+    ...BASE_INPUTS, db, discountPercent: 0, customPrice: '',
+    selectedOptions: [{ optionId: 2, quantity: 1 }],
+    offeredOptionIds: [2], // stays offered
+    lockedOptionLines,
+  });
+  const line = quote.optionLines.find((l) => Number(l.optionId) === 2);
+  assert.equal(line.offered, true);
+  assert.equal(line.totalPrice, 0);
+  assert.equal(line.originalTotalPrice, freshLine.totalPrice); // real price recovered for the strikethrough
   db.close();
 });
