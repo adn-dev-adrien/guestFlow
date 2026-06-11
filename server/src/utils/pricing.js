@@ -878,6 +878,12 @@ function calculateReservationQuote({
   // When truthy, the engine forces depositAmount=0 and lets the balance absorb the whole
   // pre-arrival total — survives every recompute as long as the caller keeps passing it.
   depositDisabled,
+  // Operator-set manual deposit (specs/editable-deposit-amount.md). NULL/''/undefined = automatic
+  // (percentage of pre-arrival). When a number is provided, the engine freezes the deposit at that
+  // value (clamped to [0, preArrival]) and lets the balance absorb the rest — so a later tariff
+  // change grows the solde, never the acompte. Direct + non-disabled + not-yet-paid only; the
+  // platform / depositDisabled / paid branches keep precedence over it.
+  depositAmountOverride,
   // Per-item routing to Complément (spec force-item-to-complement.md). When 1, the tax bypasses
   // the auto deposit/balance split and lands 100 % in the complément bucket. `selectedOptions[i]
   // .inComplement` / `selectedResources[i].inComplement` / `customOptions[i].inComplement` drive
@@ -1387,6 +1393,17 @@ function calculateReservationQuote({
   } else if (depositPaid) {
     resolvedDepositAmount = roundMoney(depositAmount);
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - resolvedDepositAmount));
+  } else if (depositAmountOverride !== null && depositAmountOverride !== undefined && depositAmountOverride !== '') {
+    // Manual deposit override (specs/editable-deposit-amount.md rule 3-4). Freeze the deposit at the
+    // operator's value, clamped to [0, preArrival] so the balance can never go negative; the balance
+    // absorbs the rest of the pre-arrival total — and any later growth of it, since the override is
+    // re-fed on every recompute.
+    const overrideRaw = Number(depositAmountOverride);
+    const clamped = Number.isFinite(overrideRaw)
+      ? roundMoney(Math.min(Math.max(0, overrideRaw), preArrivalAmount))
+      : autoDepositAmount;
+    resolvedDepositAmount = clamped;
+    resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - clamped));
   }
 
   // Complément à percevoir = forced items (manual or tax-on-arrival or touristTaxInComplement)
