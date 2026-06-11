@@ -232,13 +232,24 @@ function createModel(database) {
 
   // ---- quote building (shared by create/update) ----
   function computeQuote(body, existing, property) {
+    // Read autoOptionType + autoEnabled so we drop ONLY engine-managed auto-options (the engine
+    // re-adds those from the chosen check-in/out times). Options that merely carry an autoOptionType
+    // label but are NOT auto-enabled — breakfast, bed/bathroom linen offered as normal add-ons, incl.
+    // property option defaults — must be honoured when explicitly selected. Previously the blanket
+    // `?.autoOptionType` filter dropped them, so site visitors lost them on the devis
+    // (specs/site-booking-notifications.md §1). `SELECT *` stays resilient to partial/test schemas
+    // that lack the autoEnabled column (→ undefined → treated as not engine-managed → kept).
     const optionMetaById = new Map(
-      database.prepare('SELECT id, autoOptionType FROM options').all().map((opt) => [Number(opt.id), opt])
+      database.prepare('SELECT * FROM options').all().map((opt) => [Number(opt.id), opt])
     );
+    const isEngineManagedAuto = (optionId) => {
+      const meta = optionMetaById.get(Number(optionId));
+      return Boolean(meta && meta.autoOptionType && Number(meta.autoEnabled || 0) === 1);
+    };
     const selectedOptions = (body.selectedOptions || []).map((o) => ({
       optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
       unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
-    })).filter((line) => !optionMetaById.get(Number(line.optionId))?.autoOptionType);
+    })).filter((line) => !isEngineManagedAuto(line.optionId));
     const customOptions = (body.customOptions || []).map((line, index) => ({
       customKey: String(line.customKey || `custom_${index + 1}`),
       description: String(line.description || '').trim(),

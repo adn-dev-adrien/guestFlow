@@ -17,6 +17,7 @@ import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
 import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
+import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
@@ -126,6 +127,9 @@ export default function Dashboard() {
       {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
           nothing when no manual email is pending. */}
       <EmailPendingAlert />
+      {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
+          Self-contained: renders nothing when there is no pending website request. */}
+      <DevisPublicRequestAlert />
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid

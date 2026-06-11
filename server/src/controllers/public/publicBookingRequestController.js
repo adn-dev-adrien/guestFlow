@@ -10,6 +10,7 @@
 const db = require('../../database');
 const clientsModel = require('../../models/clientsModel');
 const devisModel = require('../../models/devisModel');
+const notificationService = require('../../utils/notificationService');
 const { validateStayInput, validateGuest } = require('../../utils/publicInputValidation');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
@@ -95,6 +96,11 @@ function create(req, res) {
   // Mark the row as a public-origin request so the admin can filter/badge it. Separate write —
   // the flag is not part of devis create's contract; no atomicity concern for a marker.
   db.prepare("UPDATE reservations SET requestOrigin = 'public' WHERE id = ?").run(devis.id);
+
+  // Best-effort admin notification (specs/site-booking-notifications.md §3 rule 6). Fire-and-forget:
+  // the service swallows its own errors, so a failed/disabled/unconfigured email never affects the
+  // visitor's 201 response.
+  Promise.resolve(notificationService.notifyNewSiteDevis(devis.id)).catch(() => {});
 
   return ok(res, {
     requestId: devis.id,
