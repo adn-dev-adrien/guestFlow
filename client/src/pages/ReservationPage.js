@@ -218,6 +218,9 @@ export default function ReservationPage() {
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
+    // Manual deposit override (specs/editable-deposit-amount.md). '' = automatic (percentage);
+    // a number freezes the deposit and lets the solde absorb tariff changes.
+    depositAmountOverride: '',
     depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
     notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
@@ -286,6 +289,8 @@ export default function ReservationPage() {
     depositAmount: form.depositPaid ? Number(form.depositAmount || 0) : null,
     balanceAmount: form.depositPaid && form.balancePaid ? Number(form.balanceAmount || 0) : null,
     complementAmount: form.complementPaid ? Number(form.complementAmount || 0) : null,
+    // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
+    depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
     depositDisabled: Boolean(form.depositDisabled),
     // specs/force-extras-complement-on-platform.md §3 rule 4: on non-direct platforms, every
     // extras line is routed to the Complément server-side at save. We mirror that bit here
@@ -326,7 +331,7 @@ export default function ReservationPage() {
           ...propertyOptions.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)),
         ])).sort((a, b) => a - b)
       : [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, isPlatformReservation]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, isPlatformReservation]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -603,6 +608,8 @@ export default function ReservationPage() {
             customPrice: importedBlankPrice ? '' : parseCustomPrice(res.customPrice),
             depositAmount: res.depositAmount || 0,
             depositDueDate: res.depositDueDate || '',
+            // Manual deposit override (specs/editable-deposit-amount.md): server returns '' when auto.
+            depositAmountOverride: res.depositAmountOverride === '' || res.depositAmountOverride == null ? '' : Number(res.depositAmountOverride),
             balanceAmount: res.balanceAmount || 0,
             balanceDueDate: res.balanceDueDate || '',
             cautionAmount: res.cautionAmount || 0,
@@ -984,6 +991,7 @@ export default function ReservationPage() {
           balancePaid: form.balancePaid,
           complementPaid: form.complementPaid,
           depositAmount: form.depositAmount,
+          depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
           balanceAmount: form.balanceAmount,
           depositDisabled: Boolean(form.depositDisabled),
           selectedOptions: buildSelectedOptionsPayload(),
@@ -1585,6 +1593,7 @@ export default function ReservationPage() {
         balancePaid: form.balancePaid,
         complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
+        depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
         balanceAmount: form.balanceAmount,
         depositDisabled: Boolean(form.depositDisabled),
         selectedOptions: buildSelectedOptionsPayload(),
@@ -1695,6 +1704,7 @@ export default function ReservationPage() {
         balancePaid: form.balancePaid,
         complementPaid: form.complementPaid,
         depositAmount: form.depositAmount,
+        depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
         balanceAmount: form.balanceAmount,
         depositDisabled: Boolean(form.depositDisabled),
         selectedOptions: buildSelectedOptionsPayload(),
@@ -1810,6 +1820,8 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
+          // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
+          depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
           // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
           // When ON, depositPaid + depositPaidDate are force-zeroed both client-side here
           // and server-side in reservationsController.update.
@@ -1871,6 +1883,8 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
+          // Manual deposit override (specs/editable-deposit-amount.md): '' → null = automatic.
+          depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
           clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,

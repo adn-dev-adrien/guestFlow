@@ -225,6 +225,28 @@ export default function FinanceSection() {
                     </Typography>
                   ) : (
                     <>
+                      {/* Manual deposit override (specs/editable-deposit-amount.md). Empty = auto
+                          (percentage). A value freezes the acompte; the solde absorbs tariff changes.
+                          Hidden in devis mode (out of scope) and locked once the acompte is paid.
+                          Accepts arithmetic like "Prix ajusté" (commit on Enter/blur). */}
+                      {!isDevisMode && (
+                        <ArithmeticTextField
+                          label="Montant acompte (€)"
+                          value={form.depositAmountOverride}
+                          onCommit={(v) => updateForm({ depositAmountOverride: v })}
+                          fullWidth
+                          size="small"
+                          disabled={isReservationLocked || Boolean(form.depositPaid)}
+                          sx={{ mb: 1.5 }}
+                          helperText={
+                            form.depositPaid
+                              ? 'Acompte payé, montant figé.'
+                              : form.depositAmountOverride !== ''
+                                ? 'Acompte figé — le solde absorbe les variations de tarif.'
+                                : `Calcul automatique${pricingQuote?.property?.depositPercent != null ? ` (${pricingQuote.property.depositPercent}%)` : ''}. Saisir un montant pour le figer.`
+                          }
+                        />
+                      )}
                       <TextField
                         label="Échéance acompte"
                         type="date"

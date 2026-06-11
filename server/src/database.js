@@ -525,6 +525,15 @@ if (!cols.includes('depositDisabled')) {
   // specs/disable-deposit-per-reservation.md.
   db.exec("ALTER TABLE reservations ADD COLUMN depositDisabled INTEGER NOT NULL DEFAULT 0");
 }
+if (!cols.includes('depositAmountOverride')) {
+  // Operator-set manual deposit amount (specs/editable-deposit-amount.md). NULL = automatic
+  // (deposit = preArrival × depositPercent%). When set, the pricing engine freezes the deposit at
+  // this value and lets the balance absorb the rest of the pre-arrival total on every recompute —
+  // so adding options later grows the solde, never the acompte. Nullable; existing rows keep NULL
+  // and behave exactly as before. The resolved figure stays in `depositAmount`; this column is only
+  // the frozen input re-fed to the engine.
+  db.exec("ALTER TABLE reservations ADD COLUMN depositAmountOverride REAL");
+}
 if (!cols.includes('clientGrossAmount')) {
   // For platform-sourced reservations, the gross amount the guest actually paid the platform (TTC).
   // The owner's net (= finalPrice) stays in finalPrice; commission is derived (gross - finalPrice).

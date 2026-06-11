@@ -1,0 +1,1 @@
+- **`reservations.depositAmountOverride`** (nullable REAL) — stores the operator's manual deposit amount; `NULL` = automatic. Additive and idempotent; existing rows default to `NULL` and keep the previous percentage-based behaviour. No backfill.
