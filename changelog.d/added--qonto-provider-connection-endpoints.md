@@ -1,1 +1,0 @@
-- Online-payments groundwork: the Qonto **payment-links provider connection** (list bank accounts, connect the provider, re-check status) — the last step before issuing real payment links. Not yet operator-facing (the Paiements-page form follows).
