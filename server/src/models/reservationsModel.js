@@ -366,6 +366,37 @@ function createReservationsModel(database) {
       });
     },
 
+    // Dashboard alert (specs/site-booking-notifications.md §3 rule 5): site-origin devis still
+    // pending handling — requestOrigin='public', kind='devis', still draft, not yet converted.
+    // Disappears from the alert once the operator changes its status / converts / deletes it.
+    listPendingPublicDevis() {
+      const rows = database.prepare(`
+        SELECT r.id, r.devisNumber, r.startDate, r.endDate, r.finalPrice, r.createdAt,
+               c.firstName, c.lastName, p.name AS propertyName
+          FROM reservations r
+          LEFT JOIN clients c    ON c.id = r.clientId
+          LEFT JOIN properties p ON p.id = r.propertyId
+         WHERE r.kind = 'devis'
+           AND r.requestOrigin = 'public'
+           AND COALESCE(r.devisStatus, 'draft') = 'draft'
+           AND r.convertedReservationId IS NULL
+         ORDER BY datetime(r.createdAt) DESC, r.id DESC
+      `).all();
+      return rows.map((row) => {
+        const clientName = `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim();
+        return {
+          id: row.id,
+          devisNumber: row.devisNumber || '',
+          clientName: clientName || `#${row.id}`,
+          propertyName: row.propertyName || '',
+          startDate: row.startDate || '',
+          endDate: row.endDate || '',
+          finalPrice: Number(row.finalPrice || 0),
+          createdAt: row.createdAt || '',
+        };
+      });
+    },
+
     // Full reservation row, used by the contrib-capture path (force-item-to-complement.md)
     // to feed `calculateReservationQuote` with the latest persisted state at flip time.
     getRow(reservationId) {

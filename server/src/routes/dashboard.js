@@ -23,4 +23,7 @@ router.post('/ical-cancellation/:id/reject', controller.rejectIcalCancellation);
 // specs/dashboard-ical-new-reservations.md — read-only card listing the day's iCal imports.
 router.get('/ical-new-today', controller.icalNewReservationsToday);
 
+// specs/site-booking-notifications.md — pending site-origin devis (booking requests from the website).
+router.get('/public-devis-pending', controller.publicDevisPending);
+
 module.exports = router;

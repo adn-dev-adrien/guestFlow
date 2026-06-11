@@ -291,6 +291,9 @@ const api = {
   // Dashboard "new iCal reservations today" — read-only notification of bookings imported via
   // iCal during the current day (specs/dashboard-ical-new-reservations.md).
   getIcalNewReservationsToday: () => request('/dashboard/ical-new-today'),
+  // Dashboard "pending site devis" — booking requests submitted from the public website that are
+  // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
+  getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

@@ -102,6 +102,9 @@ test('create: a new iCal event becomes an ical reservation', async () => {
   assert.equal(row.startDate, '2026-07-10');
   assert.equal(row.endDate, '2026-07-13');
   assert.equal(row.sourceIcalEventUid, 'E1');
+  // The genuinely-new reservation id is surfaced for the per-reservation email notification
+  // (specs/site-booking-notifications.md §3 rule 7).
+  assert.deepEqual(result.createdReservationIds.map(Number), [Number(row.id)]);
 });
 
 test('update: a changed event updates the same reservation (hash differs)', async () => {
@@ -113,6 +116,8 @@ test('update: a changed event updates the same reservation (hash differs)', asyn
   assert.equal(result.updatedCount, 1);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1);
   assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-07-15');
+  // An UPDATE must not be reported as a creation → no notification fires (rule 7 edge case).
+  assert.deepEqual(result.createdReservationIds, []);
 });
 
 test('locked: a locked iCal reservation is NOT overwritten on re-sync', async () => {

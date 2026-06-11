@@ -21,6 +21,7 @@ const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
 const { formatPlatformName } = require('../utils/platformNameFormat');
 const icalCancellationModel = require('./icalCancellationModel');
+const notificationService = require('../utils/notificationService');
 // Establishment closures (2026-06-06): every iCal event is checked against the
 // closure table BEFORE touching the local reservations table. Until this guard
 // landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
@@ -283,6 +284,10 @@ function createPropertyIcalModel(database) {
         let lockedCount = 0;
         let removedCount = 0;
         let skippedClosureCount = 0;
+        // IDs of GENUINELY-new reservations created in THIS sync run — drives the per-reservation
+        // email notification post-commit (specs/site-booking-notifications.md §3 rule 7). Not a
+        // "created today" query, so a re-sync of already-known rows never re-notifies.
+        const createdReservationIds = [];
 
         const syncTx = database.transaction((eventList) => {
           const seenUids = new Set(eventList.map((event) => event.uid));
@@ -399,6 +404,7 @@ function createPropertyIcalModel(database) {
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
               createdCount += 1;
+              createdReservationIds.push(reservationId);
               continue;
             }
 
@@ -429,6 +435,7 @@ function createPropertyIcalModel(database) {
               }
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
               createdCount += 1;
+              createdReservationIds.push(reservationId);
               continue;
             }
 
@@ -519,6 +526,7 @@ function createPropertyIcalModel(database) {
         return {
           scannedEvents: events.length,
           createdCount,
+          createdReservationIds,
           updatedCount,
           unchangedCount,
           lockedCount,
@@ -553,6 +561,12 @@ function createPropertyIcalModel(database) {
           result.createdCount + result.updatedCount,
           source.id,
         );
+        // Best-effort, post-commit, per-reservation notification for genuinely-new iCal imports
+        // (specs/site-booking-notifications.md §3 rule 7). Fire-and-forget so a slow/unconfigured
+        // SMTP never delays or breaks the sync; the service swallows its own errors.
+        for (const reservationId of result.createdReservationIds || []) {
+          Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
+        }
         return result;
       } catch (error) {
         database.prepare(`

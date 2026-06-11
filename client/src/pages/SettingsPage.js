@@ -12,6 +12,7 @@ import SettingsReservationLockSection from '../components/SettingsReservationLoc
 import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
+import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -46,6 +47,12 @@ const EMPTY_FORM = {
   // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Day of week, default Tue.
   laundry: {
     weekday: 2,
+  },
+  // Booking notifications (specs/site-booking-notifications.md). ON by default; empty recipient
+  // falls back to the SMTP sender server-side.
+  notifications: {
+    enabled: true,
+    recipientEmail: '',
   },
 };
 
@@ -108,6 +115,10 @@ function buildPayloadFromDraft(draft, saved) {
   const laundryDirty = diffFields(draft.laundry, saved.laundry);
   if (Object.keys(laundryDirty).length > 0) payload.laundry = laundryDirty;
 
+  // Notifications — toggle + optional recipient, same per-field diff.
+  const notificationsDirty = diffFields(draft.notifications, saved.notifications);
+  if (Object.keys(notificationsDirty).length > 0) payload.notifications = notificationsDirty;
+
   return payload;
 }
 
@@ -134,6 +145,10 @@ function fromServer(settings) {
     laundry: {
       ...EMPTY_FORM.laundry,
       ...(settings.laundry || {}),
+    },
+    notifications: {
+      ...EMPTY_FORM.notifications,
+      ...(settings.notifications || {}),
     },
   };
 }
@@ -412,6 +427,15 @@ export default function SettingsPage() {
               disabled={loading || saving}
             />
           </Box>
+
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsNotificationsSection
+              values={draft.notifications}
+              errors={errors}
+              onChange={updateGroup('notifications')}
+              disabled={loading || saving}
+            />
+          </Box>
         </Box>
       </Box>
 
@@ -473,6 +497,11 @@ function mapClientKeyToErrorKey(group, key) {
   if (group === 'laundry') {
     return ({
       weekday: 'laundryWeekday',
+    })[key];
+  }
+  if (group === 'notifications') {
+    return ({
+      recipientEmail: 'notificationRecipientEmail',
     })[key];
   }
   return null;

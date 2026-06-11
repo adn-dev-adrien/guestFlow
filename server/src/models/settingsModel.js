@@ -79,6 +79,11 @@ const COLUMNS = [
   'smtpFromEmail',
   'smtpFromName',
   'publicUrl',
+  // Booking notifications (specs/site-booking-notifications.md §5). Non-secret. `notificationsEnabled`
+  // is the master switch (INTEGER 0/1, default 1); `notificationRecipientEmail` is the TO address
+  // (empty → falls back to smtpFromEmail). The email link reuses `publicUrl`.
+  'notificationsEnabled',
+  'notificationRecipientEmail',
   // Admin-only escape hatch for past reservations (see specs/admin-unlock-past-reservations.md).
   // Stored as INTEGER (0/1) to mirror smtpSecure; the model's `allowEditPastReservations()`
   // helper casts to boolean for the controller, but read() returns the raw integer for the
@@ -105,6 +110,7 @@ const NUMERIC_DEFAULTS = {
   vatRateCommission: 20,
   smtpPort: 587,
   smtpSecure: 0,
+  notificationsEnabled: 1,
   allowEditPastReservations: 0,
   laundryWeekday: 2,
   bedLinenStockSingle: 0,
@@ -218,6 +224,19 @@ function createSettingsModel(databaseInstance) {
 
     publicUrl() {
       return String(readRaw().publicUrl || '').trim();
+    },
+
+    // Booking-notification config (specs/site-booking-notifications.md). Sender is always the SMTP
+    // fromEmail; `recipientEmail` is the configurable TO (empty → caller falls back to fromEmail).
+    // `enabled` defaults ON (NaN/undefined on a partially-migrated DB → still ON, the safe default).
+    notificationSettings() {
+      const row = readRaw();
+      return {
+        enabled: Number(row.notificationsEnabled) !== 0,
+        recipientEmail: String(row.notificationRecipientEmail || '').trim(),
+        fromEmail: String(row.smtpFromEmail || '').trim(),
+        publicUrl: String(row.publicUrl || '').trim(),
+      };
     },
 
     // Admin escape hatch — when true, both reservation-controller locks (PUT field allowlist

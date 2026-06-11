@@ -178,6 +178,17 @@ function buildController({
       const alerts = injectedReservationsModel.listNewIcalReservationsToday();
       return res.json({ alerts });
     },
+
+    /**
+     * GET /api/dashboard/public-devis-pending
+     *
+     * Site-origin devis awaiting handling (specs/site-booking-notifications.md §3 rule 5). Feeds
+     * the DevisPublicRequestAlert; empty `alerts: []` when nothing is pending.
+     */
+    publicDevisPending(req, res) {
+      const alerts = injectedReservationsModel.listPendingPublicDevis();
+      return res.json({ alerts });
+    },
   };
 }
 
