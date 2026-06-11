@@ -32,12 +32,17 @@ function warnDecryptFailure(col, reason) {
   console.warn(`[settingsModel] decrypt failed for "${col}" (${reason}). The current GUESTFLOW_ENCRYPTION_KEY can't decrypt the stored blob. Re-saisis la valeur depuis Paramètres pour la re-chiffrer avec la clé courante.`);
 }
 
-// Columns encrypted at rest (AES-256-GCM). Google + SMTP credentials.
+// Columns encrypted at rest (AES-256-GCM). Google + SMTP + Qonto OAuth credentials.
 const ENCRYPTED_COLUMNS = [
   'googleCalendarId',
   'googleServiceAccountEmail',
   'googleServiceAccountPrivateKey',
   'smtpPasswordEncrypted',
+  // Qonto OAuth tokens (specs/online-payments-qonto.md §3.1). The client id/secret live in
+  // .env.local (app-level); these per-connection tokens are obtained via the OAuth flow and stored
+  // encrypted, never returned to the client (masked to booleans below).
+  'qontoAccessTokenEncrypted',
+  'qontoRefreshTokenEncrypted',
 ];
 
 const COLUMNS = [
@@ -102,6 +107,25 @@ const COLUMNS = [
   'towelStockLarge',
   'towelStockMedium',
   'towelStockSmall',
+  // Online payments — operator-configurable reminder/deadline durations (specs/online-payments-qonto.md
+  // §3.1 + §5). The two *Offsets are JSON arrays of day-deltas; the rest are integer day-counts. Read
+  // through `paymentTimings()` which parses + applies defaults so no caller hard-codes a duration.
+  'paymentDepositReminderOffsets',
+  'paymentDepositAbandonOffset',
+  'paymentDepositLinkExpiryDays',
+  'paymentBalanceReminderOffsets',
+  'paymentBalanceAbandonOffset',
+  'paymentBalanceLinkExpiryDays',
+  'paymentLastMinuteDays',
+  'paymentFullPaymentDueDaysBefore',
+  // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
+  // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
+  'qontoAccessTokenEncrypted',
+  'qontoRefreshTokenEncrypted',
+  'qontoTokenExpiresAt',
+  'qontoConnectionId',
+  'qontoConnectionStatus',
+  'qontoConnectedAt',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -119,10 +143,18 @@ const NUMERIC_DEFAULTS = {
   towelStockLarge: 0,
   towelStockMedium: 0,
   towelStockSmall: 0,
+  paymentDepositAbandonOffset: 1,
+  paymentDepositLinkExpiryDays: 1,
+  paymentBalanceAbandonOffset: 1,
+  paymentBalanceLinkExpiryDays: 1,
+  paymentLastMinuteDays: 30,
+  paymentFullPaymentDueDaysBefore: 7,
 };
 
 const STRING_DEFAULT_OVERRIDES = {
   smtpFromName: 'GuestFlow',
+  paymentDepositReminderOffsets: '[-5,0]',
+  paymentBalanceReminderOffsets: '[-10,-5,0]',
 };
 
 const DEFAULTS = COLUMNS.reduce((acc, col) => {
@@ -136,6 +168,9 @@ const DEFAULTS = COLUMNS.reduce((acc, col) => {
 // the UI knows whether to show "Modifier" on a MaskedTextField vs. "Configurer".
 const HTTP_MASKED_COLUMNS = {
   smtpPasswordEncrypted: 'smtpPasswordSet',
+  // Qonto tokens are never exposed; the client only learns whether a connection exists.
+  qontoAccessTokenEncrypted: 'qontoAccessTokenSet',
+  qontoRefreshTokenEncrypted: 'qontoConnected',
 };
 
 function createSettingsModel(databaseInstance) {
@@ -147,6 +182,9 @@ function createSettingsModel(databaseInstance) {
     databaseInstance.prepare("PRAGMA table_info(app_settings)").all().map((c) => c.name),
   );
   const presentCols = COLUMNS.filter((c) => actualCols.has(c));
+  // Same schema-resilience for the encrypted set: a test/partial schema may not carry every
+  // encrypted column (e.g. the Qonto token columns), so migrateEncryption must skip the absent ones.
+  const presentEncryptedCols = ENCRYPTED_COLUMNS.filter((c) => actualCols.has(c));
   const readStmt = databaseInstance.prepare(
     `SELECT ${presentCols.join(', ')}${actualCols.has('createdAt') ? ', createdAt' : ''}${actualCols.has('updatedAt') ? ', updatedAt' : ''} FROM app_settings WHERE id = 1`
   );
@@ -246,6 +284,91 @@ function createSettingsModel(databaseInstance) {
       return Number(readRaw().allowEditPastReservations) === 1;
     },
 
+    // Single source of truth for every payment reminder/deadline duration (no caller hard-codes a
+    // delay — specs/online-payments-qonto.md §3.1). Parses the JSON offset arrays and applies the
+    // documented defaults when a value is missing or malformed (partially-migrated DB, bad input).
+    paymentTimings() {
+      const row = readRaw();
+      const num = (v, fallback) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+      };
+      const offsets = (v, fallback) => {
+        try {
+          const parsed = JSON.parse(v);
+          if (!Array.isArray(parsed)) return fallback;
+          const cleaned = parsed.map(Number).filter(Number.isFinite);
+          return cleaned.length ? cleaned : fallback;
+        } catch { return fallback; }
+      };
+      return {
+        depositReminderOffsets: offsets(row.paymentDepositReminderOffsets, [-5, 0]),
+        depositAbandonOffset: num(row.paymentDepositAbandonOffset, 1),
+        depositLinkExpiryDays: num(row.paymentDepositLinkExpiryDays, 1),
+        balanceReminderOffsets: offsets(row.paymentBalanceReminderOffsets, [-10, -5, 0]),
+        balanceAbandonOffset: num(row.paymentBalanceAbandonOffset, 1),
+        balanceLinkExpiryDays: num(row.paymentBalanceLinkExpiryDays, 1),
+        lastMinuteDays: num(row.paymentLastMinuteDays, 30),
+        fullPaymentDueDaysBefore: num(row.paymentFullPaymentDueDaysBefore, 7),
+      };
+    },
+
+    // ----- Qonto connection (specs/online-payments-qonto.md §3.1) -----
+
+    // Persist the OAuth tokens (encrypted via upsert's ENCRYPTED_COLUMNS handling). `expiresAt` is an
+    // ISO timestamp; `connectedAt` is stamped now. Never logged.
+    storeQontoTokens({ accessToken, refreshToken, expiresAt }) {
+      this.upsert({
+        qontoAccessTokenEncrypted: accessToken == null ? '' : String(accessToken),
+        qontoRefreshTokenEncrypted: refreshToken == null ? '' : String(refreshToken),
+        qontoTokenExpiresAt: expiresAt == null ? '' : String(expiresAt),
+        qontoConnectedAt: new Date().toISOString(),
+      });
+    },
+
+    // Decrypted tokens for internal use (the token manager / API calls). NEVER exposed via HTTP.
+    // On key mismatch a token decodes to '' and a marker fires — the manager then treats the
+    // connection as missing rather than crashing.
+    qontoTokens() {
+      const row = readRaw();
+      const dec = (col) => {
+        const blob = row[col];
+        if (!blob) return '';
+        const r = safeDecrypt(blob);
+        if (r.ok) return r.value;
+        warnDecryptFailure(col, r.reason);
+        return '';
+      };
+      return {
+        accessToken: dec('qontoAccessTokenEncrypted'),
+        refreshToken: dec('qontoRefreshTokenEncrypted'),
+        expiresAt: String(row.qontoTokenExpiresAt || '').trim() || null,
+      };
+    },
+
+    // Provider-connection metadata (non-secret). Status ∈ not_connected | pending | enabled.
+    storeQontoConnection({ connectionId, status }) {
+      const payload = {};
+      if (connectionId !== undefined) payload.qontoConnectionId = connectionId == null ? '' : String(connectionId);
+      if (status !== undefined) payload.qontoConnectionStatus = status == null ? '' : String(status);
+      this.upsert(payload);
+    },
+
+    qontoConnectionInfo() {
+      const row = readRaw();
+      return {
+        connected: Boolean(row.qontoRefreshTokenEncrypted),
+        connectionId: String(row.qontoConnectionId || '').trim(),
+        connectionStatus: String(row.qontoConnectionStatus || 'not_connected').trim() || 'not_connected',
+        connectedAt: String(row.qontoConnectedAt || '').trim() || null,
+      };
+    },
+
+    // True once the OAuth flow has stored a refresh token (the durable credential).
+    qontoConnected() {
+      return Boolean(readRaw().qontoRefreshTokenEncrypted);
+    },
+
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.
     // The password is decrypted on the fly — caller must not log it. On key mismatch (deploy
     // regenerated `.env.local`, see PR #96) the password decodes to `''` and a marker fires
@@ -286,11 +409,12 @@ function createSettingsModel(databaseInstance) {
      * Safe to run on every boot — already-encrypted values are skipped.
      */
     migrateEncryption() {
+      if (presentEncryptedCols.length === 0) return;
       const raw = databaseInstance
-        .prepare(`SELECT ${ENCRYPTED_COLUMNS.join(', ')} FROM app_settings WHERE id = 1`)
+        .prepare(`SELECT ${presentEncryptedCols.join(', ')} FROM app_settings WHERE id = 1`)
         .get();
       if (!raw) return;
-      for (const col of ENCRYPTED_COLUMNS) {
+      for (const col of presentEncryptedCols) {
         const value = raw[col];
         if (value && !isEncrypted(value)) {
           databaseInstance
