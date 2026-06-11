@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, TextField, Autocomplete } from '@mui/material';
 import FormRow from './FormRow';
 
-export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneError = false }) {
+export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneError = false, autoFocusEmail = false }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
       <FormRow>
@@ -41,9 +41,11 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
       </FormRow>
       <TextField
         label="Email"
+        type="email"
         value={form.email}
         onChange={(e) => setForm({ ...form, email: e.target.value })}
         fullWidth
+        autoFocus={autoFocusEmail}
         error={emailError}
         helperText={emailError ? 'Format email invalide' : ''}
       />

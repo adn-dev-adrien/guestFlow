@@ -19,15 +19,17 @@ function setup(rows = ROWS) {
   const onPreview = vi.fn();
   const onOpenReservation = vi.fn();
   const onAcknowledge = vi.fn();
+  const onFixEmail = vi.fn();
   render(
     <EmailPendingList
       rows={rows}
       onPreview={onPreview}
       onOpenReservation={onOpenReservation}
       onAcknowledge={onAcknowledge}
+      onFixEmail={onFixEmail}
     />,
   );
-  return { onPreview, onOpenReservation, onAcknowledge };
+  return { onPreview, onOpenReservation, onAcknowledge, onFixEmail };
 }
 
 test('renders one row per pending email with client + property + template', () => {
@@ -61,6 +63,14 @@ test('a row without an email is still clickable and fires onPreview', async () =
   const { onPreview } = setup();
   await user.click(screen.getByText('Le Gîte')); // Marc's row, no email
   expect(onPreview).toHaveBeenCalledWith(ROWS[1]);
+});
+
+test('clicking "Adresse manquante" fires onFixEmail with that row, not the preview', async () => {
+  const user = userEvent.setup();
+  const { onFixEmail, onPreview } = setup();
+  await user.click(screen.getByText('Adresse manquante'));
+  expect(onFixEmail).toHaveBeenCalledWith(ROWS[1]);
+  expect(onPreview).not.toHaveBeenCalled();
 });
 
 test('clicking the client name opens the reservation, not the preview', async () => {

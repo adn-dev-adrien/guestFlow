@@ -62,6 +62,7 @@ function buildModel(database) {
         r.id   AS reservationId,
         r.startDate AS startDate,
         date(r.startDate, t.dayOffset || ' days') AS sendDate,
+        c.id AS clientId,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(c.email, '') AS clientEmail,
         COALESCE(p.name, '')  AS propertyName
