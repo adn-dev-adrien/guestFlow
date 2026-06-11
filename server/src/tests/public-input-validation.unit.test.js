@@ -73,7 +73,7 @@ test('validateStayInput strips EVERY price-influencing field — the public API 
   assert.equal(r.ok, true);
   // the engine input is exactly the safe shape, nothing more (options + resources are id+quantity only)
   assert.deepEqual(Object.keys(r.value).sort(), [
-    'adults', 'babies', 'checkInTime', 'checkOutTime', 'children', 'endDate',
+    'adults', 'babies', 'babyBeds', 'checkInTime', 'checkOutTime', 'children', 'endDate',
     'options', 'propertyId', 'resources', 'startDate', 'teens',
   ]);
   assert.deepEqual(r.value.options, [{ optionId: 7, quantity: 2 }], 'option reduced to id+quantity — no offered/free/unitPrice/price');

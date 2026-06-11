@@ -85,6 +85,10 @@ function create(req, res) {
     children: v.value.children,
     teens: v.value.teens,
     babies: v.value.babies,
+    // Baby beds are couchage, not a resource line — persisting them on the devis `babyBeds` field
+    // makes them visible in the operator's Couchage section (the "Lit bébé" resource is filtered
+    // out of the supplements list). specs/site-booking-notifications.md §3 rule 16.
+    babyBeds: v.value.babyBeds,
     selectedOptions: v.value.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
     selectedResources: (v.value.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
