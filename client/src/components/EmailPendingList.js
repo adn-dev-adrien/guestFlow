@@ -12,6 +12,7 @@
  *   onPreview:         (row) => void   — row click (only fired when the client has an email)
  *   onOpenReservation: (row) => void   — client-name click (isolated from the row click)
  *   onAcknowledge:     (row) => void   — "Ignorer" action
+ *   onFixEmail:        (row) => void   — "Adresse manquante" chip click → edit the client's fiche
  */
 
 import React from 'react';
@@ -27,7 +28,7 @@ function formatStayDate(startDate) {
   } catch { return startDate; }
 }
 
-export default function EmailPendingList({ rows = [], onPreview, onOpenReservation, onAcknowledge }) {
+export default function EmailPendingList({ rows = [], onPreview, onOpenReservation, onAcknowledge, onFixEmail }) {
   return (
     <TableContainer>
       <Table size="small" sx={{ minWidth: 760 }}>
@@ -61,7 +62,17 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                     </Link>
                     {r.clientEmail
                       ? <Typography variant="caption" color="text.secondary">{r.clientEmail}</Typography>
-                      : <Chip label="Adresse manquante" size="small" color="warning" variant="outlined" />}
+                      : (
+                        <Chip
+                          label="Adresse manquante"
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          clickable
+                          onClick={(e) => { e.stopPropagation(); if (onFixEmail) onFixEmail(r); }}
+                          sx={{ cursor: 'pointer' }}
+                        />
+                      )}
                   </Stack>
                 </TableCell>
                 <TableCell>{r.propertyName}</TableCell>
