@@ -155,6 +155,7 @@ app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
 app.use('/api/google-calendar', require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/payments', require('./routes/payments'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
 app.use('/api/users', require('./routes/users'));
