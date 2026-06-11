@@ -13,7 +13,8 @@ import UploadIcon from '@mui/icons-material/Upload';
 import SyncIcon from '@mui/icons-material/Sync';
 import AddIcon from '@mui/icons-material/Add';
 import { TIME_OPTIONS } from '../constants/timeOptions';
-import { PLATFORMS, getPlatformColor, isKnownPlatformKey } from '../constants/platforms';
+import { getPlatformColor, isKnownPlatformKey } from '../constants/platforms';
+import usePlatforms from '../hooks/usePlatforms';
 import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -47,11 +48,6 @@ const NEW_DEFAULTS = {
 };
 
 const DEFAULT_ICAL_COLOR = '#757575';
-
-const ICAL_PLATFORM_OPTIONS = [
-  ...PLATFORMS.map((platform) => ({ value: platform, label: platform, known: true })),
-  { value: 'other', label: 'autre', known: false },
-];
 
 const EMPTY_ICAL_FORM = {
   id: null,
@@ -102,6 +98,13 @@ export default function PropertyDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = getFromParam(location.search);
+  // Platform dropdown options: dynamic list (built-ins ∪ DB platforms, incl. iCal-added) + the
+  // "autre" escape hatch for a brand-new platform. specs/ical-platforms-in-dropdowns.md.
+  const platforms = usePlatforms();
+  const icalPlatformOptions = [
+    ...platforms.map((platform) => ({ value: platform, label: platform, known: true })),
+    { value: 'other', label: 'autre', known: false },
+  ];
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
@@ -1014,7 +1017,7 @@ export default function PropertyDetail() {
                     }}
                     disabled={!canManageExtras}
                   >
-                    {ICAL_PLATFORM_OPTIONS.map((option) => (
+                    {icalPlatformOptions.map((option) => (
                       <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
                     ))}
                   </Select>

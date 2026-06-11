@@ -13,8 +13,16 @@
 
 const db = require('../database');
 const { formatPlatformName } = require('../utils/platformNameFormat');
+const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 
 const DIRECT_NAME = 'direct';
+
+// Canonical display names of the built-in well-known platforms ('Airbnb', 'Booking', …) derived
+// from the shared colour map so they stay in sync. These are always offered in the dropdowns even
+// before any reservation or iCal source has used them.
+const KNOWN_PLATFORM_NAMES = Object.keys(KNOWN_PLATFORM_COLORS)
+  .map((slug) => formatPlatformName(slug))
+  .filter(Boolean);
 
 function createPlatformsModel(database) {
   const stmts = {
@@ -43,6 +51,26 @@ function createPlatformsModel(database) {
   return {
     listAll() {
       return stmts.listAll.all();
+    },
+    // Canonical, deduped list of platform NAMES for the UI dropdowns (reservation form + iCal
+    // source form). Union of the built-in well-known platforms and every name stored in the
+    // `platforms` table — which is itself topped up from `ical_sources.platformLabel` +
+    // `reservations.platform` (see rescan/upsertByName). This is what makes a platform added in a
+    // logement's iCal imports show up in the dropdowns. 'direct' is forced first, then alphabetical
+    // (case-insensitive). Deduped on the canonical form so 'Airbnb'/'airbnb' collapse to one entry.
+    listNames() {
+      const byCanonical = new Map(); // lowercased canonical → canonical display name
+      for (const raw of [...KNOWN_PLATFORM_NAMES, ...stmts.listAll.all().map((r) => r.name)]) {
+        const canonical = formatPlatformName(raw);
+        if (!canonical) continue;
+        const key = canonical.toLowerCase();
+        if (!byCanonical.has(key)) byCanonical.set(key, canonical);
+      }
+      return [...byCanonical.values()].sort((a, b) => {
+        if (a.toLowerCase() === DIRECT_NAME) return -1;
+        if (b.toLowerCase() === DIRECT_NAME) return 1;
+        return a.localeCompare(b, 'fr', { sensitivity: 'base' });
+      });
     },
     findByName(name) {
       if (name == null || name === '') return null;
