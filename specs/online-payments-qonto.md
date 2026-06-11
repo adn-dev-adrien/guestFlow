@@ -54,10 +54,10 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
        after the due date (default **J+1**), link expiry (default **due date + 1 day**).
      - **Balance:** reminder offsets (default **J-10, J-5, J-day**), abandonment offset after its due
        date (default **J+1**), link expiry (default **due date + 1 day**).
-     - **Last-minute (full payment):** the **threshold** below which the deposit is dropped (default
-       **30 days** before arrival — §3.7), the full-payment **due-date offset** before arrival
-       (default **J-7**, Q7), its reminder offsets / abandonment offset / link expiry (reuse the
-       balance defaults unless overridden).
+     - **No last-minute settings here (2026-06-11).** The last-minute case is **not configured on this
+       page** — its threshold *and* its full-payment due date both come from the property's existing
+       **« solde »** setting (`balanceDaysBefore`) in *Paramètres → logement → Acompte & solde* (§3.7).
+       The full-payment reminders/abandonment reuse the balance offsets above.
    - The deposit/balance **due dates** themselves come from the property's existing
      `depositDaysBefore` / `balanceDaysBefore` settings (already per-property configurable) — this page
      configures the reminder/expiry durations *relative to* those dates.
@@ -143,17 +143,19 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
     overdue + cancelled, rule 16) land on a dedicated **"Réservations non réglées"** page, kept for
     records / audit. A reservation moved there has its dates **freed** (occupancy excludes it).
 
-### 3.7 Last-minute booking (≤ 30 days before arrival) — full payment, no deposit
+### 3.7 Last-minute booking — full payment, no deposit
 
-18. **Engine-detected.** When the stay **starts within the last-minute window** (default 30 days,
-    configurable), the **pricing engine** itself drops the deposit (deposit = 0, the full stay total is
-    due as a single payment) and the **reservation fiche shows no deposit** — exactly the existing
-    no-deposit handling used for iCal reservations (`depositDisabled`). All amounts (deposit, balance,
-    total) always come from the engine, in this case and the normal case alike.
-19. **Single full-payment link + flow.** In this case the deposit step is **skipped**: the host sends a
-    single email asking for the **full stay total** (one Qonto link). Reminders / overdue / abandonment
-    follow the same configurable schedule (anchored on that payment's due date). On paid → devis →
-    reservation, confirmed; on overdue → devis abandoned (rule 12 path). No separate balance step.
+18. **Threshold + due date come from the property's « solde » setting (2026-06-11).** There is **no
+    separate Paiements config**: a booking is "last-minute" when the stay starts within the property's
+    **`balanceDaysBefore`** window (the "solde X jours avant" of *Paramètres → logement → Acompte &
+    solde*), and in that case the full payment's due date **is** that same balance due date. When this
+    holds, the **pricing engine** drops the deposit (deposit = 0, the full stay total due as a single
+    payment) and the **reservation fiche shows no deposit** — exactly the existing iCal no-deposit
+    handling (`depositDisabled`). All amounts always come from the engine.
+19. **Single full-payment link + flow.** The deposit step is **skipped**: the host sends a single email
+    asking for the **full stay total** (one Qonto link), due at the balance date. Reminders / overdue /
+    abandonment reuse the **balance** schedule. On paid → devis → reservation, confirmed; on overdue →
+    devis abandoned (rule 12 path). No separate balance step.
 
 ### 3.8 Email scheduling anchor
 
@@ -183,9 +185,9 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `utils/` | `qontoClient.js` | C | Thin Qonto Business API client: OAuth token mgmt (refresh), `createPaymentLink`, `getPaymentLinkPayments`, `connectProvider`. Pure-ish, injectable for tests. |
-| `utils/` | `pricing.js` | T | **Last-minute rule (§3.7):** the engine auto-drops the deposit (deposit = 0, full total due) when the stay starts within the configurable window — same `depositDisabled` path as iCal. All amounts stay engine-owned. Unit-tested. |
+| `utils/` | `pricing.js` | T | **Last-minute rule (§3.7):** the engine auto-drops the deposit (deposit = 0, full total due) when the stay starts within the property's `balanceDaysBefore` window — same `depositDisabled` path as iCal. All amounts stay engine-owned. Unit-tested. |
 | `models/` | `paymentLinksModel.js` | C | CRUD for the new `payment_links` table; `listOpen()`, `markPaid()`, `findForReservation()`. |
-| `models/` | `settingsModel.js` | T | New encrypted Qonto columns (client id/secret, OAuth tokens, connection id) **+ payment-timing settings** (deposit/balance reminder offsets, abandonment offsets, last-minute window, expiry) + `qontoConfigured()` / `decryptedQontoSettings()` / `paymentTimings()`. |
+| `models/` | `settingsModel.js` | T | New encrypted Qonto columns (client id/secret, OAuth tokens, connection id) **+ payment-timing settings** (deposit/balance reminder offsets, abandonment offsets, link expiry) + `qontoConfigured()` / `decryptedQontoSettings()` / `paymentTimings()`. |
 | `models/` | `reservationsModel.js` | T | Occupancy excludes `cancelledUnpaidAt IS NOT NULL`; helpers to mark a reservation released-unpaid and a devis abandoned; list for the unpaid page. |
 | `models/` | `devisModel.js` | T | Deposit-paid → `convertToReservation` (deposit date = today); deposit-overdue → mark devis abandoned. |
 | `controllers/` | `paymentsController.js` | C | **Done (PR #178 + page PR):** Qonto OAuth `authorize`/`callback`/`status` + Paiements page `getSettings`/`updateSettings` (timings, validated). To come: create+send a link, regenerate, manual mark, cancel-unpaid, connect-provider. |
@@ -243,9 +245,11 @@ paidAt, expiresAt`. Index on `(status)` and `(reservationId)`.
 - Payment timings (all editable on the Paiements page; defaults from Adrien, none hard-coded):
   `paymentDepositReminderOffsets` (JSON, default `[-5, 0]`), `paymentDepositAbandonOffset` (`1`),
   `paymentDepositLinkExpiryDays` (`1`), `paymentBalanceReminderOffsets` (JSON, default `[-10, -5, 0]`),
-  `paymentBalanceAbandonOffset` (`1`), `paymentBalanceLinkExpiryDays` (`1`), `paymentLastMinuteDays`
-  (`30`), `paymentFullPaymentDueDaysBefore` (`7`). All read through a single `settingsModel.paymentTimings()`
-  that applies the defaults, so the rest of the code never hard-codes a duration.
+  `paymentBalanceAbandonOffset` (`1`), `paymentBalanceLinkExpiryDays` (`1`). All read through a single
+  `settingsModel.paymentTimings()` that applies the defaults, so the rest of the code never hard-codes
+  a duration. **No `paymentLastMinuteDays` / `paymentFullPaymentDueDaysBefore`** — the last-minute
+  threshold + due date come from the property's `balanceDaysBefore` (§3.7). _(PR #178 created those two
+  columns; they are now unused — orphan, harmless — on DBs that already ran that migration.)_
 
 **`reservations` new column:** `cancelledUnpaidAt TEXT` (nullable) — set when a **devis is abandoned**
 (deposit overdue) or a **reservation is released** (balance overdue). When set: excluded from
@@ -312,17 +316,18 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 **Resolved 2026-06-11 (Adrien):**
 - Deposit link expiry = **deposit due date + 1 day** (configurable). • Polling **twice a day**. •
   Scheduling via a template **`anchor`** + configurable offsets in the Paiements page. • All amounts
-  (deposit / balance / full) **always from the engine**, including the last-minute case. • Last-minute
-  window **30 days** (engine drops the deposit, full payment in one link, like iCal). • Deposit gets
+  (deposit / balance / full) **always from the engine**, including the last-minute case. • Deposit gets
   the **same reminder + abandonment** flow as the balance; an unpaid deposit **abandons the devis**. •
-  The **client is emailed** on every missed-deadline / abandonment (deposit and balance). • All
-  reminder/deadline values **configurable** in the dedicated Paiements settings page.
+  The **client is emailed** on every missed-deadline / abandonment (deposit and balance). • The
+  deposit/balance reminder/deadline values are **configurable** in the dedicated Paiements settings page.
 
 **Resolved 2026-06-11 (round 2):**
-- **All durations are configurable** on the Paiements page (deposit/balance reminders, abandonment
-  offsets, link expiries, last-minute threshold, full-payment due offset) — nothing hard-coded, read
-  via `settingsModel.paymentTimings()`. • **Q7** — the last-minute full-payment due date is a
-  configurable offset before arrival (`paymentFullPaymentDueDaysBefore`, default **J-7**).
+- The **deposit/balance** reminder/deadline durations are configurable on the Paiements page — read via
+  `settingsModel.paymentTimings()`, nothing hard-coded.
+- **Q7 superseded (round 3):** the last-minute case is **not** configured on the Paiements page. Its
+  threshold *and* its full-payment due date both come from the property's existing **`balanceDaysBefore`**
+  ("solde") setting (§3.7). The two columns `paymentLastMinuteDays` / `paymentFullPaymentDueDaysBefore`
+  were dropped from the model/page/validator.
 
 **Still open (for setup / implementation):**
 - **Q4 — Qonto auth:** confirm the OAuth2 authorization-code flow (vs a simpler API key) and whether

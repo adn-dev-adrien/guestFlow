@@ -27,7 +27,6 @@ const textToOffsets = (txt) => String(txt || '')
 const DAY_FIELDS = [
   'depositAbandonOffset', 'depositLinkExpiryDays',
   'balanceAbandonOffset', 'balanceLinkExpiryDays',
-  'lastMinuteDays', 'fullPaymentDueDaysBefore',
 ];
 
 export default function PaymentsSettingsPage() {
@@ -146,12 +145,6 @@ export default function PaymentsSettingsPage() {
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField type="number" label="Abandon après échéance (j)" value={draft.balanceAbandonOffset} onChange={(e) => setField('balanceAbandonOffset', e.target.value)} fullWidth size="small" />
                 <TextField type="number" label="Expiration du lien après échéance (j)" value={draft.balanceLinkExpiryDays} onChange={(e) => setField('balanceLinkExpiryDays', e.target.value)} fullWidth size="small" />
-              </Stack>
-
-              <Typography variant="subtitle2" sx={{ pt: 1 }}>Dernière minute</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField type="number" label="Seuil dernière minute (j avant arrivée)" value={draft.lastMinuteDays} onChange={(e) => setField('lastMinuteDays', e.target.value)} fullWidth size="small" />
-                <TextField type="number" label="Échéance paiement total (j avant arrivée)" value={draft.fullPaymentDueDaysBefore} onChange={(e) => setField('fullPaymentDueDaysBefore', e.target.value)} fullWidth size="small" />
               </Stack>
             </Stack>
           </CardContent>
