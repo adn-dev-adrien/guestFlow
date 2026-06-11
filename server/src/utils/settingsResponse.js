@@ -114,6 +114,13 @@ function shapeResponse(row) {
       fromName: safeStr(row.smtpFromName).trim() || 'GuestFlow',
       publicUrl: safeStr(row.publicUrl).trim(),
     },
+    // Booking notifications block (specs/site-booking-notifications.md §4.3). `enabled` defaults ON
+    // (only an explicit 0 turns it off). `recipientEmail` empty → the service falls back to the SMTP
+    // sender. The email link reuses `smtp.publicUrl`.
+    notifications: {
+      enabled: Number(row.notificationsEnabled) !== 0,
+      recipientEmail: safeStr(row.notificationRecipientEmail).trim(),
+    },
     // Reservations block — admin escape hatch for past-reservation editing.
     // See specs/admin-unlock-past-reservations.md.
     reservations: {

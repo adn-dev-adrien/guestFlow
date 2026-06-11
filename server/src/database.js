@@ -1134,6 +1134,11 @@ tryAddAppSettingsCol('smtpPasswordEncrypted', "ALTER TABLE app_settings ADD COLU
 tryAddAppSettingsCol('smtpFromEmail',         "ALTER TABLE app_settings ADD COLUMN smtpFromEmail TEXT DEFAULT ''");
 tryAddAppSettingsCol('smtpFromName',          "ALTER TABLE app_settings ADD COLUMN smtpFromName TEXT DEFAULT 'GuestFlow'");
 tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLUMN publicUrl TEXT DEFAULT ''");
+// 2026-06-11 — booking notifications (specs/site-booking-notifications.md §5). Master switch
+// (default ON) + the address notifications are sent TO. Sender stays smtpFromEmail; an empty
+// recipient falls back to smtpFromEmail. The email link reuses the existing `publicUrl`.
+tryAddAppSettingsCol('notificationsEnabled',      "ALTER TABLE app_settings ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1");
+tryAddAppSettingsCol('notificationRecipientEmail', "ALTER TABLE app_settings ADD COLUMN notificationRecipientEmail TEXT DEFAULT ''");
 // 2026-06-02 — bed-linen tracking (specs/weekly-bed-linen-tracking.md). Day of week (0=Sun..6=Sat)
 // when Adrien drops the dirty linen at the laundry. Drives the LaundryDayCard on PlanningPage.
 // Default 2 (Tuesday) reflects current practice.

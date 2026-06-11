@@ -74,6 +74,14 @@ const RESERVATIONS_FIELDS = [
   { input: 'allowEditPastReservations', column: 'allowEditPastReservations' },
 ];
 
+// Booking-notifications group (specs/site-booking-notifications.md §4.3). `enabled` is a Switch
+// (BOOL int); `recipientEmail` is optional (validateEmail accepts empty → falls back to the SMTP
+// sender at send time). The email link reuses the SMTP group's `publicUrl`.
+const NOTIFICATIONS_FIELDS = [
+  { input: 'enabled', column: 'notificationsEnabled' },
+  { input: 'recipientEmail', column: 'notificationRecipientEmail', validator: validation.validateEmail },
+];
+
 // Laundry group (specs/weekly-bed-linen-tracking.md). Single field: weekday index.
 const LAUNDRY_FIELDS = [
   { input: 'weekday', column: 'laundryWeekday', validator: validation.validateLaundryWeekday },
@@ -92,7 +100,7 @@ const LINEN_STOCK_FIELDS = [
 
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
-const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations']);
+const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled']);
 
 // Columns that must be coerced to a non-negative integer floor at the boundary (defensive
 // against the form sending strings or decimals). The validator already rejects out-of-range
@@ -122,6 +130,7 @@ function updateSettings(req, res) {
   const reservations = pickGroup(body, 'reservations');
   const laundry = pickGroup(body, 'laundry');
   const linenStock = pickGroup(body, 'linenStock');
+  const notifications = pickGroup(body, 'notifications');
 
   const payload = {};
   const errors = {};
@@ -161,6 +170,7 @@ function updateSettings(req, res) {
   applyGroup(reservations, RESERVATIONS_FIELDS);
   applyGroup(laundry, LAUNDRY_FIELDS);
   applyGroup(linenStock, LINEN_STOCK_FIELDS);
+  applyGroup(notifications, NOTIFICATIONS_FIELDS);
 
   // Google Calendar private key — 3-way semantics.
   if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {
