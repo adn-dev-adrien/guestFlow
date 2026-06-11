@@ -13,4 +13,8 @@ router.get('/qonto/authorize', ctrl.qontoAuthorize);
 router.get('/qonto/callback', ctrl.qontoCallback);
 router.get('/qonto/status', ctrl.qontoStatus);
 
+// Paiements settings page: configurable timings + the Qonto connection state.
+router.get('/settings', ctrl.getSettings);
+router.put('/settings', ctrl.updateSettings);
+
 module.exports = router;

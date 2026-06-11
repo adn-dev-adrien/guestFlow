@@ -32,6 +32,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SettingsIcon from '@mui/icons-material/Settings';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -59,6 +60,7 @@ import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import SettingsPage from './pages/SettingsPage';
 import LinenStockPage from './pages/LinenStockPage';
+import PaymentsSettingsPage from './pages/PaymentsSettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import AccountingPage from './pages/AccountingPage';
@@ -83,7 +85,7 @@ const navItems = [
 // and the children's order matters for display.
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/stock-blanchisserie', '/account'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/stock-blanchisserie', '/parametres/paiements', '/account'];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -535,6 +537,20 @@ function NavContent({ onItemClick }) {
                     }} />
                   </ListItemButton>
                   )}
+                  {can('/parametres/paiements') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/parametres/paiements"
+                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/paiements')}
+                    selected={location.pathname === '/parametres/paiements'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><PaymentsIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Paiements" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
                   {can('/account') && (
                   <ListItemButton
                     component={Link}
@@ -740,6 +756,7 @@ function AppShell() {
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/parametres/stock-blanchisserie" element={<LinenStockPage />} />
+          <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
           {/* Legacy paths redirect to the unified "Gestion utilisateur" page. */}
           <Route path="/settings/password" element={<Navigate to="/account" replace />} />
           <Route path="/comptes" element={<Navigate to="/account" replace />} />
