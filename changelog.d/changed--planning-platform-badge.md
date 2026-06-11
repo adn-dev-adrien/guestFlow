@@ -1,0 +1,1 @@
+- Planning arrival cards now show the booking **platform** as a small rounded badge (transparent background, border and text in the platform's brand colour) to the right of the property name.

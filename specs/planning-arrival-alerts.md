@@ -1,4 +1,4 @@
-# Planning — arrival-card cleaning alerts + caution-to-collect badge
+# Planning — arrival-card cleaning alerts + caution-to-collect + platform badge
 
 | Field | Value |
 |---|---|
@@ -6,7 +6,7 @@
 | **Branch** | `feature/planning-caution-to-collect` _(user-managed)_ |
 | **Created** | 2026-06-11 |
 | **Author** | Adrien |
-| **Related PR** | #168 (turnover datetime fix) + #169 (caution badge) |
+| **Related PR** | #168 (turnover datetime fix) + #169 (caution badge) + platform badge (2026-06-11) |
 
 ---
 
@@ -49,6 +49,11 @@ glance, what to handle at check-in.
    **« Caution à percevoir : X € »** badge with a shield icon (mirrors the existing
    « Complément à percevoir » block). The badge is hidden once the caution is received, and when
    `cautionAmount` is 0.
+5. **Platform badge (2026-06-11).** To the **right of the property name**, the arrival card shows a
+   small **rounded-border, transparent-background** badge with the **platform name**; both the border
+   and the text use the **platform's brand colour** (`getPlatformColor`, the same map the calendar
+   uses). The label is the stored platform value (`formatPlatformLabel`: lowercase `direct` →
+   `Direct`, others as-is). Hidden when the reservation has no `platform`.
 
 **Edge cases:**
 - Cleaning that spills past midnight (e.g. 23:00 checkout + 3h) is compared correctly against a
@@ -76,12 +81,14 @@ glance, what to handle at check-in.
 |---|---|---|---|
 | `utils/` | `reservationConflicts.js` | T | New pure `cleaningTurnoverConflict({checkoutDate, checkoutTime, cleaningMinutes, arrivalDate, arrivalTime})` — datetime comparison `(checkout + cleaning) > arrival`. |
 | `pages/` | `PlanningPage.js` | T | `detectAlerts` Type 2 (red) + Type 3 (blue) use `cleaningTurnoverConflict`; Type 3 scans for a genuinely-overlapping reservation. |
-| `components/` | `ReservationCard.js` | T | New red « Caution à percevoir » badge (shield icon) when the caution is unpaid. |
+| `components/` | `ReservationCard.js` | T | New red « Caution à percevoir » badge (shield icon) when the caution is unpaid; **platform badge** next to the property name (rule 5). |
+| `constants/` | `platforms.js` | T | New `formatPlatformLabel(platform)` display helper (capitalises `direct`); reuses existing `getPlatformColor`. |
 | `App.js` | `App.js` | T | Planning sidebar icon broom → `CalendarMonth` (a broom reads as pejorative for the cleaning role). |
 
 **Component reuse declaration:** consumes existing primitives (MUI `Chip`/`Box`/icons) inside the
 already-extracted `ReservationCard`. No new generic component; the caution badge mirrors the
-in-card complement badge.
+in-card complement badge, and the platform badge reuses the shared `getPlatformColor` /
+`formatPlatformLabel` from `constants/platforms.js`.
 
 ### 4.3 API contract
 
@@ -99,6 +106,9 @@ No schema change. Uses existing `reservations.cautionAmount`, `reservations.caut
 - **Caution badge:** red filled `Chip` (`color="error"`) + `ShieldOutlined` icon, label
   `Caution à percevoir : {amount}€`, placed just below the complement block on the arrival card.
   Hidden when received or amount is 0.
+- **Platform badge:** small bordered `Box` (1px border, `borderRadius: 1`, transparent background),
+  border + text in the platform colour, to the right of the property name in the same flexWrap row
+  (wraps under the name on `xs`). `whiteSpace: nowrap`, `flexShrink: 0`.
 - **Alerts:** unchanged colours (red turnover, orange simultaneous, blue cross-logement) — only the
   red/blue detection is now datetime-correct.
 - **Planning sidebar icon:** calendar instead of a broom.
@@ -112,13 +122,18 @@ No schema change. Uses existing `reservations.cautionAmount`, `reservations.caut
       false (8/07 vs 17/07); real same-day turnover → true; enough gap → false; past-midnight spill →
       true; invalid date → false; operator example 2h (OK) / 3h (alert).
 - [x] `components/__tests__/ReservationCard.test.js` — caution badge shows when unpaid, hidden when
-      received, hidden when amount is 0.
+      received, hidden when amount is 0; **platform badge** shows the label in the platform colour,
+      `direct` → `Direct`, hidden when no platform.
+- [x] `constants/__tests__/platforms.test.js` — `formatPlatformLabel`: `direct` → `Direct`,
+      canonical names unchanged, empty/nullish → ''.
 
 ### Manual UI verification
 - [ ] Planning: a real same-day tight turnover shows red; a same-time checkout/arrival on different
       days no longer shows red.
 - [ ] Planning: a reservation with an unpaid caution shows the red « Caution à percevoir » badge; it
       disappears once the caution is marked received.
+- [ ] Planning: each arrival card shows the platform badge (bordered, transparent, platform-coloured)
+      to the right of the property name; an Airbnb card is red-bordered, a direct one gold, etc.
 
 ## 8. Out of scope
 

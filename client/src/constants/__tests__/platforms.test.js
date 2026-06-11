@@ -7,6 +7,7 @@ import {
   normalizePlatformKey,
   getPlatformColor,
   isKnownPlatformKey,
+  formatPlatformLabel,
 } from '../platforms';
 
 // Regression coverage for the bug reported on 2026-06-05: after the
@@ -125,5 +126,23 @@ describe('PLATFORMS dropdown enum', () => {
     for (const platform of PLATFORMS) {
       expect(getPlatformColor(platform)).not.toBe(DEFAULT_PLATFORM_COLOR);
     }
+  });
+});
+
+describe('formatPlatformLabel', () => {
+  test('capitalises the lowercase "direct" enum for display', () => {
+    expect(formatPlatformLabel('direct')).toBe('Direct');
+    expect(formatPlatformLabel('Direct')).toBe('Direct');
+  });
+
+  test('leaves canonical UpperCamelCase names as-is', () => {
+    expect(formatPlatformLabel('Airbnb')).toBe('Airbnb');
+    expect(formatPlatformLabel('Gitedefrance')).toBe('Gitedefrance');
+  });
+
+  test('empty / nullish → empty string', () => {
+    expect(formatPlatformLabel('')).toBe('');
+    expect(formatPlatformLabel(null)).toBe('');
+    expect(formatPlatformLabel(undefined)).toBe('');
   });
 });

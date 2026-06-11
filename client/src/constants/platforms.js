@@ -61,6 +61,18 @@ export function getPlatformColor(platform) {
 }
 
 /**
+ * Display label for a stored platform value. The DB stores canonical UpperCamelCase
+ * ('Airbnb', 'Gitedefrance') which already reads fine; the only odd one is the lowercase
+ * 'direct' enum value, capitalised here for display. Empty/unset → ''.
+ */
+export function formatPlatformLabel(platform) {
+  const raw = String(platform || '').trim();
+  if (!raw) return '';
+  if (normalizePlatformKey(raw) === 'direct') return 'Direct';
+  return raw;
+}
+
+/**
  * Predicate: is `platform` one of the well-known platforms (with a defined
  * brand colour)? Slug-normalises the input first so 'Airbnb', 'airbnb' and
  * 'AIRBNB' all answer `true`. Used by callers that need to distinguish
