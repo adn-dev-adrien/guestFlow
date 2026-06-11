@@ -63,7 +63,9 @@ After plan validation, drive the implementation end-to-end without checking in f
 
 ### 3.4 Asking the user
 
-For multi-option questions, use `AskUserQuestion` (interactive choices). For free-form clarifications, plain text in French.
+**Systematic rule — every decision put to the user goes through the `AskUserQuestion` interactive questionnaire.** Whenever you offer the user a choice between options — which approach, "ship now vs keep building", which provider/library, a scope or naming decision, "option A or B", "1/2/3", etc. — you MUST present it as an `AskUserQuestion` (one or more questions, 2–4 options each; put the recommended option first and label it "(Recommended)" when you have one). **Never** write the options out in prose for the user to pick from (no "Dis-moi A ou B", no numbered lists of choices in the chat body).
+
+Plain French prose is only for free-form clarifications that genuinely have no discrete option set (e.g. "what's the exact wording you want here?").
 
 ---
 
