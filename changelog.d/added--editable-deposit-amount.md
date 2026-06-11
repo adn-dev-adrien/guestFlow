@@ -1,0 +1,1 @@
+- **Acompte éditable** (spec `editable-deposit-amount.md`, 2026-06-11). Sur une réservation directe, le montant de l'acompte peut être saisi manuellement : il est alors figé et le solde absorbe toute évolution du tarif (options ajoutées, etc.). Vider le champ rétablit le calcul automatique (% du logement). +9 tests serveur.

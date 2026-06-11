@@ -196,6 +196,7 @@ function calculatePrice(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
@@ -239,6 +240,7 @@ function calculatePrice(req, res) {
     balancePaid: req.body.balancePaid,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
+    depositAmountOverride: req.body.depositAmountOverride,
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     lockedOptionUnits: req.body.lockedOptionUnits,
@@ -258,6 +260,7 @@ function create(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
@@ -331,6 +334,7 @@ function create(req, res) {
     selectedResources: reservationResources,
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositAmount: req.body.depositAmount,
+    depositAmountOverride: req.body.depositAmountOverride,
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds,
     depositDisabled: depositDisabledFlag,
@@ -396,6 +400,7 @@ function update(req, res) {
   const financeError = validateFinanceInputs({
     customPrice: { value: req.body.customPrice, kind: 'money' },
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
+    depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
@@ -494,6 +499,7 @@ function update(req, res) {
     balancePaid: req.body.balancePaid,
     complementPaid: req.body.complementPaid,
     depositAmount: req.body.depositAmount,
+    depositAmountOverride: req.body.depositAmountOverride,
     balanceAmount: req.body.balanceAmount,
     complementAmount: req.body.complementAmount,
     offeredOptionIds: req.body.offeredOptionIds,

@@ -183,6 +183,9 @@ function createReservationsModel(database) {
       `).all(id);
 
       reservation.customPrice = reservation.customPrice == null ? '' : Number(reservation.customPrice);
+      // Manual deposit override (specs/editable-deposit-amount.md): '' when auto, number when frozen —
+      // mirrors customPrice so the form field repopulates correctly on load.
+      reservation.depositAmountOverride = reservation.depositAmountOverride == null ? '' : Number(reservation.depositAmountOverride);
       reservation.clientGrossAmount = reservation.clientGrossAmount == null ? null : Number(reservation.clientGrossAmount);
       reservation.commissionAmount = deriveCommissionAmount(reservation);
       reservation.complementAmount = Number(reservation.complementAmount || 0);
@@ -554,7 +557,7 @@ function createReservationsModel(database) {
       const { propertyId, clientId, startDate, endDate, adults, children, teens, babies,
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, balanceDueDate, notes, cautionAmount, extraGuestSurchargeOffered,
-        clientGrossAmount, depositDisabled, touristTaxInComplement } = payload;
+        clientGrossAmount, depositDisabled, touristTaxInComplement, depositAmountOverride } = payload;
       // specs/normalize-platform-names.md §3.2 rule 9 — `reservations.platform` is normalized
       // to UpperCamelCase here so direct DB queries (`SELECT DISTINCT platform`) yield a
       // case-uniform set. The 'direct' enum stays lowercase (formatPlatformName preserves it).
@@ -574,8 +577,8 @@ function createReservationsModel(database) {
           platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
           notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
-          depositDisabled, touristTaxInComplement)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+          depositDisabled, touristTaxInComplement, depositAmountOverride)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -591,6 +594,7 @@ function createReservationsModel(database) {
         grossForPlatform,
         depositDisabled ? 1 : 0,
         touristTaxInComplement ? 1 : 0,
+        depositAmountOverride === undefined || depositAmountOverride === null || depositAmountOverride === '' ? null : Number(depositAmountOverride),
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
       return result.lastInsertRowid;
@@ -602,7 +606,7 @@ function createReservationsModel(database) {
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
         extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate,
-        depositDisabled, touristTaxInComplement } = payload;
+        depositDisabled, touristTaxInComplement, depositAmountOverride } = payload;
       // specs/normalize-platform-names.md §3.2 rule 9 — same canonicalization as insertReservation.
       const platformNormalized = formatPlatformName(platform) || 'direct';
       const platformIsNonDirect = String(platformNormalized).toLowerCase() !== 'direct';
@@ -618,7 +622,7 @@ function createReservationsModel(database) {
           complementAmount=?, complementPaid=?, complementPaidDate=?, notes=?,
           cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, extraGuestSurchargeOffered=?, icalSyncLocked=?,
           blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
-          depositDisabled=?, touristTaxInComplement=?,
+          depositDisabled=?, touristTaxInComplement=?, depositAmountOverride=?,
           updatedAt=datetime('now')
         WHERE id=?
       `).run(
@@ -639,6 +643,7 @@ function createReservationsModel(database) {
         nightBlocks.blocksPreviousNight, nightBlocks.blocksNextNight, grossForPlatform,
         depositDisabled ? 1 : 0,
         touristTaxInComplement ? 1 : 0,
+        depositAmountOverride === undefined || depositAmountOverride === null || depositAmountOverride === '' ? null : Number(depositAmountOverride),
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);
