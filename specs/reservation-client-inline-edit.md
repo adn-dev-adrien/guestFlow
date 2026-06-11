@@ -34,8 +34,9 @@ allowing a different **existing** client to be attached via a search that stays 
    Autocomplete) to attach a **different existing** client. Picking one collapses back to the bold
    name. This preserves the repeat-guest flow (no forced duplicate creation).
 4. When **no** client is attached (e.g. a fresh reservation), the **search is shown directly**.
-5. **« + créer un nouveau client »** is always shown below; it opens the same dialog in *create* mode
-   and attaches the new client.
+5. **« + créer un nouveau client »** opens the same dialog in *create* mode and attaches the new
+   client. When a client is attached it sits **on the same line as « Changer le client »** (one
+   flexWrap row under the name, 2026-06-11); in the search state it sits below the Autocomplete.
 6. The create/edit dialog is the **same** `FormDialog` + `ClientFormFields`, switched by a
    `clientDialogMode` flag (`'create'` | `'edit'`); the title reads « Créer un nouveau client » or
    « Modifier la fiche client » accordingly.
@@ -77,7 +78,8 @@ postalCode, city, address, phone, email, notes).
 
 ## 6. UI / UX
 - **Attached client:** `[👤] **Prénom Nom** [✎]` on a hover-highlighted, fit-width clickable row;
-  below it a text link « Changer le client », then « + créer un nouveau client ».
+  below it, **on a single flexWrap line**, the two text links « Changer le client » and
+  « + créer un nouveau client » side by side (2026-06-11).
 - **No client / change mode:** the search field (« Rechercher un client », autofocused when opened
   via « Changer »), with « Créer un nouveau client » in its empty state, and « + créer… » below.
 - **Dialog:** title « Modifier la fiche client » (edit) / « Créer un nouveau client » (create).

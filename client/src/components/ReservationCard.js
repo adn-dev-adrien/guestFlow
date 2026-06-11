@@ -38,6 +38,7 @@ import NoteIcon from '@mui/icons-material/Note';
 import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import BedIcon from './BedIcon';
+import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 
 const ARRIVAL_BG = orange[50]; // #FFF3E0 — warm peach so arrival cards stand out.
 
@@ -178,6 +179,27 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
               {r.propertyName}
             </Typography>
+            {r.platform && (
+              <Box
+                component="span"
+                sx={{
+                  px: 0.75,
+                  py: 0.125,
+                  border: '1px solid',
+                  borderColor: getPlatformColor(r.platform),
+                  color: getPlatformColor(r.platform),
+                  bgcolor: 'transparent',
+                  borderRadius: 1,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                {formatPlatformLabel(r.platform)}
+              </Box>
+            )}
             {alertInfo?.explanation && (
               <Typography
                 variant="caption"

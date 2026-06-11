@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import ReservationCard from '../ReservationCard';
+import { PLATFORM_COLORS } from '../../constants/platforms';
 
 // Coverage for the PR #129 + PR #130 sweep:
 //   - time pill on the top row with AccessTimeIcon + bold rounded chip
@@ -190,4 +191,23 @@ test('caution — no chip when the caution has been received', () => {
 test('caution — no chip when there is no caution amount', () => {
   render(<ReservationCard reservation={{ ...BASE, cautionAmount: 0, cautionReceived: 0 }} onToggleReady={noop} />);
   expect(screen.queryByText(/Caution à percevoir/)).toBeNull();
+});
+
+// Platform badge — rendered next to the property name, bordered with the platform colour.
+test('platform badge — shows the platform label coloured with the platform colour', () => {
+  render(<ReservationCard reservation={{ ...BASE, platform: 'Airbnb' }} onToggleReady={noop} />);
+  const badge = screen.getByText('Airbnb');
+  expect(badge).toBeInTheDocument();
+  expect(badge).toHaveStyle({ color: PLATFORM_COLORS.airbnb });
+});
+
+test('platform badge — lowercase "direct" displays as "Direct"', () => {
+  render(<ReservationCard reservation={{ ...BASE, platform: 'direct' }} onToggleReady={noop} />);
+  expect(screen.getByText('Direct')).toBeInTheDocument();
+});
+
+test('platform badge — absent when the reservation has no platform', () => {
+  render(<ReservationCard reservation={{ ...BASE, platform: '' }} onToggleReady={noop} />);
+  expect(screen.queryByText('Direct')).toBeNull();
+  expect(screen.queryByText('Airbnb')).toBeNull();
 });
