@@ -18,7 +18,7 @@ const devisModel = require('../models/devisModel');
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00', defaultCautionAmount REAL DEFAULT 0, depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 30, balanceDaysBefore INTEGER DEFAULT 7, minNights INTEGER DEFAULT 1, basePrice REAL DEFAULT 0);
   CREATE TABLE pricing_rules (id INTEGER PRIMARY KEY, propertyId INTEGER, pricePerNight REAL, minNights INTEGER, startDate TEXT, endDate TEXT);
-  CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, priceType TEXT, price REAL, autoOptionType TEXT, autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT);
+  CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, priceType TEXT, price REAL, autoOptionType TEXT, autoEnabled INTEGER NOT NULL DEFAULT 0, autoPricingMode TEXT DEFAULT 'fixed', autoFullNightThreshold TEXT, countsAsBedLinen INTEGER DEFAULT 0);
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY(propertyId, optionId));
   CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, priceType TEXT, price REAL);
   CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY(propertyId, resourceId));
@@ -95,4 +95,19 @@ test('a default carrying an autoOptionType is NOT dropped by the option filter (
   const result = model.create({ ...BASE, selectedOptions: [], selectedResources: [] });
   const ids = db.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ?').all(result.data.id).map((r) => Number(r.optionId));
   assert.deepEqual(ids, [8], 'the bed_linen default survived the merge + filter');
+});
+
+test('Gîte case: an OFFERED bed-linen default (countsAsBedLinen) lands on the devis at 0 €', () => {
+  // Mirrors the live Gîte: "Linge de lits" (option 8, bed_linen, autoEnabled=0, countsAsBedLinen=1)
+  // is a property default flagged offered. With no visitor selection, it must still appear on the
+  // devis at 0 € + offered=1 — which is what drives the BedLinenInputsBlock (bed config) to show.
+  const { model, db } = freshModel();
+  db.prepare('UPDATE options SET countsAsBedLinen = 1 WHERE id = 8').run();
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 8, 1)').run();
+
+  const result = model.create({ ...BASE, selectedOptions: [], selectedResources: [] });
+  const row = db.prepare('SELECT totalPrice, offered FROM reservation_options WHERE reservationId = ? AND optionId = 8').get(result.data.id);
+  assert.ok(row, 'the offered bed-linen default is persisted');
+  assert.equal(Number(row.offered), 1, 'flagged offered');
+  assert.equal(Number(row.totalPrice), 0, 'billed at 0 €');
 });

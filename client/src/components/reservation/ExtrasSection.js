@@ -207,6 +207,7 @@ export default function ExtrasSection() {
                                         onChange={(e) => setOptionInComplement(opt.id, e.target.checked)}
                                       />
                                     }
+                                    label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
                                   />
                                 </Tooltip>
                               )}
@@ -268,6 +269,7 @@ export default function ExtrasSection() {
                                         onChange={(e) => setAutoOptionInComplement(opt.id, e.target.checked)}
                                       />
                                     }
+                                    label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
                                   />
                                 </Tooltip>
                               )}
@@ -342,6 +344,7 @@ export default function ExtrasSection() {
                                       onChange={(e) => updateCustomOption(line.customKey, { inComplement: e.target.checked })}
                                     />
                                   }
+                                  label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
                                 />
                               </Tooltip>
                             )}
@@ -452,6 +455,7 @@ export default function ExtrasSection() {
                                           onChange={(e) => setResourceInComplement(resource.id, e.target.checked)}
                                         />
                                       }
+                                      label={<Typography variant="caption" sx={{ color: 'text.secondary' }}>Compl.</Typography>}
                                     />
                                   </Tooltip>
                                 )}

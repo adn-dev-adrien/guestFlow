@@ -1,0 +1,1 @@
+- **"Complément" toggle now has a visible label** (spec `force-item-to-complement.md`, 2026-06-11). On the reservation/devis Suppléments section, the per-line force-to-complement Switch had only a tooltip + aria-label, so it appeared as an unlabeled switch. It now shows a visible **"Compl."** caption on all four toggles (option, auto-option, custom option, resource).
