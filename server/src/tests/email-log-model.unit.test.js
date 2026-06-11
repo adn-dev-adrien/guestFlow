@@ -103,6 +103,9 @@ test('listPending: lists manual templates × matching reservations, excludes dev
   assert.deepEqual(pairs, ['10/100', '10/101', '10/102']);
   // Auto template 11 is NOT in pending (cron handles it).
   assert.ok(!rows.some((r) => r.templateId === 11));
+  // clientId is surfaced so the UI can open the client fiche to fix a missing email.
+  const row100 = rows.find((r) => r.reservationId === 100);
+  assert.equal(row100.clientId, 1);
 });
 
 test('listPending: drops pairs already in sent/acknowledged-skip', () => {

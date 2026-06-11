@@ -197,7 +197,10 @@ The operator can:
   `reservations` rows where `kind = 'reservation'`. A devis hasn't been confirmed yet —
   no email is owed.
 - **Client without an email.** Cron + manual send both surface a clear "no email on file"
-  error (404 on send, badge `"Adresse manquante"` in the pending list).
+  error (404 on send, badge `"Adresse manquante"` in the pending list). The badge is
+  **clickable**: it opens the client's fiche (same `ClientFormFields` dialog) with the cursor
+  on the email field; saving updates the client (`PUT /api/clients/:id`) and refreshes the queue
+  so the row gains its address. `listPending` exposes `clientId` for this.
 - **Template body using an unknown variable.** Replaced with empty string. Documented in
   the rule above; the help text under the body field warns about it.
 - **Template containing a malformed `{{#if … }}` block.** Renderer logs a warning,
@@ -244,12 +247,12 @@ The operator can:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `EmailTemplatesPage.js` | C | NEW (the **Emails page**). Two cards: « Emails à envoyer » (`EmailPendingList`) + « Modèles d'emails » (template library). Template row click → edit dialog; queue row click → send dialog; client name → resa. Owns the pending fetch, `EmailManualSendDialog`, acknowledge confirm + reservation navigation. |
+| `pages/` | `EmailTemplatesPage.js` | C | NEW (the **Emails page**). Two cards: « Emails à envoyer » (`EmailPendingList`) + « Modèles d'emails » (template library). Template row click → edit dialog; queue row click → send dialog; client name → resa; `Adresse manquante` → **client-fiche edit dialog** (focus email) → `updateClient` + reload. Owns the pending fetch, `EmailManualSendDialog`, acknowledge confirm + reservation navigation. |
 | `pages/` | `EmailHistoryPage.js` | C | NEW. Paginated list of `email_log` rows with filters (status, template, reservation search). |
 | `pages/` | `ReservationPage.js` | T | New `"Envoyer un email"` action in `actionBarBefore` (only when `!isDevisMode` AND client has email). Opens `EmailManualSendDialog`. |
 | `components/` | `EmailPendingAlert.js` | C | NEW. Dashboard widget — count of pending manual emails; click **navigates** to `/emails`. Hidden when count = 0 or still loading. |
 | `components/` | `EmailManualSendDialog.js` | C | NEW. Template picker → preview (editable text area) → send. Also used when an operator clicks a queue row on the Emails page. |
-| `components/` | `EmailPendingList.js` | C | NEW. Presentational table of pending manual emails: row click → send, client-name click → resa, `Ignorer` → acknowledge. Parent owns data + dialogs. Replaces the removed `EmailPendingDialog` popup. |
+| `components/` | `EmailPendingList.js` | C | NEW. Presentational table of pending manual emails: row click → send, client-name click → resa, `Ignorer` → acknowledge, **`Adresse manquante` chip click → `onFixEmail`** (edit the client fiche). Parent owns data + dialogs. Replaces the removed `EmailPendingDialog` popup. |
 | `components/` | `EmailLogViewDialog.js` | C | NEW. Read-only modal that shows the rendered subject + body for a historical row. |
 | `pages/` | `PropertyDetail.js` | T | _(rule 13)_ adds the « Article du nom (emails clients) » select (`au` / `à la` / `à l'` / `aux`) with a live "votre séjour …" preview in the inline property form, and threads `nameArticle` through the form defaults + load. |
 | `pages/` | `EmailTemplatesPage.js` | T | _(rule 13)_ adds the `{{propertyWithArticle}}` chip to the variable picker. |

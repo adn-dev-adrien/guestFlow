@@ -16,8 +16,15 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import FormDialog from '../components/FormDialog';
 import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
+import ClientFormFields from '../components/ClientFormFields';
 import api from '../api';
 import { useAppDialogs } from '../components/DialogProvider';
+import { isValidEmail } from '../utils/validation';
+
+const EMPTY_CLIENT = {
+  lastName: '', firstName: '', streetNumber: '', street: '', postalCode: '',
+  city: '', address: '', phone: '', email: '', notes: '',
+};
 
 // Variable + condition picker — labels shown in the dialog, payload = the literal {{token}} text
 // inserted at the cursor. Adding a new token means: append a row + the matching var/flag in
@@ -89,6 +96,9 @@ export default function EmailTemplatesPage() {
 
   const [pending, setPending] = useState([]);
   const [sending, setSending] = useState(null); // { reservationId, templateId, reservationStartDate }
+  // Inline "fix missing email" — edit the client fiche from the pending list (focus the email field).
+  const [fixClient, setFixClient] = useState(null);   // form data; non-null = dialog open
+  const [fixClientId, setFixClientId] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -119,6 +129,43 @@ export default function EmailTemplatesPage() {
   });
 
   const handleOpenReservation = (row) => navigate(`/reservations/${row.reservationId}`);
+
+  // Clicking the "Adresse manquante" chip opens the client's fiche focused on the email field, so the
+  // operator can add the missing address without leaving the page. Saving refreshes the queue.
+  const handleFixEmail = async (row) => {
+    if (!row.clientId) {
+      await alert({ title: 'Client introuvable', message: "Impossible d'ouvrir la fiche : aucun client rattaché." });
+      return;
+    }
+    setFixClientId(row.clientId);
+    try {
+      const c = await api.getClient(row.clientId);
+      setFixClient({ ...EMPTY_CLIENT, ...(c || {}) });
+    } catch {
+      setFixClient({ ...EMPTY_CLIENT });
+    }
+  };
+
+  const closeFixClient = () => { setFixClient(null); setFixClientId(null); };
+
+  const handleSaveFixClient = async () => {
+    if (!fixClient || !isValidEmail(fixClient.email)) {
+      await alert({ title: 'Email invalide', message: 'Veuillez saisir une adresse email valide.' });
+      return;
+    }
+    const payload = {
+      ...fixClient,
+      address: [fixClient.streetNumber, fixClient.street].filter(Boolean).join(' ').trim(),
+      phone: String(fixClient.phone || '').trim(),
+    };
+    try {
+      await api.updateClient(fixClientId, payload);
+      closeFixClient();
+      await reloadPending();
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e?.message || "Impossible d'enregistrer la fiche client." });
+    }
+  };
 
   const handleAcknowledge = async (row) => {
     const ok = await confirm({
@@ -250,6 +297,7 @@ export default function EmailTemplatesPage() {
             onPreview={handlePreview}
             onOpenReservation={handleOpenReservation}
             onAcknowledge={handleAcknowledge}
+            onFixEmail={handleFixEmail}
           />
         </Card>
       )}
@@ -326,6 +374,28 @@ export default function EmailTemplatesPage() {
         onClose={() => setSending(null)}
         onSent={() => { setSending(null); reloadPending(); }}
       />
+
+      {/* Fix a missing client email straight from the pending list — the client fiche opens with the
+          cursor on the email field; saving updates the client and refreshes the queue. */}
+      <FormDialog
+        open={!!fixClient}
+        onClose={closeFixClient}
+        title="Modifier la fiche client"
+        onSubmit={handleSaveFixClient}
+        submitDisabled={!fixClient || !fixClient.lastName || !fixClient.firstName || !isValidEmail(fixClient.email)}
+        submitLabel="Enregistrer"
+        maxWidth="md"
+      >
+        {fixClient && (
+          <ClientFormFields
+            form={fixClient}
+            setForm={setFixClient}
+            cityOptions={[]}
+            emailError={Boolean(fixClient.email) && !isValidEmail(fixClient.email)}
+            autoFocusEmail
+          />
+        )}
+      </FormDialog>
 
       <FormDialog
         open={open}
