@@ -136,6 +136,15 @@ concept server-side and exposes it cleanly in the finance section of the form.
     reservation reopened with offered options, then made paid again, must show the real price, never 0).
     Today's fragile recovery (`offeredOptionIdSet.has(...) && total===0`, `shouldBypassLockedTotal`) is
     replaced by always-recompute + a billed-vs-real separation, covered by a round-trip unit test.
+    - **Lost-unit-price fallback (2026-06-11 fix).** The locked snapshot reconstructs the real total
+      from the stored `unitPrice` (`reconstructLockedRealTotal`). Legacy rows exist where an offered
+      line was persisted with its `unitPrice` *lost* (`0`) — for those, reconstruction can't recover a
+      price and un-offering used to leave the line at **0** forever. The engine now falls back to the
+      **current catalog/effective unit price** (`option.price` / per-property override; `resource.price`
+      for resources) when the stored unit is `0`, so un-offering re-prices from the catalog. A genuinely
+      free line (no stored unit *and* catalog price 0) still stays 0. This restores corrupted production
+      rows simply by un-offering them in the app. Covered by two regression tests in
+      `pricing-offered-engine.unit.test.js`.
 15. **Manual accommodation price display.** When `customPrice` is set, the summary shows the engine
     accommodation price **struck through** and the manual price **in green**. The manual price is the
     one used for the total stay and the accommodation VAT base — already the server's behavior
