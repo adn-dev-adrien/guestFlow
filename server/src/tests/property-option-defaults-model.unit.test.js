@@ -18,6 +18,9 @@ function makeDb() {
       FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
       FOREIGN KEY (optionId)   REFERENCES options(id)    ON DELETE CASCADE
     );
+    CREATE TABLE property_options (
+      propertyId INTEGER NOT NULL, optionId INTEGER NOT NULL, PRIMARY KEY (propertyId, optionId)
+    );
   `);
   db.pragma('foreign_keys = ON');
   // Seed a small, deterministic fixture: two properties + two linen options.
@@ -38,6 +41,18 @@ test('set: inserts a default for (propertyId, optionId) with offered flag', () =
 
   const stored = db.prepare('SELECT * FROM property_option_defaults WHERE propertyId = 10 AND optionId = 20').get();
   assert.equal(Number(stored.offered), 1);
+});
+
+test('set: also makes the option applicable to the property (a default implies applicability)', () => {
+  const { db, model } = freshModel();
+  model.set(10, 20, true);
+  assert.ok(
+    db.prepare('SELECT 1 FROM property_options WHERE propertyId = 10 AND optionId = 20').get(),
+    'setting a default upserts the property_options applicability row',
+  );
+  // Idempotent: re-setting (even flipping offered) never duplicates the applicability row.
+  model.set(10, 20, false);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM property_options WHERE propertyId = 10 AND optionId = 20').get().n, 1);
 });
 
 test('set: idempotent — re-setting the same pair updates `offered` in place', () => {
