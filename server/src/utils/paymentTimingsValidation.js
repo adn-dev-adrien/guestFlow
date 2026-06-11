@@ -19,7 +19,6 @@ const OFFSET_FIELDS = ['depositReminderOffsets', 'balanceReminderOffsets'];
 const DAY_FIELDS = [
   'depositAbandonOffset', 'depositLinkExpiryDays',
   'balanceAbandonOffset', 'balanceLinkExpiryDays',
-  'lastMinuteDays', 'fullPaymentDueDaysBefore',
 ];
 
 function isWholeNumber(n) {

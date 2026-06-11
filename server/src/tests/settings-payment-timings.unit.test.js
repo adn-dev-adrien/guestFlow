@@ -18,8 +18,6 @@ const DDL = `
     paymentBalanceReminderOffsets  TEXT DEFAULT '[-10,-5,0]',
     paymentBalanceAbandonOffset    INTEGER NOT NULL DEFAULT 1,
     paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1,
-    paymentLastMinuteDays          INTEGER NOT NULL DEFAULT 30,
-    paymentFullPaymentDueDaysBefore INTEGER NOT NULL DEFAULT 7,
     createdAt TEXT, updatedAt TEXT
   );
 `;
@@ -40,8 +38,6 @@ test('defaults: the documented values when nothing is customised', () => {
     balanceReminderOffsets: [-10, -5, 0],
     balanceAbandonOffset: 1,
     balanceLinkExpiryDays: 1,
-    lastMinuteDays: 30,
-    fullPaymentDueDaysBefore: 7,
   });
 });
 
@@ -50,15 +46,13 @@ test('custom values are read back through upsert', () => {
   model.upsert({
     paymentDepositReminderOffsets: '[-7,-2,0]',
     paymentBalanceReminderOffsets: '[-14,-7,0]',
-    paymentLastMinuteDays: 21,
-    paymentFullPaymentDueDaysBefore: 3,
+    paymentBalanceLinkExpiryDays: 3,
     paymentDepositAbandonOffset: 2,
   });
   const t = model.paymentTimings();
   assert.deepEqual(t.depositReminderOffsets, [-7, -2, 0]);
   assert.deepEqual(t.balanceReminderOffsets, [-14, -7, 0]);
-  assert.equal(t.lastMinuteDays, 21);
-  assert.equal(t.fullPaymentDueDaysBefore, 3);
+  assert.equal(t.balanceLinkExpiryDays, 3);
   assert.equal(t.depositAbandonOffset, 2);
 });
 

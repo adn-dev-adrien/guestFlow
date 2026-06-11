@@ -1170,8 +1170,10 @@ tryAddAppSettingsCol('paymentDepositLinkExpiryDays',   "ALTER TABLE app_settings
 tryAddAppSettingsCol('paymentBalanceReminderOffsets',  "ALTER TABLE app_settings ADD COLUMN paymentBalanceReminderOffsets  TEXT DEFAULT '[-10,-5,0]'");
 tryAddAppSettingsCol('paymentBalanceAbandonOffset',    "ALTER TABLE app_settings ADD COLUMN paymentBalanceAbandonOffset    INTEGER NOT NULL DEFAULT 1");
 tryAddAppSettingsCol('paymentBalanceLinkExpiryDays',   "ALTER TABLE app_settings ADD COLUMN paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1");
-tryAddAppSettingsCol('paymentLastMinuteDays',          "ALTER TABLE app_settings ADD COLUMN paymentLastMinuteDays          INTEGER NOT NULL DEFAULT 30");
-tryAddAppSettingsCol('paymentFullPaymentDueDaysBefore',"ALTER TABLE app_settings ADD COLUMN paymentFullPaymentDueDaysBefore INTEGER NOT NULL DEFAULT 7");
+// (The last-minute threshold + full-payment due date are NOT stored here — they derive from the
+// property's own "Acompte & solde" settings, i.e. balanceDaysBefore. See specs/online-payments-qonto.md
+// §3.7. Older prod DBs may carry orphan paymentLastMinuteDays / paymentFullPaymentDueDaysBefore
+// columns from PR #178; they are unused and harmless.)
 // Qonto connection (specs/online-payments-qonto.md §3.1). The OAuth client id/secret live in
 // .env.local; these columns hold the per-connection OAuth tokens (AES-256-GCM, masked on read) +
 // non-secret provider-connection metadata.
