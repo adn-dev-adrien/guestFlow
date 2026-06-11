@@ -14,6 +14,7 @@ import BreakfastDayCard from '../components/BreakfastDayCard';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
 import { displayDate } from '../utils/formatters';
+import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
 
@@ -238,11 +239,16 @@ export default function PlanningPage() {
           const cleaningHours = Number(prop?.cleaningHours ?? 3);
           const cleaningMinutes = Math.round(cleaningHours * 60);
           const prevCheckOut = prevRes.checkOutTime || '10:00';
-          const prevCheckOutMin = timeToMinutes(prevCheckOut);
-          const cleaningEndMin = prevCheckOutMin + cleaningMinutes;
-          const arrivalMin = timeToMinutes(r.checkInTime || '15:00');
 
-          if (cleaningEndMin > arrivalMin) {
+          // Compare REAL datetimes (date + time + cleaning), not minutes-of-day: a 10:00 checkout
+          // followed by a 10:00 arrival 9 days later is NOT a turnover conflict.
+          if (cleaningTurnoverConflict({
+            checkoutDate: prevRes.endDate,
+            checkoutTime: prevCheckOut,
+            cleaningMinutes,
+            arrivalDate: r.startDate,
+            arrivalTime: r.checkInTime || '15:00',
+          })) {
             const cleaningDisplay = Number.isInteger(cleaningHours)
               ? `${cleaningHours}h`
               : `${String(cleaningHours).replace('.', 'h')}`;
@@ -267,15 +273,24 @@ export default function PlanningPage() {
           }
         }
 
-        // Type 3: Arrival during another logement's cleaning (blue)
-        const otherRes = allRess.find((rr) => rr.id !== r.id && rr.propertyId !== r.propertyId && rr.endDate <= r.startDate);
-        if (otherRes && !alerts[r.id]) {
-          const otherProp = propMap[otherRes.propertyId];
-          const otherCleaningMinutes = otherProp?.cleaning || 120;
-          const otherCheckOut = otherRes.endDate === otherRes.startDate ? otherRes.checkOutTime || '11:00' : '11:00';
-          const otherCleaningEnd = timeToMinutes(otherCheckOut) + otherCleaningMinutes;
-          const arrivalMin = timeToMinutes(r.checkInTime || '15:00');
-          if (arrivalMin < otherCleaningEnd) {
+        // Type 3: Arrival during another logement's cleaning (blue). Datetime-correct: only flag an
+        // other-property checkout whose cleaning window actually overlaps this arrival (not merely a
+        // same-time checkout on an earlier day).
+        if (!alerts[r.id]) {
+          const otherRes = allRess.find((rr) => {
+            if (rr.id === r.id || rr.propertyId === r.propertyId || rr.endDate > r.startDate) return false;
+            const otherProp = propMap[rr.propertyId];
+            const otherCleaningMinutes = otherProp?.cleaning || 120;
+            const otherCheckOut = rr.endDate === rr.startDate ? rr.checkOutTime || '11:00' : '11:00';
+            return cleaningTurnoverConflict({
+              checkoutDate: rr.endDate,
+              checkoutTime: otherCheckOut,
+              cleaningMinutes: otherCleaningMinutes,
+              arrivalDate: r.startDate,
+              arrivalTime: r.checkInTime || '15:00',
+            });
+          });
+          if (otherRes) {
             alerts[r.id] = {
               type: 'blue',
               explanation: `Arrivée pendant nettoyage d'un autre logement`,

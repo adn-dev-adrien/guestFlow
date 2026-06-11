@@ -28,7 +28,7 @@ import ExtensionIcon from '@mui/icons-material/Extension';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
-import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -70,7 +70,7 @@ const DRAWER_WIDTH = 240;
 
 const navItems = [
   { label: 'Tableau de bord', path: '/', icon: <DashboardIcon /> },
-  { label: 'Planning', path: '/planning', icon: <CleaningServicesIcon /> },
+  { label: 'Planning', path: '/planning', icon: <CalendarMonthIcon /> },
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
