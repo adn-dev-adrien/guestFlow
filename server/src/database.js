@@ -1163,6 +1163,15 @@ tryAddAppSettingsCol('paymentBalanceAbandonOffset',    "ALTER TABLE app_settings
 tryAddAppSettingsCol('paymentBalanceLinkExpiryDays',   "ALTER TABLE app_settings ADD COLUMN paymentBalanceLinkExpiryDays   INTEGER NOT NULL DEFAULT 1");
 tryAddAppSettingsCol('paymentLastMinuteDays',          "ALTER TABLE app_settings ADD COLUMN paymentLastMinuteDays          INTEGER NOT NULL DEFAULT 30");
 tryAddAppSettingsCol('paymentFullPaymentDueDaysBefore',"ALTER TABLE app_settings ADD COLUMN paymentFullPaymentDueDaysBefore INTEGER NOT NULL DEFAULT 7");
+// Qonto connection (specs/online-payments-qonto.md §3.1). The OAuth client id/secret live in
+// .env.local; these columns hold the per-connection OAuth tokens (AES-256-GCM, masked on read) +
+// non-secret provider-connection metadata.
+tryAddAppSettingsCol('qontoAccessTokenEncrypted',  "ALTER TABLE app_settings ADD COLUMN qontoAccessTokenEncrypted  TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoRefreshTokenEncrypted', "ALTER TABLE app_settings ADD COLUMN qontoRefreshTokenEncrypted TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoTokenExpiresAt',        "ALTER TABLE app_settings ADD COLUMN qontoTokenExpiresAt        TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoConnectionId',          "ALTER TABLE app_settings ADD COLUMN qontoConnectionId          TEXT DEFAULT ''");
+tryAddAppSettingsCol('qontoConnectionStatus',      "ALTER TABLE app_settings ADD COLUMN qontoConnectionStatus      TEXT DEFAULT 'not_connected'");
+tryAddAppSettingsCol('qontoConnectedAt',           "ALTER TABLE app_settings ADD COLUMN qontoConnectedAt           TEXT DEFAULT ''");
 // Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
