@@ -226,8 +226,10 @@ list). Email rendering stays server-side.
 | GET | `/api/payments/qonto/status` | — | `{ connected, connectionStatus, configured, sandbox, connectedAt }` | **Done** |
 | GET | `/api/payments/settings` | — | `{ timings, qonto }` | **Done** |
 | PUT | `/api/payments/settings` | partial timings (`{ depositReminderOffsets:[…], lastMinuteDays, … }`) | `{ timings }` (400 `VALIDATION_FAILED` on bad input) | **Done** |
+| GET | `/api/payments/qonto/bank-accounts` | — | `{ bankAccounts: [{ id, name, iban, main }] }` | **Done** |
+| POST | `/api/payments/qonto/connect-provider` | `{ bankAccountId, phone, websiteUrl, businessDescription }` | `{ connectionStatus, connectionLocation? }` (`connectionLocation` = onboarding URL when `pending`) | **Done** |
+| GET | `/api/payments/qonto/refresh-connection` | — | `{ connectionStatus }` (re-checks via `GET /v2/payment_links/connections`) | **Done** |
 | POST | `/api/reservations/:id/payment-links` | `{ type: 'deposit'|'balance'|'full'|'complement' }` | `{ url, status, expiresAt }` (creates link + sends the matching email) | To come |
-| POST | `/api/payments/qonto/connect-provider` | `{ bankAccountId, phone, websiteUrl, businessDescription }` | `{ connectionStatus, onboardingUrl? }` | To come |
 | POST | `/api/reservations/:id/cancel-unpaid` | — | `{ ok }` (archive + free dates) | To come |
 
 ---

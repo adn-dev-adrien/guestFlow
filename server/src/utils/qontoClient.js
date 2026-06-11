@@ -133,8 +133,18 @@ function buildQontoClient(config = {}) {
       return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
     },
 
-    // One-time onboarding: connect the account to Qonto's payment-links provider (may go "pending"
-    // → "enabled" after KYC). Done once from the Paiements settings page.
+    // List the organisation's bank accounts (the provider-connection form's account picker). Tolerates
+    // both the flat `{ bank_accounts: [...] }` and the org-wrapped shape.
+    async listBankAccounts({ accessToken }) {
+      const res = await fetchImpl(`${apiBase}/v2/bank_accounts`, { method: 'GET', headers: apiHeaders(accessToken) });
+      const json = await readBody(res, 'list bank accounts');
+      const accounts = json.bank_accounts || (json.organization && json.organization.bank_accounts) || [];
+      return accounts.map((a) => ({ id: a.id, name: a.name || '', iban: a.iban || '', main: Boolean(a.main) }));
+    },
+
+    // One-time onboarding: connect the account to Qonto's payment-links provider. Returns the status
+    // (`enabled`/`pending`/…) + `connectionLocation` — the onboarding/KYC URL the user must visit when
+    // the connection is `pending`. After onboarding Qonto redirects to `partnerCallbackUrl`.
     async connectProvider({ accessToken, partnerCallbackUrl, userBankAccountId, userPhoneNumber, userWebsiteUrl, businessDescription }) {
       const payload = {
         partner_callback_url: partnerCallbackUrl,
@@ -144,7 +154,17 @@ function buildQontoClient(config = {}) {
         business_description: businessDescription,
       };
       const res = await fetchImpl(`${apiBase}/v2/payment_links/connections`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) });
-      return readBody(res, 'connect provider');
+      const json = await readBody(res, 'connect provider');
+      const c = json.connection || json;
+      return { status: c.status || 'not_connected', connectionLocation: c.connection_location || null, bankAccountId: c.bank_account_id || null, raw: c };
+    },
+
+    // Re-check the provider-connection status (after the user completes onboarding — no webhook needed).
+    async getConnection({ accessToken }) {
+      const res = await fetchImpl(`${apiBase}/v2/payment_links/connections`, { method: 'GET', headers: apiHeaders(accessToken) });
+      const json = await readBody(res, 'get connection');
+      const c = json.connection || json;
+      return { status: c.status || 'not_connected', bankAccountId: c.bank_account_id || null, raw: c };
     },
   };
 }
