@@ -10,6 +10,8 @@ import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PageActionBar from '../components/PageActionBar';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
@@ -119,6 +121,12 @@ export default function ReservationPage() {
   const [clients, setClients] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [createClientOpen, setCreateClientOpen] = useState(false);
+  // Inline client display/edit (replaces the old dropdown). `selectedClient` is the source of truth
+  // for the bold name; `clientSearchOpen` reveals the search to attach a DIFFERENT existing client;
+  // `clientDialogMode` switches the shared FormDialog between create and edit.
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
+  const [clientDialogMode, setClientDialogMode] = useState('create');
   // specs/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
   const [emailSendOpen, setEmailSendOpen] = useState(false);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
@@ -915,6 +923,16 @@ export default function ReservationPage() {
   };
 
   useEffect(() => { loadClientsForSearch(clientSearch); }, [clientSearch]);
+  // Keep `selectedClient` (the bold-name display) in sync with the attached clientId — from the
+  // search list when present, otherwise fetched directly so it works on initial load / deep-links.
+  useEffect(() => {
+    if (!form.clientId) { setSelectedClient(null); return undefined; }
+    const inList = clients.find((c) => c.id === form.clientId);
+    if (inList) { setSelectedClient(inList); return undefined; }
+    let cancelled = false;
+    api.getClient(form.clientId).then((c) => { if (!cancelled && c) setSelectedClient(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [form.clientId, clients]);
   // Load occupied dates from backend when property or dates change
   useEffect(() => {
     if (!selectedProp || !form.startDate || !form.endDate) {
@@ -1364,14 +1382,33 @@ export default function ReservationPage() {
       .filter((item) => Number(item.quantity || 0) > 0);
   };
 
-  // ==================== CLIENT CREATION ====================
+  // ==================== CLIENT CREATE / EDIT ====================
   const closeCreateClient = () => {
     setCreateClientOpen(false);
     setNewClient(EMPTY_CLIENT);
     setNewClientCityOptions([]);
+    setClientDialogMode('create');
   };
 
-  const handleCreateClient = async () => {
+  const openCreateClient = () => {
+    setClientDialogMode('create');
+    setNewClient(EMPTY_CLIENT);
+    setNewClientCityOptions([]);
+    setCreateClientOpen(true);
+  };
+
+  // Edit the attached client's record in the SAME dialog/fields as create. Prefill instantly from
+  // the cached client, then refine with the full record from the API.
+  const openEditClient = () => {
+    if (!form.clientId) return;
+    setClientDialogMode('edit');
+    setNewClient({ ...EMPTY_CLIENT, ...(selectedClient || {}) });
+    setNewClientCityOptions([]);
+    setCreateClientOpen(true);
+    api.getClient(form.clientId).then((c) => { if (c) setNewClient({ ...EMPTY_CLIENT, ...c }); }).catch(() => {});
+  };
+
+  const handleSaveClient = async () => {
     if (newClientEmailError || newClientPhoneError) {
       await alert({ title: 'Client invalide', message: 'Veuillez corriger le format du mail ou du téléphone.' });
       return;
@@ -1383,9 +1420,17 @@ export default function ReservationPage() {
       phone: String(newClient.phone || '').trim(),
     };
 
-    const c = await api.createClient(payload);
-    setForm(prev => ({ ...prev, clientId: c.id }));
-    setClients(prev => prev.some(client => client.id === c.id) ? prev : [...prev, c]);
+    if (clientDialogMode === 'edit' && form.clientId) {
+      const updatedRow = await api.updateClient(form.clientId, payload);
+      const updated = updatedRow && updatedRow.id ? updatedRow : { ...(selectedClient || {}), ...payload, id: form.clientId };
+      setSelectedClient(updated);
+      setClients(prev => prev.map(client => (client.id === updated.id ? updated : client)));
+    } else {
+      const c = await api.createClient(payload);
+      setForm(prev => ({ ...prev, clientId: c.id }));
+      setClients(prev => prev.some(client => client.id === c.id) ? prev : [...prev, c]);
+      setClientSearchOpen(false);
+    }
     closeCreateClient();
   };
 
@@ -2306,20 +2351,49 @@ export default function ReservationPage() {
             <CardContent sx={formSectionContentSx}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Client</Typography>
               <Stack spacing={1.25}>
-                <Autocomplete
-                  options={clients}
-                  getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
-                  value={clients.find(c => c.id === form.clientId) || null}
-                  onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
-                  onChange={(_, val) => val && updateForm({ clientId: val.id })}
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => <TextField {...params} label="Rechercher ou créer un client" />}
-                  noOptionsText={
-                    <Button onClick={() => setCreateClientOpen(true)} size="small">Créer un nouveau client</Button>
-                  }
-                />
+                {selectedClient && !clientSearchOpen ? (
+                  <>
+                    {/* Attached client — bold name, click to edit the fiche (mirrors the inline
+                        edit affordance). "Changer le client" reveals the search to attach another. */}
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={openEditClient}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditClient(); } }}
+                      sx={{
+                        display: 'inline-flex', alignItems: 'center', gap: 0.75, width: 'fit-content',
+                        cursor: 'pointer', px: 1, py: 0.75, borderRadius: 1, mt: -0.5,
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <PersonOutlineIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3 }}>
+                        {`${selectedClient.firstName || ''} ${selectedClient.lastName || ''}`.trim() || 'Client'}
+                      </Typography>
+                      <EditOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                    </Box>
+                    <Box>
+                      <Button size="small" variant="text" onClick={() => setClientSearchOpen(true)}>
+                        Changer le client
+                      </Button>
+                    </Box>
+                  </>
+                ) : (
+                  <Autocomplete
+                    options={clients}
+                    getOptionLabel={(c) => c.id ? `${c.lastName} ${c.firstName} — ${c.email}` : ''}
+                    value={clients.find(c => c.id === form.clientId) || null}
+                    onInputChange={(_, val, reason) => { if (reason === 'input') setClientSearch(val); }}
+                    onChange={(_, val) => { if (val) { updateForm({ clientId: val.id }); setSelectedClient(val); setClientSearchOpen(false); } }}
+                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    renderInput={(params) => <TextField {...params} label="Rechercher un client" autoFocus={clientSearchOpen} />}
+                    noOptionsText={
+                      <Button onClick={openCreateClient} size="small">Créer un nouveau client</Button>
+                    }
+                  />
+                )}
                 <Box>
-                  <Button size="small" variant="text" onClick={() => setCreateClientOpen(true)}>
+                  <Button size="small" variant="text" onClick={openCreateClient}>
                     + Créer un nouveau client
                   </Button>
                 </Box>
@@ -2448,12 +2522,12 @@ export default function ReservationPage() {
         )}
       </Box>
 
-      {/* Client Creation Dialog */}
+      {/* Client create / edit dialog (shared fields, mode-driven) */}
       <FormDialog
         open={createClientOpen}
         onClose={closeCreateClient}
-        title="Créer un nouveau client"
-        onSubmit={handleCreateClient}
+        title={clientDialogMode === 'edit' ? 'Modifier la fiche client' : 'Créer un nouveau client'}
+        onSubmit={handleSaveClient}
         submitDisabled={!newClient.lastName || !newClient.firstName || newClientEmailError || newClientPhoneError}
         submitLabel="Enregistrer"
         maxWidth="md"
