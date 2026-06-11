@@ -2485,7 +2485,7 @@ export default function ReservationPage() {
 
                     {!historyLoading && historyEntries.map((entry) => {
                       const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
-                      const historyDetails = changes.map((change) => `${change.label}: ${formatHistoryValue(change.from)} -> ${formatHistoryValue(change.to)}`).join(' | ');
+                      const emptyText = entry.eventType === 'create' ? 'Réservation créée' : 'Mise à jour sans changement détecté';
                       return (
                         <Box
                           key={entry.id}
@@ -2506,11 +2506,22 @@ export default function ReservationPage() {
                               {formatHistoryDate(entry.createdAt)}
                             </Typography>
                           </Box>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
-                            {entry.eventType === 'create'
-                              ? (historyDetails || 'Réservation créée')
-                              : (historyDetails || 'Mise à jour sans changement détecté')}
-                          </Typography>
+                          <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                            {changes.length === 0 ? (
+                              <Typography variant="caption" color="text.secondary">{emptyText}</Typography>
+                            ) : changes.map((change, i) => {
+                              const from = change.fromText != null ? change.fromText : formatHistoryValue(change.from);
+                              const to = change.toText != null ? change.toText : formatHistoryValue(change.to);
+                              return (
+                                <Typography key={`${change.field || i}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.5 }}>
+                                  <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{change.label}</Box>
+                                  {' : '}{from}
+                                  <Box component="span" sx={{ mx: 0.5, color: 'text.disabled' }}>→</Box>
+                                  {to}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
                         </Box>
                       );
                     })}
