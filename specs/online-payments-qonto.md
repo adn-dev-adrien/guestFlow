@@ -208,7 +208,7 @@ Polling + reminder passes reuse the scheduler's in-progress-guard pattern (like 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `pages/` | `ReservationPage.js` (devis mode) | T | "Envoyer la demande d'acompte" / "…de solde" / "…du règlement total" (last-minute) action (PageActionBar); shows link status. |
-| `pages/` | `PaymentsSettingsPage.js` | C | **Done (page PR):** dedicated **Paiements** page at `/parametres/paiements` (settings submenu) — Qonto connection `StatusCard` + "Connecter Qonto" button + editable timings via `PageActionBar`. Provider-connection form to come. Route registered in `roles.js` (`ADMIN`). |
+| `pages/` | `PaymentsSettingsPage.js` | C | **Done:** dedicated **Paiements** page at `/parametres/paiements` (settings submenu) — Qonto connection `StatusCard` + "Connecter Qonto" button, the **provider-connection form** (bank-account picker + phone/site/≥80-char description → `connect-provider`; `pending` → redirect to the onboarding/KYC URL, return on `?provider=callback` → `refresh-connection`), and editable timings via `PageActionBar`. Route registered in `roles.js` (`ADMIN`). |
 | `pages/` | `UnpaidReservationsPage.js` | C | Dedicated list of abandoned devis + released reservations (uses `DataPageScaffold`/`TableCard`). |
 | `components/` | dashboard notification items | T | Payment-paid + balance-overdue messages; the overdue one has a **Cancel** button. |
 | `services/` | `api.js` | T | New payment endpoints. |

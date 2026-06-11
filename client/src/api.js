@@ -196,6 +196,9 @@ const api = {
   getPaymentSettings: () => request('/payments/settings'),
   updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
   getQontoStatus: () => request('/payments/qonto/status'),
+  getQontoBankAccounts: () => request('/payments/qonto/bank-accounts'),
+  connectQontoProvider: (payload) => request('/payments/qonto/connect-provider', { method: 'POST', body: payload }),
+  refreshQontoConnection: () => request('/payments/qonto/refresh-connection'),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
 

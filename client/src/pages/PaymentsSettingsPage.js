@@ -1,18 +1,21 @@
 /**
- * PaymentsSettingsPage — dedicated "Paiements" settings page (specs/online-payments-qonto.md §3.1).
+ * PaymentsSettingsPage — dedicated "Paiements" settings page (specs/online-payments-qonto.md §3.1/§3.2).
  *
- * Two sections, both server-driven:
- *   1. Qonto bank connection — status + "Connecter Qonto" (OAuth) button. The OAuth callback redirects
- *      back here with ?qonto=connected|error|invalid_state, surfaced as an alert.
- *   2. Délais & relances — every payment reminder/deadline duration, editable (nothing hard-coded).
- *
- * The provider-connection form (bank account / phone / website / description) lands in a follow-up.
+ * Sections (server-driven):
+ *   1. Qonto bank connection — OAuth status + "Connecter Qonto" button. The OAuth callback returns here
+ *      with ?qonto=connected|error|invalid_state.
+ *   2. Provider connection — once OAuth is connected but the payment-links provider isn't enabled yet,
+ *      a form (bank account / phone / website / description) calls connect-provider. A `pending`
+ *      connection redirects to the Qonto/Mollie onboarding (KYC); the return lands here with
+ *      ?provider=callback, which re-checks the status.
+ *   3. Délais & relances — deposit/balance reminder & deadline durations, editable.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, TextField, Button, Stack, Alert, CircularProgress,
+  Select, MenuItem, FormControl, InputLabel, Divider,
 } from '@mui/material';
 
 import PageActionBar from '../components/PageActionBar';
@@ -29,6 +32,8 @@ const DAY_FIELDS = [
   'balanceAbandonOffset', 'balanceLinkExpiryDays',
 ];
 
+const EMPTY_PROVIDER_FORM = { bankAccountId: '', phone: '', websiteUrl: 'https://domainesolio.com', businessDescription: '' };
+
 export default function PaymentsSettingsPage() {
   const location = useLocation();
   const [qonto, setQonto] = useState(null);
@@ -37,6 +42,11 @@ export default function PaymentsSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  // Provider connection.
+  const [bankAccounts, setBankAccounts] = useState(null); // null = not loaded yet
+  const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
+  const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(async () => {
     const data = await api.getPaymentSettings();
@@ -47,6 +57,7 @@ export default function PaymentsSettingsPage() {
       balanceReminderOffsetsText: offsetsToText(data.timings.balanceReminderOffsets),
     });
     setDirty(false);
+    return data.qonto;
   }, []);
 
   useEffect(() => { load().catch((e) => setError(e.message || 'Erreur de chargement')); }, [load]);
@@ -59,7 +70,34 @@ export default function PaymentsSettingsPage() {
     else if (q === 'invalid_state') setError('Connexion Qonto invalide (state). Réessaie depuis cette page.');
   }, [location.search]);
 
+  // Return from the provider onboarding (KYC) → re-check the status.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('provider') !== 'callback') return;
+    api.refreshQontoConnection()
+      .then((r) => {
+        setQonto((prev) => (prev ? { ...prev, connectionStatus: r.connectionStatus } : prev));
+        setNotice(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
+      })
+      .catch((e) => setError(e.message || 'Impossible de vérifier le statut du provider.'));
+  }, [location.search]);
+
+  // Load the bank accounts once OAuth is connected and the provider isn't enabled yet.
+  const needsProvider = Boolean(qonto && qonto.connected && qonto.connectionStatus !== 'enabled');
+  useEffect(() => {
+    if (!needsProvider || bankAccounts !== null) return;
+    api.getQontoBankAccounts()
+      .then((r) => {
+        const accounts = Array.isArray(r.bankAccounts) ? r.bankAccounts : [];
+        setBankAccounts(accounts);
+        // Preselect the main / only account.
+        const preset = accounts.find((a) => a.main) || (accounts.length === 1 ? accounts[0] : null);
+        if (preset) setProviderForm((f) => ({ ...f, bankAccountId: preset.id }));
+      })
+      .catch(() => setBankAccounts([])); // a load failure shows an empty picker + a hint
+  }, [needsProvider, bankAccounts]);
+
   const setField = (key, value) => { setDraft((d) => ({ ...d, [key]: value })); setDirty(true); };
+  const setProviderField = (key, value) => setProviderForm((f) => ({ ...f, [key]: value }));
 
   const handleSave = async () => {
     setSaving(true); setError('');
@@ -84,6 +122,25 @@ export default function PaymentsSettingsPage() {
     }
   };
 
+  const handleConnectProvider = async () => {
+    setConnecting(true); setError('');
+    try {
+      const r = await api.connectQontoProvider(providerForm);
+      if (r.connectionLocation) {
+        // pending → send the operator to the Qonto/Mollie onboarding (KYC); they return to ?provider=callback.
+        window.location.href = r.connectionLocation;
+        return;
+      }
+      setQonto((prev) => (prev ? { ...prev, connectionStatus: r.connectionStatus } : prev));
+      setNotice(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
+    } catch (e) {
+      const messages = e?.body?.messages;
+      setError(Array.isArray(messages) ? messages.join(' · ') : (e.message || 'Échec de la connexion du provider.'));
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   if (!draft || !qonto) {
     return (
       <Box>
@@ -95,6 +152,11 @@ export default function PaymentsSettingsPage() {
 
   const connected = Boolean(qonto.connected);
   const providerEnabled = qonto.connectionStatus === 'enabled';
+  const descLen = providerForm.businessDescription.trim().length;
+  const providerFormValid = providerForm.bankAccountId
+    && /^\+[1-9]\d{6,14}$/.test(providerForm.phone.replace(/[\s().-]/g, ''))
+    && /^https?:\/\/[^\s]+\.[^\s]+/i.test(providerForm.websiteUrl)
+    && descLen >= 80;
 
   return (
     <Box>
@@ -120,10 +182,52 @@ export default function PaymentsSettingsPage() {
               {connected ? 'Reconnecter Qonto' : 'Connecter Qonto'}
             </Button>
           )}
-          alert={connected && !providerEnabled
-            ? { severity: 'info', message: 'OAuth connecté ✓ — prochaine étape : connecter le provider de liens (formulaire à venir).' }
-            : undefined}
         />
+
+        {connected && !providerEnabled && (
+          <Card variant="outlined">
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Connexion du provider de liens</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Dernière étape avant de pouvoir générer des liens de paiement : on connecte ton compte
+                Qonto au provider de paiement. Une vérification (KYC) peut être demandée — tu seras alors
+                redirigé vers Qonto puis ramené ici.
+              </Typography>
+              <Stack spacing={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="ba-label">Compte bancaire</InputLabel>
+                  <Select
+                    labelId="ba-label"
+                    label="Compte bancaire"
+                    value={providerForm.bankAccountId}
+                    onChange={(e) => setProviderField('bankAccountId', e.target.value)}
+                  >
+                    {(bankAccounts || []).map((a) => (
+                      <MenuItem key={a.id} value={a.id}>{a.name || a.iban || a.id}{a.iban ? ` — ${a.iban}` : ''}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {bankAccounts && bankAccounts.length === 0 && (
+                  <Typography variant="caption" color="error">Aucun compte récupéré — vérifie la connexion Qonto (logs).</Typography>
+                )}
+                <TextField label="Téléphone (format international, ex. +33612345678)" value={providerForm.phone} onChange={(e) => setProviderField('phone', e.target.value)} fullWidth size="small" />
+                <TextField label="Site web" value={providerForm.websiteUrl} onChange={(e) => setProviderField('websiteUrl', e.target.value)} fullWidth size="small" />
+                <TextField
+                  label="Description de l'activité (≥ 80 caractères)"
+                  value={providerForm.businessDescription}
+                  onChange={(e) => setProviderField('businessDescription', e.target.value)}
+                  fullWidth multiline minRows={3} size="small"
+                  helperText={`${descLen} / 80 caractères minimum`}
+                  error={descLen > 0 && descLen < 80}
+                />
+                <Divider />
+                <Button variant="contained" onClick={handleConnectProvider} disabled={!providerFormValid || connecting}>
+                  {connecting ? <CircularProgress size={20} color="inherit" /> : 'Connecter le provider'}
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
 
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
