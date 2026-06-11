@@ -22,7 +22,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
-import { PLATFORMS } from '../constants/platforms';
+import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
@@ -266,6 +266,13 @@ export default function ReservationPage() {
   // specs/force-extras-complement-on-platform.md §3 rule 4: non-direct platforms route every
   // extras line to the Complément. Used below to project the pricing engine's preview before
   // the server enforces the same rule on save — see the `quoteInput` useMemo.
+  // Dynamic platform list (built-ins ∪ DB platforms, incl. iCal-added). specs/ical-platforms-in-dropdowns.md.
+  const platforms = usePlatforms();
+  // Guard against an out-of-range <Select> value: a just-saved reservation whose platform isn't
+  // (yet) in the list still renders its own value.
+  const platformOptions = form.platform && !platforms.includes(form.platform)
+    ? [...platforms, form.platform]
+    : platforms;
   const isPlatformReservation = Boolean(form.platform) && String(form.platform).toLowerCase() !== 'direct';
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
@@ -2428,7 +2435,7 @@ export default function ReservationPage() {
               <FormControl fullWidth>
                 <InputLabel>Plateforme</InputLabel>
                 <Select value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>
-                  {PLATFORMS.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                  {platformOptions.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
               </FormControl>
             </CardContent>
