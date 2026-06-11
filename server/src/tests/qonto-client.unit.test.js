@@ -101,6 +101,43 @@ test('production config uses the prod hosts and sends no staging header', async 
   assert.equal(calls[0].opts.headers['X-Qonto-Staging-Token'], undefined);
 });
 
+test('listBankAccounts maps accounts from the flat and the org-wrapped shapes', async () => {
+  const flat = stubFetch({ bank_accounts: [{ id: 'a1', name: 'Principal', iban: 'FR76xxx', main: true }] });
+  let client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: flat.fetchImpl });
+  let accts = await client.listBankAccounts({ accessToken: 'at' });
+  assert.deepEqual(accts, [{ id: 'a1', name: 'Principal', iban: 'FR76xxx', main: true }]);
+  assert.equal(flat.calls[0].url, 'https://thirdparty-sandbox.staging.qonto.co/v2/bank_accounts');
+
+  const wrapped = stubFetch({ organization: { bank_accounts: [{ id: 'b1', name: 'X' }] } });
+  client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: wrapped.fetchImpl });
+  accts = await client.listBankAccounts({ accessToken: 'at' });
+  assert.equal(accts[0].id, 'b1');
+});
+
+test('connectProvider sends the form + parses status & connection_location (onboarding URL)', async () => {
+  const { fetchImpl, calls } = stubFetch({ connection: { status: 'pending', connection_location: 'https://onboard/x', bank_account_id: 'a1' } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  const r = await client.connectProvider({
+    accessToken: 'at', partnerCallbackUrl: 'https://gf/cb', userBankAccountId: 'a1',
+    userPhoneNumber: '+33612345678', userWebsiteUrl: 'https://x.y', businessDescription: 'd'.repeat(80),
+  });
+  assert.deepEqual({ status: r.status, connectionLocation: r.connectionLocation, bankAccountId: r.bankAccountId },
+    { status: 'pending', connectionLocation: 'https://onboard/x', bankAccountId: 'a1' });
+  const sent = JSON.parse(calls[0].opts.body);
+  assert.equal(sent.partner_callback_url, 'https://gf/cb');
+  assert.equal(sent.user_bank_account_id, 'a1');
+  assert.equal(sent.business_description.length, 80);
+});
+
+test('getConnection re-checks the current provider status', async () => {
+  const { fetchImpl, calls } = stubFetch({ connection: { status: 'enabled', bank_account_id: 'a1' } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  const r = await client.getConnection({ accessToken: 'at' });
+  assert.equal(r.status, 'enabled');
+  assert.equal(calls[0].opts.method, 'GET');
+  assert.equal(calls[0].url, 'https://thirdparty-sandbox.staging.qonto.co/v2/payment_links/connections');
+});
+
 test('mapQontoStatus normalises every Qonto status', () => {
   assert.equal(mapQontoStatus('paid'), 'paid');
   assert.equal(mapQontoStatus('processing'), 'open');

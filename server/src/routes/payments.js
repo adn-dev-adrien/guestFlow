@@ -13,6 +13,11 @@ router.get('/qonto/authorize', ctrl.qontoAuthorize);
 router.get('/qonto/callback', ctrl.qontoCallback);
 router.get('/qonto/status', ctrl.qontoStatus);
 
+// Qonto payment-links provider connection.
+router.get('/qonto/bank-accounts', ctrl.qontoBankAccounts);
+router.post('/qonto/connect-provider', ctrl.qontoConnectProvider);
+router.get('/qonto/refresh-connection', ctrl.qontoRefreshConnection);
+
 // Paiements settings page: configurable timings + the Qonto connection state.
 router.get('/settings', ctrl.getSettings);
 router.put('/settings', ctrl.updateSettings);

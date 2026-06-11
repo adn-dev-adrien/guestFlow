@@ -14,7 +14,9 @@
 const crypto = require('crypto');
 const settingsModel = require('../models/settingsModel');
 const { buildQontoClient } = require('../utils/qontoClient');
+const { getValidQontoAccessToken } = require('../utils/qontoAuth');
 const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimingsValidation');
+const { validateProviderConnection } = require('../utils/paymentProviderValidation');
 
 const CALLBACK_PATH = '/api/payments/qonto/callback';
 
@@ -105,4 +107,68 @@ function updateSettings(req, res) {
   return res.json({ timings: settingsModel.paymentTimings() });
 }
 
-module.exports = { qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings, resolveRedirectUri };
+// ----- Qonto payment-links provider connection (specs/online-payments-qonto.md §3.2) -----
+
+// Map an internal error to a clean HTTP response (never leak the Qonto body to the client).
+function qontoError(res, err) {
+  if (err && err.code === 'QONTO_NOT_CONNECTED') {
+    return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Connecte d'abord Qonto (OAuth) avant la connexion du provider." });
+  }
+  return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto — réessaie ou consulte les logs." });
+}
+
+// Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`.
+async function withAccessToken(fn) {
+  const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
+  return fn(buildQontoClient(), accessToken);
+}
+
+// Where Qonto redirects the user after the provider onboarding/KYC — back on the Paiements page,
+// which re-checks the status on `?provider=callback`.
+function providerCallbackUrl() {
+  const base = settingsModel.publicUrl();
+  return base ? `${base.replace(/\/+$/, '')}/parametres/paiements?provider=callback` : '';
+}
+
+// List the org's bank accounts for the connection form's picker.
+async function qontoBankAccounts(req, res) {
+  try {
+    const bankAccounts = await withAccessToken((client, at) => client.listBankAccounts({ accessToken: at }));
+    return res.json({ bankAccounts });
+  } catch (err) { return qontoError(res, err); }
+}
+
+// Establish the provider connection. Persists the returned status; returns `connectionLocation`
+// (the onboarding URL) when the connection is still `pending`.
+async function qontoConnectProvider(req, res) {
+  const { ok, errors, value } = validateProviderConnection(req.body || {});
+  const callback = providerCallbackUrl();
+  if (!callback) errors.push("URL publique de GuestFlow non configurée (Paramètres).");
+  if (!ok || errors.length) return res.status(400).json({ error: 'VALIDATION_FAILED', messages: errors });
+  try {
+    const result = await withAccessToken((client, at) => client.connectProvider({
+      accessToken: at,
+      partnerCallbackUrl: callback,
+      userBankAccountId: value.bankAccountId,
+      userPhoneNumber: value.phone,
+      userWebsiteUrl: value.websiteUrl,
+      businessDescription: value.businessDescription,
+    }));
+    settingsModel.storeQontoConnection({ connectionId: result.bankAccountId || value.bankAccountId, status: result.status });
+    return res.json({ connectionStatus: result.status, connectionLocation: result.connectionLocation });
+  } catch (err) { return qontoError(res, err); }
+}
+
+// Re-check the provider status (after the user returns from onboarding) and persist it.
+async function qontoRefreshConnection(req, res) {
+  try {
+    const conn = await withAccessToken((client, at) => client.getConnection({ accessToken: at }));
+    settingsModel.storeQontoConnection({ status: conn.status, connectionId: conn.bankAccountId });
+    return res.json({ connectionStatus: conn.status });
+  } catch (err) { return qontoError(res, err); }
+}
+
+module.exports = {
+  qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
+  qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
+};
