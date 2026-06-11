@@ -614,18 +614,25 @@ function mergeLineWithLockedSnapshot({
 /**
  * A locked line that was "offered" is stored with totalPrice = 0, which would erase its real price
  * (the merge derives unit price from total/units). To keep offering lossless, reconstruct the real
- * total from the stored unit price before merging. A genuinely free line (unit price 0) is left as-is.
+ * total from the stored unit price before merging.
+ *
+ * If the stored unit price was itself lost (0) — legacy data where an offered line was persisted
+ * without its unit price — fall back to `fallbackUnitPrice` (the current catalog/effective unit
+ * price the caller already resolved). This makes un-offering re-price from the catalog instead of
+ * staying at 0, matching the spec's "offered toggle is lossless" contract
+ * (specs/pricing-engine-thin-client.md §14). A genuinely free line (no stored unit AND no catalog
+ * price) is still left at 0.
  */
-function reconstructLockedRealTotal(lockedLine) {
+function reconstructLockedRealTotal(lockedLine, fallbackUnitPrice = 0) {
   if (!lockedLine) return lockedLine;
   const total = roundMoney(lockedLine.totalPrice);
   if (total > 0) return lockedLine;
   const units = normalizeBilledUnits(
     lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity
   );
-  const unit = roundMoney(lockedLine.unitPrice || 0);
+  const unit = roundMoney(lockedLine.unitPrice || 0) || roundMoney(fallbackUnitPrice || 0);
   if (units > 0 && unit > 0) {
-    return { ...lockedLine, totalPrice: roundMoney(units * unit) };
+    return { ...lockedLine, totalPrice: roundMoney(units * unit), unitPrice: unit };
   }
   return lockedLine;
 }
@@ -1052,7 +1059,7 @@ function calculateReservationQuote({
         : Number(option.price || 0);
       const targetBilledUnits = roundMoney(quantity * getTypeMultiplier(priceType, persons, nights));
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(locked),
+        lockedLine: reconstructLockedRealTotal(locked, unitBase),
         targetBilledUnits,
         currentUnitPrice: unitBase,
       });
@@ -1120,7 +1127,7 @@ function calculateReservationQuote({
       const optionId = Number(line.optionId);
       const locked = lockedOptionsById.get(optionId);
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(locked),
+        lockedLine: reconstructLockedRealTotal(locked, line.unitPrice),
         targetBilledUnits: 1,
         currentUnitPrice: line.unitPrice,
       });
@@ -1212,7 +1219,7 @@ function calculateReservationQuote({
       const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
 
       const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(lockedLine),
+        lockedLine: reconstructLockedRealTotal(lockedLine, resource.price),
         targetBilledUnits,
         currentUnitPrice: resource.price,
       });
