@@ -3,6 +3,7 @@ import {
   getBlockedNightConflictInfo,
   getDayOccupancyConflictMessage,
   getRangeOccupancyConflictInfo,
+  cleaningTurnoverConflict,
 } from './reservationConflicts';
 
 describe('reservationConflicts', () => {
@@ -117,5 +118,63 @@ describe('reservationConflicts', () => {
       reservation: reservations[2],
       blockedNightInfo: null,
     });
+  });
+});
+
+describe('cleaningTurnoverConflict', () => {
+  // The reported bug: a 10:00 checkout on 8 July flagged as colliding with a 10:00 arrival on
+  // 17 July — same time, but 9 days apart. Must NOT be a conflict.
+  test('does NOT flag a same-time checkout/arrival on different days', () => {
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-07-08', checkoutTime: '10:00', cleaningMinutes: 180,
+      arrivalDate: '2026-07-17', arrivalTime: '10:00',
+    })).toBe(false);
+  });
+
+  test('flags a real same-day turnover where cleaning ends after the arrival', () => {
+    // checkout 10:00 + 3h cleaning = 13:00, arrival same day 12:00 → conflict.
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-07-08', checkoutTime: '10:00', cleaningMinutes: 180,
+      arrivalDate: '2026-07-08', arrivalTime: '12:00',
+    })).toBe(true);
+  });
+
+  test('does NOT flag a same-day turnover with enough time after cleaning', () => {
+    // checkout 10:00 + 3h = 13:00, arrival same day 15:00 → no conflict.
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-07-08', checkoutTime: '10:00', cleaningMinutes: 180,
+      arrivalDate: '2026-07-08', arrivalTime: '15:00',
+    })).toBe(false);
+  });
+
+  test('handles cleaning spilling past midnight onto the arrival day', () => {
+    // checkout 23:00 + 3h = 02:00 next day, arrival 01:00 next day → conflict.
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-07-08', checkoutTime: '23:00', cleaningMinutes: 180,
+      arrivalDate: '2026-07-09', arrivalTime: '01:00',
+    })).toBe(true);
+  });
+
+  test('uses sensible defaults and never throws on missing data', () => {
+    expect(cleaningTurnoverConflict({
+      checkoutDate: 'not-a-date', checkoutTime: '10:00', cleaningMinutes: 180,
+      arrivalDate: '2026-07-09', arrivalTime: '10:00',
+    })).toBe(false);
+  });
+
+  // Operator's acceptance example: A departs 01/01 at 10:00, B arrives 01/01 at 12:00 (same
+  // logement). The cleaning duration is the per-property `cleaningHours` setting.
+  test('2h cleaning that ends exactly at the arrival is OK (no alert)', () => {
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-01-01', checkoutTime: '10:00', cleaningMinutes: 120, // ends 12:00 = arrival
+      arrivalDate: '2026-01-01', arrivalTime: '12:00',
+    })).toBe(false);
+  });
+
+  test('3h cleaning overruns the 12:00 arrival → alert', () => {
+    expect(cleaningTurnoverConflict({
+      checkoutDate: '2026-01-01', checkoutTime: '10:00', cleaningMinutes: 180, // ends 13:00 > 12:00
+      arrivalDate: '2026-01-01', arrivalTime: '12:00',
+    })).toBe(true);
   });
 });
