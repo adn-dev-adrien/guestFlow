@@ -57,6 +57,8 @@ export const ROUTE_ROLES = Object.freeze({
   '/school-holidays':        [ADMIN],
   '/establishment-closures': [ADMIN],
   '/parametres/stock-blanchisserie': [ADMIN],
+  // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
+  '/parametres/paiements':   [ADMIN],
   '/account':                [ADMIN, ACCOUNTANT],
 });
 
