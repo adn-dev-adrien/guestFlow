@@ -44,16 +44,20 @@ glance, what to handle at check-in.
    checkout on an earlier day). The detection scans for a genuinely-overlapping reservation.
 3. **Simultaneous departures (orange).** Unchanged: multiple logements with the same checkout date +
    time.
-4. **Caution to collect (red badge).** When a reservation has `cautionAmount > 0` **and** the caution
-   has **not** been received (`cautionReceived` falsy), the arrival card shows a red
-   **« Caution à percevoir : X € »** badge with a shield icon (mirrors the existing
-   « Complément à percevoir » block). The badge is hidden once the caution is received, and when
-   `cautionAmount` is 0.
-5. **Platform badge (2026-06-11).** To the **right of the property name**, the arrival card shows a
-   small **rounded-border, transparent-background** badge with the **platform name**; both the border
-   and the text use the **platform's brand colour** (`getPlatformColor`, the same map the calendar
-   uses). The label is the stored platform value (`formatPlatformLabel`: lowercase `direct` →
-   `Direct`, others as-is). Hidden when the reservation has no `platform`.
+4. **Caution to collect (orange badge — 2026-06-12).** When a reservation has `cautionAmount > 0`
+   **and** the caution has **not** been received (`cautionReceived` falsy), the arrival card shows an
+   **orange** (`warning`) **« Caution à percevoir : X € »** badge with a shield icon. The badge is
+   hidden once the caution is received, and when `cautionAmount` is 0.
+   - **Colour rationale (2026-06-12):** the **complément à percevoir** uses **red** (`error`, filled) —
+     money the host must definitely collect on arrival — so it stands out the most; the **caution**
+     uses **orange** (`warning`) — a refundable hold, one notch softer. (Previously caution was red and
+     complément orange; swapped per Adrien.)
+5. **Platform badge (2026-06-11, enlarged 2026-06-12).** To the **right of the property name**, the
+   arrival card shows a **rounded-border, transparent-background** badge with the **platform name**;
+   both the border and the text use the **platform's brand colour** (`getPlatformColor`, the same map
+   the calendar uses). Sized for legibility (**14px, bold, 1.5px border**). The label is the stored
+   platform value (`formatPlatformLabel`: lowercase `direct` → `Direct`, others as-is). Hidden when the
+   reservation has no `platform`.
 
 **Edge cases:**
 - Cleaning that spills past midnight (e.g. 23:00 checkout + 3h) is compared correctly against a
@@ -103,12 +107,14 @@ No schema change. Uses existing `reservations.cautionAmount`, `reservations.caut
 
 ## 6. UI / UX
 
-- **Caution badge:** red filled `Chip` (`color="error"`) + `ShieldOutlined` icon, label
-  `Caution à percevoir : {amount}€`, placed just below the complement block on the arrival card.
-  Hidden when received or amount is 0.
-- **Platform badge:** small bordered `Box` (1px border, `borderRadius: 1`, transparent background),
-  border + text in the platform colour, to the right of the property name in the same flexWrap row
-  (wraps under the name on `xs`). `whiteSpace: nowrap`, `flexShrink: 0`.
+- **Complément badge:** **red** filled `Chip` (`color="error"`) + Euro icon (`error.main`) when unpaid;
+  switches to green (`success`, outlined) once `complementPaid`. The most prominent money cue.
+- **Caution badge:** **orange** filled `Chip` (`color="warning"`) + `ShieldOutlined` icon
+  (`warning.main`), label `Caution à percevoir : {amount}€`, just below the complement block. Hidden
+  when received or amount is 0.
+- **Platform badge:** bordered `Box` (1.5px border, `borderRadius: 1`, transparent background, **14px
+  bold**), border + text in the platform colour, to the right of the property name in the same flexWrap
+  row (wraps under the name on `xs`). `whiteSpace: nowrap`, `flexShrink: 0`.
 - **Alerts:** unchanged colours (red turnover, orange simultaneous, blue cross-logement) — only the
   red/blue detection is now datetime-correct.
 - **Planning sidebar icon:** calendar instead of a broom.

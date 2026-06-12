@@ -183,16 +183,16 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               <Box
                 component="span"
                 sx={{
-                  px: 0.75,
-                  py: 0.125,
-                  border: '1px solid',
+                  px: 1,
+                  py: 0.375,
+                  border: '1.5px solid',
                   borderColor: getPlatformColor(r.platform),
                   color: getPlatformColor(r.platform),
                   bgcolor: 'transparent',
                   borderRadius: 1,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  lineHeight: 1.5,
+                  fontSize: 14,
+                  fontWeight: 800,
+                  lineHeight: 1.4,
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
                 }}
@@ -281,11 +281,11 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               host knows what to collect at check-in. */}
           {Number(r.complementAmount || 0) > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              <EuroIcon sx={{ fontSize: 16, color: 'warning.dark', flexShrink: 0 }} />
+              <EuroIcon sx={{ fontSize: 16, color: r.complementPaid ? 'success.main' : 'error.main', flexShrink: 0 }} />
               <Chip
                 label={`Complément à percevoir : ${Number(r.complementAmount).toFixed(2)}€${r.complementPaid ? ' (perçu)' : ''}`}
                 size="small"
-                color={r.complementPaid ? 'success' : 'warning'}
+                color={r.complementPaid ? 'success' : 'error'}
                 variant={r.complementPaid ? 'outlined' : 'filled'}
                 sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
               />
@@ -293,15 +293,16 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
           )}
 
           {/* Caution à percevoir — when the security deposit has NOT been received yet, surface the
-              amount to collect from the guest at check-in, in red with a shield icon (mirrors the
-              complement-payment block above). Hidden once the caution is received. */}
+              amount to collect from the guest at check-in, in orange with a shield icon. The complement
+              block above uses red (money the host must collect for sure); the caution is a refundable
+              hold, hence the softer orange. Hidden once the caution is received. */}
           {Number(r.cautionAmount || 0) > 0 && !r.cautionReceived && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              <ShieldOutlinedIcon sx={{ fontSize: 16, color: 'error.main', flexShrink: 0 }} />
+              <ShieldOutlinedIcon sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }} />
               <Chip
                 label={`Caution à percevoir : ${Number(r.cautionAmount).toFixed(2)}€`}
                 size="small"
-                color="error"
+                color="warning"
                 variant="filled"
                 sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
               />
