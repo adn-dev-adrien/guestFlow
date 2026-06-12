@@ -44,20 +44,26 @@ export default function LinenShortageAlert() {
   }
 
   const totalShortages = data.shortagesByType.length;
-  const horizonLabel = formatDate(data.horizon);
+  // Lead with the EARLIEST first-shortage date — the actionable date for the operator. The
+  // projection horizon (last reservation's checkout) is a meaningless upper bound here (a single
+  // far-future booking would push it months out), so it's no longer used in the title.
+  const earliestShortageDate = data.shortagesByType
+    .map((e) => e.firstShortageDate)
+    .filter(Boolean)
+    .sort()[0];
 
   return (
     <Alert severity="error" variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}>
       <AlertTitle sx={{ fontWeight: 700 }}>
-        Stock insuffisant — {totalShortages} rupture{totalShortages > 1 ? 's' : ''} prévue{totalShortages > 1 ? 's' : ''} d&apos;ici le {horizonLabel}
+        Stock blanchisserie insuffisant — {totalShortages} type{totalShortages > 1 ? 's' : ''} de linge en rupture
+        {earliestShortageDate ? <> à partir du {formatDate(earliestShortageDate)}</> : null}
       </AlertTitle>
       <Stack spacing={2} sx={{ mt: 1 }}>
         {data.shortagesByType.map((entry) => (
           <Box key={entry.type}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{entry.label}</Typography>
             <Typography variant="body2" color="text.secondary">
-              Première rupture le <strong>{formatDate(entry.firstShortageDate)}</strong>
-              {' · '}jusqu&apos;à <strong>−{entry.maxMissing} manquant{entry.maxMissing > 1 ? 's' : ''}</strong>
+              <strong>{entry.label}</strong> : jusqu&apos;à <strong>{entry.maxMissing} manquant{entry.maxMissing > 1 ? 's' : ''}</strong>
+              {' · '}première rupture le <strong>{formatDate(entry.firstShortageDate)}</strong>
             </Typography>
             {entry.impactedReservations.length > 0 && (
               <Box sx={{ mt: 0.75 }}>
