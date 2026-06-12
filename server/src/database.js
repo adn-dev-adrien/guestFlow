@@ -1962,6 +1962,45 @@ db.prepare(`
   `).run(ARRIVAL_REMINDER_1D_BODY, PREVIOUS_J1_BODY);
 }
 
+// Content migration (specs/j1-complement-to-collect.md §5): the J-1 body gained an unpaid-complement
+// notice block. Same in-place upgrade discipline — replace only when the stored body still equals the
+// previous (linen-rework) shipped body. Runs after the linen migration above, so a body still on the
+// pre-linen version is first lifted to the linen version, then to this one on the next boot.
+{
+  const PRE_COMPLEMENT_J1_BODY = [
+    'Bonjour {{clientFirstName}},',
+    '',
+    'C\'est avec grand plaisir que nous vous accueillons dès demain {{propertyWithArticle}} !',
+    'Voici un dernier rappel avant votre arrivée.',
+    '',
+    'Votre séjour :',
+    '- Logement : {{propertyName}}',
+    '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+    '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+    '{{#if hasReservedOptions}}- Option(s) réservée(s) : {{reservedOptionsList}}',
+    '{{/if}}{{#if hasResources}}- Équipements réservés : {{resourcesList}}',
+    '{{/if}}',
+    '{{#if cautionNotReceived}}Pour finaliser votre arrivée, pensez à prévoir un chèque de caution de {{cautionAmount}} à nous remettre sur place.',
+    '',
+    '{{/if}}{{#if bedLinenProvidedByDefault}}Pour votre confort, les lits seront faits à votre arrivée.',
+    '',
+    '{{/if}}{{#if bedLinenBringYourOwn}}Le linge de lit n\'est pas inclus dans votre réservation : pensez à apporter le vôtre (draps, taies d\'oreiller). Vous pouvez aussi nous demander de l\'ajouter, avec plaisir.',
+    '',
+    '{{/if}}{{#if hasCleaningOption}}{{else}}Le ménage de fin de séjour n\'a pas été réservé : il reste à votre charge avant le départ. N\'hésitez pas si vous souhaitez l\'ajouter, nous nous en occupons volontiers.',
+    '',
+    '{{/if}}Nous restons à votre entière disposition d\'ici là — répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+    '',
+    'Très belles vacances, et à demain !',
+    '{{senderName}}',
+  ].join('\n');
+  const { ARRIVAL_REMINDER_1D_BODY } = require('./utils/defaultEmailTemplatesRegistry');
+  db.prepare(`
+    UPDATE email_templates
+       SET body = ?, updatedAt = datetime('now')
+     WHERE stableKey = 'arrival_reminder_1d' AND body = ?
+  `).run(ARRIVAL_REMINDER_1D_BODY, PRE_COMPLEMENT_J1_BODY);
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

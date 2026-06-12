@@ -48,6 +48,11 @@ function loadReservationGraph(database, reservationId) {
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
   `).all(id);
+  // Custom (free-text) options — needed for the J-1 complement breakdown
+  // (specs/j1-complement-to-collect.md §3). `description` is the label, `amount` the value.
+  const customOptions = database.prepare(`
+    SELECT * FROM reservation_custom_options WHERE reservationId = ?
+  `).all(id);
   // Does the reservation's PROPERTY provide bed linen by default? (specs/j1-linen-default-message.md
   // §3 rule 1) — the bed-linen option is a default-offered option for that property.
   const bedLinenProvidedByDefault = reservation.propertyId
@@ -58,7 +63,7 @@ function loadReservationGraph(database, reservationId) {
         LIMIT 1
       `).get(reservation.propertyId))
     : false;
-  return { reservation, client, property, options, resources, bedLinenProvidedByDefault };
+  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault };
 }
 
 function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel }) {
@@ -91,6 +96,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       property:    graph.property,
       options:     graph.options,
       resources:   graph.resources,
+      customOptions: graph.customOptions,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
     });
@@ -257,6 +263,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       property:    graph.property,
       options:     graph.options,
       resources:   graph.resources,
+      customOptions: graph.customOptions,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
     });
@@ -302,6 +309,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       property:    graph.property,
       options:     graph.options,
       resources:   graph.resources,
+      customOptions: graph.customOptions,
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(

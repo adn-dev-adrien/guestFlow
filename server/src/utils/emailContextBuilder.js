@@ -74,7 +74,7 @@ function formatPropertyWithArticle(name, article) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], settings = {}, bedLinenProvidedByDefault = false }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false }) {
   const r = reservation || {};
   const c = client || {};
   const p = property || {};
@@ -124,6 +124,44 @@ function buildContext({ reservation, client, property, options = [], resources =
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const resourcesList = resourcesTitles.join(', ');
   const hasResources = resourcesTitles.length > 0;
+
+  // Complement to collect on arrival (specs/j1-complement-to-collect.md). The notice appears only
+  // when an unpaid complement remains. The per-item breakdown matches the options/resources/custom
+  // options flagged `inComplement` (paid ones, offered=0) + the tourist tax when it's in the
+  // complement — so the guest knows what the complement corresponds to. The list may be partial vs.
+  // the total (the complement can also carry an accommodation auto-gap), hence "comprend notamment".
+  const complementAmountNum = Number(r.complementAmount || 0);
+  const complementToCollect = complementAmountNum > 0 && Number(r.complementPaid || 0) !== 1;
+  const inComplementItems = [];
+  for (const o of (options || [])) {
+    if (Number(o.inComplement || 0) === 1 && Number(o.offered || 0) !== 1) {
+      inComplementItems.push({ label: safeStr(o.title).trim(), amount: Number(o.totalPrice || 0) });
+    }
+  }
+  for (const rr of (resources || [])) {
+    if (Number(rr.inComplement || 0) === 1 && Number(rr.offered || 0) !== 1) {
+      inComplementItems.push({ label: safeStr(rr.name).trim(), amount: Number(rr.totalPrice || 0) });
+    }
+  }
+  for (const co of (customOptions || [])) {
+    if (Number(co.inComplement || 0) === 1 && Number(co.offered || 0) !== 1) {
+      inComplementItems.push({ label: safeStr(co.description).trim(), amount: Number(co.amount || 0) });
+    }
+  }
+  if (Number(r.touristTaxInComplement || 0) === 1 && Number(r.touristTaxTotal || 0) > 0) {
+    inComplementItems.push({ label: 'Taxe de séjour', amount: Number(r.touristTaxTotal || 0) });
+  }
+  const complementBreakdown = inComplementItems
+    .filter((it) => it.label && it.amount > 0)
+    .map((it) => `${it.label} (${formatCurrency(it.amount)})`)
+    .join(', ');
+  let complementNotice = '';
+  if (complementToCollect) {
+    complementNotice = `Un complément de ${formatCurrency(complementAmountNum)} sera à régler directement sur place à votre arrivée.`;
+    if (complementBreakdown) {
+      complementNotice += ` Il comprend notamment : ${complementBreakdown}.`;
+    }
+  }
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy
   // until a dedicated cautionMethod column lands.
@@ -181,6 +219,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       balanceAmount:   formatCurrency(Number(r.balanceAmount || 0)),
       balanceDueDate:  formatDateLong(r.balanceDueDate),
       cautionAmount:   formatCurrency(cautionAmountNum),
+      complementAmount: formatCurrency(complementAmountNum),
+      complementNotice,
       // Lists
       optionsList,
       reservedOptionsList,
@@ -204,6 +244,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       bedLinenBringYourOwn,
       cautionNotBanked,
       cautionNotReceived,
+      complementToCollect,
       hasOptions,
       hasReservedOptions,
       hasResources,
