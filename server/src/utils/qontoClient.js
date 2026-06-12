@@ -63,6 +63,10 @@ function buildQontoClient(config = {}) {
       const err = new Error(`Qonto ${context} failed (HTTP ${res.status})`);
       err.status = res.status;
       err.body = body;
+      // Log the real Qonto error (status + body incl. the trace_id) so failures are diagnosable in
+      // PM2 without re-running probes. The body holds Qonto error codes, not secrets.
+      // eslint-disable-next-line no-console
+      console.error(`[qonto] ${context} HTTP ${res.status}: ${JSON.stringify(body)}`);
       throw err;
     }
     return body || {};
@@ -116,7 +120,9 @@ function buildQontoClient(config = {}) {
         payment_link: {
           reusable: Boolean(reusable),
           potential_payment_methods: paymentMethods,
-          items: [{ title: String(title || 'Paiement'), quantity: 1, unit_price: { value, currency }, vat_rate: Number(vatRate) }],
+          // Qonto expects `vat_rate` as a STRING (e.g. "0", "20") — a number is rejected with
+          // "cannot unmarshal number ... of type string".
+          items: [{ title: String(title || 'Paiement'), quantity: 1, unit_price: { value, currency }, vat_rate: String(vatRate) }],
         },
       };
       const res = await fetchImpl(`${apiBase}/v2/payment_links`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) });

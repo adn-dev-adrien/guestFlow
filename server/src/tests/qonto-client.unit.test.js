@@ -71,6 +71,7 @@ test('createPaymentLink posts a Basket with the amount formatted from cents + au
   const sent = JSON.parse(opts.body).payment_link;
   assert.equal(sent.reusable, false);
   assert.deepEqual(sent.items[0].unit_price, { value: '90.00', currency: 'EUR' }); // cents → "90.00"
+  assert.equal(sent.items[0].vat_rate, '0'); // STRING, not number (Qonto rejects a number)
   assert.equal(sent.items[0].title, 'Acompte séjour');
 });
 
