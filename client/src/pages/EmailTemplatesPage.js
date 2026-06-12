@@ -50,6 +50,8 @@ const VARIABLE_BUTTONS = [
   { label: 'Acompte',          token: '{{depositAmount}}' },
   { label: 'Solde',            token: '{{balanceAmount}}' },
   { label: 'Caution',          token: '{{cautionAmount}}' },
+  { label: 'Complément',       token: '{{complementAmount}}' },
+  { label: 'Texte complément', token: '{{complementNotice}}' },
   // Options
   { label: 'Liste options',    token: '{{optionsList}}' },
   { label: 'Option(s) réservée(s)', token: '{{reservedOptionsList}}' },
@@ -68,6 +70,7 @@ const CONDITION_BUTTONS = [
   { label: 'Si ménage',             token: '{{#if hasCleaningOption}}' },
   { label: 'Si caution non encaissée', token: '{{#if cautionNotBanked}}' },
   { label: 'Si caution non reçue',  token: '{{#if cautionNotReceived}}' },
+  { label: 'Si complément à percevoir', token: '{{#if complementToCollect}}' },
   { label: 'Si options',            token: '{{#if hasOptions}}' },
   { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
   { label: 'Si ressources',         token: '{{#if hasResources}}' },

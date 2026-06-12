@@ -71,6 +71,8 @@ const ARRIVAL_REMINDER_1D_BODY = [
   '{{/if}}',
   '{{#if cautionNotReceived}}Pour finaliser votre arrivée, pensez à prévoir un chèque de caution de {{cautionAmount}} à nous remettre sur place.',
   '',
+  '{{/if}}{{#if complementToCollect}}{{complementNotice}}',
+  '',
   '{{/if}}{{#if bedLinenProvidedByDefault}}Pour votre confort, les lits seront faits à votre arrivée.',
   '',
   '{{/if}}{{#if bedLinenBringYourOwn}}Le linge de lit n\'est pas inclus dans votre réservation : pensez à apporter le vôtre (draps, taies d\'oreiller). Vous pouvez aussi nous demander de l\'ajouter, avec plaisir.',

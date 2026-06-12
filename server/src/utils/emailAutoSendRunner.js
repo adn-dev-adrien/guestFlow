@@ -59,6 +59,9 @@ async function performAutoEmailPass(deps) {
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
   `);
+  const findCustomOptions = database.prepare(`
+    SELECT * FROM reservation_custom_options WHERE reservationId = ?
+  `);
   // Property provides bed linen by default? (specs/j1-linen-default-message.md §3 rule 1)
   const findBedLinenDefault = database.prepare(`
     SELECT 1 FROM property_option_defaults d
@@ -95,11 +98,12 @@ async function performAutoEmailPass(deps) {
       const property = reservation.propertyId ? findProperty.get(reservation.propertyId) : null;
       const options  = findOptions.all(reservation.id);
       const resources = findResources.all(reservation.id);
+      const customOptions = findCustomOptions.all(reservation.id);
       const bedLinenProvidedByDefault = reservation.propertyId
         ? Boolean(findBedLinenDefault.get(reservation.propertyId))
         : false;
 
-      const context = buildContext({ reservation, client, property, options, resources, bedLinenProvidedByDefault, settings });
+      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings });
       const { subject, body } = renderTemplate(
         { subject: template.subject, body: template.body },
         context,
