@@ -53,6 +53,12 @@ async function performAutoEmailPass(deps) {
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
   `);
+  const findResources = database.prepare(`
+    SELECT rr.*, res.name
+    FROM reservation_resources rr
+    JOIN resources res ON res.id = rr.resourceId
+    WHERE rr.reservationId = ?
+  `);
 
   // Build the email service lazily: a misconfigured SMTP must not crash the cron —
   // every send attempt logs `failed` with the actionable error code.
@@ -81,8 +87,9 @@ async function performAutoEmailPass(deps) {
       const client   = reservation.clientId   ? findClient.get(reservation.clientId)     : null;
       const property = reservation.propertyId ? findProperty.get(reservation.propertyId) : null;
       const options  = findOptions.all(reservation.id);
+      const resources = findResources.all(reservation.id);
 
-      const context = buildContext({ reservation, client, property, options, settings });
+      const context = buildContext({ reservation, client, property, options, resources, settings });
       const { subject, body } = renderTemplate(
         { subject: template.subject, body: template.body },
         context,

@@ -1801,6 +1801,13 @@ const { ensureDefaultBreakfastOption } = require('./utils/breakfastSeed');
 ensureDefaultBreakfastOption(db);
 db.ensureDefaultBreakfastOption = ensureDefaultBreakfastOption;
 
+// specs/j1-arrival-reminder-email.md §4.1 — tag the existing "Ménage" option with
+// `autoOptionType = 'cleaning'` so the J-1 reminder can detect whether cleaning was booked.
+// Promotion only (never creates a row); idempotent; untyped rows only.
+const { ensureCleaningOptionTagged } = require('./utils/cleaningOptionSeed');
+ensureCleaningOptionTagged(db);
+db.ensureCleaningOptionTagged = ensureCleaningOptionTagged;
+
 // ---------- EMAIL AUTOMATION — specs/email-automation.md ----------
 // Two tables: `email_templates` (CRUD-able library) + `email_log` (every send attempt,
 // regardless of mode). Both idempotent at boot. The `stableKey` column on templates is
@@ -1838,6 +1845,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_email_log_reservation ON email_log(reservationId);
   CREATE INDEX IF NOT EXISTS idx_email_log_status_sent ON email_log(status, sentAt DESC);
   CREATE INDEX IF NOT EXISTS idx_email_log_template_res ON email_log(templateId, reservationId);
+
+  -- Manually-queued emails (specs/manual-email-from-template.md §5). One row per (template,
+  -- reservation) pair the operator explicitly asked to send. Merged into the derived pending
+  -- list; removed on send / acknowledge. FK cascade cleans up when a template or reservation
+  -- is deleted.
+  CREATE TABLE IF NOT EXISTS email_manual_queue (
+    templateId    INTEGER NOT NULL,
+    reservationId INTEGER NOT NULL,
+    createdAt     TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (templateId, reservationId),
+    FOREIGN KEY (templateId)    REFERENCES email_templates(id) ON DELETE CASCADE,
+    FOREIGN KEY (reservationId) REFERENCES reservations(id)    ON DELETE CASCADE
+  );
 `);
 
 // Online payment links (specs/online-payments-qonto.md §5). One row per Qonto payment link issued
