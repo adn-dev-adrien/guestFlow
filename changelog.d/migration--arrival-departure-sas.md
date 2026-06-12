@@ -1,0 +1,3 @@
+- New `linen_priced_items` table (priced linen elements + towels for the SAS). Additive.
+- `reservations` gains `endOfStayComplementAmount` / `endOfStayComplementPaid` / `endOfStayComplementPaidDate` / `endOfStayComplementDetail` (idempotent ADD COLUMN, default 0/null) — the departure SAS's separate end-of-stay complement.
+- `app_settings.portalCode` (domain gate code shown on the arrival SAS).

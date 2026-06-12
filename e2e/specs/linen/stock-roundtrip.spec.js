@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 
 test('Linen stock round-trip on /parametres/stock-blanchisserie', async ({ page }) => {
   await page.goto('/parametres/stock-blanchisserie');
-  await expect(page.getByRole('heading', { name: 'Stock blanchisserie' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Blanchisserie' })).toBeVisible();
 
   // The six fields are number inputs. Their labels follow the spec wording —
   // "Drap 1 personne", "Drap 2 personnes", "Drap bébé" for beds, "Grande serviette",

@@ -14,6 +14,7 @@ const path = require('path');
 const fs = require('fs');
 
 const settingsModel = require('../models/settingsModel');
+const linenItemsModel = require('../models/linenItemsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
@@ -30,6 +31,8 @@ const COMPANY_FIELDS = [
   { input: 'iban', column: 'companyIban', validator: validation.validateIban },
   { input: 'bic', column: 'companyBic', validator: validation.validateBic },
   { input: 'bankName', column: 'companyBankName' },
+  // Domain gate/access code shown on the arrival SAS (specs/arrival-departure-sas.md §3.5).
+  { input: 'portalCode', column: 'portalCode' },
 ];
 
 const QUOTE_FIELDS = [
@@ -252,10 +255,22 @@ async function sendSmtpTest(req, res) {
   }
 }
 
+// Priced linen items (Réglages → Blanchisserie) — specs/arrival-departure-sas.md §3.4.
+function getLinenItems(req, res) {
+  return res.json(linenItemsModel.list());
+}
+function updateLinenItems(req, res) {
+  const items = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.items) ? req.body.items : null);
+  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+  return res.json(linenItemsModel.replaceAll(items));
+}
+
 module.exports = {
   getSettings,
   updateSettings,
   uploadLogo,
   deleteLogo,
   sendSmtpTest,
+  getLinenItems,
+  updateLinenItems,
 };

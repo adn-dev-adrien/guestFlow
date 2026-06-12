@@ -19,6 +19,7 @@ const EMPTY_FORM = {
   company: {
     name: '', address: '', email: '', phone: '',
     siret: '', tva: '', iban: '', bic: '', bankName: '',
+    portalCode: '',
     logoPath: '',
   },
   quote: { footerText: '', footerTextEn: '', validityDays: 30 },
