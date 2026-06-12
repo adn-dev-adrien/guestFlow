@@ -64,8 +64,11 @@ test('bed-linen seed: promotion path (legacy "Linge de lits" row) gets titleEn b
   db.prepare(`INSERT INTO options (title, description, priceType, price, autoOptionType, countsAsBedLinen, titleEn)
               VALUES ('Linge de lits', '', 'per_stay', 0, NULL, 0, '')`).run();
   ensureDefaultBedLinenOption(db, { logger: SILENT });
-  const row = db.prepare("SELECT autoOptionType, titleEn FROM options WHERE LOWER(title) = 'linge de lits'").get();
+  // The row is promoted to the typed marker AND its title normalised to the singular
+  // (specs/j1-linen-default-message.md §3 rule 7) — look it up by the marker, not the old title.
+  const row = db.prepare("SELECT title, autoOptionType, titleEn FROM options WHERE autoOptionType = 'bed_linen'").get();
   assert.equal(row.autoOptionType, 'bed_linen', 'row promoted to typed');
+  assert.equal(row.title, 'Linge de lit', 'title normalised to singular');
   assert.equal(row.titleEn, 'Bed linen', 'backfill catches the promoted row');
 });
 

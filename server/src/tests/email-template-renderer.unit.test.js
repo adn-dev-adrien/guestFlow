@@ -165,7 +165,7 @@ test('J-7 body: no babies → no baby-bed notice at all', () => {
 
 const { ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
 
-function j1Input({ reservation = {}, options = [], resources = [] } = {}) {
+function j1Input({ reservation = {}, options = [], resources = [], bedLinenProvidedByDefault = false } = {}) {
   return buildContext({
     reservation: {
       startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '16:00', checkOutTime: '10:00',
@@ -176,6 +176,7 @@ function j1Input({ reservation = {}, options = [], resources = [] } = {}) {
     property: { name: 'Gite', nameArticle: 'au' },
     options,
     resources,
+    bedLinenProvidedByDefault,
     settings: { companyName: 'GF', smtpFromName: 'GF', companyPhone: '0102' },
   });
 }
@@ -202,10 +203,34 @@ test('J-1 body: caution received + linen + cleaning booked → none of the three
   assert.doesNotMatch(out.body, /chèque de caution/);
   assert.doesNotMatch(out.body, /n'est pas inclus/);
   assert.doesNotMatch(out.body, /à votre charge/);
-  assert.match(out.body, /Options réservées : Linge de lit, Ménage/);
+  // Renamed label; linen kept in the list (paid add-on, property not linen-by-default).
+  assert.match(out.body, /Option\(s\) réservée\(s\) : Linge de lit, Ménage/);
 });
 
 test('J-1 body: no resources → no "Équipements réservés" line', () => {
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ resources: [] }));
   assert.doesNotMatch(out.body, /Équipements réservés/);
+});
+
+test('J-1 body: linen provided by default → "lits faits" line, linen dropped from the list, no "bring your own"', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    bedLinenProvidedByDefault: true,
+    options: [
+      { title: 'Linge de lit', autoOptionType: 'bed_linen' },
+      { title: 'Petit déjeuner', autoOptionType: 'breakfast' },
+    ],
+  }));
+  assert.match(out.body, /les lits seront faits à votre arrivée/);
+  assert.doesNotMatch(out.body, /n'est pas inclus/);
+  assert.match(out.body, /Option\(s\) réservée\(s\) : Petit déjeuner/); // linen removed
+  assert.doesNotMatch(out.body, /Linge de lit/);
+});
+
+test('J-1 body: linen-by-default with linen as the only option → the options line is hidden', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    bedLinenProvidedByDefault: true,
+    options: [{ title: 'Linge de lit', autoOptionType: 'bed_linen' }],
+  }));
+  assert.match(out.body, /les lits seront faits à votre arrivée/);
+  assert.doesNotMatch(out.body, /Option\(s\) réservée\(s\)/);
 });

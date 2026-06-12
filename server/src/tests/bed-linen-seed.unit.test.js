@@ -123,11 +123,12 @@ test('seed PROMOTES by title alias: "Linge de lits" (plural) — covers Adrien\'
 
   const result = ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
   assert.equal(result.action, 'promoted-adopted');
-  const row = db.prepare("SELECT * FROM options WHERE title = 'Linge de lits'").get();
-  assert.equal(row.autoOptionType, 'bed_linen');
+  // The plural row is promoted AND its title normalised to the singular
+  // (specs/j1-linen-default-message.md §3 rule 7).
+  const row = db.prepare("SELECT * FROM options WHERE autoOptionType = 'bed_linen'").get();
   assert.equal(Number(row.countsAsBedLinen), 1);
-  // Title is NOT rewritten — Adrien's spelling is preserved, only the marker is added.
-  assert.equal(row.title, 'Linge de lits');
+  assert.equal(row.title, 'Linge de lit');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM options WHERE title = 'Linge de lits'").get().n, 0);
 });
 
 test('seed promotion by title is case-insensitive + trim-tolerant', () => {
@@ -208,4 +209,22 @@ test('seed catches any thrown error and returns { action: "error" }', () => {
   const result = ensureDefaultBedLinenOption(fake, { logger: NULL_LOGGER });
   assert.equal(result.action, 'error');
   assert.match(result.error, /SQLITE_BUSY/);
+});
+
+// specs/j1-linen-default-message.md §3 rule 7 — canonical singular title.
+
+test('seed normalises a plural "Linge de lits" title to "Linge de lit"', () => {
+  const db = makeDb();
+  db.prepare("INSERT INTO options (title, autoOptionType, countsAsBedLinen) VALUES ('Linge de lits', 'bed_linen', 1)").run();
+  ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  const titles = db.prepare("SELECT title FROM options WHERE autoOptionType='bed_linen'").all().map((r) => r.title);
+  assert.deepEqual(titles, ['Linge de lit']);
+});
+
+test('title normalisation is idempotent + leaves a correct singular title untouched', () => {
+  const db = makeDb();
+  db.prepare("INSERT INTO options (title, autoOptionType, countsAsBedLinen) VALUES ('Linge de lit', 'bed_linen', 1)").run();
+  ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  ensureDefaultBedLinenOption(db, { logger: NULL_LOGGER });
+  assert.equal(db.prepare("SELECT title FROM options WHERE autoOptionType='bed_linen'").get().title, 'Linge de lit');
 });
