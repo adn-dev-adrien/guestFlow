@@ -16,7 +16,7 @@ const ROUTES = [
   { url: '/clients',                     heading: 'Clients' },
   { url: '/school-holidays',             heading: 'Vacances scolaires' },
   { url: '/establishment-closures',      heading: /Fermetures/ },
-  { url: '/parametres/stock-blanchisserie', heading: 'Stock blanchisserie' },
+  { url: '/parametres/stock-blanchisserie', heading: 'Blanchisserie' },
 ];
 
 for (const { url, heading, exact = false } of ROUTES) {
