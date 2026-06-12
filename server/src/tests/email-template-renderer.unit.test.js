@@ -165,7 +165,7 @@ test('J-7 body: no babies → no baby-bed notice at all', () => {
 
 const { ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
 
-function j1Input({ reservation = {}, options = [], resources = [], bedLinenProvidedByDefault = false } = {}) {
+function j1Input({ reservation = {}, options = [], resources = [], customOptions = [], bedLinenProvidedByDefault = false } = {}) {
   return buildContext({
     reservation: {
       startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '16:00', checkOutTime: '10:00',
@@ -176,6 +176,7 @@ function j1Input({ reservation = {}, options = [], resources = [], bedLinenProvi
     property: { name: 'Gite', nameArticle: 'au' },
     options,
     resources,
+    customOptions,
     bedLinenProvidedByDefault,
     settings: { companyName: 'GF', smtpFromName: 'GF', companyPhone: '0102' },
   });
@@ -233,4 +234,32 @@ test('J-1 body: linen-by-default with linen as the only option → the options l
   }));
   assert.match(out.body, /les lits seront faits à votre arrivée/);
   assert.doesNotMatch(out.body, /Option\(s\) réservée\(s\)/);
+});
+
+// ── J-1 complement to collect (specs/j1-complement-to-collect.md) ────────────────
+
+test('J-1 body: unpaid complement renders the notice with the matched items', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    reservation: { cautionAmount: 0, complementAmount: 55, complementPaid: 0 },
+    options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 }],
+    resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
+  }));
+  assert.match(out.body, /Un complément de 55,00 € sera à régler/);
+  assert.match(out.body, /Il comprend notamment : .*Petit déjeuner \(15,00 €\)/);
+  assert.match(out.body, /Bain nordique \(40,00 €\)/);
+});
+
+test('J-1 body: a paid complement renders no complement notice', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    reservation: { cautionAmount: 0, complementAmount: 55, complementPaid: 1 },
+  }));
+  assert.doesNotMatch(out.body, /Un complément de/);
+});
+
+test('J-1 body: complement with no itemised lines shows the amount only', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    reservation: { cautionAmount: 0, complementAmount: 30, complementPaid: 0 },
+  }));
+  assert.match(out.body, /Un complément de 30,00 € sera à régler/);
+  assert.doesNotMatch(out.body, /Il comprend/);
 });

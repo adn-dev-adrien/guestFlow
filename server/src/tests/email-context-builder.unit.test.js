@@ -28,6 +28,7 @@ function baseInput(over = {}) {
     property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00', ...(over.property || {}) },
     options: over.options || [],
     resources: over.resources || [],
+    customOptions: over.customOptions || [],
     bedLinenProvidedByDefault: over.bedLinenProvidedByDefault || false,
     settings: { ...SAMPLE_SETTINGS, ...(over.settings || {}) },
   };
@@ -273,4 +274,55 @@ test('linen as a paid add-on (not provided by default) → listed, no bring-your
   assert.equal(vars.reservedOptionsList, 'Linge de lit'); // kept
   assert.equal(flags.bedLinenProvidedByDefault, false);
   assert.equal(flags.bedLinenBringYourOwn, false); // hasBedLinenOption is true
+});
+
+// ── J-1 complement to collect (specs/j1-complement-to-collect.md) ────────────────
+
+test('complementToCollect true only when complementAmount > 0 and unpaid', () => {
+  assert.equal(buildContext(baseInput({ reservation: { complementAmount: 55, complementPaid: 0 } })).flags.complementToCollect, true);
+  assert.equal(buildContext(baseInput({ reservation: { complementAmount: 55, complementPaid: 1 } })).flags.complementToCollect, false);
+  assert.equal(buildContext(baseInput({ reservation: { complementAmount: 0, complementPaid: 0 } })).flags.complementToCollect, false);
+});
+
+test('complementNotice lists in-complement options/resources/custom-options + tourist tax with amounts', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 78, complementPaid: 0, touristTaxInComplement: 1, touristTaxTotal: 8 },
+    options: [
+      { title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 },
+      { title: 'Linge de lit', autoOptionType: 'bed_linen', inComplement: 0, offered: 0, totalPrice: 10 }, // not in complement → excluded
+    ],
+    resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
+    customOptions: [{ description: 'Panier garni', amount: 15, inComplement: 1, offered: 0 }],
+  }));
+  assert.match(vars.complementNotice, /Un complément de 78,00 €/);
+  assert.match(vars.complementNotice, /Il comprend notamment/);
+  assert.match(vars.complementNotice, /Petit déjeuner \(15,00 €\)/);
+  assert.match(vars.complementNotice, /Bain nordique \(40,00 €\)/);
+  assert.match(vars.complementNotice, /Panier garni \(15,00 €\)/);
+  assert.match(vars.complementNotice, /Taxe de séjour \(8,00 €\)/);
+  assert.doesNotMatch(vars.complementNotice, /Linge de lit/);
+});
+
+test('complementNotice excludes offered (free) in-complement items', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 0.0001 + 0, complementPaid: 0 },
+    options: [{ title: 'Cadeau', inComplement: 1, offered: 1, totalPrice: 0 }],
+  }));
+  // complementAmount ~0 → no notice; but even with an offered item, no breakdown.
+  assert.doesNotMatch(vars.complementNotice, /Cadeau/);
+});
+
+test('complementNotice: amount only (no "comprend") when there are no identifiable items', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 30, complementPaid: 0 },
+    options: [], resources: [], customOptions: [],
+  }));
+  assert.match(vars.complementNotice, /Un complément de 30,00 €/);
+  assert.doesNotMatch(vars.complementNotice, /Il comprend/);
+});
+
+test('complementNotice empty when complement is paid', () => {
+  const { vars, flags } = buildContext(baseInput({ reservation: { complementAmount: 55, complementPaid: 1 } }));
+  assert.equal(flags.complementToCollect, false);
+  assert.equal(vars.complementNotice, '');
 });
