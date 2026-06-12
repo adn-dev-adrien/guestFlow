@@ -24,11 +24,13 @@
 
 import React from 'react';
 import {
-  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip,
+  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link,
 } from '@mui/material';
 import { orange } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
+import LoginIcon from '@mui/icons-material/Login';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
@@ -76,14 +78,13 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   );
 }
 
-export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpen }) {
+export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
   const r = reservation;
-  const clickable = typeof onOpen === 'function';
-  const handleCardClick = clickable ? () => onOpen(r.id) : undefined;
-  // Stop propagation on interactive child controls so they don't bubble up to the card's
-  // navigate-on-click handler.
+  // The card is no longer clickable as a whole: explicit actions are the two buttons (open the
+  // reservation / run the arrival SAS) + the clickable client name. `stop` guards the checkbox.
   const stop = (e) => e.stopPropagation();
   const done = !!r.checkInReady;
+  const sasDone = !!r.arrivalSasDoneAt;
   const adults = Number(r.adults || 0);
   const children = Number(r.children || 0);
   const teens = Number(r.teens || 0);
@@ -111,7 +112,6 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
   return (
     <Card
       variant="outlined"
-      onClick={handleCardClick}
       sx={{
         mb: 1.5,
         borderRadius: 2,
@@ -119,8 +119,6 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
         bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
-        cursor: clickable ? 'pointer' : 'default',
-        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
@@ -171,6 +169,30 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             }}
           />
           {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+          <Box sx={{ flexGrow: 1 }} />
+          {/* Two explicit actions: open the reservation, run the arrival SAS (✓ + disabled once done). */}
+          {onOpenReservation && (
+            <Tooltip title="Ouvrir la réservation">
+              <IconButton size="small" onClick={() => onOpenReservation(r.id)} aria-label="Ouvrir la réservation">
+                <OpenInNewIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onOpenSas && (
+            <Tooltip title={sasDone ? 'Check-in déjà effectué' : 'Check-in (SAS arrivée)'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color={sasDone ? 'success' : 'primary'}
+                  disabled={sasDone}
+                  onClick={() => onOpenSas(r.id)}
+                  aria-label="Check-in (SAS arrivée)"
+                >
+                  {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <LoginIcon sx={{ fontSize: 20 }} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Box>
 
         {/* Detail block indented to align with the left edge of the ARRIVÉE badge (checkbox 32px + gap 8px) */}
@@ -219,9 +241,23 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               HH:MM" duplicate of the top time pill is removed (Adrien 2026-06-06). */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
             <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {r.firstName} {r.lastName}
-            </Typography>
+            {/* Client name → client fiche (the rest of the card is non-clickable; the buttons above
+                open the reservation / SAS). */}
+            {onOpenClient && r.clientId ? (
+              <Link
+                component="button"
+                type="button"
+                underline="hover"
+                onClick={(e) => { stop(e); onOpenClient(r.clientId); }}
+                sx={{ textAlign: 'left', fontWeight: 600 }}
+              >
+                {r.firstName} {r.lastName}
+              </Link>
+            ) : (
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {r.firstName} {r.lastName}
+              </Typography>
+            )}
           </Box>
 
           {/* Famille row — only the non-zero categories surface (Adrien 2026-06-06). */}

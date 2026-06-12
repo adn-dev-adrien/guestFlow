@@ -15,6 +15,7 @@ import DepartureMiniRow from '../DepartureMiniRow';
 
 const BASE = {
   id: 200,
+  clientId: 77,
   firstName: 'M.',
   lastName: 'Martin',
   propertyName: 'Studio',
@@ -87,29 +88,66 @@ test('alertInfo.explanation — shown as caption next to the property name', () 
   expect(screen.getByText(alertInfo.explanation)).toBeInTheDocument();
 });
 
-test('onOpen — clicking the card body calls onOpen(reservation.id)', () => {
-  const onOpen = vi.fn();
+test('actions — the "Ouvrir la réservation" button calls onOpenReservation(id)', () => {
+  const onOpenReservation = vi.fn();
   render(
-    <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpen={onOpen} />
+    <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={onOpenReservation} />
   );
-  fireEvent.click(screen.getByText('Studio'));
-  expect(onOpen).toHaveBeenCalledWith(200);
+  fireEvent.click(screen.getByLabelText('Ouvrir la réservation'));
+  expect(onOpenReservation).toHaveBeenCalledWith(200);
 });
 
-test('onOpen — clicking the done checkbox does NOT trigger onOpen (stopPropagation)', () => {
-  const onOpen = vi.fn();
+test('SAS button — opens the departure SAS when not yet done', () => {
+  const onOpenSas = vi.fn();
+  render(
+    <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenSas={onOpenSas} />
+  );
+  const sasBtn = screen.getByRole('button', { name: 'Check-out (SAS départ)' });
+  expect(sasBtn).not.toBeDisabled();
+  fireEvent.click(sasBtn);
+  expect(onOpenSas).toHaveBeenCalledWith(200);
+});
+
+test('SAS button — disabled with a ✓ once the departure SAS is done', () => {
+  const onOpenSas = vi.fn();
+  const r = { ...BASE, departureSasDoneAt: '2026-06-13 11:00:00' };
+  render(<DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={onOpenSas} />);
+  const sasBtn = screen.getByRole('button', { name: 'Check-out (SAS départ)' });
+  expect(sasBtn).toBeDisabled();
+  fireEvent.click(sasBtn);
+  expect(onOpenSas).not.toHaveBeenCalled();
+});
+
+test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {
+  const onOpenClient = vi.fn();
+  render(
+    <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenClient={onOpenClient} />
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'M. Martin' }));
+  expect(onOpenClient).toHaveBeenCalledWith(77);
+});
+
+test('done checkbox — toggling it does NOT trigger any open handler (stopPropagation)', () => {
+  const onOpenReservation = vi.fn();
   const onToggleDone = vi.fn();
   render(
-    <DepartureMiniRow reservation={BASE} onToggleDone={onToggleDone} onOpen={onOpen} />
+    <DepartureMiniRow
+      reservation={BASE}
+      onToggleDone={onToggleDone}
+      onOpenReservation={onOpenReservation}
+    />
   );
   fireEvent.click(screen.getByRole('checkbox'));
   expect(onToggleDone).toHaveBeenCalled();
-  expect(onOpen).not.toHaveBeenCalled();
+  expect(onOpenReservation).not.toHaveBeenCalled();
 });
 
-test('onOpen omitted — card stays read-only, no error on click', () => {
-  const { container } = render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} />);
-  expect(() => fireEvent.click(container.firstChild)).not.toThrow();
+test('open handlers omitted — card renders read-only with no action buttons', () => {
+  render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} />);
+  expect(screen.queryByLabelText('Ouvrir la réservation')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Check-out (SAS départ)')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'M. Martin' })).not.toBeInTheDocument();
+  expect(screen.getByText('M. Martin')).toBeInTheDocument();
 });
 
 test('done state — "Effectué" badge surfaces when checkOutDone is true', () => {
