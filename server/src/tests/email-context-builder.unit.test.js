@@ -27,6 +27,7 @@ function baseInput(over = {}) {
     },
     property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00', ...(over.property || {}) },
     options: over.options || [],
+    resources: over.resources || [],
     settings: { ...SAMPLE_SETTINGS, ...(over.settings || {}) },
   };
 }
@@ -191,4 +192,43 @@ test('babyBedNotice: babies but NO baby bed → asks the guest to bring one, fla
   assert.equal(flags.hasBabyBedNotice, true);
   assert.match(vars.babyBedNotice, /ne disposons plus de lit bébé/);
   assert.match(vars.babyBedNotice, /apporter un/);
+});
+
+// ── J-1 reminder additions (specs/j1-arrival-reminder-email.md) ──────────────────
+
+test('resourcesList joins booked resource names, sorted (fr); hasResources reflects presence', () => {
+  const { vars, flags } = buildContext(baseInput({
+    resources: [{ name: 'Bain nordique' }, { name: 'Lit bébé' }],
+  }));
+  assert.equal(vars.resourcesList, 'Bain nordique, Lit bébé');
+  assert.equal(flags.hasResources, true);
+});
+
+test('no resources → empty resourcesList + hasResources false', () => {
+  const { vars, flags } = buildContext(baseInput({ resources: [] }));
+  assert.equal(vars.resourcesList, '');
+  assert.equal(flags.hasResources, false);
+});
+
+test('cautionNotReceived is true only when caution due AND not received', () => {
+  const due = buildContext(baseInput({ reservation: { cautionAmount: 500, cautionReceived: 0 } }));
+  assert.equal(due.flags.cautionNotReceived, true);
+  const received = buildContext(baseInput({ reservation: { cautionAmount: 500, cautionReceived: 1 } }));
+  assert.equal(received.flags.cautionNotReceived, false);
+  const noCaution = buildContext(baseInput({ reservation: { cautionAmount: 0, cautionReceived: 0 } }));
+  assert.equal(noCaution.flags.cautionNotReceived, false);
+});
+
+test('cautionNotReceived is independent from depositPaid (the J-7 cautionNotBanked proxy)', () => {
+  // Acompte paid but caution not received → still owed.
+  const { flags } = buildContext(baseInput({ reservation: { cautionAmount: 500, cautionReceived: 0, depositPaid: 1 } }));
+  assert.equal(flags.cautionNotReceived, true);
+  assert.equal(flags.cautionNotBanked, false);
+});
+
+test('hasCleaningOption is true only when a booked option is autoOptionType=cleaning', () => {
+  const withCleaning = buildContext(baseInput({ options: [{ title: 'Ménage', autoOptionType: 'cleaning' }] }));
+  assert.equal(withCleaning.flags.hasCleaningOption, true);
+  const without = buildContext(baseInput({ options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast' }] }));
+  assert.equal(without.flags.hasCleaningOption, false);
 });

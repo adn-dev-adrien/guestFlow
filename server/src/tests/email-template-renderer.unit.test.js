@@ -160,3 +160,52 @@ test('J-7 body: no babies → no baby-bed notice at all', () => {
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_7D_BODY }, j7Input({ babies: 0, babyBeds: 0 }));
   assert.doesNotMatch(out.body, /lit bébé/);
 });
+
+// ── J-1 reminder body (specs/j1-arrival-reminder-email.md §3 + §6) ───────────────
+
+const { ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
+
+function j1Input({ reservation = {}, options = [], resources = [] } = {}) {
+  return buildContext({
+    reservation: {
+      startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '16:00', checkOutTime: '10:00',
+      adults: 2, children: 0, teens: 0, babies: 0, finalPrice: 300,
+      cautionAmount: 500, cautionReceived: 0, ...reservation,
+    },
+    client: { firstName: 'Jean', lastName: 'Dupont' },
+    property: { name: 'Gite', nameArticle: 'au' },
+    options,
+    resources,
+    settings: { companyName: 'GF', smtpFromName: 'GF', companyPhone: '0102' },
+  });
+}
+
+test('J-1 body: caution not received + no linen + no cleaning → all three reminders render', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    resources: [{ name: 'Bain nordique' }],
+  }));
+  assert.match(out.body, /chèque de caution de 500,00 €/);
+  assert.match(out.body, /linge de lit n'est pas inclus/);
+  assert.match(out.body, /ménage de fin de séjour n'a pas été réservé/);
+  assert.match(out.body, /Équipements réservés : Bain nordique/);
+  assert.deepEqual(out.missingVariables, []);
+});
+
+test('J-1 body: caution received + linen + cleaning booked → none of the three reminders render', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    reservation: { cautionAmount: 500, cautionReceived: 1 },
+    options: [
+      { title: 'Linge de lit', autoOptionType: 'bed_linen' },
+      { title: 'Ménage', autoOptionType: 'cleaning' },
+    ],
+  }));
+  assert.doesNotMatch(out.body, /chèque de caution/);
+  assert.doesNotMatch(out.body, /n'est pas inclus/);
+  assert.doesNotMatch(out.body, /à votre charge/);
+  assert.match(out.body, /Options réservées : Linge de lit, Ménage/);
+});
+
+test('J-1 body: no resources → no "Équipements réservés" line', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ resources: [] }));
+  assert.doesNotMatch(out.body, /Équipements réservés/);
+});

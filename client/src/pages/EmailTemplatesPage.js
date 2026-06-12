@@ -16,6 +16,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import FormDialog from '../components/FormDialog';
 import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
+import EmailComposeDialog from '../components/EmailComposeDialog';
 import ClientFormFields from '../components/ClientFormFields';
 import api from '../api';
 import { useAppDialogs } from '../components/DialogProvider';
@@ -51,6 +52,7 @@ const VARIABLE_BUTTONS = [
   { label: 'Caution',          token: '{{cautionAmount}}' },
   // Options
   { label: 'Liste options',    token: '{{optionsList}}' },
+  { label: 'Liste ressources', token: '{{resourcesList}}' },
   { label: 'Config lits',      token: '{{bedConfig}}' },
   // Entreprise
   { label: 'Société',          token: '{{companyName}}' },
@@ -60,8 +62,11 @@ const VARIABLE_BUTTONS = [
 
 const CONDITION_BUTTONS = [
   { label: 'Si linge de lit',       token: '{{#if hasBedLinenOption}}' },
+  { label: 'Si ménage',             token: '{{#if hasCleaningOption}}' },
   { label: 'Si caution non encaissée', token: '{{#if cautionNotBanked}}' },
+  { label: 'Si caution non reçue',  token: '{{#if cautionNotReceived}}' },
   { label: 'Si options',            token: '{{#if hasOptions}}' },
+  { label: 'Si ressources',         token: '{{#if hasResources}}' },
   { label: 'Sinon',                 token: '{{else}}' },
   { label: 'Fin si',                token: '{{/if}}' },
 ];
@@ -89,6 +94,7 @@ export default function EmailTemplatesPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(emptyTemplate);
   const bodyRef = useRef(null);
   const subjectRef = useRef(null);
@@ -279,9 +285,14 @@ export default function EmailTemplatesPage() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
         <Typography variant="h4">Emails</Typography>
-        <Button startIcon={<HistoryIcon />} component={RouterLink} to="/emails/historique" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          Voir l'historique
-        </Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+          <Button startIcon={<AddIcon />} variant="contained" onClick={() => setComposeOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+            Créer un email
+          </Button>
+          <Button startIcon={<HistoryIcon />} component={RouterLink} to="/emails/historique" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+            Voir l'historique
+          </Button>
+        </Stack>
       </Box>
 
       {pending.length > 0 && (
@@ -289,7 +300,7 @@ export default function EmailTemplatesPage() {
           <Box sx={{ px: 2, pt: 2 }}>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>Emails à envoyer</Typography>
             <Typography variant="caption" color="text.secondary">
-              Modèles en mode manuel dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours.
+              Modèles en mode manuel dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours, et emails ajoutés manuellement.
             </Typography>
           </Box>
           <EmailPendingList
@@ -373,6 +384,12 @@ export default function EmailTemplatesPage() {
         defaultTemplateId={sending?.templateId}
         onClose={() => setSending(null)}
         onSent={() => { setSending(null); reloadPending(); }}
+      />
+
+      <EmailComposeDialog
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        onQueued={reloadPending}
       />
 
       {/* Fix a missing client email straight from the pending list — the client fiche opens with the

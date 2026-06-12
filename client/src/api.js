@@ -344,6 +344,11 @@ const api = {
   getPendingEmails:          () => request('/emails/pending'),
   acknowledgePendingEmail:   ({ templateId, reservationId }) =>
     request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),
+  // Manual email compose (specs/manual-email-from-template.md)
+  getEmailEligibleReservations: (q) =>
+    request(`/emails/eligible-reservations${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  queueEmail: ({ templateId, reservationId, force }) =>
+    request('/emails/queue', { method: 'POST', body: { templateId, reservationId, force: Boolean(force) } }),
   getEmailHistory: (params = {}) => {
     const filtered = Object.entries(params)
       .filter(([, v]) => v != null && v !== '')

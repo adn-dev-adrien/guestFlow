@@ -120,12 +120,23 @@ function buildModel(database) {
     return database.prepare(`SELECT ${SELECT_COLS} FROM email_log WHERE id = ?`).get(Number(id));
   }
 
+  // Most recent successful-send timestamp for a (template, reservation) pair, or null if it was
+  // never sent. Drives the "déjà envoyé le …" guard when queuing a manual email
+  // (specs/manual-email-from-template.md §3 rule 5).
+  function lastSentAt(templateId, reservationId) {
+    const row = database.prepare(
+      "SELECT MAX(sentAt) AS lastSentAt FROM email_log WHERE templateId = ? AND reservationId = ? AND status = 'sent'"
+    ).get(Number(templateId), Number(reservationId));
+    return row && row.lastSentAt ? row.lastSentAt : null;
+  }
+
   return {
     insert,
     existsFor,
     listPending,
     history,
     findById,
+    lastSentAt,
   };
 }
 

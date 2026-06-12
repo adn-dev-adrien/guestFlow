@@ -77,7 +77,19 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                 </TableCell>
                 <TableCell>{r.propertyName}</TableCell>
                 <TableCell>{formatStayDate(r.startDate)}</TableCell>
-                <TableCell>{r.templateName}</TableCell>
+                <TableCell>
+                  <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
+                    <span>{r.templateName}</span>
+                    {r.manual ? (
+                      <Chip label="Ajouté manuellement" size="small" color="info" variant="outlined" sx={{ height: 20 }} />
+                    ) : null}
+                    {r.lastSentAt ? (
+                      <Typography variant="caption" color="text.secondary">
+                        déjà envoyé le {formatStayDate(String(r.lastSentAt).slice(0, 10))}
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                </TableCell>
                 <TableCell align="right">
                   <Button
                     size="small"

@@ -33,17 +33,25 @@ function loadReservationGraph(database, reservationId) {
   const property = reservation.propertyId
     ? database.prepare('SELECT * FROM properties WHERE id = ?').get(reservation.propertyId)
     : null;
-  // Joined options — surface `title` + `autoOptionType` for the renderer's bed-linen flag.
+  // Joined options — surface `title` + `autoOptionType` for the renderer's bed-linen / cleaning flags.
   const options = database.prepare(`
     SELECT ro.*, o.title, o.autoOptionType
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
   `).all(id);
-  return { reservation, client, property, options };
+  // Joined resources — surface `name` for the J-1 reminder's resources list
+  // (specs/j1-arrival-reminder-email.md §3 rule 4).
+  const resources = database.prepare(`
+    SELECT rr.*, res.name
+    FROM reservation_resources rr
+    JOIN resources res ON res.id = rr.resourceId
+    WHERE rr.reservationId = ?
+  `).all(id);
+  return { reservation, client, property, options, resources };
 }
 
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory }) {
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel }) {
   function readSettings() {
     return settingsModel.read();
   }
@@ -72,6 +80,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       client:      graph.client,
       property:    graph.property,
       options:     graph.options,
+      resources:   graph.resources,
       settings:    readSettings(),
     });
 
@@ -171,6 +180,8 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         renderedBody:    result.body,
         recipientEmail:  recipient,
       });
+      // A manually-queued pair leaves the queue once sent (specs/manual-email-from-template.md §3 rule 7).
+      if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
       return res.json({ ok: true, emailLogId: row.id, sentAt: row.sentAt });
     } catch (err) {
       const failed = logModel.insert({
@@ -193,8 +204,20 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   function pending(req, res) {
     const today = (req.query && req.query.today) || new Date().toISOString().slice(0, 10);
     const lookbackDays = Number((req.query && req.query.lookbackDays) || 7);
-    const rows = logModel.listPending({ today, lookbackDays });
-    return res.json(rows);
+    const dateDriven = logModel.listPending({ today, lookbackDays });
+    // Manually-queued pairs are shown unconditionally (they bypass the sent/ack filter — that is
+    // what allows a deliberate resend, specs/manual-email-from-template.md §3 rule 6). Merge +
+    // dedup by (templateId, reservationId): the manual flag wins so the UI can badge the row.
+    const manual = manualQueueModel ? manualQueueModel.listEnriched() : [];
+    const key = (r) => `${r.templateId}:${r.reservationId}`;
+    const manualKeys = new Set(manual.map(key));
+    const merged = [
+      ...manual,
+      ...dateDriven.filter((r) => !manualKeys.has(key(r))),
+    ];
+    merged.sort((a, b) => String(a.startDate).localeCompare(String(b.startDate))
+      || Number(a.dayOffset) - Number(b.dayOffset));
+    return res.json(merged);
   }
 
   function acknowledge(req, res) {
@@ -205,6 +228,10 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
     const graph = loadReservationGraph(database, reservationId);
     if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+
+    // Skipping always removes the pair from the manual queue, even when it was previously
+    // sent/acknowledged (a re-queued pair must still be dismissable).
+    if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
 
     // Idempotent: a second acknowledge for the same pair is a no-op (the pending list
     // already filters out any pair with an existing 'sent' or 'acknowledged-skip' row).
@@ -217,6 +244,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       client:      graph.client,
       property:    graph.property,
       options:     graph.options,
+      resources:   graph.resources,
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(
@@ -248,8 +276,64 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return res.json(result);
   }
 
+  // Compact reservation list for the "Créer un email" picker
+  // (specs/manual-email-from-template.md §3 rule 2 + §4.3). All `kind='reservation'` rows,
+  // most recent first, optionally filtered server-side by client / property name.
+  function eligibleReservations(req, res) {
+    const q = String((req.query && req.query.q) || '').trim();
+    const params = [];
+    let whereSearch = '';
+    if (q) {
+      whereSearch = `AND (
+        LOWER(COALESCE(c.firstName,'') || ' ' || COALESCE(c.lastName,'')) LIKE ?
+        OR LOWER(COALESCE(p.name,'')) LIKE ?
+      )`;
+      const like = `%${q.toLowerCase()}%`;
+      params.push(like, like);
+    }
+    const rows = database.prepare(`
+      SELECT
+        r.id AS id,
+        TRIM(COALESCE(c.firstName,'') || ' ' || COALESCE(c.lastName,'')) AS clientFullName,
+        COALESCE(p.name,'') AS propertyName,
+        r.startDate AS startDate,
+        r.endDate   AS endDate
+      FROM reservations r
+      LEFT JOIN clients    c ON c.id = r.clientId
+      LEFT JOIN properties p ON p.id = r.propertyId
+      WHERE COALESCE(r.kind, 'reservation') = 'reservation'
+      ${whereSearch}
+      ORDER BY r.startDate DESC
+    `).all(...params);
+    return res.json(rows);
+  }
+
+  // Queue a (template, reservation) pair into "Emails à envoyer"
+  // (specs/manual-email-from-template.md §3 rules 4-6 + §4.3).
+  function queue(req, res) {
+    const { templateId, reservationId, force } = req.body || {};
+    if (!templateId || !reservationId) {
+      return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['templateId', 'reservationId'] });
+    }
+    const template = templatesModel.findById(templateId);
+    if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    const graph = loadReservationGraph(database, reservationId);
+    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+
+    // Already-sent guard: warn (with the last send date) unless the operator forces a resend.
+    if (!force) {
+      const lastSent = logModel.lastSentAt(Number(templateId), Number(reservationId));
+      if (lastSent) {
+        return res.json({ ok: false, alreadySent: true, lastSentAt: lastSent });
+      }
+    }
+
+    manualQueueModel.add(Number(templateId), Number(reservationId));
+    return res.json({ ok: true, queued: true });
+  }
+
   return {
-    preview, send, pending, acknowledge, history,
+    preview, send, pending, acknowledge, history, queue, eligibleReservations,
     // Exposed for the scheduled task: it reuses the same render → send → log pipeline.
     buildPreview,
     smtpConfigured,

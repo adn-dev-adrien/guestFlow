@@ -41,6 +41,8 @@ const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT);
   CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, optionId INTEGER);
   CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, autoOptionType TEXT);
+  CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER);
+  CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
 `;
 
 function fakeSettings(extra = {}) {

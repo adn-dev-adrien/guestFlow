@@ -4,6 +4,7 @@ const { buildController } = require('../controllers/emailsController');
 const db = require('../database');
 const templatesModel = require('../models/emailTemplatesModel');
 const logModel       = require('../models/emailLogModel');
+const manualQueueModel = require('../models/emailManualQueueModel');
 const settingsModel  = require('../models/settingsModel');
 const { createEmailService } = require('../utils/emailService');
 
@@ -11,6 +12,7 @@ const controller = buildController({
   database: db,
   templatesModel,
   logModel,
+  manualQueueModel,
   settingsModel,
   emailServiceFactory: createEmailService,
 });
@@ -20,5 +22,7 @@ router.post('/send',   controller.send);
 router.get('/pending', controller.pending);
 router.post('/pending/:templateId/:reservationId/acknowledge', controller.acknowledge);
 router.get('/history', controller.history);
+router.get('/eligible-reservations', controller.eligibleReservations);
+router.post('/queue', controller.queue);
 
 module.exports = router;
