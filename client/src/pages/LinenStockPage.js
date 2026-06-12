@@ -116,11 +116,11 @@ export default function LinenStockPage() {
               <FormHelperText>Indiquez 0 si vous ne souhaitez pas suivre ce type.</FormHelperText>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
-                  label="Simples"
+                  label="Doubles"
                   type="number"
                   size="small"
-                  value={draft.bedSingle}
-                  onChange={update('bedSingle')}
+                  value={draft.bedDouble}
+                  onChange={update('bedDouble')}
                   disabled={loading || saving}
                   fullWidth
                   slotProps={{
@@ -128,11 +128,11 @@ export default function LinenStockPage() {
                   }}
                 />
                 <TextField
-                  label="Doubles"
+                  label="Simples"
                   type="number"
                   size="small"
-                  value={draft.bedDouble}
-                  onChange={update('bedDouble')}
+                  value={draft.bedSingle}
+                  onChange={update('bedSingle')}
                   disabled={loading || saving}
                   fullWidth
                   slotProps={{
