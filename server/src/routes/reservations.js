@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const controller = require('../controllers/reservationsController');
+const sasController = require('../controllers/sasController');
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
@@ -8,6 +9,10 @@ router.get('/', controller.list);
 router.get('/occupied-dates/:propertyId', controller.occupiedDates);
 router.get('/:id', controller.getById);
 router.get('/:id/history', controller.getHistory);
+// Arrival / departure SAS (specs/arrival-departure-sas.md)
+router.get('/:id/sas', sasController.getSas);
+router.post('/:id/sas/arrival', sasController.commitArrival);
+router.post('/:id/sas/departure', sasController.commitDeparture);
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', controller.update);

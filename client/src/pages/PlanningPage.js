@@ -13,6 +13,7 @@ import LaundryDayCard from '../components/LaundryDayCard';
 import BreakfastDayCard from '../components/BreakfastDayCard';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
+import ReservationSasDialog from '../components/sas/ReservationSasDialog';
 import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
@@ -117,6 +118,12 @@ export default function PlanningPage() {
     if (!reservationId) return;
     navigate(withFrom(`/reservations/${reservationId}`, '/planning'));
   }, [navigate]);
+
+  // Arrival / departure SAS (specs/arrival-departure-sas.md). Clicking an arrival card opens the
+  // arrival SAS, a departure row the departure SAS. `{ reservationId, mode }` drives the dialog.
+  const [sas, setSas] = useState(null);
+  const openArrivalSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'arrival' }); }, []);
+  const openDepartureSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'departure' }); }, []);
 
   const [loading, setLoading] = useState(true);
   const [planningDays, setPlanningDays] = useState([]);
@@ -660,7 +667,7 @@ export default function PlanningPage() {
                         key={`dep-${r.id}`}
                         reservation={r}
                         onToggleDone={handleToggleDepartureDone}
-                        onOpen={openReservation}
+                        onOpen={openDepartureSas}
                         alertInfo={alertMap[r.id]}
                       />
                     ))}
@@ -674,7 +681,7 @@ export default function PlanningPage() {
                   reservation={r}
                   onToggleReady={handleToggleReady}
                   alertInfo={alertMap[r.id]}
-                  onOpen={openReservation}
+                  onOpen={openArrivalSas}
                 />
               ))}
 
@@ -685,6 +692,14 @@ export default function PlanningPage() {
           );
         })}
       </Box>
+
+      <ReservationSasDialog
+        open={!!sas}
+        reservationId={sas?.reservationId}
+        mode={sas?.mode || 'arrival'}
+        onClose={() => setSas(null)}
+        onCommitted={() => { setSas(null); loadPlanning(startDate); }}
+      />
     </Box>
   );
 }

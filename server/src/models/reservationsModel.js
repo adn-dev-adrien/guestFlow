@@ -764,6 +764,65 @@ function createReservationsModel(database) {
     remove(reservationId) {
       database.prepare('DELETE FROM reservations WHERE id = ?').run(reservationId);
     },
+
+    // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────
+    // Effective price of the cleaning option (autoOptionType='cleaning') for a property:
+    // per-property override (property_option_prices) wins over the option's base price.
+    // null when there is no cleaning option configured.
+    getCleaningPriceForProperty(propertyId) {
+      const opt = database.prepare("SELECT id, price FROM options WHERE autoOptionType = 'cleaning' LIMIT 1").get();
+      if (!opt) return null;
+      let override;
+      try {
+        override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
+          .get(opt.id, Number(propertyId));
+      } catch { override = undefined; }
+      return Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
+    },
+
+    // Single commit for the arrival SAS. `complementItems` = [{ label, amount }] (missing linen
+    // elements + optionally the cleaning charge). Written as custom options inComplement=1 and the
+    // arrival complementAmount is bumped by their sum (the common autoGap=0 case; when the
+    // complement is already paid it stays frozen and the items are recorded for the record).
+    commitArrivalSas(reservationId, { cautionReceived = false, complementItems = [] } = {}) {
+      const tx = database.transaction(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        if (cautionReceived) {
+          database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
+            .run(today, reservationId);
+        }
+        const items = (complementItems || []).filter((i) => i && String(i.label || '').trim() && Number(i.amount) > 0);
+        if (items.length > 0) {
+          const maxSort = database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m;
+          const insert = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement) VALUES (?, ?, ?, 0, ?, 1)');
+          let sort = Number(maxSort) + 1;
+          for (const it of items) { insert.run(reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, sort); sort += 1; }
+          const added = Math.round(items.reduce((s, it) => s + Number(it.amount), 0) * 100) / 100;
+          const row = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
+          if (row && Number(row.complementPaid || 0) !== 1) {
+            const next = Math.round((Number(row.complementAmount || 0) + added) * 100) / 100;
+            database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
+          }
+        }
+        return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
+      });
+      return tx();
+    },
+
+    // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement.
+    commitDepartureSas(reservationId, { cautionReturned = false, endOfStayComplementAmount = 0, endOfStayComplementDetail = null } = {}) {
+      const tx = database.transaction(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        if (cautionReturned) {
+          database.prepare("UPDATE reservations SET cautionReturned = 1, cautionReturnedDate = COALESCE(cautionReturnedDate, ?), updatedAt = datetime('now') WHERE id = ?")
+            .run(today, reservationId);
+        }
+        const amount = Math.max(0, Math.round(Number(endOfStayComplementAmount || 0) * 100) / 100);
+        database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
+          .run(amount, endOfStayComplementDetail ? JSON.stringify(endOfStayComplementDetail) : null, reservationId);
+      });
+      tx();
+    },
   };
 
   return model;
