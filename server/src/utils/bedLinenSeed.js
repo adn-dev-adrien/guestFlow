@@ -78,6 +78,17 @@ function ensureDefaultBedLinenOption(database, { logger = console } = {}) {
       logger.log(`[seed:bed-linen] promoted ${promotion.changes} existing option(s) to the typed marker`);
     }
 
+    // Canonical singular title (specs/j1-linen-default-message.md §3 rule 7): normalise the
+    // bed-linen option titled "Linge de lits" (plural) to "Linge de lit" on every server. Scoped
+    // to the typed row, idempotent (no-op once already singular).
+    const renamed = database.prepare(`
+      UPDATE options SET title = 'Linge de lit'
+       WHERE autoOptionType = 'bed_linen' AND LOWER(TRIM(title)) = 'linge de lits'
+    `).run();
+    if (renamed.changes > 0) {
+      logger.log(`[seed:bed-linen] normalised ${renamed.changes} title(s) "Linge de lits" → "Linge de lit"`);
+    }
+
     // 2026-06-06 — backfill the EN title on rows where titleEn is empty (typed seed, promoted
     // seed, or prod rows that pre-date the EN column). Silent on noop boots. Guarded because
     // `titleEn` might not exist yet on a partially-migrated DB.

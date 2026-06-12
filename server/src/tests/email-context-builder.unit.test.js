@@ -28,6 +28,7 @@ function baseInput(over = {}) {
     property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00', ...(over.property || {}) },
     options: over.options || [],
     resources: over.resources || [],
+    bedLinenProvidedByDefault: over.bedLinenProvidedByDefault || false,
     settings: { ...SAMPLE_SETTINGS, ...(over.settings || {}) },
   };
 }
@@ -231,4 +232,45 @@ test('hasCleaningOption is true only when a booked option is autoOptionType=clea
   assert.equal(withCleaning.flags.hasCleaningOption, true);
   const without = buildContext(baseInput({ options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast' }] }));
   assert.equal(without.flags.hasCleaningOption, false);
+});
+
+// ── J-1 linen-by-default (specs/j1-linen-default-message.md) ─────────────────────
+
+test('bedLinenProvidedByDefault: drops the linen option from reservedOptionsList + sets the flag', () => {
+  const { vars, flags } = buildContext(baseInput({
+    bedLinenProvidedByDefault: true,
+    options: [
+      { title: 'Linge de lit', autoOptionType: 'bed_linen' },
+      { title: 'Petit déjeuner', autoOptionType: 'breakfast' },
+    ],
+  }));
+  assert.equal(flags.bedLinenProvidedByDefault, true);
+  assert.equal(vars.reservedOptionsList, 'Petit déjeuner'); // linen removed
+  assert.equal(vars.optionsList, 'Linge de lit, Petit déjeuner'); // untouched for other templates
+  assert.equal(flags.bedLinenBringYourOwn, false);
+});
+
+test('reservedOptionsList empty → hasReservedOptions false (line hidden)', () => {
+  const { flags, vars } = buildContext(baseInput({
+    bedLinenProvidedByDefault: true,
+    options: [{ title: 'Linge de lit', autoOptionType: 'bed_linen' }],
+  }));
+  assert.equal(vars.reservedOptionsList, '');
+  assert.equal(flags.hasReservedOptions, false);
+});
+
+test('no linen anywhere → bedLinenBringYourOwn true, not provided by default', () => {
+  const { flags } = buildContext(baseInput({ bedLinenProvidedByDefault: false, options: [] }));
+  assert.equal(flags.bedLinenBringYourOwn, true);
+  assert.equal(flags.bedLinenProvidedByDefault, false);
+});
+
+test('linen as a paid add-on (not provided by default) → listed, no bring-your-own, no beds-made', () => {
+  const { vars, flags } = buildContext(baseInput({
+    bedLinenProvidedByDefault: false,
+    options: [{ title: 'Linge de lit', autoOptionType: 'bed_linen' }],
+  }));
+  assert.equal(vars.reservedOptionsList, 'Linge de lit'); // kept
+  assert.equal(flags.bedLinenProvidedByDefault, false);
+  assert.equal(flags.bedLinenBringYourOwn, false); // hasBedLinenOption is true
 });

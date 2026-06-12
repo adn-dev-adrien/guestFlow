@@ -1915,6 +1915,43 @@ db.prepare(`
     AND body LIKE '%{{companyName}}%'
 `).run();
 
+// Content migration (specs/j1-linen-default-message.md §5): the J-1 reminder body was reworked
+// (linen-by-default "beds made" line, "Option(s) réservée(s)" rename, filtered options list). The
+// seed is insert-only, so replace the in-place body ONLY when it still equals the previously-shipped
+// J-1 body (operator edits are preserved). Idempotent: after the update the body no longer matches.
+{
+  const PREVIOUS_J1_BODY = [
+    'Bonjour {{clientFirstName}},',
+    '',
+    'C\'est avec grand plaisir que nous vous accueillons dès demain {{propertyWithArticle}} !',
+    'Voici un dernier rappel avant votre arrivée.',
+    '',
+    'Votre séjour :',
+    '- Logement : {{propertyName}}',
+    '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+    '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+    '{{#if hasOptions}}- Options réservées : {{optionsList}}',
+    '{{/if}}{{#if hasResources}}- Équipements réservés : {{resourcesList}}',
+    '{{/if}}',
+    '{{#if cautionNotReceived}}Pour finaliser votre arrivée, pensez à prévoir un chèque de caution de {{cautionAmount}} à nous remettre sur place.',
+    '',
+    '{{/if}}{{#if hasBedLinenOption}}{{else}}Le linge de lit n\'est pas inclus dans votre réservation : pensez à apporter le vôtre (draps, taies d\'oreiller). Vous pouvez aussi nous demander de l\'ajouter, avec plaisir.',
+    '',
+    '{{/if}}{{#if hasCleaningOption}}{{else}}Le ménage de fin de séjour n\'a pas été réservé : il reste à votre charge avant le départ. N\'hésitez pas si vous souhaitez l\'ajouter, nous nous en occupons volontiers.',
+    '',
+    '{{/if}}Nous restons à votre entière disposition d\'ici là — répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+    '',
+    'Très belles vacances, et à demain !',
+    '{{senderName}}',
+  ].join('\n');
+  const { ARRIVAL_REMINDER_1D_BODY } = require('./utils/defaultEmailTemplatesRegistry');
+  db.prepare(`
+    UPDATE email_templates
+       SET body = ?, updatedAt = datetime('now')
+     WHERE stableKey = 'arrival_reminder_1d' AND body = ?
+  `).run(ARRIVAL_REMINDER_1D_BODY, PREVIOUS_J1_BODY);
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

@@ -39,6 +39,7 @@ const DDL = `
   CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, autoOptionType TEXT);
   CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER);
   CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
+  CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER DEFAULT 0, PRIMARY KEY (propertyId, optionId));
 `;
 
 function fakeSettings() {

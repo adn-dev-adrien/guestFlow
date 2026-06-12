@@ -74,10 +74,11 @@ function formatPropertyWithArticle(name, article) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], settings = {} }) {
+function buildContext({ reservation, client, property, options = [], resources = [], settings = {}, bedLinenProvidedByDefault = false }) {
   const r = reservation || {};
   const c = client || {};
   const p = property || {};
+  const linenByDefault = Boolean(bedLinenProvidedByDefault);
 
   const fullName = `${safeStr(c.firstName).trim()} ${safeStr(c.lastName).trim()}`.trim();
   const checkInTime  = formatTimeShort(r.checkInTime  || p.defaultCheckIn  || '');
@@ -98,6 +99,22 @@ function buildContext({ reservation, client, property, options = [], resources =
   // Cleaning ("Ménage") option — tagged `autoOptionType = 'cleaning'` by the boot seed
   // (specs/j1-arrival-reminder-email.md §4.1). Drives the J-1 "cleaning at your charge" else-branch.
   const hasCleaningOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'cleaning');
+
+  // "Linge fourni par défaut" — the reservation's PROPERTY includes bed linen as a default-offered
+  // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
+  // beds will be made on arrival, and the bed-linen option is dropped from the "Option(s) réservée(s)"
+  // list (it isn't a chosen extra). `optionsList` itself is left intact for other templates (e.g. J-7).
+  const bedLinenProvided = linenByDefault;
+  const reservedOptionsTitles = (options || [])
+    .filter((o) => !(bedLinenProvided && safeStr(o.autoOptionType) === 'bed_linen'))
+    .map((o) => safeStr(o.title).trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+  const reservedOptionsList = reservedOptionsTitles.join(', ');
+  const hasReservedOptions = reservedOptionsTitles.length > 0;
+  // "Bring your own linen" only when linen is neither provided by default nor on the reservation —
+  // never contradicts the "beds made" line.
+  const bedLinenBringYourOwn = !hasBedLinenOption && !bedLinenProvided;
 
   // Resources list (specs/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
   // booked resources' names, sorted alphabetically for stable rendering.
@@ -166,6 +183,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       cautionAmount:   formatCurrency(cautionAmountNum),
       // Lists
       optionsList,
+      reservedOptionsList,
       resourcesList,
       bedConfig: formatBedConfig({
         singleBeds: r.singleBeds, doubleBeds: r.doubleBeds, babyBeds: r.babyBeds,
@@ -182,9 +200,12 @@ function buildContext({ reservation, client, property, options = [], resources =
     flags: {
       hasBedLinenOption,
       hasCleaningOption,
+      bedLinenProvidedByDefault: bedLinenProvided,
+      bedLinenBringYourOwn,
       cautionNotBanked,
       cautionNotReceived,
       hasOptions,
+      hasReservedOptions,
       hasResources,
       hasBabyBedNotice,
     },
