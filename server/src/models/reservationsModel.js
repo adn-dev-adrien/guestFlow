@@ -787,6 +787,8 @@ function createReservationsModel(database) {
     commitArrivalSas(reservationId, { cautionReceived = false, complementItems = [] } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
+        // Mark the arrival SAS done (planning disables the button afterwards).
+        database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
         if (cautionReceived) {
           database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
             .run(today, reservationId);
@@ -813,6 +815,8 @@ function createReservationsModel(database) {
     commitDepartureSas(reservationId, { cautionReturned = false, endOfStayComplementAmount = 0, endOfStayComplementDetail = null } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
+        // Mark the departure SAS done (planning disables the button afterwards).
+        database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
         if (cautionReturned) {
           database.prepare("UPDATE reservations SET cautionReturned = 1, cautionReturnedDate = COALESCE(cautionReturnedDate, ?), updatedAt = datetime('now') WHERE id = ?")
             .run(today, reservationId);
