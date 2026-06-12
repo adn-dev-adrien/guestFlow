@@ -232,7 +232,22 @@ existing reservations needed.
       complement amount + detail stored.
 - [x] Full server suite 1481 green; migrations verified on a DB copy.
 
-### Manual UI verification
+### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`, +3)
+- [x] Arrival full flow: caution « Fait », linen « Pas OK » **reveals** the priced-items page (regression
+      for the async-navigation bug), cleaning added → recap total → `commitArrivalSas` called with the
+      exact `{ cautionReceived, complementItems }` payload.
+- [x] Arrival linen « OK » **skips** the priced-items page.
+- [x] Departure: cleaning page shows « ménage fait correctement ? OK/Pas OK » (regression — it used to
+      render the arrival UI), missing/keys flow, recap, `commitDepartureSas` payload.
+
+### E2E (Playwright smoke)
+- [x] `auth/sidebar-navigation.spec.js` + `linen/stock-roundtrip.spec.js` updated for the « Stock
+      blanchisserie » → « Blanchisserie » heading rename (they asserted the old title — caused the smoke
+      failure).
+
+### Manual UI verification (done live in the browser 2026-06-12)
+- [x] Arrival + departure SAS run end-to-end; commits verified in the DB (then reverted). Two bugs found
+      and fixed during this pass (async navigation skip + departure cleaning UI).
 - [ ] Arrival SAS happy path (caution unpaid + linen mismatch + cleaning not included): each page appears,
       recap totals = existing + added, commit writes caution + custom options, planning refreshes.
 - [ ] « Reporté » caution re-appears before the recap.

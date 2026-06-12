@@ -153,7 +153,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         </Box>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
           <Button size="small" variant="outlined" onClick={() => set(qty - 1)} disabled={qty <= 0} sx={{ minWidth: 36 }}>−</Button>
-          <TextField value={qty} onChange={(e) => set(Math.floor(Number(e.target.value) || 0))} size="small" sx={{ width: 56 }} inputProps={{ style: { textAlign: 'center' } }} />
+          <TextField value={qty} onChange={(e) => set(Math.floor(Number(e.target.value) || 0))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
           <Button size="small" variant="outlined" onClick={() => set(qty + 1)} sx={{ minWidth: 36 }}>+</Button>
         </Stack>
       </Stack>
