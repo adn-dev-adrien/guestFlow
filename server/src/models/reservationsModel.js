@@ -13,6 +13,7 @@ const { formatPlatformName } = require('../utils/platformNameFormat');
 const { formatTimeShort } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { getOptionsSignature, getResourcesSignature, enrichHistoryChanges } = require('../utils/reservationAudit');
+const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
@@ -194,6 +195,21 @@ function createReservationsModel(database) {
       const payment = computePaymentStatus(reservation);
       reservation.remainingDue = payment.remainingDue;
       reservation.paymentComplete = payment.paymentComplete;
+
+      // Bed-linen adequacy flag for the planning arrival card (specs/planning-arrival-alerts.md
+      // §3 rule 6). Skipped for properties where bed linen is a default-offered option (the
+      // operator doesn't manage linen per stay there).
+      const bedLinenProvidedByDefault = Boolean(database.prepare(`
+        SELECT 1 FROM property_option_defaults d
+        JOIN options o ON o.id = d.optionId
+        WHERE d.propertyId = ? AND o.autoOptionType = 'bed_linen' AND d.offered = 1
+        LIMIT 1
+      `).get(reservation.propertyId));
+      reservation.bedLinenAlert = computeBedLinenAlert({
+        reservation,
+        options: reservation.options,
+        bedLinenProvidedByDefault,
+      });
       return reservation;
     },
 
