@@ -58,8 +58,23 @@ glance, what to handle at check-in.
    the calendar uses). Sized for legibility (**14px, bold, 1.5px border**). The label is the stored
    platform value (`formatPlatformLabel`: lowercase `direct` → `Direct`, others as-is). Hidden when the
    reservation has no `platform`.
+6. **Bed-linen alert (orange badge — 2026-06-12).** The arrival card warns about bed linen, via a
+   **server-computed** flag `reservation.bedLinenAlert` (exposed by `getByIdWithDetails`):
+   - `{ type: 'no_linen' }` → the guest did **not** take the bed-linen option → badge
+     **« Linge de lit non pris »**.
+   - `{ type: 'capacity', capacity, required }` → linen taken, but the bed configuration sleeps fewer
+     people than the booking → badge **« Linge de lit insuffisant : {capacity} couchage(s) pour
+     {required} pers. »**. Capacity = `singleBeds + doubleBeds × 2`; required = `adults + teens +
+     children NOT in a baby bed` (children in baby beds = `max(0, babyBeds − babies)`) — the SAME
+     formula the reservation form shows live (`bedsCapacityMismatch`), now computed server-side so the
+     planning reuses it on saved reservations.
+   - **No alert at all for properties where bed linen is a default-offered option**
+     (`property_option_defaults` with the `autoOptionType='bed_linen'` option, `offered=1`) — the
+     operator doesn't manage linen per stay there. `bedLinenAlert` is then `null`.
 
 **Edge cases:**
+- `bedLinenAlert`: a reservation whose beds were coerced to 0 (no linen option) surfaces `no_linen`,
+  not `capacity` — the "didn't take linen" message is the actionable one.
 - Cleaning that spills past midnight (e.g. 23:00 checkout + 3h) is compared correctly against a
   next-day early arrival (real datetime).
 - Invalid/missing dates → `cleaningTurnoverConflict` returns false (never throws, no false alert).
@@ -77,7 +92,9 @@ glance, what to handle at check-in.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| — | — | — | **No server change.** `reservationsModel` already returns `cautionAmount`/`cautionReceived`; `properties.cleaningHours` already exists. |
+| — | — | — | Caution / platform badges: **no server change** (`reservationsModel` already returns `cautionAmount`/`cautionReceived`; `properties.cleaningHours` exists). |
+| `utils/` | `utils/bedLinenAdequacy.js` | C | Pure `computeBedLinenAlert({ reservation, options, bedLinenProvidedByDefault })` → `null` / `{type:'no_linen'}` / `{type:'capacity',capacity,required}` (rule 6). |
+| `models/` | `models/reservationsModel.js` | T | `getByIdWithDetails` computes `bedLinenProvidedByDefault` (query `property_option_defaults`) + sets `reservation.bedLinenAlert` via the util. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -85,7 +102,7 @@ glance, what to handle at check-in.
 |---|---|---|---|
 | `utils/` | `reservationConflicts.js` | T | New pure `cleaningTurnoverConflict({checkoutDate, checkoutTime, cleaningMinutes, arrivalDate, arrivalTime})` — datetime comparison `(checkout + cleaning) > arrival`. |
 | `pages/` | `PlanningPage.js` | T | `detectAlerts` Type 2 (red) + Type 3 (blue) use `cleaningTurnoverConflict`; Type 3 scans for a genuinely-overlapping reservation. |
-| `components/` | `ReservationCard.js` | T | New red « Caution à percevoir » badge (shield icon) when the caution is unpaid; **platform badge** next to the property name (rule 5). |
+| `components/` | `ReservationCard.js` | T | « Caution à percevoir » badge; **platform badge** (rule 5); **bed-linen alert** badge (rule 6) rendering `reservation.bedLinenAlert` (warning chip + `WarningAmber` icon). |
 | `constants/` | `platforms.js` | T | New `formatPlatformLabel(platform)` display helper (capitalises `direct`); reuses existing `getPlatformColor`. |
 | `App.js` | `App.js` | T | Planning sidebar icon broom → `CalendarMonth` (a broom reads as pejorative for the cleaning role). |
 
@@ -123,7 +140,14 @@ No schema change. Uses existing `reservations.cautionAmount`, `reservations.caut
 
 ## 7. Test plan
 
+### Server unit tests (node:test)
+- [x] `tests/bed-linen-adequacy.unit.test.js` (rule 6) — linen-by-default → null; no option → `no_linen`;
+      linen + beds cover guests → null; linen + insufficient beds → `capacity` with numbers; children in
+      baby beds deducted; teens counted.
+
 ### Client unit tests (vitest)
+- [x] `components/__tests__/ReservationCard.test.js` — bed-linen alert renders « Linge de lit non pris »
+      / « Linge de lit insuffisant : … », nothing when `bedLinenAlert` is absent.
 - [x] `utils/reservationConflicts.test.js` — `cleaningTurnoverConflict`: different-day same-time →
       false (8/07 vs 17/07); real same-day turnover → true; enough gap → false; past-midnight spill →
       true; invalid date → false; operator example 2h (OK) / 3h (alert).
@@ -140,6 +164,9 @@ No schema change. Uses existing `reservations.cautionAmount`, `reservations.caut
       disappears once the caution is marked received.
 - [ ] Planning: each arrival card shows the platform badge (bordered, transparent, platform-coloured)
       to the right of the property name; an Airbnb card is red-bordered, a direct one gold, etc.
+- [ ] Planning: an arrival with no bed-linen option shows « Linge de lit non pris »; one whose beds
+      don't cover the guests shows « Linge de lit insuffisant : … » ; a linen-by-default property shows
+      neither.
 
 ## 8. Out of scope
 

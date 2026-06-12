@@ -211,3 +211,19 @@ test('platform badge — absent when the reservation has no platform', () => {
   expect(screen.queryByText('Direct')).toBeNull();
   expect(screen.queryByText('Airbnb')).toBeNull();
 });
+
+// Bed-linen alert (specs/planning-arrival-alerts.md §3 rule 14) — server-computed `bedLinenAlert`.
+test('bed-linen alert — "non pris" when bedLinenAlert.type is no_linen', () => {
+  render(<ReservationCard reservation={{ ...BASE, bedLinenAlert: { type: 'no_linen' } }} onToggleReady={noop} />);
+  expect(screen.getByText('Linge de lit non pris')).toBeInTheDocument();
+});
+
+test('bed-linen alert — capacity mismatch shows the numbers', () => {
+  render(<ReservationCard reservation={{ ...BASE, bedLinenAlert: { type: 'capacity', capacity: 3, required: 4 } }} onToggleReady={noop} />);
+  expect(screen.getByText(/Linge de lit insuffisant : 3 couchages pour 4 pers\./)).toBeInTheDocument();
+});
+
+test('bed-linen alert — nothing rendered when bedLinenAlert is absent', () => {
+  render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
+  expect(screen.queryByText(/Linge de lit/)).toBeNull();
+});
