@@ -16,8 +16,12 @@ import api from '../api';
 
 const PAGE_SIZE = 50;
 
-function StatusBadge({ status }) {
-  if (status === 'sent') return <Chip label="Envoyé" size="small" color="success" variant="outlined" />;
+function StatusBadge({ status, channel }) {
+  if (status === 'sent') {
+    return channel === 'manual'
+      ? <Chip label="Envoyé manuellement" size="small" color="info" variant="outlined" />
+      : <Chip label="Envoyé" size="small" color="success" variant="outlined" />;
+  }
   if (status === 'failed') return <Chip label="Échec" size="small" color="error" variant="outlined" />;
   if (status === 'acknowledged-skip') return <Chip label="Ignoré" size="small" color="default" variant="outlined" />;
   return <Chip label={status} size="small" />;
@@ -127,7 +131,7 @@ export default function EmailHistoryPage() {
               </Stack>
             </TableCell>
             <TableCell>{r.recipientEmail || '—'}</TableCell>
-            <TableCell><StatusBadge status={r.status} /></TableCell>
+            <TableCell><StatusBadge status={r.status} channel={r.channel} /></TableCell>
             <TableCell sx={{ maxWidth: 260, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               {r.renderedSubject}
             </TableCell>

@@ -19,7 +19,7 @@ const DDL = `
   );
   CREATE TABLE email_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, templateId INTEGER, reservationId INTEGER NOT NULL,
-    sentAt TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL,
+    sentAt TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL, channel TEXT NOT NULL DEFAULT 'smtp',
     errorMessage TEXT DEFAULT '', renderedSubject TEXT NOT NULL, renderedBody TEXT NOT NULL,
     recipientEmail TEXT NOT NULL DEFAULT ''
   );
@@ -201,4 +201,57 @@ test('eligibleReservations: returns compact rows, filterable by client name', ()
   assert.equal(hit.body.length, 1);
   const miss = res(); ctl.eligibleReservations({ query: { q: 'martin' } }, miss);
   assert.equal(miss.body.length, 0);
+});
+
+// ── mark as sent (specs/mark-email-sent-manually.md) ────────────────────────────
+
+test('markSent: logs status=sent + channel=manual, dequeues, leaves pending', () => {
+  const { ctl, db, manualQueueModel } = makeFixture();
+  manualQueueModel.add(10, 100);
+  const r = res();
+  ctl.markSent({ params: { templateId: 10, reservationId: 100 } }, r);
+  assert.equal(r.body.ok, true);
+  const log = db.prepare('SELECT status, channel FROM email_log').get();
+  assert.equal(log.status, 'sent');
+  assert.equal(log.channel, 'manual');
+  assert.equal(manualQueueModel.has(10, 100), false);
+
+  const p = res();
+  ctl.pending({ query: { today: '2026-01-01' } }, p);
+  assert.equal(p.body.length, 0);
+});
+
+test('markSent: idempotent — 2nd call returns alreadyHandled, no duplicate row', () => {
+  const { ctl, db, manualQueueModel } = makeFixture();
+  manualQueueModel.add(10, 100);
+  ctl.markSent({ params: { templateId: 10, reservationId: 100 } }, res());
+  const r2 = res();
+  ctl.markSent({ params: { templateId: 10, reservationId: 100 } }, r2);
+  assert.equal(r2.body.alreadyHandled, true);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM email_log').get().n, 1);
+});
+
+test('markSent: works when the client has no email (no recipient required)', () => {
+  const { ctl, db } = makeFixture();
+  db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
+  const r = res();
+  ctl.markSent({ params: { templateId: 10, reservationId: 100 } }, r);
+  assert.equal(r.body.ok, true);
+  assert.equal(db.prepare("SELECT status FROM email_log").get().status, 'sent');
+});
+
+test('markSent: 404 on unknown template / reservation', () => {
+  const { ctl } = makeFixture();
+  const r1 = res(); ctl.markSent({ params: { templateId: 999, reservationId: 100 } }, r1);
+  assert.equal(r1.statusCode, 404);
+  const r2 = res(); ctl.markSent({ params: { templateId: 10, reservationId: 999 } }, r2);
+  assert.equal(r2.statusCode, 404);
+});
+
+test('send (SMTP) logs channel=smtp; history exposes channel', async () => {
+  const { ctl, db, logModel } = makeFixture();
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10 } }, r);
+  assert.equal(db.prepare("SELECT channel FROM email_log WHERE status='sent'").get().channel, 'smtp');
+  assert.equal(logModel.history({}).rows[0].channel, 'smtp');
 });

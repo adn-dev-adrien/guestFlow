@@ -175,6 +175,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
         templateId:      Number(templateId),
         reservationId:   Number(reservationId),
         status:          'sent',
+        channel:         'smtp',
         errorMessage:    '',
         renderedSubject: result.subject,
         renderedBody:    result.body,
@@ -264,6 +265,51 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return res.json({ ok: true, emailLogId: row.id });
   }
 
+  // Mark a pending email as sent OUTSIDE GuestFlow (e.g. via the platform's messaging)
+  // — specs/mark-email-sent-manually.md. Logs status='sent', channel='manual'; no SMTP, no
+  // recipient required. Mirrors acknowledge's idempotency + queue-dequeue.
+  function markSent(req, res) {
+    const { templateId, reservationId } = req.params || {};
+    if (!templateId || !reservationId) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+
+    const template = templatesModel.findById(templateId);
+    if (!template) return res.status(404).json({ error: 'TEMPLATE_NOT_FOUND' });
+    const graph = loadReservationGraph(database, reservationId);
+    if (!graph) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+
+    // Always dequeue, even if already handled (a re-queued pair must still leave the list).
+    if (manualQueueModel) manualQueueModel.remove(Number(templateId), Number(reservationId));
+
+    if (logModel.existsFor(Number(templateId), Number(reservationId), ['sent', 'acknowledged-skip'])) {
+      return res.json({ ok: true, alreadyHandled: true });
+    }
+
+    const context = buildContext({
+      reservation: graph.reservation,
+      client:      graph.client,
+      property:    graph.property,
+      options:     graph.options,
+      resources:   graph.resources,
+      settings:    readSettings(),
+    });
+    const { subject, body } = renderTemplate(
+      { subject: template.subject, body: template.body },
+      context,
+    );
+
+    const row = logModel.insert({
+      templateId:      Number(templateId),
+      reservationId:   Number(reservationId),
+      status:          'sent',
+      channel:         'manual',
+      errorMessage:    '',
+      renderedSubject: subject,
+      renderedBody:    body,
+      recipientEmail:  String(graph.client?.email || '').trim(),
+    });
+    return res.json({ ok: true, emailLogId: row.id });
+  }
+
   function history(req, res) {
     const { limit, offset, reservationId, templateId, status } = req.query || {};
     const result = logModel.history({
@@ -333,7 +379,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   }
 
   return {
-    preview, send, pending, acknowledge, history, queue, eligibleReservations,
+    preview, send, pending, acknowledge, markSent, history, queue, eligibleReservations,
     // Exposed for the scheduled task: it reuses the same render → send → log pipeline.
     buildPreview,
     smtpConfigured,

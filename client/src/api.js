@@ -344,6 +344,9 @@ const api = {
   getPendingEmails:          () => request('/emails/pending'),
   acknowledgePendingEmail:   ({ templateId, reservationId }) =>
     request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),
+  // Mark a pending email as sent outside GuestFlow (specs/mark-email-sent-manually.md).
+  markEmailSent:             ({ templateId, reservationId }) =>
+    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/mark-sent`, { method: 'POST' }),
   // Manual email compose (specs/manual-email-from-template.md)
   getEmailEligibleReservations: (q) =>
     request(`/emails/eligible-reservations${q ? `?q=${encodeURIComponent(q)}` : ''}`),

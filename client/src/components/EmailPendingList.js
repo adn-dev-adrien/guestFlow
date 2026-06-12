@@ -28,7 +28,7 @@ function formatStayDate(startDate) {
   } catch { return startDate; }
 }
 
-export default function EmailPendingList({ rows = [], onPreview, onOpenReservation, onAcknowledge, onFixEmail }) {
+export default function EmailPendingList({ rows = [], onPreview, onOpenReservation, onAcknowledge, onMarkSent, onFixEmail }) {
   return (
     <TableContainer>
       <Table size="small" sx={{ minWidth: 760 }}>
@@ -91,12 +91,24 @@ export default function EmailPendingList({ rows = [], onPreview, onOpenReservati
                   </Stack>
                 </TableCell>
                 <TableCell align="right">
-                  <Button
-                    size="small"
-                    onClick={(e) => { e.stopPropagation(); onAcknowledge(r); }}
-                  >
-                    Ignorer
-                  </Button>
+                  <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    {onMarkSent ? (
+                      <Button
+                        size="small"
+                        color="success"
+                        onClick={(e) => { e.stopPropagation(); onMarkSent(r); }}
+                      >
+                        Marquer comme envoyé
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="small"
+                      color="inherit"
+                      onClick={(e) => { e.stopPropagation(); onAcknowledge(r); }}
+                    >
+                      Ignorer
+                    </Button>
+                  </Stack>
                 </TableCell>
               </TableRow>
           ))}
