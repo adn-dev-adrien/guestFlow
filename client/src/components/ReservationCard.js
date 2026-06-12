@@ -35,6 +35,7 @@ import ExtensionIcon from '@mui/icons-material/Extension';
 import EuroIcon from '@mui/icons-material/Euro';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import NoteIcon from '@mui/icons-material/Note';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import BedIcon from './BedIcon';
@@ -251,6 +252,24 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
                 Lits:
               </Typography>
               <BedVisual doubleBeds={r.doubleBeds} singleBeds={r.singleBeds} babyBeds={r.babyBeds} />
+            </Box>
+          )}
+
+          {/* Bed-linen alert (specs/planning-arrival-alerts.md §3 rule 6). Server-computed flag
+              (`bedLinenAlert`): the guest didn't take the bed-linen option, or the bed configuration
+              sleeps fewer people than the booking. Never set for linen-by-default properties. */}
+          {r.bedLinenAlert && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              <WarningAmberIcon sx={{ fontSize: 16, color: 'warning.dark', flexShrink: 0 }} />
+              <Chip
+                label={r.bedLinenAlert.type === 'no_linen'
+                  ? 'Linge de lit non pris'
+                  : `Linge de lit insuffisant : ${r.bedLinenAlert.capacity} couchage${r.bedLinenAlert.capacity > 1 ? 's' : ''} pour ${r.bedLinenAlert.required} pers.`}
+                size="small"
+                color="warning"
+                variant="filled"
+                sx={{ height: 22, fontSize: 12, fontWeight: 700 }}
+              />
             </Box>
           )}
 
