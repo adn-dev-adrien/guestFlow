@@ -118,6 +118,7 @@ async function performAutoEmailPass(deps) {
           templateId:      template.id,
           reservationId:   reservation.id,
           status:          'sent',
+          channel:         'smtp',
           errorMessage:    '',
           renderedSubject: subject,
           renderedBody:    body,

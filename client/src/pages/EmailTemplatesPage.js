@@ -189,6 +189,22 @@ export default function EmailTemplatesPage() {
     }
   };
 
+  const handleMarkSent = async (row) => {
+    const ok = await confirm({
+      title: 'Marquer comme envoyé',
+      message: `Confirmer que l'email "${row.templateName}" a bien été envoyé à ${row.clientFullName || 'ce client'} (par un autre canal, hors GuestFlow) ? Il sera enregistré comme envoyé et quittera la liste.`,
+      confirmLabel: 'Marquer comme envoyé',
+      confirmColor: 'success',
+    });
+    if (!ok) return;
+    try {
+      await api.markEmailSent({ templateId: row.templateId, reservationId: row.reservationId });
+      await reloadPending();
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e?.message || 'Impossible de marquer l\'email comme envoyé.' });
+    }
+  };
+
   const handleOpen = (row) => {
     if (row) {
       setForm({
@@ -308,6 +324,7 @@ export default function EmailTemplatesPage() {
             onPreview={handlePreview}
             onOpenReservation={handleOpenReservation}
             onAcknowledge={handleAcknowledge}
+            onMarkSent={handleMarkSent}
             onFixEmail={handleFixEmail}
           />
         </Card>
