@@ -141,6 +141,15 @@ export default function SettingsCompanySection({
             error={errors.companyIban}
             disabled={disabled}
           />
+
+          <Divider />
+          <TextField
+            label="Code portail"
+            value={v.portalCode || ''}
+            onChange={setEvt('portalCode')}
+            helperText="Code du portail du domaine, communiqué au client à l'arrivée (SAS)."
+            disabled={disabled}
+          />
         </Stack>
       </CardContent>
     </Card>

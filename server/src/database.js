@@ -2001,6 +2001,32 @@ db.prepare(`
   `).run(ARRIVAL_REMINDER_1D_BODY, PRE_COMPLEMENT_J1_BODY);
 }
 
+// ---------- ARRIVAL / DEPARTURE SAS — specs/arrival-departure-sas.md ----------
+// Priced linen items shown in the SAS (operator-managed in Réglages → Blanchisserie). One table,
+// two categories ('bed' bed-linen elements + 'towel' towels/variants).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS linen_priced_items (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    label     TEXT NOT NULL,
+    price     REAL NOT NULL DEFAULT 0,
+    category  TEXT NOT NULL DEFAULT 'bed',
+    sortOrder INTEGER NOT NULL DEFAULT 0
+  );
+`);
+// End-of-stay complement (departure SAS): a dedicated amount, separate from the arrival complement.
+{
+  const rcols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+  if (!rcols.includes('endOfStayComplementAmount')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementAmount REAL NOT NULL DEFAULT 0");
+  if (!rcols.includes('endOfStayComplementPaid')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('endOfStayComplementPaidDate')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidDate TEXT");
+  if (!rcols.includes('endOfStayComplementDetail')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementDetail TEXT");
+}
+// Domain gate/access code shown on the arrival SAS (global — one code for the whole domain).
+{
+  const scols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);
+  if (!scols.includes('portalCode')) db.exec("ALTER TABLE app_settings ADD COLUMN portalCode TEXT DEFAULT ''");
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);
