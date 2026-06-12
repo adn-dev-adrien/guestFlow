@@ -84,6 +84,8 @@ const COLUMNS = [
   'smtpFromEmail',
   'smtpFromName',
   'publicUrl',
+  // Domain gate/access code shown on the arrival SAS (specs/arrival-departure-sas.md §3.5). Global.
+  'portalCode',
   // Booking notifications (specs/site-booking-notifications.md §5). Non-secret. `notificationsEnabled`
   // is the master switch (INTEGER 0/1, default 1); `notificationRecipientEmail` is the TO address
   // (empty → falls back to smtpFromEmail). The email link reuses `publicUrl`.

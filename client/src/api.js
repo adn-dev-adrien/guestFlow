@@ -281,6 +281,14 @@ const api = {
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
+  // Arrival / departure SAS (specs/arrival-departure-sas.md). One GET to assemble the wizard
+  // data, one POST to commit each SAS (single write, no per-step persistence).
+  getReservationSas: (id) => request(`/reservations/${encodeURIComponent(id)}/sas`),
+  commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
+  commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
+  // Priced linen items (Blanchisserie).
+  getLinenItems: () => request('/settings/linen-items'),
+  updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),
   // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
   // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
   // non-skipped trip. Global per date (one human, one trip). Spec

@@ -532,7 +532,7 @@ function NavContent({ onItemClick }) {
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Stock blanchisserie" slotProps={{
+                    <ListItemText primary="Blanchisserie" slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
