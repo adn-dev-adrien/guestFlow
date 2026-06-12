@@ -1860,6 +1860,16 @@ db.exec(`
   );
 `);
 
+// specs/mark-email-sent-manually.md §5 — `channel` records HOW a logged email left: 'smtp'
+// (sent by GuestFlow) or 'manual' (operator marked it sent from the platform's messaging).
+// Additive, idempotent; historical rows default to 'smtp' (they were SMTP sends).
+{
+  const emailLogCols = db.prepare('PRAGMA table_info(email_log)').all().map((c) => c.name);
+  if (!emailLogCols.includes('channel')) {
+    db.exec("ALTER TABLE email_log ADD COLUMN channel TEXT NOT NULL DEFAULT 'smtp'");
+  }
+}
+
 // Online payment links (specs/online-payments-qonto.md §5). One row per Qonto payment link issued
 // for a reservation/devis. `reference` reconciliation is by reservationId; the polling pass reads
 // `status='open'` rows and flips them to 'paid'. Amounts are stored in cents (integer, exact).

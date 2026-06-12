@@ -14,13 +14,13 @@
  */
 
 function buildModel(database) {
-  const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, errorMessage, renderedSubject, renderedBody, recipientEmail';
+  const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail';
 
   const insertStmt = database.prepare(`
     INSERT INTO email_log
-      (templateId, reservationId, sentAt, status, errorMessage, renderedSubject, renderedBody, recipientEmail)
+      (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail)
     VALUES
-      (@templateId, @reservationId, datetime('now'), @status, @errorMessage, @renderedSubject, @renderedBody, @recipientEmail)
+      (@templateId, @reservationId, datetime('now'), @status, @channel, @errorMessage, @renderedSubject, @renderedBody, @recipientEmail)
   `);
 
   // The cron + pending list both need to know "has this (template, reservation) pair already
@@ -40,6 +40,7 @@ function buildModel(database) {
       templateId:      payload.templateId == null ? null : Number(payload.templateId),
       reservationId:   Number(payload.reservationId),
       status:          String(payload.status || ''),
+      channel:         payload.channel === 'manual' ? 'manual' : 'smtp',
       errorMessage:    String(payload.errorMessage || ''),
       renderedSubject: String(payload.renderedSubject || ''),
       renderedBody:    String(payload.renderedBody || ''),
@@ -96,7 +97,7 @@ function buildModel(database) {
 
     const rows = database.prepare(`
       SELECT
-        l.id, l.templateId, l.reservationId, l.sentAt, l.status, l.errorMessage,
+        l.id, l.templateId, l.reservationId, l.sentAt, l.status, l.channel, l.errorMessage,
         l.renderedSubject, l.renderedBody, l.recipientEmail,
         COALESCE(t.name, '') AS templateName,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
