@@ -254,10 +254,14 @@ function simulateInventory({
   }
 
   // --- Initial state on `from` ---
-  // inCirculation = reservations active on `from` (startDate <= from < endDate)
+  // inCirculation = reservations that ALREADY arrived before `from` and are still staying
+  // (startDate < from < endDate). Arrivals ON `from` are deliberately excluded here: the day-`from`
+  // iteration of the loop below checks them in (clean → inCirculation). Counting them in both the
+  // initial state AND the check-in step double-counted today's arrivals — inflating consumption and
+  // producing phantom shortages (specs/linen-inventory-shortage-tracking.md §3.2).
   const inCirculation = zeroByType();
   for (const r of activeReservations) {
-    if (r.startDate <= from && r.endDate > from) {
+    if (r.startDate < from && r.endDate > from) {
       addInto(inCirculation, contractsByReservationId.get(Number(r.id)));
     }
   }

@@ -65,9 +65,13 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
    Conservation invariant: `clean + inCirculation + dirty + atLaundry = totalStock` on every
    day, for every type. Asserted by tests.
 
-4. **Initial state** at day `today`:
-   - `inCirculation[type]` = sum over reservations active on `today`
-     (`startDate <= today AND endDate > today`) of the linen contract for that type.
+4. **Initial state** at day `today` (the snapshot BEFORE today's own check-ins/pick-ups run):
+   - `inCirculation[type]` = sum over reservations that **already arrived before** `today` and are
+     still staying (`startDate < today AND endDate > today`) of the linen contract for that type.
+     Reservations arriving **on** `today` are NOT pre-counted here — the day-`today` iteration of the
+     simulation checks them in (clean → inCirculation). **Fixed 2026-06-12:** this bound was
+     previously `startDate <= today`, which combined with the same-day check-in step double-counted
+     today's arrivals, inflating consumption and producing phantom shortages.
    - `atLaundry[type]` = sum of drop-offs computed for laundry days in `(today - 7, today]`
      that haven't been picked up yet. On the laundry-day cycle, this equals exactly the
      drop-off computed for the most recent past laundry day before `today` (rule 8 of the
@@ -135,12 +139,14 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
 
 13. **Dashboard — shortage alert**: when at least one shortage exists in the horizon, a red
     `<Alert severity="error">` at the top of the Dashboard, with:
-    - Bold title `Stock insuffisant — N rupture(s) prévue(s) d'ici le DD/MM/YYYY` (the horizon
-      date is the last reservation's endDate).
-    - One paragraph per **type** in shortage (rule 11):
-      - Title: `Drap simple` / `Drap double` / `Drap bébé` / `Serviette grande` / etc.
-      - First shortage date.
-      - Maximum deficit across the horizon (worst-case number missing).
+    - Bold title `Stock blanchisserie insuffisant — N type(s) de linge en rupture à partir du
+      DD/MM/YYYY` (**Updated 2026-06-12:** the date is the **earliest first-shortage date** across
+      types — the actionable date — NOT the projection horizon. The horizon = last reservation's
+      checkout is a meaningless upper bound for the operator: a single far-future booking pushes it
+      months out, which read as a nonsensical date.)
+    - One line per **type** in shortage (rule 11), self-contained so the linen type is unambiguous:
+      `<Type> : jusqu'à N manquant(s) · première rupture le DD/MM/YYYY`, e.g.
+      `Drap double : jusqu'à 2 manquants · première rupture le 13/06/2026`.
       - List of impacted reservations as clickable chips labelled
         `<client first name> <client last name>` (falls back to `#<reservation-id>` only
         when the client row was deleted). Clicking navigates to `/reservations/:id`.

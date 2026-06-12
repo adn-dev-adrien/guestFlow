@@ -351,3 +351,47 @@ test('findHorizon returns null on empty / all-devis input', () => {
   assert.equal(findHorizon([]), null);
   assert.equal(findHorizon([{ kind: 'devis', endDate: '2026-06-01' }]), null);
 });
+
+// --- Regression: an arrival ON `from` must be counted ONCE (not double-counted) ---
+// Bug (fixed): the initial inCirculation used `startDate <= from`, which already counted today's
+// arrivals; the day-`from` check-in then added them again → 2× consumption → phantom shortage.
+test('arrival on the first simulated day is counted once (no double-count, no phantom shortage)', () => {
+  const stock = makeStock({ double: 10 });
+  const opt = makeBedLinenOption(100, { linenIncludesSingle: 0, linenIncludesBaby: 0 });
+  const r = simulateInventory({
+    stock,
+    reservations: [
+      { id: 1, kind: 'reservation', propertyId: 1, startDate: '2026-06-12', endDate: '2026-06-14',
+        singleBeds: 0, doubleBeds: 4, babyBeds: 0, adults: 2, teens: 0, children: 0 },
+    ],
+    options: [opt],
+    reservationOptions: [{ reservationId: 1, optionId: 100, quantity: 1 }],
+    propertyDefaults: [],
+    laundryWeekday: TUESDAY, from: '2026-06-12', to: '2026-06-12',
+  });
+  // 4 doubles consumed (once), not 8 → clean = 6, never negative.
+  assert.equal(r.days[0].inCirculation.double, 4, 'arrival counted exactly once');
+  assert.equal(r.days[0].clean.double, 6);
+  assert.equal(r.days[0].shortagesToday.length, 0);
+  assert.equal(r.shortagesByType.double.firstDate, null, 'no phantom shortage');
+  assertConservation(r, stock);
+});
+
+test('a guest who arrived BEFORE `from` is still in circulation on `from`', () => {
+  const stock = makeStock({ double: 10 });
+  const opt = makeBedLinenOption(100, { linenIncludesSingle: 0, linenIncludesBaby: 0 });
+  const r = simulateInventory({
+    stock,
+    reservations: [
+      { id: 1, kind: 'reservation', propertyId: 1, startDate: '2026-06-10', endDate: '2026-06-15',
+        singleBeds: 0, doubleBeds: 3, babyBeds: 0, adults: 2, teens: 0, children: 0 },
+    ],
+    options: [opt],
+    reservationOptions: [{ reservationId: 1, optionId: 100, quantity: 1 }],
+    propertyDefaults: [],
+    laundryWeekday: TUESDAY, from: '2026-06-12', to: '2026-06-12',
+  });
+  assert.equal(r.days[0].inCirculation.double, 3, 'prior arrival still in circulation');
+  assert.equal(r.days[0].clean.double, 7);
+  assertConservation(r, stock);
+});
