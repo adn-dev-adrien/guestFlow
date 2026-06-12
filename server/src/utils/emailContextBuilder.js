@@ -69,11 +69,12 @@ function formatPropertyWithArticle(name, article) {
  *   client: object | null,         // clients row
  *   property: object | null,       // properties row
  *   options: object[],             // joined reservation_options rows (with options.title + autoOptionType)
+ *   resources: object[],           // joined reservation_resources rows (with resources.name)
  *   settings: object,              // app_settings row
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], settings = {} }) {
+function buildContext({ reservation, client, property, options = [], resources = [], settings = {} }) {
   const r = reservation || {};
   const c = client || {};
   const p = property || {};
@@ -94,11 +95,26 @@ function buildContext({ reservation, client, property, options = [], settings = 
 
   const hasOptions = optionsTitles.length > 0;
   const hasBedLinenOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'bed_linen');
+  // Cleaning ("Ménage") option — tagged `autoOptionType = 'cleaning'` by the boot seed
+  // (specs/j1-arrival-reminder-email.md §4.1). Drives the J-1 "cleaning at your charge" else-branch.
+  const hasCleaningOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'cleaning');
+
+  // Resources list (specs/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
+  // booked resources' names, sorted alphabetically for stable rendering.
+  const resourcesTitles = (resources || [])
+    .map((rr) => safeStr(rr.name).trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+  const resourcesList = resourcesTitles.join(', ');
+  const hasResources = resourcesTitles.length > 0;
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy
   // until a dedicated cautionMethod column lands.
   const cautionAmountNum = Number(r.cautionAmount || 0);
   const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1;
+  // Precise caution signal for the J-1 reminder (specs/j1-arrival-reminder-email.md §3 rule 5):
+  // the caution cheque is still owed when an amount is due AND it has not been received yet.
+  const cautionNotReceived = cautionAmountNum > 0 && Number(r.cautionReceived || 0) !== 1;
 
   // Baby-bed notice for the J-7 reminder (specs/j7-email-baby-beds.md). Only relevant when the
   // booking has at least one baby. If baby beds are provided → tell the guest how many; if the
@@ -150,6 +166,7 @@ function buildContext({ reservation, client, property, options = [], settings = 
       cautionAmount:   formatCurrency(cautionAmountNum),
       // Lists
       optionsList,
+      resourcesList,
       bedConfig: formatBedConfig({
         singleBeds: r.singleBeds, doubleBeds: r.doubleBeds, babyBeds: r.babyBeds,
       }),
@@ -164,8 +181,11 @@ function buildContext({ reservation, client, property, options = [], settings = 
     },
     flags: {
       hasBedLinenOption,
+      hasCleaningOption,
       cautionNotBanked,
+      cautionNotReceived,
       hasOptions,
+      hasResources,
       hasBabyBedNotice,
     },
   };
