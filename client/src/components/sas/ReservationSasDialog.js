@@ -228,6 +228,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Stack>
         );
       case 'cleaning':
+        if (mode === 'departure') {
+          return (
+            <Stack spacing={1}>
+              <Typography variant="body1">Le ménage de fin de séjour a-t-il été fait correctement ?</Typography>
+              {cleaningOk === false && data.cleaning.price != null && (
+                <Typography variant="body2" color="warning.main">Ménage à facturer : {euro(data.cleaning.price)}.</Typography>
+              )}
+            </Stack>
+          );
+        }
         if (data.cleaning.included) {
           return (
             <Stack spacing={1}>
@@ -321,11 +331,20 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'options': return <>{quit}{next()}</>;
       case 'linen':
         return <>{quit}
-          <Button color="error" onClick={() => { setLinenOk(false); goNext(); }}>Pas OK</Button>
+          {/* « Pas OK » opens the conditional linen-items page — navigate to it explicitly: the
+              activeKeys goNext() reads is computed before this setState lands, so it wouldn't yet
+              contain 'linenItems'. */}
+          <Button color="error" onClick={() => { setLinenOk(false); setStepKey('linenItems'); }}>Pas OK</Button>
           <Button variant="contained" onClick={() => { setLinenOk(true); goNext(); }}>OK</Button>
         </>;
       case 'linenItems': return <>{quit}{next()}</>;
       case 'cleaning':
+        if (mode === 'departure') {
+          return <>{quit}
+            <Button color="error" onClick={() => { setCleaningOk(false); goNext(); }}>Pas OK</Button>
+            <Button variant="contained" color="success" onClick={() => { setCleaningOk(true); goNext(); }}>OK</Button>
+          </>;
+        }
         if (data.cleaning.included) return <>{quit}{next()}</>;
         return <>{quit}
           <Button onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
@@ -334,7 +353,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'missingAsk':
         return <>{quit}
           <Button onClick={() => { setMissingAsk(false); goNext(); }}>Non</Button>
-          <Button variant="contained" onClick={() => { setMissingAsk(true); goNext(); }}>Oui</Button>
+          {/* « Oui » opens the conditional missing-items page — navigate explicitly (see linen above). */}
+          <Button variant="contained" onClick={() => { setMissingAsk(true); setStepKey('missingItems'); }}>Oui</Button>
         </>;
       case 'missingItems': return <>{quit}{next()}</>;
       case 'keys':
