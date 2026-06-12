@@ -31,9 +31,16 @@ confirmation — records the caution status and the complement(s) on the reserva
 ## 3. Functional rules
 
 ### 3.0 Launch & shell
-1. **Clic sur la carte d'arrivée → arrival SAS** ; **clic sur la ligne de départ → departure SAS** (decision
-   2026-06-12). The full reservation page stays reachable via a discreet **« Ouvrir la fiche »** link in the
-   SAS header.
+1. **Launch from two explicit buttons on each planning tile** (decision 2026-06-13, superseding the
+   "click the whole card" model): every arrival card / departure row carries, on its top row, an
+   **« Ouvrir la réservation »** icon button (→ reservation page) and a **SAS** icon button (→ arrival
+   resp. departure SAS). The card body itself is **not** clickable.
+   - **The SAS button locks once its SAS is done**: when `arrivalSasDoneAt` (resp. `departureSasDoneAt`)
+     is set, the SAS button is **disabled and shows a ✓** (tooltip « Check-in/Check-out déjà effectué »),
+     so a finished SAS cannot be reopened.
+   - **The client name is a link** → opens the client fiche (`/clients?clientId=…`). Everything else on
+     the tile is inert. The full reservation page also stays reachable via a discreet
+     **« Ouvrir la fiche »** link in the SAS header once the SAS is open.
 2. The SAS is a **stepper of pages** (MUI Dialog, `fullScreen` on mobile). Every page has **Quitter** (abort
    → back to planning, **nothing written**) and a forward action. Non-applicable pages are **skipped**.
 3. **All writes happen once**, at the final **« Valider et terminer »** of the recap page (decision: write at
@@ -201,6 +208,9 @@ confirmation — records the caution status and the complement(s) on the reserva
 - **`reservations` new columns** (idempotent ADD COLUMN, default 0/null): `endOfStayComplementAmount REAL
   NOT NULL DEFAULT 0`, `endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0`, `endOfStayComplementPaidDate
   TEXT`, `endOfStayComplementDetail TEXT` (JSON/text breakdown for display).
+- **`reservations` SAS-done markers** (idempotent ADD COLUMN, default null): `arrivalSasDoneAt TEXT`,
+  `departureSasDoneAt TEXT` — set to `datetime('now')` by the respective commit; drive the disabled-✓
+  state of the planning SAS buttons so a finished SAS cannot be reopened (decision 2026-06-13).
 - Arrival complement items reuse `reservation_custom_options` (`inComplement=1`); no schema change there.
 
 **Data impact:** purely additive. Existing reservations get `endOfStayComplementAmount = 0`. No recompute of
@@ -239,6 +249,13 @@ existing reservations needed.
 - [x] Arrival linen « OK » **skips** the priced-items page.
 - [x] Departure: cleaning page shows « ménage fait correctement ? OK/Pas OK » (regression — it used to
       render the arrival UI), missing/keys flow, recap, `commitDepartureSas` payload.
+
+### Planning-tile launch tests (vitest, `ReservationCard.test.js` + `DepartureMiniRow.test.js`)
+- [x] « Ouvrir la réservation » button → `onOpenReservation(id)`; SAS button → `onOpenSas(id)`.
+- [x] SAS button **disabled with a ✓** when `arrivalSasDoneAt` / `departureSasDoneAt` is set (click is a
+      no-op) — pins the don't-reopen-a-finished-SAS rule.
+- [x] Client name link → `onOpenClient(clientId)`; toggling the ready/done checkbox fires no open handler;
+      with all handlers omitted the tile is read-only (no action buttons, plain-text client name).
 
 ### E2E (Playwright smoke)
 - [x] `auth/sidebar-navigation.spec.js` + `linen/stock-roundtrip.spec.js` updated for the « Stock

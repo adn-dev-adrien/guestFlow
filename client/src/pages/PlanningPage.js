@@ -124,6 +124,7 @@ export default function PlanningPage() {
   const [sas, setSas] = useState(null);
   const openArrivalSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'arrival' }); }, []);
   const openDepartureSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'departure' }); }, []);
+  const openClient = useCallback((clientId) => { if (clientId) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate]);
 
   const [loading, setLoading] = useState(true);
   const [planningDays, setPlanningDays] = useState([]);
@@ -667,7 +668,9 @@ export default function PlanningPage() {
                         key={`dep-${r.id}`}
                         reservation={r}
                         onToggleDone={handleToggleDepartureDone}
-                        onOpen={openDepartureSas}
+                        onOpenReservation={openReservation}
+                        onOpenSas={openDepartureSas}
+                        onOpenClient={openClient}
                         alertInfo={alertMap[r.id]}
                       />
                     ))}
@@ -681,7 +684,9 @@ export default function PlanningPage() {
                   reservation={r}
                   onToggleReady={handleToggleReady}
                   alertInfo={alertMap[r.id]}
-                  onOpen={openArrivalSas}
+                  onOpenReservation={openReservation}
+                  onOpenSas={openArrivalSas}
+                  onOpenClient={openClient}
                 />
               ))}
 

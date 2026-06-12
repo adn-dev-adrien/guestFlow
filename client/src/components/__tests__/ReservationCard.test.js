@@ -17,6 +17,7 @@ import { PLATFORM_COLORS } from '../../constants/platforms';
 
 const BASE = {
   id: 100,
+  clientId: 55,
   firstName: 'Famille',
   lastName: 'Dupont',
   propertyName: 'Gîte',
@@ -97,35 +98,67 @@ test('notes — still rendered on the arrival card (only departure dropped it)',
   expect(screen.getByText('Allergique aux chats')).toBeInTheDocument();
 });
 
-test('onOpen — clicking the card body calls onOpen(reservation.id)', () => {
-  const onOpen = vi.fn();
-  const { container } = render(
-    <ReservationCard reservation={BASE} onToggleReady={noop} onOpen={onOpen} />
+test('actions — the "Ouvrir la réservation" button calls onOpenReservation(id)', () => {
+  const onOpenReservation = vi.fn();
+  render(
+    <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={onOpenReservation} />
   );
-  const propertyName = screen.getByText('Gîte');
-  fireEvent.click(propertyName);
-  expect(onOpen).toHaveBeenCalledWith(100);
-  // Card cursor reflects the clickable state — MUI applies it via the sx prop's
-  // emotion className, hard to assert here. Behavior is enough to pin the contract.
-  expect(container.firstChild).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText('Ouvrir la réservation'));
+  expect(onOpenReservation).toHaveBeenCalledWith(100);
 });
 
-test('onOpen — clicking the ready checkbox does NOT trigger onOpen (stopPropagation)', () => {
-  const onOpen = vi.fn();
+test('SAS button — opens the arrival SAS when not yet done', () => {
+  const onOpenSas = vi.fn();
+  render(
+    <ReservationCard reservation={BASE} onToggleReady={noop} onOpenSas={onOpenSas} />
+  );
+  const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
+  expect(sasBtn).not.toBeDisabled();
+  fireEvent.click(sasBtn);
+  expect(onOpenSas).toHaveBeenCalledWith(100);
+});
+
+test('SAS button — disabled with a ✓ once the arrival SAS is done', () => {
+  const onOpenSas = vi.fn();
+  const r = { ...BASE, arrivalSasDoneAt: '2026-06-13 09:00:00' };
+  render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} />);
+  const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
+  expect(sasBtn).toBeDisabled();
+  fireEvent.click(sasBtn);
+  expect(onOpenSas).not.toHaveBeenCalled();
+});
+
+test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {
+  const onOpenClient = vi.fn();
+  render(
+    <ReservationCard reservation={BASE} onToggleReady={noop} onOpenClient={onOpenClient} />
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Famille Dupont' }));
+  expect(onOpenClient).toHaveBeenCalledWith(55);
+});
+
+test('ready checkbox — toggling it does NOT trigger any open handler (stopPropagation)', () => {
+  const onOpenReservation = vi.fn();
   const onToggleReady = vi.fn();
   render(
-    <ReservationCard reservation={BASE} onToggleReady={onToggleReady} onOpen={onOpen} />
+    <ReservationCard
+      reservation={BASE}
+      onToggleReady={onToggleReady}
+      onOpenReservation={onOpenReservation}
+    />
   );
-  const checkbox = screen.getByRole('checkbox');
-  fireEvent.click(checkbox);
+  fireEvent.click(screen.getByRole('checkbox'));
   expect(onToggleReady).toHaveBeenCalled();
-  expect(onOpen).not.toHaveBeenCalled();
+  expect(onOpenReservation).not.toHaveBeenCalled();
 });
 
-test('onOpen omitted — card stays read-only, no error on click', () => {
-  // No onOpen prop: clicking should not throw + handler should be undefined.
-  const { container } = render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
-  expect(() => fireEvent.click(container.firstChild)).not.toThrow();
+test('open handlers omitted — card renders read-only with no action buttons', () => {
+  render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
+  expect(screen.queryByLabelText('Ouvrir la réservation')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Check-in (SAS arrivée)')).not.toBeInTheDocument();
+  // Client name falls back to plain text (no button) when onOpenClient is absent.
+  expect(screen.queryByRole('button', { name: 'Famille Dupont' })).not.toBeInTheDocument();
+  expect(screen.getByText('Famille Dupont')).toBeInTheDocument();
 });
 
 test('alertInfo — explanation text shown next to property name', () => {

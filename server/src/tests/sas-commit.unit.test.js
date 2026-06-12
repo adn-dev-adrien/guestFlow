@@ -19,6 +19,7 @@ function makeDb() {
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementDetail TEXT,
+      arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
       updatedAt TEXT
     );
     CREATE TABLE reservation_custom_options (
@@ -78,10 +79,11 @@ test('commitArrivalSas: caution marked received + items added inComplement + com
     complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }, { label: 'Ménage', amount: 40 }],
   });
   assert.equal(newComplement, 75); // 30 + 5 + 40
-  const r = db.prepare('SELECT cautionReceived, cautionReceivedDate, complementAmount FROM reservations WHERE id = 1').get();
+  const r = db.prepare('SELECT cautionReceived, cautionReceivedDate, complementAmount, arrivalSasDoneAt FROM reservations WHERE id = 1').get();
   assert.equal(r.cautionReceived, 1);
   assert.ok(r.cautionReceivedDate);
   assert.equal(r.complementAmount, 75);
+  assert.ok(r.arrivalSasDoneAt, 'arrival SAS marked done');
   const customs = db.prepare("SELECT description, amount, inComplement, offered FROM reservation_custom_options WHERE reservationId = 1 ORDER BY sortOrder").all();
   assert.equal(customs.length, 2);
   assert.ok(customs.every((c) => c.inComplement === 1 && c.offered === 0));
@@ -114,8 +116,9 @@ test('commitDepartureSas: caution returned + end-of-stay complement + detail set
     endOfStayComplementAmount: 48,
     endOfStayComplementDetail: [{ label: 'Ménage', amount: 40 }, { label: 'Serviette', amount: 8 }],
   });
-  const r = db.prepare('SELECT cautionReturned, cautionReturnedDate, endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  const r = db.prepare('SELECT cautionReturned, cautionReturnedDate, endOfStayComplementAmount, endOfStayComplementDetail, departureSasDoneAt FROM reservations WHERE id = 1').get();
   assert.equal(r.cautionReturned, 1);
+  assert.ok(r.departureSasDoneAt, 'departure SAS marked done');
   assert.ok(r.cautionReturnedDate);
   assert.equal(r.endOfStayComplementAmount, 48);
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((d) => d.label), ['Ménage', 'Serviette']);

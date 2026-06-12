@@ -24,7 +24,7 @@
 
 import React from 'react';
 import {
-  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip,
+  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link,
 } from '@mui/material';
 import { grey } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
@@ -34,13 +34,14 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import LogoutIcon from '@mui/icons-material/Logout';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
 
-export default function DepartureMiniRow({ reservation, onToggleDone, onOpen, alertInfo }) {
+export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
   const done = Boolean(reservation.checkOutDone);
-  const clickable = typeof onOpen === 'function';
-  const handleCardClick = clickable ? () => onOpen(reservation.id) : undefined;
+  const sasDone = !!reservation.departureSasDoneAt;
   const stop = (e) => e.stopPropagation();
   // Symmetric alert background with `ReservationCard`: when there's a tight transition,
   // the operator sees the same coloured pull on the departure as on the next arrival.
@@ -52,7 +53,6 @@ export default function DepartureMiniRow({ reservation, onToggleDone, onOpen, al
   return (
     <Card
       variant="outlined"
-      onClick={handleCardClick}
       sx={{
         mb: 1.5,
         borderRadius: 2,
@@ -60,8 +60,6 @@ export default function DepartureMiniRow({ reservation, onToggleDone, onOpen, al
         bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
-        cursor: clickable ? 'pointer' : 'default',
-        '&:hover': clickable ? { boxShadow: 2, borderColor: 'primary.light' } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
@@ -109,6 +107,30 @@ export default function DepartureMiniRow({ reservation, onToggleDone, onOpen, al
             }}
           />
           {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+          <Box sx={{ flexGrow: 1 }} />
+          {/* Two explicit actions: open the reservation, run the departure SAS (✓ + disabled once done). */}
+          {onOpenReservation && (
+            <Tooltip title="Ouvrir la réservation">
+              <IconButton size="small" onClick={() => onOpenReservation(reservation.id)} aria-label="Ouvrir la réservation">
+                <OpenInNewIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onOpenSas && (
+            <Tooltip title={sasDone ? 'Check-out déjà effectué' : 'Check-out (SAS départ)'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color={sasDone ? 'success' : 'primary'}
+                  disabled={sasDone}
+                  onClick={() => onOpenSas(reservation.id)}
+                  aria-label="Check-out (SAS départ)"
+                >
+                  {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <LogoutIcon sx={{ fontSize: 20 }} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Box>
 
         {/* Detail block indented to align with the left edge of the DÉPART badge */}
@@ -136,9 +158,21 @@ export default function DepartureMiniRow({ reservation, onToggleDone, onOpen, al
               duplicate of the top time pill is removed (Adrien 2026-06-06). */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
             <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {reservation.firstName} {reservation.lastName}
-            </Typography>
+            {onOpenClient && reservation.clientId ? (
+              <Link
+                component="button"
+                type="button"
+                underline="hover"
+                onClick={(e) => { stop(e); onOpenClient(reservation.clientId); }}
+                sx={{ textAlign: 'left', fontWeight: 600 }}
+              >
+                {reservation.firstName} {reservation.lastName}
+              </Link>
+            ) : (
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {reservation.firstName} {reservation.lastName}
+              </Typography>
+            )}
           </Box>
 
           {/* Prominent Ménage block — sits where the (removed) Famille chips used to

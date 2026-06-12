@@ -2020,6 +2020,10 @@ db.exec(`
   if (!rcols.includes('endOfStayComplementPaid')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('endOfStayComplementPaidDate')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidDate TEXT");
   if (!rcols.includes('endOfStayComplementDetail')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementDetail TEXT");
+  // SAS completion markers (specs/arrival-departure-sas.md §3.0): set on commit so the planning
+  // card disables the SAS button once done (no accidental re-run).
+  if (!rcols.includes('arrivalSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalSasDoneAt TEXT");
+  if (!rcols.includes('departureSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN departureSasDoneAt TEXT");
 }
 // Domain gate/access code shown on the arrival SAS (global — one code for the whole domain).
 {

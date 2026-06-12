@@ -1,0 +1,1 @@
+- Planning tiles now launch the arrival/departure SAS from two explicit buttons (« Ouvrir la réservation » + the SAS button) instead of a clickable card; the SAS button is disabled with a ✓ once its check-in/check-out is done, so a finished SAS can no longer be reopened, and the client name links straight to the client fiche.
