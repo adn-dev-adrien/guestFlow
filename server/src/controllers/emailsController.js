@@ -48,7 +48,17 @@ function loadReservationGraph(database, reservationId) {
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
   `).all(id);
-  return { reservation, client, property, options, resources };
+  // Does the reservation's PROPERTY provide bed linen by default? (specs/j1-linen-default-message.md
+  // §3 rule 1) — the bed-linen option is a default-offered option for that property.
+  const bedLinenProvidedByDefault = reservation.propertyId
+    ? Boolean(database.prepare(`
+        SELECT 1 FROM property_option_defaults d
+        JOIN options o ON o.id = d.optionId
+        WHERE d.propertyId = ? AND o.autoOptionType = 'bed_linen' AND d.offered = 1
+        LIMIT 1
+      `).get(reservation.propertyId))
+    : false;
+  return { reservation, client, property, options, resources, bedLinenProvidedByDefault };
 }
 
 function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel }) {
@@ -81,6 +91,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       property:    graph.property,
       options:     graph.options,
       resources:   graph.resources,
+      bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
     });
 
@@ -246,6 +257,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       property:    graph.property,
       options:     graph.options,
       resources:   graph.resources,
+      bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(

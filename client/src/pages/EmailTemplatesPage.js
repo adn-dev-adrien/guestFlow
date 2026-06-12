@@ -52,6 +52,7 @@ const VARIABLE_BUTTONS = [
   { label: 'Caution',          token: '{{cautionAmount}}' },
   // Options
   { label: 'Liste options',    token: '{{optionsList}}' },
+  { label: 'Option(s) réservée(s)', token: '{{reservedOptionsList}}' },
   { label: 'Liste ressources', token: '{{resourcesList}}' },
   { label: 'Config lits',      token: '{{bedConfig}}' },
   // Entreprise
@@ -62,10 +63,13 @@ const VARIABLE_BUTTONS = [
 
 const CONDITION_BUTTONS = [
   { label: 'Si linge de lit',       token: '{{#if hasBedLinenOption}}' },
+  { label: 'Si linge fourni par défaut', token: '{{#if bedLinenProvidedByDefault}}' },
+  { label: 'Si apporter son linge', token: '{{#if bedLinenBringYourOwn}}' },
   { label: 'Si ménage',             token: '{{#if hasCleaningOption}}' },
   { label: 'Si caution non encaissée', token: '{{#if cautionNotBanked}}' },
   { label: 'Si caution non reçue',  token: '{{#if cautionNotReceived}}' },
   { label: 'Si options',            token: '{{#if hasOptions}}' },
+  { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
   { label: 'Si ressources',         token: '{{#if hasResources}}' },
   { label: 'Sinon',                 token: '{{else}}' },
   { label: 'Fin si',                token: '{{/if}}' },

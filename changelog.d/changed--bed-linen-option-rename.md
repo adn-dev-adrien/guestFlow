@@ -1,0 +1,1 @@
+- The bed-linen option titled « Linge de lits » (plural) is normalised to **« Linge de lit »** (singular) on every server, at boot (idempotent, scoped to the `autoOptionType='bed_linen'` row).

@@ -50,10 +50,12 @@ const ARRIVAL_REMINDER_7D_BODY = [
   '{{senderName}}',
 ].join('\n');
 
-// J-1 last-minute reminder (specs/j1-arrival-reminder-email.md §6). Warm tone; the three
-// conditional reminders (caution cheque / bring own linen / cleaning at your charge) each
-// render only when relevant — the linen + cleaning ones use the {{else}} branch of their
-// "has option" flag. Resources are listed alongside options.
+// J-1 last-minute reminder (specs/j1-arrival-reminder-email.md + j1-linen-default-message.md §6).
+// Warm tone; conditional blocks render only when relevant. Linen logic (3 states):
+//   - property provides linen by default → "beds made on arrival" (and the linen option is dropped
+//     from the "Option(s) réservée(s)" list server-side, via {{reservedOptionsList}});
+//   - linen neither provided nor booked → "bring your own linen" ({{#if bedLinenBringYourOwn}});
+//   - linen booked as a paid add-on → no message, listed in the options.
 const ARRIVAL_REMINDER_1D_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
@@ -64,12 +66,14 @@ const ARRIVAL_REMINDER_1D_BODY = [
   '- Logement : {{propertyName}}',
   '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
   '- Départ   : le {{endDate}} avant {{checkOutTime}}',
-  '{{#if hasOptions}}- Options réservées : {{optionsList}}',
+  '{{#if hasReservedOptions}}- Option(s) réservée(s) : {{reservedOptionsList}}',
   '{{/if}}{{#if hasResources}}- Équipements réservés : {{resourcesList}}',
   '{{/if}}',
   '{{#if cautionNotReceived}}Pour finaliser votre arrivée, pensez à prévoir un chèque de caution de {{cautionAmount}} à nous remettre sur place.',
   '',
-  '{{/if}}{{#if hasBedLinenOption}}{{else}}Le linge de lit n\'est pas inclus dans votre réservation : pensez à apporter le vôtre (draps, taies d\'oreiller). Vous pouvez aussi nous demander de l\'ajouter, avec plaisir.',
+  '{{/if}}{{#if bedLinenProvidedByDefault}}Pour votre confort, les lits seront faits à votre arrivée.',
+  '',
+  '{{/if}}{{#if bedLinenBringYourOwn}}Le linge de lit n\'est pas inclus dans votre réservation : pensez à apporter le vôtre (draps, taies d\'oreiller). Vous pouvez aussi nous demander de l\'ajouter, avec plaisir.',
   '',
   '{{/if}}{{#if hasCleaningOption}}{{else}}Le ménage de fin de séjour n\'a pas été réservé : il reste à votre charge avant le départ. N\'hésitez pas si vous souhaitez l\'ajouter, nous nous en occupons volontiers.',
   '',
