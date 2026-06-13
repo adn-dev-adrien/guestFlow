@@ -14,8 +14,12 @@ import {
   CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import LocalCafeIcon from '@mui/icons-material/LocalCafe';
+import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
+import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import ConfirmDialog from '../ConfirmDialog';
 
 function euro(n) {
   return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
@@ -24,6 +28,25 @@ function frDate(iso) {
   if (!iso) return '';
   try { return new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }); }
   catch { return iso; }
+}
+
+// Integer stepper for a labelled breakfast drink (icon + label, no price). Module-level so it
+// keeps a stable identity across parent re-renders (an inline component would remount on every
+// keystroke/click and detach its DOM nodes mid-interaction).
+function CountStepper({ icon, label, value, onChange }) {
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+        {icon}
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      </Stack>
+      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+        <Button size="small" variant="outlined" onClick={() => onChange(Math.max(0, value - 1))} disabled={value <= 0} sx={{ minWidth: 36 }}>−</Button>
+        <TextField value={value} onChange={(e) => onChange(Math.max(0, Math.floor(Number(e.target.value) || 0)))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
+        <Button size="small" variant="outlined" onClick={() => onChange(value + 1)} sx={{ minWidth: 36 }}>+</Button>
+      </Stack>
+    </Stack>
+  );
 }
 
 export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted }) {
@@ -47,6 +70,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [missingDep, setMissingDep] = useState({});       // departure: { itemId: qty }
   const [keysReceived, setKeysReceived] = useState(null); // departure
   const [cautionReturned, setCautionReturned] = useState(null); // departure
+  // arrival breakfast page (specs/sas-breakfast-and-handover-note.md)
+  const [breakfast, setBreakfast] = useState({ coffee: 0, tea: 0, chocolate: 0 });
+  const [breakfastTime, setBreakfastTime] = useState('');
+  const [breakfastNote, setBreakfastNote] = useState('');
+  const [handoverNote, setHandoverNote] = useState(''); // arrival recap → shown at departure
+  const [breakfastWarnOpen, setBreakfastWarnOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;
@@ -54,8 +83,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setLoading(true); setError(''); setData(null); setStepKey(null);
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null);
+    setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     api.getReservationSas(reservationId)
-      .then((d) => { if (!cancelled) { setData(d); setStepKey('intro'); } })
+      .then((d) => {
+        if (cancelled) return;
+        setData(d); setStepKey('intro');
+        const b = d?.breakfast;
+        if (b?.applicable) {
+          setBreakfast({ coffee: Number(b.coffee) || 0, tea: Number(b.tea) || 0, chocolate: Number(b.chocolate) || 0 });
+          setBreakfastTime(b.time || '');
+          setBreakfastNote(b.note || '');
+        }
+      })
       .catch((e) => { if (!cancelled) setError(e?.message || 'Erreur de chargement.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -76,6 +115,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         data.portalCode ? 'portal' : null,
         cautionDue ? 'caution' : null,
         hasOptions ? 'options' : null,
+        data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         'cleaning',
@@ -121,10 +161,19 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCommitting(true); setError('');
     try {
       if (mode === 'arrival') {
-        await api.commitArrivalSas(reservationId, {
+        const payload = {
           cautionReceived: caution === 'fait',
           complementItems: arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })),
-        });
+          departureHandoverNote: handoverNote,
+        };
+        if (data.breakfast?.applicable) {
+          payload.breakfastTime = breakfastTime;
+          payload.breakfastCoffee = breakfast.coffee;
+          payload.breakfastTea = breakfast.tea;
+          payload.breakfastChocolate = breakfast.chocolate;
+          payload.breakfastNote = breakfastNote;
+        }
+        await api.commitArrivalSas(reservationId, payload);
       } else {
         await api.commitDepartureSas(reservationId, {
           cautionReturned: cautionReturned === true,
@@ -160,6 +209,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     );
   };
 
+  // Breakfast coherence: total drinks vs the server-resolved morning person count (soft warning, rule 4b).
+  const breakfastTotal = Number(breakfast.coffee) + Number(breakfast.tea) + Number(breakfast.chocolate);
+  const breakfastPersons = Number(data?.breakfast?.persons || 0);
+  const breakfastMismatch = breakfastTotal !== breakfastPersons;
+
   // ---- page renderers ----
   function renderBody() {
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress /></Box>;
@@ -177,6 +231,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="body2" color="text.secondary">
               {(Number(r.adults || 0) + Number(r.teens || 0) + Number(r.children || 0) + Number(r.babies || 0))} personne(s)
             </Typography>
+            {mode === 'departure' && r.departureHandoverNote && (
+              <Box sx={{ mt: 1, p: 1, borderRadius: 1, bgcolor: 'rgba(255, 193, 7, 0.12)', border: '1px solid', borderColor: 'warning.light' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', display: 'block' }}>Note laissée à l'arrivée</Typography>
+                <Typography variant="body2">{r.departureHandoverNote}</Typography>
+              </Box>
+            )}
           </Stack>
         );
       case 'portal':
@@ -208,6 +268,39 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Stack>
         );
       }
+      case 'breakfast':
+        return (
+          <Stack spacing={1.5}>
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>Petit déjeuner</Typography>
+            <TextField
+              label="Heure du petit déjeuner"
+              type="time"
+              value={breakfastTime}
+              onChange={(e) => setBreakfastTime(e.target.value)}
+              size="small"
+              sx={{ maxWidth: 200 }}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <Divider />
+            <Stack spacing={0.5} divider={<Divider />}>
+              <CountStepper icon={<LocalCafeIcon color="action" />} label="Café" value={Number(breakfast.coffee)} onChange={(v) => setBreakfast((b) => ({ ...b, coffee: v }))} />
+              <CountStepper icon={<EmojiFoodBeverageIcon color="action" />} label="Thé" value={Number(breakfast.tea)} onChange={(v) => setBreakfast((b) => ({ ...b, tea: v }))} />
+              <CountStepper icon={<FreeBreakfastIcon sx={{ color: '#795548' }} />} label="Chocolat chaud" value={Number(breakfast.chocolate)} onChange={(v) => setBreakfast((b) => ({ ...b, chocolate: v }))} />
+            </Stack>
+            <Typography variant="caption" sx={{ color: breakfastMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastMismatch ? 700 : 400 }}>
+              {breakfastTotal} boisson{breakfastTotal > 1 ? 's' : ''} pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}
+            </Typography>
+            <TextField
+              label="Note petit déjeuner (optionnel)"
+              value={breakfastNote}
+              onChange={(e) => setBreakfastNote(e.target.value)}
+              size="small"
+              multiline
+              minRows={2}
+              fullWidth
+            />
+          </Stack>
+        );
       case 'linen':
         return (
           <Stack spacing={1.5}>
@@ -295,6 +388,17 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
                 <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({euro(arrivalAdded)}) manuellement.</Typography>
               )}
+              <Divider />
+              <TextField
+                label="Note pour le départ (optionnel)"
+                value={handoverNote}
+                onChange={(e) => setHandoverNote(e.target.value)}
+                size="small"
+                multiline
+                minRows={2}
+                fullWidth
+                helperText="Affichée au check-out (SAS départ + carte planning)."
+              />
             </Stack>
           );
         }
@@ -329,6 +433,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Button variant="contained" color="success" onClick={() => { setCaution('fait'); goNext(); }}>Fait</Button>
         </>;
       case 'options': return <>{quit}{next()}</>;
+      case 'breakfast':
+        return <>{quit}
+          <Button variant="contained" onClick={() => { if (breakfastMismatch) setBreakfastWarnOpen(true); else goNext(); }}>Suivant</Button>
+        </>;
       case 'linen':
         return <>{quit}
           {/* « Pas OK » opens the conditional linen-items page — navigate to it explicitly: the
@@ -377,6 +485,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
 
   const title = mode === 'arrival' ? 'Arrivée' : 'Départ';
   return (
+    <>
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
         <span>{title}{r ? ` — ${r.firstName} ${r.lastName}` : ''}</span>
@@ -391,5 +500,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       </DialogContent>
       <DialogActions>{renderActions()}</DialogActions>
     </Dialog>
+    <ConfirmDialog
+      open={breakfastWarnOpen}
+      onClose={() => setBreakfastWarnOpen(false)}
+      onConfirm={() => { setBreakfastWarnOpen(false); goNext(); }}
+      title="Boissons ≠ personnes"
+      message={`Le nombre de boissons (${breakfastTotal}) ne correspond pas au nombre de personnes (${breakfastPersons}). Continuer quand même ?`}
+      confirmLabel="Continuer"
+      cancelLabel="Modifier"
+      confirmColor="warning"
+    />
+    </>
   );
 }

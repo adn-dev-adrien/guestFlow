@@ -155,3 +155,16 @@ test('done state — "Effectué" badge surfaces when checkOutDone is true', () =
   render(<DepartureMiniRow reservation={r} onToggleDone={noop} />);
   expect(screen.getByText('Effectué')).toBeInTheDocument();
 });
+
+// specs/sas-breakfast-and-handover-note.md — handover note authored at arrival, shown at departure.
+test('handover note — caption renders when departureHandoverNote is set', () => {
+  const r = { ...BASE, departureHandoverNote: 'Récupérer la 2e clé' };
+  render(<DepartureMiniRow reservation={r} onToggleDone={noop} />);
+  expect(screen.getByText("Note d'arrivée")).toBeInTheDocument();
+  expect(screen.getByText('Récupérer la 2e clé')).toBeInTheDocument();
+});
+
+test('handover note — nothing rendered when departureHandoverNote is empty', () => {
+  render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} />);
+  expect(screen.queryByText("Note d'arrivée")).toBeNull();
+});
