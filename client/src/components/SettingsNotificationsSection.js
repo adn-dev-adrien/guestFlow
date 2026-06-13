@@ -10,7 +10,7 @@
  * Mirrors the visual shape of the other Settings sections (Card → Stack → h6 → caption).
  *
  * Props:
- *   values:   { enabled: boolean, recipientEmail: string }
+ *   values:   { enabled: boolean, icalReservationEnabled: boolean, recipientEmail: string }
  *   errors:   { notificationRecipientEmail?: string }
  *   onChange: (key, value) => void
  *   disabled: boolean
@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 
 export default function SettingsNotificationsSection({
-  values = { enabled: true, recipientEmail: '' },
+  values = { enabled: true, icalReservationEnabled: true, recipientEmail: '' },
   errors = {},
   onChange,
   disabled = false,
@@ -49,6 +49,18 @@ export default function SettingsNotificationsSection({
               />
             }
             label="Activer les notifications par email"
+            sx={{ alignSelf: 'flex-start' }}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={Boolean(values.icalReservationEnabled)}
+                onChange={(e) => onChange('icalReservationEnabled', e.target.checked)}
+                disabled={disabled || !values.enabled}
+              />
+            }
+            label="Email à chaque nouvelle réservation plateforme (iCal)"
             sx={{ alignSelf: 'flex-start' }}
           />
 

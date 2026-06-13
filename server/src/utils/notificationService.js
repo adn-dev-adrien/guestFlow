@@ -159,6 +159,12 @@ function buildNotificationService({
 
   async function notifyNewIcalReservation(reservationId) {
     try {
+      // Per-channel switch (spec §3 rule 9b): when off, the platform new-reservation email is
+      // suppressed even though the master toggle stays on. Checked first so a disabled channel
+      // doesn't even read the reservation row.
+      if (!settingsModel.notificationSettings().icalReservationEnabled) {
+        return { sent: false, skipped: 'ical_disabled' };
+      }
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
       const resa = loadReservation(reservationId);

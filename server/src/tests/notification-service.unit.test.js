@@ -41,9 +41,9 @@ function seedDb() {
   return db;
 }
 
-function makeFakeSettings({ enabled = true, recipientEmail = 'owner@example.com', fromEmail = 'noreply@example.com', publicUrl = 'https://app.example.com', smtpConfigured = true } = {}) {
+function makeFakeSettings({ enabled = true, icalReservationEnabled = true, recipientEmail = 'owner@example.com', fromEmail = 'noreply@example.com', publicUrl = 'https://app.example.com', smtpConfigured = true } = {}) {
   return {
-    notificationSettings: () => ({ enabled, recipientEmail, fromEmail, publicUrl }),
+    notificationSettings: () => ({ enabled, icalReservationEnabled, recipientEmail, fromEmail, publicUrl }),
     smtpConfigured: () => smtpConfigured,
     decryptedSmtpSettings: () => ({ host: 'smtp', fromEmail }),
   };
@@ -132,6 +132,25 @@ test('notifyNewIcalReservation sends platform + guest + reservation link', async
   assert.match(sent[0].subject, /Nouvelle réservation Airbnb/);
   assert.match(sent[0].text, /Jean \(Airbnb\)/);
   assert.match(sent[0].text, /https:\/\/app\.example\.com\/reservations\/200/);
+});
+
+test('per-channel toggle OFF → notifyNewIcalReservation skipped (ical_disabled), no send', async () => {
+  const db = seedDb();
+  const sent = [];
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings({ icalReservationEnabled: false }), emailServiceFactory: makeFakeFactory(sent), logger: silentLogger });
+  const res = await svc.notifyNewIcalReservation(200);
+  assert.equal(res.sent, false);
+  assert.equal(res.skipped, 'ical_disabled');
+  assert.equal(sent.length, 0);
+});
+
+test('per-channel iCal toggle does NOT affect the site-devis email', async () => {
+  const db = seedDb();
+  const sent = [];
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings({ icalReservationEnabled: false }), emailServiceFactory: makeFakeFactory(sent), logger: silentLogger });
+  const res = await svc.notifyNewSiteDevis(99);
+  assert.equal(res.sent, true);
+  assert.equal(sent.length, 1);
 });
 
 test('missing row → skipped not_found, no send, no throw', async () => {

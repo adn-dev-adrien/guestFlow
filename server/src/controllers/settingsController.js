@@ -82,6 +82,7 @@ const RESERVATIONS_FIELDS = [
 // sender at send time). The email link reuses the SMTP group's `publicUrl`.
 const NOTIFICATIONS_FIELDS = [
   { input: 'enabled', column: 'notificationsEnabled' },
+  { input: 'icalReservationEnabled', column: 'notifyIcalReservationEnabled' },
   { input: 'recipientEmail', column: 'notificationRecipientEmail', validator: validation.validateEmail },
 ];
 
@@ -103,7 +104,7 @@ const LINEN_STOCK_FIELDS = [
 
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
 // coerce them consistently — any new BOOL column should go in here.
-const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled']);
+const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
 
 // Columns that must be coerced to a non-negative integer floor at the boundary (defensive
 // against the form sending strings or decimals). The validator already rejects out-of-range

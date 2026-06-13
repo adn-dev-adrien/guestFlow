@@ -53,6 +53,7 @@ const EMPTY_FORM = {
   // falls back to the SMTP sender server-side.
   notifications: {
     enabled: true,
+    icalReservationEnabled: true,
     recipientEmail: '',
   },
 };
