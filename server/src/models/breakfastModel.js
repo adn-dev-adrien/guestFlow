@@ -60,6 +60,10 @@ function buildModel(database) {
       COALESCE(cli.lastName,  '') AS lastName,
       COALESCE(prop.name, '') AS propertyName,
       res.breakfastTime AS reservationBreakfastTime,
+      res.breakfastCoffee AS coffee,
+      res.breakfastTea AS tea,
+      res.breakfastChocolate AS chocolate,
+      res.breakfastNote AS note,
       sub.qtySum AS qtySum
     FROM reservations res
     JOIN (
@@ -98,6 +102,43 @@ function buildModel(database) {
       AND res.endDate   > ?   -- from: exclude reservations already over at window start
   `);
 
+  // Single-reservation variant of `stmt` (no date window) — drives the breakfast SAS page.
+  // INNER JOIN on the eligibility sub-query: no row ⇒ breakfast not applicable to this reservation.
+  const forReservationStmt = database.prepare(`
+    SELECT
+      res.id AS reservationId,
+      res.adults, res.teens, res.children,
+      res.breakfastTime AS reservationBreakfastTime,
+      res.breakfastCoffee AS coffee,
+      res.breakfastTea AS tea,
+      res.breakfastChocolate AS chocolate,
+      res.breakfastNote AS note,
+      sub.qtySum AS qtySum
+    FROM reservations res
+    JOIN (
+      SELECT reservationId, SUM(qtySum) AS qtySum
+      FROM (
+        SELECT ro.reservationId, COALESCE(ro.quantity, 0) AS qtySum
+          FROM reservation_options ro
+          JOIN options o ON o.id = ro.optionId
+         WHERE o.autoOptionType = 'breakfast'
+        UNION ALL
+        SELECT res2.id AS reservationId, 1.0 AS qtySum
+          FROM reservations res2
+          JOIN property_option_defaults pod ON pod.propertyId = res2.propertyId
+          JOIN options o ON o.id = pod.optionId
+         WHERE o.autoOptionType = 'breakfast'
+           AND NOT EXISTS (
+             SELECT 1 FROM reservation_options ro2
+             JOIN options o2 ON o2.id = ro2.optionId
+             WHERE ro2.reservationId = res2.id AND o2.autoOptionType = 'breakfast'
+           )
+      ) sources
+      GROUP BY reservationId
+    ) sub ON sub.reservationId = res.id
+    WHERE res.id = ? AND res.kind = 'reservation'
+  `);
+
   // Default breakfast hour carried by the (single, typed) breakfast option. Guarded so minimal
   // test schemas without the `breakfastTime` column simply fall back to FALLBACK_BREAKFAST_TIME.
   const optionDefaultStmt = (() => {
@@ -108,7 +149,38 @@ function buildModel(database) {
     } catch { return null; }
   })();
 
+  // Effective default breakfast hour (option default, else hard fallback). Resolved on demand.
+  function resolveOptionDefaultTime() {
+    const optionDefaultRow = optionDefaultStmt ? optionDefaultStmt.get() : null;
+    return (optionDefaultRow && formatTimeShort(optionDefaultRow.breakfastTime)) || FALLBACK_BREAKFAST_TIME;
+  }
+
   return {
+    /**
+     * Breakfast state for the arrival SAS breakfast page. Returns
+     * `{ applicable, persons, time, coffee, tea, chocolate, note }`.
+     * `applicable` is false when the reservation has no breakfast option (explicit or via property
+     * default) — the SAS then skips the breakfast page. `persons` is the same resolved morning count
+     * shown on the planning card; `time` is the effective hour (reservation override → option default
+     * → fallback). Counts/note are the stored values (0 / '' before first capture).
+     */
+    getForReservation(reservationId) {
+      const r = forReservationStmt.get(Number(reservationId));
+      if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, note: '' };
+      const personsBase = (Number(r.adults) || 0) + (Number(r.teens) || 0) + (Number(r.children) || 0);
+      const persons = Math.max(0, Math.round(personsBase * (Number(r.qtySum) || 0)));
+      const time = formatTimeShort(r.reservationBreakfastTime) || resolveOptionDefaultTime();
+      return {
+        applicable: true,
+        persons,
+        time,
+        coffee: Math.max(0, Number(r.coffee) || 0),
+        tea: Math.max(0, Number(r.tea) || 0),
+        chocolate: Math.max(0, Number(r.chocolate) || 0),
+        note: (r.note && String(r.note).trim()) || '',
+      };
+    },
+
     /**
      * Returns `{ 'YYYY-MM-DD': { items: [{ reservationId, clientName, propertyName,
      * persons }], totalPersons } }` for every breakfast day in `[from, to]`. Empty
@@ -144,6 +216,10 @@ function buildModel(database) {
             propertyName: r.propertyName || '',
             persons,
             breakfastTime,
+            coffee: Math.max(0, Number(r.coffee) || 0),
+            tea: Math.max(0, Number(r.tea) || 0),
+            chocolate: Math.max(0, Number(r.chocolate) || 0),
+            note: (r.note && String(r.note).trim()) || '',
           });
           result[cursor].totalPersons += persons;
           cursor = addDays(cursor, 1);

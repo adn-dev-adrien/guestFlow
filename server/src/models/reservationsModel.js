@@ -784,11 +784,40 @@ function createReservationsModel(database) {
     // elements + optionally the cleaning charge). Written as custom options inComplement=1 and the
     // arrival complementAmount is bumped by their sum (the common autoGap=0 case; when the
     // complement is already paid it stays frozen and the items are recorded for the record).
-    commitArrivalSas(reservationId, { cautionReceived = false, complementItems = [] } = {}) {
+    commitArrivalSas(reservationId, {
+      cautionReceived = false, complementItems = [],
+      breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
+      departureHandoverNote,
+    } = {}) {
+      // Clamp drink counts to non-negative integers (authoritative server-side validation).
+      const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
         // Mark the arrival SAS done (planning disables the button afterwards).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
+
+        // Breakfast composition + hour (specs/sas-breakfast-and-handover-note.md). breakfastTime '' /
+        // invalid → NULL (= fall back to the option default). Counts default 0 when omitted.
+        if (breakfastTime !== undefined) {
+          const raw = String(breakfastTime || '').trim();
+          const value = raw === '' ? null : (formatTimeShort(raw) || null);
+          database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
+        }
+        database.prepare(`UPDATE reservations SET
+            breakfastCoffee = ?, breakfastTea = ?, breakfastChocolate = ?, breakfastNote = ?,
+            updatedAt = datetime('now') WHERE id = ?`)
+          .run(
+            clampCount(breakfastCoffee) || 0,
+            clampCount(breakfastTea) || 0,
+            clampCount(breakfastChocolate) || 0,
+            (breakfastNote && String(breakfastNote).trim()) || null,
+            reservationId,
+          );
+
+        // Handover note authored at arrival, surfaced at departure. Empty → NULL.
+        database.prepare("UPDATE reservations SET departureHandoverNote = ?, updatedAt = datetime('now') WHERE id = ?")
+          .run((departureHandoverNote && String(departureHandoverNote).trim()) || null, reservationId);
+
         if (cautionReceived) {
           database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
             .run(today, reservationId);

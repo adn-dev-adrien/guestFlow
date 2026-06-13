@@ -29,6 +29,7 @@ function sasPayload(over = {}) {
     portalCode: over.portalCode || '',
     cleaning: over.cleaning || { included: false, price: 80 },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],
+    breakfast: over.breakfast, // undefined → breakfast page hidden
   };
 }
 
@@ -83,6 +84,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
       { label: 'Taie d\'oreiller', amount: 5 },
       { label: 'Ménage', amount: 80 },
     ],
+    departureHandoverNote: '',
   });
 });
 
@@ -100,6 +102,85 @@ test('arrival SAS: linen OK skips the priced-items page', async () => {
   // → cleaning (included reminder), NOT the priced-items page
   await screen.findByText(/Le ménage est inclus/);
   expect(screen.queryByText('Éléments de linge manquants')).toBeNull();
+});
+
+// ---- breakfast page (specs/sas-breakfast-and-handover-note.md) ----
+
+function breakfastPayload(over = {}) {
+  return sasPayload({
+    reservation: { cautionAmount: 0, ...(over.reservation || {}) }, // no caution page
+    cleaning: { included: true, price: null },                      // cleaning = simple Suivant
+    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 0, tea: 0, chocolate: 0, note: '' },
+    ...over,
+  });
+}
+
+test('arrival SAS: breakfast page hidden when not applicable', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({ reservation: { cautionReceived: 1 }, cleaning: { included: true, price: null } }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  // no breakfast key in payload → straight to cleaning (no « Petit déjeuner » page)
+  await screen.findByText(/Le ménage est inclus/);
+  expect(screen.queryByText('Petit déjeuner')).toBeNull();
+});
+
+test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts + handover note reach the payload', async () => {
+  api.getReservationSas.mockResolvedValue(breakfastPayload());
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  // breakfast page (persons 2)
+  await screen.findByText('Petit déjeuner');
+  fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]); // café → 1 (total 1 ≠ 2 persons)
+  clickBtn('Suivant');
+
+  // coherence warning confirm
+  await screen.findByText(/ne correspond pas au nombre de personnes/);
+  clickBtn('Continuer');
+
+  // cleaning (included) → recap. findByRole retries until the confirm's close transition
+  // lifts the background aria-hidden (otherwise « Suivant » isn't yet accessible).
+  fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  fireEvent.change(screen.getByLabelText(/Note pour le départ/), { target: { value: 'clé sous le pot' } });
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.breakfastCoffee).toBe(1);
+  expect(arg.breakfastTea).toBe(0);
+  expect(arg.breakfastChocolate).toBe(0);
+  expect(arg.breakfastTime).toBe('09:00');
+  expect(arg.departureHandoverNote).toBe('clé sous le pot');
+});
+
+test('arrival SAS: breakfast total matching persons advances with NO confirm', async () => {
+  api.getReservationSas.mockResolvedValue(breakfastPayload());
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Petit déjeuner');
+  const plus = screen.getAllByRole('button', { name: '+' });
+  fireEvent.click(plus[0]); // café 1
+  fireEvent.click(plus[1]); // thé 1 → total 2 = persons 2
+  clickBtn('Suivant');
+  // no confirm — straight to cleaning
+  await screen.findByText(/Le ménage est inclus/);
+  expect(screen.queryByText(/ne correspond pas au nombre de personnes/)).toBeNull();
+});
+
+test('departure SAS: shows the read-only handover note left at arrival', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0, departureHandoverNote: 'Récupérer la 2e clé' },
+    cleaning: { included: true, price: 80 },
+  }));
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  expect(screen.getByText('Note laissée à l\'arrivée')).toBeInTheDocument();
+  expect(screen.getByText('Récupérer la 2e clé')).toBeInTheDocument();
 });
 
 test('departure SAS: cleaning page asks « fait correctement » (not the arrival UI) and commits the end-of-stay complement', async () => {

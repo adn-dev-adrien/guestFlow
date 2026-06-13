@@ -23,8 +23,11 @@
  *     reservation; the operator needs row-level granularity.
  */
 import React from 'react';
-import { Card, CardContent, Box, Typography, Stack, Divider } from '@mui/material';
+import { Card, CardContent, Box, Typography, Stack, Divider, Chip } from '@mui/material';
 import { amber } from '@mui/material/colors';
+import LocalCafeIcon from '@mui/icons-material/LocalCafe';
+import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
+import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 // `BakeryDiningIcon` = pure croissant / viennoiserie shape (Adrien 2026-06-06: "remplace
 // le logo du petit déjeuner par un logo de viennoiserie croissant"). The previously-used
 // `BreakfastDiningIcon` mixes a croissant + a cup, less "viennoiserie".
@@ -60,6 +63,13 @@ export default function BreakfastDayCard({ data, onItemClick }) {
         <Stack spacing={0.5}>
           {data.items.map((item) => {
             const breakfasts = `${item.persons} ${pluraliseBreakfasts(item.persons)}`;
+            // Hot-drink composition captured at check-in (specs/sas-breakfast-and-handover-note.md):
+            // icon + label + count, zero counts omitted.
+            const drinks = [
+              { key: 'coffee', icon: <LocalCafeIcon sx={{ fontSize: 16 }} />, label: 'Café', n: Number(item.coffee) || 0 },
+              { key: 'tea', icon: <EmojiFoodBeverageIcon sx={{ fontSize: 16 }} />, label: 'Thé', n: Number(item.tea) || 0 },
+              { key: 'chocolate', icon: <FreeBreakfastIcon sx={{ fontSize: 16 }} />, label: 'Chocolat chaud', n: Number(item.chocolate) || 0 },
+            ].filter((d) => d.n > 0);
             return (
               <Box
                 key={item.reservationId}
@@ -75,9 +85,8 @@ export default function BreakfastDayCard({ data, onItemClick }) {
                 } : undefined}
                 sx={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  flexWrap: 'wrap',
+                  flexDirection: 'column',
+                  gap: 0.5,
                   cursor: clickable ? 'pointer' : 'default',
                   borderRadius: 1,
                   px: clickable ? 0.5 : 0,
@@ -88,29 +97,50 @@ export default function BreakfastDayCard({ data, onItemClick }) {
                   '&:focus-visible': clickable ? { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 } : undefined,
                 }}
               >
-                {/* Desired breakfast time (specs/breakfast-time.md) — leading bold badge; rows
-                    arrive already sorted by time from the server. */}
-                {item.breakfastTime && (
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: BREAKFAST_ACCENT, minWidth: 44, flexShrink: 0 }}>
-                    {item.breakfastTime}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                  {/* Desired breakfast time (specs/breakfast-time.md) — leading bold badge; rows
+                      arrive already sorted by time from the server. */}
+                  {item.breakfastTime && (
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: BREAKFAST_ACCENT, minWidth: 44, flexShrink: 0 }}>
+                      {item.breakfastTime}
+                    </Typography>
+                  )}
+                  {/* House icon — same one used on the departure / arrival cards so the
+                      operator scans them all with the same eye anchor. */}
+                  <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+                  {item.propertyName && (
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                      {item.propertyName}
+                    </Typography>
+                  )}
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>•</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    {item.clientName}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>:</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                    {breakfasts}
+                  </Typography>
+                </Box>
+                {drinks.length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', pl: { xs: 0, sm: '52px' } }}>
+                    {drinks.map((d) => (
+                      <Chip
+                        key={d.key}
+                        size="small"
+                        variant="outlined"
+                        icon={d.icon}
+                        label={`${d.label} ${d.n}`}
+                        sx={{ height: 22, fontWeight: 600, bgcolor: 'rgba(255,255,255,0.6)' }}
+                      />
+                    ))}
+                  </Box>
+                )}
+                {item.note && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', pl: { xs: 0, sm: '52px' } }}>
+                    {item.note}
                   </Typography>
                 )}
-                {/* House icon — same one used on the departure / arrival cards so the
-                    operator scans them all with the same eye anchor. */}
-                <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-                {item.propertyName && (
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {item.propertyName}
-                  </Typography>
-                )}
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>•</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                  {item.clientName}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                  {breakfasts}
-                </Typography>
               </Box>
             );
           })}
