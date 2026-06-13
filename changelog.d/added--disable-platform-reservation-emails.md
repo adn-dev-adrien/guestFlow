@@ -1,0 +1,1 @@
+- Réglages → Notifications : nouvel interrupteur « Email à chaque nouvelle réservation plateforme (iCal) » (activé par défaut) pour désactiver l'email envoyé lors d'une nouvelle réservation importée d'une plateforme, sans toucher à l'email de nouvelle demande de devis ni à l'interrupteur maître.

@@ -91,6 +91,8 @@ const COLUMNS = [
   // (empty → falls back to smtpFromEmail). The email link reuses `publicUrl`.
   'notificationsEnabled',
   'notificationRecipientEmail',
+  // Per-channel switch for the new-iCal-reservation email (INTEGER 0/1, default 1). See spec §3 rule 9b.
+  'notifyIcalReservationEnabled',
   // Admin-only escape hatch for past reservations (see specs/admin-unlock-past-reservations.md).
   // Stored as INTEGER (0/1) to mirror smtpSecure; the model's `allowEditPastReservations()`
   // helper casts to boolean for the controller, but read() returns the raw integer for the
@@ -135,6 +137,7 @@ const NUMERIC_DEFAULTS = {
   smtpPort: 587,
   smtpSecure: 0,
   notificationsEnabled: 1,
+  notifyIcalReservationEnabled: 1,
   allowEditPastReservations: 0,
   laundryWeekday: 2,
   bedLinenStockSingle: 0,
@@ -269,6 +272,8 @@ function createSettingsModel(databaseInstance) {
       const row = readRaw();
       return {
         enabled: Number(row.notificationsEnabled) !== 0,
+        // Per-channel switch for the iCal/platform new-reservation email; default ON (only an explicit 0 disables).
+        icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
         recipientEmail: String(row.notificationRecipientEmail || '').trim(),
         fromEmail: String(row.smtpFromEmail || '').trim(),
         publicUrl: String(row.publicUrl || '').trim(),

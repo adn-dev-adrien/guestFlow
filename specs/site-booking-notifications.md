@@ -71,6 +71,12 @@ to the address configured in the SMTP settings.
    `smtpFromEmail` (send to self).
 9. **Toggle:** notifications are gated by a new Settings switch `notificationsEnabled`, **ON by
    default**. When OFF, no notification email is sent (devis/reservation still created normally).
+9b. **Per-channel toggle for platform (iCal) reservation emails (added 2026-06-13).** A dedicated
+    Settings switch `notifyIcalReservationEnabled`, **ON by default**, governs **only** the
+    new-iCal-reservation email (`notifyNewIcalReservation`). When OFF, no email is sent on a new
+    platform reservation — but the reservation is still imported normally, and the **site-devis**
+    notification + the master switch are unaffected. The master switch `notificationsEnabled` still
+    overrides everything (OFF master → nothing sent regardless of this toggle).
 10. **Link:** the email link is built from a new Settings field `appPublicUrl` (the app's public base
     URL) + the in-app devis/reservation route. If `appPublicUrl` is empty, the email is sent
     **without** a link (details + reference only).
@@ -127,10 +133,11 @@ to the address configured in the SMTP settings.
 | `controllers/` | `public/publicBookingRequestController.js` | T | After the devis is created + marked `requestOrigin='public'`, fire the new-site-devis notification (best-effort). |
 | `controllers/` | `dashboardController.js` | T | Add `publicDevisPending` handler returning `listPendingPublicDevis()`. |
 | `routes/` | `dashboard.js` | T | Add `GET /api/dashboard/public-devis-pending`. |
-| `utils/` | `notificationService.js` | C | New pure-ish service: `notifyNewSiteDevis(devisId)`, `notifyNewIcalReservation(reservationId)`. Reads settings (toggle, recipient, sender, app URL), builds the FR text + link, calls `createEmailService(...).send(...)`. Transport/settings injectable for tests. Honours the toggle; swallows + logs errors. |
+| `utils/` | `notificationService.js` | T | (existing) `notifyNewSiteDevis` / `notifyNewIcalReservation`. **2026-06-13:** `notifyNewIcalReservation` now also short-circuits (skip `'ical_disabled'`) when `notificationSettings().icalReservationEnabled` is false — before `resolveContext`/load, so a disabled platform email never even reads the row. `notifyNewSiteDevis` unchanged. |
 | `utils/` | `emailService.js` | — | Reused as-is (`createEmailService`, `send`). |
-| `models/` | `settingsModel.js` | T | Add read/write for `notificationsEnabled`, `notificationRecipientEmail`, `appPublicUrl` (non-secret → exposed in `read()`); expose a `notificationSettings()` helper. |
-| `controllers/` | `settingsController.js` | T | Accept + validate the 3 new fields on update. |
+| `models/` | `settingsModel.js` | T | (existing) `notificationsEnabled`, `notificationRecipientEmail`. **2026-06-13:** add `notifyIcalReservationEnabled` to `COLUMNS` + `NUMERIC_DEFAULTS` (=1); `notificationSettings()` returns `icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0`. |
+| `controllers/` | `settingsController.js` | T | (existing) notif fields. **2026-06-13:** add `{ input: 'icalReservationEnabled', column: 'notifyIcalReservationEnabled' }` to `NOTIFICATIONS_FIELDS` and the column to `BOOLEAN_INT_COLUMNS`. |
+| `utils/` | `settingsResponse.js` | T | **2026-06-13:** add `icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0` to the `notifications` block. |
 | `routes/` | `settings.js` | T | Pass the 3 new fields through (thin). |
 | `database.js` | `database.js` | T | Idempotent migration: add the 3 settings columns with defaults. |
 
@@ -149,7 +156,7 @@ to the address configured in the SMTP settings.
 |---|---|---|---|
 | `components/` | `DevisPublicRequestAlert.js` | C | Dashboard alert card for pending site devis. Mirrors `EmailPendingAlert` (fetch on mount, render nothing while loading/empty, clickable → devis list). |
 | `pages/` | `Dashboard.js` | T | Mount `<DevisPublicRequestAlert />` alongside the existing alert stack. |
-| `pages/` | `SettingsPage.js` | T | New "Notifications" block: toggle (default on), recipient email field, app public URL field. |
+| `pages/` | `SettingsPage.js` + `components/SettingsNotificationsSection.js` | T | (existing) Notifications block. **2026-06-13:** add a second Switch « Email à chaque nouvelle réservation plateforme (iCal) » (`icalReservationEnabled`, default ON, disabled when the master toggle is OFF); add it to `EMPTY_FORM.notifications`. |
 | `api.js` | `api.js` | T | Add `getPendingPublicDevis()`; pass the 3 new settings fields through the settings update payload. |
 
 **Component reuse declaration:**
@@ -186,6 +193,7 @@ side effect).
 | `notificationsEnabled` | INTEGER (0\|1) | `1` (ON) | Master switch for the new booking notifications. |
 | `notificationRecipientEmail` | TEXT | `''` | TO address for notifications; empty → falls back to `smtpFromEmail`. |
 | `appPublicUrl` | TEXT | `''` | App public base URL for the email link; empty → no link. |
+| `notifyIcalReservationEnabled` | INTEGER (0\|1) | `1` (ON) | Per-channel switch for the **new-iCal-reservation** email only (added 2026-06-13). OFF → no platform-reservation email; site-devis email + master switch unaffected. |
 
 **Data impact:** the Part 1 filter change affects **how future devis/reservations are computed**, not
 existing rows. The 3 settings columns are additive with safe defaults (notifications ON, recipient
@@ -207,6 +215,10 @@ falls back to the SMTP sender). No backfill, no loss.
 
 **Settings — new "Notifications" block (`SettingsPage.js`):**
 - A switch **« Notifications de réservation par email »** (default ON) — `notificationsEnabled`.
+- A switch **« Email à chaque nouvelle réservation plateforme (iCal) »** (default ON) —
+  `icalReservationEnabled`. Disabled (greyed) when the master toggle is OFF, since nothing sends then.
+  Turning it OFF stops the platform new-reservation email while keeping the site-devis email
+  (added 2026-06-13).
 - A text field **« Adresse de réception des notifications »** (email) — `notificationRecipientEmail`;
   helper: *« Si vide, l'expéditeur SMTP est utilisé. »*
 - A text field **« URL publique de l'application »** (e.g. `https://guestflow.mondomaine.fr`) —
@@ -253,6 +265,13 @@ falls back to the SMTP sender). No backfill, no loss.
 - [ ] `tests/settings-notifications.unit.test.js` — read/write of `notificationsEnabled`,
       `notificationRecipientEmail`, `appPublicUrl`; defaults (ON, '', '') on a fresh DB; email/URL
       validation on update.
+- [x] `tests/notification-service.unit.test.js` (extended 2026-06-13) — `notifyNewIcalReservation`
+      **skips** (`'ical_disabled'`, no send) when `notifyIcalReservationEnabled = 0` while the master
+      toggle is ON; still sends when ON; `notifyNewSiteDevis` is **unaffected** by this per-channel
+      toggle. `settings-notifications` extended: default (1), independent boolean round-trip, safe-default
+      ON when the column is absent. Client `SettingsNotificationsSection.test.js` (new): renders both
+      switches, the iCal toggle fires `onChange`, and is disabled when the master switch is OFF.
+      Server suite **1490 green**; client build + vitest green.
 
 ### Manual UI verification
 - [ ] Settings: the Notifications block shows the toggle (ON by default), recipient field, and app

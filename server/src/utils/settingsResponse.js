@@ -119,6 +119,8 @@ function shapeResponse(row) {
     // sender. The email link reuses `smtp.publicUrl`.
     notifications: {
       enabled: Number(row.notificationsEnabled) !== 0,
+      // Per-channel switch for the iCal/platform new-reservation email; default ON.
+      icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
       recipientEmail: safeStr(row.notificationRecipientEmail).trim(),
     },
     // Reservations block — admin escape hatch for past-reservation editing.
