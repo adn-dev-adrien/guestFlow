@@ -22,21 +22,32 @@ function freshModel({ withColumns = true } = {}) {
     smtpFromEmail TEXT DEFAULT '',
     publicUrl TEXT DEFAULT '',
     createdAt TEXT, updatedAt TEXT
-    ${withColumns ? ", notificationsEnabled INTEGER NOT NULL DEFAULT 1, notificationRecipientEmail TEXT DEFAULT ''" : ''}
+    ${withColumns ? ", notificationsEnabled INTEGER NOT NULL DEFAULT 1, notifyIcalReservationEnabled INTEGER NOT NULL DEFAULT 1, notificationRecipientEmail TEXT DEFAULT ''" : ''}
   )`);
   db.prepare('INSERT INTO app_settings (id) VALUES (1)').run();
   return { model: settingsModel.create(db), db };
 }
 
-test('defaults: notifications enabled ON, recipient empty on a fresh DB', () => {
+test('defaults: notifications enabled ON, iCal channel ON, recipient empty on a fresh DB', () => {
   const { model } = freshModel();
   const notif = model.notificationSettings();
   assert.equal(notif.enabled, true, 'ON by default');
+  assert.equal(notif.icalReservationEnabled, true, 'iCal channel ON by default');
   assert.equal(notif.recipientEmail, '');
 
   const shaped = shapeResponse(model.read());
   assert.equal(shaped.notifications.enabled, true);
+  assert.equal(shaped.notifications.icalReservationEnabled, true);
   assert.equal(shaped.notifications.recipientEmail, '');
+});
+
+test('upsert persists the per-channel iCal toggle independently of the master switch', () => {
+  const { model } = freshModel();
+  model.upsert({ notifyIcalReservationEnabled: 0 });
+  const notif = model.notificationSettings();
+  assert.equal(notif.enabled, true, 'master untouched');
+  assert.equal(notif.icalReservationEnabled, false, 'iCal channel OFF');
+  assert.equal(shapeResponse(model.read()).notifications.icalReservationEnabled, false);
 });
 
 test('upsert persists the toggle + recipient and surfaces them', () => {
@@ -64,5 +75,6 @@ test('partial/old DB without the columns still defaults to enabled ON (no crash)
   const { model } = freshModel({ withColumns: false });
   // notificationsEnabled column absent → Number(undefined) !== 0 → ON (safe default).
   assert.equal(model.notificationSettings().enabled, true);
+  assert.equal(model.notificationSettings().icalReservationEnabled, true, 'iCal channel safe-defaults ON');
   assert.equal(shapeResponse(model.read()).notifications.enabled, true);
 });

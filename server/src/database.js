@@ -1148,6 +1148,9 @@ tryAddAppSettingsCol('publicUrl',             "ALTER TABLE app_settings ADD COLU
 // recipient falls back to smtpFromEmail. The email link reuses the existing `publicUrl`.
 tryAddAppSettingsCol('notificationsEnabled',      "ALTER TABLE app_settings ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1");
 tryAddAppSettingsCol('notificationRecipientEmail', "ALTER TABLE app_settings ADD COLUMN notificationRecipientEmail TEXT DEFAULT ''");
+// Per-channel switch for the new-iCal-reservation email (specs/site-booking-notifications.md §3 rule 9b).
+// ON by default (= prior behaviour); OFF stops only the platform-reservation email.
+tryAddAppSettingsCol('notifyIcalReservationEnabled', "ALTER TABLE app_settings ADD COLUMN notifyIcalReservationEnabled INTEGER NOT NULL DEFAULT 1");
 // 2026-06-02 — bed-linen tracking (specs/weekly-bed-linen-tracking.md). Day of week (0=Sun..6=Sat)
 // when Adrien drops the dirty linen at the laundry. Drives the LaundryDayCard on PlanningPage.
 // Default 2 (Tuesday) reflects current practice.
