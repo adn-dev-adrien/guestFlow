@@ -175,6 +175,20 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
             )}
           </Box>
 
+          {/* Handover note authored at check-in (specs/sas-breakfast-and-handover-note.md) — shown
+              read-only here so the operator sees the arrival-time instructions at departure. */}
+          {reservation.departureHandoverNote && (
+            <Box sx={{
+              mt: 0.5, p: 0.75, borderRadius: 1,
+              bgcolor: 'rgba(255, 193, 7, 0.12)', border: '1px solid', borderColor: 'warning.light',
+            }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', display: 'block' }}>
+                Note d'arrivée
+              </Typography>
+              <Typography variant="body2">{reservation.departureHandoverNote}</Typography>
+            </Box>
+          )}
+
           {/* Prominent Ménage block — sits where the (removed) Famille chips used to
               live. Shown only when a tight transition triggered the alert
               (= alertInfo.cleaningDisplay is set). */}

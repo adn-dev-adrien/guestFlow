@@ -150,3 +150,39 @@ test('no time badge when an item carries no breakfastTime', () => {
   // No HH:MM text rendered.
   expect(screen.queryByText(/^\d{2}:\d{2}$/)).toBeNull();
 });
+
+// specs/sas-breakfast-and-handover-note.md — hot-drink composition + breakfast note.
+test('renders café/thé/chocolat count chips, hiding zero counts', () => {
+  render(
+    <BreakfastDayCard
+      data={{
+        items: [{ reservationId: 1, clientName: 'Famille Dupont', propertyName: 'Gîte', persons: 3, breakfastTime: '08:00', coffee: 2, tea: 0, chocolate: 1 }],
+        totalPersons: 3,
+      }}
+    />
+  );
+  expect(screen.getByText('Café 2')).toBeInTheDocument();
+  expect(screen.getByText('Chocolat chaud 1')).toBeInTheDocument();
+  // Tea count is 0 → no chip.
+  expect(screen.queryByText(/^Thé/)).toBeNull();
+});
+
+test('no count chips at all when every drink count is 0', () => {
+  render(
+    <BreakfastDayCard
+      data={{ items: [{ reservationId: 1, clientName: 'X', propertyName: 'Y', persons: 1, coffee: 0, tea: 0, chocolate: 0 }], totalPersons: 1 }}
+    />
+  );
+  expect(screen.queryByText(/^Café/)).toBeNull();
+  expect(screen.queryByText(/^Thé/)).toBeNull();
+  expect(screen.queryByText(/^Chocolat/)).toBeNull();
+});
+
+test('renders the breakfast note when present', () => {
+  render(
+    <BreakfastDayCard
+      data={{ items: [{ reservationId: 1, clientName: 'X', propertyName: 'Y', persons: 1, note: 'sans gluten' }], totalPersons: 1 }}
+    />
+  );
+  expect(screen.getByText('sans gluten')).toBeInTheDocument();
+});

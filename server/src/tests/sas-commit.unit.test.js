@@ -20,6 +20,9 @@ function makeDb() {
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementDetail TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
+      breakfastTime TEXT,
+      breakfastCoffee INTEGER NOT NULL DEFAULT 0, breakfastTea INTEGER NOT NULL DEFAULT 0,
+      breakfastChocolate INTEGER NOT NULL DEFAULT 0, breakfastNote TEXT, departureHandoverNote TEXT,
       updatedAt TEXT
     );
     CREATE TABLE reservation_custom_options (
@@ -104,6 +107,38 @@ test('commitArrivalSas: ignores zero/blank items', () => {
   const c = model.commitArrivalSas(1, { complementItems: [{ label: 'x', amount: 0 }, { label: '', amount: 9 }] });
   assert.equal(c, 30);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 0);
+});
+
+test('commitArrivalSas: writes breakfast composition (clamped) + breakfastTime + handover note', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, {
+    breakfastTime: '9:05',         // normalised to 09:05
+    breakfastCoffee: 2.7,          // → 3 (round, non-negative)
+    breakfastTea: -1,              // → 0 (clamp)
+    breakfastChocolate: 1,
+    breakfastNote: '  sans lactose  ',
+    departureHandoverNote: '  clé sous le pot  ',
+  });
+  const r = db.prepare('SELECT breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote, departureHandoverNote FROM reservations WHERE id = 1').get();
+  assert.equal(r.breakfastTime, '09:05');
+  assert.equal(r.breakfastCoffee, 3);
+  assert.equal(r.breakfastTea, 0);
+  assert.equal(r.breakfastChocolate, 1);
+  assert.equal(r.breakfastNote, 'sans lactose');
+  assert.equal(r.departureHandoverNote, 'clé sous le pot');
+});
+
+test('commitArrivalSas: omitted breakfast fields default to 0 / null, breakfastTime untouched', () => {
+  const db = makeDb();
+  db.prepare("UPDATE reservations SET breakfastTime = '08:30' WHERE id = 1").run();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  const r = db.prepare('SELECT breakfastTime, breakfastCoffee, breakfastNote, departureHandoverNote FROM reservations WHERE id = 1').get();
+  assert.equal(r.breakfastTime, '08:30');   // not passed → left as-is
+  assert.equal(r.breakfastCoffee, 0);
+  assert.equal(r.breakfastNote, null);
+  assert.equal(r.departureHandoverNote, null);
 });
 
 // ---- departure commit ----

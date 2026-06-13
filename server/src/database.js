@@ -2024,6 +2024,16 @@ db.exec(`
   // card disables the SAS button once done (no accidental re-run).
   if (!rcols.includes('arrivalSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalSasDoneAt TEXT");
   if (!rcols.includes('departureSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN departureSasDoneAt TEXT");
+  // Breakfast composition captured at check-in (specs/sas-breakfast-and-handover-note.md): counts of
+  // hot drinks to prepare each morning + a free note, surfaced on the planning breakfast card. The
+  // breakfast hour reuses the existing reservations.breakfastTime column.
+  if (!rcols.includes('breakfastCoffee')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastCoffee INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('breakfastTea')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastTea INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('breakfastChocolate')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastChocolate INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('breakfastNote')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastNote TEXT");
+  // Handover note authored at the end of the arrival SAS, shown read-only in the departure SAS and on
+  // the departure planning card. Dedicated column — kept separate from reservations.notes.
+  if (!rcols.includes('departureHandoverNote')) db.exec("ALTER TABLE reservations ADD COLUMN departureHandoverNote TEXT");
 }
 // Domain gate/access code shown on the arrival SAS (global — one code for the whole domain).
 {

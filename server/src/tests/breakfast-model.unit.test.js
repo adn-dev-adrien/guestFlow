@@ -24,7 +24,11 @@ const DDL = `
     teens INTEGER DEFAULT 0,
     children INTEGER DEFAULT 0,
     babies INTEGER DEFAULT 0,
-    breakfastTime TEXT
+    breakfastTime TEXT,
+    breakfastCoffee INTEGER NOT NULL DEFAULT 0,
+    breakfastTea INTEGER NOT NULL DEFAULT 0,
+    breakfastChocolate INTEGER NOT NULL DEFAULT 0,
+    breakfastNote TEXT
   );
   CREATE TABLE clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -284,4 +288,63 @@ test('breakfast time: same-day items are sorted by time ascending', () => {
 
   const items = buildModel(db).breakfastByDate({ from: '2026-06-09', to: '2026-06-15' })['2026-06-10'].items;
   assert.deepEqual(items.map((i) => i.breakfastTime), ['07:00', '08:00', '09:30']);
+});
+
+// ---- breakfast composition (specs/sas-breakfast-and-handover-note.md) ----
+
+test('items carry coffee/tea/chocolate/note from the reservation (clamped, trimmed)', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-10', adults: 2 });
+  linkOption(db, 1, 1, 1.0);
+  db.prepare("UPDATE reservations SET breakfastCoffee = 2, breakfastTea = 0, breakfastChocolate = 1, breakfastNote = '  sans gluten  ' WHERE id = 1").run();
+
+  const item = buildModel(db).breakfastByDate({ from: '2026-06-09', to: '2026-06-15' })['2026-06-10'].items[0];
+  assert.equal(item.coffee, 2);
+  assert.equal(item.tea, 0);
+  assert.equal(item.chocolate, 1);
+  assert.equal(item.note, 'sans gluten');
+});
+
+test('getForReservation: applicable via explicit option → persons + resolved time + stored counts', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-12', adults: 2, children: 1, babies: 1, breakfastTime: '09:30' });
+  linkOption(db, 1, 1, 1.0);
+  db.prepare('UPDATE reservations SET breakfastCoffee = 3, breakfastChocolate = 1 WHERE id = 1').run();
+
+  const r = buildModel(db).getForReservation(1);
+  assert.equal(r.applicable, true);
+  assert.equal(r.persons, 3);          // adults 2 + children 1 (babies excluded) × qty 1.0
+  assert.equal(r.time, '09:30');       // reservation override
+  assert.equal(r.coffee, 3);
+  assert.equal(r.tea, 0);
+  assert.equal(r.chocolate, 1);
+});
+
+test('getForReservation: applicable via property default (no explicit row) → time falls back to option default', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-11', adults: 2 });
+  addPropertyDefault(db, 10, 1);
+
+  const r = buildModel(db).getForReservation(1);
+  assert.equal(r.applicable, true);
+  assert.equal(r.persons, 2);
+  assert.equal(r.time, '08:00');       // option default (no reservation override)
+});
+
+test('getForReservation: NOT applicable when reservation has no breakfast option', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-11', adults: 2 });
+  linkOption(db, 1, 2, 1.0);           // regular option only
+
+  const r = buildModel(db).getForReservation(1);
+  assert.equal(r.applicable, false);
+  assert.equal(r.persons, 0);
 });

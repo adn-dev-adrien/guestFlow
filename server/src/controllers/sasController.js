@@ -10,6 +10,7 @@ const db = require('../database');
 const reservationsModel = require('../models/reservationsModel');
 const linenItemsModel = require('../models/linenItemsModel');
 const settingsModel = require('../models/settingsModel');
+const breakfastModel = require('../models/breakfastModel');
 
 // Is bed linen / cleaning "included" for this reservation? = an option of that autoOptionType is on
 // the reservation, OR the property has it as a default-offered option.
@@ -38,16 +39,29 @@ function getSas(req, res) {
     portalCode: String(settings.portalCode || '').trim(),
     cleaning: { included: cleaningIncluded, price: cleaningPrice },
     linenItems: linenItemsModel.list(),
+    // Breakfast page state (arrival SAS): applicable? + resolved person count + effective hour +
+    // stored counts/note. `reservation.departureHandoverNote` rides along via `r.*`.
+    breakfast: breakfastModel.getForReservation(reservation.id),
   });
 }
 
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-  const { cautionReceived = false, complementItems = [] } = req.body || {};
+  const {
+    cautionReceived = false, complementItems = [],
+    breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
+    departureHandoverNote,
+  } = req.body || {};
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     cautionReceived: Boolean(cautionReceived),
     complementItems: Array.isArray(complementItems) ? complementItems : [],
+    breakfastTime,
+    breakfastCoffee,
+    breakfastTea,
+    breakfastChocolate,
+    breakfastNote,
+    departureHandoverNote,
   });
   return res.json({ ok: true, complementAmount });
 }
