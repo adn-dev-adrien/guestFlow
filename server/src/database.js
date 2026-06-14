@@ -2051,7 +2051,30 @@ db.exec(`
   // Handover note authored at the end of the arrival SAS, shown read-only in the departure SAS and on
   // the departure planning card. Dedicated column — kept separate from reservations.notes.
   if (!rcols.includes('departureHandoverNote')) db.exec("ALTER TABLE reservations ADD COLUMN departureHandoverNote TEXT");
+  // Per-event push-notification guards (specs/pwa-push-notifications.md §3.3): the local date on which
+  // the arrival (resp. departure) push was sent for this reservation, so it fires once.
+  if (!rcols.includes('arrivalNotifiedAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalNotifiedAt TEXT");
+  if (!rcols.includes('departureNotifiedAt')) db.exec("ALTER TABLE reservations ADD COLUMN departureNotifiedAt TEXT");
 }
+// PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    createdAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS user_push_prefs (
+    userId INTEGER PRIMARY KEY,
+    newReservation INTEGER NOT NULL DEFAULT 1,
+    arrivals INTEGER NOT NULL DEFAULT 1,
+    departures INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
 // Domain gate/access code shown on the arrival SAS (global — one code for the whole domain).
 {
   const scols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);

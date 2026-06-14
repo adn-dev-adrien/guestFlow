@@ -118,6 +118,45 @@ function createReservationsModel(database) {
       return database.prepare(sql).all(...params);
     },
 
+    // Reservations whose check-in time on `todayIso` has been reached (≤ nowHHMM) and whose arrival
+    // push hasn't been sent today yet. Drives the per-minute push tick (specs/pwa-push-notifications.md
+    // §3.3). Default check-in 15:00 when unset, mirroring the rest of the app.
+    dueArrivals(todayIso, nowHHMM) {
+      return database.prepare(`
+        SELECT r.id, r.startDate, COALESCE(r.checkInTime, '15:00') AS checkInTime,
+               c.firstName, c.lastName, p.name AS propertyName
+        FROM reservations r
+        JOIN clients c ON r.clientId = c.id
+        JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind = 'reservation' AND r.startDate = ?
+          AND COALESCE(r.checkInTime, '15:00') <= ?
+          AND (r.arrivalNotifiedAt IS NULL OR r.arrivalNotifiedAt != ?)
+        ORDER BY checkInTime, r.id
+      `).all(todayIso, nowHHMM, todayIso);
+    },
+
+    // Symmetric to dueArrivals for check-out. Default check-out 10:00 when unset.
+    dueDepartures(todayIso, nowHHMM) {
+      return database.prepare(`
+        SELECT r.id, r.endDate, COALESCE(r.checkOutTime, '10:00') AS checkOutTime,
+               c.firstName, c.lastName, p.name AS propertyName
+        FROM reservations r
+        JOIN clients c ON r.clientId = c.id
+        JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind = 'reservation' AND r.endDate = ?
+          AND COALESCE(r.checkOutTime, '10:00') <= ?
+          AND (r.departureNotifiedAt IS NULL OR r.departureNotifiedAt != ?)
+        ORDER BY checkOutTime, r.id
+      `).all(todayIso, nowHHMM, todayIso);
+    },
+
+    stampArrivalNotified(reservationId, dateIso) {
+      database.prepare('UPDATE reservations SET arrivalNotifiedAt = ? WHERE id = ?').run(dateIso, Number(reservationId));
+    },
+    stampDepartureNotified(reservationId, dateIso) {
+      database.prepare('UPDATE reservations SET departureNotifiedAt = ? WHERE id = ?').run(dateIso, Number(reservationId));
+    },
+
     getByIdWithDetails(id) {
       const reservation = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName

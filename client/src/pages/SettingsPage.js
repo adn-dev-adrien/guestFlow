@@ -13,6 +13,7 @@ import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
+import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -437,6 +438,11 @@ export default function SettingsPage() {
               onChange={updateGroup('notifications')}
               disabled={loading || saving}
             />
+          </Box>
+
+          {/* Push notifications (per-user, self-contained — not part of the global settings form). */}
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsPushNotificationsSection />
           </Box>
         </Box>
       </Box>
