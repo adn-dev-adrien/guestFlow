@@ -146,7 +146,7 @@ test('Switch ON → OFF calls setOptionEnabled(optId, false) for the bed-linen o
   expect(setOptionEnabled).toHaveBeenCalledWith(1, false);
 });
 
-test('bed-linen option forced by property default → Switch checked + disabled + bed inputs visible + "Inclus par défaut" caption', () => {
+test('bed-linen option forced by property default → Switch checked + disabled + bed inputs visible + "Inclus" caption', () => {
   // specs/bed-config-in-linen-card.md §3 rule 4.bis. The reservation does NOT have the
   // bed-linen option in `selectedOptions` (= pre-default-era state), but the property
   // declares it as a default. The Switch must show ON + disabled; the bed inputs
@@ -163,7 +163,7 @@ test('bed-linen option forced by property default → Switch checked + disabled 
   // Bed inputs are rendered.
   expect(screen.getByLabelText(/Lits doubles/i)).toBeInTheDocument();
   // Caption surfaces the "forced by property" affordance.
-  expect(screen.getByText(/Inclus par défaut/i)).toBeInTheDocument();
+  expect(screen.getByText(/^Inclus$/i)).toBeInTheDocument();
 });
 
 test('a non-bed-linen option in the same catalog stays toggleable when the bed-linen option is forced', () => {

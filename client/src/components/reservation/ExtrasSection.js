@@ -170,7 +170,7 @@ export default function ExtrasSection() {
                               <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
                             )}
                             {!isAutoTimedOption && isForcedByPropertyDefault && (
-                              <Typography variant="caption" color="text.secondary">Inclus par défaut</Typography>
+                              <Typography variant="caption" color="text.secondary">Inclus</Typography>
                             )}
                           </Stack>
                         </Stack>
