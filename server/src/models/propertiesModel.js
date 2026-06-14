@@ -8,6 +8,7 @@ const {
   getBoundsFromDateRanges,
   parseRuleDateRanges,
   normalizeProgressiveTiers,
+  grossFromNet,
 } = require('../utils/pricing');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
@@ -250,6 +251,29 @@ function createPropertiesModel(database) {
 
       if (existing.photo) removeUploadedFile(existing.photo);
       return { ok: true };
+    },
+
+    // « Prix plateformes » grid for the property tarif page (specs/platform-price-from-commission.md).
+    // Returns the non-direct platforms (with their global commission %) + each tariff season's net
+    // base /nuit and the grossed-up price per platform (`gross = net / (1 − c/100)`; null when c ≥ 100).
+    platformPrices(propertyId) {
+      const platforms = database.prepare(`
+        SELECT id, name, COALESCE(commissionPercent, 0) AS commissionPercent
+        FROM platforms
+        WHERE LOWER(name) != 'direct'
+        ORDER BY name COLLATE NOCASE ASC
+      `).all().map((p) => ({ id: p.id, name: p.name, commissionPercent: Number(p.commissionPercent) || 0 }));
+
+      const seasons = database.prepare(
+        'SELECT id, label, pricePerNight FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
+      ).all(Number(propertyId)).map((s) => {
+        const netPerNight = Number(s.pricePerNight) || 0;
+        const byPlatform = {};
+        for (const p of platforms) byPlatform[p.id] = grossFromNet(netPerNight, p.commissionPercent);
+        return { ruleId: s.id, label: s.label, netPerNight, byPlatform };
+      });
+
+      return { platforms, seasons };
     },
 
     addPricingRule(propertyId, body = {}) {
