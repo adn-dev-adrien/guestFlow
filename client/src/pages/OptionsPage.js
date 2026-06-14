@@ -33,6 +33,9 @@ const emptyOption = {
   // on load from whether overrides exist): ON replaces the single price with one line per property.
   perPropertyPricing: false,
   propertyPrices: {},
+  // Per-property « inclus par défaut » (specs/per-property-default-options.md):
+  // { [propertyId]: { default: bool, offered: bool } }. Auto-added to new reservations of that property.
+  propertyDefaults: {},
   optionProgressiveTiers: [],
   // Linen flags (specs/weekly-bed-linen-tracking.md). The flag itself stays hidden in the UI —
   // it's set by the server-side seeds and round-tripped silently. But when the form is editing
@@ -197,6 +200,60 @@ function OptionPriceSection({ form, setForm, properties }) {
   );
 }
 
+// Per-property « inclus par défaut » section (specs/per-property-default-options.md). Beside the
+// per-property price: for each property the option applies to, an « Inclus par défaut » switch + an
+// « Offert » switch (offered = included free). Hidden for auto-timed options (engine-derived).
+// Module-level so the switches keep focus across renders.
+function OptionDefaultsSection({ form, setForm, properties }) {
+  if (Number(form.autoEnabled) === 1) return null;
+  const applicable = (form.propertyIds && form.propertyIds.length > 0)
+    ? (properties || []).filter((p) => form.propertyIds.includes(p.id))
+    : (properties || []);
+  const defaults = form.propertyDefaults || {};
+  const setDefault = (pid, on) => {
+    const next = { ...defaults };
+    if (on) next[pid] = { default: true, offered: Boolean(next[pid] && next[pid].offered) };
+    else delete next[pid];
+    setForm({ ...form, propertyDefaults: next });
+  };
+  const setOffered = (pid, on) => {
+    setForm({ ...form, propertyDefaults: { ...defaults, [pid]: { default: true, offered: on } } });
+  };
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Typography variant="subtitle2">Inclus par défaut (par logement)</Typography>
+      <FormHelperText sx={{ m: 0 }}>
+        Auto-ajouté aux nouvelles réservations du logement. « Offert » = inclus gratuitement (0 €).
+      </FormHelperText>
+      <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+        {applicable.length === 0 ? (
+          <FormHelperText sx={{ m: 0 }}>Sélectionnez au moins un logement.</FormHelperText>
+        ) : (
+          <Stack spacing={1}>
+            {applicable.map((p) => {
+              const d = defaults[p.id];
+              const isDefault = Boolean(d && d.default);
+              return (
+                <Box key={p.id} sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: { xs: 0.5, sm: 2 } }}>
+                  <Typography variant="body2" sx={{ minWidth: { sm: 200 } }}>{p.name}</Typography>
+                  <FormControlLabel
+                    control={<Switch checked={isDefault} onChange={(e) => setDefault(p.id, e.target.checked)} />}
+                    label="Inclus par défaut"
+                  />
+                  <FormControlLabel
+                    control={<Switch checked={Boolean(d && d.offered)} disabled={!isDefault} onChange={(e) => setOffered(p.id, e.target.checked)} />}
+                    label="Offert"
+                  />
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 function ProgressivePricingFields({ form, setForm }) {
   if (form.priceType !== 'per_participant_progressive') return null;
 
@@ -305,6 +362,11 @@ export default function OptionsPage() {
         propertyPrices: (item.propertyPrices && typeof item.propertyPrices === 'object') ? item.propertyPrices : {},
         // Toggle is ON when the option already has at least one per-property override.
         perPropertyPricing: Boolean(item.propertyPrices && Object.keys(item.propertyPrices).length > 0),
+        // Server returns only the properties where this option IS a default ({ [pid]: { offered } }).
+        // In the form, each becomes { default: true, offered } so the toggles render.
+        propertyDefaults: Object.fromEntries(
+          Object.entries(item.propertyDefaults || {}).map(([pid, v]) => [pid, { default: true, offered: Boolean(v && v.offered) }]),
+        ),
         optionProgressiveTiers: normalizeProgressiveTiers(item.optionProgressiveTiers),
         // The countsAs… flags are hidden in the UI (round-tripped silently); the per-type
         // controls below ARE visible when the flag is set. SQLite stores ints, normalise.
@@ -348,6 +410,9 @@ export default function OptionsPage() {
           });
           return out;
         })(),
+        // Per-property « inclus par défaut » map (specs/per-property-default-options.md). Server
+        // persists only the properties marked default, scoped to the option's applicable properties.
+        propertyDefaults: form.propertyDefaults || {},
         countsAsBedLinen: Boolean(form.countsAsBedLinen),
         countsAsBathroomLinen: Boolean(form.countsAsBathroomLinen),
         linenIncludesSingle: Boolean(form.linenIncludesSingle),
@@ -402,6 +467,8 @@ export default function OptionsPage() {
           </FormControl>
           {/* Prix unique (Switch OFF) ou prix par logement (Switch ON) — même présentation. */}
           <OptionPriceSection form={form} setForm={setForm} properties={properties} />
+          {/* Per-property « inclus par défaut » (specs/per-property-default-options.md) — beside the price. */}
+          <OptionDefaultsSection form={form} setForm={setForm} properties={properties} />
           {/* Breakfast default time (specs/breakfast-time.md) — only on the breakfast option. */}
           {form.autoOptionType === 'breakfast' && (
             <BreakfastTimeField form={form} setForm={setForm} />

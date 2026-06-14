@@ -77,6 +77,38 @@ function createOptionsModel(database) {
       .all(optionId)
       .reduce((acc, row) => { acc[String(row.propertyId)] = Number(row.price || 0); return acc; }, {});
   };
+  // Per-property « inclus par défaut » (specs/per-property-default-options.md). Returns
+  // { [propertyId]: { offered: bool } } for the properties where this option is a default. Guarded so a
+  // minimal test schema without the table degrades to "no defaults".
+  const HAS_PROPERTY_OPTION_DEFAULTS = (() => {
+    try { database.prepare('SELECT 1 FROM property_option_defaults LIMIT 1').get(); return true; }
+    catch { return false; }
+  })();
+  const propertyDefaultsFor = (optionId) => {
+    if (!HAS_PROPERTY_OPTION_DEFAULTS) return {};
+    return database
+      .prepare('SELECT propertyId, offered FROM property_option_defaults WHERE optionId = ? ORDER BY propertyId')
+      .all(optionId)
+      .reduce((acc, r) => { acc[String(r.propertyId)] = { offered: Number(r.offered) === 1 }; return acc; }, {});
+  };
+  // Replace the option's default rows from `payload.propertyDefaults` = { [propertyId]: { default, offered } }.
+  // `undefined` payload → leave untouched. Auto-timed options (autoEnabled) are engine-derived and can
+  // never be defaults → their default rows are cleared. Setting a default implies applicability.
+  function persistPropertyDefaults(optionId, payload) {
+    if (!HAS_PROPERTY_OPTION_DEFAULTS || payload.propertyDefaults === undefined) return;
+    database.prepare('DELETE FROM property_option_defaults WHERE optionId = ?').run(optionId);
+    if (payload.autoEnabled) return; // auto-timed → never a default
+    const ensureApplicable = database.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)');
+    const insert = database.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (?, ?, ?)');
+    for (const [pid, cfg] of Object.entries(payload.propertyDefaults || {})) {
+      const propertyId = Number(pid);
+      if (!Number.isInteger(propertyId) || propertyId <= 0) continue;
+      if (!cfg || !cfg.default) continue; // only persist properties marked « inclus par défaut »
+      ensureApplicable.run(propertyId, optionId);
+      insert.run(propertyId, optionId, cfg.offered ? 1 : 0);
+    }
+  }
+
   // Replace the override rows for an option. A blank/empty value means "inherit the base price" (no
   // row); an explicit number (incl. 0 = free) is persisted. `undefined` payload → leave untouched.
   function persistPropertyPrices(optionId, payload) {
@@ -98,6 +130,7 @@ function createOptionsModel(database) {
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
+        propertyDefaults: propertyDefaultsFor(o.id),
         optionProgressiveTiers: normalizeProgressiveOptionTiers(o.optionProgressiveTiers),
       }));
     },
@@ -107,6 +140,7 @@ function createOptionsModel(database) {
       if (!option) return null;
       option.propertyIds = propertyIdsFor(id);
       option.propertyPrices = propertyPricesFor(id);
+      option.propertyDefaults = propertyDefaultsFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
       return option;
     },
@@ -202,6 +236,7 @@ function createOptionsModel(database) {
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
         persistPropertyPrices(id, payload);
+        persistPropertyDefaults(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -257,6 +292,7 @@ function createOptionsModel(database) {
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
         persistPropertyPrices(id, payload);
+        persistPropertyDefaults(id, payload);
       })();
       return { ok: true };
     },
