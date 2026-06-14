@@ -1,0 +1,2 @@
+- Finance : le complément de fin de séjour (relevé au SAS départ) est désormais traité comme le complément d'arrivée — interrupteur « payé » + date sur la fiche, pris en compte dans le suivi financier, la compta et l'export.
+- Finance : chaque complément (arrivée + fin de séjour) peut être marqué « Caisse interne » — il reste compté dans le suivi financier (c'est de l'argent encaissé) mais est exclu de la comptabilité et de l'export comptable. Visible sur la fiche.

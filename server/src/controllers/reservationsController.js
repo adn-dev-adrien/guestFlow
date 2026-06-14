@@ -623,7 +623,8 @@ function updatePayment(req, res) {
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
 
   const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
-    complementPaid, complementPaidDate,
+    complementPaid, complementPaidDate, complementPaidCash,
+    endOfStayComplementPaid, endOfStayComplementPaidDate, endOfStayComplementPaidCash,
     cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
   const id = req.params.id;
@@ -674,12 +675,33 @@ function updatePayment(req, res) {
       return res.status(409).json({ error: `Capture des contributions impossible : ${err.message}`, code: 'CONTRIB_CAPTURE_FAILED' });
     }
   }
-  if (complementPaid !== undefined) {
-    // Same model as deposit / balance — defaults to today on flip-to-paid, cleared on flip-to-unpaid.
-    const date = complementPaid ? (complementPaidDate || new Date().toISOString().split('T')[0]) : null;
+  if (complementPaid !== undefined || complementPaidCash !== undefined) {
+    // Arrival complement: normal (compta) paid OR « payé en liquide » (cash, off the books — spec
+    // cash-complement-and-endofstay-finance.md §3.2). See resolveComplementPayment for the rules.
+    const before = model.getRow(Number(id));
+    const today = new Date().toISOString().split('T')[0];
+    const { paid, cash, date } = resolveComplementPayment({
+      paidInput: complementPaid, cashInput: complementPaidCash, dateInput: complementPaidDate,
+      prevPaid: before?.complementPaid, prevCash: before?.complementPaidCash, prevDate: before?.complementPaidDate,
+      today,
+    });
     model.updatePaymentField(
-      "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
-      complementPaid ? 1 : 0, date, id,
+      "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
+      paid, date, cash, id,
+    );
+  }
+  if (endOfStayComplementPaid !== undefined || endOfStayComplementPaidCash !== undefined) {
+    // End-of-stay complement (departure SAS): same paid / cash model as the arrival complement (§3.1).
+    const before = model.getRow(Number(id));
+    const today = new Date().toISOString().split('T')[0];
+    const { paid, cash, date } = resolveComplementPayment({
+      paidInput: endOfStayComplementPaid, cashInput: endOfStayComplementPaidCash, dateInput: endOfStayComplementPaidDate,
+      prevPaid: before?.endOfStayComplementPaid, prevCash: before?.endOfStayComplementPaidCash, prevDate: before?.endOfStayComplementPaidDate,
+      today,
+    });
+    model.updatePaymentField(
+      "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
+      paid, date, cash, id,
     );
   }
   if (cautionReceived !== undefined) {

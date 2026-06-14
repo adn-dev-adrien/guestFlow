@@ -12,7 +12,10 @@ const DDL = `
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
     finalPrice REAL, depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositDueDate TEXT,
     balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT,
-    complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT
+    complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT,
+    complementPaidCash INTEGER DEFAULT 0,
+    endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
+    endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0
   );
 `;
 
@@ -188,4 +191,37 @@ test('a kind=devis row never leaks into finance revenue/overdue/pending/upcoming
   assert.ok(!op.overdue.reservations.some((r) => r.id === 99));
   assert.ok(!op.pending.reservations.some((r) => r.id === 99));
   assert.ok(!op.upcoming.reservations.some((r) => r.id === 99));
+});
+
+// ── Cash complements + end-of-stay complement (specs/cash-complement-and-endofstay-finance.md) ──
+
+test('getSummary: a « caisse interne » arrival complement STILL counts as collected (only excluded from compta)', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), finalPrice: 250, depositAmount: 200, depositPaid: 1, balanceAmount: 0, complementAmount: 50, complementPaid: 1 });
+  db.prepare('UPDATE reservations SET complementPaidCash = 1 WHERE id = 1').run();
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  // 200 deposit + 50 caisse-interne complement = 250 collected (it's money in — only the accounting
+  // export excludes it).
+  assert.equal(summary.totalCollected, 250);
+  assert.equal(summary.totalPending, 0);
+});
+
+test('getSummary: end-of-stay complement feeds collected (paid) / pending (due) like the arrival complement', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), finalPrice: 100, depositAmount: 100, depositPaid: 1, balanceAmount: 0 });
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementPaid = 1 WHERE id = 1').run();
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(5), finalPrice: 100, depositAmount: 100, depositPaid: 1, balanceAmount: 0 });
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 25, endOfStayComplementPaid = 0 WHERE id = 2').run();
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.totalCollected, 100 + 100 + 40); // deposits + paid end-of-stay
+  assert.equal(summary.totalPending, 25);               // unpaid end-of-stay
+});
+
+test('getSummary: a « caisse interne » end-of-stay complement STILL counts as collected', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), finalPrice: 100, depositAmount: 100, depositPaid: 1, balanceAmount: 0 });
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementPaid = 1, endOfStayComplementPaidCash = 1 WHERE id = 1').run();
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.totalCollected, 140); // deposit + caisse-interne end-of-stay (in finance, not compta)
+  assert.equal(summary.totalPending, 0);
 });

@@ -670,6 +670,14 @@ export default function ReservationPage() {
             balancePaidDate: res.balancePaidDate || '',
             complementPaid: Boolean(res.complementPaid),
             complementPaidDate: res.complementPaidDate || '',
+            complementPaidCash: Boolean(res.complementPaidCash),
+            // End-of-stay complement (departure SAS) — surfaced on the fiche like the arrival complement
+            // (specs/cash-complement-and-endofstay-finance.md §3.1).
+            endOfStayComplementAmount: Number(res.endOfStayComplementAmount || 0),
+            endOfStayComplementPaid: Boolean(res.endOfStayComplementPaid),
+            endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
+            endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
+            endOfStayComplementDetail: res.endOfStayComplementDetail || null,
             clientGrossAmount: res.clientGrossAmount == null ? '' : res.clientGrossAmount,
             touristTaxInComplement: Boolean(res.touristTaxInComplement),
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
@@ -790,6 +798,12 @@ export default function ReservationPage() {
             balancePaidDate: '',
             complementPaid: false,
             complementPaidDate: '',
+            complementPaidCash: false,
+            endOfStayComplementAmount: 0,
+            endOfStayComplementPaid: false,
+            endOfStayComplementPaidDate: '',
+            endOfStayComplementPaidCash: false,
+            endOfStayComplementDetail: null,
             clientGrossAmount: '',
           });
 
@@ -882,6 +896,12 @@ export default function ReservationPage() {
             balancePaidDate: '',
             complementPaid: false,
             complementPaidDate: '',
+            complementPaidCash: false,
+            endOfStayComplementAmount: 0,
+            endOfStayComplementPaid: false,
+            endOfStayComplementPaidDate: '',
+            endOfStayComplementPaidCash: false,
+            endOfStayComplementDetail: null,
             clientGrossAmount: '',
           });
 

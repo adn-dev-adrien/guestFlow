@@ -9,6 +9,17 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// The end-of-stay complement breakdown is stored as a JSON array string ([{ label, amount }]) by the
+// departure SAS. Parse defensively for read-only display (accepts an already-parsed array too).
+function parseEndOfStayDetail(detail) {
+  if (!detail) return [];
+  if (Array.isArray(detail)) return detail;
+  try {
+    const parsed = JSON.parse(detail);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
 /**
  * Finance card: adjusted accommodation price + "Actualiser tarifs", deposit / balance / caution with paid toggles.
  * Reads everything from the reservation form context — no props.
@@ -453,6 +464,121 @@ export default function FinanceSection() {
                               inputLabel: { shrink: true }
                             }}
                           />
+                        )}
+                        {/* « Caisse interne » : compté dans le suivi financier, exclu de la compta
+                            (specs/cash-complement-and-endofstay-finance.md §3.2). Implique « payé ». */}
+                        <Button
+                          fullWidth
+                          size="small"
+                          variant={form.complementPaidCash ? 'contained' : 'outlined'}
+                          color={form.complementPaidCash ? 'warning' : 'inherit'}
+                          onClick={async () => {
+                            const next = !form.complementPaidCash;
+                            const date = form.complementPaidDate || todayStr();
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { complementPaidCash: next });
+                            }
+                            updateForm(next
+                              ? { complementPaidCash: true, complementPaid: true, complementPaidDate: date }
+                              : { complementPaidCash: false });
+                          }}
+                          sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
+                        >
+                          {form.complementPaidCash ? 'Caisse interne ✓' : 'Caisse interne'}
+                        </Button>
+                        {form.complementPaidCash && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Compté dans le suivi financier, hors compta.
+                          </Typography>
+                        )}
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </>
+            )}
+
+            {Number(form.endOfStayComplementAmount || 0) > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Grid container spacing={2} sx={sectionGridSx}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Box
+                        sx={{
+                          border: form.endOfStayComplementPaid ? 'none' : '1px solid',
+                          borderColor: form.endOfStayComplementPaid ? 'transparent' : 'error.main',
+                          borderRadius: 1,
+                          p: form.endOfStayComplementPaid ? 0 : 1.5,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ mb: 1 }} gutterBottom>
+                          Complément de fin de séjour
+                          <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
+                            ({Number(form.endOfStayComplementAmount).toFixed(2).replace('.', ',')} €)
+                          </Typography>
+                        </Typography>
+                        {parseEndOfStayDetail(form.endOfStayComplementDetail).map((line, i) => (
+                          <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
+                            {line.label} : {Number(line.amount || 0).toFixed(2).replace('.', ',')} €
+                          </Typography>
+                        ))}
+                        <Button
+                          fullWidth
+                          variant={form.endOfStayComplementPaid ? 'contained' : 'outlined'}
+                          color={form.endOfStayComplementPaid ? 'success' : 'inherit'}
+                          onClick={async () => {
+                            const next = !form.endOfStayComplementPaid;
+                            const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: next, endOfStayComplementPaidDate: date || null });
+                            }
+                            updateForm({ endOfStayComplementPaid: next, endOfStayComplementPaidDate: date, ...(next ? {} : { endOfStayComplementPaidCash: false }) });
+                          }}
+                          sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1.5 }}
+                        >
+                          {form.endOfStayComplementPaid ? 'Complément payé' : 'Marquer complément payé'}
+                        </Button>
+                        {form.endOfStayComplementPaid && (
+                          <TextField
+                            label="Payé le"
+                            type="date"
+                            value={form.endOfStayComplementPaidDate || ''}
+                            onChange={async (e) => {
+                              const v = e.target.value;
+                              updateForm({ endOfStayComplementPaidDate: v });
+                              if (editingReservationId) {
+                                await api.markPayment(editingReservationId, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: v || null });
+                              }
+                            }}
+                            fullWidth
+                            sx={{ mt: 1.5 }}
+                            slotProps={{ inputLabel: { shrink: true } }}
+                          />
+                        )}
+                        <Button
+                          fullWidth
+                          size="small"
+                          variant={form.endOfStayComplementPaidCash ? 'contained' : 'outlined'}
+                          color={form.endOfStayComplementPaidCash ? 'warning' : 'inherit'}
+                          onClick={async () => {
+                            const next = !form.endOfStayComplementPaidCash;
+                            const date = form.endOfStayComplementPaidDate || todayStr();
+                            if (editingReservationId) {
+                              await api.markPayment(editingReservationId, { endOfStayComplementPaidCash: next });
+                            }
+                            updateForm(next
+                              ? { endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date }
+                              : { endOfStayComplementPaidCash: false });
+                          }}
+                          sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
+                        >
+                          {form.endOfStayComplementPaidCash ? 'Caisse interne ✓' : 'Caisse interne'}
+                        </Button>
+                        {form.endOfStayComplementPaidCash && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Compté dans le suivi financier, hors compta.
+                          </Typography>
                         )}
                       </Box>
                     </Grid>

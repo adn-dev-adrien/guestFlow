@@ -2023,6 +2023,11 @@ db.exec(`
   if (!rcols.includes('endOfStayComplementPaid')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('endOfStayComplementPaidDate')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidDate TEXT");
   if (!rcols.includes('endOfStayComplementDetail')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementDetail TEXT");
+  // « Caisse interne » markers (specs/cash-complement-and-endofstay-finance.md §3.2): when set, the
+  // complement is settled (paid) and COUNTS in the financial tracking, but is EXCLUDED from the
+  // accounting (compta) + the accounting export. Independent per complement.
+  if (!rcols.includes('complementPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN complementPaidCash INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('endOfStayComplementPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0");
   // SAS completion markers (specs/arrival-departure-sas.md §3.0): set on commit so the planning
   // card disables the SAS button once done (no accidental re-run).
   if (!rcols.includes('arrivalSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalSasDoneAt TEXT");

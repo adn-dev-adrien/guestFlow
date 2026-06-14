@@ -56,13 +56,21 @@ function createFinanceModel(database) {
         const deposit    = Number(r.depositAmount    || 0);
         const balance    = Number(r.balanceAmount    || 0);
         const complement = Number(r.complementAmount || 0);
+        // End-of-stay complement (departure SAS) — same treatment as the arrival complement (§3.1).
+        const endOfStay  = Number(r.endOfStayComplementAmount || 0);
 
-        const stayCollected = (r.depositPaid    ? deposit    : 0)
-                            + (r.balancePaid    ? balance    : 0)
-                            + (r.complementPaid ? complement : 0);
-        const stayPending   = (r.depositPaid    ? 0 : deposit)
-                            + (r.balancePaid    ? 0 : balance)
-                            + (r.complementPaid ? 0 : complement);
+        // « Caisse interne » complements (complementPaidCash / endOfStayComplementPaidCash) ARE money
+        // collected, so they count in the financial tracking exactly like a normal paid complement —
+        // they are only excluded from the accounting export (specs/cash-complement-and-endofstay-finance.md
+        // §3.2). Hence no cash check here.
+        const stayCollected = (r.depositPaid             ? deposit    : 0)
+                            + (r.balancePaid             ? balance    : 0)
+                            + (r.complementPaid          ? complement : 0)
+                            + (r.endOfStayComplementPaid ? endOfStay  : 0);
+        const stayPending   = (r.depositPaid             ? 0 : deposit)
+                            + (r.balancePaid             ? 0 : balance)
+                            + (r.complementPaid          ? 0 : complement)
+                            + (r.endOfStayComplementPaid ? 0 : endOfStay);
 
         totalCollected += stayCollected;
         totalPending   += stayPending;
