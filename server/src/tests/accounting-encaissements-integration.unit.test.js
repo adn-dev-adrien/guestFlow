@@ -47,6 +47,9 @@ function createDb() {
       depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositPaidDate TEXT,
       balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balancePaidDate TEXT,
       complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT,
+      complementPaidCash INTEGER DEFAULT 0,
+      endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
+      endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
       finalPrice REAL DEFAULT 0, clientGrossAmount REAL,
       totalPrice REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, touristTaxRate REAL DEFAULT 0,
       touristTaxInComplement INTEGER DEFAULT 0, extraGuestSurchargeOffered INTEGER DEFAULT 0,
@@ -303,4 +306,63 @@ test('platformsPreview commission uses the STORED finalPrice, not the engine rec
   controller.platformsPreview({ query: { month: '8', year: '2026' } }, res);
   assert.equal(res.body.rows.length, 1);
   assert.equal(res.body.rows[0].commission, 40);
+});
+
+// ── Cash complements + end-of-stay complement (specs/cash-complement-and-endofstay-finance.md) ──
+
+test('cash arrival complement is excluded from accounting (off the books)', () => {
+  const db = createDb();
+  insertReservation(db, {
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+    complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-15', complementPaidCash: 1,
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  // Only the balance entry; the cash complement is not emitted.
+  assert.deepEqual(entries.map((e) => e.kind).sort(), ['balance']);
+});
+
+test('non-cash arrival complement is still emitted', () => {
+  const db = createDb();
+  insertReservation(db, {
+    complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-15', complementPaidCash: 0,
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  assert.deepEqual(entries.map((e) => e.kind), ['complement']);
+});
+
+test('end-of-stay complement: emitted as endOfStayComplement entry, split HT+VAT at the app vatRate (10%)', () => {
+  const db = createDb();
+  insertReservation(db, {
+    endOfStayComplementAmount: 88, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-08-20',
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  const eos = entries.find((e) => e.kind === 'endOfStayComplement');
+  assert.ok(eos, 'end-of-stay entry present');
+  assert.equal(eos.encaissementTtc, 88);
+  assert.equal(eos.commission, null);
+  assert.equal(eos.taxTtc, 0);
+  // 88 TTC @ 10% → VAT = 88 × 10/110 = 8, HT = 80. Single « options » bucket (account 70600010).
+  assert.equal(eos.buckets.length, 1);
+  assert.equal(eos.buckets[0].name, 'options');
+  assert.equal(eos.buckets[0].vat, 8);
+  assert.equal(eos.buckets[0].ht, 80);
+});
+
+test('cash end-of-stay complement is excluded from accounting', () => {
+  const db = createDb();
+  insertReservation(db, {
+    endOfStayComplementAmount: 88, endOfStayComplementPaid: 1,
+    endOfStayComplementPaidDate: '2026-08-20', endOfStayComplementPaidCash: 1,
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  assert.equal(entries.length, 0);
+});
+
+test('end-of-stay complement paid date drives the export month (not the stay date)', () => {
+  const db = createDb();
+  insertReservation(db, {
+    endOfStayComplementAmount: 30, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-09-03',
+  });
+  assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 }).length, 0);
+  assert.equal(createAccountingModel(db).encaissementsByMonth({ month: 9, year: 2026 }).length, 1);
 });
