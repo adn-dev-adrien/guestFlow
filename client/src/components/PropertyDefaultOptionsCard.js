@@ -4,8 +4,11 @@
  *
  * Lists every linen-flagged option (`countsAsBedLinen=1` OR `countsAsBathroomLinen=1`) with two
  * switches per row:
- *   - "Ajouter par défaut" → row exists in `property_option_defaults`.
- *   - "Offert (gratuit)"   → the row's `offered` flag (disabled until the first switch is on).
+ *   - "Inclure" → row exists in `property_option_defaults` (the option is included on new reservations).
+ *   - "Offert (gratuit)" → the row's `offered` flag (disabled until the first switch is on).
+ *
+ * "Included" options are snapshotted into `reservation_options` at create time, so toggling here only
+ * affects FUTURE reservations — existing ones are untouched.
  *
  * Toggling either switch immediately persists via the API (no Save button). The component owns
  * its loading + busy state per row so the rest of PropertyDetail's dirty-form machinery is
@@ -114,12 +117,13 @@ export default function PropertyDefaultOptionsCard({ propertyId, options, onErro
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <LocalLaundryServiceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-          <Typography variant="h6">Options ajoutées par défaut</Typography>
+          <Typography variant="h6">Options incluses</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Sélectionnez les options qui seront pré-cochées sur chaque <strong>nouvelle</strong>{' '}
-          réservation pour ce logement. Activez « Offert » quand l'option est incluse dans le
-          tarif (gratuite pour le client). Les modifications sont sauvegardées immédiatement.
+          Sélectionnez les options à inclure automatiquement sur chaque <strong>nouvelle</strong>{' '}
+          réservation pour ce logement. Activez « Offert » quand l'option est gratuite pour le client
+          (incluse dans le tarif). Les modifications ne s'appliquent qu'aux nouvelles réservations —
+          les réservations déjà créées ne sont pas impactées.
         </Typography>
 
         {loading && (
@@ -164,9 +168,9 @@ export default function PropertyDefaultOptionsCard({ propertyId, options, onErro
                           onChange={(e) => toggleAddedByDefault(optionId, e.target.checked)}
                         />
                       )}
-                      label="Ajouter par défaut"
+                      label="Inclure"
                     />
-                    <Tooltip title={isAddedByDefault ? '' : "Activez d'abord « Ajouter par défaut »"}>
+                    <Tooltip title={isAddedByDefault ? '' : "Activez d'abord « Inclure »"}>
                       <span>
                         <FormControlLabel
                           control={(
