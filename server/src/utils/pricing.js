@@ -2,6 +2,18 @@ function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+// Gross-up a net price by a platform commission % so that, after the platform takes its commission,
+// the owner nets `net`: gross = net / (1 − c/100). c is clamped to [0, 99.99]; a value ≥ 100 (would
+// divide by ≤ 0) returns null = "invalid, no price". c ≤ 0 / blank → gross = net.
+// specs/platform-price-from-commission.md §3.3.
+function grossFromNet(net, commissionPercent) {
+  const amount = Number(net || 0);
+  let c = Number(commissionPercent);
+  if (!Number.isFinite(c) || c <= 0) return roundMoney(amount);
+  if (c >= 100) return null;
+  return roundMoney(amount / (1 - c / 100));
+}
+
 function parseJsonArray(value) {
   if (Array.isArray(value)) return value;
   if (!value) return [];
@@ -1491,6 +1503,7 @@ function calculateReservationQuote({
 
 module.exports = {
   roundMoney,
+  grossFromNet,
   parseJsonArray,
   normalizeOptionProgressiveTiers,
   calculateProgressiveParticipantOptionTotal,

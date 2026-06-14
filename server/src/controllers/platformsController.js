@@ -10,4 +10,16 @@ function listNames(req, res) {
   res.json({ platforms: platformsModel.listNames() });
 }
 
-module.exports = { listNames };
+// Non-direct platforms + their commission % (specs/platform-price-from-commission.md).
+function listWithCommission(req, res) {
+  res.json({ platforms: platformsModel.listWithCommission() });
+}
+
+// Set a platform's global commission % (clamped server-side to [0, 99.99]; Direct is rejected).
+function setCommission(req, res) {
+  const updated = platformsModel.setCommissionPercent(req.params.id, req.body && req.body.commissionPercent);
+  if (!updated) return res.status(404).json({ error: 'PLATFORM_NOT_FOUND_OR_DIRECT' });
+  return res.json({ id: updated.id, name: updated.name, commissionPercent: Number(updated.commissionPercent) || 0 });
+}
+
+module.exports = { listNames, listWithCommission, setCommission };

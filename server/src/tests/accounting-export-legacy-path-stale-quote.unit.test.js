@@ -60,7 +60,7 @@ function createDb() {
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10, defaultCommissionAccountNumber TEXT DEFAULT '622600', vatRateCommission REAL DEFAULT 20);
     CREATE TABLE platforms (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
-      commissionAccountNumber TEXT, hasVatOnCommission INTEGER NOT NULL DEFAULT 0
+      commissionAccountNumber TEXT, hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0
     );
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY, propertyId INTEGER, clientId INTEGER, kind TEXT DEFAULT 'reservation',

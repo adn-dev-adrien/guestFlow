@@ -70,6 +70,12 @@ function deletePricing(req, res) {
   respond(res, model.deletePricingRule(req.params.id, req.params.ruleId));
 }
 
+// « Prix plateformes » grid for the tarif page (specs/platform-price-from-commission.md).
+// Read endpoint → res.json directly (like list/getOne); the model returns clean data, not { data }.
+function platformPrices(req, res) {
+  res.json(model.platformPrices(req.params.id));
+}
+
 function applyPricing(req, res) {
   respond(res, model.applyPricingTo(Number(req.params.id), req.body));
 }
@@ -89,6 +95,6 @@ function setOptions(req, res) {
 module.exports = {
   list, getOne, platformColors, progressivePreview,
   create, update, remove,
-  addPricing, updatePricing, deletePricing, applyPricing,
+  addPricing, updatePricing, deletePricing, applyPricing, platformPrices,
   addDocument, deleteDocument, setOptions,
 };
