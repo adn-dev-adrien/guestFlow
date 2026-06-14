@@ -14,9 +14,17 @@ const settingsModel       = require('./models/settingsModel');
 const { createEmailService } = require('./utils/emailService');
 const { performAutoEmailPass, isoToday } = require('./utils/emailAutoSendRunner');
 
+// Arrival/departure push (specs/pwa-push-notifications.md §3.3).
+const reservationsModel = require('./models/reservationsModel');
+const pushService = require('./utils/pushService');
+const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner');
+
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
 let emailAutoSendInProgress = false;
+let arrivalDeparturePushInProgress = false;
+// First pass after boot stamps already-due events WITHOUT sending (no restart flood — rule 12).
+let arrivalDeparturePushFirstRun = true;
 // Track the local-date YYYY-MM-DD of the last successful auto-email run so the per-minute
 // tick doesn't fire the pass more than once per day.
 let lastEmailAutoSendDate = null;
@@ -141,6 +149,23 @@ function tickEmailAutoSend() {
   runEmailAutoSendPass('daily 08:00 pass').catch((err) => console.error('[email-auto-send] unhandled:', err));
 }
 
+// Per-minute arrival/departure push pass. Isolated from the other jobs (its own in-progress guard +
+// try/catch). The first pass after boot stamps already-due events without sending (rule 12).
+async function runArrivalDeparturePushPass(reason = 'tick') {
+  if (arrivalDeparturePushInProgress) return;
+  arrivalDeparturePushInProgress = true;
+  const firstRun = arrivalDeparturePushFirstRun;
+  arrivalDeparturePushFirstRun = false;
+  try {
+    const { sent, stamped } = await runArrivalDeparturePush({ reservationsModel, pushService, firstRun });
+    if (sent > 0) console.log(`[push] ${reason}: ${sent} arrival/departure push(es) sent (${stamped} stamped)`);
+  } catch (err) {
+    console.error('[push] arrival/departure pass error:', err && err.message ? err.message : err);
+  } finally {
+    arrivalDeparturePushInProgress = false;
+  }
+}
+
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -165,6 +190,12 @@ function startScheduledTasks() {
   const EMAIL_AUTO_SEND_TICK = 60 * 1000;
   setInterval(tickEmailAutoSend, EMAIL_AUTO_SEND_TICK);
   setTimeout(tickEmailAutoSend, 90 * 1000);
+
+  // Arrival/departure push: per-minute tick. First pass 95 s after boot (firstRun → stamps the day's
+  // already-passed events without sending). Then each minute it pushes events as they cross their time.
+  const ARRIVAL_DEPARTURE_PUSH_TICK = 60 * 1000;
+  setInterval(() => runArrivalDeparturePushPass('tick').catch((err) => console.error('[push] unhandled:', err)), ARRIVAL_DEPARTURE_PUSH_TICK);
+  setTimeout(() => runArrivalDeparturePushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 95 * 1000);
 }
 
 module.exports = {
@@ -175,4 +206,6 @@ module.exports = {
   // Email automation — exposed for tests + ops trigger.
   runEmailAutoSendPass,
   tickEmailAutoSend,
+  // Arrival/departure push — exposed for tests + ops trigger.
+  runArrivalDeparturePushPass,
 };

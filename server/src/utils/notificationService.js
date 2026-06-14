@@ -18,6 +18,7 @@
 const realDb = require('../database');
 const realSettingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
+const realPushService = require('./pushService');
 
 function euro(n) {
   return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
@@ -33,8 +34,15 @@ function buildNotificationService({
   db = realDb,
   settingsModel = realSettingsModel,
   emailServiceFactory = createEmailService,
+  pushService = realPushService,
   logger = console,
 } = {}) {
+  // Fire a Web Push for a new booking, independently of the email settings (it's gated by the
+  // per-user push preferences, not by SMTP/recipient). Fully isolated — never throws.
+  async function pushNewReservation(payload) {
+    try { await pushService.sendToPref('newReservation', payload); }
+    catch (err) { logger.warn('[notificationService.push]', err && err.message ? err.message : err); }
+  }
   // Resolve the common send context, or a reason to skip. Never throws.
   function resolveContext() {
     const notif = settingsModel.notificationSettings();
@@ -145,10 +153,18 @@ function buildNotificationService({
 
   async function notifyNewSiteDevis(devisId) {
     try {
-      const ctx = resolveContext();
-      if (ctx.skip) return { sent: false, skipped: ctx.skip };
       const devis = loadDevis(devisId);
       if (!devis) return { sent: false, skipped: 'not_found' };
+      // Push (independent of email settings).
+      const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim();
+      await pushNewReservation({
+        title: 'Nouvelle demande de devis',
+        body: `${devis.propertyName || ''}${client ? ` — ${client}` : ''}`.trim(),
+        url: `/reservations/new?mode=devis&devisId=${Number(devis.id)}`,
+      });
+      // Email (its own gating).
+      const ctx = resolveContext();
+      if (ctx.skip) return { sent: false, skipped: ctx.skip };
       const { subject, text } = buildDevisEmail(devis, ctx.publicUrl);
       return await deliver({ recipient: ctx.recipient, subject, text });
     } catch (err) {
@@ -159,16 +175,21 @@ function buildNotificationService({
 
   async function notifyNewIcalReservation(reservationId) {
     try {
-      // Per-channel switch (spec §3 rule 9b): when off, the platform new-reservation email is
-      // suppressed even though the master toggle stays on. Checked first so a disabled channel
-      // doesn't even read the reservation row.
+      const resa = loadReservation(reservationId);
+      if (!resa) return { sent: false, skipped: 'not_found' };
+      // Push (independent of the email settings + the iCal email channel toggle).
+      const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
+      await pushNewReservation({
+        title: `Nouvelle réservation${platform ? ` ${platform}` : ''}`,
+        body: `${resa.propertyName || ''}${resa.startDate ? ` — dès le ${resa.startDate}` : ''}`.trim(),
+        url: `/reservations/${Number(resa.id)}`,
+      });
+      // Email — per-channel switch (spec site-booking-notifications §3 rule 9b) + master gating.
       if (!settingsModel.notificationSettings().icalReservationEnabled) {
         return { sent: false, skipped: 'ical_disabled' };
       }
       const ctx = resolveContext();
       if (ctx.skip) return { sent: false, skipped: ctx.skip };
-      const resa = loadReservation(reservationId);
-      if (!resa) return { sent: false, skipped: 'not_found' };
       const { subject, text } = buildReservationEmail(resa, ctx.publicUrl);
       return await deliver({ recipient: ctx.recipient, subject, text });
     } catch (err) {

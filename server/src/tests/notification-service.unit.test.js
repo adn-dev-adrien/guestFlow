@@ -161,3 +161,45 @@ test('missing row → skipped not_found, no send, no throw', async () => {
   assert.equal(res.sent, false);
   assert.equal(res.skipped, 'not_found');
 });
+
+// ── Web Push trigger (specs/pwa-push-notifications.md §3.3) ──────────────────
+
+function stubPush() {
+  const calls = [];
+  return { calls, sendToPref: async (pref, payload) => { calls.push({ pref, payload }); } };
+}
+
+test('notifyNewIcalReservation fires a « newReservation » push (independent of email settings)', async () => {
+  const db = seedDb();
+  const sent = [];
+  const push = stubPush();
+  // Email channel OFF — the push must still fire.
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings({ enabled: false }), emailServiceFactory: makeFakeFactory(sent), pushService: push, logger: silentLogger });
+  await svc.notifyNewIcalReservation(200);
+  assert.equal(sent.length, 0, 'email suppressed (disabled)');
+  assert.equal(push.calls.length, 1);
+  assert.equal(push.calls[0].pref, 'newReservation');
+  assert.match(push.calls[0].payload.title, /Nouvelle réservation/);
+  assert.equal(push.calls[0].payload.url, '/reservations/200');
+});
+
+test('notifyNewSiteDevis fires a « newReservation » push', async () => {
+  const db = seedDb();
+  const sent = [];
+  const push = stubPush();
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings(), emailServiceFactory: makeFakeFactory(sent), pushService: push, logger: silentLogger });
+  await svc.notifyNewSiteDevis(99);
+  assert.equal(push.calls.length, 1);
+  assert.equal(push.calls[0].pref, 'newReservation');
+  assert.match(push.calls[0].payload.title, /Nouvelle demande de devis/);
+});
+
+test('a throwing push service never breaks the email path (isolation)', async () => {
+  const db = seedDb();
+  const sent = [];
+  const push = { sendToPref: async () => { throw new Error('push boom'); } };
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings(), emailServiceFactory: makeFakeFactory(sent), pushService: push, logger: silentLogger });
+  const res = await svc.notifyNewIcalReservation(200);
+  assert.equal(res.sent, true, 'email still sent despite push throwing');
+  assert.equal(sent.length, 1);
+});

@@ -61,4 +61,16 @@ function getOrCreateSecret(name, byteLength = 32) {
   return secret;
 }
 
-module.exports = { loadLocalEnv, getOrCreateSecret, ENV_PATH };
+/**
+ * Persist a specific (non-random) value to `.env.local` + `process.env` if not already set. Used for
+ * value pairs that must be generated together (e.g. the VAPID keypair). Real env wins.
+ */
+function persistVar(name, value) {
+  loadLocalEnv();
+  if (process.env[name] && String(process.env[name]).trim()) return process.env[name].trim();
+  process.env[name] = value;
+  appendVar(name, value);
+  return value;
+}
+
+module.exports = { loadLocalEnv, getOrCreateSecret, persistVar, ENV_PATH };

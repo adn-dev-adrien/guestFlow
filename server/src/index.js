@@ -102,6 +102,11 @@ try {
 getOrCreateSecret('PUBLIC_API_KEY', 32);
 logErrorMarker('PUBLIC_API_KEY ready in server/.env.local — copy it into the WordPress proxy.');
 
+// VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
+// server/.env.local on first boot; the private key configures web-push, the public key is exposed
+// to the client for the push subscription. Never logged.
+require('./utils/vapid').ensureVapid();
+
 // Serve uploads (public static images)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
@@ -156,6 +161,7 @@ app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
 app.use('/api/google-calendar', require('./routes/googleCalendar'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/push', require('./routes/push'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
