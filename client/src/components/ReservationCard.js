@@ -24,13 +24,14 @@
 
 import React from 'react';
 import {
-  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link,
+  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { orange } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
-import LoginIcon from '@mui/icons-material/Login';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import ArticleIcon from '@mui/icons-material/Article';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
@@ -80,6 +81,9 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
 
 export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
   const r = reservation;
+  const theme = useTheme();
+  // On mobile the two action buttons move to a dedicated bottom row (rendered once, not duplicated).
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   // The card is no longer clickable as a whole: explicit actions are the two buttons (open the
   // reservation / run the arrival SAS) + the clickable client name. `stop` guards the checkbox.
   const stop = (e) => e.stopPropagation();
@@ -108,6 +112,35 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
   const optionsText = (r.options || []).map((o) => `${o.title} ×${formatQty(o)}`);
   const resourcesText = (r.resources || []).map((rr) => `${rr.name} ×${formatQty(rr)}`);
+
+  // The two card actions (open the reservation fiche / run the arrival SAS). Rendered top-right on
+  // sm+ and on a dedicated bottom row on xs (so they don't get pushed off-frame by the « Prêt » chip).
+  const actionButtons = (
+    <>
+      {onOpenReservation && (
+        <Tooltip title="Ouvrir la réservation">
+          <IconButton size="small" onClick={() => onOpenReservation(r.id)} aria-label="Ouvrir la réservation">
+            <ArticleIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onOpenSas && (
+        <Tooltip title={sasDone ? 'Check-in déjà effectué' : 'Check-in (SAS arrivée)'}>
+          <span>
+            <IconButton
+              size="small"
+              color={sasDone ? 'success' : 'primary'}
+              disabled={sasDone}
+              onClick={() => onOpenSas(r.id)}
+              aria-label="Check-in (SAS arrivée)"
+            >
+              {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <ChecklistIcon sx={{ fontSize: 20 }} />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+    </>
+  );
 
   return (
     <Card
@@ -170,28 +203,11 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
           />
           {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
           <Box sx={{ flexGrow: 1 }} />
-          {/* Two explicit actions: open the reservation, run the arrival SAS (✓ + disabled once done). */}
-          {onOpenReservation && (
-            <Tooltip title="Ouvrir la réservation">
-              <IconButton size="small" onClick={() => onOpenReservation(r.id)} aria-label="Ouvrir la réservation">
-                <OpenInNewIcon sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-          )}
-          {onOpenSas && (
-            <Tooltip title={sasDone ? 'Check-in déjà effectué' : 'Check-in (SAS arrivée)'}>
-              <span>
-                <IconButton
-                  size="small"
-                  color={sasDone ? 'success' : 'primary'}
-                  disabled={sasDone}
-                  onClick={() => onOpenSas(r.id)}
-                  aria-label="Check-in (SAS arrivée)"
-                >
-                  {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <LoginIcon sx={{ fontSize: 20 }} />}
-                </IconButton>
-              </span>
-            </Tooltip>
+          {/* Actions top-right on tablet/desktop; on mobile they move to the bottom row below. */}
+          {!isMobile && (
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {actionButtons}
+            </Box>
           )}
         </Box>
 
@@ -373,6 +389,13 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             </Box>
           )}
         </Box>
+
+        {/* Mobile-only action row: keeps the two buttons in-frame when the « Prêt » chip is present. */}
+        {isMobile && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 0.5, mt: 1 }}>
+            {actionButtons}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
