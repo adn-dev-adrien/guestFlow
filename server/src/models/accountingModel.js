@@ -45,6 +45,9 @@ function createAccountingModel(database) {
                r.depositAmount, r.depositPaid, r.depositPaidDate,
                r.balanceAmount, r.balancePaid, r.balancePaidDate,
                r.complementAmount, r.complementPaid, r.complementPaidDate,
+               COALESCE(r.complementPaidCash, 0) AS complementPaidCash,
+               r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidDate,
+               COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
                r.finalPrice, r.clientGrossAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
@@ -61,10 +64,13 @@ function createAccountingModel(database) {
             OR
             (r.balancePaid = 1 AND r.balancePaidDate >= ? AND r.balancePaidDate < ?)
             OR
-            (r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ?)
+            -- Cash-flagged complements are excluded from accounting (paid « en liquide », off the books).
+            (r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ? AND COALESCE(r.complementPaidCash, 0) = 0)
+            OR
+            (r.endOfStayComplementPaid = 1 AND r.endOfStayComplementPaidDate >= ? AND r.endOfStayComplementPaidDate < ? AND COALESCE(r.endOfStayComplementPaidCash, 0) = 0)
           )
-        ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate), r.id
-      `).all(from, nextMonth, from, nextMonth, from, nextMonth);
+        ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate, r.endOfStayComplementPaidDate), r.id
+      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth);
 
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
@@ -80,7 +86,16 @@ function createAccountingModel(database) {
         const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
         if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, quote, 'deposit', perLineData, commissionContext));
         if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, quote, 'balance', perLineData, commissionContext));
-        if (inMonth(row.complementPaid, row.complementPaidDate)) entries.push(buildEntry(row, quote, 'complement', perLineData, commissionContext));
+        // Cash complements are settled off the books → never emitted as an encaissement.
+        if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
+          entries.push(buildEntry(row, quote, 'complement', perLineData, commissionContext));
+        }
+        // End-of-stay complement (SAS): a flat TTC amount booked as a « prestation complémentaire »
+        // at the app general VAT rate (specs/cash-complement-and-endofstay-finance.md §3.1). Excluded
+        // when paid in cash.
+        if (inMonth(row.endOfStayComplementPaid, row.endOfStayComplementPaidDate) && Number(row.endOfStayComplementPaidCash || 0) === 0) {
+          entries.push(buildEndOfStayEntry(row, commissionContext.vatRate));
+        }
         // Pure-tax entries are dropped (see `buildEntry`).
         return entries.filter(Boolean);
       });
@@ -95,11 +110,13 @@ function buildCommissionContext(database) {
   const settings = settingsModel.read ? settingsModel.read() : database.prepare('SELECT * FROM app_settings WHERE id = 1').get();
   const defaultAccount = (settings && settings.defaultCommissionAccountNumber) || DEFAULT_COMMISSION_ACCOUNT;
   const vatRateCommission = settings && settings.vatRateCommission != null ? Number(settings.vatRateCommission) : 20;
+  // General sales VAT rate (same one the stay/options use) — applied to the end-of-stay complement.
+  const vatRate = settings && settings.vatRate != null ? Number(settings.vatRate) : 10;
   // Index platforms by lowercased name for case-insensitive matching (`Airbnb` vs `airbnb`).
   const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
   const byName = new Map();
   for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
-  return { defaultAccount, vatRateCommission, platformByName: byName };
+  return { defaultAccount, vatRateCommission, vatRate, platformByName: byName };
 }
 
 // Resolve the commission config for one reservation. Returns null for direct bookings (no
@@ -448,6 +465,33 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
       bucket('options', Number(quote.optionsNetPrice || 0), Number(quote.optionsVatAmount || 0), quote.vatPercentageOptions),
       bucket('resources', quote.resourcesNetPrice, quote.resourcesVatAmount, quote.vatPercentageResources),
     ].filter((b) => b.ht > 0 || b.vat > 0),
+  };
+}
+
+// End-of-stay complement (departure SAS): a flat TTC amount (ménage + linge manquant) outside the
+// pricing engine. Booked as a single « prestation complémentaire » revenue line (account 70600010)
+// at the app general VAT rate — parity with how the arrival complement's cleaning/linen is booked
+// (specs/cash-complement-and-endofstay-finance.md §3.1 + Q1). Collected on-site by the owner: no
+// platform commission, no tourist tax. Returns null when there's nothing to book.
+function buildEndOfStayEntry(row, vatRate) {
+  const ttc = round2(Number(row.endOfStayComplementAmount || 0));
+  if (ttc <= 0) return null;
+  const b = bucketFromTtc('options', ttc, Number(vatRate || 0));
+  return {
+    reservationId: row.id,
+    kind: 'endOfStayComplement',
+    paidDate: row.endOfStayComplementPaidDate || null,
+    client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+    propertyName: row.propertyName || '',
+    platform: row.platform || 'direct',
+    clientGrossAmount: null,
+    finalPrice: ttc,
+    encaissementTtc: ttc,
+    encaissementNetTtc: ttc,
+    commission: null,
+    taxTtc: 0,
+    fraction: 1,
+    buckets: [b].filter((x) => x.ht > 0 || x.vat > 0),
   };
 }
 
