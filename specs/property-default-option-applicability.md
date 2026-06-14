@@ -51,6 +51,14 @@ Every reservation of a property whose defaults include an **offered** bed-linen 
 **bed-configuration card** on the reservation page — for new and existing reservations alike — while
 the WordPress public booking flow continues **not** to show that included option.
 
+> **Amended 2026-06-14 (specs/reservation-option-immutability.md).** "Applies to existing
+> reservations" is now scoped to **displaying what they already carry** (including the one-time
+> backfill that already ran in prod). Going forward an existing reservation is **frozen**: the
+> bed-linen default is no longer *force-added* on the reservation form nor *re-merged* on save for a
+> reservation that doesn't already carry it. The default is force-applied on **new** reservations
+> only. This reverses the original "force it onto existing reservations on edit" behaviour (former
+> rule 4.bis of `bed-config-in-linen-card.md`).
+
 ## 3. Functional rules
 
 1. **A property's default options imply applicability.** Every code path that lists a property's

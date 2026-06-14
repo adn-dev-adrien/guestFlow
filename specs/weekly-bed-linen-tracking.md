@@ -278,15 +278,16 @@ neither.
     defaults — historical reservations must stay frozen as the operator left them. The
     pre-population uses `quantity: 1` + `offered: <row.offered>`.
 
-31. **UI canonical edit + read-only mirror** (Adrien's UX choice, 2026-06-03):
-    - **PropertyDetail (canonical edit)**: new section *"Options ajoutées par défaut"*. For each
-      linen-flagged option (`countsAsBedLinen = 1` OR `countsAsBathroomLinen = 1`), one row
-      with two switches: *"Ajouter par défaut"* + *"Offert (gratuit)"* (the second is disabled
-      until the first is on). Changes are saved with a PUT.
-    - **OptionsPage (read-only mirror)**: when editing a linen option, a section *"Logements
-      par défaut"* lists each property that has this option as a default + the offered flag
-      next to each. The component is a pure renderer — no input, just a status table that
-      mirrors what the property page is canonical for.
+31. **UI edit + read-only mirror** (Adrien's UX choice, 2026-06-03; amended 2026-06-14 —
+    specs/reservation-option-immutability.md):
+    - **OptionsPage (canonical edit)**: per-property defaults are configured when editing an option,
+      via the per-property grid (`OptionDefaultsSection`) — *"Inclus par défaut"* + *"Offert
+      (gratuit)"* per applicable property, saved with the option's own PUT payload
+      (`propertyDefaults`). The read-only mirror (`OptionPropertyDefaultsMirror`, *"Logements par
+      défaut"*) stays beside it.
+    - **PropertyDetail (removed 2026-06-14)**: the former *"Options incluses"* card
+      (`PropertyDefaultOptionsCard`) on the property page is removed; per-property defaults are now
+      configured only from the Options page (above).
 
 32. **API endpoints**:
     - `GET /api/properties/:id/option-defaults` → `[{ optionId, offered }]`.

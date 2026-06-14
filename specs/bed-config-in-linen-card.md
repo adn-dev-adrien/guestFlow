@@ -82,18 +82,19 @@ the new invariant.
    refactor doesn't silently hide the card when the option is a
    property default.
 
-   **4.bis (hotfix 2026-06-05 follow-up)** — **A bed-linen-flagged
-   option that is configured as a property default is forced ON and
-   the Switch is disabled.** The operator cannot remove it from a
-   reservation form (the property contract says it's mandatory).
-   This applies to BOTH new reservations (the option already auto-
-   merges via the existing property-defaults logic on the create
-   path) AND existing reservations (where pre-default-era rows may
-   carry no entry in `reservation_options` despite the property now
-   declaring the option as a default). The Switch shows checked +
-   `disabled`; the bed inputs sub-block is rendered as if the option
-   were enabled; the bed-counts auto-zero on Switch OFF (rule 3) is
-   unreachable because the operator cannot turn the Switch off.
+   **4.bis (hotfix 2026-06-05; amended 2026-06-14 —
+   specs/reservation-option-immutability.md)** — **A bed-linen-flagged
+   option that is a property default is forced ON (Switch disabled)
+   ONLY when CREATING a new reservation.** On a new reservation the
+   operator cannot remove it (the property contract says it's
+   mandatory): it auto-merges via the create-path property-defaults
+   logic, the Switch shows checked + `disabled`, and the bed inputs
+   sub-block renders as enabled. **On an EXISTING reservation the
+   forcing no longer applies** — an already-created reservation is
+   frozen (specs/reservation-option-immutability.md): it shows exactly
+   the options it carries, and a property default it does not already
+   have is NOT forced on. (This reverses the original 4.bis, which
+   forced the option on existing reservations too.)
 5. **Capacity validation only fires when the option is enabled** —
    `exceedsSingleBedsLimit / exceedsDoubleBedsLimit /
    bedsCapacityMismatch` only render their error messages when the
@@ -115,17 +116,16 @@ the new invariant.
    option separately, so an un-linen reservation with `babyBeds > 0`
    never pollutes laundry counts.
 
-   **Bed-linen-only property-defaults merge on update** — on `create`
-   the controller already merges ALL property defaults into
-   `reservation_options` (idempotent, existing behaviour). On
-   `update`, historical preservation (other-spec rule 30) keeps the
-   operator's original option set frozen — EXCEPT for options
-   flagged `countsAsBedLinen = 1`, which are always re-merged from
-   `property_option_defaults` before the invariant runs. This makes
-   the operator's intent ("this property always includes bed
-   linen") sticky across edits without bleeding into unrelated
-   defaults (e.g. a one-off "Petit-déjeuner" that wasn't included
-   on the historical reservation).
+   **Property-defaults merge on create only (amended 2026-06-14 —
+   specs/reservation-option-immutability.md)** — on `create` the
+   controller merges ALL property defaults into `reservation_options`
+   (idempotent, existing behaviour). On `update` there is **no**
+   re-merge: historical preservation (other-spec rule 30) keeps the
+   operator's option set frozen, with no exception. An existing
+   reservation that pre-dates a bed-linen property default is **not**
+   retro-fitted with it on save — it stays exactly as it was. (The
+   former `countsAsBedLinen`-only re-merge on update was removed for
+   immutability.)
 8. **One-shot data migration at boot** — a new idempotent migration
    block in `database.js` zeroes `singleBeds / doubleBeds / babyBeds`
    for every reservation that has no bed-linen-flagged option in
@@ -159,12 +159,14 @@ the new invariant.
   Switch is OFF, the card has no inputs — clean state.
 - Operator opens an existing reservation on a property where bed-
   linen is a property default but the reservation pre-dates the
-  default and has no row in `reservation_options`. The migration
-  treats the property default as "has bed linen" → bed counts stay.
-  On next save, the controller's create/update path produces the
-  expected `reservation_options` row (via auto-merge on create; for
-  update, the row stays absent — but the property default still
-  drives the laundry aggregation).
+  default and has no row in `reservation_options`. The boot migration
+  treats the property default as "has bed linen" so historical bed
+  counts are preserved, and the laundry aggregation reads the property
+  default directly. The reservation is frozen
+  (specs/reservation-option-immutability.md): the linen option is
+  **not** force-added on the form and **not** re-merged on save — the
+  row stays absent unless the operator explicitly adds the option. New
+  reservations still get the option via the create-time auto-merge.
 - Operator skips on a property that has NO bed-linen option in its
   catalog at all → no card to render; bed inputs never appear. The
   reservation's bed counts stay at `0` per the migration / save

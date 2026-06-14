@@ -1128,17 +1128,19 @@ export default function ReservationPage() {
     ? null
     : Math.max(0, babyAvailableNumber - selectedBabyBeds);
 
-  // specs/bed-config-in-linen-card.md §3 rule 4.bis — a `countsAsBedLinen = 1` option that
-  // sits in `property_option_defaults` for the current property is FORCED ON (Switch
-  // disabled, never removable). Pre-default-era reservations may not carry the option in
-  // their `reservation_options`, but the property contract still says it's mandatory — the
-  // Switch must reflect that.
+  // specs/reservation-option-immutability.md rule 4 — the "forced ON / Inclus" property-default
+  // display applies ONLY when creating a new reservation. In edit mode an existing reservation is
+  // frozen: its options render exactly as it carries them, so we never force a property default it
+  // does not already have. (This reverses the former rule 4.bis, which forced the option on every
+  // reservation of the property, including pre-default-era ones.)
   const propertyDefaultOptionIds = new Set(propertyOptionDefaults.map((d) => Number(d.optionId)));
-  const bedLinenForcedOptionIds = new Set(
-    propertyOptions
-      .filter((opt) => Number(opt.countsAsBedLinen || 0) === 1 && propertyDefaultOptionIds.has(opt.id))
-      .map((opt) => opt.id),
-  );
+  const bedLinenForcedOptionIds = editingReservationId
+    ? new Set()
+    : new Set(
+        propertyOptions
+          .filter((opt) => Number(opt.countsAsBedLinen || 0) === 1 && propertyDefaultOptionIds.has(opt.id))
+          .map((opt) => opt.id),
+      );
 
   // specs/bed-config-in-linen-card.md §3 rules 2 + 10 — bed inputs live inside the FIRST
   // enabled `countsAsBedLinen = 1` option card. The boolean drives the rendering on both

@@ -83,17 +83,14 @@ const api = {
   // Property options
   updatePropertyOptions: (propId, optionIds) => request(`/properties/${propId}/options`, { method: 'PUT', body: { optionIds } }),
 
-  // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7). Independent of
-  // updatePropertyOptions, which only manages the availability filter. The endpoints below
-  // drive the "Options incluses" section in PropertyDetail and the read-only
-  // mirror in OptionsPage.
+  // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7,
+  // specs/reservation-option-immutability.md). Independent of updatePropertyOptions, which only
+  // manages the availability filter. `getPropertyOptionDefaults` feeds the reservation form
+  // (forced-option detection when CREATING a reservation) and the read-only mirror on the Options
+  // page. The defaults are edited from the Options page (the per-property grid on an option); the
+  // former PropertyDetail "Options incluses" card was removed, so no per-property write endpoint is
+  // exposed here anymore.
   getPropertyOptionDefaults: (propId) => request(`/properties/${propId}/option-defaults`),
-  setPropertyOptionDefault: (propId, optionId, offered) =>
-    request(`/properties/${propId}/option-defaults/${optionId}`, {
-      method: 'PUT', body: { offered: Boolean(offered) },
-    }),
-  unsetPropertyOptionDefault: (propId, optionId) =>
-    request(`/properties/${propId}/option-defaults/${optionId}`, { method: 'DELETE' }),
   getOptionPropertyDefaults: (optionId) => request(`/options/${optionId}/property-defaults`),
 
   // Options

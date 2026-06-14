@@ -146,11 +146,11 @@ test('Switch ON → OFF calls setOptionEnabled(optId, false) for the bed-linen o
   expect(setOptionEnabled).toHaveBeenCalledWith(1, false);
 });
 
-test('bed-linen option forced by property default → Switch checked + disabled + bed inputs visible + "Inclus" caption', () => {
-  // specs/bed-config-in-linen-card.md §3 rule 4.bis. The reservation does NOT have the
-  // bed-linen option in `selectedOptions` (= pre-default-era state), but the property
-  // declares it as a default. The Switch must show ON + disabled; the bed inputs
-  // sub-block surfaces because the property contract treats the option as enabled.
+test('CREATE mode — bed-linen option forced by property default → Switch checked + disabled + bed inputs + "Inclus" caption', () => {
+  // specs/reservation-option-immutability.md rule 4 — ReservationPage passes a populated
+  // bedLinenForcedOptionIds ONLY when creating. The new reservation has no explicit entry in
+  // `selectedOptions`, but the property declares the option a default: the Switch shows ON +
+  // disabled and the bed-inputs sub-block surfaces because the contract treats it as enabled.
   renderWith(buildContext({
     selectedOptions: [], // no explicit entry
     firstEnabledBedLinenOptionId: 1, // computed by the page from the forced set
@@ -164,6 +164,27 @@ test('bed-linen option forced by property default → Switch checked + disabled 
   expect(screen.getByLabelText(/Lits doubles/i)).toBeInTheDocument();
   // Caption surfaces the "forced by property" affordance.
   expect(screen.getByText(/^Inclus$/i)).toBeInTheDocument();
+});
+
+test('EDIT mode (empty forced set) — a property-default option the reservation lacks renders as a normal OFF toggle, no "Inclus"', () => {
+  // specs/reservation-option-immutability.md rule 4 — in edit mode ReservationPage passes an EMPTY
+  // bedLinenForcedOptionIds, so an existing reservation is frozen: a property default it doesn't
+  // already carry shows as a normal, toggleable Switch (OFF, enabled), never forced "Inclus", and
+  // no bed inputs surface. The operator can still add it manually.
+  const setOptionEnabled = vi.fn();
+  renderWith(buildContext({
+    selectedOptions: [],                 // reservation does NOT carry the option
+    firstEnabledBedLinenOptionId: null,
+    bedLinenForcedOptionIds: new Set(),  // edit mode → nothing forced
+    setOptionEnabled,
+  }));
+  const sw = screen.getAllByRole('switch')[0];
+  expect(sw).not.toBeChecked();
+  expect(sw).not.toBeDisabled();
+  expect(screen.queryByText(/^Inclus$/i)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/Lits doubles/i)).not.toBeInTheDocument();
+  fireEvent.click(sw);
+  expect(setOptionEnabled).toHaveBeenCalledWith(1, true);
 });
 
 test('a non-bed-linen option in the same catalog stays toggleable when the bed-linen option is forced', () => {
