@@ -786,6 +786,9 @@ tryAddOptionColumn('countsAsBathroomLinen', "ALTER TABLE options ADD COLUMN coun
 tryAddOptionColumn('linenIncludesSingle', "ALTER TABLE options ADD COLUMN linenIncludesSingle INTEGER NOT NULL DEFAULT 1");
 tryAddOptionColumn('linenIncludesDouble', "ALTER TABLE options ADD COLUMN linenIncludesDouble INTEGER NOT NULL DEFAULT 1");
 tryAddOptionColumn('linenIncludesBaby',   "ALTER TABLE options ADD COLUMN linenIncludesBaby INTEGER NOT NULL DEFAULT 1");
+// Soft-delete (archive): deleting an option sets archivedAt (specs/option-soft-delete.md). NULL = active.
+// Archived options vanish from the catalog/offering lists but stay joined on existing reservations.
+tryAddOptionColumn('archivedAt', "ALTER TABLE options ADD COLUMN archivedAt TEXT");
 // Bathroom-linen option: per-person count of each towel size (defaults preserve the previous
 // 1 large + 0 medium + 1 small per person semantic). A zero on any size hides that line in the
 // PlanningPage card (rule 13.bis).

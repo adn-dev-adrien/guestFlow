@@ -21,7 +21,11 @@ function update(req, res) {
 }
 
 function remove(req, res) {
-  res.json(model.remove(req.params.id));
+  const result = model.remove(req.params.id);
+  if (result && result.error) {
+    return res.status(result.status || 400).json({ error: result.error });
+  }
+  return res.json(result);
 }
 
 module.exports = { list, getOne, create, update, remove };

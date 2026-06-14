@@ -43,6 +43,15 @@ function createOptionsModel(database) {
     try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'breakfastTime'); }
     catch { return false; }
   })();
+  // Soft-delete (specs/option-soft-delete.md). Guarded so minimal test schemas without the column
+  // simply skip the "active only" filter. `ACTIVE_FILTER`/`ACTIVE_AND` are spliced into the offering
+  // queries (list / listForProperty) so archived options stop being offered for new reservations.
+  const HAS_OPTION_ARCHIVED = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'archivedAt'); }
+    catch { return false; }
+  })();
+  const ACTIVE_WHERE = HAS_OPTION_ARCHIVED ? 'WHERE archivedAt IS NULL ' : '';
+  const ACTIVE_AND_O = HAS_OPTION_ARCHIVED ? 'AND o.archivedAt IS NULL ' : '';
   function persistBreakfastTime(optionId, payload) {
     if (!HAS_OPTION_BREAKFAST_TIME || payload.breakfastTime === undefined) return;
     const t = formatTimeShort(payload.breakfastTime) || '09:00';
@@ -85,7 +94,7 @@ function createOptionsModel(database) {
 
   const model = {
     list() {
-      return database.prepare('SELECT * FROM options ORDER BY title').all().map((o) => ({
+      return database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}ORDER BY title`).all().map((o) => ({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
@@ -121,8 +130,10 @@ function createOptionsModel(database) {
         SELECT o.*${HAS_OPTION_PROPERTY_PRICES ? ', pop.price AS __propertyPrice' : ''}
         FROM options o
         ${priceJoin}
-        WHERE EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
+        WHERE (
+              EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
            OR NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
+        ) ${ACTIVE_AND_O}
         ORDER BY o.title
       `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
       return rows.map((o) => {
@@ -250,10 +261,29 @@ function createOptionsModel(database) {
       return { ok: true };
     },
 
+    // Soft-delete (specs/option-soft-delete.md): archive the option instead of deleting it, so the
+    // reservations that already use it keep it (the `reservation_options → options` JOIN still resolves).
+    // The row + reservation_options + property_options (applicability, for re-pricing existing
+    // reservations) are kept; only the per-property DEFAULT rows are removed so the option stops being
+    // auto-added to new reservations. Auto-options (autoOptionType) are non-deletable (UI + here).
     remove(id) {
-      database.prepare('DELETE FROM property_options WHERE optionId = ?').run(id);
-      database.prepare('DELETE FROM options WHERE id = ?').run(id);
-      return { ok: true };
+      const row = database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id);
+      if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
+      if (row.autoOptionType) {
+        return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
+      }
+      database.transaction(() => {
+        if (HAS_OPTION_ARCHIVED) {
+          database.prepare("UPDATE options SET archivedAt = datetime('now') WHERE id = ?").run(id);
+        } else {
+          // Schema without the column (shouldn't happen in prod) → fall back to hard delete.
+          database.prepare('DELETE FROM property_options WHERE optionId = ?').run(id);
+          database.prepare('DELETE FROM options WHERE id = ?').run(id);
+        }
+        // Stop auto-adding to NEW reservations (keep property_options applicability for re-pricing).
+        try { database.prepare('DELETE FROM property_option_defaults WHERE optionId = ?').run(id); } catch { /* table may be absent in minimal schemas */ }
+      })();
+      return { ok: true, archived: HAS_OPTION_ARCHIVED };
     },
   };
 

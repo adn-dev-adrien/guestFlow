@@ -16,9 +16,11 @@ const DDL = `
     linenIncludesBaby INTEGER NOT NULL DEFAULT 1,
     towelLargePerPerson INTEGER NOT NULL DEFAULT 1,
     towelMediumPerPerson INTEGER NOT NULL DEFAULT 0,
-    towelSmallPerPerson INTEGER NOT NULL DEFAULT 1
+    towelSmallPerPerson INTEGER NOT NULL DEFAULT 1,
+    archivedAt TEXT
   );
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
+  CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
 `;
 
 function freshModel() {
@@ -57,12 +59,37 @@ test('progressive tiers are normalized (deduped, sorted, sanitized)', () => {
   assert.deepEqual(tiers, [{ participantNumber: 1, unitPrice: 30 }, { participantNumber: 2, unitPrice: 25 }]);
 });
 
-test('remove deletes the option and its links', () => {
+test('remove ARCHIVES the option (soft-delete): row kept, hidden from list, applicability kept, defaults cleared', () => {
   const { db, model } = freshModel();
   const { id } = model.create({ title: 'X', priceType: 'per_stay', price: 5, propertyIds: [1] });
+  db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, ?, 1)').run(id);
+
+  const res = model.remove(id);
+  assert.equal(res.ok, true);
+  // The row is kept (archived), so an existing reservation's JOIN still resolves it.
+  const row = db.prepare('SELECT archivedAt FROM options WHERE id = ?').get(id);
+  assert.ok(row && row.archivedAt, 'archivedAt set');
+  // Hidden from the catalog list (offering) but applicability link kept (re-pricing existing reservations).
+  assert.equal(model.list().some((o) => o.id === id), false, 'archived option absent from list()');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE optionId = ?').get(id).c, 1, 'applicability kept');
+  // No longer auto-added to new reservations.
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_option_defaults WHERE optionId = ?').get(id).c, 0, 'defaults cleared');
+});
+
+test('remove rejects an auto-option (non-deletable)', () => {
+  const { model } = freshModel();
+  const { id } = model.create({ title: 'Petit déjeuner', priceType: 'per_person', price: 8, autoOptionType: 'breakfast' });
+  const res = model.remove(id);
+  assert.equal(res.error, 'AUTO_OPTION_NON_DELETABLE');
+  assert.ok(model.list().some((o) => o.id === id), 'still present (not archived)');
+});
+
+test('listForProperty excludes archived options (not offered for new reservations)', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({ title: 'Parking', priceType: 'per_stay', price: 10, propertyIds: [1] });
+  assert.equal(model.listForProperty(1).some((o) => o.id === id), true);
   model.remove(id);
-  assert.equal(model.get(id), null);
-  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE optionId = ?').get(id).c, 0);
+  assert.equal(model.listForProperty(1).some((o) => o.id === id), false, 'archived → not applicable for new reservations');
 });
 
 // --- §3.5.ter regression tests: linen config round-trips through create + update ---
