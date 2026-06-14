@@ -81,7 +81,7 @@ const api = {
 
   // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7). Independent of
   // updatePropertyOptions, which only manages the availability filter. The endpoints below
-  // drive the "Options ajoutées par défaut" section in PropertyDetail and the read-only
+  // drive the "Options incluses" section in PropertyDetail and the read-only
   // mirror in OptionsPage.
   getPropertyOptionDefaults: (propId) => request(`/properties/${propId}/option-defaults`),
   setPropertyOptionDefault: (propId, optionId, offered) =>
