@@ -260,3 +260,40 @@ test('bed-linen alert — nothing rendered when bedLinenAlert is absent', () => 
   render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
   expect(screen.queryByText(/Linge de lit/)).toBeNull();
 });
+
+// ── Action icons + responsive placement (PR #197) ───────────────────────────
+
+test('action buttons use the document + checklist icons', () => {
+  const { container } = render(
+    <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
+  );
+  expect(container.querySelector('[data-testid="ArticleIcon"]')).toBeInTheDocument();   // open reservation
+  expect(container.querySelector('[data-testid="ChecklistIcon"]')).toBeInTheDocument(); // open SAS
+});
+
+test('SAS-done state shows the ✓ (CheckCircle) instead of the checklist icon', () => {
+  const r = { ...BASE, arrivalSasDoneAt: '2026-06-13 09:00:00' };
+  const { container } = render(
+    <ReservationCard reservation={r} onToggleReady={noop} onOpenSas={vi.fn()} />
+  );
+  expect(container.querySelector('[data-testid="ChecklistIcon"]')).not.toBeInTheDocument();
+  expect(container.querySelector('[data-testid="CheckCircleIcon"]')).toBeInTheDocument();
+});
+
+test('mobile (matchMedia matches) renders each action button exactly ONCE (no CSS-display duplicate)', () => {
+  const orig = window.matchMedia;
+  window.matchMedia = (query) => ({
+    matches: true, media: query, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return false; },
+  });
+  try {
+    render(
+      <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
+    );
+    // getByRole throws if there were two — pins the single-render (useMediaQuery branch, not display:none).
+    expect(screen.getByLabelText('Ouvrir la réservation')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check-in (SAS arrivée)' })).toBeInTheDocument();
+  } finally {
+    window.matchMedia = orig;
+  }
+});

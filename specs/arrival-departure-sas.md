@@ -32,12 +32,16 @@ confirmation — records the caution status and the complement(s) on the reserva
 
 ### 3.0 Launch & shell
 1. **Launch from two explicit buttons on each planning tile** (decision 2026-06-13, superseding the
-   "click the whole card" model): every arrival card / departure row carries, on its top row, an
-   **« Ouvrir la réservation »** icon button (→ reservation page) and a **SAS** icon button (→ arrival
-   resp. departure SAS). The card body itself is **not** clickable.
+   "click the whole card" model): every arrival card / departure row carries an
+   **« Ouvrir la réservation »** icon button (`ArticleIcon`, → reservation page) and a **SAS** icon
+   button (`ChecklistIcon`, → arrival resp. departure SAS). The card body itself is **not** clickable.
+   - **Placement (decision 2026-06-14):** the two buttons sit **top-right** on tablet/desktop (`sm+`);
+     on **mobile** (`xs`) they move to a **dedicated row at the bottom of the card, right-aligned**, so
+     the « Prêt » / « Effectué » chip no longer pushes them off-frame. Rendered once (a `useMediaQuery`
+     branch, not a CSS `display` toggle) so there is no duplicate button in the DOM.
    - **The SAS button locks once its SAS is done**: when `arrivalSasDoneAt` (resp. `departureSasDoneAt`)
-     is set, the SAS button is **disabled and shows a ✓** (tooltip « Check-in/Check-out déjà effectué »),
-     so a finished SAS cannot be reopened.
+     is set, the SAS button is **disabled and shows a ✓** (`CheckCircleIcon`, tooltip « Check-in/Check-out
+     déjà effectué »), so a finished SAS cannot be reopened.
    - **The client name is a link** → opens the client fiche (`/clients?clientId=…`). Everything else on
      the tile is inert. The full reservation page also stays reachable via a discreet
      **« Ouvrir la fiche »** link in the SAS header once the SAS is open.
