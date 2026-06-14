@@ -168,3 +168,41 @@ test('handover note — nothing rendered when departureHandoverNote is empty', (
   render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} />);
   expect(screen.queryByText("Note d'arrivée")).toBeNull();
 });
+
+// ── Action icons + responsive placement (PR #197) ───────────────────────────
+
+test('action buttons use the document + checklist icons', () => {
+  const { container } = render(
+    <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
+  );
+  expect(container.querySelector('[data-testid="ArticleIcon"]')).toBeInTheDocument();
+  expect(container.querySelector('[data-testid="ChecklistIcon"]')).toBeInTheDocument();
+});
+
+test('SAS-done state shows the ✓ (CheckCircle) instead of the checklist icon', () => {
+  const r = { ...BASE, departureSasDoneAt: '2026-06-13 11:00:00' };
+  const { container } = render(
+    <DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={vi.fn()} />
+  );
+  expect(container.querySelector('[data-testid="ChecklistIcon"]')).not.toBeInTheDocument();
+  // CheckCircle is also the departure checkbox's checkedIcon, but here checkOutDone=false so the
+  // only CheckCircle is the SAS-done button.
+  expect(container.querySelector('[data-testid="CheckCircleIcon"]')).toBeInTheDocument();
+});
+
+test('mobile (matchMedia matches) renders each action button exactly ONCE (no CSS-display duplicate)', () => {
+  const orig = window.matchMedia;
+  window.matchMedia = (query) => ({
+    matches: true, media: query, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return false; },
+  });
+  try {
+    render(
+      <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
+    );
+    expect(screen.getByLabelText('Ouvrir la réservation')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check-out (SAS départ)' })).toBeInTheDocument();
+  } finally {
+    window.matchMedia = orig;
+  }
+});

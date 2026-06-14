@@ -24,8 +24,9 @@
 
 import React from 'react';
 import {
-  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link,
+  Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { grey } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
@@ -34,14 +35,17 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
-import LogoutIcon from '@mui/icons-material/Logout';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import ArticleIcon from '@mui/icons-material/Article';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
 
 export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
   const done = Boolean(reservation.checkOutDone);
   const sasDone = !!reservation.departureSasDoneAt;
+  const theme = useTheme();
+  // On mobile the two action buttons move to a dedicated bottom row (rendered once, not duplicated).
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const stop = (e) => e.stopPropagation();
   // Symmetric alert background with `ReservationCard`: when there's a tight transition,
   // the operator sees the same coloured pull on the departure as on the next arrival.
@@ -50,6 +54,34 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   else if (alertInfo?.type === 'orange') alertBgColor = 'rgba(244, 67, 54, 0.10)';
   else if (alertInfo?.type === 'blue') alertBgColor = 'rgba(33, 150, 243, 0.08)';
   const checkOutTime = reservation.checkOutTime || '10:00';
+  // The two card actions (open the reservation fiche / run the departure SAS). Rendered top-right on
+  // sm+ and on a dedicated bottom row on xs (so they don't get pushed off-frame by the « Effectué » chip).
+  const actionButtons = (
+    <>
+      {onOpenReservation && (
+        <Tooltip title="Ouvrir la réservation">
+          <IconButton size="small" onClick={() => onOpenReservation(reservation.id)} aria-label="Ouvrir la réservation">
+            <ArticleIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onOpenSas && (
+        <Tooltip title={sasDone ? 'Check-out déjà effectué' : 'Check-out (SAS départ)'}>
+          <span>
+            <IconButton
+              size="small"
+              color={sasDone ? 'success' : 'primary'}
+              disabled={sasDone}
+              onClick={() => onOpenSas(reservation.id)}
+              aria-label="Check-out (SAS départ)"
+            >
+              {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <ChecklistIcon sx={{ fontSize: 20 }} />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+    </>
+  );
   return (
     <Card
       variant="outlined"
@@ -108,28 +140,11 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
           />
           {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
           <Box sx={{ flexGrow: 1 }} />
-          {/* Two explicit actions: open the reservation, run the departure SAS (✓ + disabled once done). */}
-          {onOpenReservation && (
-            <Tooltip title="Ouvrir la réservation">
-              <IconButton size="small" onClick={() => onOpenReservation(reservation.id)} aria-label="Ouvrir la réservation">
-                <OpenInNewIcon sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-          )}
-          {onOpenSas && (
-            <Tooltip title={sasDone ? 'Check-out déjà effectué' : 'Check-out (SAS départ)'}>
-              <span>
-                <IconButton
-                  size="small"
-                  color={sasDone ? 'success' : 'primary'}
-                  disabled={sasDone}
-                  onClick={() => onOpenSas(reservation.id)}
-                  aria-label="Check-out (SAS départ)"
-                >
-                  {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <LogoutIcon sx={{ fontSize: 20 }} />}
-                </IconButton>
-              </span>
-            </Tooltip>
+          {/* Actions top-right on tablet/desktop; on mobile they move to the bottom row below. */}
+          {!isMobile && (
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {actionButtons}
+            </Box>
           )}
         </Box>
 
@@ -215,6 +230,13 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
               they're already shown on the arrival side of the reservation, and the
               departure card is meant to stay compact ("checkout time + cleaning"). */}
         </Box>
+
+        {/* Mobile-only action row: keeps the two buttons in-frame when the « Effectué » chip is present. */}
+        {isMobile && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 0.5, mt: 1 }}>
+            {actionButtons}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
