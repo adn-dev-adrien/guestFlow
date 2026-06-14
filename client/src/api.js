@@ -196,6 +196,13 @@ const api = {
   // App settings
   getSettings: () => request('/settings'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: payload }),
+
+  // PWA Web Push (specs/pwa-push-notifications.md §4.3). Per-user (the session cookie identifies the user).
+  getPushPublicKey: () => request('/push/public-key'),
+  subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: { subscription } }),
+  unsubscribePush: (endpoint) => request('/push/subscribe', { method: 'DELETE', body: { endpoint } }),
+  getPushPreferences: () => request('/push/preferences'),
+  updatePushPreferences: (prefs) => request('/push/preferences', { method: 'PUT', body: prefs }),
   // Online payments (specs/online-payments-qonto.md). Qonto connection state + configurable timings.
   getPaymentSettings: () => request('/payments/settings'),
   updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
