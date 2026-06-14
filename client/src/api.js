@@ -71,6 +71,10 @@ const api = {
   deletePricingRule: (propId, ruleId) => request(`/properties/${propId}/pricing/${ruleId}`, { method: 'DELETE' }),
   applyPricingRulesToProperty: (sourcePropId, data) => request(`/properties/${sourcePropId}/pricing/apply-to`, { method: 'POST', body: data }),
   previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data }),
+  // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up)
+  // + the per-platform commission % editor (global per platform).
+  getPlatformPrices: (propId) => request(`/properties/${propId}/platform-prices`),
+  setPlatformCommission: (platformId, commissionPercent) => request(`/platforms/${platformId}/commission`, { method: 'PUT', body: { commissionPercent } }),
 
   // Documents
   uploadDocument: (propId, formData) => request(`/properties/${propId}/documents`, { method: 'POST', body: formData }),

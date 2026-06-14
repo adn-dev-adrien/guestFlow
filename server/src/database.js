@@ -1556,6 +1556,12 @@ db.exec(`
   if (platformCols.includes('commissionRatePercent')) {
     db.exec('ALTER TABLE platforms DROP COLUMN commissionRatePercent');
   }
+  // Commission % per platform (specs/platform-price-from-commission.md): now functional — drives the
+  // « prix plateforme » gross-up on the property tarif page (gross = net / (1 − c/100)). Global per
+  // platform. Distinct from the dropped informational `commissionRatePercent`.
+  if (!platformCols.includes('commissionPercent')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN commissionPercent REAL NOT NULL DEFAULT 0');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):

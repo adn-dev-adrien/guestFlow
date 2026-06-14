@@ -17,6 +17,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import PageHeader from '../components/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PlatformPriceCard from '../components/PlatformPriceCard';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
@@ -101,6 +102,8 @@ export default function PropertyPricingSeasonsPage() {
   const navigate = useNavigate();
 
   const [property, setProperty] = useState(null);
+  // Bumped after a season is saved/deleted so the « Prix plateformes » grid re-fetches its net prices.
+  const [platformRefresh, setPlatformRefresh] = useState(0);
   const [allProperties, setAllProperties] = useState([]);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [publicHolidays, setPublicHolidays] = useState(() => new Set());
@@ -452,6 +455,7 @@ export default function PropertyPricingSeasonsPage() {
       setSeasonDialogOpen(false);
       setEditingSeasonId(null);
       await loadData();
+      setPlatformRefresh((n) => n + 1);
     } catch (error) {
       setSeasonSaveError(error.message || "Impossible d'enregistrer la saison.");
     }
@@ -462,6 +466,7 @@ export default function PropertyPricingSeasonsPage() {
     await api.deletePricingRule(id, deleteTarget.id);
     setDeleteTarget(null);
     await loadData();
+    setPlatformRefresh((n) => n + 1);
   };
 
   const openApplyDialog = () => {
@@ -591,6 +596,11 @@ export default function PropertyPricingSeasonsPage() {
           </TableContainer>
         </CardContent>
       </Card>
+
+      {/* « Prix plateformes » — gross-up of each season net /nuit by each platform's commission %
+          (specs/platform-price-from-commission.md). */}
+      <PlatformPriceCard propertyId={id} refreshKey={platformRefresh} />
+
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap' }}>
           <TextField

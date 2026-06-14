@@ -27,16 +27,16 @@ const KNOWN_PLATFORM_NAMES = Object.keys(KNOWN_PLATFORM_COLORS)
 function createPlatformsModel(database) {
   const stmts = {
     listAll: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent
       FROM platforms
       ORDER BY (name = '${DIRECT_NAME}') DESC, name COLLATE NOCASE ASC
     `),
     findByName: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent
       FROM platforms WHERE name = ?
     `),
     findById: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent
       FROM platforms WHERE id = ?
     `),
     upsert: database.prepare("INSERT OR IGNORE INTO platforms (name) VALUES (?)"),
@@ -46,6 +46,7 @@ function createPlatformsModel(database) {
              hasVatOnCommission = ?
        WHERE id = ?
     `),
+    updateCommissionPercent: database.prepare("UPDATE platforms SET commissionPercent = ? WHERE id = ?"),
   };
 
   return {
@@ -120,6 +121,22 @@ function createPlatformsModel(database) {
         : String(commissionAccountNumber);
       const hasVat = hasVatOnCommission === true || Number(hasVatOnCommission) === 1 ? 1 : 0;
       stmts.update.run(account, hasVat, Number(id));
+      return stmts.findById.get(Number(id));
+    },
+
+    // Non-direct platforms with their commission % (specs/platform-price-from-commission.md §3.1).
+    listWithCommission() {
+      return stmts.listAll.all()
+        .filter((p) => p.name !== DIRECT_NAME)
+        .map((p) => ({ id: p.id, name: p.name, commissionPercent: Number(p.commissionPercent) || 0 }));
+    },
+
+    // Set a platform's global commission % (clamped to [0, 99.99]). The Direct row is never editable.
+    setCommissionPercent(id, commissionPercent) {
+      const row = stmts.findById.get(Number(id));
+      if (!row || row.name === DIRECT_NAME) return null;
+      const c = Math.max(0, Math.min(99.99, Number(commissionPercent) || 0));
+      stmts.updateCommissionPercent.run(c, Number(id));
       return stmts.findById.get(Number(id));
     },
   };
