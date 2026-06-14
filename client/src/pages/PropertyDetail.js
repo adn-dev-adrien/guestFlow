@@ -19,7 +19,6 @@ import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
 import IcalExportCard from '../components/IcalExportCard';
-import PropertyDefaultOptionsCard from '../components/PropertyDefaultOptionsCard';
 import api from '../api';
 
 // Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
@@ -109,9 +108,6 @@ export default function PropertyDetail() {
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
   const [property, setProperty] = useState(isNew ? { name: 'Nouveau logement', pricingRules: [], documents: [] } : null);
-  // Catalog of options, fetched once on load. Used to feed the timed-options card AND the new
-  // per-property defaults card (specs/weekly-bed-linen-tracking.md §3.7).
-  const [catalogOptions, setCatalogOptions] = useState([]);
   const [form, setForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [dirty, setDirty] = useState(isNew);
   const [isNameEditing, setIsNameEditing] = useState(isNew);
@@ -140,7 +136,6 @@ export default function PropertyDetail() {
     if (isNew) return;
     const [p, allOptions] = await Promise.all([api.getProperty(id), api.getOptions()]);
     setProperty(p);
-    setCatalogOptions(allOptions || []);
     const initial = {
       name: p.name, nameArticle: p.nameArticle || 'au', maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
@@ -752,16 +747,6 @@ export default function PropertyDetail() {
             </CardContent>
           </Card>
         </Box>
-
-        {/* Per-property option defaults — canonical edit surface (specs/weekly-bed-linen-tracking.md §3.7). */}
-        {!isNew && (
-          <Box sx={{ breakInside: 'avoid', mb: 3 }}>
-            <PropertyDefaultOptionsCard
-              propertyId={Number(id)}
-              options={catalogOptions}
-            />
-          </Box>
-        )}
 
         </Box>{/* fin colonne droite */}
       </Box>{/* fin wrapper 2 colonnes */}
