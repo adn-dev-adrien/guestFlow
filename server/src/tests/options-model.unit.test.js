@@ -19,6 +19,7 @@ const DDL = `
     towelSmallPerPerson INTEGER NOT NULL DEFAULT 1
   );
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
+  CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
 `;
 
 function freshModel() {
@@ -160,4 +161,52 @@ test('REGRESSION: towel*PerPerson coerced to a non-negative integer floor', () =
   assert.equal(Number(got.towelLargePerPerson), 2);
   assert.equal(Number(got.towelMediumPerPerson), 0);
   assert.equal(Number(got.towelSmallPerPerson), 1);
+});
+
+// --- per-property « inclus par défaut » (specs/per-property-default-options.md) ---
+
+test('create persists per-property defaults; get/list expose propertyDefaults', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({
+    title: 'Parking', priceType: 'per_stay', price: 10, propertyIds: [1, 2],
+    propertyDefaults: { 1: { default: true, offered: true }, 2: { default: false } },
+  });
+  // Only property 1 is a default (offered).
+  const rows = db.prepare('SELECT propertyId, offered FROM property_option_defaults WHERE optionId = ? ORDER BY propertyId').all(id);
+  assert.deepEqual(rows, [{ propertyId: 1, offered: 1 }]);
+  assert.deepEqual(model.get(id).propertyDefaults, { 1: { offered: true } });
+  assert.deepEqual(model.list()[0].propertyDefaults, { 1: { offered: true } });
+});
+
+test('setting a default implies applicability (property_options row)', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({
+    title: 'Vélo', priceType: 'per_stay', price: 5, propertyIds: [],
+    propertyDefaults: { 3: { default: true, offered: false } },
+  });
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_options WHERE propertyId = 3 AND optionId = ?').get(id).c, 1);
+});
+
+test('update replaces the default set (de-scoped property cleared)', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({ title: 'Opt', priceType: 'per_stay', price: 10, propertyIds: [1, 2], propertyDefaults: { 1: { default: true, offered: false }, 2: { default: true, offered: true } } });
+  model.update(id, { title: 'Opt', priceType: 'per_stay', price: 10, propertyIds: [1, 2], propertyDefaults: { 1: { default: true, offered: true } } });
+  const rows = db.prepare('SELECT propertyId, offered FROM property_option_defaults WHERE optionId = ? ORDER BY propertyId').all(id);
+  assert.deepEqual(rows, [{ propertyId: 1, offered: 1 }], 'property 2 default removed, property 1 offered flipped on');
+});
+
+test('auto-timed option (autoEnabled) can never be a default — rows cleared', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({
+    title: 'Arrivée anticipée', priceType: 'per_stay', price: 20, autoEnabled: true,
+    propertyDefaults: { 1: { default: true, offered: false } },
+  });
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_option_defaults WHERE optionId = ?').get(id).c, 0);
+});
+
+test('omitting propertyDefaults leaves existing defaults untouched', () => {
+  const { db, model } = freshModel();
+  const { id } = model.create({ title: 'Opt', priceType: 'per_stay', price: 10, propertyIds: [1], propertyDefaults: { 1: { default: true, offered: false } } });
+  model.update(id, { title: 'Opt', priceType: 'per_stay', price: 12, propertyIds: [1] }); // no propertyDefaults key
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM property_option_defaults WHERE optionId = ?').get(id).c, 1);
 });

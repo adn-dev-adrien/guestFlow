@@ -29,14 +29,19 @@ import {
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import api from '../api';
 
-function isLinenOption(option) {
-  return Boolean(option && (Number(option.countsAsBedLinen) === 1 || Number(option.countsAsBathroomLinen) === 1));
+// specs/per-property-default-options.md — every option applicable to this property can be a default
+// (was limited to linen options). Auto-timed options (early/late check-in, autoEnabled=1) are
+// engine-derived → excluded. Applicable = global (no property link) OR linked to this property.
+function isApplicableForDefaults(option, propertyId) {
+  if (!option || Number(option.autoEnabled) === 1) return false;
+  const ids = Array.isArray(option.propertyIds) ? option.propertyIds.map(Number) : [];
+  return ids.length === 0 || ids.includes(Number(propertyId));
 }
 
 export default function PropertyDefaultOptionsCard({ propertyId, options, onError }) {
   const linenOptions = useMemo(
-    () => (options || []).filter(isLinenOption),
-    [options]
+    () => (options || []).filter((o) => isApplicableForDefaults(o, propertyId)),
+    [options, propertyId]
   );
   // `defaults` is a Map: optionId → { offered }. Absent key ≡ no default.
   const [defaults, setDefaults] = useState(() => new Map());
@@ -153,11 +158,13 @@ export default function PropertyDefaultOptionsCard({ propertyId, options, onErro
                 >
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {Number(opt.countsAsBedLinen) === 1 && Number(opt.countsAsBathroomLinen) === 1
-                        ? 'Linge de lit + serviettes'
-                        : Number(opt.countsAsBedLinen) === 1 ? 'Linge de lit' : 'Linge de toilette'}
-                    </Typography>
+                    {(Number(opt.countsAsBedLinen) === 1 || Number(opt.countsAsBathroomLinen) === 1) && (
+                      <Typography variant="caption" color="text.secondary">
+                        {Number(opt.countsAsBedLinen) === 1 && Number(opt.countsAsBathroomLinen) === 1
+                          ? 'Linge de lit + serviettes'
+                          : Number(opt.countsAsBedLinen) === 1 ? 'Linge de lit' : 'Linge de toilette'}
+                      </Typography>
+                    )}
                   </Box>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} sx={{ alignItems: 'center' }}>
                     <FormControlLabel
