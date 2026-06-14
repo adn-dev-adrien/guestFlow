@@ -55,10 +55,10 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
     prepare(sql) {
       const isSingleIdLookup = /SELECT\s+countsAsBedLinen\s+FROM\s+options\s+WHERE\s+id\s*=\s*\?/i.test(String(sql || ''));
       return {
-        // Two shapes hit `get`:
-        //  - `hasBedLinenOption`'s IN-query — returns `{1:1}` truthy iff any arg matches.
-        //  - The property-default re-merge helper's per-id SELECT — returns
-        //    `{ countsAsBedLinen: 0 | 1 }` reflecting whether the id is bed-linen-flagged.
+        // `hasBedLinenOption`'s IN-query — returns `{1:1}` truthy iff any arg matches. (The
+        // per-id `SELECT countsAsBedLinen` branch is retained for safety but is no longer
+        // exercised: the update re-merge that used it was removed — see
+        // specs/reservation-option-immutability.md.)
         get(...args) {
           if (isSingleIdLookup) {
             return { countsAsBedLinen: bedLinenFlaggedIds.has(Number(args[0])) ? 1 : 0 };
@@ -198,11 +198,11 @@ test('update: bed-linen option kept ON + counts > 0 → counts persisted intact'
   assert.deepEqual(captures.updated, { id: 43, singleBeds: 2, doubleBeds: 1, babyBeds: 0 });
 });
 
-test('update: bed-linen-flagged property default is re-merged → counts persisted even when payload omits the option', () => {
-  // specs/bed-config-in-linen-card.md §3 rule 4.bis. The reservation belongs to a property
-  // where bed-linen is declared as a default; the operator submits a payload with no
-  // bed-linen option in `options`. The controller re-merges the default before running the
-  // invariant, so the bed counts survive.
+test('update: bed-linen property default is NOT re-merged → existing reservation is frozen (specs/reservation-option-immutability.md)', () => {
+  // The reservation belongs to a property where bed-linen is a default, but the operator submits a
+  // payload with no bed-linen option. Per the immutability rule, `update` does NOT re-merge property
+  // defaults: an existing reservation is never retro-fitted with an option it doesn't carry. The
+  // submitted set has no linen option, so the rule-7 invariant zeros single/double beds.
   const captures = {};
   const controller = buildController({
     defaults: [{ optionId: 1, offered: false }], // property default: option 1 = bed-linen
@@ -214,15 +214,15 @@ test('update: bed-linen-flagged property default is re-merged → counts persist
     body: basicBody({ singleBeds: 3, doubleBeds: 2, babyBeds: 0, options: [] }),
   };
   controller.update(req, fakeRes());
-  assert.deepEqual(captures.updated, { id: 44, singleBeds: 3, doubleBeds: 2, babyBeds: 0 });
+  // No re-merge → the persisted option set stays exactly as submitted (empty), and beds zero out.
+  assert.deepEqual(req.body.options, []);
+  assert.deepEqual(captures.updated, { id: 44, singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
 });
 
-test('update: NON-bed-linen property default is NOT re-merged (historical preservation still holds for other defaults)', () => {
-  // specs/bed-config-in-linen-card.md §3 rule 4.bis explicitly limits the re-merge to
-  // `countsAsBedLinen = 1` options. A "Ménage" or "Petit-déjeuner" default that the
-  // operator removed from this specific reservation must stay removed (rule 30 in other
-  // specs). Without this scoping, every other property default would silently reappear
-  // on every edit — a regression we pin against.
+test('update: NON-bed-linen property default is NOT re-merged either (historical preservation holds for all defaults)', () => {
+  // specs/reservation-option-immutability.md — on `update` NO property default is re-merged
+  // (bed-linen included; this test pins a non-linen default). A "Ménage" or "Petit-déjeuner" default
+  // the operator removed from this reservation stays removed; nothing silently reappears on edit.
   const captures = {};
   const controller = buildController({
     defaults: [{ optionId: 2, offered: false }], // property default: option 2 = a NON-linen option
@@ -235,6 +235,7 @@ test('update: NON-bed-linen property default is NOT re-merged (historical preser
     body: basicBody({ singleBeds: 4, doubleBeds: 0, babyBeds: 0, options: [] }),
   };
   controller.update(req, fakeRes());
-  // Bed counts → 0 (no bed-linen anywhere → invariant fires).
+  // Nothing re-merged → options stay empty; no bed-linen anywhere → bed invariant zeros counts.
+  assert.deepEqual(req.body.options, []);
   assert.deepEqual(captures.updated, { id: 45, singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
 });

@@ -4,7 +4,8 @@
  *
  * Pure renderer: hits `GET /api/options/:id/property-defaults` once on mount + when the option id
  * changes. Displays the list of properties that have this option as a default + the offered flag.
- * No write affordance — the canonical edit lives on the property page (PropertyDefaultOptionsCard).
+ * No write affordance — defaults are edited from the per-property grid on the Options page
+ * (OptionDefaultsSection); this is just the read-only mirror beside it.
  *
  * Hidden entirely when the option has neither linen flag set (no point in showing a mirror for
  * a non-linen option) and when the option is brand-new (no id yet → nothing to fetch).
