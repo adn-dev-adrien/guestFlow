@@ -89,6 +89,18 @@ function freshModel() {
   return { db, model, source };
 }
 
+// A date `days` away from today, in both the ICS compact (YYYYMMDD) and the stored
+// dash (YYYY-MM-DD) forms — keeps the past/future cancellation tests robust to the
+// actual run date instead of hard-coding July 2026.
+function isoOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return { dash: `${y}-${m}-${day}`, compact: `${y}${m}${day}` };
+}
+
 const origFetch = global.fetch;
 test.afterEach(() => { global.fetch = origFetch; });
 
@@ -255,6 +267,36 @@ test('cancellation: auto-resolve when the UID reappears in the feed before the u
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1);
 });
 
+test('cancellation: a PAST stay dropped from the feed is NOT flagged (platforms prune bygone bookings)', async () => {
+  // specs/ical-cancellation-approval.md §3 rule 1, past-stay carve-out. A reservation whose
+  // checkout is already behind us is not a cancellation to validate when its UID leaves the feed.
+  const { db, model, source } = freshModel();
+  const start = isoOffset(-20);
+  const end = isoOffset(-15);
+  stubFetch([{ uid: 'PAST1', start: start.compact, end: end.compact, summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1, 'past stay created on first sync');
+  stubFetch([]);
+  const result = await model.syncSource(source);
+  assert.equal(result.removedCount, 0, 'no cancellation alert for a past stay');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 0, 'no pending alert recorded');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1, 'reservation kept (real past stay)');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_import_events').get().c, 0, 'stale mapping still dropped');
+});
+
+test('cancellation: a stay ending TODAY dropped from the feed IS still flagged (strict past boundary)', async () => {
+  // endDate === today is NOT "past" (strict <), so a same-day checkout still raises an alert.
+  const { db, model, source } = freshModel();
+  const start = isoOffset(-3);
+  const end = isoOffset(0);
+  stubFetch([{ uid: 'TODAY1', start: start.compact, end: end.compact, summary: 'Marie Martin' }]);
+  await model.syncSource(source);
+  stubFetch([]);
+  const result = await model.syncSource(source);
+  assert.equal(result.removedCount, 1, 'a same-day checkout is not past → alert raised');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
+});
+
 test('unavailable/blocked events are filtered out (no reservation)', async () => {
   const { db, model, source } = freshModel();
   stubFetch([{ uid: 'B1', start: '20260710', end: '20260713', summary: 'Blocked' }]);
@@ -359,12 +401,18 @@ test('summary fallback (step 3.5): empty/unavailable-summary new event still wor
   // Edge case: the parser may strip the summary entirely. The summary fallback skips
   // empty summaries (existing `if (!mapping && summaryNormalized)` guard reused).
   const { db, model, source } = freshModel();
-  stubFetch([{ uid: 'OLDUID', start: '20260606', end: '20260607', summary: 'Booking #144253' }]);
+  // Future dates so the old stale UID legitimately raises an alert (a PAST stay would be
+  // exempt by the past-stay carve-out — see the dedicated cancellation tests above).
+  const oldStart = isoOffset(30);
+  const oldEnd = isoOffset(31);
+  stubFetch([{ uid: 'OLDUID', start: oldStart.compact, end: oldEnd.compact, summary: 'Booking #144253' }]);
   await model.syncSource(source);
 
   // New event without a summary: cannot re-claim → goes to INSERT. The old reservation
   // stays alive and the old UID is now stale → raises a cancellation alert.
-  stubFetch([{ uid: 'NEWUID', start: '20261010', end: '20261011', summary: '' }]);
+  const newStart = isoOffset(60);
+  const newEnd = isoOffset(61);
+  stubFetch([{ uid: 'NEWUID', start: newStart.compact, end: newEnd.compact, summary: '' }]);
   const result = await model.syncSource(source);
   assert.equal(result.createdCount, 1, 'empty-summary new event always inserts');
   assert.equal(result.removedCount, 1, 'old UID becomes stale → cancellation alert');

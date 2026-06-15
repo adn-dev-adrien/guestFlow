@@ -81,9 +81,17 @@ dropped the UID.
      (`COUNT(*) > 0` in `ical_import_events`) → the reservation stays alive (existing
      cross-platform behavior). **No cancellation alert recorded** — the booking is still
      held active by another platform.
-   - If no other mapping remains AND the reservation still exists → record a pending
-     cancellation in `ical_cancellation_alerts` (rule 2) and **DO NOT delete the
-     reservation**.
+   - If no other mapping remains AND the reservation still exists AND its `endDate` is
+     today or in the future → record a pending cancellation in `ical_cancellation_alerts`
+     (rule 2) and **DO NOT delete the reservation**.
+   - **Past-stay carve-out** (2026-06-15). If no other mapping remains AND the reservation
+     still exists BUT its `endDate` is **strictly before today** (the stay is already over)
+     → drop this source's mapping silently and record **no** alert. Platforms routinely
+     prune bygone bookings from their feeds; a checkout that already happened is not a
+     cancellation the operator needs to validate. The reservation is kept as a normal (now
+     detached) past stay. Boundary: `endDate === today` is **not** past (strict `<`), so a
+     same-day checkout still raises an alert. "Today" is the server-local date
+     (`getTodayIsoDate()`), matching the rest of the reservation date logic.
    - If no other mapping remains AND the reservation has already been deleted (e.g. by a
      previous manual user action between syncs) → idempotent no-op.
 2. **Recording a pending cancellation.**
@@ -354,6 +362,11 @@ No change.
     the locked flag does NOT short-circuit the proposal).
   - **Idempotent repeat sync with the same dropped UID** → still ONE pending row; no
     duplicate.
+  - **Past-stay carve-out: a stay whose `endDate` is before today falls out of the feed**
+    → mapping dropped silently, `removedCount === 0`, no pending alert, reservation kept
+    (2026-06-15).
+  - **Boundary: a stay ending exactly today falls out of the feed** → still raises an
+    alert (`endDate === today` is not "past", strict `<`).
 - [ ] `tests/dashboard-controller-ical-cancellation.unit.test.js` (C) — HTTP shaping:
   - `GET` returns `{ alerts: [] }` when nothing pending; forwards model payload as-is.
   - `POST /:id/approve` returns 200; 400 on bad id; 409 on already-acknowledged;
