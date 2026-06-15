@@ -53,22 +53,41 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 ### 3.3 Triggers
 6. **New reservation** — when the iCal sync imports a genuinely new reservation
    (`propertyIcalModel` `createdReservationIds`, the existing notify point) **or** a new **site devis** is
-   created (`notifyNewSiteDevis` point): push « Nouvelle réservation {plateforme} — {logement} » /
-   « Nouvelle demande de devis — {logement} » to every user with `newReservation` ON. Fired post-commit
+   created (`notifyNewSiteDevis` point): push « Nouvelle réservation {plateforme} » / « Nouvelle demande de
+   devis » (title) with body « {client} · {logement} » (+ « — dès le {date} » for an iCal reservation) to
+   every user with `newReservation` ON. Fired post-commit
    alongside the existing email, in a contained try/catch (§3.4) so it never affects the sync / booking
-   response.
+   response. Each new-reservation push **deep-links to the created item** — a reservation →
+   `/reservations/:id`, a site devis → `/reservations/new?mode=devis&devisId=:id` — and is sent **once per
+   reservation** (the iCal notify point loops `createdReservationIds`). Already implemented; unchanged this
+   iteration.
 7. **Arrival** — at the reservation's **check-in time** on its `startDate`: push « Arrivée aujourd'hui à
    {checkInTime} — {client} · {logement} » to every user with `arrivals` ON. Sent **once per reservation**
-   (guarded by `arrivalNotifiedAt`).
+   (guarded by `arrivalNotifiedAt`). **Clicking it opens the arrival SAS** for that reservation (deep-link
+   `/planning?sas=arrival&reservationId=:id`, rule 10) — not the bare reservation page.
 8. **Departure** — at the reservation's **check-out time** on its `endDate`: push « Départ aujourd'hui à
    {checkOutTime} — {client} · {logement} » to every user with `departures` ON. Once per reservation
-   (`departureNotifiedAt`).
+   (`departureNotifiedAt`). **Clicking it opens the departure SAS** (deep-link
+   `/planning?sas=departure&reservationId=:id`, rule 10).
 9. The arrival/departure job runs on the **existing per-minute tick** (`scheduledTasks.js`): each minute it
    finds reservations of **today** whose scheduled time **has just been reached** (scheduled `HH:MM` ≤ now,
    local) and **not yet notified** (`*NotifiedAt` ≠ today), sends the pushes, and stamps `*NotifiedAt`. A
    reservation created/booked *after* its time already passed today is **not** retro-notified (only
    "reached this minute or earlier today and not stamped" — to avoid a flood on boot, the stamp also
    back-dates events already long past at first run; see §3.4).
+10. **Deep-link routing (this iteration).** The notification `data.url` is opened by the SW's
+    `notificationclick` (focus an existing tab + `navigate`, else open a new window). **Arrival/departure**
+    pushes now target `/planning?sas=arrival|departure&reservationId=:id`. **PlanningPage** reads these query
+    params on mount, opens the matching `ReservationSasDialog` (mode arrival / departure) for that
+    reservation, then clears the params (history `replace`) so a refresh / back doesn't reopen it. The SAS
+    dialog loads the reservation by id, independent of the planning's current week. A stale link (deleted
+    reservation) just shows the dialog's not-found state. New-reservation pushes keep their
+    `/reservations/:id` (resp. devis) target.
+11. **Content (this iteration).** Every push shows both the **client name** and the **property name** in its
+    body — format « {client} · {logement} » (with « — dès le {date} » on the new-reservation push, and the
+    time in the arrival / departure title). The iCal new-reservation push gains the guest name
+    (`icalOriginalSummary`, else the linked client's first / last name); the site-devis, arrival and
+    departure pushes already carry both.
 
 ### 3.4 Robustness (no regressions — explicitly tested, not "best-effort")
 10. **Push is fully isolated from the core flows.** Sending a push must **never** affect the iCal sync, the
@@ -112,8 +131,9 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 | `models/` | `pushSubscriptionsModel.js` | C | CRUD on `push_subscriptions` (add/list-by-user/list-for-pref/remove-by-endpoint/prune); per-user prefs read/write (`user_push_prefs`). |
 | `controllers/` | `pushController.js` | C | `getPublicKey`, `subscribe`, `unsubscribe`, `getPreferences`, `updatePreferences` (all scoped to `req.user`). |
 | `routes/` | `push.js` | C | `GET /push/public-key`, `POST/DELETE /push/subscribe`, `GET/PUT /push/preferences`. Mounted under `/api/push` (auth-required). |
-| `utils/` | `notificationService.js` | T | After the email send in `notifyNewIcalReservation` / `notifyNewSiteDevis`, also `pushService.sendToPref('newReservation', …)`, in a contained try/catch so a push failure can't affect the email path or the caller. |
+| `utils/` | `notificationService.js` | T | After the email send in `notifyNewIcalReservation` / `notifyNewSiteDevis`, also `pushService.sendToPref('newReservation', …)`, in a contained try/catch so a push failure can't affect the email path or the caller. The new-reservation push body includes the **client / guest name + property name** (rule 11). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New per-minute job: detect today's arrivals (check-in reached) + departures (check-out reached) not yet notified → `sendToPref('arrivals'/'departures', …)` + stamp. First-run back-stamp guard (§3.4). |
+| `utils/` | `arrivalDeparturePushRunner.js` | T | Set the arrival/departure push `url` to the SAS deep-link `/planning?sas=arrival\|departure&reservationId=:id` (was `/reservations/:id`). |
 | `models/` | `reservationsModel.js` | T | `dueArrivals(todayIso, nowHHMM)` / `dueDepartures(...)` → reservations of today whose time ≤ now and `*NotifiedAt` ≠ today (+ a `stampArrivalNotified` / `stampDepartureNotified`). |
 | `database.js` | `database.js` | T | Migrations: `push_subscriptions` table; `user_push_prefs` table (or columns); `reservations.arrivalNotifiedAt` / `departureNotifiedAt` TEXT. |
 
@@ -128,6 +148,7 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 | `pages/` | `SettingsPage.js` | T | Mount the new section; load/save per-user prefs via the push API (separate from the global settings payload). |
 | `api.js` | `api.js` | T | `getPushPublicKey`, `subscribePush`, `unsubscribePush`, `getPushPreferences`, `updatePushPreferences`. |
 | `index.html` / `main` | `client/index.html`, `client/src/index.js` | T | Link the manifest; register the service worker on load. |
+| `pages/` | `PlanningPage.js` | T | On mount, read `?sas=arrival\|departure&reservationId=:id` and open the matching SAS (`ReservationSasDialog`); clear the params after (history replace). The SAS open handlers already exist. |
 
 **No vite-plugin-pwa / workbox** — a hand-written minimal service worker + manifest is enough for
 installability + push, and avoids precache/build complexity (no offline requirement).
@@ -179,8 +200,9 @@ all-ON (read returns defaults).
     subscription state; disabled with a hint when the browser doesn't support push).
   - Three switches: **Nouvelle réservation**, **Arrivées**, **Départs** (default ON). Saved per user.
   - Helper: « Les notifications s'affichent même quand GuestFlow est fermé, sur cet appareil. »
-- **Notification content** (native): title + body as in §3.3; clicking opens the reservation (`/reservations/:id`)
-  or the planning. Icon = GuestFlow logo.
+- **Notification content** (native): title + body as in §3.3. Clicking a **new-reservation** push opens the
+  reservation (`/reservations/:id`) / its devis; clicking an **arrival/departure** push opens the matching
+  **SAS** (`/planning?sas=arrival|departure&reservationId=:id`, §3.3 rule 10). Icon = GuestFlow logo.
 - **Responsive:** the settings card is full-width on `xs`; the install prompt is the browser's own.
 - **PageActionBar:** N/A (content inside the settings page).
 
@@ -194,14 +216,19 @@ all-ON (read returns defaults).
       **never throws** even if the model throws (isolation).
 - [x] `arrival-departure-push.unit.test.js` — real `reservationsModel.dueArrivals/dueDepartures` (today +
       time reached + not stamped, excludes other days/stamped) → send + stamp once; **firstRun stamps
-      without sending** (no restart flood).
+      without sending** (no restart flood). The arrival/departure push `url` is the **SAS deep-link**
+      `/planning?sas=arrival|departure&reservationId=:id` (rule 10).
 - [x] `notification-service.unit.test.js` (extended) — `notifyNewIcalReservation` / `notifyNewSiteDevis`
       fire a `newReservation` push **independent of email settings**; a **throwing push never breaks the
-      email path** (isolation).
+      email path** (isolation). Push body asserts « {voyageur/client} · {logement} » (rule 11).
 - [x] Migrations are idempotent (existing `CREATE TABLE IF NOT EXISTS` + `tryAdd`-style guards); full suite
       green. Boot verified live on the real DB (tables + reservation guard columns created, VAPID generated).
 
-### Client (vitest → 466 green)
+### Client (vitest → 468 green)
+- [x] `sasDeepLink.test.js` (this iteration) — `readSasDeepLink` parses a valid arrival/departure deep-link,
+      rejects unknown mode / missing-zero-negative-NaN id / unrelated params, and is null-safe. PlanningPage's
+      mount effect (open SAS + clear params) is verified by the green build + manual check (the page's heavy
+      data-fetch surface makes a full mount test low-value / fragile).
 - [x] `SettingsPushNotificationsSection.test.js` — unsupported → info (no button); enable button calls
       `enablePush`; enabled state shows « Désactiver » + 3 switches; toggling a switch calls
       `updatePushPreferences`.
