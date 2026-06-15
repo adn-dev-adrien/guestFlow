@@ -879,7 +879,7 @@ export default function PropertyDetail() {
                   disabled={!canManageExtras}
                   onClick={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}`))}
                 >
-                  Gérer les saisons
+                  Gestion tarifaire
                 </Button>
               </Box>
               <TableContainer>
