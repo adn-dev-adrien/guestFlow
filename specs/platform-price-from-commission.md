@@ -87,7 +87,7 @@ ever want to gross-up a full quote). No change to the booking/accounting flow.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `PropertyPricingSeasonsPage.js` | T | New **« Prix plateformes »** Card: a table (rows = seasons, columns = platforms). Each column header shows the platform name + an editable commission % field. Cells show the computed gross /nuit (read-only). Editing a % calls the API (debounced) → persists + refreshes the grid. |
+| `pages/` | `PropertyPricingSeasonsPage.js` | T | New **« Prix plateformes »** Card: a table (rows = seasons, columns = platforms). Each column header shows the platform name + an editable commission % field. Cells show the computed gross /nuit (read-only). Editing a % calls the API (debounced) → persists + refreshes the grid. Rendered **last** on the page (below the yearly season tables). |
 | `api.js` | `api.js` | T | `getPlatformPrices(propId)` (GET `/properties/:id/platform-prices`); `setPlatformCommission(platformId, commissionPercent)` (reuses the platform-update endpoint). |
 
 **Component reuse declaration:** reuses existing MUI `Table`/`TextField`/`Card` patterns already on the
@@ -116,7 +116,7 @@ The `direct` platform keeps `0` and is never shown in this feature.
 
 ## 6. UI / UX
 
-**Tarif page — new « Prix plateformes » card** (below the seasons table):
+**« Gestion tarifaire » page — « Prix plateformes » card** (placed **last**, below the yearly season tables):
 - A **table**: first column = season (label + « net /nuit »), then one column per non-direct platform.
 - Each platform column **header**: the platform name + a small **« % commission »** number field
   (editable, 0–99.99), with a caption that the rate is shared across all properties.
