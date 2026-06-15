@@ -24,7 +24,8 @@ import api from '../api';
 // Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
 // formatPropertyWithArticle: the apostrophe form elides, the others get a space).
 const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
-function previewWithArticle(name, article) {
+// Exported for non-regression unit tests (pages/__tests__/PropertyDetail.helpers.test.js).
+export function previewWithArticle(name, article) {
   const n = String(name || '').trim();
   if (!n) return '';
   const a = article || 'au';
@@ -62,7 +63,7 @@ const EMPTY_ICAL_FORM = {
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_PHOTO_FORMATS_TEXT = 'Formats pris en charge: JPG, JPEG, PNG, WEBP.';
 
-function getSortedSeasonRanges(rule) {
+export function getSortedSeasonRanges(rule) {
   const ranges = Array.isArray(rule?.dateRanges) ? rule.dateRanges : [];
   if (ranges.length > 0) {
     return ranges
@@ -72,7 +73,7 @@ function getSortedSeasonRanges(rule) {
   return [{ startDate: rule?.startDate, endDate: rule?.endDate }].filter((range) => range.startDate && range.endDate);
 }
 
-function normalizeTimedOptionForSnapshot(option) {
+export function normalizeTimedOptionForSnapshot(option) {
   if (!option) return null;
   return {
     id: Number(option.id || 0) || null,
@@ -83,7 +84,7 @@ function normalizeTimedOptionForSnapshot(option) {
   };
 }
 
-function buildTimedOptionsSnapshot(options) {
+export function buildTimedOptionsSnapshot(options) {
   return JSON.stringify({
     early: normalizeTimedOptionForSnapshot(options?.early),
     late: normalizeTimedOptionForSnapshot(options?.late),
