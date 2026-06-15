@@ -528,7 +528,7 @@ export default function PropertyPricingSeasonsPage() {
 
   return (
     <Box>
-      <PageHeader title={`Saisons tarifaires - ${property.name}`} />
+      <PageHeader title={`Gestion tarifaire - ${property.name}`} />
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
@@ -596,10 +596,6 @@ export default function PropertyPricingSeasonsPage() {
           </TableContainer>
         </CardContent>
       </Card>
-
-      {/* « Prix plateformes » — gross-up of each season net /nuit by each platform's commission %
-          (specs/platform-price-from-commission.md). */}
-      <PlatformPriceCard propertyId={id} refreshKey={platformRefresh} />
 
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap' }}>
@@ -729,6 +725,11 @@ export default function PropertyPricingSeasonsPage() {
           </Grid>
         ))}
       </Grid>
+
+      {/* « Prix plateformes » — placed last on the page (specs/platform-price-from-commission.md §6):
+          gross-up of each season net /nuit by each platform's commission %. */}
+      <PlatformPriceCard propertyId={id} refreshKey={platformRefresh} />
+
       <Dialog open={seasonDialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}</DialogTitle>
         <DialogContent>

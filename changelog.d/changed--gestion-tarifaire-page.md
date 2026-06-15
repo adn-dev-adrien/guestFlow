@@ -1,0 +1,1 @@
+- Logements : la page « Gérer les saisons » est renommée **« Gestion tarifaire »** (bouton + titre de page), et la carte **« Prix plateformes »** y est désormais affichée **en dernier** (sous les saisons de chaque année).
