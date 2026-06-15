@@ -471,7 +471,7 @@ export default function FinanceSection() {
                           fullWidth
                           size="small"
                           variant={form.complementPaidCash ? 'contained' : 'outlined'}
-                          color={form.complementPaidCash ? 'warning' : 'inherit'}
+                          color={form.complementPaidCash ? 'success' : 'inherit'}
                           onClick={async () => {
                             const next = !form.complementPaidCash;
                             const date = form.complementPaidDate || todayStr();
@@ -560,7 +560,7 @@ export default function FinanceSection() {
                           fullWidth
                           size="small"
                           variant={form.endOfStayComplementPaidCash ? 'contained' : 'outlined'}
-                          color={form.endOfStayComplementPaidCash ? 'warning' : 'inherit'}
+                          color={form.endOfStayComplementPaidCash ? 'success' : 'inherit'}
                           onClick={async () => {
                             const next = !form.endOfStayComplementPaidCash;
                             const date = form.endOfStayComplementPaidDate || todayStr();

@@ -12,6 +12,7 @@ const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reserva
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
+const { resolveComplementPayment } = require('../utils/complementPayment');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');

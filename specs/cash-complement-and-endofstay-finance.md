@@ -158,11 +158,16 @@ absent until set + paid). No backfill, no loss.
 ## 6. UI / UX
 
 - **Reservation fiche ([FinanceSection.js](../client/src/components/reservation/FinanceSection.js)):**
-  - The existing **arrival complement** block gains a « Caisse interne » control. When set, the block
-    reads « Caisse interne » with a short hint « compté dans le suivi, hors compta ».
+  - The existing **arrival complement** block gains a « Caisse interne » control. When set it turns
+    **green (`success`), like the « payé » button** — it implies paid (§3.2 rule 8) — and reads « Caisse
+    interne ✓ » with a short hint « compté dans le suivi, hors compta ».
   - A new **end-of-stay complement** block (when `endOfStayComplementAmount > 0`): amount, the
     `endOfStayComplementDetail` lines (label : amount), a « Marquer payé » toggle + « Payé le » date,
-    and the same « Caisse interne » control.
+    and the same green « Caisse interne » control.
+  - The control persists immediately via `PATCH /reservations/:id/payment` (`api.markPayment`). The
+    server's `updatePayment` **must import `resolveComplementPayment`** — without the import the PATCH
+    500s and the button silently does nothing (bug fixed 2026-06-15; guarded by
+    `tests/reservations-controller-payment-cash.unit.test.js`).
   - Responsive: same stacked card layout as the existing payment blocks; full-width controls on `xs`.
 - **Planning arrival card:** a cash-settled complement is **not** shown as « à percevoir » (it's paid).
 - **Accounting / Finance pages:** no UI change — the numbers simply exclude cash complements and now
