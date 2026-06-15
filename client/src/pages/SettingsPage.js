@@ -14,6 +14,7 @@ import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarS
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
+import SettingsBillableAmountsSection from '../components/SettingsBillableAmountsSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -402,6 +403,10 @@ export default function SettingsPage() {
               onChange={(next) => updateGroup('laundry')('weekday', next)}
               disabled={loading || saving}
             />
+          </Box>
+
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsBillableAmountsSection />
           </Box>
 
           <Box sx={{ breakInside: 'avoid' }}>

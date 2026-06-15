@@ -10,6 +10,10 @@ router.put('/', settingsController.updateSettings);
 router.get('/linen-items', settingsController.getLinenItems);
 router.put('/linen-items', settingsController.updateLinenItems);
 
+// Repair amounts (« Tarifs facturables ») — specs/extinguisher-seal-and-repair-amounts.md.
+router.get('/repair-amounts', settingsController.getRepairAmounts);
+router.put('/repair-amounts', settingsController.updateRepairAmounts);
+
 router.post('/logo', (req, res) => {
   logoUpload.single('logo')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Erreur upload logo.' });

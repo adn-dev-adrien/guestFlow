@@ -20,6 +20,7 @@ function makeDb() {
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementDetail TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
+      extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER,
       breakfastTime TEXT,
       breakfastCoffee INTEGER NOT NULL DEFAULT 0, breakfastTea INTEGER NOT NULL DEFAULT 0,
       breakfastChocolate INTEGER NOT NULL DEFAULT 0, breakfastNote TEXT, departureHandoverNote TEXT,
@@ -164,4 +165,37 @@ test('commitDepartureSas: « litige » (cautionReturned false) leaves the cautio
   const model = createReservationsModel(db);
   model.commitDepartureSas(1, { cautionReturned: false, endOfStayComplementAmount: 0 });
   assert.equal(db.prepare('SELECT cautionReturned FROM reservations WHERE id = 1').get().cautionReturned, 0);
+});
+
+// ---- fire-extinguisher seal (specs/extinguisher-seal-and-repair-amounts.md) ----
+
+test('commitArrivalSas: records the seal baseline + never bills for it', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const before = db.prepare('SELECT complementAmount FROM reservations WHERE id = 1').get().complementAmount;
+  const after = model.commitArrivalSas(1, { extinguisherSealOkAtArrival: 0 }); // missing at arrival
+  const r = db.prepare('SELECT extinguisherSealOkAtArrival, complementAmount FROM reservations WHERE id = 1').get();
+  assert.equal(r.extinguisherSealOkAtArrival, 0, 'baseline recorded');
+  assert.equal(after, before, 'arrival never bills the seal (complement unchanged)');
+});
+
+test('commitArrivalSas: omitted seal field leaves the column untouched (NULL)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  assert.equal(db.prepare('SELECT extinguisherSealOkAtArrival FROM reservations WHERE id = 1').get().extinguisherSealOkAtArrival, null);
+});
+
+test('commitDepartureSas: records the departure seal state (the bill rides endOfStayComplementDetail)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    extinguisherSealOkAtDeparture: 0,
+    endOfStayComplementAmount: 25,
+    endOfStayComplementDetail: [{ label: 'Plomb extincteur', amount: 25 }],
+  });
+  const r = db.prepare('SELECT extinguisherSealOkAtDeparture, endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.extinguisherSealOkAtDeparture, 0);
+  assert.equal(r.endOfStayComplementAmount, 25);
+  assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((d) => d.label), ['Plomb extincteur']);
 });

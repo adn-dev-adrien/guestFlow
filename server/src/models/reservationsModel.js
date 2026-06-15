@@ -826,7 +826,7 @@ function createReservationsModel(database) {
     commitArrivalSas(reservationId, {
       cautionReceived = false, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
-      departureHandoverNote,
+      departureHandoverNote, extinguisherSealOkAtArrival,
     } = {}) {
       // Clamp drink counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
@@ -857,6 +857,13 @@ function createReservationsModel(database) {
         database.prepare("UPDATE reservations SET departureHandoverNote = ?, updatedAt = datetime('now') WHERE id = ?")
           .run((departureHandoverNote && String(departureHandoverNote).trim()) || null, reservationId);
 
+        // Fire-extinguisher seal baseline at arrival (specs/extinguisher-seal-and-repair-amounts.md):
+        // default-present (the client sends 1 unless flagged missing). Recorded only; never bills here.
+        if (extinguisherSealOkAtArrival !== undefined) {
+          database.prepare("UPDATE reservations SET extinguisherSealOkAtArrival = ?, updatedAt = datetime('now') WHERE id = ?")
+            .run(extinguisherSealOkAtArrival ? 1 : 0, reservationId);
+        }
+
         if (cautionReceived) {
           database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
             .run(today, reservationId);
@@ -880,7 +887,7 @@ function createReservationsModel(database) {
     },
 
     // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement.
-    commitDepartureSas(reservationId, { cautionReturned = false, endOfStayComplementAmount = 0, endOfStayComplementDetail = null } = {}) {
+    commitDepartureSas(reservationId, { cautionReturned = false, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
         // Mark the departure SAS done (planning disables the button afterwards).
@@ -892,6 +899,11 @@ function createReservationsModel(database) {
         const amount = Math.max(0, Math.round(Number(endOfStayComplementAmount || 0) * 100) / 100);
         database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
           .run(amount, endOfStayComplementDetail ? JSON.stringify(endOfStayComplementDetail) : null, reservationId);
+        // Fire-extinguisher seal state at departure (the bill itself rides endOfStayComplementDetail).
+        if (extinguisherSealOkAtDeparture !== undefined) {
+          database.prepare("UPDATE reservations SET extinguisherSealOkAtDeparture = ?, updatedAt = datetime('now') WHERE id = ?")
+            .run(extinguisherSealOkAtDeparture ? 1 : 0, reservationId);
+        }
       });
       tx();
     },

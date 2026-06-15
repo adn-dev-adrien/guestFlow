@@ -2025,6 +2025,21 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   );
 `);
+// « Tarifs facturables » — repair amounts (operator-managed in Réglages). Generic priced list; rows with
+// a `repairKey` are SAS-linked + protected. Seeded with the fire-extinguisher seal
+// (specs/extinguisher-seal-and-repair-amounts.md).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS repair_amounts (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    repairKey TEXT,
+    label     TEXT NOT NULL,
+    price     REAL NOT NULL DEFAULT 0,
+    sortOrder INTEGER NOT NULL DEFAULT 0
+  );
+`);
+if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_seal' LIMIT 1").get()) {
+  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_seal', 'Plomb extincteur', 0, 0)").run();
+}
 // End-of-stay complement (departure SAS): a dedicated amount, separate from the arrival complement.
 {
   const rcols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
@@ -2041,6 +2056,10 @@ db.exec(`
   // card disables the SAS button once done (no accidental re-run).
   if (!rcols.includes('arrivalSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalSasDoneAt TEXT");
   if (!rcols.includes('departureSasDoneAt')) db.exec("ALTER TABLE reservations ADD COLUMN departureSasDoneAt TEXT");
+  // Fire-extinguisher seal state captured in the SAS (specs/extinguisher-seal-and-repair-amounts.md):
+  // 1 = present, 0 = missing, NULL = not recorded (présent assumed by default at departure).
+  if (!rcols.includes('extinguisherSealOkAtArrival')) db.exec("ALTER TABLE reservations ADD COLUMN extinguisherSealOkAtArrival INTEGER");
+  if (!rcols.includes('extinguisherSealOkAtDeparture')) db.exec("ALTER TABLE reservations ADD COLUMN extinguisherSealOkAtDeparture INTEGER");
   // Breakfast composition captured at check-in (specs/sas-breakfast-and-handover-note.md): counts of
   // hot drinks to prepare each morning + a free note, surfaced on the planning breakfast card. The
   // breakfast hour reuses the existing reservations.breakfastTime column.
