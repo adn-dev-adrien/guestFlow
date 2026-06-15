@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
-  LinearProgress, IconButton,
+  LinearProgress, IconButton, FormControlLabel, Switch,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
@@ -29,6 +29,8 @@ import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DryCleaningIcon from '@mui/icons-material/DryCleaning';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
+import FireExtinguisherIcon from '@mui/icons-material/FireExtinguisher';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import ConfirmDialog from '../ConfirmDialog';
@@ -80,6 +82,7 @@ function stepMeta(key, mode) {
     case 'missingItems': return { title: 'Serviettes / draps', Icon: DryCleaningIcon };
     case 'keys': return { title: 'Clés', Icon: VpnKeyIcon };
     case 'cautionReturn': return { title: 'Retour caution', Icon: SavingsIcon };
+    case 'extinguisher': return { title: 'Extincteur', Icon: FireExtinguisherIcon };
     case 'recap': return { title: 'Récapitulatif', Icon: FactCheckIcon };
     default: return { title: '', Icon: null };
   }
@@ -120,6 +123,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [missingDep, setMissingDep] = useState({});       // departure: { itemId: qty }
   const [keysReceived, setKeysReceived] = useState(null); // departure
   const [cautionReturned, setCautionReturned] = useState(null); // departure
+  const [extinguisherOk, setExtinguisherOk] = useState(true);   // fire-extinguisher seal — default PRESENT
   // arrival breakfast page (specs/sas-breakfast-and-handover-note.md)
   const [breakfast, setBreakfast] = useState({ coffee: 0, tea: 0, chocolate: 0 });
   const [breakfastTime, setBreakfastTime] = useState('');
@@ -132,7 +136,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     let cancelled = false;
     setLoading(true); setError(''); setData(null); setStepKey(null);
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
-    setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null);
+    setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true);
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     api.getReservationSas(reservationId)
       .then((d) => {
@@ -171,6 +175,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         'cleaning',
         (cautionDue && caution === 'reporte') ? 'cautionReport' : null,
+        'extinguisher',
         'recap',
       ].filter(Boolean);
     }
@@ -182,6 +187,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       missingAsk === true ? 'missingItems' : null,
       'keys',
       cautionReturnable ? 'cautionReturn' : null,
+      'extinguisher',
       'recap',
     ].filter(Boolean);
   }, [data, mode, r, linenOk, caution, missingAsk]);
@@ -189,6 +195,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
     if (i >= 0 && i < activeKeys.length - 1) setStepKey(activeKeys[i + 1]);
+  }, [activeKeys, stepKey]);
+  // « Précédent » — go back one active page (specs/arrival-departure-sas.md §3.0; in-memory
+  // decisions persist, so revisiting a page shows the prior answer).
+  const goBack = useCallback(() => {
+    const i = activeKeys.indexOf(stepKey);
+    if (i > 0) setStepKey(activeKeys[i - 1]);
   }, [activeKeys, stepKey]);
 
   // ---- totals ----
@@ -205,7 +217,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     .map((it) => ({ label: it.label, amount: Math.round(Number(it.price) * Number(missingDep[it.id]) * 100) / 100, qty: Number(missingDep[it.id]) })), [allItems, missingDep]);
   const depCleaningLine = (cleaningOk === false && data?.cleaning?.price)
     ? { label: 'Ménage de fin de séjour', amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
-  const endOfStayLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines];
+  // Fire-extinguisher seal (specs/extinguisher-seal-and-repair-amounts.md): billed at DEPARTURE iff the
+  // seal is missing now AND it was present at arrival (default-present: only an explicit 0 skips it).
+  const sealAmount = useMemo(() => {
+    const row = (data?.repairAmounts || []).find((x) => x.repairKey === 'extinguisher_seal');
+    return row ? Math.max(0, Number(row.price) || 0) : 0;
+  }, [data]);
+  const sealBilledAtDeparture = mode === 'departure' && extinguisherOk === false && Number(r?.extinguisherSealOkAtArrival) !== 0;
+  const sealLine = (sealBilledAtDeparture && sealAmount > 0) ? { label: 'Plomb extincteur', amount: sealAmount, qty: 1 } : null;
+  const endOfStayLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines, ...(sealLine ? [sealLine] : [])];
   const endOfStayTotal = endOfStayLines.reduce((s, l) => s + l.amount, 0);
 
   const commit = async () => {
@@ -216,6 +236,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           cautionReceived: caution === 'fait',
           complementItems: arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })),
           departureHandoverNote: handoverNote,
+          extinguisherSealOkAtArrival: extinguisherOk ? 1 : 0,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
@@ -230,6 +251,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           cautionReturned: cautionReturned === true,
           endOfStayComplementAmount: endOfStayTotal,
           endOfStayComplementDetail: endOfStayLines,
+          extinguisherSealOkAtDeparture: extinguisherOk ? 1 : 0,
         });
       }
       if (onCommitted) onCommitted();
@@ -423,6 +445,28 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {cautionReturned === false && <Chip label="Litige / dégât — caution conservée" color="error" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
+      case 'extinguisher': {
+        const sealMissingAtArrival = Number(r?.extinguisherSealOkAtArrival) === 0;
+        return (
+          <Stack spacing={1.5}>
+            <Typography variant="body1">Le plomb de l'extincteur est-il présent ?</Typography>
+            <FormControlLabel
+              control={<Switch checked={extinguisherOk} onChange={(e) => setExtinguisherOk(e.target.checked)} />}
+              label={extinguisherOk ? 'Plomb présent' : 'Plomb manquant'}
+            />
+            {!extinguisherOk && mode === 'arrival' && (
+              <Typography variant="body2" color="text.secondary">Noté manquant dès l'arrivée — à remplacer par le propriétaire, non facturé au client.</Typography>
+            )}
+            {!extinguisherOk && mode === 'departure' && (
+              sealMissingAtArrival
+                ? <Typography variant="body2" color="text.secondary">Déjà manquant à l'arrivée — non facturé.</Typography>
+                : (sealAmount > 0
+                    ? <Typography variant="body2" color="warning.main">Plomb extincteur facturé : <strong>{euro(sealAmount)}</strong> (complément fin de séjour).</Typography>
+                    : <Typography variant="body2" color="text.secondary">Aucun montant « Plomb extincteur » configuré (Réglages → Tarifs facturables).</Typography>)
+            )}
+          </Stack>
+        );
+      }
       case 'recap':
         if (mode === 'arrival') {
           const existing = Number(r.complementAmount || 0);
@@ -525,6 +569,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Button color="error" onClick={() => { setCautionReturned(false); goNext(); }}>Dégât / litige</Button>
           <Button variant="contained" color="success" onClick={() => { setCautionReturned(true); goNext(); }}>Rendue</Button>
         </>;
+      case 'extinguisher': return <>{quit}{next()}</>;
       case 'recap':
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>Valider et terminer</Button>
@@ -550,6 +595,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
       <Box sx={{ bgcolor: modeColor, color: '#fff', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          {stepIdx > 0 && (
+            <IconButton onClick={goBack} disabled={committing} sx={{ color: '#fff', ml: -0.5 }} aria-label="Précédent"><ArrowBackIcon /></IconButton>
+          )}
           {StepIcon && <StepIcon sx={{ fontSize: 28 }} />}
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{bandTitle}</Typography>

@@ -29,6 +29,7 @@ function sasPayload(over = {}) {
     portalCode: over.portalCode || '',
     cleaning: over.cleaning || { included: false, price: 80 },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],
+    repairAmounts: over.repairAmounts || [],
     breakfast: over.breakfast, // undefined → breakfast page hidden
   };
 }
@@ -72,6 +73,10 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   await screen.findByText(/n'a pas été pris/);
   clickBtn('Ajouter le ménage');
 
+  // extinguisher (default present) → Suivant
+  await screen.findByText(/plomb de l'extincteur/i);
+  clickBtn('Suivant');
+
   // recap
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 85,00 €/)).toBeInTheDocument();
@@ -85,6 +90,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
       { label: 'Ménage', amount: 80 },
     ],
     departureHandoverNote: '',
+    extinguisherSealOkAtArrival: 1,
   });
 });
 
@@ -143,6 +149,8 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
 
   // cleaning (included) → recap. findByRole retries until the confirm's close transition
   // lifts the background aria-hidden (otherwise « Suivant » isn't yet accessible).
+  fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
+  // extinguisher (default present) → Suivant
   fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
   await screen.findByText('Récapitulatif — complément à percevoir');
   fireEvent.change(screen.getByLabelText(/Note pour le départ/), { target: { value: 'clé sous le pot' } });
@@ -206,6 +214,10 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 
+  // extinguisher (default present) → Suivant
+  await screen.findByText(/plomb de l'extincteur/i);
+  clickBtn('Suivant');
+
   // recap (caution page skipped: cautionAmount 0)
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.getByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument();
@@ -215,4 +227,40 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   const arg = api.commitDepartureSas.mock.calls[0][1];
   expect(arg.endOfStayComplementAmount).toBe(80);
   expect(arg.cautionReturned).toBe(false);
+});
+
+test('departure SAS: extinguisher seal missing (present at arrival) bills the configured amount', async () => {
+  // specs/extinguisher-seal-and-repair-amounts.md — default-present switch; flipping it to manquant at
+  // departure (when present at arrival) adds the « Plomb extincteur » repair amount to the end-of-stay.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0, extinguisherSealOkAtArrival: 1 },
+    cleaning: { included: true, price: 80 },
+    repairAmounts: [{ id: 1, repairKey: 'extinguisher_seal', label: 'Plomb extincteur', price: 30 }],
+  }));
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/fait correctement/);
+  clickBtn('OK'); // cleaning OK → no cleaning charge
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+
+  // extinguisher: default present → flip the switch to manquant
+  await screen.findByText(/plomb de l'extincteur/i);
+  fireEvent.click(screen.getAllByRole('switch')[0]);
+  await screen.findByText(/Plomb extincteur facturé/);
+  clickBtn('Suivant');
+
+  await screen.findByText('Récapitulatif fin de séjour');
+  expect(screen.getByText(/Total à percevoir : 30,00 €/)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitDepartureSas.mock.calls[0][1];
+  expect(arg.endOfStayComplementAmount).toBe(30);
+  expect(arg.extinguisherSealOkAtDeparture).toBe(0);
+  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Plomb extincteur' && l.amount === 30)).toBe(true);
 });
