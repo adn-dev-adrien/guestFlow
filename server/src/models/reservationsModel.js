@@ -159,7 +159,7 @@ function createReservationsModel(database) {
 
     getByIdWithDetails(id) {
       const reservation = database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
+        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName, p.photo as propertyPhoto
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
