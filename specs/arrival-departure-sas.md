@@ -241,9 +241,29 @@ existing reservations needed.
   - **Body**: a **large centred step icon** (~56–64 px), a **large heading** (`h5`, the step's question /
     title), supporting text at `body1` (bigger than before), then the step's interactive content
     (steppers / fields / chips) with generous spacing and padding (`p: { xs: 2, sm: 3 }`).
-  - **Footer**: big, **colour-coded** buttons — success (OK / Fait / Oui / Rendue / Ajouter) vs error-amber
-    (Pas OK / Non / Reporté / Dégât / Non merci) — **full-width, stacked on `xs`**, side-by-side on `sm+`,
-    pinned at the bottom, touch targets ≥ 48 px. « Valider et terminer » keeps its commit spinner.
+  - **Intro page (mobile redesign 2026-06-15)**: leads with the **property photo** (same image as Réglages
+    → logement, served via `reservation.propertyPhoto`), then the **property name centred**, the **client
+    name centred, in blue, larger, wrapping onto 2 lines** if it doesn't fit, the **platform badge styled
+    exactly like the planning** (outlined box, `getPlatformColor` border + text, `formatPlatformLabel`),
+    then **arrival + departure rows in the planning format** (coloured ARRIVÉE / DÉPART chip + date + time
+    pill, left-aligned) and a **people icon + count**. The big centred step icon is suppressed on the intro
+    (the photo leads).
+  - **Footer — yes/no answer colour code (2026-06-15)**: each yes/no page renders its two buttons via the
+    shared `AnswerButtons` — the **reassuring** answer is **white-on-blue** and sits **on top** (mobile
+    `column-reverse` → last child on top), the **problem** answer is **black-on-red** below. Mapping by
+    *meaning*, not literal Oui/Non: linge **OK** / serviettes-draps **Non** / clés **Oui** / extincteur
+    **Oui** (plomb présent) / retour caution **Rendue** / caution **Fait** = blue; their counterparts
+    (Pas OK / Oui / Non / Non / Dégât-litige / Reporté) = red. Navigation buttons (Commencer / Suivant /
+    Valider et terminer) stay primary blue. The arrival **« ménage »** upsell (Non merci / Ajouter le
+    ménage) is **not** a yes/no safety question → kept **neutral** (Ajouter = primary blue, Non merci
+    discreet). Buttons full-width + stacked on `xs`, side-by-side on `sm+`, touch targets ≥ 48 px;
+    « Valider et terminer » keeps its commit spinner.
+  - **Extincteur** is now a yes/no page (**Oui** = plomb présent = blue / **Non** = manquant = red),
+    replacing the former in-body Switch; clicking advances immediately. At departure the body keeps a static
+    hint that an absent seal adds the configured amount to the end-of-stay (the charge lands in the recap).
+  - **iOS PWA wake fix (2026-06-15)**: the dialog sets `disableEnforceFocus` / `disableRestoreFocus`. On an
+    installed iOS PWA the page is frozen on screen-lock / app-switch; on resume MUI's focus trap could keep
+    stealing focus and leave the answer buttons unresponsive — relaxing the trap restores interactivity.
   - **Per-step icons** (MUI): intro = MeetingRoom (arrivée) / Logout (départ) ; portail = Dialpad ;
     caution / report = Savings ; options = RoomService ; petit-déj = FreeBreakfast ; linge / linenItems =
     KingBed ; ménage = CleaningServices ; serviettes manquantes = DryCleaning ; clés = VpnKey ; retour
@@ -280,6 +300,12 @@ existing reservations needed.
       above stay green unchanged (same step strings, button labels and commit payloads); client build green.
       The footer « Quitter » moved into the band ✕; the redundant in-body « Petit déjeuner » heading was
       dropped (the band title carries it) so `findByText('Petit déjeuner')` still resolves to one node.
+- [x] **Mobile refinements 2026-06-15** (intro redesign + yes/no colour code + extinguisher Oui/Non + iOS
+      wake fix): a new vitest case asserts the intro renders the property photo + centred client name +
+      ARRIVÉE/DÉPART chips + people count; the extinguisher walkthroughs now click **Oui** (présent) /
+      **Non** (manquant) instead of a Switch + Suivant, and the departure-seal billing test answers
+      **Non** (the charge surfaces in the recap, not the body). 10 vitest cases green; full client suite
+      green; server suite green (the `getByIdWithDetails` photo field is additive).
 
 ### Planning-tile launch tests (vitest, `ReservationCard.test.js` + `DepartureMiniRow.test.js`)
 - [x] « Ouvrir la réservation » button → `onOpenReservation(id)`; SAS button → `onOpenSas(id)`.
