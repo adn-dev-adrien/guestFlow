@@ -20,6 +20,7 @@ const {
 const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
 const { formatPlatformName } = require('../utils/platformNameFormat');
+const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const icalCancellationModel = require('./icalCancellationModel');
 const notificationService = require('../utils/notificationService');
 // Establishment closures (2026-06-06): every iCal event is checked against the
@@ -495,20 +496,31 @@ function createPropertyIcalModel(database) {
             .all(source.id)
             .filter((row) => !seenUids.has(row.eventUid));
           const countMappingsForReservation = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE reservationId = ?');
-          const reservationStillExists = database.prepare('SELECT 1 FROM reservations WHERE id = ?');
+          const reservationForCancellation = database.prepare('SELECT endDate FROM reservations WHERE id = ?');
+          const todayIso = getTodayIsoDate();
           staleMappings.forEach((row) => {
             deleteMapping.run(source.id, row.eventUid);
             if (countMappingsForReservation.get(row.reservationId).c === 0) {
               // No other source still claims this reservation. Soft-record a pending
               // cancellation alert if the reservation still exists (a manual delete
               // between syncs is idempotent — we just drop the trailing mapping).
-              if (reservationStillExists.get(row.reservationId)) {
-                cancellationModel.recordPending({
-                  reservationId: row.reservationId,
-                  sourceId: source.id,
-                  eventUid: row.eventUid,
-                });
-                removedCount += 1;
+              const reservation = reservationForCancellation.get(row.reservationId);
+              if (reservation) {
+                // A PAST stay (checkout strictly before today) that the platform pruned
+                // from its feed is NOT a cancellation to validate — platforms routinely
+                // drop bygone bookings. Drop the stale mapping (already done above) and
+                // keep the reservation, but raise no Dashboard alert (rule 1, past-stay
+                // carve-out). Only present/future stays falling out of the feed are real
+                // cancellations the operator must approve.
+                const isPastStay = reservation.endDate && String(reservation.endDate) < todayIso;
+                if (!isPastStay) {
+                  cancellationModel.recordPending({
+                    reservationId: row.reservationId,
+                    sourceId: source.id,
+                    eventUid: row.eventUid,
+                  });
+                  removedCount += 1;
+                }
               }
             }
           });
