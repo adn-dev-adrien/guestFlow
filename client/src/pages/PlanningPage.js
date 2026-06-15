@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Chip, Divider,
   LinearProgress, TextField, Button, IconButton,
@@ -14,6 +14,7 @@ import BreakfastDayCard from '../components/BreakfastDayCard';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
+import { readSasDeepLink } from '../utils/sasDeepLink';
 import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
@@ -124,6 +125,22 @@ export default function PlanningPage() {
   const [sas, setSas] = useState(null);
   const openArrivalSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'arrival' }); }, []);
   const openDepartureSas = useCallback((reservationId) => { if (reservationId) setSas({ reservationId, mode: 'departure' }); }, []);
+
+  // Deep-link from a push notification (specs/pwa-push-notifications.md §3.3 rule 10):
+  // /planning?sas=arrival|departure&reservationId=:id opens the matching SAS, then the params are
+  // cleared (history replace) so a refresh / back doesn't reopen it. The dialog loads the reservation
+  // by id, independent of the week currently shown.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const link = readSasDeepLink(searchParams);
+    if (!link) return;
+    if (link.mode === 'arrival') openArrivalSas(link.reservationId);
+    else openDepartureSas(link.reservationId);
+    const next = new URLSearchParams(searchParams);
+    next.delete('sas');
+    next.delete('reservationId');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, openArrivalSas, openDepartureSas]);
   const openClient = useCallback((clientId) => { if (clientId) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate]);
 
   const [loading, setLoading] = useState(true);
