@@ -73,9 +73,9 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   await screen.findByText(/n'a pas été pris/);
   clickBtn('Ajouter le ménage');
 
-  // extinguisher (default present) → Suivant
+  // extinguisher: « Oui » = plomb présent
   await screen.findByText(/plomb de l'extincteur/i);
-  clickBtn('Suivant');
+  clickBtn('Oui');
 
   // recap
   await screen.findByText('Récapitulatif — complément à percevoir');
@@ -92,6 +92,28 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
     departureHandoverNote: '',
     extinguisherSealOkAtArrival: 1,
   });
+});
+
+test('arrival SAS intro: property photo, centred blue client name, platform badge, planning-style dates + people count', async () => {
+  // specs/arrival-departure-sas.md §6 (mobile intro redesign 2026-06-15).
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      firstName: 'Jean', lastName: 'Dupont', propertyName: 'Le Moulin', propertyPhoto: '/uploads/moulin.jpg',
+      platform: 'airbnb', adults: 2, children: 1, teens: 0, babies: 0,
+      startDate: '2026-07-10', endDate: '2026-07-12', checkInTime: '15:00', checkOutTime: '10:00',
+    },
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+
+  const photo = document.querySelector('img[alt="Le Moulin"]');
+  expect(photo).toBeTruthy();
+  expect(photo.getAttribute('src')).toBe('/uploads/moulin.jpg');
+  expect(screen.getByText('Le Moulin')).toBeInTheDocument();
+  expect(screen.getByText('Jean Dupont')).toBeInTheDocument();   // client name (rendered blue + larger)
+  expect(screen.getByText('ARRIVÉE')).toBeInTheDocument();        // planning-style arrival chip
+  expect(screen.getByText('DÉPART')).toBeInTheDocument();         // planning-style departure chip
+  expect(screen.getByText('3 personnes')).toBeInTheDocument();    // 2 adults + 1 child
 });
 
 test('arrival SAS reopen: pre-fills the prior commit (caution shown despite received) + re-commit sends the reconstructed complement once', async () => {
@@ -122,11 +144,11 @@ test('arrival SAS reopen: pre-fills the prior commit (caution shown despite rece
 
   // The reconstructed complement is a custom option → the prestations step shows; just go through it.
   fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
-  // cleaning included → Suivant ; extinguisher → Suivant
+  // cleaning included → Suivant ; extinguisher → « Oui » (plomb présent)
   await screen.findByText(/Le ménage est inclus/);
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
   await screen.findByText(/plomb de l'extincteur/i);
-  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Oui' }));
 
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 5,00 €/)).toBeInTheDocument(); // reconstructed pillow only
@@ -196,8 +218,8 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
   // cleaning (included) → recap. findByRole retries until the confirm's close transition
   // lifts the background aria-hidden (otherwise « Suivant » isn't yet accessible).
   fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
-  // extinguisher (default present) → Suivant
-  fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
+  // extinguisher → « Oui » (plomb présent)
+  fireEvent.click(await screen.findByRole('button', { name: 'Oui' }));
   await screen.findByText('Récapitulatif — complément à percevoir');
   fireEvent.change(screen.getByLabelText(/Note pour le départ/), { target: { value: 'clé sous le pot' } });
   clickBtn('Valider et terminer');
@@ -260,9 +282,9 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 
-  // extinguisher (default present) → Suivant
+  // extinguisher → « Oui » (plomb présent)
   await screen.findByText(/plomb de l'extincteur/i);
-  clickBtn('Suivant');
+  clickBtn('Oui');
 
   // recap (caution page skipped: cautionAmount 0)
   await screen.findByText('Récapitulatif fin de séjour');
@@ -278,8 +300,8 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
 });
 
 test('departure SAS: extinguisher seal missing (present at arrival) bills the configured amount', async () => {
-  // specs/extinguisher-seal-and-repair-amounts.md — default-present switch; flipping it to manquant at
-  // departure (when present at arrival) adds the « Plomb extincteur » repair amount to the end-of-stay.
+  // specs/extinguisher-seal-and-repair-amounts.md — answering « Non » (manquant) at departure, when the
+  // seal was present at arrival, adds the « Plomb extincteur » repair amount to the end-of-stay.
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0, extinguisherSealOkAtArrival: 1 },
     cleaning: { included: true, price: 80 },
@@ -296,11 +318,9 @@ test('departure SAS: extinguisher seal missing (present at arrival) bills the co
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 
-  // extinguisher: default present → flip the switch to manquant
+  // extinguisher: « Non » = plomb manquant (advances straight to recap; the charge shows there)
   await screen.findByText(/plomb de l'extincteur/i);
-  fireEvent.click(screen.getAllByRole('switch')[0]);
-  await screen.findByText(/Plomb extincteur facturé/);
-  clickBtn('Suivant');
+  clickBtn('Non');
 
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.getByText(/Total à percevoir : 30,00 €/)).toBeInTheDocument();

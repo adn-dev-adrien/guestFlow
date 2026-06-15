@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
-  LinearProgress, IconButton, FormControlLabel, Switch,
+  LinearProgress, IconButton,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
@@ -31,8 +31,13 @@ import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import FireExtinguisherIcon from '@mui/icons-material/FireExtinguisher';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import FlightLandIcon from '@mui/icons-material/FlightLand';
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
+import PeopleIcon from '@mui/icons-material/People';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 import ConfirmDialog from '../ConfirmDialog';
 
 function euro(n) {
@@ -98,6 +103,43 @@ function StepLayout({ Icon, color, children }) {
         </Box>
       )}
       <Box sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</Box>
+    </Stack>
+  );
+}
+
+// Yes/No answer buttons with the shared SAS colour code (specs/arrival-departure-sas.md §6):
+// the reassuring answer is white-on-blue and sits ON TOP, the problem answer is black-on-red below.
+// `bad` is rendered first so the mobile column-reverse footer lands it BENEATH `good`.
+function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
+  return (
+    <>
+      <Button variant="contained" color="error" sx={{ color: '#000' }} onClick={onBad}>{badLabel}</Button>
+      <Button variant="contained" onClick={onGood}>{goodLabel}</Button>
+    </>
+  );
+}
+
+// Arrival / departure line in the SAS intro — same visual language as the planning cards:
+// a coloured ARRIVÉE/DÉPART chip (FlightLand/FlightTakeoff) + the date + a time pill, left-aligned.
+function IntroDateRow({ kind, date, time }) {
+  const isArrival = kind === 'arrival';
+  const bg = isArrival ? 'warning.main' : '#455a64'; // orange arrival / slate departure (planning palette)
+  const Icon = isArrival ? FlightLandIcon : FlightTakeoffIcon;
+  return (
+    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+      <Chip
+        icon={<Icon sx={{ fontSize: 16, color: 'white !important' }} />}
+        label={isArrival ? 'ARRIVÉE' : 'DÉPART'}
+        size="small"
+        sx={{ height: 24, fontSize: 11, fontWeight: 800, color: 'white', bgcolor: bg, '& .MuiChip-icon': { ml: 0.75, mr: -0.25 } }}
+      />
+      <Typography variant="body1" sx={{ fontWeight: 600 }}>{frDate(date)}</Typography>
+      <Chip
+        icon={<AccessTimeIcon sx={{ fontSize: 14, color: 'white !important' }} />}
+        label={time}
+        size="small"
+        sx={{ height: 20, fontSize: 12, fontWeight: 800, borderRadius: 1.5, color: 'white', bgcolor: bg, '& .MuiChip-icon': { ml: 0.5, mr: -0.25 } }}
+      />
     </Stack>
   );
 }
@@ -355,16 +397,39 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (!data) return null;
 
     switch (stepKey) {
-      case 'intro':
+      case 'intro': {
+        const personsCount = Number(r.adults || 0) + Number(r.teens || 0) + Number(r.children || 0) + Number(r.babies || 0);
         return (
-          <Stack spacing={1}>
-            <Typography variant="h6">{r.firstName} {r.lastName}</Typography>
-            <Typography variant="body2"><strong>{r.propertyName}</strong>{r.platform && r.platform !== 'direct' ? ` · ${r.platform}` : ''}</Typography>
-            <Typography variant="body2">Arrivée : {frDate(r.startDate)} à {r.checkInTime || '15:00'}</Typography>
-            <Typography variant="body2">Départ : {frDate(r.endDate)} avant {r.checkOutTime || '10:00'}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {(Number(r.adults || 0) + Number(r.teens || 0) + Number(r.children || 0) + Number(r.babies || 0))} personne(s)
+          <Stack spacing={1.5}>
+            {/* 1. Property photo (same image as Réglages → logement). */}
+            {r.propertyPhoto && (
+              <Box component="img" src={r.propertyPhoto} alt={r.propertyName}
+                sx={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 2 }} />
+            )}
+            {/* 2. Property name, centred. */}
+            <Typography variant="h6" sx={{ textAlign: 'center', fontWeight: 700, lineHeight: 1.2 }}>{r.propertyName}</Typography>
+            {/* 3. Client name — centred, blue, larger, wraps onto 2 lines if needed. */}
+            <Typography variant="h4" sx={{ textAlign: 'center', color: 'primary.main', fontWeight: 800, lineHeight: 1.15, overflowWrap: 'anywhere' }}>
+              {r.firstName} {r.lastName}
             </Typography>
+            {/* 4. Platform badge — exactly like the planning (outlined, platform colour). */}
+            {r.platform && (
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <Box component="span" sx={{ px: 1, py: 0.375, border: '1.5px solid', borderColor: getPlatformColor(r.platform), color: getPlatformColor(r.platform), bgcolor: 'transparent', borderRadius: 1, fontSize: 14, fontWeight: 800, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+                  {formatPlatformLabel(r.platform)}
+                </Box>
+              </Box>
+            )}
+            {/* 5. Arrival + departure — planning format, left-aligned. */}
+            <Stack spacing={0.75} sx={{ alignItems: 'flex-start', mt: 0.5 }}>
+              <IntroDateRow kind="arrival" date={r.startDate} time={r.checkInTime || '15:00'} />
+              <IntroDateRow kind="departure" date={r.endDate} time={r.checkOutTime || '10:00'} />
+            </Stack>
+            {/* 6. People count. */}
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+              <PeopleIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+              <Typography variant="body1">{personsCount} personne{personsCount > 1 ? 's' : ''}</Typography>
+            </Stack>
             {mode === 'departure' && r.departureHandoverNote && (
               <Box sx={{ mt: 1, p: 1, borderRadius: 1, bgcolor: 'rgba(255, 193, 7, 0.12)', border: '1px solid', borderColor: 'warning.light' }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', display: 'block' }}>Note laissée à l'arrivée</Typography>
@@ -373,6 +438,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             )}
           </Stack>
         );
+      }
       case 'portal':
         return (
           <Stack spacing={1.5} sx={{ alignItems: 'center', py: 1 }}>
@@ -507,23 +573,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Stack>
         );
       case 'extinguisher': {
-        const sealMissingAtArrival = Number(r?.extinguisherSealOkAtArrival) === 0;
+        // The seal is billed at departure only if it was present at arrival (default-present).
+        const sealBillable = mode === 'departure' && sealAmount > 0 && Number(r?.extinguisherSealOkAtArrival) !== 0;
         return (
-          <Stack spacing={1.5}>
-            <Typography variant="body1">Le plomb de l'extincteur est-il présent ?</Typography>
-            <FormControlLabel
-              control={<Switch checked={extinguisherOk} onChange={(e) => setExtinguisherOk(e.target.checked)} />}
-              label={extinguisherOk ? 'Plomb présent' : 'Plomb manquant'}
-            />
-            {!extinguisherOk && mode === 'arrival' && (
-              <Typography variant="body2" color="text.secondary">Noté manquant dès l'arrivée — à remplacer par le propriétaire, non facturé au client.</Typography>
-            )}
-            {!extinguisherOk && mode === 'departure' && (
-              sealMissingAtArrival
-                ? <Typography variant="body2" color="text.secondary">Déjà manquant à l'arrivée — non facturé.</Typography>
-                : (sealAmount > 0
-                    ? <Typography variant="body2" color="warning.main">Plomb extincteur facturé : <strong>{euro(sealAmount)}</strong> (complément fin de séjour).</Typography>
-                    : <Typography variant="body2" color="text.secondary">Aucun montant « Plomb extincteur » configuré (Réglages → Tarifs facturables).</Typography>)
+          <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+            <Typography variant="h6" sx={{ textAlign: 'center' }}>Le plomb de l'extincteur est-il présent ?</Typography>
+            {sealBillable && (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                S'il est absent, <strong>{euro(sealAmount)}</strong> seront ajoutés au complément de fin de séjour.
+              </Typography>
             )}
           </Stack>
         );
@@ -585,8 +643,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'caution':
       case 'cautionReport':
         return <>{quit}
-          <Button color="warning" onClick={() => { setCaution('reporte'); goNext(); }}>Reporté</Button>
-          <Button variant="contained" color="success" onClick={() => { setCaution('fait'); goNext(); }}>Fait</Button>
+          <AnswerButtons
+            goodLabel="Fait" onGood={() => { setCaution('fait'); goNext(); }}
+            badLabel="Reporté" onBad={() => { setCaution('reporte'); goNext(); }}
+          />
         </>;
       case 'options': return <>{quit}{next()}</>;
       case 'breakfast':
@@ -594,20 +654,23 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Button variant="contained" onClick={() => { if (breakfastMismatch) setBreakfastWarnOpen(true); else goNext(); }}>Suivant</Button>
         </>;
       case 'linen':
+        // « Pas OK » opens the conditional linen-items page — navigate to it explicitly (the activeKeys
+        // goNext() reads is computed before this setState lands). « OK » = linen fine → clear any
+        // (re-edit) pre-filled missing items so they aren't billed.
         return <>{quit}
-          {/* « Pas OK » opens the conditional linen-items page — navigate to it explicitly: the
-              activeKeys goNext() reads is computed before this setState lands, so it wouldn't yet
-              contain 'linenItems'. */}
-          <Button color="error" onClick={() => { setLinenOk(false); setStepKey('linenItems'); }}>Pas OK</Button>
-          {/* « OK » = linen fine → clear any (re-edit) pre-filled missing items so they aren't billed. */}
-          <Button variant="contained" onClick={() => { setLinenOk(true); setMissingBed({}); goNext(); }}>OK</Button>
+          <AnswerButtons
+            goodLabel="OK" onGood={() => { setLinenOk(true); setMissingBed({}); goNext(); }}
+            badLabel="Pas OK" onBad={() => { setLinenOk(false); setStepKey('linenItems'); }}
+          />
         </>;
       case 'linenItems': return <>{quit}{next()}</>;
       case 'cleaning':
         if (mode === 'departure') {
           return <>{quit}
-            <Button color="error" onClick={() => { setCleaningOk(false); goNext(); }}>Pas OK</Button>
-            <Button variant="contained" color="success" onClick={() => { setCleaningOk(true); goNext(); }}>OK</Button>
+            <AnswerButtons
+              goodLabel="OK" onGood={() => { setCleaningOk(true); goNext(); }}
+              badLabel="Pas OK" onBad={() => { setCleaningOk(false); goNext(); }}
+            />
           </>;
         }
         if (data.cleaning.included) return <>{quit}{next()}</>;
@@ -616,24 +679,36 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Button variant="contained" disabled={data.cleaning.price == null} onClick={() => { setCleaningAdded(true); goNext(); }}>Ajouter le ménage</Button>
         </>;
       case 'missingAsk':
+        // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.
+        // « Oui » opens the conditional missing-items page — navigate explicitly (see linen above).
         return <>{quit}
-          {/* « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed. */}
-          <Button onClick={() => { setMissingAsk(false); setMissingDep({}); goNext(); }}>Non</Button>
-          {/* « Oui » opens the conditional missing-items page — navigate explicitly (see linen above). */}
-          <Button variant="contained" onClick={() => { setMissingAsk(true); setStepKey('missingItems'); }}>Oui</Button>
+          <AnswerButtons
+            goodLabel="Non" onGood={() => { setMissingAsk(false); setMissingDep({}); goNext(); }}
+            badLabel="Oui" onBad={() => { setMissingAsk(true); setStepKey('missingItems'); }}
+          />
         </>;
       case 'missingItems': return <>{quit}{next()}</>;
       case 'keys':
         return <>{quit}
-          <Button color="warning" onClick={() => { setKeysReceived(false); goNext(); }}>Non</Button>
-          <Button variant="contained" color="success" onClick={() => { setKeysReceived(true); goNext(); }}>Oui</Button>
+          <AnswerButtons
+            goodLabel="Oui" onGood={() => { setKeysReceived(true); goNext(); }}
+            badLabel="Non" onBad={() => { setKeysReceived(false); goNext(); }}
+          />
         </>;
       case 'cautionReturn':
         return <>{quit}
-          <Button color="error" onClick={() => { setCautionReturned(false); goNext(); }}>Dégât / litige</Button>
-          <Button variant="contained" color="success" onClick={() => { setCautionReturned(true); goNext(); }}>Rendue</Button>
+          <AnswerButtons
+            goodLabel="Rendue" onGood={() => { setCautionReturned(true); goNext(); }}
+            badLabel="Dégât / litige" onBad={() => { setCautionReturned(false); goNext(); }}
+          />
         </>;
-      case 'extinguisher': return <>{quit}{next()}</>;
+      case 'extinguisher':
+        return <>{quit}
+          <AnswerButtons
+            goodLabel="Oui" onGood={() => { setExtinguisherOk(true); goNext(); }}
+            badLabel="Non" onBad={() => { setExtinguisherOk(false); goNext(); }}
+          />
+        </>;
       case 'recap':
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>Valider et terminer</Button>
@@ -646,7 +721,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
     if (error && !data) return <Typography color="error">{error}</Typography>;
     if (!data) return null;
-    return <StepLayout Icon={stepMeta(stepKey, mode).Icon} color={modeColor}>{renderStepContent()}</StepLayout>;
+    // Intro leads with the property photo, so suppress the big centred step icon there.
+    const bodyIcon = stepKey === 'intro' ? null : stepMeta(stepKey, mode).Icon;
+    return <StepLayout Icon={bodyIcon} color={modeColor}>{renderStepContent()}</StepLayout>;
   }
 
   const meta = stepMeta(stepKey, mode);
@@ -655,7 +732,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const bandTitle = meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ');
   return (
     <>
-    <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
+    {/* disableEnforceFocus/RestoreFocus: on an installed iOS PWA, the page is frozen on screen-lock /
+        app-switch; on resume MUI's focus trap can keep re-stealing focus from the dialog and leave its
+        buttons unresponsive. Relaxing the trap fixes the "answer buttons dead after wake" report
+        (specs/arrival-departure-sas.md §6). */}
+    <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
+      disableEnforceFocus disableRestoreFocus>
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
       <Box sx={{ bgcolor: modeColor, color: '#fff', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
