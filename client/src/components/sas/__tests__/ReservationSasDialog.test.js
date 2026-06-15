@@ -94,6 +94,52 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   });
 });
 
+test('arrival SAS reopen: pre-fills the prior commit (caution shown despite received) + re-commit sends the reconstructed complement once', async () => {
+  // specs/reopen-completed-sas.md §2/§3 — a completed SAS reopens with its data; the caution step
+  // stays reachable in edit mode; the SAS-origin complement is reconstructed and re-sent without dup.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      arrivalSasDoneAt: '2026-07-10 15:00:00',
+      cautionReceived: 1,                                // fresh mode would SKIP the caution step
+      extinguisherSealOkAtArrival: 1,
+      departureHandoverNote: 'Clé sous le pot',
+      // complementAmount already INCLUDES the prior SAS line (5 €) — the recap must subtract it from
+      // « déjà dû » so the total stays 5 €, not double it to 10 € (specs/reopen-completed-sas.md §4).
+      complementAmount: 5,
+      // The prior SAS complement, surfaced as a SAS-origin custom option (as getByIdWithDetails does).
+      options: [{ isCustom: 1, sasArrivalOrigin: 1, inComplement: 1, description: 'Taie d\'oreiller', unitPrice: 5 }],
+    },
+    cleaning: { included: true, price: null },           // cleaning = simple Suivant
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  // Edit mode: caution step shown even though already received; keep « Fait ».
+  await screen.findByText(/Caution à percevoir/);
+  clickBtn('Fait');
+
+  // The reconstructed complement is a custom option → the prestations step shows; just go through it.
+  fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
+  // cleaning included → Suivant ; extinguisher → Suivant
+  await screen.findByText(/Le ménage est inclus/);
+  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+  await screen.findByText(/plomb de l'extincteur/i);
+  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/Total : 5,00 €/)).toBeInTheDocument(); // reconstructed pillow only
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.cautionReceived).toBe(true);
+  expect(arg.complementItems).toEqual([{ label: 'Taie d\'oreiller', amount: 5 }]); // exactly one, no dup
+  expect(arg.departureHandoverNote).toBe('Clé sous le pot');
+  expect(arg.extinguisherSealOkAtArrival).toBe(1);
+});
+
 test('arrival SAS: linen OK skips the priced-items page', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { bedLinenAlert: { type: 'capacity', capacity: 1, required: 2 }, cautionReceived: 1 },
@@ -226,7 +272,9 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
   expect(arg.endOfStayComplementAmount).toBe(80);
-  expect(arg.cautionReturned).toBe(false);
+  // Caution step skipped (cautionAmount 0) → no decision sent, the marker is left untouched
+  // (specs/reopen-completed-sas.md §6 tri-state).
+  expect(arg.cautionReturned).toBeUndefined();
 });
 
 test('departure SAS: extinguisher seal missing (present at arrival) bills the configured amount', async () => {

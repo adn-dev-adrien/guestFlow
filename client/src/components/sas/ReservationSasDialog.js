@@ -130,6 +130,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [breakfastNote, setBreakfastNote] = useState('');
   const [handoverNote, setHandoverNote] = useState(''); // arrival recap → shown at departure
   const [breakfastWarnOpen, setBreakfastWarnOpen] = useState(false);
+  // Re-edit (specs/reopen-completed-sas.md): complement lines from a PRIOR commit whose label no
+  // longer maps to a priced item (renamed / deleted since) — carried verbatim into the re-commit so
+  // they're never lost or duplicated.
+  const [preservedArrival, setPreservedArrival] = useState([]);
+  const [preservedDeparture, setPreservedDeparture] = useState([]);
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;
@@ -138,15 +143,58 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true);
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
+    setPreservedArrival([]); setPreservedDeparture([]);
     api.getReservationSas(reservationId)
       .then((d) => {
         if (cancelled) return;
         setData(d); setStepKey('intro');
+        const res = d?.reservation || {};
         const b = d?.breakfast;
         if (b?.applicable) {
           setBreakfast({ coffee: Number(b.coffee) || 0, tea: Number(b.tea) || 0, chocolate: Number(b.chocolate) || 0 });
           setBreakfastTime(b.time || '');
           setBreakfastNote(b.note || '');
+        }
+        // Re-edit pre-fill (specs/reopen-completed-sas.md §2): a SAS already committed reopens with
+        // every decision seeded from the persisted reservation. A fresh SAS keeps the blank defaults.
+        const editing = mode === 'arrival' ? !!res.arrivalSasDoneAt : !!res.departureSasDoneAt;
+        if (!editing) return;
+        const sealToBool = (v) => (v == null ? true : Number(v) === 1);
+        if (mode === 'arrival') {
+          setCaution(res.cautionReceived ? 'fait' : null);
+          setExtinguisherOk(sealToBool(res.extinguisherSealOkAtArrival));
+          setHandoverNote(res.departureHandoverNote || '');
+          // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
+          const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
+          const nextBed = {}; let nextCleaning = false; const keep = [];
+          (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1).forEach((o) => {
+            const label = String(o.description || o.title || '');
+            const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
+            if (label === 'Ménage') { nextCleaning = true; return; }
+            const item = bedByLabel.get(label);
+            if (item && Number(item.price) > 0) nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
+            else keep.push({ label, amount });
+          });
+          setMissingBed(nextBed); setCleaningAdded(nextCleaning); setPreservedArrival(keep);
+          if (res.bedLinenAlert) setLinenOk(Object.keys(nextBed).length === 0);
+        } else {
+          setCautionReturned(res.cautionReturned ? true : false);
+          setExtinguisherOk(sealToBool(res.extinguisherSealOkAtDeparture));
+          let detail = [];
+          try { detail = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
+          const byLabel = new Map((d.linenItems || []).map((i) => [String(i.label), i]));
+          const nextDep = {}; let charged = false; const keep = [];
+          detail.forEach((line) => {
+            const label = String(line.label || '');
+            if (label === 'Plomb extincteur') return;            // recomputed from the seal answer
+            if (label === 'Ménage de fin de séjour') { charged = true; return; }
+            const item = byLabel.get(label);
+            if (item) nextDep[item.id] = Number(line.qty) || Math.max(1, Math.round(Number(line.amount) / Number(item.price || 1)));
+            else keep.push({ label, amount: Number(line.amount) || 0 });
+          });
+          setMissingDep(nextDep); setPreservedDeparture(keep);
+          setCleaningOk(!charged);
+          setMissingAsk(Object.keys(nextDep).length > 0 ? true : null);
         }
       })
       .catch((e) => { if (!cancelled) setError(e?.message || 'Erreur de chargement.'); })
@@ -162,31 +210,34 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // Ordered list of active page keys, given the data + current decisions.
   const activeKeys = useMemo(() => {
     if (!data) return [];
+    // When re-editing a completed SAS (specs/reopen-completed-sas.md §3 rule 3), the caution steps
+    // stay reachable even if already received / returned, so they can be reviewed or corrected.
+    const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
     if (mode === 'arrival') {
-      const cautionDue = Number(r.cautionAmount || 0) > 0 && !r.cautionReceived;
+      const cautionStep = Number(r.cautionAmount || 0) > 0 && (!r.cautionReceived || isEditing);
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
         data.portalCode ? 'portal' : null,
-        cautionDue ? 'caution' : null,
+        cautionStep ? 'caution' : null,
         hasOptions ? 'options' : null,
         data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         'cleaning',
-        (cautionDue && caution === 'reporte') ? 'cautionReport' : null,
+        (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
         'extinguisher',
         'recap',
       ].filter(Boolean);
     }
-    const cautionReturnable = Number(r.cautionAmount || 0) > 0 && r.cautionReceived && !r.cautionReturned;
+    const cautionReturnStep = Number(r.cautionAmount || 0) > 0 && r.cautionReceived && (!r.cautionReturned || isEditing);
     return [
       'intro',
       'cleaning',
       'missingAsk',
       missingAsk === true ? 'missingItems' : null,
       'keys',
-      cautionReturnable ? 'cautionReturn' : null,
+      cautionReturnStep ? 'cautionReturn' : null,
       'extinguisher',
       'recap',
     ].filter(Boolean);
@@ -211,6 +262,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     ? { label: 'Ménage', amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
   const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : [])];
   const arrivalAdded = arrivalAddedLines.reduce((s, l) => s + l.amount, 0);
+  // On re-edit, the SAS-origin complement lines from the prior commit are REPLACED, not added — so
+  // the recap must exclude their amount from « déjà dû » (specs/reopen-completed-sas.md §4), else it
+  // would double-count the very lines we re-show. 0 on a fresh SAS (no SAS-origin lines yet).
+  const sasOriginSum = useMemo(() => (r?.options || [])
+    .filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1)
+    .reduce((s, o) => s + Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0), 0), [r]);
+  const preservedArrivalSum = preservedArrival.reduce((s, l) => s + Number(l.amount || 0), 0);
 
   const depMissingLines = useMemo(() => allItems
     .filter((it) => Number(missingDep[it.id]) > 0)
@@ -233,8 +291,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     try {
       if (mode === 'arrival') {
         const payload = {
-          cautionReceived: caution === 'fait',
-          complementItems: arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })),
+          // undefined when the caution step isn't shown → server leaves the marker untouched
+          // (specs/reopen-completed-sas.md §6); otherwise faithful set/clear from the answer.
+          cautionReceived: activeKeys.includes('caution') ? (caution === 'fait') : undefined,
+          complementItems: [...arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })), ...preservedArrival],
           departureHandoverNote: handoverNote,
           extinguisherSealOkAtArrival: extinguisherOk ? 1 : 0,
         };
@@ -247,10 +307,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         }
         await api.commitArrivalSas(reservationId, payload);
       } else {
+        const depPreservedTotal = preservedDeparture.reduce((s, l) => s + Number(l.amount || 0), 0);
         await api.commitDepartureSas(reservationId, {
-          cautionReturned: cautionReturned === true,
-          endOfStayComplementAmount: endOfStayTotal,
-          endOfStayComplementDetail: endOfStayLines,
+          cautionReturned: activeKeys.includes('cautionReturn') ? (cautionReturned === true) : undefined,
+          endOfStayComplementAmount: Math.round((endOfStayTotal + depPreservedTotal) * 100) / 100,
+          endOfStayComplementDetail: [...endOfStayLines, ...preservedDeparture],
           extinguisherSealOkAtDeparture: extinguisherOk ? 1 : 0,
         });
       }
@@ -469,13 +530,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       }
       case 'recap':
         if (mode === 'arrival') {
-          const existing = Number(r.complementAmount || 0);
-          const total = Math.round((existing + arrivalAdded) * 100) / 100;
+          const existing = Math.max(0, Math.round((Number(r.complementAmount || 0) - sasOriginSum) * 100) / 100);
+          const total = Math.round((existing + arrivalAdded + preservedArrivalSum) * 100) / 100;
           return (
             <Stack spacing={1}>
               <Typography variant="h6">Récapitulatif — complément à percevoir</Typography>
               {existing > 0 && <Typography variant="body2">Déjà dû : <strong>{euro(existing)}</strong></Typography>}
               {arrivalAddedLines.map((l, i) => <Typography key={i} variant="body2">+ {l.label}{l.qty > 1 ? ` × ${l.qty}` : ''} : {euro(l.amount)}</Typography>)}
+              {preservedArrival.map((l, i) => <Typography key={`p${i}`} variant="body2">+ {l.label} : {euro(l.amount)}</Typography>)}
               <Divider />
               <Typography variant="h6">Total : {euro(total)}</Typography>
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
@@ -537,7 +599,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               activeKeys goNext() reads is computed before this setState lands, so it wouldn't yet
               contain 'linenItems'. */}
           <Button color="error" onClick={() => { setLinenOk(false); setStepKey('linenItems'); }}>Pas OK</Button>
-          <Button variant="contained" onClick={() => { setLinenOk(true); goNext(); }}>OK</Button>
+          {/* « OK » = linen fine → clear any (re-edit) pre-filled missing items so they aren't billed. */}
+          <Button variant="contained" onClick={() => { setLinenOk(true); setMissingBed({}); goNext(); }}>OK</Button>
         </>;
       case 'linenItems': return <>{quit}{next()}</>;
       case 'cleaning':
@@ -554,7 +617,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         </>;
       case 'missingAsk':
         return <>{quit}
-          <Button onClick={() => { setMissingAsk(false); goNext(); }}>Non</Button>
+          {/* « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed. */}
+          <Button onClick={() => { setMissingAsk(false); setMissingDep({}); goNext(); }}>Non</Button>
           {/* « Oui » opens the conditional missing-items page — navigate explicitly (see linen above). */}
           <Button variant="contained" onClick={() => { setMissingAsk(true); setStepKey('missingItems'); }}>Oui</Button>
         </>;

@@ -108,14 +108,15 @@ test('SAS button — opens the departure SAS when not yet done', () => {
   expect(onOpenSas).toHaveBeenCalledWith(200);
 });
 
-test('SAS button — disabled with a ✓ once the departure SAS is done', () => {
+test('SAS button — once the departure SAS is done it stays a clickable ✓ for re-edit', () => {
+  // specs/reopen-completed-sas.md §3 rule 1 — a finished SAS can be re-opened to review / correct.
   const onOpenSas = vi.fn();
   const r = { ...BASE, departureSasDoneAt: '2026-06-13 11:00:00' };
   render(<DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={onOpenSas} />);
-  const sasBtn = screen.getByRole('button', { name: 'Check-out (SAS départ)' });
-  expect(sasBtn).toBeDisabled();
+  const sasBtn = screen.getByRole('button', { name: 'Revoir / modifier le check-out' });
+  expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
-  expect(onOpenSas).not.toHaveBeenCalled();
+  expect(onOpenSas).toHaveBeenCalledWith(200);
 });
 
 test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {

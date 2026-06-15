@@ -52,12 +52,14 @@ function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
   const {
-    cautionReceived = false, complementItems = [],
+    cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
   } = req.body || {};
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
-    cautionReceived: Boolean(cautionReceived),
+    // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
+    // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
+    cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
     complementItems: Array.isArray(complementItems) ? complementItems : [],
     breakfastTime,
     breakfastCoffee,
@@ -73,9 +75,10 @@ function commitArrival(req, res) {
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-  const { cautionReturned = false, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = req.body || {};
+  const { cautionReturned, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = req.body || {};
   reservationsModel.commitDepartureSas(Number(req.params.id), {
-    cautionReturned: Boolean(cautionReturned),
+    // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
+    cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
     endOfStayComplementAmount: Number(endOfStayComplementAmount) || 0,
     endOfStayComplementDetail,
     extinguisherSealOkAtDeparture,
