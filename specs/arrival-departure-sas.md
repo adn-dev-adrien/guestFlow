@@ -47,6 +47,10 @@ confirmation — records the caution status and the complement(s) on the reserva
      **« Ouvrir la fiche »** link in the SAS header once the SAS is open.
 2. The SAS is a **stepper of pages** (MUI Dialog, `fullScreen` on mobile). Every page has **Quitter** (abort
    → back to planning, **nothing written**) and a forward action. Non-applicable pages are **skipped**.
+   **Visual shell (refonte 2026-06-15, see §6):** a mode-coloured header band (arrivée = orange chaleureux,
+   départ = ardoise) carrying the step icon + short title + a progress bar « Étape X/Y » + a ✕ that *is* the
+   Quitter; a large centred step icon + large heading in the body; big, colour-coded action buttons pinned at
+   the bottom. Forward-only navigation + single commit at the recap are **unchanged** (visual-only refonte).
 3. **All writes happen once**, at the final **« Valider et terminer »** of the recap page (decision: write at
    final validation). Quitting before then changes nothing. (One server commit endpoint per SAS.)
 4. State accumulated during the SAS (caution decision, selected missing linen elements, cleaning-added flag)
@@ -222,9 +226,22 @@ existing reservations needed.
 
 ## 6. UI / UX
 
-- **Stepper dialog**: title = « Arrivée — {client} » / « Départ — {client} », a step indicator, a discreet
-  « Ouvrir la fiche » link, a persistent **Quitter** (closes, no write). Forward buttons are page-specific
-  (Commencer / Suivant / OK / Pas OK / Ajouter / Valider et terminer).
+- **Guided coloured shell (refonte 2026-06-15 — direction « bandeau coloré + guidé », mobile-first).**
+  - **Header band**, full-width, **mode-coloured**: arrivée = orange chaleureux (orange/`warning` tones),
+    départ = ardoise (blue-grey), white text. Shows the **current step icon** + a short **step title**
+    (e.g. « MÉNAGE »), the **client + logement** on a second line, a **✕** on the right that **is the
+    Quitter** (closes, writes nothing), and a thin **progress bar + « Étape X/Y »** (index in `activeKeys`).
+    A discreet **« Ouvrir la fiche »** action stays in the band.
+  - **Body**: a **large centred step icon** (~56–64 px), a **large heading** (`h5`, the step's question /
+    title), supporting text at `body1` (bigger than before), then the step's interactive content
+    (steppers / fields / chips) with generous spacing and padding (`p: { xs: 2, sm: 3 }`).
+  - **Footer**: big, **colour-coded** buttons — success (OK / Fait / Oui / Rendue / Ajouter) vs error-amber
+    (Pas OK / Non / Reporté / Dégât / Non merci) — **full-width, stacked on `xs`**, side-by-side on `sm+`,
+    pinned at the bottom, touch targets ≥ 48 px. « Valider et terminer » keeps its commit spinner.
+  - **Per-step icons** (MUI): intro = MeetingRoom (arrivée) / Logout (départ) ; portail = Dialpad ;
+    caution / report = Savings ; options = RoomService ; petit-déj = FreeBreakfast ; linge / linenItems =
+    KingBed ; ménage = CleaningServices ; serviettes manquantes = DryCleaning ; clés = VpnKey ; retour
+    caution = Savings ; récap = FactCheck. The breakfast drink steppers keep their café / thé / chocolat icons.
 - **Responsive**: `fullScreen` on `xs`; one action per row, full-width buttons on mobile; comfortable
   centered dialog on `md+`. Touch targets ≥ 44px.
 - **Money**: amounts shown via the French currency format; the recap lists each line (label + amount) then
@@ -253,6 +270,10 @@ existing reservations needed.
 - [x] Arrival linen « OK » **skips** the priced-items page.
 - [x] Departure: cleaning page shows « ménage fait correctement ? OK/Pas OK » (regression — it used to
       render the arrival UI), missing/keys flow, recap, `commitDepartureSas` payload.
+- [x] **Refonte 2026-06-15** (direction « bandeau coloré + guidé ») is **visual-only**: the 7 vitest cases
+      above stay green unchanged (same step strings, button labels and commit payloads); client build green.
+      The footer « Quitter » moved into the band ✕; the redundant in-body « Petit déjeuner » heading was
+      dropped (the band title carries it) so `findByText('Petit déjeuner')` still resolves to one node.
 
 ### Planning-tile launch tests (vitest, `ReservationCard.test.js` + `DepartureMiniRow.test.js`)
 - [x] « Ouvrir la réservation » button → `onOpenReservation(id)`; SAS button → `onOpenSas(id)`.
