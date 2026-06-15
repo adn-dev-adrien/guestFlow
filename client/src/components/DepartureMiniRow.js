@@ -66,14 +66,13 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
         </Tooltip>
       )}
       {onOpenSas && (
-        <Tooltip title={sasDone ? 'Check-out déjà effectué' : 'Check-out (SAS départ)'}>
+        <Tooltip title={sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)'}>
           <span>
             <IconButton
               size="small"
               color={sasDone ? 'success' : 'primary'}
-              disabled={sasDone}
               onClick={() => onOpenSas(reservation.id)}
-              aria-label="Check-out (SAS départ)"
+              aria-label={sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)'}
             >
               {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <ChecklistIcon sx={{ fontSize: 20 }} />}
             </IconButton>
