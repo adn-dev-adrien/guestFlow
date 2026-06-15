@@ -39,7 +39,7 @@ async function runArrivalDeparturePush({ reservationsModel, pushService, now = n
         await pushService.sendToPref('arrivals', {
           title: `Arrivée ${r.checkInTime}`,
           body: `${name}${r.propertyName ? ` · ${r.propertyName}` : ''}`.trim(),
-          url: `/reservations/${Number(r.id)}`,
+          url: `/planning?sas=arrival&reservationId=${Number(r.id)}`,
         });
         sent += 1;
       }
@@ -58,7 +58,7 @@ async function runArrivalDeparturePush({ reservationsModel, pushService, now = n
         await pushService.sendToPref('departures', {
           title: `Départ ${r.checkOutTime}`,
           body: `${name}${r.propertyName ? ` · ${r.propertyName}` : ''}`.trim(),
-          url: `/reservations/${Number(r.id)}`,
+          url: `/planning?sas=departure&reservationId=${Number(r.id)}`,
         });
         sent += 1;
       }

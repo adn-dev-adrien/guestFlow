@@ -180,6 +180,7 @@ test('notifyNewIcalReservation fires a « newReservation » push (independent of
   assert.equal(push.calls.length, 1);
   assert.equal(push.calls[0].pref, 'newReservation');
   assert.match(push.calls[0].payload.title, /Nouvelle réservation/);
+  assert.match(push.calls[0].payload.body, /Jean \(Airbnb\) · Le Gîte du Domaine/);
   assert.equal(push.calls[0].payload.url, '/reservations/200');
 });
 
@@ -192,6 +193,7 @@ test('notifyNewSiteDevis fires a « newReservation » push', async () => {
   assert.equal(push.calls.length, 1);
   assert.equal(push.calls[0].pref, 'newReservation');
   assert.match(push.calls[0].payload.title, /Nouvelle demande de devis/);
+  assert.match(push.calls[0].payload.body, /Marie Durand · Le Gîte du Domaine/);
 });
 
 test('a throwing push service never breaks the email path (isolation)', async () => {

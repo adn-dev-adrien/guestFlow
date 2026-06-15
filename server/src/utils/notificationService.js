@@ -157,9 +157,10 @@ function buildNotificationService({
       if (!devis) return { sent: false, skipped: 'not_found' };
       // Push (independent of email settings).
       const client = `${String(devis.firstName || '').trim()} ${String(devis.lastName || '').trim()}`.trim();
+      const clientProperty = [client, devis.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · ');
       await pushNewReservation({
         title: 'Nouvelle demande de devis',
-        body: `${devis.propertyName || ''}${client ? ` — ${client}` : ''}`.trim(),
+        body: clientProperty,
         url: `/reservations/new?mode=devis&devisId=${Number(devis.id)}`,
       });
       // Email (its own gating).
@@ -177,11 +178,15 @@ function buildNotificationService({
     try {
       const resa = loadReservation(reservationId);
       if (!resa) return { sent: false, skipped: 'not_found' };
-      // Push (independent of the email settings + the iCal email channel toggle).
+      // Push (independent of the email settings + the iCal email channel toggle). Body shows the
+      // guest + property + start date (specs/pwa-push-notifications.md §3.3 rule 11).
       const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
+      const guest = String(resa.icalOriginalSummary || '').trim()
+        || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
+      const guestProperty = [guest, resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · ');
       await pushNewReservation({
         title: `Nouvelle réservation${platform ? ` ${platform}` : ''}`,
-        body: `${resa.propertyName || ''}${resa.startDate ? ` — dès le ${resa.startDate}` : ''}`.trim(),
+        body: `${guestProperty}${resa.startDate ? ` — dès le ${resa.startDate}` : ''}`.trim(),
         url: `/reservations/${Number(resa.id)}`,
       });
       // Email — per-channel switch (spec site-booking-notifications §3 rule 9b) + master gating.

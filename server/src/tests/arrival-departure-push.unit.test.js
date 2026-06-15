@@ -50,7 +50,7 @@ test('dueArrivals: today + check-in reached + not stamped; sends « arrivals » 
   assert.equal(res.sent, 1);
   assert.deepEqual(push.calls.map((c) => c.pref), ['arrivals']);
   assert.match(push.calls[0].payload.body, /Jean Dupont · Gîte/);
-  assert.equal(push.calls[0].payload.url, '/reservations/1');
+  assert.equal(push.calls[0].payload.url, '/planning?sas=arrival&reservationId=1');
   // Stamped → a second pass sends nothing.
   const res2 = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW });
   assert.equal(res2.sent, 0);
@@ -64,6 +64,7 @@ test('departures fire on « departures » pref at check-out time', async () => {
   const res = await runArrivalDeparturePush({ reservationsModel: model, pushService: push, now: NOW });
   assert.equal(res.sent, 1);
   assert.equal(push.calls[0].pref, 'departures');
+  assert.equal(push.calls[0].payload.url, '/planning?sas=departure&reservationId=1');
 });
 
 test('firstRun stamps already-due events WITHOUT sending (no restart flood)', async () => {
