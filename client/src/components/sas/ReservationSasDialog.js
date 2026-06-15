@@ -10,13 +10,25 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Stack,
+  Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
+  LinearProgress, IconButton,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
+import CloseIcon from '@mui/icons-material/Close';
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import LogoutIcon from '@mui/icons-material/Logout';
+import DialpadIcon from '@mui/icons-material/Dialpad';
+import SavingsIcon from '@mui/icons-material/Savings';
+import RoomServiceIcon from '@mui/icons-material/RoomService';
+import KingBedIcon from '@mui/icons-material/KingBed';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import DryCleaningIcon from '@mui/icons-material/DryCleaning';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import ConfirmDialog from '../ConfirmDialog';
@@ -45,6 +57,44 @@ function CountStepper({ icon, label, value, onChange }) {
         <TextField value={value} onChange={(e) => onChange(Math.max(0, Math.floor(Number(e.target.value) || 0)))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
         <Button size="small" variant="outlined" onClick={() => onChange(value + 1)} sx={{ minWidth: 36 }}>+</Button>
       </Stack>
+    </Stack>
+  );
+}
+
+// Mode accent colours for the header band + the big step icon (specs/arrival-departure-sas.md §6 refonte).
+const MODE_COLOR = { arrival: '#ef6c00', departure: '#455a64' };
+
+// Short band title + the meaningful icon for each step.
+function stepMeta(key, mode) {
+  switch (key) {
+    case 'intro': return { title: mode === 'arrival' ? 'Arrivée' : 'Départ', Icon: mode === 'arrival' ? MeetingRoomIcon : LogoutIcon };
+    case 'portal': return { title: 'Portail', Icon: DialpadIcon };
+    case 'caution':
+    case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
+    case 'options': return { title: 'Prestations', Icon: RoomServiceIcon };
+    case 'breakfast': return { title: 'Petit déjeuner', Icon: FreeBreakfastIcon };
+    case 'linen':
+    case 'linenItems': return { title: 'Linge de lit', Icon: KingBedIcon };
+    case 'cleaning': return { title: 'Ménage', Icon: CleaningServicesIcon };
+    case 'missingAsk':
+    case 'missingItems': return { title: 'Serviettes / draps', Icon: DryCleaningIcon };
+    case 'keys': return { title: 'Clés', Icon: VpnKeyIcon };
+    case 'cautionReturn': return { title: 'Retour caution', Icon: SavingsIcon };
+    case 'recap': return { title: 'Récapitulatif', Icon: FactCheckIcon };
+    default: return { title: '', Icon: null };
+  }
+}
+
+// Big centred step icon above the page content + a slightly larger body type scale (refonte §6).
+function StepLayout({ Icon, color, children }) {
+  return (
+    <Stack spacing={2.5} sx={{ alignItems: 'center' }}>
+      {Icon && (
+        <Box sx={{ width: 84, height: 84, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}1A`, color, flexShrink: 0 }}>
+          <Icon sx={{ fontSize: 48 }} />
+        </Box>
+      )}
+      <Box sx={{ width: '100%', '& .MuiTypography-body1': { fontSize: '1.1rem' }, '& .MuiTypography-body2': { fontSize: '0.95rem' } }}>{children}</Box>
     </Stack>
   );
 }
@@ -101,6 +151,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }, [open, reservationId]);
 
   const r = data?.reservation;
+  const modeColor = MODE_COLOR[mode] || MODE_COLOR.arrival;
   const bedItems = useMemo(() => (data?.linenItems || []).filter((i) => i.category === 'bed'), [data]);
   const allItems = useMemo(() => (data?.linenItems || []), [data]);
 
@@ -215,7 +266,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const breakfastMismatch = breakfastTotal !== breakfastPersons;
 
   // ---- page renderers ----
-  function renderBody() {
+  function renderStepContent() {
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress /></Box>;
     if (error && !data) return <Typography color="error">{error}</Typography>;
     if (!data) return null;
@@ -271,7 +322,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'breakfast':
         return (
           <Stack spacing={1.5}>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>Petit déjeuner</Typography>
             <TextField
               label="Heure du petit déjeuner"
               type="time"
@@ -419,8 +469,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
 
   // ---- footer (page-specific forward actions) ----
   function renderActions() {
-    if (loading || !data) return <Button onClick={onClose}>Quitter</Button>;
-    const quit = <Button color="inherit" onClick={onClose} disabled={committing}>Quitter</Button>;
+    if (loading || !data) return null;
+    const quit = null;
     const next = (label = 'Suivant') => <Button variant="contained" onClick={goNext}>{label}</Button>;
 
     switch (stepKey) {
@@ -483,22 +533,50 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     }
   }
 
-  const title = mode === 'arrival' ? 'Arrivée' : 'Départ';
+  function renderBody() {
+    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
+    if (error && !data) return <Typography color="error">{error}</Typography>;
+    if (!data) return null;
+    return <StepLayout Icon={stepMeta(stepKey, mode).Icon} color={modeColor}>{renderStepContent()}</StepLayout>;
+  }
+
+  const meta = stepMeta(stepKey, mode);
+  const StepIcon = meta.Icon;
+  const stepIdx = activeKeys.indexOf(stepKey);
+  const bandTitle = meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ');
   return (
     <>
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-        <span>{title}{r ? ` — ${r.firstName} ${r.lastName}` : ''}</span>
-        {r && (
-          <Link component="button" type="button" variant="caption" underline="hover"
-            onClick={() => navigate(`/reservations/${reservationId}`)}>Ouvrir la fiche</Link>
+      {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
+      <Box sx={{ bgcolor: modeColor, color: '#fff', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          {StepIcon && <StepIcon sx={{ fontSize: 28 }} />}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{bandTitle}</Typography>
+            {r && <Typography variant="caption" noWrap sx={{ display: 'block', opacity: 0.9 }}>{r.firstName} {r.lastName} · {r.propertyName}</Typography>}
+          </Box>
+          {r && (
+            <Link component="button" type="button" variant="caption" underline="hover"
+              sx={{ color: '#fff', whiteSpace: 'nowrap' }}
+              onClick={() => navigate(`/reservations/${reservationId}`)}>Fiche</Link>
+          )}
+          <IconButton onClick={onClose} disabled={committing} sx={{ color: '#fff', ml: 0.5 }} aria-label="Quitter"><CloseIcon /></IconButton>
+        </Stack>
+        {stepIdx >= 0 && (
+          <Box sx={{ mt: 1 }}>
+            <LinearProgress variant="determinate" value={((stepIdx + 1) / activeKeys.length) * 100}
+              sx={{ height: 6, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.3)', '& .MuiLinearProgress-bar': { bgcolor: '#fff' } }} />
+            <Typography variant="caption" sx={{ opacity: 0.9, mt: 0.5, display: 'block' }}>Étape {stepIdx + 1}/{activeKeys.length}</Typography>
+          </Box>
         )}
-      </DialogTitle>
-      <DialogContent dividers sx={{ minHeight: 180 }}>
+      </Box>
+      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, minHeight: 240 }}>
         {renderBody()}
         {error && data && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
       </DialogContent>
-      <DialogActions>{renderActions()}</DialogActions>
+      <DialogActions sx={{ p: { xs: 2, sm: 2 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.25, fontSize: '1rem', minHeight: 48 } }}>
+        {renderActions()}
+      </DialogActions>
     </Dialog>
     <ConfirmDialog
       open={breakfastWarnOpen}
