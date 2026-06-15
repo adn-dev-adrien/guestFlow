@@ -1,0 +1,1 @@
+- Reservation fiche: the « Caisse interne » button on a complement now works — clicking it marks the complement as cash-settled and turns it **green** (like the « payé » button). It previously did nothing because the `PATCH /reservations/:id/payment` endpoint crashed (500) on a missing `resolveComplementPayment` import.
