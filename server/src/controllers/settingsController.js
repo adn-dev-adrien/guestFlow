@@ -15,6 +15,7 @@ const fs = require('fs');
 
 const settingsModel = require('../models/settingsModel');
 const linenItemsModel = require('../models/linenItemsModel');
+const repairAmountsModel = require('../models/repairAmountsModel');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
 const { uploadsDir } = require('../middleware/multerLogoUpload');
@@ -266,6 +267,16 @@ function updateLinenItems(req, res) {
   return res.json(linenItemsModel.replaceAll(items));
 }
 
+// Repair amounts (« Tarifs facturables ») — specs/extinguisher-seal-and-repair-amounts.md.
+function getRepairAmounts(req, res) {
+  return res.json(repairAmountsModel.list());
+}
+function updateRepairAmounts(req, res) {
+  const items = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.items) ? req.body.items : null);
+  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+  return res.json(repairAmountsModel.replaceAll(items));
+}
+
 module.exports = {
   getSettings,
   updateSettings,
@@ -274,4 +285,6 @@ module.exports = {
   sendSmtpTest,
   getLinenItems,
   updateLinenItems,
+  getRepairAmounts,
+  updateRepairAmounts,
 };

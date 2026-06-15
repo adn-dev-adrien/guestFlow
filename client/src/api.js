@@ -294,9 +294,11 @@ const api = {
   getReservationSas: (id) => request(`/reservations/${encodeURIComponent(id)}/sas`),
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
-  // Priced linen items (Blanchisserie).
+  // Priced linen items + repair amounts (« Tarifs facturables » — specs/extinguisher-seal-and-repair-amounts.md).
   getLinenItems: () => request('/settings/linen-items'),
   updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),
+  getRepairAmounts: () => request('/settings/repair-amounts'),
+  updateRepairAmounts: (items) => request('/settings/repair-amounts', { method: 'PUT', body: items }),
   // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
   // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
   // non-skipped trip. Global per date (one human, one trip). Spec

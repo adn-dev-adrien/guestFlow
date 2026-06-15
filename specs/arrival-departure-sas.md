@@ -50,7 +50,10 @@ confirmation — records the caution status and the complement(s) on the reserva
    **Visual shell (refonte 2026-06-15, see §6):** a mode-coloured header band (arrivée = orange chaleureux,
    départ = ardoise) carrying the step icon + short title + a progress bar « Étape X/Y » + a ✕ that *is* the
    Quitter; a large centred step icon + large heading in the body; big, colour-coded action buttons pinned at
-   the bottom. Forward-only navigation + single commit at the recap are **unchanged** (visual-only refonte).
+   the bottom; a « ‹ » **« Précédent »** arrow (from the 2nd page on) goes back one page. The **single commit
+   at the recap is unchanged** — going back / forward writes nothing until « Valider et terminer ». (The
+   former forward-only rule was relaxed to allow going back — specs/extinguisher-seal-and-repair-amounts.md
+   §3.2 rule 7.)
 3. **All writes happen once**, at the final **« Valider et terminer »** of the recap page (decision: write at
    final validation). Quitting before then changes nothing. (One server commit endpoint per SAS.)
 4. State accumulated during the SAS (caution decision, selected missing linen elements, cleaning-added flag)
