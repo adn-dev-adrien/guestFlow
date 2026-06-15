@@ -741,6 +741,12 @@ if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.inclu
 if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('soldeContribTtc')) {
   db.exec("ALTER TABLE reservation_custom_options ADD COLUMN soldeContribTtc REAL DEFAULT NULL");
 }
+// Tags the complement lines the arrival SAS itself created, so a re-opened SAS can REPLACE them on
+// re-commit instead of appending (no double-charge). Existing rows default 0 = not SAS-origin →
+// never touched by the SAS replace pass (specs/reopen-completed-sas.md §5).
+if (reservationCustomOptionCols.length > 0 && !reservationCustomOptionCols.includes('sasArrivalOrigin')) {
+  db.exec("ALTER TABLE reservation_custom_options ADD COLUMN sasArrivalOrigin INTEGER NOT NULL DEFAULT 0");
+}
 
 const devisCols = db.prepare("PRAGMA table_info(devis)").all().map(c => c.name);
 if (devisCols.length > 0 && !devisCols.includes('customPrice')) {

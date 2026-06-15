@@ -192,6 +192,7 @@ function createReservationsModel(database) {
           rco.amount as originalTotalPrice,
           COALESCE(rco.offered, 0) as offered,
           COALESCE(rco.inComplement, 0) as inComplement,
+          COALESCE(rco.sasArrivalOrigin, 0) as sasArrivalOrigin,
           rco.acompteContribTtc as acompteContribTtc,
           rco.soldeContribTtc as soldeContribTtc,
           1 as isCustom
@@ -820,11 +821,12 @@ function createReservationsModel(database) {
     },
 
     // Single commit for the arrival SAS. `complementItems` = [{ label, amount }] (missing linen
-    // elements + optionally the cleaning charge). Written as custom options inComplement=1 and the
-    // arrival complementAmount is bumped by their sum (the common autoGap=0 case; when the
-    // complement is already paid it stays frozen and the items are recorded for the record).
+    // elements + optionally the cleaning charge). Written as custom options inComplement=1 +
+    // sasArrivalOrigin=1. Re-openable SAS: a re-commit REPLACES the SAS-origin complement lines
+    // instead of appending (complementAmount adjusted by new − previous SAS sum), so it never
+    // double-charges (specs/reopen-completed-sas.md §4). A paid complement stays frozen.
     commitArrivalSas(reservationId, {
-      cautionReceived = false, complementItems = [],
+      cautionReceived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
     } = {}) {
@@ -832,7 +834,8 @@ function createReservationsModel(database) {
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
-        // Mark the arrival SAS done (planning disables the button afterwards).
+        // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
+        // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
 
         // Breakfast composition + hour (specs/sas-breakfast-and-handover-note.md). breakfastTime '' /
@@ -864,22 +867,40 @@ function createReservationsModel(database) {
             .run(extinguisherSealOkAtArrival ? 1 : 0, reservationId);
         }
 
-        if (cautionReceived) {
-          database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
-            .run(today, reservationId);
-        }
-        const items = (complementItems || []).filter((i) => i && String(i.label || '').trim() && Number(i.amount) > 0);
-        if (items.length > 0) {
-          const maxSort = database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m;
-          const insert = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement) VALUES (?, ?, ?, 0, ?, 1)');
-          let sort = Number(maxSort) + 1;
-          for (const it of items) { insert.run(reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, sort); sort += 1; }
-          const added = Math.round(items.reduce((s, it) => s + Number(it.amount), 0) * 100) / 100;
-          const row = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
-          if (row && Number(row.complementPaid || 0) !== 1) {
-            const next = Math.round((Number(row.complementAmount || 0) + added) * 100) / 100;
-            database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
+        // Caution received — faithful, reversible edit (specs/reopen-completed-sas.md §6). `undefined`
+        // (the caution step wasn't shown this run) leaves the marker untouched; true sets it (keeping
+        // the first date via COALESCE); false clears the marker AND its date.
+        if (cautionReceived !== undefined) {
+          if (cautionReceived) {
+            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
+              .run(today, reservationId);
+          } else {
+            database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
+              .run(reservationId);
           }
+        }
+
+        // Arrival complement — REPLACE the SAS-origin lines (specs/reopen-completed-sas.md §4 rule 4).
+        // Drop the rows a prior run of THIS SAS created (sasArrivalOrigin=1), then re-insert the current
+        // selection, adjusting complementAmount by (new sum − previous SAS sum) so re-opening never
+        // double-counts. A paid complement is frozen. First commit: no tagged rows → pure add (legacy).
+        const items = (complementItems || []).filter((i) => i && String(i.label || '').trim() && Number(i.amount) > 0);
+        const compRow = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
+        if (compRow && Number(compRow.complementPaid || 0) !== 1) {
+          const priorSum = Math.round(Number(database.prepare(
+            'SELECT COALESCE(SUM(amount), 0) AS s FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1',
+          ).get(reservationId).s) * 100) / 100;
+          database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').run(reservationId);
+          let added = 0;
+          if (items.length > 0) {
+            const maxSort = database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m;
+            const insert = database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, 0, ?, 1, 1)');
+            let sort = Number(maxSort) + 1;
+            for (const it of items) { insert.run(reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, sort); sort += 1; }
+            added = Math.round(items.reduce((s, it) => s + Number(it.amount), 0) * 100) / 100;
+          }
+          const next = Math.max(0, Math.round((Number(compRow.complementAmount || 0) - priorSum + added) * 100) / 100);
+          database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
         }
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
@@ -887,14 +908,22 @@ function createReservationsModel(database) {
     },
 
     // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement.
-    commitDepartureSas(reservationId, { cautionReturned = false, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = {}) {
+    commitDepartureSas(reservationId, { cautionReturned, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
-        // Mark the departure SAS done (planning disables the button afterwards).
+        // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
+        // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
-        if (cautionReturned) {
-          database.prepare("UPDATE reservations SET cautionReturned = 1, cautionReturnedDate = COALESCE(cautionReturnedDate, ?), updatedAt = datetime('now') WHERE id = ?")
-            .run(today, reservationId);
+        // Caution returned — faithful, reversible edit (specs/reopen-completed-sas.md §6). Same
+        // undefined / set / clear contract as the arrival caution.
+        if (cautionReturned !== undefined) {
+          if (cautionReturned) {
+            database.prepare("UPDATE reservations SET cautionReturned = 1, cautionReturnedDate = COALESCE(cautionReturnedDate, ?), updatedAt = datetime('now') WHERE id = ?")
+              .run(today, reservationId);
+          } else {
+            database.prepare("UPDATE reservations SET cautionReturned = 0, cautionReturnedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
+              .run(reservationId);
+          }
         }
         const amount = Math.max(0, Math.round(Number(endOfStayComplementAmount || 0) * 100) / 100);
         database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")

@@ -118,14 +118,15 @@ test('SAS button — opens the arrival SAS when not yet done', () => {
   expect(onOpenSas).toHaveBeenCalledWith(100);
 });
 
-test('SAS button — disabled with a ✓ once the arrival SAS is done', () => {
+test('SAS button — once the arrival SAS is done it stays a clickable ✓ for re-edit', () => {
+  // specs/reopen-completed-sas.md §3 rule 1 — a finished SAS can be re-opened to review / correct.
   const onOpenSas = vi.fn();
   const r = { ...BASE, arrivalSasDoneAt: '2026-06-13 09:00:00' };
   render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} />);
-  const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
-  expect(sasBtn).toBeDisabled();
+  const sasBtn = screen.getByRole('button', { name: 'Revoir / modifier le check-in' });
+  expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
-  expect(onOpenSas).not.toHaveBeenCalled();
+  expect(onOpenSas).toHaveBeenCalledWith(100);
 });
 
 test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {

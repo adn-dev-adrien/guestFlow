@@ -125,14 +125,13 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
         </Tooltip>
       )}
       {onOpenSas && (
-        <Tooltip title={sasDone ? 'Check-in déjà effectué' : 'Check-in (SAS arrivée)'}>
+        <Tooltip title={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}>
           <span>
             <IconButton
               size="small"
               color={sasDone ? 'success' : 'primary'}
-              disabled={sasDone}
               onClick={() => onOpenSas(r.id)}
-              aria-label="Check-in (SAS arrivée)"
+              aria-label={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}
             >
               {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <ChecklistIcon sx={{ fontSize: 20 }} />}
             </IconButton>
