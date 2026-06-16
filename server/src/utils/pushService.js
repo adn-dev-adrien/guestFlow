@@ -35,7 +35,11 @@ function buildPushService({ webpush = realWebpush, model = realModel, vapid = re
           if (code === 404 || code === 410) {
             try { model.removeByEndpoint(s.endpoint); pruned += 1; } catch { /* ignore */ }
           } else {
-            logger.warn('[pushService] send failed:', code || (err && err.message) || err);
+            // Include the push service's reason body — e.g. a 403 from Apple/FCM means the
+            // subscription is bound to a different VAPID key (regenerated); the client re-subscribes
+            // (enablePush self-heals). Surfacing the reason makes that diagnosable from the logs.
+            const reason = err && err.body ? String(err.body).replace(/\s+/g, ' ').slice(0, 200) : '';
+            logger.warn('[pushService] send failed:', code || (err && err.message) || err, reason);
           }
         }
       }));
