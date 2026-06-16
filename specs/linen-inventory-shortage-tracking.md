@@ -75,7 +75,12 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
    - `atLaundry[type]` = sum of drop-offs computed for laundry days in `(today - 7, today]`
      that haven't been picked up yet. On the laundry-day cycle, this equals exactly the
      drop-off computed for the most recent past laundry day before `today` (rule 8 of the
-     weekly spec).
+     weekly spec). **Fixed 2026-06-16:** when `today` is itself a laundry day, this initial
+     `atLaundry` batch is keyed under `today` in the drop-off ledger; a same-day drop-off (e.g. a
+     manual addition entered for today — `manual-laundry-additions.md`) must be **merged** into that
+     batch, not overwrite it. Overwriting lost the initial batch's pick-up record, stranding it « at
+     laundry » forever → a phantom permanent shortage a week-plus later (observed on prod: a 1-double
+     manual addition on a Tuesday hid 6 doubles and faked a « rupture » 17 days out).
    - `dirty[type]` = sum over reservations whose endDate is in `(lastLaundryDay, today]`
      and that are NOT yet at the laundry (i.e. their dirty linen sits there waiting for
      the next drop-off).

@@ -371,7 +371,15 @@ function simulateInventory({
         const dropSnap = cloneByType(dirty);
         addInto(atLaundry, dropSnap);
         subtractInto(dirty, dropSnap);
-        dropsByLaundryDay.set(cursor, dropSnap);
+        // Merge into any batch already recorded for this day instead of overwriting it. When `from`
+        // itself is a laundry day, initLaundryDay === from and the initial at-laundry batch is seeded
+        // under this very key (see init above); a same-day drop (e.g. a manual addition entered for
+        // today) would otherwise replace that seed, stranding the initial batch « at laundry » forever
+        // — a phantom permanent shortage. Both batches were dropped on `cursor`, so they return together
+        // on the +7d pick-up.
+        const existingDrop = dropsByLaundryDay.get(cursor);
+        if (existingDrop) addInto(existingDrop, dropSnap);
+        else dropsByLaundryDay.set(cursor, dropSnap);
       }
     }
 
