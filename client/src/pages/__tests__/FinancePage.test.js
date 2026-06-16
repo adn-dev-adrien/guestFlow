@@ -158,4 +158,29 @@ describe('FinancePage — total-de-séjour overview', () => {
     expect(screen.getByText('100 €')).toBeInTheDocument(); // Σ acompte
     expect(screen.getByText('200 €')).toBeInTheDocument(); // Σ solde
   });
+
+  test('hides the « Paiements en retard » tab when nothing is overdue', async () => {
+    renderPage(); // base OPERATIONAL fixture has zero overdue
+    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByRole('tab', { name: 'Paiements en attente' });
+    expect(screen.queryByRole('tab', { name: 'Paiements en retard' })).not.toBeInTheDocument();
+  });
+
+  test('shows the « Paiements en retard » tab when there are overdue payments', async () => {
+    api.getFinanceOperational.mockResolvedValue({
+      overdue: {
+        reservations: [{
+          id: 5, firstName: 'Paul', lastName: 'Durand', propertyName: 'Gîte',
+          startDate: '2026-05-01', endDate: '2026-05-03', depositOverdue: true,
+          depositAmount: 100, depositDueDate: '2026-04-01', overdueAmount: 100,
+        }],
+        count: 1, totalAmount: 100, totals: { overdueAmount: 100 },
+      },
+      pending: { reservations: [], totals: {} },
+      upcoming: { reservations: [], totals: {} },
+    });
+    renderPage();
+    await screen.findByText("Revenus depuis le début de l'année");
+    expect(await screen.findByRole('tab', { name: 'Paiements en retard' })).toBeInTheDocument();
+  });
 });

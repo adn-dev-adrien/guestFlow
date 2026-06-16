@@ -79,7 +79,8 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
 
 ### 3.6 « Suivi opérationnel »
 - **Paiement en retard** — only **direct** reservations (`platform = 'direct'`) that are overdue. Platform
-  bookings are handled by the platform → excluded.
+  bookings are handled by the platform → excluded. When there is **nothing overdue, the tab is hidden
+  entirely** (the selected view falls back to « Paiements en attente »).
 - **Paiement en attente** — only **past** reservations (`endDate < today`) **not yet settled** (§3.3). The
   amount column shows the **total de séjour** (drop the old « prix total »). The **caution column is removed**.
   A trailing **« Tout solder »** button per row marks the reservation fully settled (all components paid →
@@ -127,7 +128,10 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
   the very top of the page (independent of the du/au range, 2 across from `sm` up / stacked on `xs`), then
   the **period selector** (du/au), then the three **period** cards (revenu total / encaissé / en attente —
   which depend on the range; 3 across from `sm` up / stacked on `xs`). Keep the existing colour language
-  (primary / green / orange).
+  (primary / green / orange). Inside each card the **TTC amount is centered both horizontally and
+  vertically** and the **HT line is right-aligned** with a small right margin; the cards are kept compact
+  (reduced top/bottom padding). On the « Revenu total » card the « sur la période » qualifier sits **inline
+  on the same line as the label**.
 - **List + operational tables** — rows get `cursor: pointer` + hover; click navigates to the fiche
   (`stopPropagation` on the « Tout solder » button so it doesn't also navigate). Each table ends with a
   bold **footer totals row** (top border) summing its numeric columns. Mobile: tables already scroll/stack

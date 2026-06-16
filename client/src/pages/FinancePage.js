@@ -107,6 +107,10 @@ export default function FinancePage() {
   const overduePayments = operational?.overdue.reservations || [];
   const overdueReservationsCount = operational?.overdue.count || 0;
   const overdueTotalAmount = operational?.overdue.totalAmount || 0;
+  // Hide the « Paiements en retard » tab entirely when nothing is overdue (request 2026-06-16); if it was
+  // the selected tab, fall back to « Paiements en attente ».
+  const hasOverdue = overdueReservationsCount > 0;
+  const activeTab = (!hasOverdue && financeViewTab === 'overdue') ? 'pending' : financeViewTab;
   const pendingPayments = operational?.pending.reservations || [];
   const pendingTotals = operational?.pending.totals || {};
   const upcomingReservations = operational?.upcoming.reservations || [];
@@ -128,12 +132,15 @@ export default function FinancePage() {
   const renderCard = (c, size) => (
     <Grid key={c.label} size={size}>
       <Card sx={{ bgcolor: c.bg, color: 'white', height: '100%' }}>
-        <CardContent>
-          <Typography variant="subtitle2">{c.label}</Typography>
-          {c.caption && <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{c.caption}</Typography>}
-          <Typography variant="h4">{eur(c.value)}</Typography>
+        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.25, '&:last-child': { pb: 1.25 } }}>
+          <Typography variant="subtitle2">
+            {c.label}
+            {c.caption && <Typography component="span" variant="caption" sx={{ opacity: 0.85, ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
+          </Typography>
+          {/* TTC centered both horizontally and vertically; HT right-aligned at the bottom. */}
+          <Typography variant="h4" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', my: 0.5 }}>{eur(c.value)}</Typography>
           {c.valueHt != null && (
-            <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{eur(c.valueHt)} HT</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.85, textAlign: 'right', mr: 1 }}>{eur(c.valueHt)} HT</Typography>
           )}
         </CardContent>
       </Card>
@@ -309,65 +316,61 @@ export default function FinancePage() {
           </Box>
 
           <Tabs
-            value={financeViewTab}
+            value={activeTab}
             onChange={(_, nextTab) => setFinanceViewTab(nextTab)}
             variant="scrollable"
             allowScrollButtonsMobile
             sx={{ mt: 1.5, mb: 2 }}
           >
-            <Tab value="overdue" label="Paiements en retard" />
+            {hasOverdue && <Tab value="overdue" label="Paiements en retard" />}
             <Tab value="pending" label="Paiements en attente" />
             <Tab value="upcoming" label="Réservations à venir" />
             <Tab value="period" label="Réservations période" />
           </Tabs>
 
-          {financeViewTab === 'overdue' && (
-            overduePayments.length === 0 ? (
-              <Typography color="text.secondary">Aucun paiement en retard</Typography>
-            ) : (
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 920 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Éléments en retard</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Montant en retard</TableCell>
+          {activeTab === 'overdue' && (
+            <TableContainer>
+              <Table size="small" sx={{ minWidth: 920 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Éléments en retard</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Montant en retard</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {overduePayments.map((r) => (
+                    <TableRow key={`overdue-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
+                      <TableCell>{r.firstName} {r.lastName}</TableCell>
+                      <TableCell>{r.propertyName}</TableCell>
+                      <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                          {r.depositOverdue && (
+                            <Chip size="small" color="error" label={`Acompte: ${r.depositAmount}€ (échu ${displayDate(r.depositDueDate)})`} />
+                          )}
+                          {r.balanceOverdue && (
+                            <Chip size="small" color="error" label={`Solde: ${r.balanceAmount}€ (échu ${displayDate(r.balanceDueDate)})`} />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{r.overdueAmount}€</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {overduePayments.map((r) => (
-                      <TableRow key={`overdue-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
-                        <TableCell>{r.firstName} {r.lastName}</TableCell>
-                        <TableCell>{r.propertyName}</TableCell>
-                        <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                            {r.depositOverdue && (
-                              <Chip size="small" color="error" label={`Acompte: ${r.depositAmount}€ (échu ${displayDate(r.depositDueDate)})`} />
-                            )}
-                            {r.balanceOverdue && (
-                              <Chip size="small" color="error" label={`Solde: ${r.balanceAmount}€ (échu ${displayDate(r.balanceDueDate)})`} />
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{r.overdueAmount}€</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                      <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{eur(overdueTotalAmount)}</TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </TableContainer>
-            )
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                    <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{eur(overdueTotalAmount)}</TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
           )}
 
-          {financeViewTab === 'pending' && (
+          {activeTab === 'pending' && (
             pendingPayments.length === 0 ? (
               <Typography color="text.secondary">Aucun paiement en attente</Typography>
             ) : (
@@ -448,7 +451,7 @@ export default function FinancePage() {
             )
           )}
 
-          {financeViewTab === 'upcoming' && (
+          {activeTab === 'upcoming' && (
             upcomingReservations.length === 0 ? (
               <Typography color="text.secondary">Aucune réservation à venir</Typography>
             ) : (
@@ -504,7 +507,7 @@ export default function FinancePage() {
             )
           )}
 
-          {financeViewTab === 'period' && (
+          {activeTab === 'period' && (
             summary ? (
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 920 }}>
