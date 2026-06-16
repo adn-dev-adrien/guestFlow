@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Chip, Checkbox, Divider, Tabs, Tab,
+  TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Checkbox, Divider, Tabs, Tab,
   Tooltip, IconButton
 } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
@@ -13,6 +13,21 @@ import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
 
 const eur = (n) => `${Number(n || 0).toLocaleString('fr-FR')} €`;
+
+const RADIAN = Math.PI / 180;
+// specs/finance-overview-rework.md §3.4 — the amounts sit INSIDE the camembert (white text at each slice
+// centroid) rather than as outer labels.
+const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+  if (!value) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.6;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
+      {eur(value)}
+    </text>
+  );
+};
 
 export default function FinancePage() {
   const navigate = useNavigate();
@@ -88,24 +103,26 @@ export default function FinancePage() {
   // value per property (no collected/pending split).
   const barData = summary?.revenueByProperty?.map((p) => ({ name: p.propertyName, revenue: p.revenue })) || [];
 
-  // The server (financeModel.getOperational) owns all overdue/pending/upcoming derivation.
+  // The server (financeModel.getOperational) owns all overdue/pending/upcoming derivation + column totals.
   const overduePayments = operational?.overdue.reservations || [];
   const overdueReservationsCount = operational?.overdue.count || 0;
   const overdueTotalAmount = operational?.overdue.totalAmount || 0;
   const pendingPayments = operational?.pending.reservations || [];
+  const pendingTotals = operational?.pending.totals || {};
   const upcomingReservations = operational?.upcoming.reservations || [];
+  const upcomingTotals = operational?.upcoming.totals || {};
 
   // specs/finance-overview-rework.md §3.2 / §6 — cards on TWO rows, keeping the primary / green / orange
   // colour language: the two annual cards first, then the three period cards (revenu total / encaissé /
-  // en attente).
+  // en attente). Each card shows its element-by-element HT (server-computed) in smaller text.
   const yearCards = summary ? [
-    { label: "Revenus depuis le début de l'année", value: summary.yearToDate, bg: '#00838f' },
-    { label: "Revenu total sur l'année", value: summary.yearTotal, bg: '#006064' },
+    { label: "Revenus depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, bg: '#00838f' },
+    { label: "Revenu total sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, bg: '#006064' },
   ] : [];
   const periodCards = summary ? [
-    { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, bg: 'primary.main' },
-    { label: 'Encaissé', value: summary.totalCollected, bg: '#4CAF50' },
-    { label: 'En attente', value: summary.totalPending, bg: '#f57c00' },
+    { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, bg: 'primary.main' },
+    { label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, bg: '#4CAF50' },
+    { label: 'En attente', value: summary.totalPending, valueHt: summary.totalPendingHt, bg: '#f57c00' },
   ] : [];
 
   const renderCard = (c, size) => (
@@ -115,6 +132,9 @@ export default function FinancePage() {
           <Typography variant="subtitle2">{c.label}</Typography>
           {c.caption && <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{c.caption}</Typography>}
           <Typography variant="h4">{eur(c.value)}</Typography>
+          {c.valueHt != null && (
+            <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{eur(c.valueHt)} HT</Typography>
+          )}
         </CardContent>
       </Card>
     </Grid>
@@ -134,6 +154,73 @@ export default function FinancePage() {
       </Box>
     );
   };
+
+  const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider' };
+
+  const projectionCard = (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+          <Typography variant="h6">Projection à une date</Typography>
+          <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} />
+        </Box>
+        {projection && (
+          <>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">Total de séjour d'ici cette date</Typography>
+                <Typography variant="h5">{eur(projection.total)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
+                <Typography variant="h5">{eur(projection.collected)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">En attente</Typography>
+                <Typography variant="h5">{eur(projection.pending)}</Typography>
+              </Grid>
+            </Grid>
+            <TableContainer>
+              <Table size="small" sx={{ minWidth: 760 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Encaissé</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">État</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {projection.details.map((d) => (
+                    <TableRow key={d.reservationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${d.reservationId}`)}>
+                      <TableCell>{d.clientName}</TableCell>
+                      <TableCell>{d.propertyName}</TableCell>
+                      <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
+                      <TableCell align="right">{eur(d.collected)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(d.totalSejour)}</TableCell>
+                      <TableCell align="center">
+                        <Chip size="small" label={d.settled ? 'Réglé' : 'En attente'} color={d.settled ? 'success' : 'warning'} variant={d.settled ? 'filled' : 'outlined'} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={3} sx={footerCellSx}>Total</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{eur(projection.collected)}</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{eur(projection.total)}</TableCell>
+                    <TableCell sx={footerCellSx} />
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <Box>
@@ -193,7 +280,7 @@ export default function FinancePage() {
               <Typography variant="h6" gutterBottom>Répartition</Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label={({ name, value }) => `${name}: ${eur(value)}`}>
+                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" labelLine={false} label={renderPieLabel}>
                     {pieData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
                   </Pie>
                   <Legend />
@@ -204,61 +291,6 @@ export default function FinancePage() {
           </Card>
         </Grid>
       </Grid>
-      {/* Projection */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <Typography variant="h6">Projection à une date</Typography>
-            <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} />
-          </Box>
-          {projection && (
-            <>
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Total de séjour d'ici cette date</Typography>
-                  <Typography variant="h5">{eur(projection.total)}</Typography>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
-                  <Typography variant="h5">{eur(projection.collected)}</Typography>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="subtitle2" color="text.secondary">En attente</Typography>
-                  <Typography variant="h5">{eur(projection.pending)}</Typography>
-                </Grid>
-              </Grid>
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 760 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Encaissé</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">État</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {projection.details.map((d) => (
-                      <TableRow key={d.reservationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${d.reservationId}`)}>
-                        <TableCell>{d.clientName}</TableCell>
-                        <TableCell>{d.propertyName}</TableCell>
-                        <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
-                        <TableCell align="right">{eur(d.collected)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(d.totalSejour)}</TableCell>
-                        <TableCell align="center">
-                          <Chip size="small" label={d.settled ? 'Réglé' : 'En attente'} color={d.settled ? 'success' : 'warning'} variant={d.settled ? 'filled' : 'outlined'} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </>
-          )}
-        </CardContent>
-      </Card>
       <Divider sx={{ my: 3 }} />
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -321,6 +353,12 @@ export default function FinancePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{eur(overdueTotalAmount)}</TableCell>
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
             )
@@ -392,6 +430,16 @@ export default function FinancePage() {
                       );
                     })}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.depositAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.balanceAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.remainingDue)}</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{eur(pendingTotals.totalSejour)}</TableCell>
+                      <TableCell sx={footerCellSx} />
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
             )
@@ -437,6 +485,17 @@ export default function FinancePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={5} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.depositAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.balanceAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.complementAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.endOfStayComplementAmount)}</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{eur(upcomingTotals.totalSejour)}</TableCell>
+                      <TableCell sx={footerCellSx} />
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
             )
@@ -492,6 +551,13 @@ export default function FinancePage() {
                       );
                     })}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{eur(summary.revenueTotal)}</TableCell>
+                      <TableCell sx={footerCellSx} />
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
             ) : (
@@ -500,6 +566,8 @@ export default function FinancePage() {
           )}
         </CardContent>
       </Card>
+      {/* Projection moved to the very end of the page (less central than the operational tracking). */}
+      {projectionCard}
     </Box>
   );
 }

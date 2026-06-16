@@ -37,6 +37,11 @@ const SUMMARY = {
   totalPending: 300,
   yearToDate: 4200,
   yearTotal: 8000,
+  revenueTotalHt: 1350,
+  totalCollectedHt: 810,
+  totalPendingHt: 270,
+  yearToDateHt: 3780,
+  yearTotalHt: 7200,
   revenueByProperty: [{ propertyId: 1, propertyName: 'Gîte', revenue: 1500 }],
   reservations: [
     {
@@ -55,9 +60,15 @@ const PENDING_ROW = {
 };
 
 const OPERATIONAL = {
-  overdue: { reservations: [], count: 0, totalAmount: 0 },
-  pending: { reservations: [PENDING_ROW] },
-  upcoming: { reservations: [] },
+  overdue: { reservations: [], count: 0, totalAmount: 0, totals: { overdueAmount: 0 } },
+  pending: {
+    reservations: [PENDING_ROW],
+    totals: { depositAmount: 100, balanceAmount: 200, remainingDue: 300, totalSejour: 300 },
+  },
+  upcoming: {
+    reservations: [],
+    totals: { depositAmount: 0, balanceAmount: 0, complementAmount: 0, endOfStayComplementAmount: 0, totalSejour: 0 },
+  },
 };
 
 const PROJECTION = { targetDate: '2026-07-16', total: 1500, collected: 900, pending: 600, details: [] };
@@ -118,6 +129,7 @@ describe('FinancePage — total-de-séjour overview', () => {
           remainingDue: 0, depositAmount: 200, depositPaid: 1, balanceAmount: 400, balancePaid: 1,
           complementAmount: 0, endOfStayComplementAmount: 20, endOfStayComplementPaidCash: 1,
         }],
+        totals: { depositAmount: 200, balanceAmount: 400, complementAmount: 0, endOfStayComplementAmount: 20, totalSejour: 620 },
       },
     });
     renderPage();
@@ -126,5 +138,24 @@ describe('FinancePage — total-de-séjour overview', () => {
     const row = (await screen.findByText('Léa Roux')).closest('tr');
     expect(within(row).getByText('620 €')).toBeInTheDocument(); // total de séjour pinned right
     expect(within(row).getByText('Payé')).toBeInTheDocument();   // settled via caisse interne
+  });
+
+  test('each card shows its element-by-element HT in smaller text', async () => {
+    renderPage();
+    await screen.findByText("Revenus depuis le début de l'année");
+    expect(screen.getByText('3 780 € HT')).toBeInTheDocument(); // yearToDateHt
+    expect(screen.getByText('7 200 € HT')).toBeInTheDocument(); // yearTotalHt
+    expect(screen.getByText('1 350 € HT')).toBeInTheDocument(); // revenueTotalHt
+  });
+
+  test('the pending table foots its columns (server-computed totals)', async () => {
+    renderPage();
+    await screen.findByText("Revenus depuis le début de l'année");
+    fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
+    await screen.findByText('Tente');
+    // The footer renders amounts via eur() (« 100 € » with a separating space), distinct from the
+    // row cell « 100€ » — so this match pins the footer specifically.
+    expect(screen.getByText('100 €')).toBeInTheDocument(); // Σ acompte
+    expect(screen.getByText('200 €')).toBeInTheDocument(); // Σ solde
   });
 });

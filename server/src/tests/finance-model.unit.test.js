@@ -9,12 +9,14 @@ const Database = require('better-sqlite3');
 const financeModel = require('../models/financeModel');
 
 const DDL = `
+  CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL DEFAULT 10);
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'reservation', clientId INTEGER, propertyId INTEGER,
     startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
-    finalPrice REAL, depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositDueDate TEXT, depositDisabled INTEGER DEFAULT 0,
+    finalPrice REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0,
+    depositAmount REAL DEFAULT 0, depositPaid INTEGER DEFAULT 0, depositDueDate TEXT, depositDisabled INTEGER DEFAULT 0,
     balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT,
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
@@ -32,13 +34,14 @@ const TODAY = new Date().toISOString().split('T')[0];
 function freshModel() {
   const db = new Database(':memory:');
   db.exec(DDL);
+  db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite'), (2, 'Tente')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont'), (2, 'Marie', 'Martin')").run();
   return { db, model: financeModel.buildModel(db) };
 }
 
 const COLS = [
-  'id', 'clientId', 'propertyId', 'startDate', 'endDate', 'platform', 'finalPrice',
+  'id', 'clientId', 'propertyId', 'startDate', 'endDate', 'platform', 'finalPrice', 'touristTaxTotal',
   'depositAmount', 'depositPaid', 'depositDueDate', 'depositDisabled',
   'balanceAmount', 'balancePaid', 'balanceDueDate',
   'complementAmount', 'complementPaid', 'complementPaidCash',
@@ -47,7 +50,7 @@ const COLS = [
 const insertRes = (db, r) => db.prepare(
   `INSERT INTO reservations (${COLS.join(', ')}) VALUES (${COLS.map((c) => `@${c}`).join(', ')})`,
 ).run({
-  platform: 'direct', finalPrice: 0,
+  platform: 'direct', finalPrice: 0, touristTaxTotal: 0,
   depositAmount: 0, depositPaid: 0, depositDueDate: null, depositDisabled: 0,
   balanceAmount: 0, balancePaid: 0, balanceDueDate: null,
   complementAmount: 0, complementPaid: 0, complementPaidCash: 0,
@@ -133,6 +136,21 @@ test('getSummary: a kind=devis row never leaks into the revenue', () => {
   assert.ok(!summary.reservations.some((r) => r.id === 99));
 });
 
+// ── HT (element-by-element, server-side) ────────────────────────────────────────────────
+
+test('getSummary: HT is element-by-element — finalPrice ÷ (1+vat), tourist tax excluded (no VAT)', () => {
+  const { db, model } = freshModel();
+  // A: 1100 € accommodation, no taxe de séjour → 1100 € TTC, 1000 € HT. Deposit paid.
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(3), finalPrice: 1100, touristTaxTotal: 0, depositAmount: 1100, depositPaid: 1 });
+  // B: 1100 € accommodation + 100 € taxe de séjour → 1200 € TTC, STILL 1000 € HT (tax bears no VAT). Unpaid.
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(4), finalPrice: 1100, touristTaxTotal: 100, depositAmount: 1200 });
+  const s = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(s.revenueTotal, 2300);
+  assert.equal(s.revenueTotalHt, 2000);   // 1000 + 1000 (tax stripped, rest ÷ 1.10)
+  assert.equal(s.totalCollected, 1100);   // only A's deposit is paid
+  assert.equal(s.totalCollectedHt, 1000); // its HT
+});
+
 // ── operational ───────────────────────────────────────────────────────────────────────
 
 test('getOperational: overdue lists DIRECT bookings only (platforms manage their own payments)', () => {
@@ -160,6 +178,29 @@ test('getOperational: upcoming = endDate >= today, carries totalSejour + nights,
   assert.equal(op.upcoming.reservations.length, 5);
   assert.equal(op.upcoming.reservations[0].totalSejour, 100);
   assert.equal(op.upcoming.reservations[0].nights, 2);
+});
+
+test('getOperational: pending totals sum the columns; a disabled deposit is excluded from its total', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-6), endDate: iso(-2), finalPrice: 300, depositAmount: 100, balanceAmount: 200 }); // remainingDue 300, totalSejour 300
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(-5), endDate: iso(-1), finalPrice: 200, depositAmount: 50, depositDisabled: 1, balanceAmount: 150 }); // deposit disabled → not in deposit total
+  const op = model.getOperational();
+  assert.equal(op.pending.totals.depositAmount, 100); // 100 + (disabled 50 excluded)
+  assert.equal(op.pending.totals.balanceAmount, 350);
+  assert.equal(op.pending.totals.totalSejour, 500);
+  assert.equal(op.pending.totals.remainingDue, 500);
+});
+
+test('getOperational: upcoming totals sum every component column + total de séjour', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(3), depositAmount: 100, balanceAmount: 200, complementAmount: 30, endOfStayComplementAmount: 20 }); // totalSejour 350
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(4), depositAmount: 50, balanceAmount: 150 }); // totalSejour 200
+  const op = model.getOperational();
+  assert.equal(op.upcoming.totals.depositAmount, 150);
+  assert.equal(op.upcoming.totals.balanceAmount, 350);
+  assert.equal(op.upcoming.totals.complementAmount, 30);
+  assert.equal(op.upcoming.totals.endOfStayComplementAmount, 20);
+  assert.equal(op.upcoming.totals.totalSejour, 550);
 });
 
 // ── projection ────────────────────────────────────────────────────────────────────────
