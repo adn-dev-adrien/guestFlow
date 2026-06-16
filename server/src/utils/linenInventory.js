@@ -235,6 +235,10 @@ function simulateInventory({
   // both backlogs flow forward to the next non-skipped trip. Default `new Set()` keeps every
   // pre-feature caller (and every existing test fixture) behaviour-identical.
   skippedDates = new Set(),
+  // specs/manual-laundry-additions.md §4 — a Map<'YYYY-MM-DD', {single,double,baby,large,medium,small}>
+  // of operator-entered extra linen per laundry trip. Washed like reservation linen (clean → laundry →
+  // clean) on the trip's drop. Default empty Map keeps every pre-feature caller behaviour-identical.
+  manualAdditionsByDate = new Map(),
 }) {
   // --- Pre-compute per-reservation contracts (skips devis + zero contracts) ---
   const contractsByReservationId = buildContractsByReservationId({
@@ -349,6 +353,16 @@ function simulateInventory({
       const c = contractsByReservationId.get(Number(r.id));
       addInto(inCirculation, c);
       subtractInto(clean, c);
+    }
+
+    // 2.5) Manual additions for THIS laundry day (specs/manual-laundry-additions.md §4 rules 4-5):
+    // the operator washes extra linen this trip → it leaves clean and joins the dirty pile, so the
+    // drop step (3) washes it and it returns clean on pick-up (+7d). On a SKIPPED trip the drop is
+    // skipped, so it stays dirty and defers to the next non-skipped trip — same carry-forward as
+    // reservation linen. Conservation holds: what leaves clean returns on pick-up.
+    if (isLaundryDay) {
+      const manual = manualAdditionsByDate.get(cursor);
+      if (manual) { addInto(dirty, manual); subtractInto(clean, manual); }
     }
 
     // 3) Laundry-day drop: dirty → atLaundry, dirty resets to 0. Skipped trips don't drop.

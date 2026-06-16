@@ -70,6 +70,24 @@ test('laundrySummary: per laundry day, dropOff queries (L-7, L] and pickUp queri
   assert.deepEqual(bathCalls[1], { start: '2026-05-19', end: '2026-05-26' });
 });
 
+test('laundrySummary: manual additions fold into this trip dropOff + the next trip pickUp', () => {
+  // specs/manual-laundry-additions.md §3 rules 2-3. Manual addition of 3 single beds on 2026-06-09.
+  const fake = makeFake({ laundryWeekday: 2 });
+  const laundryManualAdditionsModel = {
+    sumForWindow: (start, end) => ({
+      singleBeds: (start < '2026-06-09' && '2026-06-09' <= end) ? 3 : 0,
+      doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    }),
+  };
+  const c = buildController({ ...fake, laundryManualAdditionsModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-16' } }, res);
+  const day = (d) => res.body.laundryDays.find((x) => x.date === d);
+  assert.equal(day('2026-06-09').dropOff.singleBeds, 3, 'this trip À apporter +3');
+  assert.equal(day('2026-06-16').pickUp.singleBeds, 3, 'next trip À récupérer +3 (the batch returns)');
+  assert.equal(day('2026-06-16').dropOff.singleBeds, 0, 'next trip dropOff window excludes 06-09');
+});
+
 test('laundrySummary: weekday change in settings is honoured (Wednesday)', () => {
   const { settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel } = makeFake({ laundryWeekday: 3 });
   const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel });

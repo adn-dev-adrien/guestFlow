@@ -19,6 +19,11 @@ function buildModel(database, deps = {}) {
   // the global `../database` module at import time).
   const laundryTripSkipsModel = deps.laundryTripSkipsModel
     || require('./laundryTripSkipsModel').create(database);
+  // specs/manual-laundry-additions.md §4.1 — per-trip manual linen, folded into the simulation as
+  // extra linen washed on each trip. Injected via `deps` for tests; defaults to a fresh factory bound
+  // to THIS database (same rationale as the skips model above).
+  const laundryManualAdditionsModel = deps.laundryManualAdditionsModel
+    || require('./laundryManualAdditionsModel').create(database);
 
   const fetchReservationsStmt = database.prepare(`
     SELECT id, kind, propertyId, startDate, endDate,
@@ -82,9 +87,19 @@ function buildModel(database, deps = {}) {
     const propertyDefaults = fetchPropertyDefaultsStmt.all();
     const skippedDates = new Set(laundryTripSkipsModel.listAll());
 
+    // Map the per-trip manual additions (stored with singleBeds/…/smallTowels keys) onto the engine's
+    // byType keys (single/…/small) so simulateInventory washes them like reservation linen.
+    const manualAdditionsByDate = new Map();
+    for (const [date, c] of Object.entries(laundryManualAdditionsModel.listAll())) {
+      manualAdditionsByDate.set(date, {
+        single: c.singleBeds, double: c.doubleBeds, baby: c.babyBeds,
+        large: c.largeTowels, medium: c.mediumTowels, small: c.smallTowels,
+      });
+    }
+
     const result = simulateInventory({
       stock, reservations, options, reservationOptions, propertyDefaults,
-      laundryWeekday, from: today, to: horizon, skippedDates,
+      laundryWeekday, from: today, to: horizon, skippedDates, manualAdditionsByDate,
     });
 
     return { horizon, ...result };

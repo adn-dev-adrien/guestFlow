@@ -11,6 +11,7 @@ const laundryModel = require('../models/laundryModel');
 const settingsModel = require('../models/settingsModel');
 const linenInventoryModel = require('../models/linenInventoryModel');
 const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
+const laundryManualAdditionsModel = require('../models/laundryManualAdditionsModel');
 const breakfastModel = require('../models/breakfastModel');
 const {
   findLaundryDaysInRange,
@@ -34,6 +35,7 @@ function buildController({
   settingsModel: injectedSettingsModel = settingsModel,
   linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
   laundryTripSkipsModel: injectedLaundryTripSkipsModel = laundryTripSkipsModel,
+  laundryManualAdditionsModel: injectedLaundryManualAdditionsModel = laundryManualAdditionsModel,
   breakfastModel: injectedBreakfastModel = breakfastModel,
 } = {}) {
   return {
@@ -102,10 +104,19 @@ function buildController({
       // The bathroom counts are spread into the same block (not a separate sibling) so the
       // client renders both under a unified "À apporter / À récupérer" section without an
       // extra plumbing layer.
-      const buildBlock = (startExclusive, endInclusive) => ({
-        ...injectedLaundryModel.dropOffForWindow(startExclusive, endInclusive),
-        ...injectedLaundryModel.dropOffBathroomForWindow(startExclusive, endInclusive),
-      });
+      // Reservation linen + the operator's manual additions for the laundry days in this window
+      // (specs/manual-laundry-additions.md §3 rules 2-3). sumForWindow uses the same half-open
+      // (startExclusive, endInclusive] boundary, so a skipped trip's widened window also picks up
+      // its deferred manual additions — consistent with the reservation carry-forward.
+      const buildBlock = (startExclusive, endInclusive) => {
+        const block = {
+          ...injectedLaundryModel.dropOffForWindow(startExclusive, endInclusive),
+          ...injectedLaundryModel.dropOffBathroomForWindow(startExclusive, endInclusive),
+        };
+        const manual = injectedLaundryManualAdditionsModel.sumForWindow(startExclusive, endInclusive);
+        for (const k of Object.keys(manual)) block[k] = (Number(block[k]) || 0) + Number(manual[k] || 0);
+        return block;
+      };
       const laundryDays = laundryDates.map((date) => {
         // A skipped trip's counts are masked on the client by the "Voyage non réalisé"
         // caption (LaundryDayCard §3.3). We emit zeros for a uniform contract — the next
