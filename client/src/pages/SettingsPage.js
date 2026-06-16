@@ -9,12 +9,10 @@ import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsVatSection from '../components/SettingsVatSection';
 import SettingsReservationLockSection from '../components/SettingsReservationLockSection';
-import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
-import SettingsBillableAmountsSection from '../components/SettingsBillableAmountsSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -394,19 +392,6 @@ export default function SettingsPage() {
               onChange={(next) => updateGroup('reservations')('allowEditPastReservations', next)}
               disabled={loading || saving}
             />
-          </Box>
-
-          <Box sx={{ breakInside: 'avoid' }}>
-            <SettingsLaundrySection
-              value={draft.laundry.weekday}
-              error={errors.laundryWeekday}
-              onChange={(next) => updateGroup('laundry')('weekday', next)}
-              disabled={loading || saving}
-            />
-          </Box>
-
-          <Box sx={{ breakInside: 'avoid' }}>
-            <SettingsBillableAmountsSection />
           </Box>
 
           <Box sx={{ breakInside: 'avoid' }}>

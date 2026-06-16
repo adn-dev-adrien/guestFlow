@@ -33,6 +33,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import SellIcon from '@mui/icons-material/Sell';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -60,6 +61,9 @@ import PlanningPage from './pages/PlanningPage';
 import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import SettingsPage from './pages/SettingsPage';
 import LinenStockPage from './pages/LinenStockPage';
+import BillableAmountsPage from './pages/BillableAmountsPage';
+import SeasonsClosuresPage from './pages/SeasonsClosuresPage';
+import OptionsResourcesPage from './pages/OptionsResourcesPage';
 import PaymentsSettingsPage from './pages/PaymentsSettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
@@ -85,7 +89,7 @@ const navItems = [
 // and the children's order matters for display.
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/stock-blanchisserie', '/parametres/paiements', '/account'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/paiements', '/account'];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -453,30 +457,16 @@ function NavContent({ onItemClick }) {
                     </List>
                   </Collapse>
                   )}
-                  {can('/options') && (
+                  {can('/parametres/options-ressources') && (
                   <ListItemButton
                     component={Link}
-                    to="/options"
-                    onClick={(e) => onItemClick && onItemClick(e, '/options')}
-                    selected={location.pathname === '/options'}
+                    to="/parametres/options-ressources"
+                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/options-ressources')}
+                    selected={location.pathname === '/parametres/options-ressources'}
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemIcon sx={{ minWidth: 34 }}><ExtensionIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Options" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/resources') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/resources"
-                    onClick={(e) => onItemClick && onItemClick(e, '/resources')}
-                    selected={location.pathname === '/resources'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Ressources" slotProps={{
+                    <ListItemText primary="Options & ressources" slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
@@ -495,30 +485,16 @@ function NavContent({ onItemClick }) {
                     }} />
                   </ListItemButton>
                   )}
-                  {can('/school-holidays') && (
+                  {can('/parametres/vacances-fermetures') && (
                   <ListItemButton
                     component={Link}
-                    to="/school-holidays"
-                    onClick={(e) => onItemClick && onItemClick(e, '/school-holidays')}
-                    selected={location.pathname === '/school-holidays'}
+                    to="/parametres/vacances-fermetures"
+                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/vacances-fermetures')}
+                    selected={location.pathname === '/parametres/vacances-fermetures'}
                     sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                   >
                     <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Vacances scolaires" slotProps={{
-                      primary: { variant: 'body2', noWrap: true }
-                    }} />
-                  </ListItemButton>
-                  )}
-                  {can('/establishment-closures') && (
-                  <ListItemButton
-                    component={Link}
-                    to="/establishment-closures"
-                    onClick={(e) => onItemClick && onItemClick(e, '/establishment-closures')}
-                    selected={location.pathname === '/establishment-closures'}
-                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Fermetures" slotProps={{
+                    <ListItemText primary="Vacances & fermetures" slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
@@ -533,6 +509,20 @@ function NavContent({ onItemClick }) {
                   >
                     <ListItemIcon sx={{ minWidth: 34 }}><Inventory2Icon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="Blanchisserie" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/parametres/tarifs') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/parametres/tarifs"
+                    onClick={(e) => onItemClick && onItemClick(e, '/parametres/tarifs')}
+                    selected={location.pathname === '/parametres/tarifs'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><SellIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Tarifs facturables" slotProps={{
                       primary: { variant: 'body2', noWrap: true }
                     }} />
                   </ListItemButton>
@@ -756,6 +746,9 @@ function AppShell() {
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/parametres/stock-blanchisserie" element={<LinenStockPage />} />
+          <Route path="/parametres/tarifs" element={<BillableAmountsPage />} />
+          <Route path="/parametres/vacances-fermetures" element={<SeasonsClosuresPage />} />
+          <Route path="/parametres/options-ressources" element={<OptionsResourcesPage />} />
           <Route path="/parametres/paiements" element={<PaymentsSettingsPage />} />
           {/* Legacy paths redirect to the unified "Gestion utilisateur" page. */}
           <Route path="/settings/password" element={<Navigate to="/account" replace />} />

@@ -420,7 +420,7 @@ neither.
 | `components/LaundryDayCard.js` | `LaundryDayCard.js` | C | New feature-local component. Pure renderer: takes `{ dropOff, pickUp }` (both `{ singleBeds, doubleBeds, babyBeds }`). Returns `null` when both sides are zero (matches rule 13). Single MUI Card with two sub-blocks. Mobile-aware: stacks vertically on `xs`. |
 | `components/OptionFormDialog.js` | `OptionFormDialog.js` | T | Adds the `countsAsBedLinen` checkbox + helper text. Threads the boolean through the submit payload. |
 | `components/SettingsLaundrySection.js` | `SettingsLaundrySection.js` | C | New settings card. One field: `laundryWeekday` rendered as a MUI `Select` with the 7 French weekday labels (lundi, mardi, …). Helper text: *"Jour de la semaine où vous déposez et récupérez le linge à la blanchisserie."*. |
-| `pages/SettingsPage.js` | `SettingsPage.js` | T | Imports and renders `SettingsLaundrySection` in the settings flow (placed next to the existing reservation settings — closest cousin in domain). Threads `laundryWeekday` through the existing form payload pattern. |
+| `pages/SettingsPage.js` | `SettingsPage.js` | T | Originally imported/rendered `SettingsLaundrySection` here. **Moved 2026-06-16** to the « Blanchisserie » page (`LinenStockPage`, next to the linen stock) — see `settings-submenu-reorg.md`. |
 | `constants/weekdays.js` | `weekdays.js` | C | New tiny constant: `WEEKDAY_OPTIONS = [{ value: 0, label: 'Dimanche' }, …, { value: 6, label: 'Samedi' }]`. Reused by `SettingsLaundrySection` and any future weekday picker (e.g. cleaning schedule). |
 
 **Component reuse declaration:**
