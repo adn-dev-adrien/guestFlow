@@ -4,6 +4,7 @@ import {
   MenuItem, TextField, FormHelperText
 } from '@mui/material';
 import MiniPlanningStrip from '../MiniPlanningStrip';
+import DateField from '../DateField';
 import { TIME_OPTIONS } from '../../constants/timeOptions';
 import { useReservationForm } from './ReservationFormContext';
 
@@ -54,7 +55,7 @@ export default function StaySection() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
-              <TextField
+              <DateField
                 label="Date d'arrivée"
                 type="date"
                 value={form.startDate || ''}
@@ -67,7 +68,7 @@ export default function StaySection() {
                 }} />
             </Box>
             <Box>
-              <TextField
+              <DateField
                 label="Date de départ"
                 type="date"
                 value={form.endDate || ''}
