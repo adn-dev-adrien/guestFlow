@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Checkbox, Divider, Tabs, Tab,
-  Tooltip, IconButton
+  Tooltip, IconButton, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from 'recharts';
 import PageHeader from '../components/PageHeader';
 import { displayDate } from '../utils/formatters';
@@ -120,8 +121,8 @@ export default function FinancePage() {
   // colour language: the two annual cards first, then the three period cards (revenu total / encaissé /
   // en attente). Each card shows its element-by-element HT (server-computed) in smaller text.
   const yearCards = summary ? [
-    { label: "Revenus depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, bg: '#00838f' },
-    { label: "Revenu total sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, bg: '#006064' },
+    { label: 'Revenus', caption: "depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, bg: '#00838f' },
+    { label: 'Revenu total', caption: "sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, bg: '#006064' },
   ] : [];
   const periodCards = summary ? [
     { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, bg: 'primary.main' },
@@ -132,13 +133,13 @@ export default function FinancePage() {
   const renderCard = (c, size) => (
     <Grid key={c.label} size={size}>
       <Card sx={{ bgcolor: c.bg, color: 'white', height: '100%' }}>
-        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.25, '&:last-child': { pb: 1.25 } }}>
-          <Typography variant="subtitle2">
+        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 0.75, '&:last-child': { pb: 0.75 } }}>
+          <Typography variant="subtitle2" sx={{ lineHeight: 1.2 }}>
             {c.label}
             {c.caption && <Typography component="span" variant="caption" sx={{ opacity: 0.85, ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
           </Typography>
           {/* TTC centered both horizontally and vertically; HT right-aligned at the bottom. */}
-          <Typography variant="h4" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', my: 0.5 }}>{eur(c.value)}</Typography>
+          <Typography variant="h4" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', my: 0, lineHeight: 1.1 }}>{eur(c.value)}</Typography>
           {c.valueHt != null && (
             <Typography variant="caption" sx={{ opacity: 0.85, textAlign: 'right', mr: 1 }}>{eur(c.valueHt)} HT</Typography>
           )}
@@ -165,10 +166,12 @@ export default function FinancePage() {
   const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider' };
 
   const projectionCard = (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-          <Typography variant="h6">Projection à une date</Typography>
+    <Accordion defaultExpanded={false} sx={{ mb: 3 }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="h6">Projection à une date</Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Box sx={{ mb: 2 }}>
           <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} />
         </Box>
         {projection && (
@@ -225,8 +228,8 @@ export default function FinancePage() {
             </TableContainer>
           </>
         )}
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 
   return (
@@ -254,7 +257,7 @@ export default function FinancePage() {
       {/* Charts */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, md: 7 }}>
-          <Card>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
               <Typography variant="h6">Revenus par logement</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
@@ -285,7 +288,7 @@ export default function FinancePage() {
           </Card>
         </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
-          <Card>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>Répartition</Typography>
               <ResponsiveContainer width="100%" height={300}>
@@ -374,6 +377,14 @@ export default function FinancePage() {
             pendingPayments.length === 0 ? (
               <Typography color="text.secondary">Aucun paiement en attente</Typography>
             ) : (
+              <>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <Chip
+                  size="small"
+                  label={`En attente de paiement : ${eur(pendingTotals.remainingDue)}`}
+                  sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
+                />
+              </Box>
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 980 }}>
                   <TableHead>
@@ -448,6 +459,7 @@ export default function FinancePage() {
                   </TableFooter>
                 </Table>
               </TableContainer>
+              </>
             )
           )}
 
@@ -455,6 +467,14 @@ export default function FinancePage() {
             upcomingReservations.length === 0 ? (
               <Typography color="text.secondary">Aucune réservation à venir</Typography>
             ) : (
+              <>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <Chip
+                  size="small"
+                  label={`Total de séjour à venir : ${eur(upcomingTotals.totalSejour)}`}
+                  sx={{ bgcolor: '#E3F2FD', color: '#1565c0', fontWeight: 600 }}
+                />
+              </Box>
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 1180 }}>
                   <TableHead>
@@ -504,6 +524,7 @@ export default function FinancePage() {
                   </TableFooter>
                 </Table>
               </TableContainer>
+              </>
             )
           )}
 

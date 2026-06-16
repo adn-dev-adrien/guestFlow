@@ -65,16 +65,19 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
   per property (no more collected/pending split). The card states the active **du/au period** under its
   title, and the **amount is printed above each bar**.
 - **Répartition** — pie of **Encaissé** vs **En attente** (the two card figures). The amounts are printed
-  **inside the camembert slices** (white text at each slice centroid), not as outer labels.
+  **inside the camembert slices** (white text at each slice centroid), not as outer labels. The two chart
+  cards (« Revenus par logement » + « Répartition ») share the **same height**.
 - **Projection à une date** — date input **defaults to today + 1 month**. All projection figures are based
-  on totalSejour of the reservations (by `endDate`) up to that date. The table is **placed at the very end
-  of the page** (below « Suivi opérationnel »), as it's the least central view.
+  on totalSejour of the reservations (by `endDate`) up to that date. The section is **placed at the very end
+  of the page** (below « Suivi opérationnel ») and is a **collapsible accordion, folded by default**.
 
 ### 3.5 Upcoming list
 - Shows **only upcoming reservations** (`endDate >= today`), grouped/ordered as today.
 - Columns end with, in order: **Acompte · Solde · Complément · Complément fin de séjour · Total de séjour**,
   the **Total de séjour pinned far right**, and **immediately to its right the paid/non-paid indicator**
   (as today). The former « Prix final » column is **replaced** by « Total de séjour ».
+- A **discreet box, top-right of the list**, shows the **Σ total de séjour** of the upcoming reservations
+  (sibling of the « en attente de paiement » box of §3.6).
 - Row click → open the reservation fiche.
 
 ### 3.6 « Suivi opérationnel »
@@ -84,7 +87,8 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
 - **Paiement en attente** — only **past** reservations (`endDate < today`) **not yet settled** (§3.3). The
   amount column shows the **total de séjour** (drop the old « prix total »). The **caution column is removed**.
   A trailing **« Tout solder »** button per row marks the reservation fully settled (all components paid →
-  it leaves the list).
+  it leaves the list). A **green box, top-right of the list**, shows the **total still awaiting payment**
+  (Σ « reste à payer »).
 - **Réservations sur la période** — a reservation whose complement(s) were paid via **caisse interne** is
   considered **fully settled** (§3.3) and shown as such.
 - Row click (anywhere except the action button) → open the reservation fiche.
@@ -129,9 +133,11 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
   the **period selector** (du/au), then the three **period** cards (revenu total / encaissé / en attente —
   which depend on the range; 3 across from `sm` up / stacked on `xs`). Keep the existing colour language
   (primary / green / orange). Inside each card the **TTC amount is centered both horizontally and
-  vertically** and the **HT line is right-aligned** with a small right margin; the cards are kept compact
-  (reduced top/bottom padding). On the « Revenu total » card the « sur la période » qualifier sits **inline
-  on the same line as the label**.
+  vertically** and the **HT line is right-aligned** with a small right margin; the cards are kept **compact**
+  (tight top/bottom padding + minimal spacing between label, amount and HT). On the « Revenu total » card the
+  « sur la période » qualifier sits **inline on the same line as the label**. The two annual cards use the
+  same treatment — a main label (« Revenus » / « Revenu total ») + a smaller inline qualifier
+  (« depuis le début de l'année » / « sur l'année »).
 - **List + operational tables** — rows get `cursor: pointer` + hover; click navigates to the fiche
   (`stopPropagation` on the « Tout solder » button so it doesn't also navigate). Each table ends with a
   bold **footer totals row** (top border) summing its numeric columns. Mobile: tables already scroll/stack

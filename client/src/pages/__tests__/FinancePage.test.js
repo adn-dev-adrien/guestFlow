@@ -88,9 +88,12 @@ function renderPage() {
 describe('FinancePage — total-de-séjour overview', () => {
   test('renders the 5 top cards, year cards first', async () => {
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
-    expect(screen.getByText("Revenu total sur l'année")).toBeInTheDocument();
-    expect(screen.getByText('Revenu total')).toBeInTheDocument();
+    await screen.findByText('Revenus');
+    // Year cards split into a main label + a smaller qualifier (like the period card).
+    expect(screen.getByText("depuis le début de l'année")).toBeInTheDocument();
+    expect(screen.getByText("sur l'année")).toBeInTheDocument();
+    expect(screen.getByText('sur la période')).toBeInTheDocument();
+    expect(screen.getAllByText('Revenu total').length).toBeGreaterThan(0); // year card 2 + period card
     // « Encaissé » / « En attente » also appear in the pie legend, hence getAllByText.
     expect(screen.getAllByText('Encaissé').length).toBeGreaterThan(0);
     expect(screen.getAllByText('En attente').length).toBeGreaterThan(0);
@@ -101,7 +104,7 @@ describe('FinancePage — total-de-séjour overview', () => {
 
   test('a pending row click navigates to the reservation fiche', async () => {
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
     const cell = await screen.findByText('Tente');
     fireEvent.click(cell);
@@ -110,7 +113,7 @@ describe('FinancePage — total-de-séjour overview', () => {
 
   test('« Tout solder » PATCHes every open component paid and does not navigate', async () => {
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
     const button = await screen.findByLabelText('Tout solder');
     fireEvent.click(button);
@@ -133,16 +136,18 @@ describe('FinancePage — total-de-séjour overview', () => {
       },
     });
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Réservations à venir' }));
     const row = (await screen.findByText('Léa Roux')).closest('tr');
     expect(within(row).getByText('620 €')).toBeInTheDocument(); // total de séjour pinned right
     expect(within(row).getByText('Payé')).toBeInTheDocument();   // settled via caisse interne
+    // discreet « Total de séjour à venir » box (Σ total de séjour of upcoming)
+    expect(screen.getByText(/Total de séjour à venir : 620\s*€/)).toBeInTheDocument();
   });
 
   test('each card shows its element-by-element HT in smaller text', async () => {
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     expect(screen.getByText('3 780 € HT')).toBeInTheDocument(); // yearToDateHt
     expect(screen.getByText('7 200 € HT')).toBeInTheDocument(); // yearTotalHt
     expect(screen.getByText('1 350 € HT')).toBeInTheDocument(); // revenueTotalHt
@@ -150,7 +155,7 @@ describe('FinancePage — total-de-séjour overview', () => {
 
   test('the pending table foots its columns (server-computed totals)', async () => {
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
     await screen.findByText('Tente');
     // The footer renders amounts via eur() (« 100 € » with a separating space), distinct from the
@@ -159,9 +164,17 @@ describe('FinancePage — total-de-séjour overview', () => {
     expect(screen.getByText('200 €')).toBeInTheDocument(); // Σ solde
   });
 
+  test('pending tab shows a green « En attente de paiement » total box (Σ reste à payer)', async () => {
+    renderPage();
+    await screen.findByText('Revenus');
+    fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
+    // discreet chip « En attente de paiement : 300 € » (label = phrase + remainingDue total)
+    expect(await screen.findByText(/En attente de paiement : 300\s*€/)).toBeInTheDocument();
+  });
+
   test('hides the « Paiements en retard » tab when nothing is overdue', async () => {
     renderPage(); // base OPERATIONAL fixture has zero overdue
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     await screen.findByRole('tab', { name: 'Paiements en attente' });
     expect(screen.queryByRole('tab', { name: 'Paiements en retard' })).not.toBeInTheDocument();
   });
@@ -180,7 +193,7 @@ describe('FinancePage — total-de-séjour overview', () => {
       upcoming: { reservations: [], totals: {} },
     });
     renderPage();
-    await screen.findByText("Revenus depuis le début de l'année");
+    await screen.findByText('Revenus');
     expect(await screen.findByRole('tab', { name: 'Paiements en retard' })).toBeInTheDocument();
   });
 });
