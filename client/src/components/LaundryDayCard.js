@@ -29,6 +29,7 @@ import { cyan } from '@mui/material/colors';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import AddIcon from '@mui/icons-material/Add';
 
 // Laundry-themed palette (2026-06-02). Cyan reads as "fresh / water / linen" without leaning
 // clinical or flashy. Three tones cascade — bg subtle → border just defined enough to pop off
@@ -159,8 +160,14 @@ function InventoryLine({ label, parts }) {
   );
 }
 
-export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped = false, onToggleSkip }) {
+export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped = false, onToggleSkip, manualAddition, onEditManual }) {
   if (!data) return null;
+  // Manual additions (specs/manual-laundry-additions.md) are already folded into `data` by the server;
+  // here we only surface the « dont ajout manuel » caption + the edit affordance.
+  const manualSheets = formatSheets(manualAddition);
+  const manualTowels = formatTowels(manualAddition);
+  const hasManual = Boolean(manualSheets || manualTowels);
+  const canEditManual = typeof onEditManual === 'function' && Boolean(date);
   // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
   // spec rule 13 — keeps a quiet week silent. EXCEPTION (specs/skip-laundry-trip.md §3.3
   // rule 11): a skipped card is ALWAYS shown so the operator can see (and undo) their own
@@ -203,6 +210,18 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: LAUNDRY_ACCENT, flexGrow: 1 }}>
             Linge à la blanchisserie
           </Typography>
+          {canEditManual && (
+            <Tooltip title="Ajouter du linge manuellement" arrow>
+              <IconButton
+                size="small"
+                onClick={() => onEditManual(date)}
+                aria-label="Ajouter du linge manuellement"
+                sx={{ color: LAUNDRY_ACCENT }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
           {canToggleSkip && (
             <Tooltip title={skipTooltip} arrow>
               <IconButton
@@ -230,6 +249,11 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
               <SideBlock title="À apporter" side={data.dropOff} />
               <SideBlock title="À récupérer" side={data.pickUp} />
             </Stack>
+            {hasManual && (
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.75, fontStyle: 'italic', color: 'text.secondary' }}>
+                dont ajout manuel : {[manualSheets, manualTowels].filter(Boolean).join(' · ')}
+              </Typography>
+            )}
             {hasInventoryLine && (
               <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>

@@ -41,6 +41,12 @@ const DDL = `
     tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE laundry_trip_manual_additions (
+    tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
+    singleBeds INTEGER NOT NULL DEFAULT 0, doubleBeds INTEGER NOT NULL DEFAULT 0, babyBeds INTEGER NOT NULL DEFAULT 0,
+    largeTowels INTEGER NOT NULL DEFAULT 0, mediumTowels INTEGER NOT NULL DEFAULT 0, smallTowels INTEGER NOT NULL DEFAULT 0,
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `;
 
 // Tiny fake settings model with the read() shape linenInventoryModel expects.

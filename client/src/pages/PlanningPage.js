@@ -10,6 +10,7 @@ import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
+import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
 import BreakfastDayCard from '../components/BreakfastDayCard';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
@@ -165,6 +166,11 @@ export default function PlanningPage() {
   // not-made. Loaded once on mount + kept in sync by the toggle handler. Empty Set on
   // initial render so the cards default to "not skipped" while the request is in flight.
   const [skippedLaundryDates, setSkippedLaundryDates] = useState(() => new Set());
+  // specs/manual-laundry-additions.md — per-trip manual linen (date → {6 counts}, only non-empty
+  // trips) + the date of the open editor (null = closed) + its in-flight save flag.
+  const [manualAdditionsByDate, setManualAdditionsByDate] = useState({});
+  const [editManualDate, setEditManualDate] = useState(null);
+  const [manualSaving, setManualSaving] = useState(false);
 
   const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
@@ -227,6 +233,33 @@ export default function PlanningPage() {
       window.alert(`Impossible d'enregistrer le voyage non réalisé. ${err?.message || ''}`);
     }
   }, [skippedLaundryDates, startDate]);
+
+  // specs/manual-laundry-additions.md — save a trip's manual linen, then refetch the laundry summary
+  // + inventory + additions (from the business horizon, scroll-independent — same discipline as the
+  // skip handler) so the À apporter / disponible-après totals and the « dont ajout manuel » caption
+  // update together. Closes the editor on success.
+  const handleSaveManualAddition = useCallback(async (date, counts) => {
+    setManualSaving(true);
+    try {
+      await api.setLaundryManualAddition(date, counts);
+      const [summary, inventory, additions] = await Promise.all([
+        api.getLaundryPlanningSummary({ from: startDate }).catch(() => ({ laundryDays: [] })),
+        api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+        api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
+      ]);
+      const lByDate = {};
+      for (const ld of (summary?.laundryDays || [])) lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
+      setLaundryByDate(lByDate);
+      setInventoryByDate(inventory?.byLaundryDay || {});
+      setManualAdditionsByDate(additions?.additions || {});
+      setEditManualDate(null);
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      window.alert(`Impossible d'enregistrer l'ajout manuel. ${err?.message || ''}`);
+    } finally {
+      setManualSaving(false);
+    }
+  }, [startDate]);
 
   // Detect scheduling conflicts
   const detectAlerts = useCallback((days, props = []) => {
@@ -338,7 +371,7 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, manualAdditions] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
       // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
@@ -348,6 +381,9 @@ export default function PlanningPage() {
       // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
       // Non-blocking like the others; an empty map keeps the planning fully functional.
       api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
+      // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
+      // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
+      api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
     ]);
     const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
     const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
@@ -395,6 +431,7 @@ export default function PlanningPage() {
       lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
     }
     setLaundryByDate(lByDate);
+    setManualAdditionsByDate(manualAdditions?.additions || {});
     // Breakfast map (date → { items, totalPersons }) directly from the server payload.
     setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
 
@@ -668,6 +705,8 @@ export default function PlanningPage() {
                 date={date}
                 isSkipped={skippedLaundryDates.has(date)}
                 onToggleSkip={handleToggleLaundrySkip}
+                manualAddition={manualAdditionsByDate[date]}
+                onEditManual={setEditManualDate}
               />
 
               {/* Breakfast card (specs/breakfast-option-and-planning-card.md §6.1). Sits
@@ -721,6 +760,15 @@ export default function PlanningPage() {
         mode={sas?.mode || 'arrival'}
         onClose={() => setSas(null)}
         onCommitted={() => { setSas(null); loadPlanning(startDate); }}
+      />
+
+      <LaundryManualAdditionsDialog
+        open={!!editManualDate}
+        date={editManualDate}
+        current={editManualDate ? manualAdditionsByDate[editManualDate] : null}
+        saving={manualSaving}
+        onClose={() => setEditManualDate(null)}
+        onSave={handleSaveManualAddition}
       />
     </Box>
   );

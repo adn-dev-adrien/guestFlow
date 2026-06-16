@@ -999,6 +999,22 @@ db.exec(`
   )
 `);
 
+// specs/manual-laundry-additions.md §5 — global per-trip manual linen additions. One row per
+// laundry date holds six non-negative per-type counts; they fold into À apporter / À récupérer and
+// the inventory simulation like reservation linen. Additive table, starts empty, no migration.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS laundry_trip_manual_additions (
+    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
+    singleBeds   INTEGER NOT NULL DEFAULT 0,
+    doubleBeds   INTEGER NOT NULL DEFAULT 0,
+    babyBeds     INTEGER NOT NULL DEFAULT 0,
+    largeTowels  INTEGER NOT NULL DEFAULT 0,
+    mediumTowels INTEGER NOT NULL DEFAULT 0,
+    smallTowels  INTEGER NOT NULL DEFAULT 0,
+    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // ---------- APP SETTINGS ----------
 db.exec(`
   CREATE TABLE IF NOT EXISTS app_settings (
