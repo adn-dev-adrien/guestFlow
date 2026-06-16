@@ -47,6 +47,19 @@ export async function getPushState() {
 
 // Request permission, subscribe this device, and register it server-side. Throws a French Error on the
 // user-facing failure modes (unsupported / denied / server not configured) so the UI can show it.
+// True iff an existing subscription's applicationServerKey equals the current server VAPID key.
+// A subscription bound to a STALE key (the server VAPID key was regenerated) is rejected by the push
+// service — Apple returns 403 on every send — so the mismatch must be detected and the device
+// re-subscribed. `existingKey` is the ArrayBuffer from `PushSubscription.options.applicationServerKey`
+// (null/absent on some browsers → treated as a mismatch, forcing a clean re-subscribe with the current key).
+export function appServerKeyMatches(existingKey, currentKeyBytes) {
+  if (!existingKey) return false;
+  const a = new Uint8Array(existingKey);
+  if (a.length !== currentKeyBytes.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== currentKeyBytes[i]) return false;
+  return true;
+}
+
 export async function enablePush() {
   if (!pushSupported()) throw new Error("Ce navigateur ne supporte pas les notifications push.");
   const permission = await Notification.requestPermission();
@@ -55,11 +68,19 @@ export async function enablePush() {
   await navigator.serviceWorker.ready;
   const { publicKey, configured } = await api.getPushPublicKey();
   if (!configured || !publicKey) throw new Error("Notifications non configurées côté serveur.");
-  const existing = await reg.pushManager.getSubscription();
-  const sub = existing || await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-  });
+  const appServerKey = urlBase64ToUint8Array(publicKey);
+
+  let sub = await reg.pushManager.getSubscription();
+  // Self-heal: a subscription bound to a previous VAPID key makes the push service 403 every send.
+  // Drop the stale subscription (server-side too) and re-subscribe with the current key.
+  if (sub && !appServerKeyMatches(sub.options && sub.options.applicationServerKey, appServerKey)) {
+    try { await api.unsubscribePush(sub.endpoint); } catch { /* best-effort server prune */ }
+    try { await sub.unsubscribe(); } catch { /* ignore */ }
+    sub = null;
+  }
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
+  }
   await api.subscribePush(sub.toJSON());
   return true;
 }

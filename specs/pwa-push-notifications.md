@@ -42,6 +42,15 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    the **logged-in user**. A **« Désactiver »** action unsubscribes + removes it server-side.
 3. Subscriptions are **per (user, device)**: one user can have several (phone + laptop). A subscription that
    the push service reports as gone (HTTP 404/410) is **pruned** automatically.
+3.bis. **Stale-VAPID-key self-heal (2026-06-16 fix).** A subscription stays bound to the VAPID key it was
+   created with. If the server's VAPID key is ever regenerated, every send to the old subscriptions is
+   rejected (Apple returns **403**) — silently, since they aren't 404/410. On enable, `enablePush` now
+   compares the existing subscription's `applicationServerKey` to the current server key and, on mismatch
+   (or when the browser doesn't expose it), **drops the stale subscription (server-side too) and
+   re-subscribes** with the current key. The server also logs the push service's **reason body** on a
+   non-404/410 failure, so a key mismatch is diagnosable from `pm2 logs`. *(Root cause of the 2026-06-16
+   prod incident: both iPhones were bound to a previous VAPID key after a regeneration, so no notification
+   fired on a new reservation.)*
 
 ### 3.2 Per-user preferences
 4. Each user has three independent push preferences — **newReservation**, **arrivals**, **departures** —
