@@ -53,6 +53,8 @@ Rounded to cents. This is the per-reservation value summed everywhere below.
 5. **En attente** — Σ totalSejour of reservations whose `endDate` is in the range **AND in the past**
    (`endDate < today`) **AND not fully settled**. The whole stay total counts (not just the unpaid part).
 
+Each card also shows, in **smaller text under the TTC figure**, the matching **HT** amount (§3.7).
+
 ### 3.3 « Settled » definition (drives En attente + operational)
 A reservation is **settled** when every applicable component is paid **or** marked caisse interne:
 acompte (or disabled), solde, complément d'arrivée, complément fin de séjour — each either `*Paid = 1`
@@ -60,41 +62,59 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
 
 ### 3.4 Graphs
 - **Revenus par logement** — Σ totalSejour **per property** over the period (by `endDate`). Single value
-  per property (no more collected/pending split). The card states the active **du/au period** under its title.
-- **Répartition** — pie of **Encaissé** vs **En attente** (the two card figures).
+  per property (no more collected/pending split). The card states the active **du/au period** under its
+  title, and the **amount is printed above each bar**.
+- **Répartition** — pie of **Encaissé** vs **En attente** (the two card figures). The amounts are printed
+  **inside the camembert slices** (white text at each slice centroid), not as outer labels. The two chart
+  cards (« Revenus par logement » + « Répartition ») share the **same height**.
 - **Projection à une date** — date input **defaults to today + 1 month**. All projection figures are based
-  on totalSejour of the reservations (by `endDate`) up to that date.
+  on totalSejour of the reservations (by `endDate`) up to that date. The section is **placed at the very end
+  of the page** (below « Suivi opérationnel ») and is a **collapsible accordion, folded by default**.
 
 ### 3.5 Upcoming list
 - Shows **only upcoming reservations** (`endDate >= today`), grouped/ordered as today.
 - Columns end with, in order: **Acompte · Solde · Complément · Complément fin de séjour · Total de séjour**,
   the **Total de séjour pinned far right**, and **immediately to its right the paid/non-paid indicator**
   (as today). The former « Prix final » column is **replaced** by « Total de séjour ».
+- A **discreet box, top-right of the list**, shows the **Σ total de séjour** of the upcoming reservations
+  (sibling of the « en attente de paiement » box of §3.6).
 - Row click → open the reservation fiche.
 
 ### 3.6 « Suivi opérationnel »
 - **Paiement en retard** — only **direct** reservations (`platform = 'direct'`) that are overdue. Platform
-  bookings are handled by the platform → excluded.
+  bookings are handled by the platform → excluded. When there is **nothing overdue, the tab is hidden
+  entirely** (the selected view falls back to « Paiements en attente »).
 - **Paiement en attente** — only **past** reservations (`endDate < today`) **not yet settled** (§3.3). The
   amount column shows the **total de séjour** (drop the old « prix total »). The **caution column is removed**.
   A trailing **« Tout solder »** button per row marks the reservation fully settled (all components paid →
-  it leaves the list).
+  it leaves the list). A **green box, top-right of the list**, shows the **total still awaiting payment**
+  (Σ « reste à payer »).
 - **Réservations sur la période** — a reservation whose complement(s) were paid via **caisse interne** is
   considered **fully settled** (§3.3) and shown as such.
 - Row click (anywhere except the action button) → open the reservation fiche.
+- **Column totals** — every operational table (retard / attente / à venir / période) and the projection
+  table carries a **footer row totalling each numeric column** (server-computed). A disabled deposit shows
+  « Désactivé » (no amount) and is excluded from the acompte total.
+
+### 3.7 « Montant HT » (element-by-element, server-side) — decision 2026-06-16
+HT is computed **on the server, element by element**: the VAT-able revenue of a reservation is `finalPrice`
+(accommodation + options + resources, single global `vatRate` from app_settings); the **taxe de séjour**
+(`touristTaxTotal`) bears **no VAT** and is **not** revenue HT. The HT fraction of the full TTC is therefore
+`(finalPrice ÷ (1 + vatRate/100)) ÷ (finalPrice + touristTaxTotal)`, applied to whatever TTC portion is being
+summed (total de séjour, encaissé, …) so each card's HT stays consistent with the TTC figure shown above it.
 
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
 | Layer | File | C/T | Responsibility |
 |---|---|---|---|
-| models | `models/financeModel.js` | T | Add `totalSejour(r)` (§3.1) + `isSettled(r)` (§3.3). Rebase `summary(from,to)`: filter by `endDate ∈ [from,to]`; emit `revenueTotal` (Σ totalSejour), `collected` (compta), `pending` (Σ totalSejour of past-unsettled), `revenueByProperty` (Σ totalSejour), plus `yearToDate` + `yearTotal` (Σ totalSejour by `endDate` over the year, today / full). Rebase `projection(date)` on totalSejour. Rebase `operational()`: overdue = direct-only; pending = past-unsettled with totalSejour; settled honours caisse interne; drop caution. |
+| models | `models/financeModel.js` | T | Add `totalSejour(r)` (§3.1) + `isSettled(r)` (§3.3) + `htAmount(r, ttcPortion, vatRate)` (§3.7) + `getVatRate(db)`. Rebase `summary(from,to)`: filter by `endDate ∈ [from,to]`; emit `revenueTotal` (Σ totalSejour), `collected` (compta), `pending` (Σ totalSejour of past-unsettled), `revenueByProperty` (Σ totalSejour), `yearToDate` + `yearTotal`, plus the **`*Ht`** counterpart of each figure (§3.7). Rebase `projection(date)` on totalSejour. Rebase `operational()`: overdue = direct-only; pending = past-unsettled with totalSejour; settled honours caisse interne; drop caution; add **`totals`** (column sums) to each list. |
 | controllers | finance controller / routes | T | Pass-through of the new payload shape; a settle action reuses `PATCH /reservations/:id/payment` (set every component paid) — no new endpoint needed. |
 
 ### 4.2 Client side (`client/src/`)
 | Layer | File | C/T | Responsibility |
 |---|---|---|---|
-| pages | `pages/FinancePage.js` | T | 5 cards (2 new year cards first); « Revenus par logement » single-value bars; « Répartition » pie (encaissé/en attente); projection default today+1mo; upcoming-only list with the new column order + Total de séjour pinned right + paid indicator; operational table per §3.6 (overdue direct-only, pending past-unsettled + « Tout solder » button, no caution); **every row click → `navigate('/reservations/:id')`**. |
+| pages | `pages/FinancePage.js` | T | Cards on two rows (annual / period) each with its HT line (§3.2/§3.7); « Revenus par logement » single-value bars + du/au caption; « Répartition » pie with **in-slice amounts**; projection table **moved to the end of the page** (default today+1mo); upcoming list with the new column order + Total de séjour pinned right + paid indicator; operational tables per §3.6 (overdue direct-only, pending past-unsettled + « Tout solder » button, no caution) **+ a footer totals row per table**; **every row click → `navigate('/reservations/:id')`**. |
 | services | `api.js` | T | Adjust `getFinanceSummary/Projection/Operational` consumers to the new shape; the « Tout solder » uses `markPayment`. |
 
 No DB schema change — all values derive from existing reservation fields.
@@ -103,7 +123,8 @@ No DB schema change — all values derive from existing reservation fields.
 
 No new tables/columns. « total de séjour » + « settled » are computed from existing reservation fields
 (`depositAmount/Paid`, `balanceAmount/Paid`, `complementAmount/Paid/PaidCash`,
-`endOfStayComplementAmount/Paid/PaidCash`, `platform`, `startDate`, `endDate`).
+`endOfStayComplementAmount/Paid/PaidCash`, `platform`, `startDate`, `endDate`). The HT figures (§3.7) add
+`finalPrice` + `touristTaxTotal` per reservation and the global `app_settings.vatRate`.
 
 ## 6. UI / UX
 
@@ -111,15 +132,21 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
   the very top of the page (independent of the du/au range, 2 across from `sm` up / stacked on `xs`), then
   the **period selector** (du/au), then the three **period** cards (revenu total / encaissé / en attente —
   which depend on the range; 3 across from `sm` up / stacked on `xs`). Keep the existing colour language
-  (primary / green / orange).
+  (primary / green / orange). Inside each card the **TTC amount is centered both horizontally and
+  vertically** and the **HT line is right-aligned** with a small right margin; the cards are kept **compact**
+  (tight top/bottom padding + minimal spacing between label, amount and HT). On the « Revenu total » card the
+  « sur la période » qualifier sits **inline on the same line as the label**. The two annual cards use the
+  same treatment — a main label (« Revenus » / « Revenu total ») + a smaller inline qualifier
+  (« depuis le début de l'année » / « sur l'année »).
 - **List + operational tables** — rows get `cursor: pointer` + hover; click navigates to the fiche
-  (`stopPropagation` on the « Tout solder » button so it doesn't also navigate). Mobile: tables already
-  scroll/stack per the existing page; the new column order is preserved.
-- **Projection** — the date field defaults to today + 1 month.
+  (`stopPropagation` on the « Tout solder » button so it doesn't also navigate). Each table ends with a
+  bold **footer totals row** (top border) summing its numeric columns. Mobile: tables already scroll/stack
+  per the existing page; the new column order is preserved.
+- **Projection** — the date field defaults to today + 1 month; the card sits at the **bottom of the page**.
 
 ## 7. Test plan
 
-### Server unit tests (`financeModel`) — `server/src/tests/finance-model.unit.test.js` (14 tests, green)
+### Server unit tests (`financeModel`) — `server/src/tests/finance-model.unit.test.js` (17 tests, green)
 - [x] `totalSejour`: sums the four components; excludes BOTH complements when their caisse-interne
   flag is set; includes them otherwise.
 - [x] `summary`: revenueTotal / yearToDate / yearTotal use `endDate` windows; pending = Σ totalSejour of
@@ -127,13 +154,16 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
 - [x] `isSettled`: paid-or-cash per component (a zero-amount component is trivially settled); a
   caisse-interne complement → settled → drops out of pending.
 - [x] `operational`: overdue excludes platform reservations; pending = past-unsettled; amounts = totalSejour;
-  upcoming carries totalSejour + nights.
+  upcoming carries totalSejour + nights; each list carries column `totals` (disabled deposit excluded).
 - [x] `projection`: Σ totalSejour by `endDate ≤ target`; collected = compta; pending = the rest.
+- [x] `HT` (§3.7): element-by-element — `finalPrice ÷ (1+vat)`, taxe de séjour excluded; HT of the collected
+  portion is consistent with the TTC figure.
 
-### Client — `client/src/pages/__tests__/FinancePage.test.js` (4 tests, green)
+### Client — `client/src/pages/__tests__/FinancePage.test.js` (6 tests, green)
 - [x] FinancePage renders the 5 cards (2 year cards first); upcoming list shows Total de séjour pinned
   right with its paid indicator (settled honours caisse interne); a row click navigates to the fiche.
 - [x] « Tout solder » calls `markPayment` with every open component paid and doesn't navigate.
+- [x] Each card shows its element-by-element HT in smaller text; the pending table foots its columns.
 
 ### Manual UI verification (Playwright, 2026-06-16)
 - [x] 5 cards render year-first with the primary/green/orange language; « Revenus par logement » is a
@@ -145,6 +175,9 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
 - [x] Upcoming list shows the four payment components then Total de séjour pinned right + a paid indicator;
   a caisse-interne complement is excluded from the total and tagged « caisse »; row click opens the fiche.
 - [x] Mobile (390px): the 5 cards stack, tables scroll inside their container.
+- [x] *(2nd pass)* Each card shows its HT under the TTC; the pie prints amounts inside the slices; the
+  projection table is at the bottom; the operational tables (retard / attente / à venir / période) each
+  foot their columns; verified desktop + 390px.
 
 ## 8. Out of scope
 

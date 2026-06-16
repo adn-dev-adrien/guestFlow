@@ -2,17 +2,33 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Chip, Checkbox, Divider, Tabs, Tab,
-  Tooltip, IconButton
+  TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Checkbox, Divider, Tabs, Tab,
+  Tooltip, IconButton, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from 'recharts';
 import PageHeader from '../components/PageHeader';
 import { displayDate } from '../utils/formatters';
 import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
 
 const eur = (n) => `${Number(n || 0).toLocaleString('fr-FR')} €`;
+
+const RADIAN = Math.PI / 180;
+// specs/finance-overview-rework.md §3.4 — the amounts sit INSIDE the camembert (white text at each slice
+// centroid) rather than as outer labels.
+const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+  if (!value) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.6;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
+      {eur(value)}
+    </text>
+  );
+};
 
 export default function FinancePage() {
   const navigate = useNavigate();
@@ -88,33 +104,45 @@ export default function FinancePage() {
   // value per property (no collected/pending split).
   const barData = summary?.revenueByProperty?.map((p) => ({ name: p.propertyName, revenue: p.revenue })) || [];
 
-  // The server (financeModel.getOperational) owns all overdue/pending/upcoming derivation.
+  // The server (financeModel.getOperational) owns all overdue/pending/upcoming derivation + column totals.
   const overduePayments = operational?.overdue.reservations || [];
   const overdueReservationsCount = operational?.overdue.count || 0;
   const overdueTotalAmount = operational?.overdue.totalAmount || 0;
+  // Hide the « Paiements en retard » tab entirely when nothing is overdue (request 2026-06-16); if it was
+  // the selected tab, fall back to « Paiements en attente ».
+  const hasOverdue = overdueReservationsCount > 0;
+  const activeTab = (!hasOverdue && financeViewTab === 'overdue') ? 'pending' : financeViewTab;
   const pendingPayments = operational?.pending.reservations || [];
+  const pendingTotals = operational?.pending.totals || {};
   const upcomingReservations = operational?.upcoming.reservations || [];
+  const upcomingTotals = operational?.upcoming.totals || {};
 
   // specs/finance-overview-rework.md §3.2 / §6 — cards on TWO rows, keeping the primary / green / orange
   // colour language: the two annual cards first, then the three period cards (revenu total / encaissé /
-  // en attente).
+  // en attente). Each card shows its element-by-element HT (server-computed) in smaller text.
   const yearCards = summary ? [
-    { label: "Revenus depuis le début de l'année", value: summary.yearToDate, bg: '#00838f' },
-    { label: "Revenu total sur l'année", value: summary.yearTotal, bg: '#006064' },
+    { label: 'Revenus', caption: "depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, bg: '#00838f' },
+    { label: 'Revenu total', caption: "sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, bg: '#006064' },
   ] : [];
   const periodCards = summary ? [
-    { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, bg: 'primary.main' },
-    { label: 'Encaissé', value: summary.totalCollected, bg: '#4CAF50' },
-    { label: 'En attente', value: summary.totalPending, bg: '#f57c00' },
+    { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, bg: 'primary.main' },
+    { label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, bg: '#4CAF50' },
+    { label: 'En attente', value: summary.totalPending, valueHt: summary.totalPendingHt, bg: '#f57c00' },
   ] : [];
 
   const renderCard = (c, size) => (
     <Grid key={c.label} size={size}>
       <Card sx={{ bgcolor: c.bg, color: 'white', height: '100%' }}>
-        <CardContent>
-          <Typography variant="subtitle2">{c.label}</Typography>
-          {c.caption && <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{c.caption}</Typography>}
-          <Typography variant="h4">{eur(c.value)}</Typography>
+        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 0.75, '&:last-child': { pb: 0.75 } }}>
+          <Typography variant="subtitle2" sx={{ lineHeight: 1.2 }}>
+            {c.label}
+            {c.caption && <Typography component="span" variant="caption" sx={{ opacity: 0.85, ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
+          </Typography>
+          {/* TTC centered both horizontally and vertically; HT right-aligned at the bottom. */}
+          <Typography variant="h4" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', my: 0, lineHeight: 1.1 }}>{eur(c.value)}</Typography>
+          {c.valueHt != null && (
+            <Typography variant="caption" sx={{ opacity: 0.85, textAlign: 'right', mr: 1 }}>{eur(c.valueHt)} HT</Typography>
+          )}
         </CardContent>
       </Card>
     </Grid>
@@ -134,6 +162,75 @@ export default function FinancePage() {
       </Box>
     );
   };
+
+  const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider' };
+
+  const projectionCard = (
+    <Accordion defaultExpanded={false} sx={{ mb: 3 }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="h6">Projection à une date</Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Box sx={{ mb: 2 }}>
+          <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} />
+        </Box>
+        {projection && (
+          <>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">Total de séjour d'ici cette date</Typography>
+                <Typography variant="h5">{eur(projection.total)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
+                <Typography variant="h5">{eur(projection.collected)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">En attente</Typography>
+                <Typography variant="h5">{eur(projection.pending)}</Typography>
+              </Grid>
+            </Grid>
+            <TableContainer>
+              <Table size="small" sx={{ minWidth: 760 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Encaissé</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">État</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {projection.details.map((d) => (
+                    <TableRow key={d.reservationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${d.reservationId}`)}>
+                      <TableCell>{d.clientName}</TableCell>
+                      <TableCell>{d.propertyName}</TableCell>
+                      <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
+                      <TableCell align="right">{eur(d.collected)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(d.totalSejour)}</TableCell>
+                      <TableCell align="center">
+                        <Chip size="small" label={d.settled ? 'Réglé' : 'En attente'} color={d.settled ? 'success' : 'warning'} variant={d.settled ? 'filled' : 'outlined'} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={3} sx={footerCellSx}>Total</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{eur(projection.collected)}</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{eur(projection.total)}</TableCell>
+                    <TableCell sx={footerCellSx} />
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
+          </>
+        )}
+      </AccordionDetails>
+    </Accordion>
+  );
 
   return (
     <Box>
@@ -160,7 +257,7 @@ export default function FinancePage() {
       {/* Charts */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, md: 7 }}>
-          <Card>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
               <Typography variant="h6">Revenus par logement</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
@@ -179,8 +276,11 @@ export default function FinancePage() {
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis />
                     <RechartsTooltip formatter={(value) => eur(value)} />
-                    {/* Bar height = Σ total de séjour for that logement on the period. */}
-                    <Bar dataKey="revenue" fill="#1565c0" name="Total de séjour" radius={[4, 4, 0, 0]} />
+                    {/* Bar height = Σ total de séjour for that logement on the period; the amount is
+                        printed above each bar. */}
+                    <Bar dataKey="revenue" fill="#1565c0" name="Total de séjour" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="revenue" position="top" formatter={(value) => eur(value)} fill="#333" fontSize={11} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -188,12 +288,12 @@ export default function FinancePage() {
           </Card>
         </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
-          <Card>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>Répartition</Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label={({ name, value }) => `${name}: ${eur(value)}`}>
+                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" labelLine={false} label={renderPieLabel}>
                     {pieData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
                   </Pie>
                   <Legend />
@@ -204,61 +304,6 @@ export default function FinancePage() {
           </Card>
         </Grid>
       </Grid>
-      {/* Projection */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <Typography variant="h6">Projection à une date</Typography>
-            <TextField type="date" value={projectionDate} onChange={e => setProjectionDate(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} />
-          </Box>
-          {projection && (
-            <>
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Total de séjour d'ici cette date</Typography>
-                  <Typography variant="h5">{eur(projection.total)}</Typography>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
-                  <Typography variant="h5">{eur(projection.collected)}</Typography>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Typography variant="subtitle2" color="text.secondary">En attente</Typography>
-                  <Typography variant="h5">{eur(projection.pending)}</Typography>
-                </Grid>
-              </Grid>
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 760 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Encaissé</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">État</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {projection.details.map((d) => (
-                      <TableRow key={d.reservationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${d.reservationId}`)}>
-                        <TableCell>{d.clientName}</TableCell>
-                        <TableCell>{d.propertyName}</TableCell>
-                        <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
-                        <TableCell align="right">{eur(d.collected)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(d.totalSejour)}</TableCell>
-                        <TableCell align="center">
-                          <Chip size="small" label={d.settled ? 'Réglé' : 'En attente'} color={d.settled ? 'success' : 'warning'} variant={d.settled ? 'filled' : 'outlined'} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </>
-          )}
-        </CardContent>
-      </Card>
       <Divider sx={{ my: 3 }} />
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -274,62 +319,72 @@ export default function FinancePage() {
           </Box>
 
           <Tabs
-            value={financeViewTab}
+            value={activeTab}
             onChange={(_, nextTab) => setFinanceViewTab(nextTab)}
             variant="scrollable"
             allowScrollButtonsMobile
             sx={{ mt: 1.5, mb: 2 }}
           >
-            <Tab value="overdue" label="Paiements en retard" />
+            {hasOverdue && <Tab value="overdue" label="Paiements en retard" />}
             <Tab value="pending" label="Paiements en attente" />
             <Tab value="upcoming" label="Réservations à venir" />
             <Tab value="period" label="Réservations période" />
           </Tabs>
 
-          {financeViewTab === 'overdue' && (
-            overduePayments.length === 0 ? (
-              <Typography color="text.secondary">Aucun paiement en retard</Typography>
-            ) : (
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 920 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Éléments en retard</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Montant en retard</TableCell>
+          {activeTab === 'overdue' && (
+            <TableContainer>
+              <Table size="small" sx={{ minWidth: 920 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Éléments en retard</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">Montant en retard</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {overduePayments.map((r) => (
+                    <TableRow key={`overdue-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
+                      <TableCell>{r.firstName} {r.lastName}</TableCell>
+                      <TableCell>{r.propertyName}</TableCell>
+                      <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                          {r.depositOverdue && (
+                            <Chip size="small" color="error" label={`Acompte: ${r.depositAmount}€ (échu ${displayDate(r.depositDueDate)})`} />
+                          )}
+                          {r.balanceOverdue && (
+                            <Chip size="small" color="error" label={`Solde: ${r.balanceAmount}€ (échu ${displayDate(r.balanceDueDate)})`} />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{r.overdueAmount}€</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {overduePayments.map((r) => (
-                      <TableRow key={`overdue-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
-                        <TableCell>{r.firstName} {r.lastName}</TableCell>
-                        <TableCell>{r.propertyName}</TableCell>
-                        <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                            {r.depositOverdue && (
-                              <Chip size="small" color="error" label={`Acompte: ${r.depositAmount}€ (échu ${displayDate(r.depositDueDate)})`} />
-                            )}
-                            {r.balanceOverdue && (
-                              <Chip size="small" color="error" label={`Solde: ${r.balanceAmount}€ (échu ${displayDate(r.balanceDueDate)})`} />
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{r.overdueAmount}€</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                    <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{eur(overdueTotalAmount)}</TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
           )}
 
-          {financeViewTab === 'pending' && (
+          {activeTab === 'pending' && (
             pendingPayments.length === 0 ? (
               <Typography color="text.secondary">Aucun paiement en attente</Typography>
             ) : (
+              <>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <Chip
+                  size="small"
+                  label={`En attente de paiement : ${eur(pendingTotals.remainingDue)}`}
+                  sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
+                />
+              </Box>
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 980 }}>
                   <TableHead>
@@ -392,15 +447,34 @@ export default function FinancePage() {
                       );
                     })}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.depositAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.balanceAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.remainingDue)}</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{eur(pendingTotals.totalSejour)}</TableCell>
+                      <TableCell sx={footerCellSx} />
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
+              </>
             )
           )}
 
-          {financeViewTab === 'upcoming' && (
+          {activeTab === 'upcoming' && (
             upcomingReservations.length === 0 ? (
               <Typography color="text.secondary">Aucune réservation à venir</Typography>
             ) : (
+              <>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <Chip
+                  size="small"
+                  label={`Total de séjour à venir : ${eur(upcomingTotals.totalSejour)}`}
+                  sx={{ bgcolor: '#E3F2FD', color: '#1565c0', fontWeight: 600 }}
+                />
+              </Box>
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 1180 }}>
                   <TableHead>
@@ -437,12 +511,24 @@ export default function FinancePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={5} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.depositAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.balanceAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.complementAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.endOfStayComplementAmount)}</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{eur(upcomingTotals.totalSejour)}</TableCell>
+                      <TableCell sx={footerCellSx} />
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
+              </>
             )
           )}
 
-          {financeViewTab === 'period' && (
+          {activeTab === 'period' && (
             summary ? (
               <TableContainer>
                 <Table size="small" sx={{ minWidth: 920 }}>
@@ -492,6 +578,13 @@ export default function FinancePage() {
                       );
                     })}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{eur(summary.revenueTotal)}</TableCell>
+                      <TableCell sx={footerCellSx} />
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </TableContainer>
             ) : (
@@ -500,6 +593,8 @@ export default function FinancePage() {
           )}
         </CardContent>
       </Card>
+      {/* Projection moved to the very end of the page (less central than the operational tracking). */}
+      {projectionCard}
     </Box>
   );
 }
