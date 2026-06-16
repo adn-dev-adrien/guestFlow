@@ -9,7 +9,7 @@ import { vi } from 'vitest';
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 const navigateSpy = vi.fn();
@@ -24,6 +24,7 @@ vi.mock('../../api', () => ({
     getFinanceSummary: vi.fn(),
     getFinanceProjection: vi.fn(),
     getFinanceOperational: vi.fn(),
+    getReservation: vi.fn(),
     markPayment: vi.fn(),
   },
 }));
@@ -78,6 +79,7 @@ beforeEach(() => {
   api.getFinanceSummary.mockReset().mockResolvedValue(SUMMARY);
   api.getFinanceProjection.mockReset().mockResolvedValue(PROJECTION);
   api.getFinanceOperational.mockReset().mockResolvedValue(OPERATIONAL);
+  api.getReservation.mockReset().mockResolvedValue(null);
   api.markPayment.mockReset().mockResolvedValue({ ok: true });
 });
 
@@ -121,28 +123,28 @@ describe('FinancePage — total-de-séjour overview', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
-  test('upcoming list pins « Total de séjour » + a paid indicator (settled honours caisse interne)', async () => {
+  test('upcoming tab renders Planning ReservationCards (fetched per reservation) + the total box', async () => {
     api.getFinanceOperational.mockResolvedValue({
       overdue: { reservations: [], count: 0, totalAmount: 0 },
       pending: { reservations: [] },
-      upcoming: {
-        reservations: [{
-          id: 9, firstName: 'Léa', lastName: 'Roux', propertyName: 'Gîte', platform: 'direct',
-          startDate: '2026-07-01', endDate: '2026-07-05', nights: 4, totalSejour: 620, settled: true,
-          remainingDue: 0, depositAmount: 200, depositPaid: 1, balanceAmount: 400, balancePaid: 1,
-          complementAmount: 0, endOfStayComplementAmount: 20, endOfStayComplementPaidCash: 1,
-        }],
-        totals: { depositAmount: 200, balanceAmount: 400, complementAmount: 0, endOfStayComplementAmount: 20, totalSejour: 620 },
-      },
+      upcoming: { reservations: [{ id: 9 }], totals: { totalSejour: 620 } },
+    });
+    // The cards pull the full reservation detail, exactly like the Planning.
+    api.getReservation.mockResolvedValue({
+      id: 9, firstName: 'Léa', lastName: 'Roux', clientId: 3, propertyName: 'Gîte', platform: 'direct',
+      checkInTime: '15:00', checkInReady: false, adults: 2, children: 0, teens: 0, babies: 0,
+      doubleBeds: 1, singleBeds: 0, babyBeds: 0, options: [], resources: [], notes: '',
+      complementAmount: 0, cautionAmount: 0,
     });
     renderPage();
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Réservations à venir' }));
-    const row = (await screen.findByText('Léa Roux')).closest('tr');
-    expect(within(row).getByText('620 €')).toBeInTheDocument(); // total de séjour pinned right
-    expect(within(row).getByText('Payé')).toBeInTheDocument();   // settled via caisse interne
     // discreet « Total de séjour à venir » box (Σ total de séjour of upcoming)
-    expect(screen.getByText(/Total de séjour à venir : 620\s*€/)).toBeInTheDocument();
+    expect(await screen.findByText(/Total de séjour à venir : 620\s*€/)).toBeInTheDocument();
+    // the Planning arrival card for the upcoming reservation (rendered by ReservationCard)
+    expect(await screen.findByText('Léa Roux')).toBeInTheDocument();
+    expect(screen.getByText('Gîte')).toBeInTheDocument();
+    expect(api.getReservation).toHaveBeenCalledWith(9);
   });
 
   test('each card shows its element-by-element HT in smaller text', async () => {
