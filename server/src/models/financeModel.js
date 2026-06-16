@@ -21,6 +21,40 @@ function nightsBetween(startDate, endDate) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
+// specs/finance-overview-rework.md §3.1 — the « total de séjour » = the headline stay value used as the
+// single revenue unit: acompte + solde + complément d'arrivée + complément de fin de séjour, with BOTH
+// complements EXCLUDED when settled via caisse interne (off-books, decision 2026-06-16).
+function totalSejour(r) {
+  const deposit = Number(r.depositAmount || 0);
+  const balance = Number(r.balanceAmount || 0);
+  const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
+  const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
+  return round2(deposit + balance + complement + endOfStay);
+}
+
+// specs/finance-overview-rework.md §3.3 — a reservation is « soldé » when every applicable component is
+// paid OR marked caisse interne. A zero-amount component is trivially settled.
+function isSettled(r) {
+  // A zero-amount component is trivially settled; otherwise it must be paid (or, for the complements,
+  // marked caisse interne). Deposit also counts as settled when disabled per-reservation.
+  const depOk = Number(r.depositAmount || 0) === 0 || Boolean(r.depositDisabled) || Boolean(r.depositPaid);
+  const balOk = Number(r.balanceAmount || 0) === 0 || Boolean(r.balancePaid);
+  const compOk = Number(r.complementAmount || 0) === 0 || Boolean(r.complementPaid) || Boolean(r.complementPaidCash);
+  const eosOk = Number(r.endOfStayComplementAmount || 0) === 0 || Boolean(r.endOfStayComplementPaid) || Boolean(r.endOfStayComplementPaidCash);
+  return depOk && balOk && compOk && eosOk;
+}
+
+// « Encaissé » = the accounting total (specs/finance-overview-rework.md §3.2): every component marked paid
+// EXCLUDING caisse interne, so it equals what the compta export sums. (Deposit/balance carry no cash flag.)
+function comptaCollected(r) {
+  return round2(
+    (r.depositPaid ? Number(r.depositAmount || 0) : 0)
+    + (r.balancePaid ? Number(r.balanceAmount || 0) : 0)
+    + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
+    + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0),
+  );
+}
+
 function createFinanceModel(database) {
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
@@ -34,93 +68,86 @@ function createFinanceModel(database) {
     // `revenueByProperty` (added 2026-06-02) aggregates per logement so the FinancePage's
     // overview chart can render "revenu par logement" instead of "revenu par réservation"
     // (which was unreadable when many reservations stacked up). Sorted descending by revenue.
+    // specs/finance-overview-rework.md §3.2 — every revenue figure is Σ « total de séjour », a reservation
+    // counted by its DEPARTURE date (endDate). The period uses the du/au range; two extra figures cover
+    // the calendar year (to-date + full). « Encaissé » = the accounting total (comptaCollected). « En
+    // attente » = Σ total-séjour of PAST (endDate < today) + non-settled reservations of the period.
     getSummary({ from, to } = {}) {
       const today = todayIso();
       const start = from || today;
       const end = to || '2099-12-31';
+      const year = new Date().getFullYear();
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
 
       const reservations = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.startDate <= ? AND r.endDate >= ?
-        ORDER BY r.startDate
-      `).all(end, start);
+        WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
+        ORDER BY r.endDate
+      `).all(start, end);
 
+      let revenueTotal = 0;
       let totalCollected = 0;
       let totalPending = 0;
-      const byProperty = new Map(); // propertyId → { propertyName, revenue, collected, pending }
+      const byProperty = new Map(); // propertyId → { propertyName, revenue }
 
       const enriched = reservations.map((r) => {
-        const deposit    = Number(r.depositAmount    || 0);
-        const balance    = Number(r.balanceAmount    || 0);
-        const complement = Number(r.complementAmount || 0);
-        // End-of-stay complement (departure SAS) — same treatment as the arrival complement (§3.1).
-        const endOfStay  = Number(r.endOfStayComplementAmount || 0);
+        const stay = totalSejour(r);
+        const settled = isSettled(r);
+        revenueTotal += stay;
+        totalCollected += comptaCollected(r);
+        if (r.endDate < today && !settled) totalPending += stay;
 
-        // « Caisse interne » complements (complementPaidCash / endOfStayComplementPaidCash) ARE money
-        // collected, so they count in the financial tracking exactly like a normal paid complement —
-        // they are only excluded from the accounting export (specs/cash-complement-and-endofstay-finance.md
-        // §3.2). Hence no cash check here.
-        const stayCollected = (r.depositPaid             ? deposit    : 0)
-                            + (r.balancePaid             ? balance    : 0)
-                            + (r.complementPaid          ? complement : 0)
-                            + (r.endOfStayComplementPaid ? endOfStay  : 0);
-        const stayPending   = (r.depositPaid             ? 0 : deposit)
-                            + (r.balancePaid             ? 0 : balance)
-                            + (r.complementPaid          ? 0 : complement)
-                            + (r.endOfStayComplementPaid ? 0 : endOfStay);
-
-        totalCollected += stayCollected;
-        totalPending   += stayPending;
-
-        const propId = r.propertyId;
-        if (!byProperty.has(propId)) {
-          byProperty.set(propId, {
-            propertyId: propId,
-            propertyName: r.propertyName,
-            revenue:   0,
-            collected: 0,
-            pending:   0,
-          });
-        }
-        const agg = byProperty.get(propId);
-        agg.collected += stayCollected;
-        agg.pending   += stayPending;
-        agg.revenue   += stayCollected + stayPending;
+        const agg = byProperty.get(r.propertyId)
+          || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0 };
+        agg.revenue += stay;
+        byProperty.set(r.propertyId, agg);
 
         const status = computePaymentStatus(r, today);
         return {
           ...r,
+          totalSejour: stay,
+          settled,
           remainingDue: status.remainingDue,
-          depositOverdue: status.depositOverdue,
-          balanceOverdue: status.balanceOverdue,
           paymentComplete: status.paymentComplete,
         };
       });
 
       const revenueByProperty = Array.from(byProperty.values())
-        .map((p) => ({
-          propertyId: p.propertyId,
-          propertyName: p.propertyName,
-          revenue:   round2(p.revenue),
-          collected: round2(p.collected),
-          pending:   round2(p.pending),
-        }))
+        .map((p) => ({ propertyId: p.propertyId, propertyName: p.propertyName, revenue: round2(p.revenue) }))
         .sort((a, b) => b.revenue - a.revenue);
 
+      // Year cards (by endDate), independent of the selected period.
+      const yearRows = database.prepare(`
+        SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
+               endOfStayComplementAmount, endOfStayComplementPaidCash, endDate
+        FROM reservations WHERE kind = 'reservation' AND endDate >= ? AND endDate <= ?
+      `).all(yearStart, yearEnd);
+      let yearToDate = 0;
+      let yearTotal = 0;
+      for (const r of yearRows) {
+        const stay = totalSejour(r);
+        yearTotal += stay;
+        if (r.endDate <= today) yearToDate += stay;
+      }
+
       return {
-        // Σ encaissements (collected + pending). By construction the three cards add up.
-        totalRevenue:   round2(totalCollected + totalPending),
-        totalCollected: round2(totalCollected),
-        totalPending:   round2(totalPending),
+        revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by endDate)
+        totalCollected: round2(totalCollected), // accounting total (encaissé)
+        totalPending:   round2(totalPending),   // Σ total-séjour of past + non-settled
+        yearToDate:     round2(yearToDate),      // Σ total-séjour, Jan 1 → today
+        yearTotal:      round2(yearTotal),       // Σ total-séjour, full calendar year
         reservations:   enriched,
         revenueByProperty,
       };
     },
 
-    // Projection at a given date: what is collected vs expected by that date.
+    // Projection by a target date (specs/finance-overview-rework.md §3.4): the revenue realised by that
+    // date = Σ total-de-séjour of reservations whose departure (endDate) is on/before it, split into the
+    // accounting « encaissé » and the rest still « en attente ».
     getProjection({ date } = {}) {
       const targetDate = date || todayIso();
 
@@ -129,61 +156,36 @@ function createFinanceModel(database) {
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation'
-        ORDER BY r.startDate
-      `).all();
+        WHERE r.kind = 'reservation' AND r.endDate <= ?
+        ORDER BY r.endDate
+      `).all(targetDate);
 
+      let total = 0;
       let collected = 0;
-      let expectedByDate = 0;
       const details = [];
 
       for (const r of reservations) {
-        const depositCollected = r.depositPaid ? Number(r.depositAmount || 0) : 0;
-        const balanceCollected = r.balancePaid ? Number(r.balanceAmount || 0) : 0;
-        let depositExpected = 0;
-        let balanceExpected = 0;
-
-        if (!r.depositPaid && r.depositDueDate && r.depositDueDate <= targetDate) {
-          depositExpected = Number(r.depositAmount || 0);
-        }
-        if (!r.balancePaid && r.balanceDueDate && r.balanceDueDate <= targetDate) {
-          balanceExpected = Number(r.balanceAmount || 0);
-        }
-
-        collected += depositCollected + balanceCollected;
-        expectedByDate += depositExpected + balanceExpected;
-
-        if (depositExpected > 0 || balanceExpected > 0 || depositCollected > 0 || balanceCollected > 0) {
-          details.push({
-            reservationId: r.id,
-            clientName: `${r.firstName} ${r.lastName}`,
-            propertyName: r.propertyName,
-            startDate: r.startDate,
-            endDate: r.endDate,
-            finalPrice: r.finalPrice,
-            depositAmount: r.depositAmount,
-            depositPaid: !!r.depositPaid,
-            depositDueDate: r.depositDueDate,
-            // Per-reservation deposit opt-out (specs/disable-deposit-per-reservation.md).
-            // Propagate so the projection table renders "Désactivé" instead of "0€ Dû [null]"
-            // when the deposit is intentionally absent on this reservation.
-            depositDisabled: !!r.depositDisabled,
-            balanceAmount: r.balanceAmount,
-            balancePaid: !!r.balancePaid,
-            balanceDueDate: r.balanceDueDate,
-            depositCollected,
-            balanceCollected,
-            depositExpected,
-            balanceExpected,
-          });
-        }
+        const stay = totalSejour(r);
+        const comp = comptaCollected(r);
+        total += stay;
+        collected += comp;
+        details.push({
+          reservationId: r.id,
+          clientName: `${r.firstName} ${r.lastName}`,
+          propertyName: r.propertyName,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          totalSejour: stay,
+          collected: comp,
+          settled: isSettled(r),
+        });
       }
 
       return {
         targetDate,
-        collected: round2(collected),
-        expectedByDate: round2(expectedByDate),
-        total: round2(collected + expectedByDate),
+        total: round2(total),                       // Σ total-séjour by the target date
+        collected: round2(collected),               // accounting total among them
+        pending: round2(total - collected),         // the rest
         details,
       };
     },
@@ -193,53 +195,45 @@ function createFinanceModel(database) {
     getOperational() {
       const today = todayIso();
 
-      const pendingRows = database.prepare(`
+      const allRows = database.prepare(`
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation'
-          AND r.finalPrice IS NOT NULL
-          AND (r.depositPaid = 0
-           OR r.balancePaid = 0
-           OR (r.depositPaid = 1 AND r.balancePaid = 1 AND (
-                COALESCE(r.finalPrice, 0)
-                - COALESCE(r.depositAmount, 0)
-                - COALESCE(r.balanceAmount, 0)
-              ) > 0))
-        ORDER BY r.depositDueDate, r.balanceDueDate
+        ORDER BY r.startDate
       `).all();
 
-      const pending = pendingRows.map((r) => ({ ...r, ...computePaymentStatus(r, today) }));
+      const enrich = (r) => ({
+        ...r,
+        ...computePaymentStatus(r, today),
+        totalSejour: totalSejour(r),
+        settled: isSettled(r),
+        nights: nightsBetween(r.startDate, r.endDate),
+      });
 
-      const overdueReservations = pending
-        .filter((r) => r.isOverdue)
+      // Overdue: DIRECT bookings only — platforms collect the guest's payment themselves, so a late
+      // platform reservation isn't the operator's dunning concern (specs/finance-overview-rework.md §3.6).
+      const overdueReservations = allRows.map(enrich)
+        .filter((r) => String(r.platform || 'direct').toLowerCase() === 'direct' && r.isOverdue && !r.settled)
         .sort((a, b) => (a.oldestDueDate || '').localeCompare(b.oldestDueDate || ''));
       const overdueTotalAmount = round2(
         overdueReservations.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0),
       );
 
-      // Upcoming: not-yet-ended reservations, top-N per property by start date, flattened + sorted.
-      const upcomingRows = database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
-        FROM reservations r
-        JOIN clients c ON r.clientId = c.id
-        JOIN properties p ON r.propertyId = p.id
-        WHERE r.kind = 'reservation' AND r.endDate >= ?
-        ORDER BY r.startDate
-      `).all(today);
+      // Pending = PAST stays (endDate < today) not yet settled. The amount shown is the total de séjour;
+      // a caisse-interne complement counts as settled so it drops out (§3.3 / §3.6).
+      const pending = allRows.map(enrich)
+        .filter((r) => r.endDate < today && !r.settled)
+        .sort((a, b) => (a.endDate || '').localeCompare(b.endDate || ''));
 
+      // Upcoming = endDate >= today, top-N per property by start date, flattened + sorted.
       const byProperty = new Map();
-      for (const r of upcomingRows) {
+      for (const r of allRows) {
+        if (r.endDate < today) continue;
         const list = byProperty.get(r.propertyId) || [];
         if (list.length < UPCOMING_PER_PROPERTY) {
-          const status = computePaymentStatus(r, today);
-          list.push({
-            ...r,
-            remainingDue: status.remainingDue,
-            paymentComplete: status.paymentComplete,
-            nights: nightsBetween(r.startDate, r.endDate),
-          });
+          list.push(enrich(r));
           byProperty.set(r.propertyId, list);
         }
       }
