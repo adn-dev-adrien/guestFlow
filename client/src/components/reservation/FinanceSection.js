@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
+import DateField from '../DateField';
 import { useReservationForm } from './ReservationFormContext';
 
 function todayStr() {
@@ -258,7 +259,7 @@ export default function FinanceSection() {
                           }
                         />
                       )}
-                      <TextField
+                      <DateField
                         label="Échéance acompte"
                         type="date"
                         value={form.depositDueDate}
@@ -287,7 +288,7 @@ export default function FinanceSection() {
                         {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
                       </Button>
                       {form.depositPaid && (
-                        <TextField
+                        <DateField
                           label="Payé le"
                           type="date"
                           value={form.depositPaidDate || ''}
@@ -316,7 +317,7 @@ export default function FinanceSection() {
                     md: 6
                   }}>
                   <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Solde</Typography>
-                  <TextField
+                  <DateField
                     label="Échéance solde"
                     type="date"
                     value={form.balanceDueDate}
@@ -345,7 +346,7 @@ export default function FinanceSection() {
                     {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
                   </Button>
                   {form.balancePaid && (
-                    <TextField
+                    <DateField
                       label="Payé le"
                       type="date"
                       value={form.balancePaidDate || ''}
@@ -447,7 +448,7 @@ export default function FinanceSection() {
                           {form.complementPaid ? 'Complément payé' : 'Marquer complément payé'}
                         </Button>
                         {form.complementPaid && (
-                          <TextField
+                          <DateField
                             label="Payé le"
                             type="date"
                             value={form.complementPaidDate || ''}
@@ -540,7 +541,7 @@ export default function FinanceSection() {
                           {form.endOfStayComplementPaid ? 'Complément payé' : 'Marquer complément payé'}
                         </Button>
                         {form.endOfStayComplementPaid && (
-                          <TextField
+                          <DateField
                             label="Payé le"
                             type="date"
                             value={form.endOfStayComplementPaidDate || ''}
@@ -616,7 +617,7 @@ export default function FinanceSection() {
                   >
                     {form.cautionReceived ? 'Caution reçue' : 'Marquer caution reçue'}
                   </Button>
-                  <TextField
+                  <DateField
                     label="Date réception"
                     type="date"
                     value={form.cautionReceivedDate}
@@ -658,7 +659,7 @@ export default function FinanceSection() {
                   >
                     {form.cautionReturned ? 'Caution restituée' : 'Marquer caution restituée'}
                   </Button>
-                  <TextField
+                  <DateField
                     label="Date restitution"
                     type="date"
                     value={form.cautionReturnedDate}
