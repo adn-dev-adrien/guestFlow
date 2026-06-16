@@ -55,6 +55,27 @@ function comptaCollected(r) {
   );
 }
 
+function getVatRate(database) {
+  const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
+  return row && row.vatRate != null ? Number(row.vatRate) : 10;
+}
+
+// specs/finance-overview-rework.md §3.7 — element-by-element HT (decision 2026-06-16): the VAT-able revenue
+// of a reservation is `finalPrice` (accommodation + options + resources, single global rate); the tourist
+// tax bears NO VAT and is NOT revenue HT. The HT fraction of the full TTC is therefore
+// (finalPrice ÷ (1+vat)) ÷ (finalPrice + touristTax). We apply that fraction to whatever TTC portion we're
+// summing (total de séjour, encaissé, …) so the HT stays consistent with the TTC figure shown above it.
+function htAmount(r, ttcPortion, vatRate) {
+  const portion = Number(ttcPortion || 0);
+  if (portion <= 0) return 0;
+  const finalPrice = Math.max(0, Number(r.finalPrice || 0));
+  const tax = Math.max(0, Number(r.touristTaxTotal || 0));
+  const fullTtc = finalPrice + tax;
+  if (fullTtc <= 0) return 0;
+  const ratio = (finalPrice / (1 + vatRate / 100)) / fullTtc;
+  return round2(portion * ratio);
+}
+
 function createFinanceModel(database) {
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
@@ -89,17 +110,24 @@ function createFinanceModel(database) {
         ORDER BY r.endDate
       `).all(start, end);
 
+      const vatRate = getVatRate(database);
       let revenueTotal = 0;
       let totalCollected = 0;
       let totalPending = 0;
+      let revenueTotalHt = 0;
+      let totalCollectedHt = 0;
+      let totalPendingHt = 0;
       const byProperty = new Map(); // propertyId → { propertyName, revenue }
 
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
         const settled = isSettled(r);
+        const collected = comptaCollected(r);
         revenueTotal += stay;
-        totalCollected += comptaCollected(r);
-        if (r.endDate < today && !settled) totalPending += stay;
+        revenueTotalHt += htAmount(r, stay, vatRate);
+        totalCollected += collected;
+        totalCollectedHt += htAmount(r, collected, vatRate);
+        if (r.endDate < today && !settled) { totalPending += stay; totalPendingHt += htAmount(r, stay, vatRate); }
 
         const agg = byProperty.get(r.propertyId)
           || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0 };
@@ -123,23 +151,33 @@ function createFinanceModel(database) {
       // Year cards (by endDate), independent of the selected period.
       const yearRows = database.prepare(`
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
-               endOfStayComplementAmount, endOfStayComplementPaidCash, endDate
+               endOfStayComplementAmount, endOfStayComplementPaidCash, endDate,
+               finalPrice, touristTaxTotal
         FROM reservations WHERE kind = 'reservation' AND endDate >= ? AND endDate <= ?
       `).all(yearStart, yearEnd);
       let yearToDate = 0;
       let yearTotal = 0;
+      let yearToDateHt = 0;
+      let yearTotalHt = 0;
       for (const r of yearRows) {
         const stay = totalSejour(r);
+        const stayHt = htAmount(r, stay, vatRate);
         yearTotal += stay;
-        if (r.endDate <= today) yearToDate += stay;
+        yearTotalHt += stayHt;
+        if (r.endDate <= today) { yearToDate += stay; yearToDateHt += stayHt; }
       }
 
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by endDate)
+        revenueTotalHt: round2(revenueTotalHt), // …its element-by-element HT (tax excluded, ÷ vat)
         totalCollected: round2(totalCollected), // accounting total (encaissé)
+        totalCollectedHt: round2(totalCollectedHt),
         totalPending:   round2(totalPending),   // Σ total-séjour of past + non-settled
+        totalPendingHt: round2(totalPendingHt),
         yearToDate:     round2(yearToDate),      // Σ total-séjour, Jan 1 → today
+        yearToDateHt:   round2(yearToDateHt),
         yearTotal:      round2(yearTotal),       // Σ total-séjour, full calendar year
+        yearTotalHt:    round2(yearTotalHt),
         reservations:   enriched,
         revenueByProperty,
       };
@@ -241,14 +279,39 @@ function createFinanceModel(database) {
         .flat()
         .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
 
+      // Column totals for each table footer (specs/finance-overview-rework.md §3.6). Sums match the
+      // displayed columns: a disabled deposit shows « Désactivé » (no amount) so it doesn't count.
+      const sumBy = (rows, key, predicate) => round2(
+        rows.reduce((s, r) => s + ((!predicate || predicate(r)) ? Number(r[key] || 0) : 0), 0),
+      );
+      const notDisabledDeposit = (r) => !r.depositDisabled;
+
       return {
         overdue: {
           reservations: overdueReservations,
           count: overdueReservations.length,
           totalAmount: overdueTotalAmount,
+          totals: { overdueAmount: overdueTotalAmount },
         },
-        pending: { reservations: pending },
-        upcoming: { reservations: upcoming },
+        pending: {
+          reservations: pending,
+          totals: {
+            depositAmount: sumBy(pending, 'depositAmount', notDisabledDeposit),
+            balanceAmount: sumBy(pending, 'balanceAmount'),
+            remainingDue: sumBy(pending, 'remainingDue'),
+            totalSejour: sumBy(pending, 'totalSejour'),
+          },
+        },
+        upcoming: {
+          reservations: upcoming,
+          totals: {
+            depositAmount: sumBy(upcoming, 'depositAmount', notDisabledDeposit),
+            balanceAmount: sumBy(upcoming, 'balanceAmount'),
+            complementAmount: sumBy(upcoming, 'complementAmount'),
+            endOfStayComplementAmount: sumBy(upcoming, 'endOfStayComplementAmount'),
+            totalSejour: sumBy(upcoming, 'totalSejour'),
+          },
+        },
       };
     },
 
