@@ -62,7 +62,8 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
 
 ### 3.4 Graphs
 - **Revenus par logement** — Σ totalSejour **per property** over the period (by `endDate`). Single value
-  per property (no more collected/pending split). The card states the active **du/au period** under its title.
+  per property (no more collected/pending split). The card states the active **du/au period** under its
+  title, and the **amount is printed above each bar**.
 - **Répartition** — pie of **Encaissé** vs **En attente** (the two card figures). The amounts are printed
   **inside the camembert slices** (white text at each slice centroid), not as outer labels.
 - **Projection à une date** — date input **defaults to today + 1 month**. All projection figures are based

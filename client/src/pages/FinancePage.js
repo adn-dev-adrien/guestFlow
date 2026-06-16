@@ -6,7 +6,7 @@ import {
   Tooltip, IconButton
 } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from 'recharts';
 import PageHeader from '../components/PageHeader';
 import { displayDate } from '../utils/formatters';
 import { getPlatformColor } from '../constants/platforms';
@@ -266,8 +266,11 @@ export default function FinancePage() {
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis />
                     <RechartsTooltip formatter={(value) => eur(value)} />
-                    {/* Bar height = Σ total de séjour for that logement on the period. */}
-                    <Bar dataKey="revenue" fill="#1565c0" name="Total de séjour" radius={[4, 4, 0, 0]} />
+                    {/* Bar height = Σ total de séjour for that logement on the period; the amount is
+                        printed above each bar. */}
+                    <Bar dataKey="revenue" fill="#1565c0" name="Total de séjour" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="revenue" position="top" formatter={(value) => eur(value)} fill="#333" fontSize={11} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
