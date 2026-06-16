@@ -277,9 +277,9 @@ export default function FinancePage() {
                     <YAxis />
                     <RechartsTooltip formatter={(value) => eur(value)} />
                     {/* Bar height = Σ total de séjour for that logement on the period; the amount is
-                        printed above each bar. */}
+                        printed inside the bar. */}
                     <Bar dataKey="revenue" fill="#1565c0" name="Total de séjour" radius={[4, 4, 0, 0]}>
-                      <LabelList dataKey="revenue" position="top" formatter={(value) => eur(value)} fill="#333" fontSize={11} />
+                      <LabelList dataKey="revenue" position="center" formatter={(value) => eur(value)} fill="#fff" fontSize={12} fontWeight={600} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
