@@ -306,6 +306,10 @@ const api = {
   listLaundrySkips: () => request('/laundry/skips'),
   addLaundrySkip: (date) => request('/laundry/skips', { method: 'POST', body: { date } }),
   removeLaundrySkip: (date) => request(`/laundry/skips/${date}`, { method: 'DELETE' }),
+  // Per-trip manual linen additions — `{ additions: { 'YYYY-MM-DD': {6 counts} } }`. PUT upserts a
+  // trip's six per-type counts (all-zero deletes). Spec specs/manual-laundry-additions.md §4.3.
+  getLaundryManualAdditions: () => request('/laundry/manual-additions'),
+  setLaundryManualAddition: (date, counts) => request(`/laundry/manual-additions/${date}`, { method: 'PUT', body: counts }),
   // Dashboard iCal date-drift approvals — pending date-change proposals on locked iCal
   // reservations (specs/ical-sync-override-locked-dates.md §4.3).
   getIcalDateDriftAlert: () => request('/dashboard/ical-date-drift'),

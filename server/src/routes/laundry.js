@@ -10,9 +10,14 @@
 
 const router = require('express').Router();
 const ctrl = require('../controllers/laundryTripSkipsController');
+const additionsCtrl = require('../controllers/laundryManualAdditionsController');
 
 router.get('/skips', ctrl.listSkips);
 router.post('/skips', ctrl.addSkip);
 router.delete('/skips/:date', ctrl.removeSkip);
+
+// Per-trip manual linen additions (specs/manual-laundry-additions.md §4.3).
+router.get('/manual-additions', additionsCtrl.listAdditions);
+router.put('/manual-additions/:date', additionsCtrl.setAddition);
 
 module.exports = router;
