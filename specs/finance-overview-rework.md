@@ -60,7 +60,7 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
 
 ### 3.4 Graphs
 - **Revenus par logement** — Σ totalSejour **per property** over the period (by `endDate`). Single value
-  per property (no more collected/pending split).
+  per property (no more collected/pending split). The card states the active **du/au period** under its title.
 - **Répartition** — pie of **Encaissé** vs **En attente** (the two card figures).
 - **Projection à une date** — date input **defaults to today + 1 month**. All projection figures are based
   on totalSejour of the reservations (by `endDate`) up to that date.
@@ -107,8 +107,11 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
 
 ## 6. UI / UX
 
-- **Cards** — 5 across (responsive: wrap to 2/1 per row on small screens). The two year cards first, then
-  période revenue / encaissé / en attente. Keep the existing colour language (primary / green / orange).
+- **Cards** — laid out on **two rows with the period selector between them**: the two **annual** cards at
+  the very top of the page (independent of the du/au range, 2 across from `sm` up / stacked on `xs`), then
+  the **period selector** (du/au), then the three **period** cards (revenu total / encaissé / en attente —
+  which depend on the range; 3 across from `sm` up / stacked on `xs`). Keep the existing colour language
+  (primary / green / orange).
 - **List + operational tables** — rows get `cursor: pointer` + hover; click navigates to the fiche
   (`stopPropagation` on the « Tout solder » button so it doesn't also navigate). Mobile: tables already
   scroll/stack per the existing page; the new column order is preserved.

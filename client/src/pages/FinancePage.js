@@ -95,15 +95,30 @@ export default function FinancePage() {
   const pendingPayments = operational?.pending.reservations || [];
   const upcomingReservations = operational?.upcoming.reservations || [];
 
-  // specs/finance-overview-rework.md §3.2 — five cards: the two year cards first, then période / encaissé /
-  // en attente, keeping the primary / green / orange colour language.
-  const cards = summary ? [
+  // specs/finance-overview-rework.md §3.2 / §6 — cards on TWO rows, keeping the primary / green / orange
+  // colour language: the two annual cards first, then the three period cards (revenu total / encaissé /
+  // en attente).
+  const yearCards = summary ? [
     { label: "Revenus depuis le début de l'année", value: summary.yearToDate, bg: '#00838f' },
     { label: "Revenu total sur l'année", value: summary.yearTotal, bg: '#006064' },
+  ] : [];
+  const periodCards = summary ? [
     { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, bg: 'primary.main' },
     { label: 'Encaissé', value: summary.totalCollected, bg: '#4CAF50' },
     { label: 'En attente', value: summary.totalPending, bg: '#f57c00' },
   ] : [];
+
+  const renderCard = (c, size) => (
+    <Grid key={c.label} size={size}>
+      <Card sx={{ bgcolor: c.bg, color: 'white', height: '100%' }}>
+        <CardContent>
+          <Typography variant="subtitle2">{c.label}</Typography>
+          {c.caption && <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{c.caption}</Typography>}
+          <Typography variant="h4">{eur(c.value)}</Typography>
+        </CardContent>
+      </Card>
+    </Grid>
+  );
 
   // A money component (acompte / solde / complément / complément fin de séjour) for the upcoming list:
   // amount tinted green once paid (or « caisse » when settled off-books), em-dash when there's nothing due.
@@ -123,26 +138,23 @@ export default function FinancePage() {
   return (
     <Box>
       <PageHeader title="Suivi financier" />
-      {/* Period selector */}
-      <Card sx={{ mb: 3 }}>
+      {/* Row 1 — annual cards at the very top (independent of the selected period: 2 across from sm up). */}
+      {summary && (
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          {yearCards.map((c) => renderCard(c, { xs: 12, sm: 6 }))}
+        </Grid>
+      )}
+      {/* Period selector — drives the period cards + charts below it. */}
+      <Card sx={{ mb: 2 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField label="Du" type="date" value={from} onChange={e => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           <TextField label="Au" type="date" value={to} onChange={e => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
         </CardContent>
       </Card>
+      {/* Row 2 — period cards (depend on the du/au range: 3 across from sm up, stacked on xs). */}
       {summary && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          {cards.map((c) => (
-            <Grid key={c.label} size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}>
-              <Card sx={{ bgcolor: c.bg, color: 'white', height: '100%' }}>
-                <CardContent>
-                  <Typography variant="subtitle2">{c.label}</Typography>
-                  {c.caption && <Typography variant="caption" sx={{ opacity: 0.85, display: 'block' }}>{c.caption}</Typography>}
-                  <Typography variant="h4">{eur(c.value)}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+          {periodCards.map((c) => renderCard(c, { xs: 12, sm: 4 }))}
         </Grid>
       )}
       {/* Charts */}
@@ -150,7 +162,10 @@ export default function FinancePage() {
         <Grid size={{ xs: 12, md: 7 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Revenus par logement</Typography>
+              <Typography variant="h6">Revenus par logement</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Période du {displayDate(from)} au {displayDate(to)}
+              </Typography>
               {barData.length === 0 ? (
                 <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
