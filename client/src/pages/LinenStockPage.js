@@ -17,6 +17,7 @@ import HotelIcon from '@mui/icons-material/Hotel';
 import BathtubIcon from '@mui/icons-material/Bathtub';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
+import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import ConfirmDialog from '../components/ConfirmDialog';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
@@ -35,10 +36,16 @@ export default function LinenStockPage() {
   const [saving, setSaving] = useState(false);
   const [savedForm, setSavedForm] = useState(EMPTY);
   const [draft, setDraft] = useState(EMPTY);
+  // « Jour de blanchisserie » lives on this page (moved from Paramètres → Générale). Tracked
+  // alongside the stock so the save bar + dirty guard cover both.
+  const [laundryWeekday, setLaundryWeekday] = useState(2);
+  const [savedWeekday, setSavedWeekday] = useState(2);
   const [snackbar, setSnackbar] = useState(null);
 
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
-    draft, saved: savedForm, navigate,
+    draft: { ...draft, laundryWeekday },
+    saved: { ...savedForm, laundryWeekday: savedWeekday },
+    navigate,
   });
 
   useEffect(() => {
@@ -51,6 +58,9 @@ export default function LinenStockPage() {
         const shaped = { ...EMPTY, ...linenStock };
         setSavedForm(shaped);
         setDraft(shaped);
+        const wd = data && data.laundry && Number.isInteger(Number(data.laundry.weekday)) ? Number(data.laundry.weekday) : 2;
+        setLaundryWeekday(wd);
+        setSavedWeekday(wd);
       } catch (err) {
         if (mounted) setSnackbar({ severity: 'error', message: err.message || 'Impossible de charger le stock.' });
       } finally {
@@ -65,9 +75,10 @@ export default function LinenStockPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.updateSettings({ linenStock: draft });
+      await api.updateSettings({ linenStock: draft, laundry: { weekday: laundryWeekday } });
       setSavedForm(draft);
-      setSnackbar({ severity: 'success', message: 'Stock enregistré.' });
+      setSavedWeekday(laundryWeekday);
+      setSnackbar({ severity: 'success', message: 'Enregistré.' });
     } catch (err) {
       setSnackbar({ severity: 'error', message: err.message || 'Échec de l\'enregistrement.' });
     } finally {
@@ -75,7 +86,7 @@ export default function LinenStockPage() {
     }
   };
 
-  const handleCancel = () => setDraft(savedForm);
+  const handleCancel = () => { setDraft(savedForm); setLaundryWeekday(savedWeekday); };
 
   return (
     <Box>
@@ -94,6 +105,13 @@ export default function LinenStockPage() {
             {snackbar.message}
           </Alert>
         )}
+
+        {/* « Jour de blanchisserie » (moved here from Paramètres → Générale). */}
+        <SettingsLaundrySection
+          value={laundryWeekday}
+          onChange={setLaundryWeekday}
+          disabled={loading || saving}
+        />
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           Indiquez combien de jeux complets de chaque type vous possédez. Le total est partagé

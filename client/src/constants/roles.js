@@ -56,7 +56,12 @@ export const ROUTE_ROLES = Object.freeze({
   '/clients':                [ADMIN],
   '/school-holidays':        [ADMIN],
   '/establishment-closures': [ADMIN],
+  // Combined menu pages (tabs over the standalone pages above).
+  '/parametres/options-ressources':  [ADMIN],
+  '/parametres/vacances-fermetures': [ADMIN],
   '/parametres/stock-blanchisserie': [ADMIN],
+  // Dedicated « Tarifs facturables » page (prix du linge manquant + montants de réparation SAS).
+  '/parametres/tarifs':      [ADMIN],
   // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
   '/parametres/paiements':   [ADMIN],
   '/account':                [ADMIN, ACCOUNTANT],
