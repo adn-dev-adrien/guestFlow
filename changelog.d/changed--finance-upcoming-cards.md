@@ -1,0 +1,1 @@
+- Finance « Vue générale » → onglet « Réservations à venir » : la liste est désormais une suite de **cartes identiques à celles du Planning** (cartes d'arrivée : logement, plateforme, famille, lits, options, complément/caution à percevoir, bouton check-in SAS, etc.), au lieu d'un tableau. Même ensemble de réservations extraites ; le total « Total de séjour à venir » est conservé.

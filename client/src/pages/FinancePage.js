@@ -9,6 +9,8 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from 'recharts';
 import PageHeader from '../components/PageHeader';
+import ReservationCard from '../components/ReservationCard';
+import ReservationSasDialog from '../components/sas/ReservationSasDialog';
 import { displayDate } from '../utils/formatters';
 import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
@@ -49,6 +51,11 @@ export default function FinancePage() {
   const [projection, setProjection] = useState(null);
   const [operational, setOperational] = useState(null);
   const [financeViewTab, setFinanceViewTab] = useState('overdue');
+  // specs/finance-overview-rework.md §3.5 — « Réservations à venir » renders the same Planning arrival
+  // cards (ReservationCard). The operational payload gives the SET; we fetch each reservation's full
+  // detail (options/resources/beds…) exactly as PlanningPage does, then render the cards.
+  const [upcomingDetails, setUpcomingDetails] = useState([]);
+  const [sas, setSas] = useState(null);
 
   useEffect(() => {
     api.getFinanceSummary(from, to).then(setSummary);
@@ -65,6 +72,25 @@ export default function FinancePage() {
   useEffect(() => {
     loadOperational();
   }, []);
+
+  // Fetch the full reservation detail for each upcoming reservation (same source the Planning cards use),
+  // so ReservationCard can render beds / family / options / resources / complément / caution.
+  useEffect(() => {
+    const ups = operational?.upcoming?.reservations || [];
+    if (ups.length === 0) { setUpcomingDetails([]); return undefined; }
+    let alive = true;
+    Promise.all(ups.map((r) => api.getReservation(r.id).catch(() => null)))
+      .then((list) => { if (alive) setUpcomingDetails(list.filter(Boolean)); });
+    return () => { alive = false; };
+  }, [operational]);
+
+  // ReservationCard's « prêt » checkbox — toggles checkInReady (PATCH /payment handles it) + refreshes
+  // that card's detail.
+  const handleToggleReady = async (r) => {
+    await api.markPayment(r.id, { checkInReady: !r.checkInReady });
+    const fresh = await api.getReservation(r.id).catch(() => null);
+    if (fresh) setUpcomingDetails((list) => list.map((d) => (d.id === r.id ? fresh : d)));
+  };
 
   const refreshAll = async () => {
     const [nextSummary, nextProjection] = await Promise.all([
@@ -147,21 +173,6 @@ export default function FinancePage() {
       </Card>
     </Grid>
   );
-
-  // A money component (acompte / solde / complément / complément fin de séjour) for the upcoming list:
-  // amount tinted green once paid (or « caisse » when settled off-books), em-dash when there's nothing due.
-  const renderComponent = (amount, paid, cash, disabled) => {
-    if (disabled) return <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.disabled' }}>Désactivé</Typography>;
-    if (!amount || Number(amount) === 0) return <Typography variant="body2" color="text.disabled">—</Typography>;
-    const settledHere = paid || cash;
-    return (
-      <Box>
-        <Typography variant="body2" sx={{ color: settledHere ? 'success.main' : 'text.primary', fontWeight: settledHere ? 600 : 400 }}>{amount}€</Typography>
-        {cash ? <Typography variant="caption" color="warning.main">caisse</Typography>
-          : (paid ? <Typography variant="caption" color="success.main">payé</Typography> : null)}
-      </Box>
-    );
-  };
 
   const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider' };
 
@@ -468,62 +479,28 @@ export default function FinancePage() {
               <Typography color="text.secondary">Aucune réservation à venir</Typography>
             ) : (
               <>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
                 <Chip
                   size="small"
                   label={`Total de séjour à venir : ${eur(upcomingTotals.totalSejour)}`}
                   sx={{ bgcolor: '#E3F2FD', color: '#1565c0', fontWeight: 600 }}
                 />
               </Box>
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 1180 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Nuits</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Acompte</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Solde</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Complément</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Compl. fin de séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }} align="center">Payé</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {upcomingReservations.map((r) => (
-                      <TableRow key={`upcoming-${r.id}`} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
-                        <TableCell>{r.firstName} {r.lastName}</TableCell>
-                        <TableCell>{r.propertyName}</TableCell>
-                        <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
-                        <TableCell>{r.nights}</TableCell>
-                        <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: getPlatformColor(r.platform), color: 'white' }} /></TableCell>
-                        <TableCell align="center">{renderComponent(r.depositAmount, r.depositPaid, false, r.depositDisabled)}</TableCell>
-                        <TableCell align="center">{renderComponent(r.balanceAmount, r.balancePaid, false, false)}</TableCell>
-                        <TableCell align="center">{renderComponent(r.complementAmount, r.complementPaid, r.complementPaidCash, false)}</TableCell>
-                        <TableCell align="center">{renderComponent(r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidCash, false)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(r.totalSejour)}</TableCell>
-                        <TableCell align="center">
-                          <Chip size="small" label={r.settled ? 'Payé' : `Reste ${Math.round((r.remainingDue || 0) * 100) / 100}€`} color={r.settled ? 'success' : 'warning'} variant={r.settled ? 'filled' : 'outlined'} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell colSpan={5} sx={footerCellSx}>Total</TableCell>
-                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.depositAmount)}</TableCell>
-                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.balanceAmount)}</TableCell>
-                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.complementAmount)}</TableCell>
-                      <TableCell align="center" sx={footerCellSx}>{eur(upcomingTotals.endOfStayComplementAmount)}</TableCell>
-                      <TableCell align="right" sx={footerCellSx}>{eur(upcomingTotals.totalSejour)}</TableCell>
-                      <TableCell sx={footerCellSx} />
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </TableContainer>
+              {/* Same arrival cards as the Planning, one after another. */}
+              {upcomingDetails.length === 0 ? (
+                <Typography color="text.secondary">Chargement…</Typography>
+              ) : (
+                upcomingDetails.map((r) => (
+                  <ReservationCard
+                    key={r.id}
+                    reservation={r}
+                    onToggleReady={handleToggleReady}
+                    onOpenReservation={(id) => navigate(`/reservations/${id}`)}
+                    onOpenSas={(id) => setSas({ reservationId: id, mode: 'arrival' })}
+                    onOpenClient={(clientId) => navigate(`/clients?clientId=${clientId}`)}
+                  />
+                ))
+              )}
               </>
             )
           )}
@@ -595,6 +572,22 @@ export default function FinancePage() {
       </Card>
       {/* Projection moved to the very end of the page (less central than the operational tracking). */}
       {projectionCard}
+
+      {/* Arrival SAS launched from an upcoming card (same dialog as the Planning). */}
+      <ReservationSasDialog
+        open={!!sas}
+        reservationId={sas?.reservationId}
+        mode={sas?.mode || 'arrival'}
+        onClose={() => setSas(null)}
+        onCommitted={async () => {
+          const id = sas?.reservationId;
+          setSas(null);
+          if (id) {
+            const fresh = await api.getReservation(id).catch(() => null);
+            if (fresh) setUpcomingDetails((list) => list.map((d) => (d.id === id ? fresh : d)));
+          }
+        }}
+      />
     </Box>
   );
 }
