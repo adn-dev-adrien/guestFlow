@@ -81,10 +81,33 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
       `).run(SEED_DEFINITION_EN.title);
     }
 
+    // 2026-06-17 — the breakfast option gains the generic planning-card mechanism (« une fois par
+    // jour » — specs/breakfast-option-planning-card.md): per-reservation day×hour selection drives
+    // its (dedicated) planning card. Set the flags on the typed row(s) (idempotent); initialise the
+    // single slot from the option's breakfast hour but never clobber an existing one. Called after the
+    // promotion AND after a fresh insert so every breakfast row carries the flags from boot one.
+    const applyCardFlags = () => {
+      if (!(cols.includes('showsPlanningCard') && cols.includes('cardRepeat') && cols.includes('planningCardTimes'))) return;
+      const hasBkfTime = cols.includes('breakfastTime');
+      const rows = database.prepare(
+        `SELECT id, planningCardTimes${hasBkfTime ? ', breakfastTime' : ''} FROM options WHERE autoOptionType = 'breakfast'`,
+      ).all();
+      const upd = database.prepare(
+        "UPDATE options SET showsPlanningCard = 1, cardRepeat = 'once_per_day', planningCardTimes = ? WHERE id = ?",
+      );
+      for (const r of rows) {
+        let times = null;
+        try { const p = JSON.parse(r.planningCardTimes || '[]'); if (Array.isArray(p) && p.length) times = p; } catch { times = null; }
+        if (!times) times = [(hasBkfTime && r.breakfastTime) ? r.breakfastTime : '09:00'];
+        upd.run(JSON.stringify(times), r.id);
+      }
+    };
+
     const hasTypedSeed = database.prepare(
       "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'breakfast'",
     ).get().n > 0;
     if (hasTypedSeed) {
+      applyCardFlags();
       return promotion.changes > 0
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
@@ -117,6 +140,7 @@ function ensureDefaultBreakfastOption(database, { logger = console } = {}) {
         0, 0,
       );
     }
+    applyCardFlags();
     logger.log('[seed:breakfast] seeded default option');
     return { action: 'seeded' };
   } catch (error) {

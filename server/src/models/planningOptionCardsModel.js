@@ -21,6 +21,13 @@ function buildModel(database) {
   // Card-options on real reservations, with their stored occurrences. Guarded by the column's
   // existence so a minimal test schema without `cardOccurrences` / `showsPlanningCard` degrades
   // to "no cards" rather than throwing.
+  // Breakfast (autoOptionType='breakfast') has its OWN dedicated planning card (breakfastModel) driven
+  // by the same cardOccurrences — exclude it here so it never gets a second, generic card (§5).
+  const hasAutoOptionType = (() => {
+    try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'autoOptionType'); }
+    catch { return false; }
+  })();
+  const EXCLUDE_BREAKFAST = hasAutoOptionType ? "AND (o.autoOptionType IS NULL OR o.autoOptionType != 'breakfast')" : '';
   const stmt = (() => {
     try {
       return database.prepare(`
@@ -46,6 +53,7 @@ function buildModel(database) {
           AND res.kind = 'reservation'
           AND ro.cardOccurrences IS NOT NULL
           AND TRIM(ro.cardOccurrences) != ''
+          ${EXCLUDE_BREAKFAST}
       `);
     } catch { return null; }
   })();

@@ -345,7 +345,10 @@ export default function ExtrasSection() {
                         {/* Breakfast desired time (specs/breakfast-time.md) — only on the
                             breakfast-typed option when enabled. Defaults to the option's configured
                             time; empty form value = use the option default (planning resolves it). */}
-                        {enabled && opt.autoOptionType === 'breakfast' && (
+                        {/* Legacy single « Heure souhaitée » — only when breakfast is NOT a card option.
+                            When showsPlanningCard is on, the per-day occurrence checklist drives the hour
+                            (specs/breakfast-option-planning-card.md §3 rule 2). */}
+                        {enabled && opt.autoOptionType === 'breakfast' && !opt.showsPlanningCard && (
                           <TextField
                             size="small"
                             type="time"
