@@ -53,7 +53,7 @@ function parseBreakfastOccurrences(raw) {
   try { list = JSON.parse(raw); } catch { return []; }
   if (!Array.isArray(list)) return [];
   return list
-    .map((o) => ({ date: String(o?.date || '').slice(0, 10), time: formatTimeShort(o?.time) || '' }))
+    .map((o) => ({ date: String(o?.date || '').slice(0, 10), time: formatTimeShort(o?.time) || '', done: Boolean(o?.done) }))
     .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date))
     .sort((a, b) => (a.time || '').localeCompare(b.time || '') || a.date.localeCompare(b.date));
 }
@@ -227,6 +227,11 @@ function buildModel(database) {
       const optionDefaultTime = (optionDefaultRow && formatTimeShort(optionDefaultRow.breakfastTime))
         || FALLBACK_BREAKFAST_TIME;
 
+      // The breakfast option id, so the planning card can drive the « fait » toggle through the
+      // generic occurrence endpoint (specs/breakfast-option-planning-card.md). One typed row (seed).
+      let breakfastOptionId = null;
+      try { const o = database.prepare("SELECT id FROM options WHERE autoOptionType = 'breakfast' ORDER BY id LIMIT 1").get(); breakfastOptionId = o ? o.id : null; } catch { breakfastOptionId = null; }
+
       const rows = stmt.all(String(to), String(from));
       const result = {};
       for (const r of rows) {
@@ -237,10 +242,13 @@ function buildModel(database) {
         if (persons <= 0) continue;
         const name  = `${r.firstName || ''} ${r.lastName || ''}`.trim();
         const clientName = name || `Réservation #${r.reservationId}`;
-        const pushCard = (date, time) => {
+        const pushCard = (date, time, done) => {
           if (!result[date]) result[date] = { items: [], totalPersons: 0 };
           result[date].items.push({
             reservationId: r.reservationId,
+            optionId: breakfastOptionId,
+            date,
+            done: Boolean(done),
             clientName,
             propertyName: r.propertyName || '',
             persons,
@@ -259,7 +267,7 @@ function buildModel(database) {
           // occurrence whose date ∈ window, at the occurrence's chosen hour.
           for (const o of occurrences) {
             if (o.date < String(from) || o.date > String(to)) continue;
-            pushCard(o.date, o.time || optionDefaultTime);
+            pushCard(o.date, o.time || optionDefaultTime, o.done);
           }
         } else {
           // Fallback (no occurrences yet — legacy / not migrated): every served morning at the
@@ -267,7 +275,7 @@ function buildModel(database) {
           const breakfastTime = formatTimeShort(r.reservationBreakfastTime) || optionDefaultTime;
           let cursor = isoMax(addDays(String(r.startDate), 1), String(from));
           const cap   = isoMin(String(r.endDate), String(to));
-          while (cursor <= cap) { pushCard(cursor, breakfastTime); cursor = addDays(cursor, 1); }
+          while (cursor <= cap) { pushCard(cursor, breakfastTime, false); cursor = addDays(cursor, 1); }
         }
       }
       // Sort each day's breakfasts by time (earliest first), tie-break by client name then id —

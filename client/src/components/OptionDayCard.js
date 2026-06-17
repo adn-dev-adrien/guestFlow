@@ -1,35 +1,43 @@
 /**
  * OptionDayCard — option-driven planning cards for a given day (specs/option-planning-card.md §3.3 + §6).
  *
- * Renders ONE card per selected occurrence, mirroring the order + layout of the arrival / departure
- * cards (Adrien 2026-06-17): a « fait » circle checkbox top-left, then the option title with the time
- * in a pill beside it; the detail block is indented to align under the title (property name, then a
- * person icon + client name + family composition). Keeps its own deep-purple background and stays a
- * touch more compact. Ticking the circle marks the occurrence « préparé » (persisted).
+ * Renders ONE card per selected occurrence, in the arrival/departure layout (a « fait » circle, the
+ * option title with the time in a pill, the property, then a person line). Themable so the breakfast
+ * option reuses the EXACT same look while keeping its amber background + breakfast extras
+ * (specs/breakfast-option-planning-card.md): the morning headcount + café/thé/chocolat + note.
  *
  * Returns `null` when `data` is missing or carries no items.
  *
  * Props:
- *   data — { items: [{ reservationId, optionId, title, clientName, propertyName,
- *            adults, children, teens, babies, date, time, done }] }
- *   onItemClick   — `(reservationId) => void`. Optional. The detail block is clickable → fiche.
- *   onToggleDone  — `(item, nextDone) => void`. Optional. Fired when the circle is ticked.
+ *   data — { items: [{ reservationId, optionId, title, clientName, propertyName, date, time, done,
+ *            adults?, children?, teens?, babies?,          // generic option family chips
+ *            breakfastPersons?, coffee?, tea?, chocolate?, note? }] }   // breakfast extras
+ *   onItemClick   — `(reservationId) => void`. The detail block is clickable → fiche.
+ *   onToggleDone  — `(item, nextDone) => void`. Fired when the circle is ticked.
+ *   theme         — 'option' (default, deep-purple) | 'breakfast' (amber).
  */
 import React from 'react';
 import { Box, Card, CardContent, Typography, Chip, Checkbox, Tooltip } from '@mui/material';
-import { deepPurple } from '@mui/material/colors';
+import { deepPurple, amber } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import LocalCafeIcon from '@mui/icons-material/LocalCafe';
+import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
+import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 
-const CARD_BG = deepPurple[50];
-const CARD_BORDER = deepPurple[100];
-const CARD_ACCENT = deepPurple[700];
+const THEMES = {
+  option: { bg: deepPurple[50], border: deepPurple[100], accent: deepPurple[700], Icon: EventNoteIcon },
+  breakfast: { bg: amber[50], border: amber[200], accent: amber[800], Icon: BakeryDiningIcon },
+};
 
-function OccurrenceCard({ item, onItemClick, onToggleDone }) {
+function pluralBreakfasts(n) { return n > 1 ? 'petits déjeuners' : 'petit déjeuner'; }
+
+function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   const clickable = typeof onItemClick === 'function';
   const done = Boolean(item.done);
   const adults = Number(item.adults || 0);
@@ -40,13 +48,18 @@ function OccurrenceCard({ item, onItemClick, onToggleDone }) {
   const chipSx = { height: 22, fontSize: 12 };
   const stop = (e) => e.stopPropagation();
   const openFiche = clickable ? () => onItemClick(item.reservationId) : undefined;
+  const drinks = [
+    { key: 'coffee', icon: <LocalCafeIcon sx={{ fontSize: 16 }} />, label: 'Café', n: Number(item.coffee) || 0 },
+    { key: 'tea', icon: <EmojiFoodBeverageIcon sx={{ fontSize: 16 }} />, label: 'Thé', n: Number(item.tea) || 0 },
+    { key: 'chocolate', icon: <FreeBreakfastIcon sx={{ fontSize: 16 }} />, label: 'Chocolat', n: Number(item.chocolate) || 0 },
+  ].filter((d) => d.n > 0);
   return (
     <Card
       variant="outlined"
       sx={{
         mb: 1, borderRadius: 2,
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : CARD_BG,
-        borderColor: done ? 'success.main' : CARD_BORDER,
+        bgcolor: done ? 'rgba(76,175,80,0.06)' : theme.bg,
+        borderColor: done ? 'success.main' : theme.border,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
       }}
@@ -67,8 +80,8 @@ function OccurrenceCard({ item, onItemClick, onToggleDone }) {
               />
             </Tooltip>
           )}
-          <EventNoteIcon sx={{ fontSize: 20, color: CARD_ACCENT, flexShrink: 0 }} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: CARD_ACCENT, lineHeight: 1.2 }}>
+          <theme.Icon sx={{ fontSize: 20, color: theme.accent, flexShrink: 0 }} />
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: theme.accent, lineHeight: 1.2 }}>
             {item.title}
           </Typography>
           {item.time && (
@@ -78,15 +91,14 @@ function OccurrenceCard({ item, onItemClick, onToggleDone }) {
               size="small"
               sx={{
                 height: 22, fontSize: 13, fontWeight: 800, borderRadius: 1.5, color: 'white',
-                bgcolor: done ? 'success.main' : CARD_ACCENT, '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
+                bgcolor: done ? 'success.main' : theme.accent, '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
               }}
             />
           )}
-          {/* « Fait » badge when prepared — same affordance as the arrival « Prêt » / departure « Effectué ». */}
           {done && <Chip label="Fait" size="small" color="success" sx={{ height: 20, fontSize: 11, fontWeight: 700 }} />}
         </Box>
 
-        {/* Detail block indented to align under the title (pl ≈ circle width), clickable → fiche. */}
+        {/* Detail block indented under the title, clickable → fiche. */}
         <Box
           role={clickable ? 'button' : undefined}
           tabIndex={clickable ? 0 : undefined}
@@ -107,6 +119,13 @@ function OccurrenceCard({ item, onItemClick, onToggleDone }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
             <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.clientName}</Typography>
+            {/* Breakfast: show the morning headcount (= reservation persons). */}
+            {item.breakfastPersons != null && (
+              <Chip
+                label={`${Number(item.breakfastPersons) || 0} ${pluralBreakfasts(Number(item.breakfastPersons) || 0)}`}
+                size="small" sx={{ ...chipSx, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.6)' }}
+              />
+            )}
             {hasFamily && (
               <>
                 {adults > 0 && <Chip label={`Adultes: ${adults}`} size="small" variant="outlined" sx={chipSx} />}
@@ -116,14 +135,28 @@ function OccurrenceCard({ item, onItemClick, onToggleDone }) {
               </>
             )}
           </Box>
+          {drinks.length > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+              {drinks.map((d) => (
+                <Chip key={d.key} size="small" variant="outlined" icon={d.icon} label={`${d.label} ${d.n}`}
+                  sx={{ height: 22, fontWeight: 600, bgcolor: 'rgba(255,255,255,0.6)' }} />
+              ))}
+            </Box>
+          )}
+          {item.note && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', mt: 0.5, display: 'block' }}>
+              {item.note}
+            </Typography>
+          )}
         </Box>
       </CardContent>
     </Card>
   );
 }
 
-export default function OptionDayCard({ data, onItemClick, onToggleDone }) {
+export default function OptionDayCard({ data, onItemClick, onToggleDone, theme = 'option' }) {
   if (!data || !Array.isArray(data.items) || data.items.length === 0) return null;
+  const resolvedTheme = THEMES[theme] || THEMES.option;
   return (
     <Box>
       {data.items.map((item, idx) => (
@@ -133,6 +166,7 @@ export default function OptionDayCard({ data, onItemClick, onToggleDone }) {
           item={item}
           onItemClick={onItemClick}
           onToggleDone={onToggleDone}
+          theme={resolvedTheme}
         />
       ))}
     </Box>
