@@ -27,16 +27,25 @@ test('list returns the seeded extinguisher row', () => {
 test('replaceAll persists custom rows, drops empty labels, coerces price ≥ 0', () => {
   const model = freshModel();
   const out = model.replaceAll([
-    { repairKey: 'extinguisher_seal', label: 'Plomb extincteur', price: 25 },
+    { repairKey: 'extinguisher_seal', label: 'Plomb manquant', price: 25 },
     { label: 'Vitre cassée', price: -5 },
     { label: '   ', price: 10 }, // empty label → dropped
   ]);
-  assert.equal(out.length, 2);
+  // 2 supplied rows + the auto re-seeded « Utilisation » (extinguisher_use) protected row.
+  assert.equal(out.length, 3);
   const byLabel = Object.fromEntries(out.map((r) => [r.label, r]));
-  assert.equal(byLabel['Plomb extincteur'].price, 25);
-  assert.equal(byLabel['Plomb extincteur'].repairKey, 'extinguisher_seal');
+  assert.equal(byLabel['Plomb manquant'].price, 25);
+  assert.equal(byLabel['Plomb manquant'].repairKey, 'extinguisher_seal');
   assert.equal(byLabel['Vitre cassée'].price, 0); // negative → 0
   assert.equal(byLabel['Vitre cassée'].repairKey, null);
+});
+
+test('replaceAll re-seeds BOTH protected extinguisher tariffs when the payload drops them', () => {
+  const model = freshModel();
+  const out = model.replaceAll([{ label: 'Autre réparation', price: 5 }]);
+  const keys = out.map((r) => r.repairKey).filter(Boolean).sort();
+  assert.deepEqual(keys, ['extinguisher_seal', 'extinguisher_use']);
+  assert.equal(out.find((r) => r.repairKey === 'extinguisher_use').label, 'Utilisation');
 });
 
 test('replaceAll re-seeds extinguisher_seal (preserving its price) when the payload drops it', () => {

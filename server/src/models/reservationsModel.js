@@ -928,7 +928,11 @@ function createReservationsModel(database) {
     },
 
     // Single commit for the departure SAS: caution return + the dedicated end-of-stay complement.
-    commitDepartureSas(reservationId, { cautionReturned, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = {}) {
+    // The extinguisher charge is computed HERE (fat backend, specs/extinguisher-seal-and-repair-amounts.md
+    // §3.2 — 2026-06-17): the client sends only `extinguisherCharges` = [{ repairKey, qty }]; the server
+    // looks up the configured price, builds the lines, appends them to the end-of-stay detail, and the
+    // stored amount is the authoritative sum of every line (no client-supplied total is trusted).
+    commitDepartureSas(reservationId, { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
@@ -945,10 +949,29 @@ function createReservationsModel(database) {
               .run(reservationId);
           }
         }
-        const amount = Math.max(0, Math.round(Number(endOfStayComplementAmount || 0) * 100) / 100);
+        // Server-built extinguisher lines: only when the extinguisher is NOT in good condition and a
+        // quantity is requested. Price is read from repair_amounts (authoritative); a 0 € or 0-qty
+        // tariff produces no line.
+        const baseDetail = Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail.slice() : [];
+        const extinguisherLines = [];
+        if (extinguisherSealOkAtDeparture !== undefined && !extinguisherSealOkAtDeparture && Array.isArray(extinguisherCharges)) {
+          const priceStmt = database.prepare('SELECT label, price FROM repair_amounts WHERE repairKey = ?');
+          for (const charge of extinguisherCharges) {
+            const repairKey = String((charge && charge.repairKey) || '').trim();
+            const qty = Math.max(0, Math.floor(Number(charge && charge.qty) || 0));
+            if (!repairKey || qty <= 0) continue;
+            const row = priceStmt.get(repairKey);
+            if (!row) continue;
+            const lineAmount = Math.round(Math.max(0, Number(row.price) || 0) * qty * 100) / 100;
+            if (lineAmount <= 0) continue;
+            extinguisherLines.push({ repairKey, label: row.label, qty, amount: lineAmount });
+          }
+        }
+        const detail = [...baseDetail, ...extinguisherLines];
+        const amount = Math.max(0, Math.round(detail.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 100) / 100);
         database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
-          .run(amount, endOfStayComplementDetail ? JSON.stringify(endOfStayComplementDetail) : null, reservationId);
-        // Fire-extinguisher seal state at departure (the bill itself rides endOfStayComplementDetail).
+          .run(amount, detail.length ? JSON.stringify(detail) : null, reservationId);
+        // Extinguisher condition at departure (1 = bon état, 0 = pas bon état). The bill rides the detail.
         if (extinguisherSealOkAtDeparture !== undefined) {
           database.prepare("UPDATE reservations SET extinguisherSealOkAtDeparture = ?, updatedAt = datetime('now') WHERE id = ?")
             .run(extinguisherSealOkAtDeparture ? 1 : 0, reservationId);
