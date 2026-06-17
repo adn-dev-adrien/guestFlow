@@ -45,7 +45,35 @@ const FALLBACK_BREAKFAST_TIME = '09:00';
 function isoMax(a, b) { return a > b ? a : b; }
 function isoMin(a, b) { return a < b ? a : b; }
 
+// Parse the breakfast option's stored cardOccurrences (JSON array of { date, time, done }) into a
+// clean [{ date, time }] list (valid ISO dates only), time-sorted. Empty when none/invalid.
+function parseBreakfastOccurrences(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  let list;
+  try { list = JSON.parse(raw); } catch { return []; }
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((o) => ({ date: String(o?.date || '').slice(0, 10), time: formatTimeShort(o?.time) || '', done: Boolean(o?.done) }))
+    .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date))
+    .sort((a, b) => (a.time || '').localeCompare(b.time || '') || a.date.localeCompare(b.date));
+}
+
 function buildModel(database) {
+  // Breakfast now carries the generic per-day occurrence selection (specs/breakfast-option-planning-
+  // card.md): when the reservation's breakfast option has `cardOccurrences`, the card is driven by the
+  // CHECKED days × their hour (not the automatic morning window). Guarded so minimal test schemas
+  // without the column fall back to the window. The subquery picks the breakfast option's stored
+  // occurrences for the reservation.
+  const HAS_CARD_OCCURRENCES = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'cardOccurrences'); }
+    catch { return false; }
+  })();
+  const occSelect = HAS_CARD_OCCURRENCES
+    ? `, (SELECT ro3.cardOccurrences FROM reservation_options ro3 JOIN options o3 ON o3.id = ro3.optionId
+         WHERE ro3.reservationId = res.id AND o3.autoOptionType = 'breakfast'
+           AND ro3.cardOccurrences IS NOT NULL AND TRIM(ro3.cardOccurrences) != '' LIMIT 1) AS breakfastCardOccurrences`
+    : ', NULL AS breakfastCardOccurrences';
+
   // Eligible reservations in (or overlapping with) the [from, to] window. Same UNION ALL
   // shape as `laundryModel.sumBathroomStmt`: source 1 = explicit reservation_options
   // entry; source 2 = property default fallback when no explicit row exists. The
@@ -65,6 +93,7 @@ function buildModel(database) {
       res.breakfastChocolate AS chocolate,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum
+      ${occSelect}
     FROM reservations res
     JOIN (
       SELECT reservationId, SUM(qtySum) AS qtySum
@@ -114,6 +143,7 @@ function buildModel(database) {
       res.breakfastChocolate AS chocolate,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum
+      ${occSelect}
     FROM reservations res
     JOIN (
       SELECT reservationId, SUM(qtySum) AS qtySum
@@ -169,7 +199,11 @@ function buildModel(database) {
       if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, note: '' };
       const personsBase = (Number(r.adults) || 0) + (Number(r.teens) || 0) + (Number(r.children) || 0);
       const persons = Math.max(0, Math.round(personsBase * (Number(r.qtySum) || 0)));
-      const time = formatTimeShort(r.reservationBreakfastTime) || resolveOptionDefaultTime();
+      // Hour: the first selected occurrence wins (specs/breakfast-option-planning-card.md §6), else the
+      // per-reservation breakfast hour, else the option default.
+      const firstOcc = parseBreakfastOccurrences(r.breakfastCardOccurrences)[0];
+      const time = (firstOcc && firstOcc.time)
+        || formatTimeShort(r.reservationBreakfastTime) || resolveOptionDefaultTime();
       return {
         applicable: true,
         persons,
@@ -193,6 +227,11 @@ function buildModel(database) {
       const optionDefaultTime = (optionDefaultRow && formatTimeShort(optionDefaultRow.breakfastTime))
         || FALLBACK_BREAKFAST_TIME;
 
+      // The breakfast option id, so the planning card can drive the « fait » toggle through the
+      // generic occurrence endpoint (specs/breakfast-option-planning-card.md). One typed row (seed).
+      let breakfastOptionId = null;
+      try { const o = database.prepare("SELECT id FROM options WHERE autoOptionType = 'breakfast' ORDER BY id LIMIT 1").get(); breakfastOptionId = o ? o.id : null; } catch { breakfastOptionId = null; }
+
       const rows = stmt.all(String(to), String(from));
       const result = {};
       for (const r of rows) {
@@ -201,28 +240,42 @@ function buildModel(database) {
                           + (Number(r.children) || 0);
         const persons = Math.round(personsBase * (Number(r.qtySum) || 0));
         if (persons <= 0) continue;
-        // Per-reservation desired time wins; else the option default; else the fallback.
-        const breakfastTime = formatTimeShort(r.reservationBreakfastTime) || optionDefaultTime;
-        // Breakfast served on D ∈ (startDate, endDate] clamped to [from, to]
-        let cursor = isoMax(addDays(String(r.startDate), 1), String(from));
-        const cap   = isoMin(String(r.endDate), String(to));
         const name  = `${r.firstName || ''} ${r.lastName || ''}`.trim();
         const clientName = name || `Réservation #${r.reservationId}`;
-        while (cursor <= cap) {
-          if (!result[cursor]) result[cursor] = { items: [], totalPersons: 0 };
-          result[cursor].items.push({
+        const pushCard = (date, time, done) => {
+          if (!result[date]) result[date] = { items: [], totalPersons: 0 };
+          result[date].items.push({
             reservationId: r.reservationId,
+            optionId: breakfastOptionId,
+            date,
+            done: Boolean(done),
             clientName,
             propertyName: r.propertyName || '',
             persons,
-            breakfastTime,
+            breakfastTime: time,
             coffee: Math.max(0, Number(r.coffee) || 0),
             tea: Math.max(0, Number(r.tea) || 0),
             chocolate: Math.max(0, Number(r.chocolate) || 0),
             note: (r.note && String(r.note).trim()) || '',
           });
-          result[cursor].totalPersons += persons;
-          cursor = addDays(cursor, 1);
+          result[date].totalPersons += persons;
+        };
+
+        const occurrences = parseBreakfastOccurrences(r.breakfastCardOccurrences);
+        if (occurrences.length > 0) {
+          // Per-day selection (specs/breakfast-option-planning-card.md §4): one card per CHECKED
+          // occurrence whose date ∈ window, at the occurrence's chosen hour.
+          for (const o of occurrences) {
+            if (o.date < String(from) || o.date > String(to)) continue;
+            pushCard(o.date, o.time || optionDefaultTime, o.done);
+          }
+        } else {
+          // Fallback (no occurrences yet — legacy / not migrated): every served morning at the
+          // reservation's breakfast hour, D ∈ (startDate, endDate] clamped to [from, to].
+          const breakfastTime = formatTimeShort(r.reservationBreakfastTime) || optionDefaultTime;
+          let cursor = isoMax(addDays(String(r.startDate), 1), String(from));
+          const cap   = isoMin(String(r.endDate), String(to));
+          while (cursor <= cap) { pushCard(cursor, breakfastTime, false); cursor = addDays(cursor, 1); }
         }
       }
       // Sort each day's breakfasts by time (earliest first), tie-break by client name then id —

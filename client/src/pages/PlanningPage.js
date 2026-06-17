@@ -11,7 +11,6 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
-import BreakfastDayCard from '../components/BreakfastDayCard';
 import OptionDayCard from '../components/OptionDayCard';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
@@ -140,6 +139,28 @@ export default function PlanningPage() {
       });
     } catch {
       apply(!nextDone); // revert
+    }
+  }, []);
+
+  // The breakfast card shares the « fait » toggle (specs/breakfast-option-planning-card.md) — same
+  // generic occurrence endpoint, but optimistic state lives in breakfastByDate (matched by reservation
+  // + hour on the day). No-op revert if the occurrence isn't found (legacy / un-migrated fallback).
+  const handleToggleBreakfastDone = useCallback(async (item, nextDone) => {
+    if (!item || !item.optionId) return;
+    const apply = (value) => setBreakfastByDate((prev) => {
+      const day = prev[item.date];
+      if (!day) return prev;
+      return { ...prev, [item.date]: { ...day, items: day.items.map((it) => (
+        it.reservationId === item.reservationId && (it.breakfastTime || '') === (item.time || '')
+          ? { ...it, done: value } : it)) } };
+    });
+    apply(nextDone);
+    try {
+      await api.setPlanningOptionCardDone({
+        reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
+      });
+    } catch {
+      apply(!nextDone);
     }
   }, []);
 
@@ -748,12 +769,32 @@ export default function PlanningPage() {
                 onEditManual={setEditManualDate}
               />
 
-              {/* Breakfast card (specs/breakfast-option-and-planning-card.md §6.1). Sits
-                  between laundry and departures so the operator's morning scan is:
-                  laundry → breakfasts → who's leaving today. The card hides itself when
-                  no reservation contributes (rule 7). Each row is clickable and opens
-                  the corresponding reservation form. */}
-              <BreakfastDayCard data={breakfastByDate[date]} onItemClick={openReservation} />
+              {/* Breakfast card (specs/breakfast-option-planning-card.md): now rendered through the
+                  shared OptionDayCard in the « breakfast » theme (amber) so it matches the other option
+                  cards — title + time pill, property, person + the morning headcount + café/thé/chocolat
+                  — with the « fait » circle. Driven by the breakfast option's selected occurrences. */}
+              <OptionDayCard
+                theme="breakfast"
+                data={breakfastByDate[date] ? {
+                  items: breakfastByDate[date].items.map((i) => ({
+                    reservationId: i.reservationId,
+                    optionId: i.optionId,
+                    date: i.date || date,
+                    title: 'Petit déjeuner',
+                    time: i.breakfastTime,
+                    propertyName: i.propertyName,
+                    clientName: i.clientName,
+                    breakfastPersons: i.persons,
+                    done: i.done,
+                    coffee: i.coffee,
+                    tea: i.tea,
+                    chocolate: i.chocolate,
+                    note: i.note,
+                  })),
+                } : null}
+                onItemClick={openReservation}
+                onToggleDone={handleToggleBreakfastDone}
+              />
 
               {/* Option-driven planning cards (specs/option-planning-card.md §3.3). Sits with the
                   other day cards; hides itself when no occurrence falls on this date. Each row is
