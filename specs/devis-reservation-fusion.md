@@ -72,12 +72,18 @@ in §9.
 
 ### 4.1 Migration (the dangerous part — idempotent, backed-up, reversible)
 
-- Pre-flight: `VACUUM INTO` a timestamped DB backup **only when the fusion will actually run** — i.e.
-  legacy `devis` rows exist **and** none are fused yet (`reservations kind='devis'` count is 0). A
-  half-migrated DB (rows already fused, empty legacy `devis_*` tables left over) must **not** re-back-up
-  on every boot — that flooded the dir with `*.pre-devis-fusion-*.bak`. In that leftover case the boot
-  simply **drops the empty legacy tables** (no data to lose, no backup). A genuinely ambiguous partial
-  state (some fused, some not) is left untouched for a manual check (fix 2026-06-17).
+- Boot decision via `assessDevisFusion(db)` (testable, robust for prod — fix 2026-06-17). The atomic
+  migration can only leave the DB in one of these states; the boot acts accordingly and `VACUUM INTO`
+  backs up **only** for the genuine one-time fusion (never on every boot):
+  - **`noTable`** — no `devis` table (fresh install or fusion already completed) → do nothing.
+  - **`migrate`** — legacy `devis` rows present **and** none fused (`reservations kind='devis'` == 0) →
+    back up, then fold devis → reservations (drops `devis_*` on success, atomically).
+  - **`dropLeftover`** — rows already fused **and all** legacy `devis_*` tables are **empty** husks (a
+    pre-atomic-migration artefact) → drop them once, **no backup** (nothing to migrate). Ends the boot
+    loop that previously flooded the dir with `*.pre-devis-fusion-*.bak`.
+  - **`skipAmbiguous`** — legacy rows **and** fused rows coexist (the atomic migration can't produce
+    this; it's a corrupt/partial artefact) → leave untouched, **never auto-drop** (data-loss risk),
+    **never re-backup**, and **log a warning** for a manual check.
 - Add the new `reservations` columns (idempotent `ADD COLUMN IF NOT EXISTS`-style).
 - For each `devis` row: insert a `reservations` row (`kind='devis'`, mapped fields, preserve devisNumber/
   status/validUntil/convertedReservationId), remember `devisId → newReservationId`; copy its

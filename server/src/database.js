@@ -1315,40 +1315,31 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
 
-  const { migrateDevisIntoReservations, tableExists } = require('./utils/devisFusionMigration');
-  if (tableExists(db, 'devis')) {
-    const pendingDevis = db.prepare('SELECT COUNT(*) c FROM devis').get().c;
-    const alreadyFused = db.prepare("SELECT COUNT(*) c FROM reservations WHERE kind = 'devis'").get().c;
-    if (alreadyFused === 0 && pendingDevis > 0) {
-      // Genuine first-time fusion: back up the DB, then fold devis → reservations (drops devis_* on
-      // success). The backup is the safety net for THIS destructive migration only.
-      try {
-        const backupPath = `${dbPath}.pre-devis-fusion-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
-        db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
-        console.log('[Fusion] Pre-migration backup written to', backupPath);
-        const result = migrateDevisIntoReservations(db);
-        console.log('[Fusion] devis → reservations:', JSON.stringify(result));
-      } catch (err) {
-        console.error('[Fusion] Devis fusion failed — DB left unchanged (restore the .bak if needed):', err.message);
-        throw err;
-      }
-    } else if (pendingDevis === 0) {
-      // Half-migrated leftover: the rows were already fused but the legacy devis_* tables were never
-      // dropped (they're now EMPTY). Previously this re-took a `.pre-devis-fusion-*.bak` backup on
-      // EVERY boot while the migration skipped — flooding the directory with backups. Drop the empty
-      // legacy tables once (no data to lose) so the boot loop ends. NO backup needed (nothing to migrate).
-      db.exec(`
-        DROP TABLE IF EXISTS devis_options;
-        DROP TABLE IF EXISTS devis_custom_options;
-        DROP TABLE IF EXISTS devis_resources;
-        DROP TABLE IF EXISTS devis_nights;
-        DROP TABLE IF EXISTS devis_history;
-        DROP TABLE IF EXISTS devis;
-      `);
-      console.log('[Fusion] Dropped empty legacy devis_* tables (rows already fused) — no backup needed.');
+  const { migrateDevisIntoReservations, assessDevisFusion, dropLegacyDevisTables } = require('./utils/devisFusionMigration');
+  // Robust boot decision (works on prod, not just the dev symptom — see assessDevisFusion). A
+  // pre-migration `.bak` is written ONLY for the genuine one-time fusion, never on every boot.
+  const fusion = assessDevisFusion(db);
+  if (fusion.action === 'migrate') {
+    try {
+      const backupPath = `${dbPath}.pre-devis-fusion-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
+      db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+      console.log('[Fusion] Pre-migration backup written to', backupPath);
+      const result = migrateDevisIntoReservations(db);
+      console.log('[Fusion] devis → reservations:', JSON.stringify(result));
+    } catch (err) {
+      console.error('[Fusion] Devis fusion failed — DB left unchanged (restore the .bak if needed):', err.message);
+      throw err;
     }
-    // else: pendingDevis > 0 AND alreadyFused > 0 → ambiguous partial state; leave untouched (no
-    // backup, no migration) for a manual check, exactly as migrateDevisIntoReservations would skip.
+  } else if (fusion.action === 'dropLeftover') {
+    // Rows already fused, the legacy devis_* tables are EMPTY husks (a pre-atomic-migration artefact).
+    // Drop them once — no data to lose, no backup. This ends the boot loop that used to re-write a
+    // `.pre-devis-fusion-*.bak` on every start.
+    dropLegacyDevisTables(db);
+    console.log('[Fusion] Dropped empty legacy devis_* tables (rows already fused) — no backup needed.');
+  } else if (fusion.action === 'skipAmbiguous') {
+    // Legacy devis rows AND fused rows coexist — the atomic migration can't produce this, so it's a
+    // corrupt/partial artefact. Never auto-resolve (data-loss risk) and never re-backup; surface it.
+    console.warn(`[Fusion] Ambiguous devis state — left untouched for manual check (legacy devis rows: ${fusion.pendingDevis}, fused: ${fusion.alreadyFused}, legacy rows total: ${fusion.legacyRowTotal}).`);
   }
 }
 
