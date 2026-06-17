@@ -1,0 +1,1 @@
+- La page « Réservations à venir » (carte Réservations du tableau de bord) affiche désormais les cartes Planning d'arrivée groupées par jour, sur toutes les réservations futures, au lieu d'un tableau.
