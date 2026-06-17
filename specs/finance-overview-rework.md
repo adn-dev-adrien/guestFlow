@@ -50,8 +50,9 @@ Rounded to cents. This is the per-reservation value summed everywhere below.
 4. **Encaissé** — total actually collected over the period = **accounting sum** of every paid component
    (acompte + solde + complément + fin de séjour) marked paid, **excluding caisse interne** (so it equals
    what the compta export shows). By `endDate` in range.
-5. **En attente** — Σ totalSejour of reservations whose `endDate` is in the range **AND in the past**
+5. **En attente de règlement** — Σ totalSejour of reservations whose `endDate` is in the range **AND in the past**
    (`endDate < today`) **AND not fully settled**. The whole stay total counts (not just the unpaid part).
+   Carries a « sur la période » qualifier like the « Revenu total » card.
 
 Each card also shows, in **smaller text under the TTC figure**, the matching **HT** amount (§3.7).
 
@@ -133,12 +134,13 @@ No new tables/columns. « total de séjour » + « settled » are computed from 
 
 - **Cards** — laid out on **two rows with the period selector between them**: the two **annual** cards at
   the very top of the page (independent of the du/au range, 2 across from `sm` up / stacked on `xs`), then
-  the **period selector** (du/au), then the three **period** cards (revenu total / encaissé / en attente —
-  which depend on the range; 3 across from `sm` up / stacked on `xs`). Keep the existing colour language
+  the **period selector** (du/au), then the three **period** cards (revenu total / encaissé / en attente de
+  règlement — which depend on the range; 3 across from `sm` up / stacked on `xs`). Keep the existing colour language
   (primary / green / orange). Inside each card the **TTC amount is centered both horizontally and
   vertically** and the **HT line is right-aligned** with a small right margin; the cards are kept **compact**
-  (tight top/bottom padding + minimal spacing between label, amount and HT). On the « Revenu total » card the
-  « sur la période » qualifier sits **inline on the same line as the label**. The two annual cards use the
+  (tight top/bottom padding + minimal spacing between label, amount and HT). On the « Revenu total » and
+  « En attente de règlement » cards the « sur la période » qualifier sits **inline on the same line as the
+  label**. The two annual cards use the
   same treatment — a main label (« Revenus » / « Revenu total ») + a smaller inline qualifier
   (« depuis le début de l'année » / « sur l'année »).
 - **List + operational tables** — rows get `cursor: pointer` + hover; click navigates to the fiche

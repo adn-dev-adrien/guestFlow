@@ -153,7 +153,7 @@ export default function FinancePage() {
   const periodCards = summary ? [
     { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, bg: 'primary.main' },
     { label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, bg: '#4CAF50' },
-    { label: 'En attente', value: summary.totalPending, valueHt: summary.totalPendingHt, bg: '#f57c00' },
+    { label: 'En attente de règlement', caption: 'sur la période', value: summary.totalPending, valueHt: summary.totalPendingHt, bg: '#f57c00' },
   ] : [];
 
   const renderCard = (c, size) => (

@@ -94,11 +94,13 @@ describe('FinancePage — total-de-séjour overview', () => {
     // Year cards split into a main label + a smaller qualifier (like the period card).
     expect(screen.getByText("depuis le début de l'année")).toBeInTheDocument();
     expect(screen.getByText("sur l'année")).toBeInTheDocument();
-    expect(screen.getByText('sur la période')).toBeInTheDocument();
+    // « sur la période » qualifies both the period revenue card and the pending card.
+    expect(screen.getAllByText('sur la période').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Revenu total').length).toBeGreaterThan(0); // year card 2 + period card
     // « Encaissé » / « En attente » also appear in the pie legend, hence getAllByText.
     expect(screen.getAllByText('Encaissé').length).toBeGreaterThan(0);
     expect(screen.getAllByText('En attente').length).toBeGreaterThan(0);
+    expect(screen.getByText('En attente de règlement')).toBeInTheDocument();
     // The two year figures are formatted in euros (non-breaking space thousands separator).
     expect(screen.getByText('4 200 €')).toBeInTheDocument();
     expect(screen.getByText('8 000 €')).toBeInTheDocument();
