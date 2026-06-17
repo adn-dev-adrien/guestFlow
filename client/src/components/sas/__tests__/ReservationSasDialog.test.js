@@ -69,13 +69,9 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   fireEvent.click(screen.getByRole('button', { name: '+' })); // qty 1 → 5 €
   clickBtn('Suivant');
 
-  // cleaning (not included) → add it
+  // cleaning (not included) → add it → recap (the extinguisher check is departure-only now)
   await screen.findByText(/n'a pas été pris/);
   clickBtn('Ajouter le ménage');
-
-  // extinguisher: « Oui » = plomb présent
-  await screen.findByText(/plomb de l'extincteur/i);
-  clickBtn('Oui');
 
   // recap
   await screen.findByText('Récapitulatif — complément à percevoir');
@@ -90,7 +86,6 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
       { label: 'Ménage', amount: 80 },
     ],
     departureHandoverNote: '',
-    extinguisherSealOkAtArrival: 1,
   });
 });
 
@@ -144,11 +139,9 @@ test('arrival SAS reopen: pre-fills the prior commit (caution shown despite rece
 
   // The reconstructed complement is a custom option → the prestations step shows; just go through it.
   fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
-  // cleaning included → Suivant ; extinguisher → « Oui » (plomb présent)
+  // cleaning included → Suivant → recap (extinguisher check is departure-only now)
   await screen.findByText(/Le ménage est inclus/);
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
-  await screen.findByText(/plomb de l'extincteur/i);
-  fireEvent.click(screen.getByRole('button', { name: 'Oui' }));
 
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 5,00 €/)).toBeInTheDocument(); // reconstructed pillow only
@@ -159,7 +152,6 @@ test('arrival SAS reopen: pre-fills the prior commit (caution shown despite rece
   expect(arg.cautionReceived).toBe(true);
   expect(arg.complementItems).toEqual([{ label: 'Taie d\'oreiller', amount: 5 }]); // exactly one, no dup
   expect(arg.departureHandoverNote).toBe('Clé sous le pot');
-  expect(arg.extinguisherSealOkAtArrival).toBe(1);
 });
 
 test('arrival SAS: linen OK skips the priced-items page', async () => {
@@ -218,8 +210,6 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
   // cleaning (included) → recap. findByRole retries until the confirm's close transition
   // lifts the background aria-hidden (otherwise « Suivant » isn't yet accessible).
   fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
-  // extinguisher → « Oui » (plomb présent)
-  fireEvent.click(await screen.findByRole('button', { name: 'Oui' }));
   await screen.findByText('Récapitulatif — complément à percevoir');
   fireEvent.change(screen.getByLabelText(/Note pour le départ/), { target: { value: 'clé sous le pot' } });
   clickBtn('Valider et terminer');
@@ -282,8 +272,8 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 
-  // extinguisher → « Oui » (plomb présent)
-  await screen.findByText(/plomb de l'extincteur/i);
+  // extinguisher → « Oui » = bon état (no charge)
+  await screen.findByText(/bon état/i);
   clickBtn('Oui');
 
   // recap (caution page skipped: cautionAmount 0)
@@ -293,19 +283,26 @@ test('departure SAS: cleaning page asks « fait correctement » (not the arrival
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  expect(arg.endOfStayComplementAmount).toBe(80);
+  // The end-of-stay amount is computed server-side from the detail; the client sends the detail +
+  // the extinguisher condition/charges (specs/extinguisher-seal-and-repair-amounts.md §3.2).
+  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
+  expect(arg.extinguisherSealOkAtDeparture).toBe(1);
+  expect(arg.extinguisherCharges).toEqual([]);
   // Caution step skipped (cautionAmount 0) → no decision sent, the marker is left untouched
   // (specs/reopen-completed-sas.md §6 tri-state).
   expect(arg.cautionReturned).toBeUndefined();
 });
 
-test('departure SAS: extinguisher seal missing (present at arrival) bills the configured amount', async () => {
-  // specs/extinguisher-seal-and-repair-amounts.md — answering « Non » (manquant) at departure, when the
-  // seal was present at arrival, adds the « Plomb extincteur » repair amount to the end-of-stay.
+test('departure SAS: extinguisher not in good condition opens the tariff page; quantities ride to the payload as charges', async () => {
+  // specs/extinguisher-seal-and-repair-amounts.md §3.2 — answering « Non » at departure opens the
+  // extinguisher tariff page; the per-tariff quantity is sent as extinguisherCharges (priced server-side).
   api.getReservationSas.mockResolvedValue(sasPayload({
-    reservation: { cautionAmount: 0, extinguisherSealOkAtArrival: 1 },
+    reservation: { cautionAmount: 0 },
     cleaning: { included: true, price: 80 },
-    repairAmounts: [{ id: 1, repairKey: 'extinguisher_seal', label: 'Plomb extincteur', price: 30 }],
+    repairAmounts: [
+      { id: 1, repairKey: 'extinguisher_seal', label: 'Plomb manquant', price: 30 },
+      { id: 2, repairKey: 'extinguisher_use', label: 'Utilisation', price: 15 },
+    ],
   }));
   renderDialog({ mode: 'departure' });
 
@@ -318,17 +315,27 @@ test('departure SAS: extinguisher seal missing (present at arrival) bills the co
   await screen.findByText(/récupéré les clés/);
   clickBtn('Oui');
 
-  // extinguisher: « Non » = plomb manquant (advances straight to recap; the charge shows there)
-  await screen.findByText(/plomb de l'extincteur/i);
+  // extinguisher: « Non » = pas en bon état → opens the tariff-quantity page
+  await screen.findByText(/bon état/i);
   clickBtn('Non');
+  await screen.findByText('Frais extincteur à facturer');
+  expect(screen.getByText('Plomb manquant')).toBeInTheDocument();
+  expect(screen.getByText('Utilisation')).toBeInTheDocument();
+  // First tariff (Plomb manquant) → qty 1; the « + » buttons are in tariff order.
+  fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+  clickBtn('Suivant');
 
   await screen.findByText('Récapitulatif fin de séjour');
-  expect(screen.getByText(/Total à percevoir : 30,00 €/)).toBeInTheDocument();
+  expect(screen.getByText(/Total à percevoir : 30,00 €/)).toBeInTheDocument(); // 30 × 1
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
   const arg = api.commitDepartureSas.mock.calls[0][1];
-  expect(arg.endOfStayComplementAmount).toBe(30);
   expect(arg.extinguisherSealOkAtDeparture).toBe(0);
-  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Plomb extincteur' && l.amount === 30)).toBe(true);
+  // Charges carry the quantities; the server prices them (not sent in the detail).
+  expect(arg.extinguisherCharges).toEqual([
+    { repairKey: 'extinguisher_seal', qty: 1 },
+    { repairKey: 'extinguisher_use', qty: 0 },
+  ]);
+  expect(arg.endOfStayComplementDetail.some((l) => String(l.repairKey || '').startsWith('extinguisher'))).toBe(false);
 });
