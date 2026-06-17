@@ -283,6 +283,17 @@ const api = {
   // `{ breakfastByDate: { 'YYYY-MM-DD': { items: [{ clientName, propertyName, persons }], totalPersons } } }`.
   getBreakfastPlanningSummary: ({ from, to }) =>
     request(`/planning/breakfast?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Option-driven planning cards (specs/option-planning-card.md §3.3). Returns one card per stored
+  // occurrence of a « carte planning » option whose date ∈ [from, to]. Payload:
+  // `{ optionCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] } } }`.
+  getPlanningOptionCards: ({ from, to }) =>
+    request(`/planning/option-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Toggle the « préparé » flag of one option-card occurrence (specs/option-planning-card.md §3.5).
+  setPlanningOptionCardDone: ({ reservationId, optionId, date, time, done }) =>
+    request('/planning/option-cards/done', {
+      method: 'POST',
+      body: { reservationId, optionId, date, time, done },
+    }),
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
   getLinenInventory: () => request('/planning/linen-inventory'),

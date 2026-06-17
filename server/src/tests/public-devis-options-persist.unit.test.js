@@ -59,6 +59,8 @@ function freshModel() {
   // A plain paid option (no autoOptionType).
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (3, 'Ménage', 'per_stay', 80)").run();
   db.prepare("INSERT INTO resources (id, name, priceType, price) VALUES (2, 'Bain nordique', 'per_stay', 30)").run();
+  // specs/option-property-scope.md: options apply only where explicitly linked — link all to Gite.
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 6), (1, 8), (1, 1), (1, 3)').run();
   return { model: devisModel.buildModel(db), db };
 }
 

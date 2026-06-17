@@ -29,6 +29,13 @@ import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
+import {
+  buildInitialGrid as buildInitialCardGrid,
+  buildGridFromStored as buildCardGridFromStored,
+  reconcileGrid as reconcileCardGrid,
+  toWireOccurrences as toWireCardOccurrences,
+  isDailyCard,
+} from '../utils/cardOccurrences';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -311,7 +318,12 @@ export default function ReservationPage() {
       // marker (linen options, since 2026-06-02) ARE part of the manual selection and must
       // round-trip to the server.
       .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
-      .map((item) => ({ optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0 }))
+      .map((item) => {
+        const line = { optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0 };
+        // Include the checked occurrences so the live preview re-fetches when the selection changes.
+        if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
+        return line;
+      })
       .sort((a, b) => a.optionId - b.optionId),
     customOptions: (form.customOptions || [])
       .map((line, index) => ({
@@ -519,7 +531,7 @@ export default function ReservationPage() {
           if (prefillPropertyId) {
             const propDetails = await api.getProperty(prefillPropertyId);
             const opts = await api.getOptions();
-            const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(prefillPropertyId));
+            const availableOpts = opts.filter(o => (o.propertyIds || []).includes(prefillPropertyId));
 
             setSelectedProp(prefillPropertyId);
             setSelectedProperty(propDetails || props.find((p) => p.id === prefillPropertyId) || null);
@@ -580,7 +592,7 @@ export default function ReservationPage() {
           setSelectedProperty(propDetails || prop);
           
           const opts = await api.getOptions();
-          const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(res.propertyId));
+          const availableOpts = opts.filter(o => (o.propertyIds || []).includes(res.propertyId));
           setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
           if (Array.isArray(propDetails?.resources)) {
             setAvailableResources(propDetails.resources.map((r) => ({
@@ -628,13 +640,23 @@ export default function ReservationPage() {
             // Per-item routing (spec force-item-to-complement.md): hydrate `inComplement` +
             // captured contribs so PricingSummary can render `[compl.]` chips and split lines
             // where current totalPrice > acompteContribTtc + soldeContribTtc.
-            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => ({
-              optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice,
-              offered: Boolean(o.offered),
-              inComplement: Number(o.inComplement || 0) === 1,
-              acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
-              soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
-            })),
+            selectedOptions: (res.options || []).filter(o => !o.isCustom).map(o => {
+              // Option-driven planning cards (specs/option-planning-card.md §3.2): rebuild the
+              // working occurrence grid from the stored {date,time}[] so the checklist restores the
+              // exact saved selection. The option's catalog config (mode + slots) drives the grid.
+              const cat = (opts || []).find((c) => Number(c.id) === Number(o.optionId));
+              const cardOccurrences = (cat && cat.showsPlanningCard)
+                ? buildCardGridFromStored(cat, res.startDate, res.endDate, o.cardOccurrences, res.checkInTime, res.checkOutTime)
+                : undefined;
+              return {
+                optionId: o.optionId, quantity: o.quantity, totalPrice: o.totalPrice, originalTotalPrice: o.originalTotalPrice,
+                offered: Boolean(o.offered),
+                inComplement: Number(o.inComplement || 0) === 1,
+                acompteContribTtc: o.acompteContribTtc != null ? Number(o.acompteContribTtc) : null,
+                soldeContribTtc: o.soldeContribTtc != null ? Number(o.soldeContribTtc) : null,
+                ...(cardOccurrences ? { cardOccurrences } : {}),
+              };
+            }),
             customOptions: (res.options || []).filter(o => o.isCustom).map((o, index) => ({
               customKey: String(o.customOptionId || `custom_${index + 1}`),
               customOptionId: o.customOptionId != null ? Number(o.customOptionId) : undefined,
@@ -733,7 +755,7 @@ export default function ReservationPage() {
           setSelectedProperty(propDetails || prop || null);
 
           const opts = await api.getOptions();
-          const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(devis.propertyId));
+          const availableOpts = opts.filter(o => (o.propertyIds || []).includes(devis.propertyId));
           setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
           if (Array.isArray(propDetails?.resources)) {
             setAvailableResources(propDetails.resources.map((r) => ({
@@ -824,7 +846,7 @@ export default function ReservationPage() {
           const prop = await api.getProperty(initialPropId);
           const opts = await api.getOptions();
           const propIdNum = parseInt(initialPropId, 10);
-          const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(propIdNum));
+          const availableOpts = opts.filter(o => (o.propertyIds || []).includes(propIdNum));
           setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
           if (Array.isArray(prop?.resources)) {
             setAvailableResources(prop.resources.map((r) => ({
@@ -1233,10 +1255,27 @@ export default function ReservationPage() {
     }
   };
 
+  // Option-driven planning cards (specs/option-planning-card.md §3.2). Set the working occurrence
+  // grid ({date,time,slot,checked}[]) on a card-option's selected line. Adds the line if absent.
+  const setOptionCardOccurrences = (optionId, occurrences) => {
+    setForm((prev) => {
+      const exists = (prev.selectedOptions || []).some((so) => Number(so.optionId) === Number(optionId));
+      const next = exists
+        ? prev.selectedOptions.map((so) => (Number(so.optionId) === Number(optionId) ? { ...so, cardOccurrences: occurrences } : so))
+        : [...(prev.selectedOptions || []), { optionId: Number(optionId), quantity: 1, totalPrice: 0, cardOccurrences: occurrences }];
+      return { ...prev, selectedOptions: next };
+    });
+  };
+
   const setOptionEnabled = (optionId, enabled) => {
     const existing = form.selectedOptions.find((so) => so.optionId === optionId);
+    const catalogOpt = (propertyOptions || []).find((o) => Number(o.id) === Number(optionId));
     if (enabled) {
       setOptionQuantity(optionId, Math.max(1, Number(existing?.quantity) || 1));
+      // Seed the occurrence grid (all candidates pre-checked, §3.2) on first enable of a card-option.
+      if (catalogOpt && catalogOpt.showsPlanningCard && !(existing && Array.isArray(existing.cardOccurrences) && existing.cardOccurrences.length)) {
+        setOptionCardOccurrences(optionId, buildInitialCardGrid(catalogOpt, form.startDate, form.endDate, form.checkInTime, form.checkOutTime));
+      }
       return;
     }
     setOptionQuantity(optionId, 0);
@@ -1249,6 +1288,26 @@ export default function ReservationPage() {
       updateForm({ singleBeds: '', doubleBeds: '' });
     }
   };
+
+  // Option-driven planning cards (specs/option-planning-card.md §3.4): when the stay dates change,
+  // reconcile every enabled daily card-option's occurrence grid — new in-range days appear
+  // pre-checked, out-of-range days drop, existing check/time state is preserved.
+  useEffect(() => {
+    setForm((prev) => {
+      let changed = false;
+      const next = (prev.selectedOptions || []).map((so) => {
+        if (!Array.isArray(so.cardOccurrences)) return so;
+        const cat = (propertyOptions || []).find((o) => Number(o.id) === Number(so.optionId));
+        if (!cat || !cat.showsPlanningCard || !isDailyCard(cat)) return so;
+        const reconciled = reconcileCardGrid(cat, prev.startDate, prev.endDate, so.cardOccurrences, prev.checkInTime, prev.checkOutTime);
+        if (reconciled === so.cardOccurrences) return so;
+        changed = true;
+        return { ...so, cardOccurrences: reconciled };
+      });
+      return changed ? { ...prev, selectedOptions: next } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.startDate, form.endDate, form.checkInTime, form.checkOutTime, propertyOptions]);
 
   const setResourceQuantity = (resourceId, quantity) => {
     setForm(prev => {
@@ -1391,7 +1450,13 @@ export default function ReservationPage() {
       // Same discriminator as the snapshot builder above: skip only engine-derived options
       // (autoEnabled = 1), not the typed-default linen options (autoOptionType set, autoEnabled = 0).
       .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
-      .map((item) => ({ optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement ? 1 : 0 }));
+      .map((item) => {
+        const line = { optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement ? 1 : 0 };
+        // Option-driven planning cards (specs/option-planning-card.md §3.4): send the CHECKED
+        // occurrences ({date,time}). The server derives billedUnits from them (authoritative).
+        if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
+        return line;
+      });
   };
 
   const buildCustomOptionsPayload = () => {
@@ -1498,7 +1563,7 @@ export default function ReservationPage() {
       api.getReservations({ propertyId: nextPropertyId }),
     ]);
 
-    const availableOpts = opts.filter(o => !o.propertyIds || o.propertyIds.length === 0 || o.propertyIds.includes(nextPropertyId));
+    const availableOpts = opts.filter(o => (o.propertyIds || []).includes(nextPropertyId));
 
     setSelectedProp(nextPropertyId);
     setSelectedProperty(prop);
@@ -2332,6 +2397,8 @@ export default function ReservationPage() {
     setOptionEnabled, setOptionQuantity, setResourceEnabled, setResourceQuantity,
     addCustomOption, updateCustomOption, removeCustomOption,
     setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
+    // Option-driven planning cards (specs/option-planning-card.md §3.2) — occurrence checklist.
+    setOptionCardOccurrences,
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
     accommodationBasePriceDisplay, pricingQuote,
