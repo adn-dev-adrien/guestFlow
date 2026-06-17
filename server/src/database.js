@@ -1317,16 +1317,38 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 
   const { migrateDevisIntoReservations, tableExists } = require('./utils/devisFusionMigration');
   if (tableExists(db, 'devis')) {
-    try {
-      const backupPath = `${dbPath}.pre-devis-fusion-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
-      db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
-      console.log('[Fusion] Pre-migration backup written to', backupPath);
-      const result = migrateDevisIntoReservations(db);
-      console.log('[Fusion] devis → reservations:', JSON.stringify(result));
-    } catch (err) {
-      console.error('[Fusion] Devis fusion failed — DB left unchanged (restore the .bak if needed):', err.message);
-      throw err;
+    const pendingDevis = db.prepare('SELECT COUNT(*) c FROM devis').get().c;
+    const alreadyFused = db.prepare("SELECT COUNT(*) c FROM reservations WHERE kind = 'devis'").get().c;
+    if (alreadyFused === 0 && pendingDevis > 0) {
+      // Genuine first-time fusion: back up the DB, then fold devis → reservations (drops devis_* on
+      // success). The backup is the safety net for THIS destructive migration only.
+      try {
+        const backupPath = `${dbPath}.pre-devis-fusion-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
+        db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+        console.log('[Fusion] Pre-migration backup written to', backupPath);
+        const result = migrateDevisIntoReservations(db);
+        console.log('[Fusion] devis → reservations:', JSON.stringify(result));
+      } catch (err) {
+        console.error('[Fusion] Devis fusion failed — DB left unchanged (restore the .bak if needed):', err.message);
+        throw err;
+      }
+    } else if (pendingDevis === 0) {
+      // Half-migrated leftover: the rows were already fused but the legacy devis_* tables were never
+      // dropped (they're now EMPTY). Previously this re-took a `.pre-devis-fusion-*.bak` backup on
+      // EVERY boot while the migration skipped — flooding the directory with backups. Drop the empty
+      // legacy tables once (no data to lose) so the boot loop ends. NO backup needed (nothing to migrate).
+      db.exec(`
+        DROP TABLE IF EXISTS devis_options;
+        DROP TABLE IF EXISTS devis_custom_options;
+        DROP TABLE IF EXISTS devis_resources;
+        DROP TABLE IF EXISTS devis_nights;
+        DROP TABLE IF EXISTS devis_history;
+        DROP TABLE IF EXISTS devis;
+      `);
+      console.log('[Fusion] Dropped empty legacy devis_* tables (rows already fused) — no backup needed.');
     }
+    // else: pendingDevis > 0 AND alreadyFused > 0 → ambiguous partial state; leave untouched (no
+    // backup, no migration) for a manual check, exactly as migrateDevisIntoReservations would skip.
   }
 }
 

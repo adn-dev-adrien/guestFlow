@@ -72,7 +72,12 @@ in §9.
 
 ### 4.1 Migration (the dangerous part — idempotent, backed-up, reversible)
 
-- Pre-flight: `VACUUM INTO` (or file copy) a timestamped DB backup before any DDL.
+- Pre-flight: `VACUUM INTO` a timestamped DB backup **only when the fusion will actually run** — i.e.
+  legacy `devis` rows exist **and** none are fused yet (`reservations kind='devis'` count is 0). A
+  half-migrated DB (rows already fused, empty legacy `devis_*` tables left over) must **not** re-back-up
+  on every boot — that flooded the dir with `*.pre-devis-fusion-*.bak`. In that leftover case the boot
+  simply **drops the empty legacy tables** (no data to lose, no backup). A genuinely ambiguous partial
+  state (some fused, some not) is left untouched for a manual check (fix 2026-06-17).
 - Add the new `reservations` columns (idempotent `ADD COLUMN IF NOT EXISTS`-style).
 - For each `devis` row: insert a `reservations` row (`kind='devis'`, mapped fields, preserve devisNumber/
   status/validUntil/convertedReservationId), remember `devisId → newReservationId`; copy its
