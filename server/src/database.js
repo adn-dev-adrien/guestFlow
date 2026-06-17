@@ -1224,7 +1224,15 @@ db.exec(`
   );
 `);
 if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_seal' LIMIT 1").get()) {
-  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_seal', 'Plomb extincteur', 0, 0)").run();
+  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_seal', 'Plomb manquant', 0, 0)").run();
+}
+// Extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2 — 2026-06-17):
+// the departure SAS asks « extincteur en bon état ? » and, if not, bills these per-quantity. Relabel
+// the legacy seed (was « Plomb extincteur ») in place — the label is operator-protected, so it's always
+// the seed default — and add the « Utilisation » tariff.
+db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey = 'extinguisher_seal' AND label = 'Plomb extincteur'").run();
+if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_use' LIMIT 1").get()) {
+  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_use', 'Utilisation', 0, 1)").run();
 }
 // End-of-stay complement (departure SAS): a dedicated amount, separate from the arrival complement.
 {

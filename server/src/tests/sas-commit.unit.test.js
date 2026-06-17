@@ -35,6 +35,7 @@ function makeDb() {
     CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, autoOptionType TEXT, price REAL DEFAULT 0);
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE linen_priced_items (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, category TEXT NOT NULL DEFAULT 'bed', sortOrder INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE repair_amounts (id INTEGER PRIMARY KEY AUTOINCREMENT, repairKey TEXT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
   `);
   db.prepare("INSERT INTO reservations (id, propertyId, complementAmount, complementPaid, cautionAmount) VALUES (1, 7, 30, 0, 300)").run();
   return db;
@@ -263,4 +264,61 @@ test('commitDepartureSas: records the departure seal state (the bill rides endOf
   assert.equal(r.extinguisherSealOkAtDeparture, 0);
   assert.equal(r.endOfStayComplementAmount, 25);
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((d) => d.label), ['Plomb extincteur']);
+});
+
+// ---- extinguisher condition tariffs, server-priced (specs/extinguisher-seal-and-repair-amounts.md §3.2) ----
+
+test('commitDepartureSas: not-OK extinguisher prices each tariff × qty from repair_amounts and adds it to the end-of-stay complement', () => {
+  const db = makeDb();
+  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_seal', 'Plomb manquant', 30, 0), ('extinguisher_use', 'Utilisation', 15, 1)").run();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    extinguisherSealOkAtDeparture: 0,
+    endOfStayComplementDetail: [{ label: 'Ménage de fin de séjour', amount: 40, qty: 1 }],
+    extinguisherCharges: [
+      { repairKey: 'extinguisher_seal', qty: 1 },  // 30 × 1 = 30
+      { repairKey: 'extinguisher_use', qty: 2 },   // 15 × 2 = 30
+    ],
+  });
+  const r = db.prepare('SELECT extinguisherSealOkAtDeparture, endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.extinguisherSealOkAtDeparture, 0);
+  // 40 (ménage) + 30 (plomb) + 30 (utilisation) — amount is the authoritative server-computed sum.
+  assert.equal(r.endOfStayComplementAmount, 100);
+  const detail = JSON.parse(r.endOfStayComplementDetail);
+  assert.deepEqual(detail.map((d) => d.label), ['Ménage de fin de séjour', 'Plomb manquant', 'Utilisation']);
+  const use = detail.find((d) => d.repairKey === 'extinguisher_use');
+  assert.equal(use.amount, 30);
+  assert.equal(use.qty, 2);
+});
+
+test('commitDepartureSas: extinguisher in good condition bills nothing even if charges are sent', () => {
+  const db = makeDb();
+  db.prepare("INSERT INTO repair_amounts (repairKey, label, price) VALUES ('extinguisher_seal', 'Plomb manquant', 30)").run();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    extinguisherSealOkAtDeparture: 1,
+    endOfStayComplementDetail: [],
+    extinguisherCharges: [{ repairKey: 'extinguisher_seal', qty: 1 }],
+  });
+  const r = db.prepare('SELECT extinguisherSealOkAtDeparture, endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.extinguisherSealOkAtDeparture, 1);
+  assert.equal(r.endOfStayComplementAmount, 0);
+  assert.equal(r.endOfStayComplementDetail, null);
+});
+
+test('commitDepartureSas: a 0-qty or 0-priced extinguisher tariff produces no line', () => {
+  const db = makeDb();
+  db.prepare("INSERT INTO repair_amounts (repairKey, label, price) VALUES ('extinguisher_seal', 'Plomb manquant', 0), ('extinguisher_use', 'Utilisation', 15)").run();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    extinguisherSealOkAtDeparture: 0,
+    endOfStayComplementDetail: [],
+    extinguisherCharges: [
+      { repairKey: 'extinguisher_seal', qty: 2 },   // priced 0 → no line
+      { repairKey: 'extinguisher_use', qty: 0 },     // qty 0 → no line
+    ],
+  });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 0);
+  assert.equal(r.endOfStayComplementDetail, null);
 });

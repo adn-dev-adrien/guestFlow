@@ -75,13 +75,15 @@ function commitArrival(req, res) {
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-  const { cautionReturned, endOfStayComplementAmount = 0, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture } = req.body || {};
+  const { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges } = req.body || {};
   reservationsModel.commitDepartureSas(Number(req.params.id), {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
     cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
-    endOfStayComplementAmount: Number(endOfStayComplementAmount) || 0,
+    // The end-of-stay amount is recomputed server-side from the detail + the extinguisher charges, so
+    // no client-supplied total is trusted (specs/extinguisher-seal-and-repair-amounts.md §3.2).
     endOfStayComplementDetail,
     extinguisherSealOkAtDeparture,
+    extinguisherCharges: Array.isArray(extinguisherCharges) ? extinguisherCharges : undefined,
   });
   return res.json({ ok: true });
 }

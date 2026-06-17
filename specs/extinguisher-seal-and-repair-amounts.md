@@ -45,42 +45,56 @@ guest-billable amounts live in one place.
    delete / save, extensible). The Blanchisserie section keeps only the laundry weekday + the linen-stock
    counts (its priced-items block moves out; the `linen_priced_items` data + its `linen-items` API are
    unchanged — only the UI relocates).
-2. **Seeded « Plomb extincteur » with a stable key.** One row is seeded with `repairKey =
-   'extinguisher_seal'`, label « Plomb extincteur », price `0` (operator sets it). Rows that carry a
-   `repairKey` are **protected**: the operator can edit the **price** but not the label, and **cannot
-   delete** them (so the SAS link can't break). Custom rows (no key) are fully editable/deletable. On
-   save, the server **re-seeds** any missing keyed row, so `extinguisher_seal` always exists.
+2. **Seeded extinguisher tariffs with stable keys.** Two rows are seeded for the extinguisher-condition
+   check: `extinguisher_seal` / « Plomb manquant » and `extinguisher_use` / « Utilisation », both price
+   `0` (operator sets them). Rows that carry a `repairKey` are **protected**: the operator can edit the
+   **price** but not the label, and **cannot delete** them (so the SAS link can't break). Custom rows (no
+   key) are fully editable/deletable. On save, the server **re-seeds** any missing keyed row, so both
+   extinguisher tariffs always exist.
+   > **Changed 2026-06-17** — the legacy `extinguisher_seal` row was relabelled « Plomb extincteur » →
+   > « Plomb manquant » (in-place migration, label is operator-protected) and the « Utilisation » tariff
+   > was added, to drive the new extinguisher-condition page (§3.2).
 3. **Price 0 = no charge.** A `0` repair price means the SAS proposes no charge (with a hint to set the
    price), exactly like an unpriced linen item.
 
-### 3.2 Extinguisher seal — SAS check (Adrien's decision 2026-06-15: « arrivée = constat, départ = facture »)
-4. **Arrival SAS — baseline, never bills. Default = présent.** A new page « Extincteur » shows the seal
-   as **présent by default** (a « Plomb de l'extincteur présent » switch, **ON**) + « Suivant »; the
-   operator only flips it to **manquant** if it's actually missing. The answer is recorded
-   (`extinguisherSealOkAtArrival` = 1 / 0, **default 1**); **no charge** at arrival. When flipped to
-   manquant, the page notes the seal was already missing on arrival (owner to replace; guest not at fault).
-5. **Departure SAS — bills only if broken during the stay. Default = présent.** The same « Plomb présent »
-   switch defaults **ON**; the operator flips it to **manquant** if missing. On **manquant**:
-   - seal **présent at arrival** — the default, **including reservations with no arrival SAS** (présent is
-     assumed) → the « Plomb extincteur » repair amount is **added to the end-of-stay complement** (one
-     line « Plomb extincteur » = its configured price).
-   - seal **explicitly marked manquant at arrival** → **no charge** (pre-existing; flagged in the recap).
-   - The departure answer is recorded (`extinguisherSealOkAtDeparture` = 1 / 0, **default 1**).
-6. **One page per SAS, always shown.** The extinguisher page appears on **every** arrival and departure
-   SAS (it's a safety check), placed just before the recap. The single commit at the recap is unchanged.
+### 3.2 Extinguisher condition — departure SAS check
+
+> **Reworked 2026-06-17 (Adrien's decision):** the binary « plomb présent ? » seal check at **both**
+> arrival and departure is replaced by a single **« L'extincteur est-il en bon état ? »** question, at
+> **departure only**, that opens a **tariff-quantity page** when the answer is « Non ». The « complément
+> de fin de séjour » is a departure concept, so the question + the billing both live there; the arrival
+> SAS no longer has an extinguisher page.
+
+4. **Departure SAS — « L'extincteur est-il en bon état ? » (Oui par défaut).** A « Extincteur » page asks
+   the condition with two answers, **Oui** (default, good condition → no charge) / **Non**.
+5. **« Non » → tariff-quantity page.** Answering « Non » opens a page listing every extinguisher tariff
+   (`repair_amounts` rows whose `repairKey` starts with `extinguisher`: « Plomb manquant », « Utilisation »)
+   each with a **quantity stepper** (− value +, ≥ 0) and its unit price. For each tariff with `qty > 0`,
+   the charge `price × qty` is **added to the end-of-stay complement** as one line (`{ repairKey, label,
+   qty, amount }`). A `0 €` tariff or a `0` quantity produces no line.
+6. **Server-authoritative billing.** The client sends only `extinguisherSealOkAtDeparture` (1 = bon état /
+   0 = pas bon état) + `extinguisherCharges` = `[{ repairKey, qty }]`. The **server** looks up each price
+   in `repair_amounts`, builds the lines, appends them to the end-of-stay detail, and the stored
+   `endOfStayComplementAmount` is the authoritative **sum of every detail line** — no client total is
+   trusted (fat backend). « Oui » (bon état) sends no charges → no extinguisher line.
+7. **One page, departure only.** The extinguisher condition page appears on **every departure** SAS (a
+   safety check), placed just before the recap; the conditional tariff page follows it only on « Non ».
+   The single commit at the recap is unchanged. The **arrival** SAS no longer has an extinguisher page.
 7. **« Précédent » navigation (new — all SAS pages).** The SAS gains a back affordance (a « ‹ » arrow in
    the header band, shown from the 2nd page on) that returns to the previous page; in-memory decisions
    are **preserved** (revisiting a page shows the prior answer). Going back writes nothing — only
    « Valider et terminer » commits. This relaxes the former forward-only rule (amended in
    `specs/arrival-departure-sas.md` §3.0).
-8. **Recap reflects it.** The end-of-stay recap lists the « Plomb extincteur » line (when billed) within
-   the existing end-of-stay total; the arrival recap is unchanged (arrival never bills the seal).
+8. **Recap reflects it.** The end-of-stay recap lists each billed extinguisher tariff line (« Plomb
+   manquant », « Utilisation ») within the existing end-of-stay total; the arrival recap is unchanged.
 
 **Edge cases:**
-- No `extinguisher_seal` price configured (0) + departure missing + was present → the line is proposed
-  at 0 € with a hint to set the price in Réglages (no silent charge).
-- Existing reservations (no arrival baseline column value) → baseline = « non vérifié » → no auto-charge.
-- A finished SAS stays locked (existing `arrivalSasDoneAt` / `departureSasDoneAt` behaviour).
+- No extinguisher tariff priced (0) + « Non » → no line is created (no silent charge); the page shows
+  the tariffs at 0 €.
+- No extinguisher tariff configured at all → the « Non » page shows a hint to configure them in Réglages.
+- Re-opening a committed departure SAS pre-fills the condition + the per-tariff quantities from the
+  persisted detail (lines matched by `repairKey`).
+- A finished SAS stays re-openable (existing `departureSasDoneAt` behaviour).
 
 ---
 
@@ -98,15 +112,16 @@ guest-billable amounts live in one place.
 | `models/` | `repairAmountsModel.js` | C | `list()` + `replaceAll(items)` on `repair_amounts`, **preserving keyed rows** + re-seeding `extinguisher_seal`. `buildModel(db)` factory (mirror of `linenItemsModel`). |
 | `controllers/` | `settingsController.js` | T | `getRepairAmounts` / `updateRepairAmounts` (mirror of the linen-items handlers). |
 | `routes/` | `settings.js` | T | `GET /settings/repair-amounts`, `PUT /settings/repair-amounts`. |
-| `controllers/` | `sasController.js` | T | `getSas` payload gains `repairAmounts` (the list); `commitArrival` / `commitDeparture` pass the new seal fields through. |
-| `models/` | `reservationsModel.js` | T | `commitArrivalSas` persists `extinguisherSealOkAtArrival`; `commitDepartureSas` persists `extinguisherSealOkAtDeparture` (the bill rides the existing `endOfStayComplementDetail`). `getByIdWithDetails` returns both seal fields via `r.*`. |
-| `database.js` | `database.js` | T | Migrations: `CREATE TABLE repair_amounts (id, repairKey TEXT, label, price REAL, sortOrder)`; seed `extinguisher_seal`; `ALTER TABLE reservations ADD COLUMN extinguisherSealOkAtArrival INTEGER` + `…AtDeparture INTEGER` (idempotent). |
+| `controllers/` | `sasController.js` | T | `getSas` payload gains `repairAmounts` (the list); `commitDeparture` passes `extinguisherSealOkAtDeparture` + `extinguisherCharges` through. |
+| `models/` | `reservationsModel.js` | T | `commitDepartureSas` **prices** `extinguisherCharges` from `repair_amounts`, appends the lines to the end-of-stay detail, and recomputes `endOfStayComplementAmount` as the authoritative sum (2026-06-17). `getByIdWithDetails` returns the seal fields via `r.*`. |
+| `models/` | `repairAmountsModel.js` | C | `PROTECTED_REPAIRS` (extinguisher_seal + extinguisher_use) re-seeded on `replaceAll`. |
+| `database.js` | `database.js` | T | Seed both extinguisher tariffs; relabel the legacy `extinguisher_seal` row in place. The `repair_amounts` table + the `extinguisherSealOk*` columns live in `schema.sql` (baseline #225). |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `components/sas/` | `ReservationSasDialog.js` | T | New `extinguisher` step in both `activeKeys` (before recap); arrival records the baseline; departure shows the baseline + builds the end-of-stay « Plomb extincteur » line when billable. New step icon. |
+| `components/sas/` | `ReservationSasDialog.js` | T | Departure-only `extinguisher` step (« bon état ? ») + a conditional `extinguisherItems` tariff-quantity page (shown on « Non »); sends `extinguisherSealOkAtDeparture` + `extinguisherCharges`. The arrival extinguisher step is **removed** (2026-06-17). |
 | `components/` | `SettingsBillableAmountsSection.js` | C | New **« Tarifs facturables »** card holding **both** sub-lists: « Prix du linge » (priced-linen items, via the existing `linen-items` API) + « Montants de réparation » (new `repair-amounts` API; keyed rows price-only + non-deletable). |
 | `components/` | `SettingsLaundrySection.js` | T | **Remove** the priced-linen-items block (it moves to `SettingsBillableAmountsSection`); keep the laundry weekday + linen stock. |
 | `pages/` | `SettingsPage.js` | T | Mount `SettingsBillableAmountsSection`. |
@@ -126,8 +141,7 @@ guest-billable amounts live in one place.
 | GET | `/api/settings/repair-amounts` | — | `[{ id, repairKey, label, price, sortOrder }]` | Ordered by `sortOrder, id`. |
 | PUT | `/api/settings/repair-amounts` | `[{ repairKey?, label, price }]` | the saved list | Replace-all; keyed rows preserved + `extinguisher_seal` re-seeded. |
 | GET | `/api/reservations/:id/sas` | — | `{ …, repairAmounts: [...] }` | Adds the repair list (existing payload otherwise unchanged). |
-| POST | `/api/reservations/:id/sas/arrival` | `{ …, extinguisherSealOkAtArrival }` | `{ ok, complementAmount }` | New field; no charge. |
-| POST | `/api/reservations/:id/sas/departure` | `{ …, endOfStayComplement…, extinguisherSealOkAtDeparture }` | `{ ok }` | Bill rides the existing end-of-stay detail. |
+| POST | `/api/reservations/:id/sas/departure` | `{ …, endOfStayComplementDetail, extinguisherSealOkAtDeparture, extinguisherCharges: [{ repairKey, qty }] }` | `{ ok }` | The server prices `extinguisherCharges`, appends the lines, and recomputes the authoritative total (no client `endOfStayComplementAmount` is trusted, 2026-06-17). |
 
 ---
 
@@ -143,7 +157,9 @@ CREATE TABLE repair_amounts (
   sortOrder INTEGER NOT NULL DEFAULT 0
 );
 ```
-**Seed** (once, if absent): `('extinguisher_seal', 'Plomb extincteur', 0, 0)`.
+**Seed** (once, if absent): `('extinguisher_seal', 'Plomb manquant', 0, 0)` + `('extinguisher_use',
+'Utilisation', 0, 1)`. The legacy `extinguisher_seal` label « Plomb extincteur » is relabelled in place
+(2026-06-17).
 
 **New columns on `reservations`** (idempotent `ALTER TABLE … ADD COLUMN`, both nullable INTEGER):
 `extinguisherSealOkAtArrival`, `extinguisherSealOkAtDeparture` — `1` = present, `0` = missing, `NULL`
@@ -175,23 +191,27 @@ auto-billed). No backfill, no loss.
 - [x] `repair-amounts-model.unit.test.js` (4 tests) — `list` ordering; `replaceAll` drops empty labels,
       preserves keyed rows, **re-seeds `extinguisher_seal`** (preserving its price) when the payload omits
       it, ignores a duplicate key; price coerced ≥ 0.
-- [x] `sas-commit.unit.test.js` (extended, +3) — `commitArrivalSas` stores `extinguisherSealOkAtArrival`
-      and **never** changes the complement for the seal; an omitted field leaves the column NULL;
-      `commitDepartureSas` stores `extinguisherSealOkAtDeparture` (the bill rides `endOfStayComplementDetail`).
-- [x] Full server suite green (1542).
+- [x] `sas-commit.unit.test.js` — `commitDepartureSas` stores `extinguisherSealOkAtDeparture`; and
+      (2026-06-17, +3) prices `extinguisherCharges` × qty from `repair_amounts` into the end-of-stay
+      detail + authoritative total; « bon état » bills nothing even if charges are sent; a 0-qty / 0-price
+      tariff yields no line.
+- [x] `repair-amounts-model.unit.test.js` (2026-06-17) — `replaceAll` re-seeds **both** protected
+      extinguisher tariffs when the payload drops them.
+- [x] Full server suite green (1607).
 
 ### Client unit tests (vitest)
-- [x] `ReservationSasDialog.test.js` (extended) — the existing flows now step through the extinguisher
-      page (default present → no charge, payload carries `extinguisherSealOkAtArrival: 1`); a new test
-      flips it to « Manquant » at departure (present at arrival + configured price) → the « Plomb
-      extincteur » line + total reach the `commitDepartureSas` payload.
+- [x] `ReservationSasDialog.test.js` (2026-06-17) — arrival flows no longer step through an extinguisher
+      page; the departure « bon état ? » → « Oui » sends `extinguisherSealOkAtDeparture: 1` + empty
+      charges; « Non » opens the tariff-quantity page and the per-tariff quantities reach
+      `commitDepartureSas` as `extinguisherCharges` (priced server-side, not in the detail).
 - [x] `SettingsBillableAmountsSection.test.js` — renders both sub-lists; the keyed repair row's label is
       disabled (non-editable); saving sends the list to `updateRepairAmounts`. Full client suite green (472).
 
 ### Manual UI verification
-- [ ] Configure « Plomb extincteur » price; run an arrival SAS (mark present) then a departure SAS (mark
-      missing) → the end-of-stay complement gains the line; verify in the reservation finance.
-- [ ] Departure « Manquant » when arrival was « Manquant » → no charge.
+- [x] Configure the « Plomb manquant » / « Utilisation » prices; run a departure SAS → « bon état ? » →
+      « Non » → set a quantity → the end-of-stay complement gains the priced line (verified 2026-06-17:
+      qty 1 × 30 € → `endOfStayComplementAmount = 30`, detail line carries `repairKey` + `qty`).
+- [x] « Oui » (bon état) → no extinguisher line.
 - [ ] Mobile check of both the SAS page and the Réglages section.
 
 ## 8. Out of scope

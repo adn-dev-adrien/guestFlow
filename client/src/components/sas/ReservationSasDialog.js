@@ -87,7 +87,8 @@ function stepMeta(key, mode) {
     case 'missingItems': return { title: 'Serviettes / draps', Icon: DryCleaningIcon };
     case 'keys': return { title: 'Clés', Icon: VpnKeyIcon };
     case 'cautionReturn': return { title: 'Retour caution', Icon: SavingsIcon };
-    case 'extinguisher': return { title: 'Extincteur', Icon: FireExtinguisherIcon };
+    case 'extinguisher':
+    case 'extinguisherItems': return { title: 'Extincteur', Icon: FireExtinguisherIcon };
     case 'recap': return { title: 'Récapitulatif', Icon: FactCheckIcon };
     default: return { title: '', Icon: null };
   }
@@ -165,7 +166,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [missingDep, setMissingDep] = useState({});       // departure: { itemId: qty }
   const [keysReceived, setKeysReceived] = useState(null); // departure
   const [cautionReturned, setCautionReturned] = useState(null); // departure
-  const [extinguisherOk, setExtinguisherOk] = useState(true);   // fire-extinguisher seal — default PRESENT
+  const [extinguisherOk, setExtinguisherOk] = useState(true);   // fire-extinguisher — default GOOD CONDITION
+  const [extinguisherQty, setExtinguisherQty] = useState({});   // departure: { repairKey: qty } when not OK
   // arrival breakfast page (specs/sas-breakfast-and-handover-note.md)
   const [breakfast, setBreakfast] = useState({ coffee: 0, tea: 0, chocolate: 0 });
   const [breakfastTime, setBreakfastTime] = useState('');
@@ -183,7 +185,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     let cancelled = false;
     setLoading(true); setError(''); setData(null); setStepKey(null);
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
-    setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true);
+    setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
     api.getReservationSas(reservationId)
@@ -204,7 +206,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const sealToBool = (v) => (v == null ? true : Number(v) === 1);
         if (mode === 'arrival') {
           setCaution(res.cautionReceived ? 'fait' : null);
-          setExtinguisherOk(sealToBool(res.extinguisherSealOkAtArrival));
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
@@ -225,16 +226,20 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           let detail = [];
           try { detail = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
           const byLabel = new Map((d.linenItems || []).map((i) => [String(i.label), i]));
-          const nextDep = {}; let charged = false; const keep = [];
+          const nextDep = {}; const nextExtinguisher = {}; let charged = false; const keep = [];
           detail.forEach((line) => {
             const label = String(line.label || '');
-            if (label === 'Plomb extincteur') return;            // recomputed from the seal answer
+            // Extinguisher lines carry a repairKey → recomputed server-side from the quantities below.
+            if (line.repairKey && String(line.repairKey).startsWith('extinguisher')) {
+              nextExtinguisher[String(line.repairKey)] = Math.max(1, Number(line.qty) || 1);
+              return;
+            }
             if (label === 'Ménage de fin de séjour') { charged = true; return; }
             const item = byLabel.get(label);
             if (item) nextDep[item.id] = Number(line.qty) || Math.max(1, Math.round(Number(line.amount) / Number(item.price || 1)));
             else keep.push({ label, amount: Number(line.amount) || 0 });
           });
-          setMissingDep(nextDep); setPreservedDeparture(keep);
+          setMissingDep(nextDep); setExtinguisherQty(nextExtinguisher); setPreservedDeparture(keep);
           setCleaningOk(!charged);
           setMissingAsk(Object.keys(nextDep).length > 0 ? true : null);
         }
@@ -268,7 +273,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         'cleaning',
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
-        'extinguisher',
         'recap',
       ].filter(Boolean);
     }
@@ -281,9 +285,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'keys',
       cautionReturnStep ? 'cautionReturn' : null,
       'extinguisher',
+      extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean);
-  }, [data, mode, r, linenOk, caution, missingAsk]);
+  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -317,15 +322,22 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     .map((it) => ({ label: it.label, amount: Math.round(Number(it.price) * Number(missingDep[it.id]) * 100) / 100, qty: Number(missingDep[it.id]) })), [allItems, missingDep]);
   const depCleaningLine = (cleaningOk === false && data?.cleaning?.price)
     ? { label: 'Ménage de fin de séjour', amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
-  // Fire-extinguisher seal (specs/extinguisher-seal-and-repair-amounts.md): billed at DEPARTURE iff the
-  // seal is missing now AND it was present at arrival (default-present: only an explicit 0 skips it).
-  const sealAmount = useMemo(() => {
-    const row = (data?.repairAmounts || []).find((x) => x.repairKey === 'extinguisher_seal');
-    return row ? Math.max(0, Number(row.price) || 0) : 0;
-  }, [data]);
-  const sealBilledAtDeparture = mode === 'departure' && extinguisherOk === false && Number(r?.extinguisherSealOkAtArrival) !== 0;
-  const sealLine = (sealBilledAtDeparture && sealAmount > 0) ? { label: 'Plomb extincteur', amount: sealAmount, qty: 1 } : null;
-  const endOfStayLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines, ...(sealLine ? [sealLine] : [])];
+  // Fire-extinguisher tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): at DEPARTURE, if the
+  // extinguisher is not in good condition, the operator enters a quantity for each extinguisher_* tariff.
+  // The bill is computed server-side from the quantities; these are PREVIEW lines for the recap only.
+  const extinguisherTariffs = useMemo(
+    () => (data?.repairAmounts || []).filter((x) => String(x.repairKey || '').startsWith('extinguisher')),
+    [data],
+  );
+  const extinguisherLines = useMemo(() => extinguisherTariffs
+    .filter((t) => Number(extinguisherQty[t.repairKey]) > 0)
+    .map((t) => ({ repairKey: t.repairKey, label: t.label, qty: Number(extinguisherQty[t.repairKey]), amount: Math.round(Number(t.price) * Number(extinguisherQty[t.repairKey]) * 100) / 100 })), [extinguisherTariffs, extinguisherQty]);
+  const extinguisherBilled = mode === 'departure' && extinguisherOk === false;
+  const previewExtinguisherLines = extinguisherBilled ? extinguisherLines : [];
+  // Lines billed by the laundry/cleaning flow (sent to the server verbatim). The extinguisher lines are
+  // sent as quantities (extinguisherCharges) — the server prices them — so they're excluded here.
+  const endOfStaySentLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines];
+  const endOfStayLines = [...endOfStaySentLines, ...previewExtinguisherLines];
   const endOfStayTotal = endOfStayLines.reduce((s, l) => s + l.amount, 0);
 
   const commit = async () => {
@@ -338,7 +350,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           cautionReceived: activeKeys.includes('caution') ? (caution === 'fait') : undefined,
           complementItems: [...arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })), ...preservedArrival],
           departureHandoverNote: handoverNote,
-          extinguisherSealOkAtArrival: extinguisherOk ? 1 : 0,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
@@ -349,12 +360,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         }
         await api.commitArrivalSas(reservationId, payload);
       } else {
-        const depPreservedTotal = preservedDeparture.reduce((s, l) => s + Number(l.amount || 0), 0);
         await api.commitDepartureSas(reservationId, {
           cautionReturned: activeKeys.includes('cautionReturn') ? (cautionReturned === true) : undefined,
-          endOfStayComplementAmount: Math.round((endOfStayTotal + depPreservedTotal) * 100) / 100,
-          endOfStayComplementDetail: [...endOfStayLines, ...preservedDeparture],
+          // The extinguisher lines are NOT sent here — the server prices the quantities below and appends
+          // them, then recomputes the authoritative total (specs/extinguisher-seal-and-repair-amounts.md §3.2).
+          endOfStayComplementDetail: [...endOfStaySentLines, ...preservedDeparture],
           extinguisherSealOkAtDeparture: extinguisherOk ? 1 : 0,
+          extinguisherCharges: extinguisherBilled
+            ? extinguisherTariffs.map((t) => ({ repairKey: t.repairKey, qty: Number(extinguisherQty[t.repairKey]) || 0 }))
+            : [],
         });
       }
       if (onCommitted) onCommitted();
@@ -572,20 +586,35 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {cautionReturned === false && <Chip label="Litige / dégât — caution conservée" color="error" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
-      case 'extinguisher': {
-        // The seal is billed at departure only if it was present at arrival (default-present).
-        const sealBillable = mode === 'departure' && sealAmount > 0 && Number(r?.extinguisherSealOkAtArrival) !== 0;
+      case 'extinguisher':
         return (
           <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
-            <Typography variant="h6" sx={{ textAlign: 'center' }}>Le plomb de l'extincteur est-il présent ?</Typography>
-            {sealBillable && (
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-                S'il est absent, <strong>{euro(sealAmount)}</strong> seront ajoutés au complément de fin de séjour.
-              </Typography>
+            <Typography variant="h6" sx={{ textAlign: 'center' }}>L'extincteur est-il en bon état ?</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+              Si non, vous pourrez ajouter les frais (plomb manquant, utilisation) au complément de fin de séjour.
+            </Typography>
+          </Stack>
+        );
+      case 'extinguisherItems':
+        return (
+          <Stack spacing={1}>
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>Frais extincteur à facturer</Typography>
+            {extinguisherTariffs.length === 0 && (
+              <Typography variant="body2" color="text.secondary">Aucun tarif extincteur configuré (Réglages → Tarifs facturables).</Typography>
+            )}
+            <Stack divider={<Divider />}>
+              {extinguisherTariffs.map((t) => (
+                <QtyRow key={t.repairKey} item={{ id: t.repairKey, label: t.label, price: t.price }} qtyMap={extinguisherQty} setQtyMap={setExtinguisherQty} />
+              ))}
+            </Stack>
+            {extinguisherLines.length > 0 && (
+              <>
+                <Divider />
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Sous-total : {euro(extinguisherLines.reduce((s, l) => s + l.amount, 0))}</Typography>
+              </>
             )}
           </Stack>
         );
-      }
       case 'recap':
         if (mode === 'arrival') {
           const existing = Math.max(0, Math.round((Number(r.complementAmount || 0) - sasOriginSum) * 100) / 100);
@@ -703,12 +732,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           />
         </>;
       case 'extinguisher':
+        // « Oui » = bon état → clear any (re-edit) charges so nothing is billed. « Non » opens the
+        // tariff-quantity page — navigate explicitly (activeKeys is recomputed after this setState).
         return <>{quit}
           <AnswerButtons
-            goodLabel="Oui" onGood={() => { setExtinguisherOk(true); goNext(); }}
-            badLabel="Non" onBad={() => { setExtinguisherOk(false); goNext(); }}
+            goodLabel="Oui" onGood={() => { setExtinguisherOk(true); setExtinguisherQty({}); goNext(); }}
+            badLabel="Non" onBad={() => { setExtinguisherOk(false); setStepKey('extinguisherItems'); }}
           />
         </>;
+      case 'extinguisherItems': return <>{quit}{next()}</>;
       case 'recap':
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>Valider et terminer</Button>

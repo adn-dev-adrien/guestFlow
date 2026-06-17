@@ -8,6 +8,13 @@
  * Exports a default model bound to the production DB + a `buildModel(db)` factory for tests.
  */
 
+// SAS-linked rows that must always exist (re-seeded on save so the SAS link can't break). The
+// extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): « Plomb
+// manquant » + « Utilisation », billed per-quantity at departure.
+const PROTECTED_REPAIRS = [
+  { repairKey: 'extinguisher_seal', label: 'Plomb manquant' },
+  { repairKey: 'extinguisher_use', label: 'Utilisation' },
+];
 const EXTINGUISHER_KEY = 'extinguisher_seal';
 
 function buildModel(database) {
@@ -43,11 +50,12 @@ function buildModel(database) {
       const price = Math.max(0, Number(raw.price) || 0);
       insertStmt.run({ repairKey, label, price, sortOrder: sort++ });
     }
-    if (!seenKeys.has(EXTINGUISHER_KEY)) {
-      const prev = existingByKey[EXTINGUISHER_KEY];
+    for (const seed of PROTECTED_REPAIRS) {
+      if (seenKeys.has(seed.repairKey)) continue;
+      const prev = existingByKey[seed.repairKey];
       insertStmt.run({
-        repairKey: EXTINGUISHER_KEY,
-        label: (prev && prev.label) || 'Plomb extincteur',
+        repairKey: seed.repairKey,
+        label: (prev && prev.label) || seed.label,
         price: prev ? Math.max(0, Number(prev.price) || 0) : 0,
         sortOrder: sort++,
       });
@@ -55,7 +63,7 @@ function buildModel(database) {
     return listStmt.all();
   });
 
-  return { list, replaceAll, EXTINGUISHER_KEY };
+  return { list, replaceAll, EXTINGUISHER_KEY, PROTECTED_REPAIRS };
 }
 
 const defaultModel = (() => {
