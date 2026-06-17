@@ -48,6 +48,8 @@ function freshModel() {
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Linge de lit', 'per_stay', 25)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (11, 'Linge de toilette', 'per_stay', 15)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (12, 'Petit dej', 'per_stay', 10)").run();
+  // specs/option-property-scope.md: options apply only where explicitly linked — link all to Gite.
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10), (1, 11), (1, 12)').run();
   return { model: devisModel.buildModel(db), db };
 }
 

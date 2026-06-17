@@ -44,6 +44,9 @@ export default function PricedItemsPage({
   // a bespoke layout. Receives ({ form, setForm, properties, priceTypes }). When provided,
   // renderExtraFormFields is ignored (the custom form renders everything).
   renderForm,
+  // specs/option-property-scope.md: options use an EXPLICIT scope (« Tous » = all ids, empty = none).
+  // Resources keep the legacy « empty = all ». Drives the « Logements » column label below.
+  explicitPropertyScope = false,
 }) {
     const resolvedPriceTypes = priceTypes || PRICE_TYPES;
 
@@ -201,9 +204,18 @@ export default function PricedItemsPage({
               <TableCell>{name}</TableCell>
               <TableCell>{description || '-'}</TableCell>
               <TableCell>
-                {!item.propertyIds || item.propertyIds.length === 0
-                  ? 'Tous les logements'
-                  : item.propertyIds.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ')}
+                {(() => {
+                  const pids = item.propertyIds || [];
+                  const everyProp = properties.length > 0 && properties.every((p) => pids.includes(p.id));
+                  if (explicitPropertyScope) {
+                    if (pids.length === 0) return 'Aucun logement';
+                    if (everyProp) return 'Tous les logements';
+                    return pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
+                  }
+                  return pids.length === 0
+                    ? 'Tous les logements'
+                    : pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
+                })()}
               </TableCell>
               <TableCell>{item.price} €</TableCell>
               {showQuantity && <TableCell>{item.quantity}</TableCell>}

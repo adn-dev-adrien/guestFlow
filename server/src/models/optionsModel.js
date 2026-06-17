@@ -57,6 +57,38 @@ function createOptionsModel(database) {
     const t = formatTimeShort(payload.breakfastTime) || '09:00';
     database.prepare('UPDATE options SET breakfastTime = ? WHERE id = ?').run(t, optionId);
   }
+  // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
+  // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
+  const HAS_OPTION_PLANNING_CARD = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'showsPlanningCard'); }
+    catch { return false; }
+  })();
+  function persistPlanningCard(optionId, payload) {
+    if (!HAS_OPTION_PLANNING_CARD || payload.showsPlanningCard === undefined) return;
+    const shows = payload.showsPlanningCard ? 1 : 0;
+    // Two day-based modes (specs/option-planning-card.md §3.1): « une fois par jour » (one slot) or
+    // « plusieurs fois par jour » (N slots). Legacy 'daily' maps to multiple. No fixed-date mode.
+    const repeat = (payload.cardRepeat === 'multiple_per_day' || payload.cardRepeat === 'daily')
+      ? 'multiple_per_day'
+      : 'once_per_day';
+    // Normalize the slots: an array of valid HH:MM strings; « une fois par jour » keeps exactly one.
+    const rawTimes = Array.isArray(payload.planningCardTimes) ? payload.planningCardTimes : [];
+    let times = rawTimes.map((t) => formatTimeShort(t)).filter(Boolean);
+    if (repeat === 'once_per_day') times = times.slice(0, 1);
+    if (shows && times.length === 0) times = ['09:00']; // a shown card always has ≥1 slot
+    database.prepare(
+      'UPDATE options SET showsPlanningCard = ?, cardRepeat = ?, planningCardDate = ?, planningCardTimes = ? WHERE id = ?'
+    ).run(shows, repeat, null, JSON.stringify(times), optionId);
+  }
+  // Parse the stored planningCardTimes JSON into a clean HH:MM array for API consumers.
+  function decoratePlanningCard(option) {
+    if (!HAS_OPTION_PLANNING_CARD || !option) return option;
+    let times = [];
+    try { const parsed = JSON.parse(option.planningCardTimes || '[]'); if (Array.isArray(parsed)) times = parsed; }
+    catch { times = []; }
+    option.planningCardTimes = times;
+    return option;
+  }
 
   const propertyIdsFor = (optionId) => database
     .prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId')
@@ -126,7 +158,7 @@ function createOptionsModel(database) {
 
   const model = {
     list() {
-      return database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}ORDER BY title`).all().map((o) => ({
+      return database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}ORDER BY title`).all().map((o) => decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
@@ -142,16 +174,15 @@ function createOptionsModel(database) {
       option.propertyPrices = propertyPricesFor(id);
       option.propertyDefaults = propertyDefaultsFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
-      return option;
+      return decoratePlanningCard(option);
     },
 
     // Options applicable to a single property (via the property_options link). Used by the public
     // API to expose only the options a visitor can pick for that property (specs/public-api.md).
     listForProperty(propertyId) {
-      // Applicable options = those explicitly linked to this property, PLUS global options that are
-      // linked to NO property at all ("Tous les logements"). This mirrors the pricing engine's rule
-      // (getApplicableOptions in utils/pricing.js: `propertyIds.length === 0 || includes(id)`); a
-      // plain INNER JOIN would silently drop every global option.
+      // Applicable options = those EXPLICITLY linked to this property (specs/option-property-scope.md
+      // §3.3). The legacy « linked to no property = global » clause is removed: an option with no link is
+      // available nowhere. Mirrors the pricing engine (getApplicableOptions: `propertyIds.includes(pid)`).
       // `price` is the EFFECTIVE price for this property: the per-property override
       // (property_option_prices) when present, else the option's base price
       // (specs/per-property-option-prices.md). The LEFT JOIN is guarded by the table's existence at
@@ -164,19 +195,17 @@ function createOptionsModel(database) {
         SELECT o.*${HAS_OPTION_PROPERTY_PRICES ? ', pop.price AS __propertyPrice' : ''}
         FROM options o
         ${priceJoin}
-        WHERE (
-              EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
-           OR NOT EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id)
-        ) ${ACTIVE_AND_O}
+        WHERE EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
+        ${ACTIVE_AND_O}
         ORDER BY o.title
       `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
       return rows.map((o) => {
         const { __propertyPrice, ...rest } = o;
-        return {
+        return decoratePlanningCard({
           ...rest,
           price: __propertyPrice != null ? Number(__propertyPrice) : Number(rest.price || 0),
           optionProgressiveTiers: normalizeProgressiveOptionTiers(rest.optionProgressiveTiers),
-        };
+        });
       });
     },
 
@@ -235,6 +264,7 @@ function createOptionsModel(database) {
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
+        persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
         return id;
@@ -291,6 +321,7 @@ function createOptionsModel(database) {
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
+        persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
       })();

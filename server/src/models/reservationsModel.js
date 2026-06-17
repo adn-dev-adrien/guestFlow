@@ -64,6 +64,18 @@ function createReservationsModel(database) {
     const value = raw === '' ? null : (formatTimeShort(raw) || null); // '' / invalid → NULL = use option default
     database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
   }
+  // Option-driven planning cards (specs/option-planning-card.md §3.2). The selected occurrences for a
+  // card-option are stored on reservation_options.cardOccurrences (JSON). Guarded so minimal test
+  // schemas without the column simply skip the column in the INSERT/SELECT.
+  const HAS_RO_CARD_OCCURRENCES = (() => {
+    try { return database.prepare("PRAGMA table_info(reservation_options)").all().some((c) => c.name === 'cardOccurrences'); }
+    catch { return false; }
+  })();
+  const serializeCardOccurrences = (opt) => (
+    Array.isArray(opt.cardOccurrences) && opt.cardOccurrences.length > 0
+      ? JSON.stringify(opt.cardOccurrences)
+      : null
+  );
 
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
@@ -184,6 +196,18 @@ function createReservationsModel(database) {
         JOIN options o ON ro.optionId = o.id
         WHERE ro.reservationId = ?
       `).all(id);
+
+      // Option-driven planning cards (specs/option-planning-card.md §3.2): the per-reservation
+      // selected occurrences are stored as a JSON string — parse them back to an array so the
+      // fiche (ExtrasSection) can restore the checklist. Absent column / null → [].
+      for (const opt of reservation.options) {
+        if (typeof opt.cardOccurrences === 'string' && opt.cardOccurrences.trim()) {
+          try { const parsed = JSON.parse(opt.cardOccurrences); opt.cardOccurrences = Array.isArray(parsed) ? parsed : []; }
+          catch { opt.cardOccurrences = []; }
+        } else {
+          opt.cardOccurrences = [];
+        }
+      }
 
       const customOptions = database.prepare(`
         SELECT rco.id as customOptionId, rco.description as title, rco.description, 1 as quantity,
@@ -719,28 +743,24 @@ function createReservationsModel(database) {
     // `insertOptions` callsite.
     replaceOptions(reservationId, optionLines) {
       database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(reservationId);
-      const platformForcing = readPlatformForcing(database, reservationId);
-      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
-        const forced = (opt.inComplement || platformForcing) ? 1 : 0;
-        insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
-          Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
-          forced,
-          forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
-          forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null));
-      }
+      this.insertOptions(reservationId, optionLines);
     },
 
     insertOptions(reservationId, optionLines) {
       const platformForcing = readPlatformForcing(database, reservationId);
-      const insertOpt = database.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      const cols = 'reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc'
+        + (HAS_RO_CARD_OCCURRENCES ? ', cardOccurrences' : '');
+      const placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' + (HAS_RO_CARD_OCCURRENCES ? ', ?' : '');
+      const insertOpt = database.prepare(`INSERT INTO reservation_options (${cols}) VALUES (${placeholders})`);
       for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
         const forced = (opt.inComplement || platformForcing) ? 1 : 0;
-        insertOpt.run(reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
+        const args = [reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
           Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,
           forced,
           forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
-          forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null));
+          forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null)];
+        if (HAS_RO_CARD_OCCURRENCES) args.push(serializeCardOccurrences(opt));
+        insertOpt.run(...args);
       }
     },
 

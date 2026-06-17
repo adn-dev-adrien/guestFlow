@@ -51,12 +51,12 @@ test('listForProperty returns the EFFECTIVE price: override wins, base is the fa
   assert.equal(onTwenty.price, 40, 'property 20 inherits the base price');
 });
 
-test('a GLOBAL option (no property_options) can carry a per-property override', () => {
+test('a « Tous les logements » option (linked to all) can carry a per-property override', () => {
   const model = freshDb();
-  // No propertyIds → global. Override only on property 10.
-  const { id } = model.create({ title: 'Petit déjeuner', priceType: 'per_person', price: 9, propertyIds: [], propertyPrices: { 10: 12 } });
+  // specs/option-property-scope.md: « Tous » = linked to every property; override only on 10.
+  const { id } = model.create({ title: 'Petit déjeuner', priceType: 'per_person', price: 9, propertyIds: [10, 99], propertyPrices: { 10: 12 } });
 
-  assert.equal(model.listForProperty(10).find((o) => o.id === id).price, 12, 'global option overridden on 10');
+  assert.equal(model.listForProperty(10).find((o) => o.id === id).price, 12, 'overridden on 10');
   assert.equal(model.listForProperty(99).find((o) => o.id === id).price, 9, 'other property inherits base');
 });
 
