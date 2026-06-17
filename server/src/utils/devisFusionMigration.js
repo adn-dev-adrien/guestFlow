@@ -12,6 +12,46 @@ function tableExists(db, name) {
   return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name);
 }
 
+// The legacy devis_* tables, children first so DROP order is FK-safe.
+const LEGACY_DEVIS_TABLES = [
+  'devis_options', 'devis_custom_options', 'devis_resources', 'devis_nights', 'devis_history', 'devis',
+];
+
+function countRows(db, name) {
+  if (!tableExists(db, name)) return 0;
+  return db.prepare(`SELECT COUNT(*) c FROM ${name}`).get().c;
+}
+
+/**
+ * Decide, at boot, what to do with the legacy devis_* schema — robust for prod, not just the dev symptom.
+ * The fusion (`migrateDevisIntoReservations`) is atomic, so a healthy DB is only ever in one of:
+ *   - no `devis` table        → 'noTable' (fresh install or fusion already completed) → do nothing.
+ *   - devis rows, none fused   → 'migrate' (genuine one-time fusion; back it up first).
+ *   - all legacy tables EMPTY  → 'dropLeftover' (rows already fused but tables never dropped — a
+ *                                pre-atomic-migration artefact; drop the empty husks, NO backup needed).
+ *   - anything else            → 'skipAmbiguous' (legacy rows AND fused rows coexist) → leave untouched
+ *                                for a manual check; never auto-drop data, never re-backup on every boot.
+ * Returns { action, pendingDevis, alreadyFused, legacyRowTotal }.
+ */
+function assessDevisFusion(db) {
+  if (!tableExists(db, 'devis')) return { action: 'noTable', pendingDevis: 0, alreadyFused: 0, legacyRowTotal: 0 };
+  const pendingDevis = countRows(db, 'devis');
+  const alreadyFused = db.prepare("SELECT COUNT(*) c FROM reservations WHERE kind = 'devis'").get().c;
+  const legacyRowTotal = LEGACY_DEVIS_TABLES.reduce((sum, t) => sum + countRows(db, t), 0);
+
+  if (alreadyFused === 0 && pendingDevis > 0) return { action: 'migrate', pendingDevis, alreadyFused, legacyRowTotal };
+  if (legacyRowTotal === 0) return { action: 'dropLeftover', pendingDevis, alreadyFused, legacyRowTotal };
+  return { action: 'skipAmbiguous', pendingDevis, alreadyFused, legacyRowTotal };
+}
+
+// Drop the (empty) legacy devis_* tables in one transaction. Only call when legacyRowTotal === 0.
+function dropLegacyDevisTables(db) {
+  const run = db.transaction(() => {
+    for (const t of LEGACY_DEVIS_TABLES) db.exec(`DROP TABLE IF EXISTS ${t}`);
+  });
+  run();
+}
+
 function migrateDevisIntoReservations(db) {
   if (!tableExists(db, 'devis')) return { skipped: true, reason: 'no devis table' };
 
@@ -119,4 +159,4 @@ function migrateDevisIntoReservations(db) {
   return { skipped: false, ...counts };
 }
 
-module.exports = { migrateDevisIntoReservations, tableExists };
+module.exports = { migrateDevisIntoReservations, tableExists, assessDevisFusion, dropLegacyDevisTables, LEGACY_DEVIS_TABLES };

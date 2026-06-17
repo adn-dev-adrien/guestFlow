@@ -1315,8 +1315,11 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
 
-  const { migrateDevisIntoReservations, tableExists } = require('./utils/devisFusionMigration');
-  if (tableExists(db, 'devis')) {
+  const { migrateDevisIntoReservations, assessDevisFusion, dropLegacyDevisTables } = require('./utils/devisFusionMigration');
+  // Robust boot decision (works on prod, not just the dev symptom — see assessDevisFusion). A
+  // pre-migration `.bak` is written ONLY for the genuine one-time fusion, never on every boot.
+  const fusion = assessDevisFusion(db);
+  if (fusion.action === 'migrate') {
     try {
       const backupPath = `${dbPath}.pre-devis-fusion-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
       db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
@@ -1327,6 +1330,16 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
       console.error('[Fusion] Devis fusion failed — DB left unchanged (restore the .bak if needed):', err.message);
       throw err;
     }
+  } else if (fusion.action === 'dropLeftover') {
+    // Rows already fused, the legacy devis_* tables are EMPTY husks (a pre-atomic-migration artefact).
+    // Drop them once — no data to lose, no backup. This ends the boot loop that used to re-write a
+    // `.pre-devis-fusion-*.bak` on every start.
+    dropLegacyDevisTables(db);
+    console.log('[Fusion] Dropped empty legacy devis_* tables (rows already fused) — no backup needed.');
+  } else if (fusion.action === 'skipAmbiguous') {
+    // Legacy devis rows AND fused rows coexist — the atomic migration can't produce this, so it's a
+    // corrupt/partial artefact. Never auto-resolve (data-loss risk) and never re-backup; surface it.
+    console.warn(`[Fusion] Ambiguous devis state — left untouched for manual check (legacy devis rows: ${fusion.pendingDevis}, fused: ${fusion.alreadyFused}, legacy rows total: ${fusion.legacyRowTotal}).`);
   }
 }
 
