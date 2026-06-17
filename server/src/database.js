@@ -786,6 +786,54 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// One-shot migration (specs/breakfast-option-planning-card.md §3 rule 7): the breakfast option gained
+// the per-day occurrence selection. Seed `cardOccurrences` on every existing reservation that carries
+// the breakfast option but has none yet — one entry per served morning (startDate, endDate] at the
+// reservation's breakfast hour — so its planning card keeps showing AND a future re-save preserves the
+// charge (a card-option with no occurrences would otherwise drop the line).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'breakfast_card_occurrences_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  const roCols = db.prepare('PRAGMA table_info(reservation_options)').all().map((c) => c.name);
+  const optCols = db.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
+  if (!ran && roCols.includes('cardOccurrences') && optCols.includes('autoOptionType')) {
+    const rows = db.prepare(`
+      SELECT ro.reservationId, ro.optionId, r.startDate, r.endDate,
+             COALESCE(NULLIF(r.breakfastTime, ''), NULLIF(o.breakfastTime, ''), '09:00') AS bkfTime
+        FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        JOIN reservations r ON r.id = ro.reservationId
+       WHERE o.autoOptionType = 'breakfast'
+         AND (ro.cardOccurrences IS NULL OR TRIM(ro.cardOccurrences) = '')
+    `).all();
+    // Served mornings = (startDate, endDate] : exclude the arrival morning, include the departure one.
+    const mornings = (start, end) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(start)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(end))) return [];
+      let cur = Date.UTC(+start.slice(0, 4), +start.slice(5, 7) - 1, +start.slice(8, 10)) + 86400000;
+      const cap = Date.UTC(+end.slice(0, 4), +end.slice(5, 7) - 1, +end.slice(8, 10));
+      const out = [];
+      for (let i = 0; i < 366 && cur <= cap; i += 1) { out.push(new Date(cur).toISOString().slice(0, 10)); cur += 86400000; }
+      return out;
+    };
+    const upd = db.prepare('UPDATE reservation_options SET cardOccurrences = ? WHERE reservationId = ? AND optionId = ?');
+    let migrated = 0;
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const occ = mornings(String(r.startDate), String(r.endDate)).map((d) => ({ date: d, time: r.bkfTime, done: false }));
+        if (occ.length === 0) continue;
+        upd.run(JSON.stringify(occ), r.reservationId, r.optionId);
+        migrated += 1;
+      }
+    });
+    tx();
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+    if (migrated > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[migration:breakfast-card-occurrences] seeded occurrences on ${migrated} reservation(s)`);
+    }
+  }
+}
+
 // Backfill clientGrossAmount = finalPrice for direct bookings where the column is NULL. After
 // this spec the column is always populated (= the customer-paid TTC, regardless of platform).
 // For directs gross = net trivially; for platforms the value was already entered at booking time.
