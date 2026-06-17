@@ -228,6 +228,20 @@ function getTypeMultiplier(priceType, persons, nights) {
   return 1;
 }
 
+// Option-driven planning cards (specs/option-planning-card.md §3.4). Parse the per-reservation
+// selected occurrences (the checked moments) into a clean [{ date, time }] array. Accepts a stored
+// JSON string or an array; drops entries without a valid ISO date. The length drives billedUnits.
+function normalizeCardOccurrences(raw) {
+  let list = raw;
+  if (typeof raw === 'string') { try { list = JSON.parse(raw); } catch { list = []; } }
+  if (!Array.isArray(list)) return [];
+  return list
+    // `done` is the planning-operational « préparé » flag (§3.5); preserved through pricing so a
+    // reservation re-save doesn't reset it. It never affects billedUnits.
+    .map((o) => ({ date: String(o?.date || '').slice(0, 10), time: String(o?.time || '').trim(), done: Boolean(o?.done) }))
+    .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date));
+}
+
 function normalizeOptionProgressiveTiers(rawTiers) {
   const parsed = parseJsonArray(rawTiers);
   const byParticipant = new Map();
@@ -682,7 +696,9 @@ function getApplicableOptions(db, propertyId) {
         propertyIds: propStmt.all(option.id).map((row) => Number(row.propertyId)),
       };
     })
-    .filter((option) => option.propertyIds.length === 0 || option.propertyIds.includes(pid));
+    // specs/option-property-scope.md §3.3: an option is applicable ONLY to the properties it's explicitly
+    // linked to. No link = available nowhere (the legacy « empty = all » rule is removed).
+    .filter((option) => option.propertyIds.includes(pid));
 }
 
 function getApplicableResources(db, propertyId) {
@@ -1026,13 +1042,40 @@ function calculateReservationQuote({
 
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
-      const quantity = Math.max(0, Number(selected?.quantity || 0));
-      if (quantity <= 0) return null;
       const optionId = Number(selected.optionId);
       const option = optionsById.get(optionId);
       if (!option) return null;
       const priceType = option.priceType || 'per_stay';
       const locked = lockedOptionsById.get(optionId);
+
+      // Option-driven planning card (specs/option-planning-card.md §3.4): the per-reservation
+      // selected occurrences REPLACE the automatic nights/days path and drive the billed quantity:
+      // billedUnits = occurrences × (persons when the option is per-person, else 1). An empty
+      // selection means the option isn't taken → no line, no charge.
+      if (option.showsPlanningCard) {
+        const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
+        if (occurrences.length === 0) return null;
+        const perPerson = String(priceType).includes('per_person');
+        const billedUnits = roundMoney(occurrences.length * (perPerson ? persons : 1));
+        const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
+          ? Number(optionUnitOverrides[optionId])
+          : Number(option.price || 0);
+        const realTotal = roundMoney(billedUnits * unitBase);
+        return {
+          optionId,
+          title: option.title,
+          quantity: occurrences.length,
+          unitPrice: unitBase,
+          billedUnits,
+          priceType,
+          cardOccurrences: occurrences,
+          ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
+          ...pickContribsAndForce(selected, locked),
+        };
+      }
+
+      const quantity = Math.max(0, Number(selected?.quantity || 0));
+      if (quantity <= 0) return null;
 
       if (priceType === 'per_participant_progressive') {
         const fallbackUnitPrice = Number(option.price || 0);

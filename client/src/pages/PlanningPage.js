@@ -12,6 +12,7 @@ import PageHeader from '../components/PageHeader';
 import LaundryDayCard from '../components/LaundryDayCard';
 import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
 import BreakfastDayCard from '../components/BreakfastDayCard';
+import OptionDayCard from '../components/OptionDayCard';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
@@ -121,6 +122,27 @@ export default function PlanningPage() {
     navigate(withFrom(`/reservations/${reservationId}`, '/planning'));
   }, [navigate]);
 
+  // Option-driven planning card « préparé » toggle (specs/option-planning-card.md §3.5). Optimistic:
+  // flip the matching occurrence in state, persist, revert on failure.
+  const handleToggleOptionCardDone = useCallback(async (item, nextDone) => {
+    if (!item) return;
+    const matches = (it) => it.reservationId === item.reservationId && it.optionId === item.optionId
+      && it.date === item.date && it.time === item.time;
+    const apply = (value) => setOptionCardsByDate((prev) => {
+      const day = prev[item.date];
+      if (!day) return prev;
+      return { ...prev, [item.date]: { ...day, items: day.items.map((it) => (matches(it) ? { ...it, done: value } : it)) } };
+    });
+    apply(nextDone);
+    try {
+      await api.setPlanningOptionCardDone({
+        reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
+      });
+    } catch {
+      apply(!nextDone); // revert
+    }
+  }, []);
+
   // Arrival / departure SAS (specs/arrival-departure-sas.md). Clicking an arrival card opens the
   // arrival SAS, a departure row the departure SAS. `{ reservationId, mode }` drives the dialog.
   const [sas, setSas] = useState(null);
@@ -159,6 +181,10 @@ export default function PlanningPage() {
   // → `{ items: [{ reservationId, clientName, propertyName, persons }], totalPersons }`.
   // Empty days are not included; `BreakfastDayCard` hides itself if data is missing.
   const [breakfastByDate, setBreakfastByDate] = useState({});
+  // Option-driven planning cards (specs/option-planning-card.md §3.3). Map ISO date →
+  // `{ items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] }`.
+  // Empty days are absent; `OptionDayCard` hides itself if data is missing.
+  const [optionCardsByDate, setOptionCardsByDate] = useState({});
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
   // → per-type clean snapshot to display as the 3rd block on each laundry day.
   const [inventoryByDate, setInventoryByDate] = useState({});
@@ -371,7 +397,7 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, manualAdditions] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, manualAdditions] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
       // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
@@ -381,6 +407,8 @@ export default function PlanningPage() {
       // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
       // Non-blocking like the others; an empty map keeps the planning fully functional.
       api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
+      // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
+      api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
       // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
       // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
       api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
@@ -434,6 +462,8 @@ export default function PlanningPage() {
     setManualAdditionsByDate(manualAdditions?.additions || {});
     // Breakfast map (date → { items, totalPersons }) directly from the server payload.
     setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
+    // Option-driven planning cards (specs/option-planning-card.md §3.3).
+    setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
 
     // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
     // horizon; LaundryDayCard filters the types it actually renders.
@@ -478,6 +508,13 @@ export default function PlanningPage() {
           .then((summary) => {
             const next = summary?.breakfastByDate || {};
             setBreakfastByDate((prev) => ({ ...prev, ...next }));
+          })
+          .catch(() => {});
+        // Same incremental pattern for the option-driven cards (specs/option-planning-card.md §3.3).
+        api.getPlanningOptionCards({ from: nextStart, to: nextEnd })
+          .then((summary) => {
+            const next = summary?.optionCardsByDate || {};
+            setOptionCardsByDate((prev) => ({ ...prev, ...next }));
           })
           .catch(() => {});
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
@@ -648,6 +685,8 @@ export default function PlanningPage() {
           // breakfast card (no arrival/departure/laundry) must still render so the operator
           // sees it. Filter to days where there's actually at least one item.
           ...Object.keys(breakfastByDate).filter((d) => (breakfastByDate[d]?.items?.length || 0) > 0),
+          // specs/option-planning-card.md §3.3 — a date with ONLY an option card must still render.
+          ...Object.keys(optionCardsByDate).filter((d) => (optionCardsByDate[d]?.items?.length || 0) > 0),
         ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
@@ -715,6 +754,11 @@ export default function PlanningPage() {
                   no reservation contributes (rule 7). Each row is clickable and opens
                   the corresponding reservation form. */}
               <BreakfastDayCard data={breakfastByDate[date]} onItemClick={openReservation} />
+
+              {/* Option-driven planning cards (specs/option-planning-card.md §3.3). Sits with the
+                  other day cards; hides itself when no occurrence falls on this date. Each row is
+                  clickable and opens the corresponding reservation fiche. */}
+              <OptionDayCard data={optionCardsByDate[date]} onItemClick={openReservation} onToggleDone={handleToggleOptionCardDone} />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>

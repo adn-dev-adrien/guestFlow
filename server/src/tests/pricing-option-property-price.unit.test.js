@@ -73,3 +73,14 @@ test('explicit override of 0 → the option is free for this property', () => {
   assert.equal(q.finalPrice, 200);
   db.close();
 });
+
+test('an option NOT linked to the property is not applied (specs/option-property-scope.md §3.3)', () => {
+  const db = createDb();
+  // Re-point option 10's only link to a different property → it's available nowhere on property 1.
+  db.prepare('DELETE FROM property_options WHERE optionId = 10').run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (2, 10)').run();
+  const q = calculateReservationQuote({ ...BASE, db }); // BASE is propertyId 1, selects option 10
+  assert.equal(q.optionLines.find((l) => l.optionId === 10), undefined, 'unlinked option dropped');
+  assert.equal(q.finalPrice, 200, 'accommodation only, no option');
+  db.close();
+});

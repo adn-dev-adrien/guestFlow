@@ -4,11 +4,10 @@ const Database = require('better-sqlite3');
 
 const { buildModel } = require('../models/optionsModel');
 
-// specs/public-api.md — the public per-property options endpoint must return options that are
-// EITHER explicitly linked to the property OR global ("Tous les logements" = no property_options
-// row at all). This mirrors the pricing engine's applicability rule (utils/pricing.js
-// getApplicableOptions). A plain INNER JOIN silently dropped every global option, so they never
-// appeared on the WordPress booking form even though the engine applied them.
+// specs/option-property-scope.md §3.3 — the public per-property options endpoint returns ONLY the
+// options EXPLICITLY linked to that property. The legacy « no link = global (everywhere) » rule is
+// removed: an option with no property_options row is available NOWHERE. « Tous les logements » is now
+// encoded as a link to every property.
 
 function freshDb() {
   const db = new Database(':memory:');
@@ -27,38 +26,43 @@ function freshDb() {
       PRIMARY KEY (propertyId, optionId)
     );
   `);
-  // [1] linked to property 10 ; [2] global (no link) ; [3] linked to property 20 ; [4] global.
+  // [1] linked to property 10 ; [2] « Tous » (linked to 10 AND 20) ; [3] linked to 20 ; [4] « Aucun » (no link).
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (1, 'Ménage', 'per_stay', 40)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (2, 'Petit déjeuner', 'per_person_per_night', 9)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (3, 'Spa privatif', 'per_stay', 80)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (4, 'Linge de toilette', 'per_person', 5)").run();
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (10, 1)').run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (10, 2)').run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (20, 2)').run();
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (20, 3)').run();
   return db;
 }
 
-test('listForProperty returns property-linked options PLUS global ones, sorted by title', () => {
+test('listForProperty returns ONLY the options linked to that property, sorted by title', () => {
   const model = buildModel(freshDb());
-  const titles = model.listForProperty(10).map((o) => o.title);
-  // property 10 → its own option (Ménage) + the two globals (Petit déjeuner, Linge de toilette);
-  // NOT property 20's "Spa privatif". Sorted by title.
-  assert.deepEqual(titles, ['Linge de toilette', 'Ménage', 'Petit déjeuner']);
+  // property 10 → its own (Ménage) + the « Tous » option (Petit déjeuner); NOT Spa (prop 20 only).
+  assert.deepEqual(model.listForProperty(10).map((o) => o.title), ['Ménage', 'Petit déjeuner']);
 });
 
-test('a different property gets ITS link plus the same globals (no cross-property leak)', () => {
+test('a different property gets ITS links (no cross-property leak)', () => {
   const model = buildModel(freshDb());
-  const titles = model.listForProperty(20).map((o) => o.title).sort();
-  assert.deepEqual(titles, ['Linge de toilette', 'Petit déjeuner', 'Spa privatif']);
-  assert.ok(!titles.includes('Ménage'), "property 10's option must not leak to property 20");
+  assert.deepEqual(model.listForProperty(20).map((o) => o.title).sort(), ['Petit déjeuner', 'Spa privatif']);
+  assert.ok(!model.listForProperty(20).some((o) => o.title === 'Ménage'), "property 10's option must not leak");
 });
 
-test('a property with no links still sees every global option', () => {
+test('an unlinked option (« Aucun ») is available for NO property', () => {
   const model = buildModel(freshDb());
-  const titles = model.listForProperty(999).map((o) => o.title).sort();
-  assert.deepEqual(titles, ['Linge de toilette', 'Petit déjeuner']);
+  for (const pid of [10, 20, 999]) {
+    assert.ok(!model.listForProperty(pid).some((o) => o.title === 'Linge de toilette'), `Linge de toilette must not appear for ${pid}`);
+  }
 });
 
-test('base price is returned as-is (options have a single price; no per-property price exists)', () => {
+test('a property with no links sees no options', () => {
+  const model = buildModel(freshDb());
+  assert.deepEqual(model.listForProperty(999).map((o) => o.title), []);
+});
+
+test('base price is returned as-is for a linked option', () => {
   const model = buildModel(freshDb());
   const breakfast = model.listForProperty(10).find((o) => o.title === 'Petit déjeuner');
   assert.equal(breakfast.price, 9);

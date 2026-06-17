@@ -1,0 +1,1 @@
+- Le champ « Prix » d'une option s'incrémente désormais par pas de 0,50 € (flèches haut/bas).

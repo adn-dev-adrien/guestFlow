@@ -62,6 +62,14 @@ function applyQuoteToForm(prev, quote, opts = {}) {
         soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
         ...(line.autoExtraHours !== undefined ? { autoExtraHours: Number(line.autoExtraHours) } : {}),
         ...(line.autoFullNightApplied !== undefined ? { autoFullNightApplied: Boolean(line.autoFullNightApplied) } : {}),
+        // Option-driven planning cards (specs/option-planning-card.md §3.2): the per-reservation
+        // occurrence grid is the user's source of truth (like inComplement) — preserve it across
+        // recomputes. Dropping it would make the next recompute send no occurrences → the server
+        // returns no line → the option vanishes (the bug this fixes). The richer working grid
+        // (checked/slot) wins over the server's bare {date,time} line echo.
+        ...(prevLine && Array.isArray(prevLine.cardOccurrences)
+          ? { cardOccurrences: prevLine.cardOccurrences }
+          : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
       };
     }),
     customOptions: (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => {

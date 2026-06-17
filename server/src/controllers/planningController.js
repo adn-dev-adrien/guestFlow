@@ -13,6 +13,7 @@ const linenInventoryModel = require('../models/linenInventoryModel');
 const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
 const laundryManualAdditionsModel = require('../models/laundryManualAdditionsModel');
 const breakfastModel = require('../models/breakfastModel');
+const planningOptionCardsModel = require('../models/planningOptionCardsModel');
 const {
   findLaundryDaysInRange,
   prevLaundryDay,
@@ -37,6 +38,7 @@ function buildController({
   laundryTripSkipsModel: injectedLaundryTripSkipsModel = laundryTripSkipsModel,
   laundryManualAdditionsModel: injectedLaundryManualAdditionsModel = laundryManualAdditionsModel,
   breakfastModel: injectedBreakfastModel = breakfastModel,
+  planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
 } = {}) {
   return {
     /**
@@ -195,6 +197,47 @@ function buildController({
       }
       const breakfastByDate = injectedBreakfastModel.breakfastByDate({ from, to });
       return res.json({ breakfastByDate });
+    },
+
+    /**
+     * GET /api/planning/option-cards?from=YYYY-MM-DD&to=YYYY-MM-DD
+     *
+     * Option-driven planning cards (specs/option-planning-card.md §3.3): one card per stored
+     * occurrence of a `showsPlanningCard` option whose date ∈ [from, to], shaped ready to render.
+     */
+    optionCards(req, res) {
+      const from = (req.query && req.query.from) || '';
+      const to = (req.query && req.query.to) || '';
+      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      }
+      const optionCardsByDate = injectedOptionCardsModel.cardsInRange({ from, to });
+      return res.json({ optionCardsByDate });
+    },
+
+    /**
+     * POST /api/planning/option-cards/done
+     * Body: { reservationId, optionId, date, time, done }
+     * Toggles the « préparé » flag of one occurrence (specs/option-planning-card.md §3.5).
+     */
+    setOptionCardDone(req, res) {
+      const body = req.body || {};
+      const reservationId = Number(body.reservationId);
+      const optionId = Number(body.optionId);
+      const date = String(body.date || '');
+      if (!Number.isInteger(reservationId) || reservationId <= 0
+        || !Number.isInteger(optionId) || optionId <= 0
+        || !isIsoDate(date)) {
+        return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+      }
+      const result = injectedOptionCardsModel.setOccurrenceDone({
+        reservationId, optionId, date, time: String(body.time || ''), done: Boolean(body.done),
+      });
+      if (result && result.error) {
+        const status = result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND' ? 404 : 400;
+        return res.status(status).json({ error: result.error });
+      }
+      return res.json(result);
     },
   };
 }

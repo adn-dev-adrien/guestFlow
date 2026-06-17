@@ -5,6 +5,114 @@ import {
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { useReservationForm } from './ReservationFormContext';
+import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
+
+// French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
+function occurrenceDateLabel(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return iso || '';
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/**
+ * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
+ * 'once' → a single editable date + heure. 'daily' → one checkbox row per (stay day × time slot),
+ * all pre-checked, with an editable heure. The selection drives the billed quantity (§3.4), shown
+ * as a caption. Reads/writes the working occurrence grid via `setOptionCardOccurrences`.
+ */
+function OptionCardOccurrences({ opt }) {
+  const { form, quantityPersons, setOptionCardOccurrences, isReservationLocked } = useReservationForm();
+  const selected = form.selectedOptions.find((so) => Number(so.optionId) === Number(opt.id));
+  const grid = Array.isArray(selected?.cardOccurrences) ? selected.cardOccurrences : [];
+  const perPerson = String(opt.priceType || '').includes('per_person');
+  const personFactor = perPerson ? Math.max(1, Number(quantityPersons) || 1) : 1;
+  const checkedCount = grid.filter((o) => o.checked).length;
+  const billedUnits = checkedCount * personFactor;
+
+  if (grid.length === 0) {
+    return (
+      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+        Renseignez les dates du séjour pour configurer les occurrences.
+      </Typography>
+    );
+  }
+
+  // The distinct time slots (shared across all days) — edited once here, applied to every day.
+  const slots = [...new Set(grid.map((o) => o.slot ?? 0))].sort((a, b) => a - b);
+  const slotTime = (slot) => { const e = grid.find((o) => (o.slot ?? 0) === slot); return e ? (e.time || '') : ''; };
+  const setSlotTime = (slot, time) => {
+    const retimed = grid.map((o) => ((o.slot ?? 0) === slot ? { ...o, time } : o));
+    // Re-filter presence: moving a slot's time across the check-in/out bound on the arrival/departure
+    // day adds or removes that day's occurrence (specs/option-planning-card.md § presence).
+    setOptionCardOccurrences(opt.id, reconcileCardGrid(opt, form.startDate, form.endDate, retimed, form.checkInTime, form.checkOutTime));
+  };
+
+  const multi = slots.length > 1;
+  // The stay days (one row each). Every présent créneau is a selectable chip — same layout for
+  // « une fois par jour » (one chip/day) and « plusieurs fois par jour » (N chips/day).
+  const days = [...new Set(grid.map((o) => o.date))].sort();
+  const toggleOcc = (date, slot, checked) => setOptionCardOccurrences(opt.id, grid.map((o) => (o.date === date && (o.slot ?? 0) === slot ? { ...o, checked } : o)));
+  const entriesFor = (date) => grid.filter((o) => o.date === date).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+
+  return (
+    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+      {/* Editable default hour(s) — shared across all days (specs/option-planning-card.md §3.2). */}
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 0.75 }}>
+        {multi ? 'Heures (par défaut)' : 'Heure (par défaut)'}
+      </Typography>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 1 }}>
+        {slots.map((slot) => (
+          <TextField
+            key={slot}
+            size="small"
+            type="time"
+            label={multi ? `Créneau ${slot + 1}` : undefined}
+            value={slotTime(slot)}
+            onChange={(e) => setSlotTime(slot, e.target.value)}
+            disabled={isReservationLocked}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ width: 130 }}
+          />
+        ))}
+      </Stack>
+
+      {/* Per-day selection + the resulting billed quantity. */}
+      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+          {multi ? 'Créneaux par jour' : 'Jours concernés'}
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          Quantité&nbsp;: <strong>{billedUnits}</strong>
+          {perPerson ? ` (${checkedCount} × ${personFactor} pers.)` : ''}
+        </Typography>
+      </Stack>
+
+      {/* One row per day; each présent créneau is a selectable chip. Boundary days only carry the
+          créneaux within the guest's presence (the grid is already presence-filtered, §6.bis). */}
+      <Stack spacing={0.5}>
+        {days.map((date) => (
+          <Box key={date} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ minWidth: 104, textTransform: 'capitalize', color: 'text.secondary' }}>
+              {occurrenceDateLabel(date)}
+            </Typography>
+            {entriesFor(date).map((o) => (
+              <Chip
+                key={o.slot}
+                label={o.time || '—'}
+                size="small"
+                color={o.checked ? 'primary' : 'default'}
+                variant={o.checked ? 'filled' : 'outlined'}
+                onClick={isReservationLocked ? undefined : () => toggleOcc(date, o.slot ?? 0, !o.checked)}
+                sx={{ height: 24, fontWeight: 600 }}
+              />
+            ))}
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
 
 // specs/bed-config-in-linen-card.md §3 + §6. Bed counters (lits doubles / simples / bébé)
 // + "Suggérer les lits" button + capacity-mismatch warning, rendered inside the option
@@ -177,17 +285,24 @@ export default function ExtrasSection() {
 
                         {enabled && !isAutoTimedOption && (
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                            <TextField
-                              size="small"
-                              type="number"
-                              label="Qté"
-                              value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
-                              onChange={(e) => setOptionQuantity(opt.id, toBaseQuantity(e.target.value, opt.priceType))}
-                              sx={{ width: { xs: '100%', sm: 'auto' } }}
-                              slotProps={{
-                                htmlInput: { min: 1 }
-                              }}
-                            />
+                            {/* Card-option (specs/option-planning-card.md §3.4): the occurrence
+                                checklist below replaces the manual Qté — the selection drives the
+                                billed quantity server-side. */}
+                            {opt.showsPlanningCard ? (
+                              <Box sx={{ flex: 1 }} />
+                            ) : (
+                              <TextField
+                                size="small"
+                                type="number"
+                                label="Qté"
+                                value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
+                                onChange={(e) => setOptionQuantity(opt.id, toBaseQuantity(e.target.value, opt.priceType))}
+                                sx={{ width: { xs: '100%', sm: 'auto' } }}
+                                slotProps={{
+                                  htmlInput: { min: 1 }
+                                }}
+                              />
+                            )}
                             <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
                               {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                   Small Switch — same visual family as the activation Switch above, just
@@ -219,6 +334,12 @@ export default function ExtrasSection() {
                               />
                             </Stack>
                           </Stack>
+                        )}
+
+                        {/* Option-driven planning card occurrences (specs/option-planning-card.md
+                            §3.2). The checklist of moments + the billed-quantity caption. */}
+                        {enabled && !isAutoTimedOption && Boolean(opt.showsPlanningCard) && (
+                          <OptionCardOccurrences opt={opt} />
                         )}
 
                         {/* Breakfast desired time (specs/breakfast-time.md) — only on the

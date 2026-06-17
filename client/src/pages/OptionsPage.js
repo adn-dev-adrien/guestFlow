@@ -53,6 +53,14 @@ const emptyOption = {
   // Breakfast default time (specs/breakfast-time.md). Only meaningful for the breakfast-typed
   // option; editable there. Pre-fills the desired time on each reservation that enables breakfast.
   breakfastTime: '09:00',
+  // Option-driven planning cards (specs/option-planning-card.md §3.1). When ON, a reservation
+  // carrying this option shows a card on the Planning for each stay day. `cardRepeat` = 'once_per_day'
+  // (one slot/day, a single editable heure) or 'multiple_per_day' (N slots/day, a list of heures).
+  // `planningCardTimes` holds the slot(s) (length 1 for once_per_day, N for multiple_per_day).
+  showsPlanningCard: false,
+  cardRepeat: 'once_per_day',
+  planningCardDate: '',
+  planningCardTimes: ['09:00'],
 };
 
 function normalizeProgressiveTiers(raw) {
@@ -109,6 +117,100 @@ function BreakfastTimeField({ form, setForm }) {
   );
 }
 
+// Option-driven planning cards (specs/option-planning-card.md §3.1 + §6). A toggle reveals the
+// repetition mode: « Une fois » (a single default date + one time) or « Chaque jour du séjour »
+// (a list of time slots — the slot count is the number of cards per day). All values are defaults,
+// editable per reservation on the fiche. Module-level so the inputs keep focus across renders.
+function PlanningCardSection({ form, setForm }) {
+  const on = Boolean(form.showsPlanningCard);
+  const repeat = form.cardRepeat === 'multiple_per_day' ? 'multiple_per_day' : 'once_per_day';
+  const times = Array.isArray(form.planningCardTimes) ? form.planningCardTimes : [];
+  const setTime = (idx, value) => {
+    const next = [...times];
+    next[idx] = value;
+    setForm({ ...form, planningCardTimes: next });
+  };
+  const addSlot = () => setForm({ ...form, planningCardTimes: [...times, '09:00'] });
+  const removeSlot = (idx) => setForm({ ...form, planningCardTimes: times.filter((_, i) => i !== idx) });
+  // Switching to « une fois par jour » keeps a single slot; « plusieurs fois » keeps at least one.
+  const onRepeatChange = (value) => {
+    if (value === 'once_per_day') {
+      setForm({ ...form, cardRepeat: 'once_per_day', planningCardTimes: [times[0] || '09:00'] });
+    } else {
+      setForm({ ...form, cardRepeat: 'multiple_per_day', planningCardTimes: times.length > 0 ? times : ['09:00'] });
+    }
+  };
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <FormControlLabel
+        control={(
+          <Switch
+            checked={on}
+            onChange={(e) => setForm({ ...form, showsPlanningCard: e.target.checked })}
+          />
+        )}
+        label="Afficher une carte dans le planning"
+      />
+      {on && (
+        <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <FormHelperText sx={{ m: 0 }}>
+            Une carte apparaît dans le planning pour chaque jour du séjour. Les heures sont des valeurs par
+            défaut, modifiables sur chaque réservation (où l'on choisit aussi les jours concernés).
+          </FormHelperText>
+          <FormControl size="small" sx={{ width: { xs: '100%', sm: 280 } }}>
+            <InputLabel>Répétition</InputLabel>
+            <Select
+              value={repeat}
+              label="Répétition"
+              onChange={(e) => onRepeatChange(e.target.value)}
+            >
+              <MenuItem value="once_per_day">Une fois par jour</MenuItem>
+              <MenuItem value="multiple_per_day">Plusieurs fois par jour</MenuItem>
+            </Select>
+          </FormControl>
+          {repeat === 'once_per_day' ? (
+            <TextField
+              label="Heure (par défaut)"
+              type="time"
+              size="small"
+              value={times[0] || ''}
+              onChange={(e) => setForm({ ...form, planningCardTimes: [e.target.value] })}
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: { xs: '100%', sm: 160 } }}
+            />
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <FormHelperText sx={{ m: 0 }}>
+                Un créneau = une carte par jour. Ajoutez plusieurs créneaux pour les repas (ex. 08:00 · 12:30 · 19:30).
+              </FormHelperText>
+              {times.map((t, idx) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <TextField
+                    label={`Créneau ${idx + 1}`}
+                    type="time"
+                    size="small"
+                    value={t || ''}
+                    onChange={(e) => setTime(idx, e.target.value)}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    sx={{ width: { xs: '100%', sm: 160 } }}
+                  />
+                  <IconButton size="small" color="error" onClick={() => removeSlot(idx)} aria-label="Supprimer le créneau" disabled={times.length <= 1}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
+              <Box>
+                <Button size="small" startIcon={<AddIcon />} onClick={addSlot}>Ajouter un créneau</Button>
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 // One price row — the SAME presentation for the single price ("Tous les logements") and each
 // per-property line: a label + a "Prix (EUR)" input. Module-level so the input keeps focus while
 // typing (a component defined inside a render would remount on every keystroke).
@@ -124,7 +226,7 @@ function PriceInputRow({ label, value, placeholder, onChange }) {
         value={value}
         onChange={onChange}
         sx={{ width: { xs: '100%', sm: 240 } }}
-        slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+        slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
       />
     </Box>
   );
@@ -142,9 +244,9 @@ function OptionPriceSection({ form, setForm, properties }) {
   }
 
   const on = Boolean(form.perPropertyPricing);
-  const applicable = (form.propertyIds && form.propertyIds.length > 0)
-    ? (properties || []).filter((p) => form.propertyIds.includes(p.id))
-    : (properties || []);
+  // specs/option-property-scope.md: the applicable properties are exactly the selected ones (no
+  // empty → all fallback). « Tous » stores every id, so this still covers all when « Tous » is picked.
+  const applicable = (properties || []).filter((p) => (form.propertyIds || []).includes(p.id));
   const prices = form.propertyPrices || {};
   const base = Number(form.price || 0);
 
@@ -206,9 +308,8 @@ function OptionPriceSection({ form, setForm, properties }) {
 // Module-level so the switches keep focus across renders.
 function OptionDefaultsSection({ form, setForm, properties }) {
   if (Number(form.autoEnabled) === 1) return null;
-  const applicable = (form.propertyIds && form.propertyIds.length > 0)
-    ? (properties || []).filter((p) => form.propertyIds.includes(p.id))
-    : (properties || []);
+  // specs/option-property-scope.md: only the selected properties (no empty → all fallback).
+  const applicable = (properties || []).filter((p) => (form.propertyIds || []).includes(p.id));
   const defaults = form.propertyDefaults || {};
   const setDefault = (pid, on) => {
     const next = { ...defaults };
@@ -349,6 +450,7 @@ export default function OptionsPage() {
       itemLabel="option"
       emptyForm={emptyOption}
       priceTypes={OPTION_PRICE_TYPES}
+      explicitPropertyScope
       loadItems={async () => {
         const [items, properties] = await Promise.all([api.getOptions(), api.getProperties()]);
         return { items, properties };
@@ -382,6 +484,15 @@ export default function OptionsPage() {
         titleEn: item.titleEn || '',
         // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
         breakfastTime: item.breakfastTime || '09:00',
+        // Option-driven planning cards (specs/option-planning-card.md §3.1). SQLite stores an int +
+        // a JSON string; normalise to a boolean + an array for the form.
+        showsPlanningCard: Boolean(item.showsPlanningCard),
+        // Legacy 'daily' rows map to « plusieurs fois par jour »; anything else to « une fois par jour ».
+        cardRepeat: item.cardRepeat === 'multiple_per_day' || item.cardRepeat === 'daily' ? 'multiple_per_day' : 'once_per_day',
+        planningCardDate: '',
+        planningCardTimes: Array.isArray(item.planningCardTimes) && item.planningCardTimes.length > 0
+          ? item.planningCardTimes
+          : ['09:00'],
       })}
       toPayload={(form) => ({
         title: form.title,
@@ -424,6 +535,11 @@ export default function OptionsPage() {
         // Breakfast default time (specs/breakfast-time.md). Persisted only for the breakfast
         // option server-side; harmless for the others.
         breakfastTime: form.breakfastTime || '09:00',
+        // Option-driven planning cards (specs/option-planning-card.md §3.1). The server normalises
+        // the slots (clamps to 1 for « une fois par jour »); we pass the form state through.
+        showsPlanningCard: Boolean(form.showsPlanningCard),
+        cardRepeat: form.cardRepeat === 'multiple_per_day' ? 'multiple_per_day' : 'once_per_day',
+        planningCardTimes: Array.isArray(form.planningCardTimes) ? form.planningCardTimes.filter(Boolean) : [],
       })}
       formNameKey="title"
       formDescriptionKey="description"
@@ -454,6 +570,7 @@ export default function OptionsPage() {
             properties={properties}
             value={form.propertyIds}
             onChange={(ids) => setForm({ ...form, propertyIds: ids })}
+            emptyMeansNone
           />
           <FormControl fullWidth>
             <InputLabel>Type de prix</InputLabel>
@@ -472,6 +589,10 @@ export default function OptionsPage() {
           {/* Breakfast default time (specs/breakfast-time.md) — only on the breakfast option. */}
           {form.autoOptionType === 'breakfast' && (
             <BreakfastTimeField form={form} setForm={setForm} />
+          )}
+          {/* Option-driven planning card (specs/option-planning-card.md §3.1) — manual options only. */}
+          {!form.autoOptionType && (
+            <PlanningCardSection form={form} setForm={setForm} />
           )}
           {/* §3.5.ter — per-type linen controls visible iff the (hidden) flag is set. */}
           {form.countsAsBedLinen && (

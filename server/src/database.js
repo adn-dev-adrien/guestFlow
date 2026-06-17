@@ -699,6 +699,13 @@ if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('acompte
 if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('soldeContribTtc')) {
   db.exec("ALTER TABLE reservation_options ADD COLUMN soldeContribTtc REAL DEFAULT NULL");
 }
+// 2026-06-17 — option-driven planning cards (specs/option-planning-card.md §3.2). The selected
+// occurrences for a `showsPlanningCard` option on this reservation: a JSON array of { date, time }.
+// Its length × the per-person factor drives the option's billedUnits (§3.4). NULL = not a card-option
+// (or none selected) → the normal nights/days pricing path applies.
+if (reservationOptionCols.length > 0 && !reservationOptionCols.includes('cardOccurrences')) {
+  db.exec("ALTER TABLE reservation_options ADD COLUMN cardOccurrences TEXT");
+}
 
 const reservationResourceCols = db.prepare("PRAGMA table_info(reservation_resources)").all().map(c => c.name);
 if (reservationResourceCols.length > 0 && !reservationResourceCols.includes('billedUnits')) {
@@ -812,6 +819,42 @@ tryAddOptionColumn('titleEn', "ALTER TABLE options ADD COLUMN titleEn TEXT NOT N
 // the breakfast option (autoOptionType='breakfast'); other options carry it harmlessly. Overridable
 // per reservation via reservations.breakfastTime (migration below). Existing rows get '09:00'.
 tryAddOptionColumn('breakfastTime', "ALTER TABLE options ADD COLUMN breakfastTime TEXT DEFAULT '09:00'");
+
+// 2026-06-17 — option-driven planning cards (specs/option-planning-card.md). When `showsPlanningCard`
+// is 1, a reservation carrying this option produces a card on the Planning. `cardRepeat` is the
+// repetition mode: 'once' (a single dated card) or 'daily' (one card per stay day × time slot).
+// `planningCardDate` is the default ISO date for the 'once' mode; `planningCardTimes` is a JSON array
+// of 'HH:MM' (0–1 entry for 'once', N entries = N cards/day for 'daily'). All editable per reservation.
+tryAddOptionColumn('showsPlanningCard', "ALTER TABLE options ADD COLUMN showsPlanningCard INTEGER NOT NULL DEFAULT 0");
+tryAddOptionColumn('cardRepeat', "ALTER TABLE options ADD COLUMN cardRepeat TEXT NOT NULL DEFAULT 'once'");
+tryAddOptionColumn('planningCardDate', "ALTER TABLE options ADD COLUMN planningCardDate TEXT");
+tryAddOptionColumn('planningCardTimes', "ALTER TABLE options ADD COLUMN planningCardTimes TEXT");
+
+// 2026-06-17 — explicit option property scope (specs/option-property-scope.md §3.4). The legacy rule
+// "an option with NO property_options row = available everywhere (global)" is replaced by an explicit
+// model: « Tous les logements » = a row per CURRENT property; no row = available NOWHERE. To preserve
+// every existing global option's availability, this ONE-TIME migration links each currently-unlinked
+// option to all current properties. The `scopeMigratedV2` marker column guards it (column-existence =
+// run once); options later set to « Aucun » (no rows) are never re-linked.
+if (optionCols.length > 0 && !optionCols.includes('scopeMigratedV2')) {
+  try {
+    db.exec("ALTER TABLE options ADD COLUMN scopeMigratedV2 INTEGER NOT NULL DEFAULT 0");
+    const allProps = db.prepare('SELECT id FROM properties').all();
+    if (allProps.length > 0) {
+      const unlinked = db.prepare(
+        'SELECT id FROM options WHERE id NOT IN (SELECT DISTINCT optionId FROM property_options WHERE optionId IS NOT NULL)'
+      ).all();
+      const linkStmt = db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)');
+      const runBackfill = db.transaction(() => {
+        for (const opt of unlinked) for (const prop of allProps) linkStmt.run(prop.id, opt.id);
+      });
+      runBackfill();
+    }
+    db.exec('UPDATE options SET scopeMigratedV2 = 1');
+  } catch (error) {
+    if (!String(error?.message || '').includes('duplicate column name')) throw error;
+  }
+}
 
 const devisOptionCols = db.prepare("PRAGMA table_info(devis_options)").all().map(c => c.name);
 if (devisOptionCols.length > 0 && !devisOptionCols.includes('offered')) {
