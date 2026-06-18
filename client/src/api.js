@@ -294,6 +294,16 @@ const api = {
       method: 'POST',
       body: { reservationId, optionId, date, time, done },
     }),
+  // Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4). One card per session of a
+  // « carte planning » resource whose date ∈ [from, to]. Payload:
+  // `{ resourceCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] } } }`.
+  getPlanningResourceCards: ({ from, to }) =>
+    request(`/planning/resource-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  setPlanningResourceCardDone: ({ reservationId, resourceId, date, start, done }) =>
+    request('/planning/resource-cards/done', {
+      method: 'POST',
+      body: { reservationId, resourceId, date, start, done },
+    }),
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
   // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
   getLinenInventory: () => request('/planning/linen-inventory'),

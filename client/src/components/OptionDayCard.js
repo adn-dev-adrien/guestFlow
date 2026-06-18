@@ -18,11 +18,12 @@
  */
 import React from 'react';
 import { Box, Card, CardContent, Typography, Chip, Checkbox, Tooltip } from '@mui/material';
-import { deepPurple, amber } from '@mui/material/colors';
+import { deepPurple, amber, teal } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
+import HotTubIcon from '@mui/icons-material/HotTub';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
@@ -33,6 +34,7 @@ import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 const THEMES = {
   option: { bg: deepPurple[50], border: deepPurple[100], accent: deepPurple[700], Icon: EventNoteIcon },
   breakfast: { bg: amber[50], border: amber[200], accent: amber[800], Icon: BakeryDiningIcon },
+  resource: { bg: teal[50], border: teal[100], accent: teal[800], Icon: HotTubIcon },
 };
 
 function pluralBreakfasts(n) { return n > 1 ? 'petits déjeuners' : 'petit déjeuner'; }

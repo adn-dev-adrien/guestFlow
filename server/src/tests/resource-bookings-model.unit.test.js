@@ -11,7 +11,9 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, quantity INTEGER DEFAULT 1, price REAL DEFAULT 0,
     priceType TEXT DEFAULT 'per_stay', turnoverMinutes INTEGER DEFAULT 0, minimumUsageMinutes INTEGER DEFAULT 0,
     slotDuration INTEGER DEFAULT 60, isComplex INTEGER DEFAULT 0, openTime TEXT DEFAULT '08:00',
-    closeTime TEXT DEFAULT '22:00', openDays TEXT DEFAULT '[0,1,2,3,4,5,6]'
+    closeTime TEXT DEFAULT '22:00', openDays TEXT DEFAULT '[0,1,2,3,4,5,6]',
+    showsPlanningCard INTEGER DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL DEFAULT 0,
+    hourlyExternalDayRate REAL DEFAULT 0, hourlyExternalEveningRate REAL DEFAULT 0
   );
   CREATE TABLE property_resource_prices (
     propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL DEFAULT 0, freeMinutes INTEGER DEFAULT 0,
@@ -30,11 +32,13 @@ function freshModel(resourceOverrides = {}) {
   db.exec(DDL);
   const r = {
     name: 'Spa', quantity: 1, price: 60, priceType: 'per_hour', turnoverMinutes: 0,
-    minimumUsageMinutes: 0, slotDuration: 60, isComplex: 0, ...resourceOverrides,
+    minimumUsageMinutes: 0, slotDuration: 60, isComplex: 0,
+    showsPlanningCard: 0, hourlyEveningStart: null, hourlyEveningRate: 0,
+    hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0, ...resourceOverrides,
   };
   const info = db.prepare(`
-    INSERT INTO resources (name, quantity, price, priceType, turnoverMinutes, minimumUsageMinutes, slotDuration, isComplex)
-    VALUES (@name, @quantity, @price, @priceType, @turnoverMinutes, @minimumUsageMinutes, @slotDuration, @isComplex)
+    INSERT INTO resources (name, quantity, price, priceType, turnoverMinutes, minimumUsageMinutes, slotDuration, isComplex, showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate)
+    VALUES (@name, @quantity, @price, @priceType, @turnoverMinutes, @minimumUsageMinutes, @slotDuration, @isComplex, @showsPlanningCard, @hourlyEveningStart, @hourlyEveningRate, @hourlyExternalDayRate, @hourlyExternalEveningRate)
   `).run(r);
   return { model: resourceBookingsModel.create(db), db, resourceId: Number(info.lastInsertRowid) };
 }
@@ -56,6 +60,36 @@ test('computeBookingTotalPrice: per_stay returns the flat price, free returns 0'
   const free = freshModel({ priceType: 'free', price: 99 });
   const frr = free.db.prepare('SELECT * FROM resources WHERE id = ?').get(free.resourceId);
   assert.equal(free.model.computeBookingTotalPrice({ resource: frr, startTime: '10:00', endTime: '12:00' }), 0);
+});
+
+// specs/resource-hourly-scheduling.md §3.5 — time-banded grid + external/guest rate selection.
+test('computeBookingTotalPrice: hourly-scheduled uses the banded grid; external vs guest rate', () => {
+  const { model, db, resourceId } = freshModel({
+    priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
+    price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
+    hourlyExternalDayRate: 40, hourlyExternalEveningRate: 60,
+  });
+  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
+  // Guest (tied to a reservation), 19:00–21:00 = 2×15 + 2×25 = 80.
+  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '19:00', endTime: '21:00', reservationId: 7 }), 80);
+  // External (no reservation), 19:00–21:00 = 2×20 + 2×30 = 100.
+  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '19:00', endTime: '21:00' }), 100);
+});
+
+test('computeBookingTotalPrice: external rate falls back to the guest grid when unset', () => {
+  const { model, db, resourceId } = freshModel({
+    priceType: 'per_hour', slotDuration: 30, showsPlanningCard: 1,
+    price: 30, hourlyEveningStart: '20:00', hourlyEveningRate: 50,
+    // no external rates → fall back to guest
+  });
+  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
+  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '19:00', endTime: '21:00' }), 80);
+});
+
+test('computeBookingTotalPrice: non-scheduled hourly resource keeps the flat price (regression)', () => {
+  const { model, db, resourceId } = freshModel({ priceType: 'per_hour', price: 60, showsPlanningCard: 0 });
+  const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
+  assert.equal(model.computeBookingTotalPrice({ resource, startTime: '10:00', endTime: '11:00' }), 60);
 });
 
 test('createBooking: missing fields → 400', () => {
