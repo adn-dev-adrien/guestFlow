@@ -21,10 +21,11 @@ by platform** (the existing `getPlatformColor` code).
 
 ## 2. Goal
 
-When no property is selected, the overview is one **monthly** calendar where each reservation (all
-logements combined) is a **continuous horizontal bar** spanning its days, stacked in lanes so they don't
-overlap, coloured by platform, labelled with the logement + client, clickable to open the fiche. Month
-navigation (‹ / › / Aujourd'hui).
+When no property is selected, the overview is one calendar where each reservation (all logements
+combined) is a **continuous horizontal bar** spanning its days, stacked in lanes so they don't overlap,
+coloured by platform, labelled with the logement + client, clickable to open the fiche. Months are
+**stacked vertically with infinite scroll** (scroll down/up loads the next/previous month — no month
+buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
 
 ## 3. Functional rules
 1. **Scope** = every reservation (`kind = 'reservation'`) overlapping the visible month, all logements.
@@ -37,15 +38,19 @@ navigation (‹ / › / Aujourd'hui).
    fallback), truncated. Tooltip with the full label + dates.
 5. **Click** a bar → open the reservation fiche (`onReservationClick`). Click an empty day → new
    reservation prefilled with that date (`/reservations/new?startDate=…`, logement chosen on the page).
-6. **Month nav**: previous / next month + « Aujourd'hui »; today's day cell highlighted.
-7. **Legend**: the platforms present in the month, with their colours.
+6. **Navigation = infinite scroll**: months are stacked vertically in a bounded scroll container;
+   scrolling near the bottom appends the next month, near the top prepends the previous one (scroll
+   position maintained). Each month carries a **sticky label**. An « Aujourd'hui » button refocuses the
+   current month; today's day cell is highlighted. No previous/next buttons.
+7. **Legend**: the platforms present, with their colours.
 8. Drilling into a single logement's full calendar stays via the toolbar's property selector (unchanged).
 
 ## 4. Architecture
 | Layer | File | Responsibility |
 |---|---|---|
-| components | `CumulativeMonthCalendar.js` (new) | Self-contained: own month state + nav, fetches the month's reservations (all logements), computes the week/lane bar layout, renders the grid + bars + legend. Render-only; reuses `getPlatformColor`. |
-| pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `properties`, `onReservationClick`, `onCreateReservation`). |
+| components | `CumulativeMonthCalendar.js` (new) | Self-contained: reuses `useInfiniteMonthScroll` for the stacked-months scroll machinery, incrementally fetches each visible month's reservations (all logements, merged by id), computes the week/lane bar layout, renders stacked month blocks + bars + legend. Render-only; reuses `getPlatformColor`. |
+| hooks | `useInfiniteMonthScroll.js` | Reused as-is (a truthy sentinel keeps its scroll effects active outside the per-property flow). |
+| pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `onReservationClick`, `onCreateReservation`). |
 
 No server change (reuses `GET /reservations?from&to`).
 
@@ -54,15 +59,19 @@ None. Reads existing reservation fields: `id, startDate, endDate, platform, prop
 lastName, icalOriginalSummary`.
 
 ## 6. UI / UX
-- Month grid: weeks (Mon→Sun) × 7 day columns; leading/trailing adjacent-month days greyed. Each week is
-  a positioned row: day-number header band + absolutely-positioned bars in lanes.
+- Stacked month blocks inside a bounded scroll container: each block = sticky month label + weekday
+  header (Mon→Sun) + week rows. Day cells greyed for adjacent-month days. Each week is a positioned row:
+  day-number band + absolutely-positioned bars in lanes.
 - Bars: rounded, platform colour, white text, single-line ellipsis; rounded only on the true start/end
   (square on a week-split edge to signal continuation).
-- **Mobile** (`xs`): the month grid scrolls horizontally inside a contained wrapper (min width keeps the
-  7 columns legible); bars + legend unchanged. ≥ 44 px touch targets on the nav buttons.
+- **Mobile** (`xs`): the grid scrolls horizontally inside the contained wrapper (min width keeps the 7
+  columns legible); vertical infinite scroll + bars + legend unchanged.
 
 ## 7. Test plan
-- [ ] Unit (`CumulativeMonthCalendar` layout helper): a stay within one week → one segment on the right
+- [x] Unit (`buildMonthLayout`): single-day → one rounded segment; week-boundary split → 2 segments;
+  overlapping stays → distinct lanes; whole-month coverage. Component render: ≥ 3 stacked months, bars
+  from loaded data, « Aujourd'hui » + scroll hint (no month buttons). (`CumulativeMonthCalendar.test.js`)
+- [ ] _(superseded)_ a stay within one week → one segment on the right
   lane; a stay crossing a week boundary → two segments; two overlapping stays → two lanes.
 - [ ] Manual (dev): the overview shows all logements' reservations as platform-coloured bars on one month;
   nav + today; click a bar opens the fiche; empty-day click starts a new reservation; mobile scroll.

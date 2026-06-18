@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { buildMonthLayout } from '../CumulativeMonthCalendar';
+
+vi.mock('../../api', () => ({ default: { getReservations: vi.fn().mockResolvedValue([]) } }));
+import api from '../../api';
+import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
 
 // specs/cumulative-month-calendar.md §3 — spanning bars split per week, lane-packed.
 const RES = [
@@ -43,5 +49,35 @@ describe('buildMonthLayout', () => {
   it('covers the whole month (5 or 6 week rows, 7 days each)', () => {
     expect(layout.weeks.length).toBeGreaterThanOrEqual(5);
     layout.weeks.forEach((w) => expect(w.days).toHaveLength(7));
+  });
+});
+
+describe('CumulativeMonthCalendar (infinite scroll)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  function todayIso() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  }
+
+  it('stacks multiple months and renders reservation bars from the loaded data', async () => {
+    const d = todayIso();
+    api.getReservations.mockResolvedValue([
+      { id: 1, startDate: d, endDate: d, platform: 'airbnb', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
+    ]);
+    const { container } = render(<CumulativeMonthCalendar onReservationClick={() => {}} onCreateReservation={() => {}} />);
+
+    // The infinite-scroll hook seeds several stacked months (prev / current / next …).
+    await waitFor(() => expect(container.querySelectorAll('[data-month-anchor]').length).toBeGreaterThanOrEqual(3));
+    // The reservation surfaces as a bar (logement · client).
+    await waitFor(() => expect(container.textContent).toMatch(/Jean Dupont/));
+    expect(api.getReservations).toHaveBeenCalled();
+  });
+
+  it('shows the « Aujourd\'hui » control and the scroll hint (no month buttons)', async () => {
+    api.getReservations.mockResolvedValue([]);
+    render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
+    expect(await screen.findByRole('button', { name: /Aujourd'hui/ })).toBeInTheDocument();
+    expect(screen.getByText(/Faites défiler pour changer de mois/)).toBeInTheDocument();
   });
 });
