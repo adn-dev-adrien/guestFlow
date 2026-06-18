@@ -31,7 +31,6 @@ import { orange } from '@mui/material/colors';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import ChecklistIcon from '@mui/icons-material/Checklist';
-import ArticleIcon from '@mui/icons-material/Article';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExtensionIcon from '@mui/icons-material/Extension';
@@ -113,37 +112,27 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
   const optionsText = (r.options || []).map((o) => `${o.title} ×${formatQty(o)}`);
   const resourcesText = (r.resources || []).map((rr) => `${rr.name} ×${formatQty(rr)}`);
 
-  // The two card actions (open the reservation fiche / run the arrival SAS). Rendered top-right on
-  // sm+ and on a dedicated bottom row on xs (so they don't get pushed off-frame by the « Prêt » chip).
-  const actionButtons = (
-    <>
-      {onOpenReservation && (
-        <Tooltip title="Ouvrir la réservation">
-          <IconButton size="small" onClick={() => onOpenReservation(r.id)} aria-label="Ouvrir la réservation">
-            <ArticleIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
-      )}
-      {onOpenSas && (
-        <Tooltip title={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}>
-          <span>
-            <IconButton
-              size="small"
-              color={sasDone ? 'success' : 'primary'}
-              onClick={() => onOpenSas(r.id)}
-              aria-label={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}
-            >
-              {sasDone ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : <ChecklistIcon sx={{ fontSize: 20 }} />}
-            </IconButton>
-          </span>
-        </Tooltip>
-      )}
-    </>
-  );
+  // The card action is the check-in (SAS) launcher — a LARGE icon so it's an easy tap target on mobile.
+  // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
+  const actionButtons = onOpenSas ? (
+    <Tooltip title={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}>
+      <span>
+        <IconButton
+          color={sasDone ? 'success' : 'primary'}
+          onClick={(e) => { stop(e); onOpenSas(r.id); }}
+          aria-label={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}
+          sx={{ p: 1 }}
+        >
+          {sasDone ? <CheckCircleIcon sx={{ fontSize: 40 }} /> : <ChecklistIcon sx={{ fontSize: 40 }} />}
+        </IconButton>
+      </span>
+    </Tooltip>
+  ) : null;
 
   return (
     <Card
       variant="outlined"
+      onClick={() => onOpenReservation && onOpenReservation(r.id)}
       sx={{
         mb: 1.5,
         borderRadius: 2,
@@ -151,11 +140,14 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
         bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
+        cursor: onOpenReservation ? 'pointer' : 'default',
+        '&:hover': onOpenReservation ? { boxShadow: 2 } : undefined,
       }}
     >
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-        {/* Top row: checkbox + ARRIVÉE badge vertically centred */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }} onClick={stop}>
+        {/* Top row: checkbox + ARRIVÉE badge vertically centred. The whole card opens the fiche; the
+            checkbox + SAS button stop the click, so the badge/time area still opens the fiche. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
           <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}

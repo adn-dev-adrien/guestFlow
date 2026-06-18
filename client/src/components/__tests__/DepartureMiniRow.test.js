@@ -88,12 +88,13 @@ test('alertInfo.explanation — shown as caption next to the property name', () 
   expect(screen.getByText(alertInfo.explanation)).toBeInTheDocument();
 });
 
-test('actions — the "Ouvrir la réservation" button calls onOpenReservation(id)', () => {
+test('actions — clicking the row body opens the reservation fiche (no separate « open » icon)', () => {
   const onOpenReservation = vi.fn();
   render(
     <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={onOpenReservation} />
   );
-  fireEvent.click(screen.getByLabelText('Ouvrir la réservation'));
+  expect(screen.queryByLabelText('Ouvrir la réservation')).not.toBeInTheDocument(); // icon removed
+  fireEvent.click(screen.getByText('DÉPART'));
   expect(onOpenReservation).toHaveBeenCalledWith(200);
 });
 
@@ -172,12 +173,14 @@ test('handover note — nothing rendered when departureHandoverNote is empty', (
 
 // ── Action icons + responsive placement (PR #197) ───────────────────────────
 
-test('action buttons use the document + checklist icons', () => {
+test('the check-out (SAS) icon is the large checklist; the open-reservation icon is gone', () => {
   const { container } = render(
     <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
   );
-  expect(container.querySelector('[data-testid="ArticleIcon"]')).toBeInTheDocument();
-  expect(container.querySelector('[data-testid="ChecklistIcon"]')).toBeInTheDocument();
+  expect(container.querySelector('[data-testid="ArticleIcon"]')).not.toBeInTheDocument();
+  const checklist = container.querySelector('[data-testid="ChecklistIcon"]');
+  expect(checklist).toBeInTheDocument();
+  expect(checklist).toHaveStyle({ fontSize: '40px' });
 });
 
 test('SAS-done state shows the ✓ (CheckCircle) instead of the checklist icon', () => {
@@ -201,7 +204,6 @@ test('mobile (matchMedia matches) renders each action button exactly ONCE (no CS
     render(
       <DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
     );
-    expect(screen.getByLabelText('Ouvrir la réservation')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check-out (SAS départ)' })).toBeInTheDocument();
   } finally {
     window.matchMedia = orig;

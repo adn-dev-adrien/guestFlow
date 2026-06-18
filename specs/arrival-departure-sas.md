@@ -31,10 +31,13 @@ confirmation — records the caution status and the complement(s) on the reserva
 ## 3. Functional rules
 
 ### 3.0 Launch & shell
-1. **Launch from two explicit buttons on each planning tile** (decision 2026-06-13, superseding the
-   "click the whole card" model): every arrival card / departure row carries an
-   **« Ouvrir la réservation »** icon button (`ArticleIcon`, → reservation page) and a **SAS** icon
-   button (`ChecklistIcon`, → arrival resp. departure SAS). The card body itself is **not** clickable.
+1. **Launch model (revised 2026-06-18).** The **card body is clickable → opens the reservation fiche**
+   (like the option / breakfast / resource cards), and there is **no longer a separate « Ouvrir la
+   réservation » icon**. The only on-card button is the **SAS launcher** (`ChecklistIcon`, → arrival
+   resp. departure SAS), rendered as a **large icon** (40 px) for an easy mobile tap target; it
+   `stopPropagation`s so it doesn't also open the fiche. _(History: 2026-06-13 introduced two explicit
+   buttons + a non-clickable card, superseding an earlier whole-card-opens-SAS model; this 2026-06-18
+   change makes the card open the fiche and keeps only the enlarged SAS button.)_
    - **Placement (decision 2026-06-14):** the two buttons sit **top-right** on tablet/desktop (`sm+`);
      on **mobile** (`xs`) they move to a **dedicated row at the bottom of the card, right-aligned**, so
      the « Prêt » / « Effectué » chip no longer pushes them off-frame. Rendered once (a `useMediaQuery`

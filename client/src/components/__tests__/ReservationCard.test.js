@@ -98,12 +98,13 @@ test('notes — still rendered on the arrival card (only departure dropped it)',
   expect(screen.getByText('Allergique aux chats')).toBeInTheDocument();
 });
 
-test('actions — the "Ouvrir la réservation" button calls onOpenReservation(id)', () => {
+test('actions — clicking the card body opens the reservation fiche (no separate « open » icon)', () => {
   const onOpenReservation = vi.fn();
   render(
     <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={onOpenReservation} />
   );
-  fireEvent.click(screen.getByLabelText('Ouvrir la réservation'));
+  expect(screen.queryByLabelText('Ouvrir la réservation')).not.toBeInTheDocument(); // icon removed
+  fireEvent.click(screen.getByText('ARRIVÉE'));
   expect(onOpenReservation).toHaveBeenCalledWith(100);
 });
 
@@ -264,12 +265,14 @@ test('bed-linen alert — nothing rendered when bedLinenAlert is absent', () => 
 
 // ── Action icons + responsive placement (PR #197) ───────────────────────────
 
-test('action buttons use the document + checklist icons', () => {
+test('the check-in (SAS) icon is the large checklist; the open-reservation icon is gone', () => {
   const { container } = render(
     <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
   );
-  expect(container.querySelector('[data-testid="ArticleIcon"]')).toBeInTheDocument();   // open reservation
-  expect(container.querySelector('[data-testid="ChecklistIcon"]')).toBeInTheDocument(); // open SAS
+  expect(container.querySelector('[data-testid="ArticleIcon"]')).not.toBeInTheDocument(); // open-fiche icon removed
+  const checklist = container.querySelector('[data-testid="ChecklistIcon"]');
+  expect(checklist).toBeInTheDocument();
+  expect(checklist).toHaveStyle({ fontSize: '40px' }); // big tap target
 });
 
 test('SAS-done state shows the ✓ (CheckCircle) instead of the checklist icon', () => {
@@ -292,7 +295,6 @@ test('mobile (matchMedia matches) renders each action button exactly ONCE (no CS
       <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
     );
     // getByRole throws if there were two — pins the single-render (useMediaQuery branch, not display:none).
-    expect(screen.getByLabelText('Ouvrir la réservation')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check-in (SAS arrivée)' })).toBeInTheDocument();
   } finally {
     window.matchMedia = orig;
