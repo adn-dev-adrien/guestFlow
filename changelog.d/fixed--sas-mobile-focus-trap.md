@@ -1,0 +1,1 @@
+- SAS arrivée/départ : correction d'un bug sur mobile où « Suivant » (et « Commencer ») ne réagissait pas, obligeant à cliquer plusieurs fois et faisant parfois sauter des étapes. La gestion du focus de la fenêtre est désormais totalement désactivée (`disableAutoFocus` en plus des réglages existants) pour que les boutons répondent de façon fiable.

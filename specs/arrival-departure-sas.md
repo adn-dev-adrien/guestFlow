@@ -272,6 +272,11 @@ existing reservations needed.
   - **iOS PWA wake fix (2026-06-15)**: the dialog sets `disableEnforceFocus` / `disableRestoreFocus`. On an
     installed iOS PWA the page is frozen on screen-lock / app-switch; on resume MUI's focus trap could keep
     stealing focus and leave the answer buttons unresponsive — relaxing the trap restores interactivity.
+  - **Mobile unresponsive-buttons fix (2026-06-18)**: the same focus trap still occasionally grabbed focus
+    on open / re-render on mobile Safari, so « Suivant » / answer taps did nothing then a burst registered
+    and skipped steps (random per step, sometimes blocking at « Commencer »). Adding `disableAutoFocus`
+    (the trio `disableAutoFocus` + `disableEnforceFocus` + `disableRestoreFocus`) fully relinquishes MUI's
+    focus management so taps stay reliable. The wizard needs no auto-focus.
   - **Per-step icons** (MUI): intro = MeetingRoom (arrivée) / Logout (départ) ; portail = Dialpad ;
     caution / report = Savings ; options = RoomService ; petit-déj = FreeBreakfast ; linge / linenItems =
     KingBed ; ménage = CleaningServices ; serviettes manquantes = DryCleaning ; clés = VpnKey ; retour

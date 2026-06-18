@@ -796,12 +796,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const bandTitle = meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ');
   return (
     <>
-    {/* disableEnforceFocus/RestoreFocus: on an installed iOS PWA, the page is frozen on screen-lock /
-        app-switch; on resume MUI's focus trap can keep re-stealing focus from the dialog and leave its
-        buttons unresponsive. Relaxing the trap fixes the "answer buttons dead after wake" report
-        (specs/arrival-departure-sas.md §6). */}
+    {/* Focus trap fully relinquished (disableAutoFocus + disableEnforceFocus + disableRestoreFocus):
+        on mobile Safari / an installed iOS PWA, MUI's focus trap intermittently re-steals focus on
+        open / re-render, leaving the « Suivant » & answer buttons unresponsive (taps do nothing, then
+        a burst registers and skips steps — random per step). Disabling auto-focus too stops the trap
+        from grabbing focus at all, so taps stay reliable. A SAS wizard needs no auto-focus.
+        (specs/arrival-departure-sas.md §6 — extends the 2026-06-12 "buttons dead after wake" fix.) */}
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
-      disableEnforceFocus disableRestoreFocus>
+      disableAutoFocus disableEnforceFocus disableRestoreFocus>
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
       <Box sx={{ bgcolor: modeColor, color: '#fff', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
