@@ -1,11 +1,14 @@
 import React from 'react';
 import {
   Box, Card, CardContent, Typography, Stack, Divider, Button, TextField, Chip,
-  FormControlLabel, Switch, Tooltip
+  FormControlLabel, Switch, Tooltip, MenuItem, IconButton
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useReservationForm } from './ReservationFormContext';
 import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
+import { enumerateStayDates, timeOptions, toMinutes, minutesToTime } from '../../utils/resourceSessions';
 
 // French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
 function occurrenceDateLabel(iso) {
@@ -109,6 +112,82 @@ function OptionCardOccurrences({ opt }) {
             ))}
           </Box>
         ))}
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * Session editor for an hourly-scheduled resource (specs/resource-hourly-scheduling.md §3.2). Lets the
+ * operator add several sessions (date within the stay + start/end, slot-stepped) priced server-side from
+ * the time-banded grid. Replaces the plain « Heures » quantity field for these resources.
+ */
+function ResourceSessions({ resource }) {
+  const { form, setResourceSessions, isReservationLocked } = useReservationForm();
+  const selected = form.selectedResources.find((sr) => sr.resourceId === resource.id);
+  const sessions = Array.isArray(selected?.sessions) ? selected.sessions : [];
+  const days = enumerateStayDates(form.startDate, form.endDate);
+  const times = timeOptions(resource.openTime, resource.closeTime, resource.slotDuration);
+  const minMinutes = Math.max(0, Number(resource.minimumUsageMinutes || 0));
+  const slot = Math.max(1, Number(resource.slotDuration || 30));
+
+  const dateLabel = (iso) => occurrenceDateLabel(iso);
+  const updateSession = (idx, patch) => setResourceSessions(resource.id, sessions.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  const removeSession = (idx) => setResourceSessions(resource.id, sessions.filter((_, i) => i !== idx));
+  const addSession = () => {
+    const date = days[0] || form.startDate;
+    const start = (times[0]) || resource.openTime || '12:00';
+    const end = minutesToTime(toMinutes(start) + Math.max(slot, minMinutes || slot));
+    setResourceSessions(resource.id, [...sessions, { date, start, end }]);
+  };
+  const isInvalid = (s) => {
+    const dur = toMinutes(s.end) - toMinutes(s.start);
+    return dur <= 0 || (minMinutes > 0 && dur < minMinutes);
+  };
+
+  return (
+    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Séances</Typography>
+        <Typography variant="caption" color="text.secondary">{resource.openTime}–{resource.closeTime} • pas {slot} min</Typography>
+      </Stack>
+      <Stack spacing={1}>
+        {sessions.length === 0 && (
+          <Typography variant="caption" color="text.secondary">Aucune séance — ajoutez-en une.</Typography>
+        )}
+        {sessions.map((s, idx) => (
+          <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
+            <TextField
+              select size="small" label="Jour" value={days.includes(s.date) ? s.date : ''}
+              onChange={(e) => updateSession(idx, { date: e.target.value })}
+              disabled={isReservationLocked} sx={{ minWidth: 150 }}
+            >
+              {days.map((d) => <MenuItem key={d} value={d} sx={{ textTransform: 'capitalize' }}>{dateLabel(d)}</MenuItem>)}
+            </TextField>
+            <TextField
+              select size="small" label="Début" value={times.includes(s.start) ? s.start : ''}
+              onChange={(e) => updateSession(idx, { start: e.target.value })}
+              disabled={isReservationLocked} sx={{ width: 110 }}
+            >
+              {times.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+            </TextField>
+            <TextField
+              select size="small" label="Fin" value={times.includes(s.end) ? s.end : ''}
+              onChange={(e) => updateSession(idx, { end: e.target.value })}
+              error={isInvalid(s)}
+              helperText={isInvalid(s) ? `min. ${Math.round(minMinutes / 60 * 10) / 10} h` : ''}
+              disabled={isReservationLocked} sx={{ width: 110 }}
+            >
+              {times.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+            </TextField>
+            <IconButton size="small" color="error" onClick={() => removeSession(idx)} disabled={isReservationLocked} aria-label="Retirer la séance">
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        ))}
+        <Button size="small" startIcon={<AddIcon />} onClick={addSession} disabled={isReservationLocked || days.length === 0} sx={{ alignSelf: 'flex-start' }}>
+          Ajouter une séance
+        </Button>
       </Stack>
     </Box>
   );
@@ -495,6 +574,7 @@ export default function ExtrasSection() {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                     const enabled = Boolean(selected && Number(selected.quantity) > 0);
                     const isPerHour = Boolean(resource.isComplex) || resource.priceType === 'per_hour';
+                    const isHourlyScheduled = Boolean(resource.showsPlanningCard) && resource.priceType === 'per_hour';
                     const hasFreeFirstHour = isPerHour && Number(resource.freeMinutes || 0) >= 60;
                     const unavailable = Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
@@ -545,24 +625,28 @@ export default function ExtrasSection() {
                             </Stack>
                           </Stack>
 
+                          {enabled && isHourlyScheduled && <ResourceSessions resource={resource} />}
+
                           {enabled && (
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                              <TextField
-                                size="small"
-                                type="number"
-                                label={isPerHour ? 'Heures' : 'Qté'}
-                                value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
-                                onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
-                                error={resourceConflict}
-                                helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
-                                sx={{ width: { xs: '100%', sm: 'auto' } }}
-                                slotProps={{
-                                  htmlInput: isPerHour
-                                    ? { min: 1, step: 1 }
-                                    : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }
-                                }}
-                              />
-                              <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
+                              {!isHourlyScheduled && (
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  label={isPerHour ? 'Heures' : 'Qté'}
+                                  value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
+                                  onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
+                                  error={resourceConflict}
+                                  helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
+                                  sx={{ width: { xs: '100%', sm: 'auto' } }}
+                                  slotProps={{
+                                    htmlInput: isPerHour
+                                      ? { min: 1, step: 1 }
+                                      : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }
+                                  }}
+                                />
+                              )}
+                              <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end', ml: { sm: 'auto' } }}>
                                 {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                     Small Switch + Tooltip pattern, mirrors the option block above. Hidden
                                     on platform reservations

@@ -31,6 +31,8 @@ const emptyResource = {
   nameEn: '',
   propertyPricing: {},
   isComplex: false, slotDuration: 5, minimumUsageMinutes: 0, openTime: '08:00', closeTime: '22:00', openDays: [0, 1, 2, 3, 4, 5, 6], turnoverMinutes: 0,
+  // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1).
+  showsPlanningCard: false, hourlyEveningStart: '', hourlyEveningRate: 0, hourlyExternalDayRate: 0, hourlyExternalEveningRate: 0,
 };
 
 function ComplexResourceFields({ form, setForm, properties }) {
@@ -204,6 +206,69 @@ function ComplexResourceFields({ form, setForm, properties }) {
               ))}
             </FormGroup>
           </Box>
+
+          {/* Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1). Only
+              meaningful for a per_hour resource: the planning card + the day/evening + external grid. */}
+          {form.priceType === 'per_hour' && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px dashed', borderColor: 'divider', pt: 1.5 }}>
+              <FormControlLabel
+                control={<Switch checked={Boolean(form.showsPlanningCard)} onChange={(e) => setForm({ ...form, showsPlanningCard: e.target.checked })} />}
+                label={<Typography variant="body2" fontWeight={600}>Planification par séances + tarif horaire (carte planning)</Typography>}
+              />
+              {form.showsPlanningCard && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Le tarif horaire de jour est le prix général ci-dessus ({form.price || 0} €/h). En soirée, le tarif soir s'applique.
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                    <TextField
+                      label="Heure de bascule soir"
+                      type="time"
+                      size="small"
+                      value={form.hourlyEveningStart || ''}
+                      onChange={(e) => setForm({ ...form, hourlyEveningStart: e.target.value })}
+                      sx={{ flex: 1 }}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                    <TextField
+                      label="Tarif horaire soir (€/h)"
+                      type="number"
+                      size="small"
+                      value={form.hourlyEveningRate ?? 0}
+                      onChange={(e) => setForm({ ...form, hourlyEveningRate: Math.max(0, Number(e.target.value) || 0) })}
+                      sx={{ flex: 1 }}
+                      slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
+                    />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    Tarif extérieurs (sans réservation logement)
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                    <TextField
+                      label="Tarif jour extérieurs (€/h)"
+                      type="number"
+                      size="small"
+                      value={form.hourlyExternalDayRate ?? 0}
+                      onChange={(e) => setForm({ ...form, hourlyExternalDayRate: Math.max(0, Number(e.target.value) || 0) })}
+                      helperText="Vide / 0 = tarif invité"
+                      sx={{ flex: 1 }}
+                      slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
+                    />
+                    <TextField
+                      label="Tarif soir extérieurs (€/h)"
+                      type="number"
+                      size="small"
+                      value={form.hourlyExternalEveningRate ?? 0}
+                      onChange={(e) => setForm({ ...form, hourlyExternalEveningRate: Math.max(0, Number(e.target.value) || 0) })}
+                      helperText="Vide / 0 = tarif invité"
+                      sx={{ flex: 1 }}
+                      slotProps={{ htmlInput: { min: 0, step: '0.5' } }}
+                    />
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
         </Box>
       )}
     </Box>
@@ -235,6 +300,11 @@ export default function ResourcesPage() {
           }, {}),
         description: item.note || item.description || '',
         isComplex: Boolean(item.isComplex),
+        showsPlanningCard: Boolean(item.showsPlanningCard),
+        hourlyEveningStart: item.hourlyEveningStart || '',
+        hourlyEveningRate: Number(item.hourlyEveningRate || 0),
+        hourlyExternalDayRate: Number(item.hourlyExternalDayRate || 0),
+        hourlyExternalEveningRate: Number(item.hourlyExternalEveningRate || 0),
         slotDuration: item.slotDuration || 5,
         minimumUsageMinutes: Number(item.minimumUsageMinutes || 0),
         openTime: item.openTime || '08:00',

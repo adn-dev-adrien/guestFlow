@@ -7,6 +7,7 @@
  */
 
 const db = require('../database');
+const { priceSessions } = require('../utils/resourceHourlyPricing');
 
 const JOIN_QUERY = `
   SELECT rb.*,
@@ -45,21 +46,39 @@ function enrichBooking(b) {
 }
 
 function createModel(database) {
-  function computeBookingTotalPrice({ resource, startTime, endTime, propertyId }) {
+  function computeBookingTotalPrice({ resource, startTime, endTime, propertyId, reservationId }) {
     const durationMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
     const pid = Number(propertyId || 0);
     const override = pid > 0
       ? database.prepare('SELECT price, freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(pid, Number(resource.id))
       : null;
-    const unitPrice = Number(override?.price ?? resource.price ?? 0);
+    const guestDayRate = Number(override?.price ?? resource.price ?? 0);
     const freeMinutes = Math.max(0, Number(override?.freeMinutes || 0));
 
     if (resource.priceType === 'free') return 0;
+
+    // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5). A booking
+    // with no reservation = « extérieur » → external rate pair (falling back to the guest grid).
+    const hourlyScheduled = Number(resource.showsPlanningCard || 0) === 1 && resource.priceType === 'per_hour';
+    if (hourlyScheduled) {
+      const isExternal = !reservationId;
+      const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
+      const dayRate = isExternal && Number(resource.hourlyExternalDayRate) > 0
+        ? Number(resource.hourlyExternalDayRate) : guestDayRate;
+      const eveningRate = isExternal
+        ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
+        : guestEveningRate;
+      const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
+      const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, freeMinutes);
+      if (priced.validSessions.length) return priced.totalPrice;
+      // off-grid range → fall through to the flat computation below.
+    }
+
     if (resource.priceType === 'per_hour') {
       const billedMinutes = Math.max(0, durationMinutes - freeMinutes);
-      return roundMoney((unitPrice * billedMinutes) / 60);
+      return roundMoney((guestDayRate * billedMinutes) / 60);
     }
-    return roundMoney(unitPrice);
+    return roundMoney(guestDayRate);
   }
 
   // Minimum billable/usable duration (per-hour minimum or complex slot duration).
@@ -85,7 +104,7 @@ function createModel(database) {
   }
 
   function getResourceForBooking(resourceId) {
-    return database.prepare('SELECT id, quantity, price, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex FROM resources WHERE id = ?')
+    return database.prepare('SELECT id, quantity, price, turnoverMinutes, priceType, minimumUsageMinutes, slotDuration, isComplex, showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate FROM resources WHERE id = ?')
       .get(resourceId);
   }
 
@@ -145,7 +164,7 @@ function createModel(database) {
       return { error: 'Créneau non disponible (capacité atteinte)', status: 409 };
     }
 
-    const totalPrice = computeBookingTotalPrice({ resource, startTime, endTime, propertyId });
+    const totalPrice = computeBookingTotalPrice({ resource, startTime, endTime, propertyId, reservationId });
     const result = database.prepare(
       'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
     ).run(resourceId, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, paid ? 1 : 0);
@@ -175,7 +194,8 @@ function createModel(database) {
     }
 
     const nextPropertyId = propertyId !== undefined ? propertyId : existing.propertyId;
-    const totalPrice = computeBookingTotalPrice({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId });
+    const nextReservationId = reservationId !== undefined ? (reservationId || null) : existing.reservationId;
+    const totalPrice = computeBookingTotalPrice({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId });
 
     database.prepare(
       "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,paid=?,updatedAt=datetime('now') WHERE id=?"

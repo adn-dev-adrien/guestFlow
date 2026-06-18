@@ -35,7 +35,10 @@ function createDb() {
     CREATE TABLE resources (
       id INTEGER PRIMARY KEY, name TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0,
       price REAL NOT NULL DEFAULT 0, priceType TEXT NOT NULL DEFAULT 'per_stay',
-      isComplex INTEGER NOT NULL DEFAULT 0, propertyIds TEXT DEFAULT '[]'
+      isComplex INTEGER NOT NULL DEFAULT 0, propertyIds TEXT DEFAULT '[]',
+      showsPlanningCard INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 30,
+      hourlyEveningStart TEXT, hourlyEveningRate REAL NOT NULL DEFAULT 0,
+      openTime TEXT DEFAULT '12:00', closeTime TEXT DEFAULT '22:00', minimumUsageMinutes INTEGER DEFAULT 60
     );
     CREATE TABLE property_resource_prices ( propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId) );
   `);
@@ -46,6 +49,8 @@ function createDb() {
   db.prepare("INSERT INTO resources (id, name, quantity, price, priceType) VALUES (11, 'Par pers', 1, 20, 'per_person')").run();
   db.prepare("INSERT INTO resources (id, name, quantity, price, priceType) VALUES (12, 'Par nuit', 1, 20, 'per_night')").run();
   db.prepare("INSERT INTO resources (id, name, quantity, price, priceType) VALUES (13, 'Pers/nuit', 1, 20, 'per_person_per_night')").run();
+  // Hourly-scheduled (bain nordique): day 30 / evening 50 from 20:00, 30-min slots.
+  db.prepare("INSERT INTO resources (id, name, quantity, price, priceType, isComplex, showsPlanningCard, slotDuration, hourlyEveningStart, hourlyEveningRate) VALUES (14, 'Bain nordique', 1, 30, 'per_hour', 1, 1, 30, '20:00', 50)").run();
   return db;
 }
 
@@ -84,4 +89,44 @@ test('per_person_per_night resource → price x persons x nights (20 x 2 x 3 = 1
   const { line } = resourceTotal(createDb(), 13);
   assert.equal(line.totalPrice, 120);
   assert.equal(line.billedUnits, 6);
+});
+
+// specs/resource-hourly-scheduling.md §3.3 — hourly-scheduled resource priced from the fiche sessions.
+test('hourly-scheduled resource → time-banded grid over the sessions', () => {
+  const db = createDb();
+  const quote = calculateReservationQuote({
+    db, ...BASE,
+    selectedResources: [{ resourceId: 14, sessions: [
+      { date: '2026-07-11', start: '19:00', end: '21:00' }, // 2×15 + 2×25 = 80
+      { date: '2026-07-12', start: '14:00', end: '15:00' }, // 30
+    ] }],
+  });
+  assert.ok(!quote.error, `quote errored: ${quote.error}`);
+  const line = quote.resourceLines.find((l) => l.resourceId === 14);
+  assert.equal(line.totalPrice, 110); // 80 + 30, no free minutes (no property override)
+  assert.equal(line.billedUnits, 3);  // 3 h booked
+  assert.equal(line.sessions.length, 2);
+});
+
+test('hourly-scheduled resource → free first hour deducted once (property freeMinutes)', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (1, 14, 30, 60)').run();
+  const quote = calculateReservationQuote({
+    db, ...BASE,
+    selectedResources: [{ resourceId: 14, sessions: [
+      { date: '2026-07-11', start: '19:00', end: '21:00' }, // earliest → first hour (19-20 = 30) free
+    ] }],
+  });
+  const line = quote.resourceLines.find((l) => l.resourceId === 14);
+  assert.equal(line.totalPrice, 50); // 80 − 30
+  assert.equal(line.billedUnits, 1);
+});
+
+test('hourly-scheduled resource → no valid session drops the line', () => {
+  const db = createDb();
+  const quote = calculateReservationQuote({
+    db, ...BASE,
+    selectedResources: [{ resourceId: 14, sessions: [{ date: '2026-07-11', start: '19:00', end: '19:30' }] }], // < 1 h
+  });
+  assert.equal(quote.resourceLines.find((l) => l.resourceId === 14), undefined);
 });
