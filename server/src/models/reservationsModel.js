@@ -71,6 +71,12 @@ function createReservationsModel(database) {
     try { return database.prepare("PRAGMA table_info(reservation_options)").all().some((c) => c.name === 'cardOccurrences'); }
     catch { return false; }
   })();
+  // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored on
+  // reservation_resources.sessions (JSON). Guarded for minimal test schemas.
+  const HAS_RESERVATION_RESOURCE_SESSIONS = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions'); }
+    catch { return false; }
+  })();
   const serializeCardOccurrences = (opt) => (
     Array.isArray(opt.cardOccurrences) && opt.cardOccurrences.length > 0
       ? JSON.stringify(opt.cardOccurrences)
@@ -238,7 +244,11 @@ function createReservationsModel(database) {
         FROM reservation_resources rr
         JOIN resources rs ON rr.resourceId = rs.id
         WHERE rr.reservationId = ?
-      `).all(id);
+      `).all(id).map((rr) => ({
+        ...rr,
+        // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) parsed for the fiche editor.
+        sessions: (() => { try { return rr.sessions ? JSON.parse(rr.sessions) : []; } catch { return []; } })(),
+      }));
 
       reservation.nights = database.prepare(`
         SELECT date, seasonLabel, pricingMode, price
@@ -809,6 +819,19 @@ function createReservationsModel(database) {
     insertResourceLine(reservationId, rr, unitPrice, qty, priceType) {
       const platformForcing = readPlatformForcing(database, reservationId);
       const forced = (rr.inComplement || platformForcing) ? 1 : 0;
+      // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md): persisted as JSON when the
+      // column exists; the planning cards + re-edit read them back.
+      const sessions = Array.isArray(rr.sessions) && rr.sessions.length ? JSON.stringify(rr.sessions) : null;
+      if (HAS_RESERVATION_RESOURCE_SESSIONS) {
+        database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc, sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(reservationId, rr.resourceId, qty, unitPrice, Number(rr.billedUnits || qty),
+            priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0,
+            forced,
+            forced ? null : (rr.acompteContribTtc != null ? Number(rr.acompteContribTtc) : null),
+            forced ? null : (rr.soldeContribTtc != null ? Number(rr.soldeContribTtc) : null),
+            sessions);
+        return;
+      }
       database.prepare('INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(reservationId, rr.resourceId, qty, unitPrice, Number(rr.billedUnits || qty),
           priceType || rr.priceType || 'per_stay', rr.totalPrice || unitPrice * qty, rr.offered ? 1 : 0,

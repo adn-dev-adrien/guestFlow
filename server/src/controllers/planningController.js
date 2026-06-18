@@ -14,6 +14,7 @@ const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
 const laundryManualAdditionsModel = require('../models/laundryManualAdditionsModel');
 const breakfastModel = require('../models/breakfastModel');
 const planningOptionCardsModel = require('../models/planningOptionCardsModel');
+const planningResourceCardsModel = require('../models/planningResourceCardsModel');
 const {
   findLaundryDaysInRange,
   prevLaundryDay,
@@ -39,6 +40,7 @@ function buildController({
   laundryManualAdditionsModel: injectedLaundryManualAdditionsModel = laundryManualAdditionsModel,
   breakfastModel: injectedBreakfastModel = breakfastModel,
   planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
+  planningResourceCardsModel: injectedResourceCardsModel = planningResourceCardsModel,
 } = {}) {
   return {
     /**
@@ -235,6 +237,44 @@ function buildController({
       });
       if (result && result.error) {
         const status = result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND' ? 404 : 400;
+        return res.status(status).json({ error: result.error });
+      }
+      return res.json(result);
+    },
+
+    /**
+     * GET /api/planning/resource-cards?from=YYYY-MM-DD&to=YYYY-MM-DD
+     * Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4): one card per session.
+     */
+    resourceCards(req, res) {
+      const from = (req.query && req.query.from) || '';
+      const to = (req.query && req.query.to) || '';
+      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+      }
+      const resourceCardsByDate = injectedResourceCardsModel.cardsInRange({ from, to });
+      return res.json({ resourceCardsByDate });
+    },
+
+    /**
+     * POST /api/planning/resource-cards/done
+     * Body: { reservationId, resourceId, date, start, done } — toggles one session's « préparé » flag.
+     */
+    setResourceCardDone(req, res) {
+      const body = req.body || {};
+      const reservationId = Number(body.reservationId);
+      const resourceId = Number(body.resourceId);
+      const date = String(body.date || '');
+      if (!Number.isInteger(reservationId) || reservationId <= 0
+        || !Number.isInteger(resourceId) || resourceId <= 0
+        || !isIsoDate(date)) {
+        return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+      }
+      const result = injectedResourceCardsModel.setSessionDone({
+        reservationId, resourceId, date, start: String(body.start || ''), done: Boolean(body.done),
+      });
+      if (result && result.error) {
+        const status = result.error === 'NOT_FOUND' || result.error === 'SESSION_NOT_FOUND' ? 404 : 400;
         return res.status(status).json({ error: result.error });
       }
       return res.json(result);

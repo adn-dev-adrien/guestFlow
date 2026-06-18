@@ -336,7 +336,7 @@ export default function ReservationPage() {
       .filter((line) => line.description && Number(line.amount || 0) > 0)
       .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
-      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0 }))
+      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0, sessions: Array.isArray(item.sessions) ? item.sessions : [] }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
@@ -679,6 +679,7 @@ export default function ReservationPage() {
               inComplement: Number(r.inComplement || 0) === 1,
               acompteContribTtc: r.acompteContribTtc != null ? Number(r.acompteContribTtc) : null,
               soldeContribTtc: r.soldeContribTtc != null ? Number(r.soldeContribTtc) : null,
+              sessions: Array.isArray(r.sessions) ? r.sessions : [],
             })),
             checkInTime: res.checkInTime || '15:00',
             checkOutTime: res.checkOutTime || '10:00',
@@ -1392,6 +1393,31 @@ export default function ReservationPage() {
     }));
   };
 
+  // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2): the fiche editor
+  // owns the [{date,start,end}] list; the server prices it from the time-banded grid.
+  const setResourceSessions = (resourceId, sessions) => {
+    setForm((prev) => {
+      const list = Array.isArray(sessions) ? sessions : [];
+      const exists = (prev.selectedResources || []).find((sr) => Number(sr.resourceId) === Number(resourceId));
+      if (exists) {
+        return {
+          ...prev,
+          selectedResources: prev.selectedResources.map((sr) => (
+            Number(sr.resourceId) === Number(resourceId) ? { ...sr, sessions: list } : sr
+          )),
+        };
+      }
+      const resource = availableResources.find((r) => r.id === resourceId);
+      return {
+        ...prev,
+        selectedResources: [
+          ...(prev.selectedResources || []),
+          { resourceId, quantity: 1, unitPrice: Number(resource?.price || 0), totalPrice: 0, offered: false, sessions: list },
+        ],
+      };
+    });
+  };
+
   // Auto-options (early check-in / late check-out / ...) aren't in `selectedOptions`, so their
   // routing-to-complément flag travels through a parallel array of optionIds. Toggling membership
   // here drives both the live recompute (via the snapshot dependency) and the persisted state
@@ -1480,8 +1506,10 @@ export default function ReservationPage() {
         unitPrice: item.unitPrice,
         offered: Boolean(item.offered),
         inComplement: item.inComplement ? 1 : 0,
+        // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) — drive the server pricer.
+        sessions: Array.isArray(item.sessions) ? item.sessions : [],
       }))
-      .filter((item) => Number(item.quantity || 0) > 0);
+      .filter((item) => Number(item.quantity || 0) > 0 || (Array.isArray(item.sessions) && item.sessions.length > 0));
   };
 
   // ==================== CLIENT CREATE / EDIT ====================
@@ -2399,6 +2427,8 @@ export default function ReservationPage() {
     setOptionInComplement, setResourceInComplement, setAutoOptionInComplement,
     // Option-driven planning cards (specs/option-planning-card.md §3.2) — occurrence checklist.
     setOptionCardOccurrences,
+    // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md §3.2).
+    setResourceSessions,
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
     accommodationBasePriceDisplay, pricingQuote,

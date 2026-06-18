@@ -359,7 +359,7 @@ CREATE TABLE IF NOT EXISTS reservation_resources (
     unitPrice REAL NOT NULL DEFAULT 0,
     billedUnits REAL NOT NULL DEFAULT 0,
     priceType TEXT NOT NULL DEFAULT 'per_stay',
-    totalPrice REAL NOT NULL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0, inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL DEFAULT NULL, soldeContribTtc REAL DEFAULT NULL,
+    totalPrice REAL NOT NULL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0, inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL DEFAULT NULL, soldeContribTtc REAL DEFAULT NULL, sessions TEXT,
     PRIMARY KEY (reservationId, resourceId),
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (resourceId) REFERENCES resources(id) ON DELETE CASCADE
@@ -436,7 +436,7 @@ CREATE TABLE IF NOT EXISTS resources (
     propertyId INTEGER,
     note TEXT DEFAULT '',
     createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')), isComplex INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 60, openTime TEXT NOT NULL DEFAULT '08:00', closeTime TEXT NOT NULL DEFAULT '22:00', closedDays TEXT NOT NULL DEFAULT '[]', openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]', turnoverMinutes INTEGER NOT NULL DEFAULT 0, minimumUsageMinutes INTEGER NOT NULL DEFAULT 0, nameEn TEXT NOT NULL DEFAULT '',
+    updatedAt TEXT DEFAULT (datetime('now')), isComplex INTEGER NOT NULL DEFAULT 0, slotDuration INTEGER NOT NULL DEFAULT 60, openTime TEXT NOT NULL DEFAULT '08:00', closeTime TEXT NOT NULL DEFAULT '22:00', closedDays TEXT NOT NULL DEFAULT '[]', openDays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]', turnoverMinutes INTEGER NOT NULL DEFAULT 0, minimumUsageMinutes INTEGER NOT NULL DEFAULT 0, nameEn TEXT NOT NULL DEFAULT '', showsPlanningCard INTEGER NOT NULL DEFAULT 0, hourlyEveningStart TEXT, hourlyEveningRate REAL NOT NULL DEFAULT 0, hourlyExternalDayRate REAL NOT NULL DEFAULT 0, hourlyExternalEveningRate REAL NOT NULL DEFAULT 0,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE SET NULL
   );
 

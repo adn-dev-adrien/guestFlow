@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
 import api from '../api';
+import { previewRangeTotal } from '../utils/resourceSessions';
 
 function timeToMinutes(t) {
   const [h, m] = (t || '00:00').split(':').map(Number);
@@ -138,12 +139,29 @@ export default function ResourceBookingDialog({
   const effectiveUnitPrice = Number(currentPropertyPricing?.price ?? resource?.price ?? 0);
   const freeMinutes = Math.max(0, Number(currentPropertyPricing?.freeMinutes || resource?.freeMinutes || 0));
 
-  // Price calculation: hourly resources use duration, with per-property free minutes support.
-  const totalPrice = isHourlyResource || resource?.priceType === 'free'
-    ? (resource.priceType === 'free'
-      ? 0
-      : (effectiveUnitPrice * Math.max(0, durationMinutes - freeMinutes)) / 60)
-    : effectiveUnitPrice;
+  // Price calculation. Hourly-scheduled resources (specs/resource-hourly-scheduling.md §3.5) use the
+  // time-banded grid with the EXTERNAL rate pair (this dialog books extérieurs, no logement reservation),
+  // falling back to the guest grid. Other hourly resources keep the flat duration × rate.
+  const isBandedHourly = Number(resource?.showsPlanningCard || 0) === 1 && resource?.priceType === 'per_hour';
+  let totalPrice;
+  if (resource?.priceType === 'free') {
+    totalPrice = 0;
+  } else if (isBandedHourly && selectedStart && selectedEnd) {
+    const dayRate = Number(resource.hourlyExternalDayRate) > 0 ? Number(resource.hourlyExternalDayRate) : effectiveUnitPrice;
+    const guestEvening = Number(resource.hourlyEveningRate) || 0;
+    const eveningRate = Number(resource.hourlyExternalEveningRate) > 0
+      ? Number(resource.hourlyExternalEveningRate)
+      : (guestEvening > 0 ? guestEvening : dayRate);
+    totalPrice = previewRangeTotal(
+      selectedStart, selectedEnd,
+      { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration },
+      freeMinutes,
+    );
+  } else if (isHourlyResource) {
+    totalPrice = (effectiveUnitPrice * Math.max(0, durationMinutes - freeMinutes)) / 60;
+  } else {
+    totalPrice = effectiveUnitPrice;
+  }
 
   // Check if current selection has conflicts
   const slotAvailable = useMemo(() => {

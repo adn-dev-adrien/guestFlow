@@ -20,6 +20,16 @@ function createModel(database) {
     catch { return false; }
   })();
 
+  // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md). Guarded so minimal
+  // test schemas without these columns gracefully drop them from the write.
+  const HOURLY_COLUMNS = ['showsPlanningCard', 'hourlyEveningStart', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
+  const HAS_HOURLY_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return HOURLY_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
   function getPropertyIds(resourceId) {
     return database.prepare('SELECT propertyId FROM resource_properties WHERE resourceId = ? ORDER BY propertyId')
       .all(Number(resourceId))
@@ -226,8 +236,18 @@ function createModel(database) {
       closeTime: payload.closeTime || '22:00',
       openDays: typeof payload.openDays === 'string' ? payload.openDays : JSON.stringify(payload.openDays || [0, 1, 2, 3, 4, 5, 6]),
       turnoverMinutes: Number(payload.turnoverMinutes) || 0,
+      showsPlanningCard: payload.showsPlanningCard ? 1 : 0,
+      hourlyEveningStart: payload.hourlyEveningStart ? String(payload.hourlyEveningStart) : null,
+      hourlyEveningRate: Number(payload.hourlyEveningRate) || 0,
+      hourlyExternalDayRate: Number(payload.hourlyExternalDayRate) || 0,
+      hourlyExternalEveningRate: Number(payload.hourlyExternalEveningRate) || 0,
     };
   }
+
+  // Column/placeholder fragments shared by insert + update, appending the hourly columns when present.
+  const HOURLY_SET = HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS.map((c) => `${c}=@${c}`).join(', ') : '';
+  const HOURLY_INSERT_COLS = HAS_HOURLY_COLUMNS ? `, ${HOURLY_COLUMNS.join(', ')}` : '';
+  const HOURLY_INSERT_VALS = HAS_HOURLY_COLUMNS ? `, ${HOURLY_COLUMNS.map((c) => `@${c}`).join(', ')}` : '';
 
   function insert(payload) {
     const cols = columnsFromPayload(payload);
@@ -235,10 +255,10 @@ function createModel(database) {
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
       const sql = HAS_RESOURCE_NAME_EN
-        ? `INSERT INTO resources (name, nameEn, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
-           VALUES (@name, @nameEn, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes)`
-        : `INSERT INTO resources (name, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes)
-           VALUES (@name, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes)`;
+        ? `INSERT INTO resources (name, nameEn, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes${HOURLY_INSERT_COLS})
+           VALUES (@name, @nameEn, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes${HOURLY_INSERT_VALS})`
+        : `INSERT INTO resources (name, quantity, price, priceType, note, isComplex, slotDuration, minimumUsageMinutes, openTime, closeTime, openDays, turnoverMinutes${HOURLY_INSERT_COLS})
+           VALUES (@name, @quantity, @price, @priceType, @note, @isComplex, @slotDuration, @minimumUsageMinutes, @openTime, @closeTime, @openDays, @turnoverMinutes${HOURLY_INSERT_VALS})`;
       const result = database.prepare(sql).run(cols);
       const resourceId = Number(result.lastInsertRowid);
       writePivots(resourceId, propertyIds, pricing);
@@ -253,17 +273,18 @@ function createModel(database) {
     const propertyIds = normalizePropertyIds(payload);
     const pricing = normalizePricing(payload);
     const tx = database.transaction(() => {
+      const hourlySet = HOURLY_SET ? `, ${HOURLY_SET}` : '';
       const updateSql = HAS_RESOURCE_NAME_EN
         ? `UPDATE resources
            SET name=@name, nameEn=@nameEn, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
-               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes,
+               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes${hourlySet},
                updatedAt=datetime('now')
            WHERE id=@id`
         : `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
-               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes,
+               openTime=@openTime, closeTime=@closeTime, openDays=@openDays, turnoverMinutes=@turnoverMinutes${hourlySet},
                updatedAt=datetime('now')
            WHERE id=@id`;
       database.prepare(updateSql).run({ ...cols, id: resourceId });

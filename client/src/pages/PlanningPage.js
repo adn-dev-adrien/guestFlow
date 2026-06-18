@@ -164,6 +164,27 @@ export default function PlanningPage() {
     }
   }, []);
 
+  // Resource session card « fait » toggle (specs/resource-hourly-scheduling.md §3.4). Matched by
+  // reservationId + resourceId + date + start; optimistic with revert on failure.
+  const handleToggleResourceCardDone = useCallback(async (item, nextDone) => {
+    if (!item) return;
+    const matches = (it) => it.reservationId === item.reservationId && it.resourceId === item.resourceId
+      && it.date === item.date && it.start === item.start;
+    const apply = (value) => setResourceCardsByDate((prev) => {
+      const day = prev[item.date];
+      if (!day) return prev;
+      return { ...prev, [item.date]: { ...day, items: day.items.map((it) => (matches(it) ? { ...it, done: value } : it)) } };
+    });
+    apply(nextDone);
+    try {
+      await api.setPlanningResourceCardDone({
+        reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone,
+      });
+    } catch {
+      apply(!nextDone); // revert
+    }
+  }, []);
+
   // Arrival / departure SAS (specs/arrival-departure-sas.md). Clicking an arrival card opens the
   // arrival SAS, a departure row the departure SAS. `{ reservationId, mode }` drives the dialog.
   const [sas, setSas] = useState(null);
@@ -206,6 +227,9 @@ export default function PlanningPage() {
   // `{ items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] }`.
   // Empty days are absent; `OptionDayCard` hides itself if data is missing.
   const [optionCardsByDate, setOptionCardsByDate] = useState({});
+  // Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4). Map ISO date →
+  // `{ items: [{ reservationId, resourceId, name, clientName, propertyName, date, start, end, done }] }`.
+  const [resourceCardsByDate, setResourceCardsByDate] = useState({});
   // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §6.2). Map ISO date
   // → per-type clean snapshot to display as the 3rd block on each laundry day.
   const [inventoryByDate, setInventoryByDate] = useState({});
@@ -418,7 +442,7 @@ export default function PlanningPage() {
   const loadPlanning = async (from) => {
     setLoading(true);
     const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, manualAdditions] = await Promise.all([
+    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, resourceCardsSummary, manualAdditions] = await Promise.all([
       api.getReservations({ from, to }),
       api.getResourceBookingPlanningEvents(from, to).catch(() => []),
       // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
@@ -430,6 +454,8 @@ export default function PlanningPage() {
       api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
       // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
       api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
+      // specs/resource-hourly-scheduling.md §3.4 — resource session cards. Non-blocking.
+      api.getPlanningResourceCards({ from, to }).catch(() => ({ resourceCardsByDate: {} })),
       // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
       // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
       api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
@@ -485,6 +511,8 @@ export default function PlanningPage() {
     setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
     // Option-driven planning cards (specs/option-planning-card.md §3.3).
     setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
+    // Resource session cards (specs/resource-hourly-scheduling.md §3.4).
+    setResourceCardsByDate(resourceCardsSummary?.resourceCardsByDate || {});
 
     // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
     // horizon; LaundryDayCard filters the types it actually renders.
@@ -536,6 +564,13 @@ export default function PlanningPage() {
           .then((summary) => {
             const next = summary?.optionCardsByDate || {};
             setOptionCardsByDate((prev) => ({ ...prev, ...next }));
+          })
+          .catch(() => {});
+        // Same incremental pattern for resource session cards (specs/resource-hourly-scheduling.md §3.4).
+        api.getPlanningResourceCards({ from: nextStart, to: nextEnd })
+          .then((summary) => {
+            const next = summary?.resourceCardsByDate || {};
+            setResourceCardsByDate((prev) => ({ ...prev, ...next }));
           })
           .catch(() => {});
         api.getReservations({ from: nextStart, to: nextEnd }).then((newReservations) => {
@@ -708,6 +743,8 @@ export default function PlanningPage() {
           ...Object.keys(breakfastByDate).filter((d) => (breakfastByDate[d]?.items?.length || 0) > 0),
           // specs/option-planning-card.md §3.3 — a date with ONLY an option card must still render.
           ...Object.keys(optionCardsByDate).filter((d) => (optionCardsByDate[d]?.items?.length || 0) > 0),
+          // specs/resource-hourly-scheduling.md §3.4 — a date with ONLY a resource card must still render.
+          ...Object.keys(resourceCardsByDate).filter((d) => (resourceCardsByDate[d]?.items?.length || 0) > 0),
         ])].sort().map((date, idx, arr) => {
           const day = planningDays.find((d) => d.date === date);
           const dayResourceBookings = resourceBookingsMap[date] || [];
@@ -800,6 +837,22 @@ export default function PlanningPage() {
                   other day cards; hides itself when no occurrence falls on this date. Each row is
                   clickable and opens the corresponding reservation fiche. */}
               <OptionDayCard data={optionCardsByDate[date]} onItemClick={openReservation} onToggleDone={handleToggleOptionCardDone} />
+
+              {/* Resource session cards (specs/resource-hourly-scheduling.md §3.4) — one per session,
+                  teal theme, time range pill. Maps the resource fields onto the shared card shape. */}
+              <OptionDayCard
+                theme="resource"
+                data={resourceCardsByDate[date] ? {
+                  items: resourceCardsByDate[date].items.map((i) => ({
+                    ...i,
+                    optionId: i.resourceId,
+                    title: i.name,
+                    time: i.end ? `${i.start}–${i.end}` : i.start,
+                  })),
+                } : null}
+                onItemClick={openReservation}
+                onToggleDone={handleToggleResourceCardDone}
+              />
 
               {dayDepartures.length > 0 && (
                 <Box sx={{ mb: 1.25 }}>

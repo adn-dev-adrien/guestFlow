@@ -427,6 +427,20 @@ if (holidayCount === 0) {
   for (const row of seed) insert.run(...row);
 }
 
+// Hourly-scheduled resources (specs/resource-hourly-scheduling.md): a time-banded grid (day/evening
+// rate + an evening switch time), a separate « extérieurs » rate pair, and a planning-card flag. Plus a
+// per-reservation session list. Idempotent ALTERs for DBs predating schema.sql baseline #225.
+{
+  const rcols = db.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+  if (!rcols.includes('showsPlanningCard')) db.exec('ALTER TABLE resources ADD COLUMN showsPlanningCard INTEGER NOT NULL DEFAULT 0');
+  if (!rcols.includes('hourlyEveningStart')) db.exec('ALTER TABLE resources ADD COLUMN hourlyEveningStart TEXT');
+  if (!rcols.includes('hourlyEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyEveningRate REAL NOT NULL DEFAULT 0');
+  if (!rcols.includes('hourlyExternalDayRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalDayRate REAL NOT NULL DEFAULT 0');
+  if (!rcols.includes('hourlyExternalEveningRate')) db.exec('ALTER TABLE resources ADD COLUMN hourlyExternalEveningRate REAL NOT NULL DEFAULT 0');
+  const rrcols = db.prepare('PRAGMA table_info(reservation_resources)').all().map((c) => c.name);
+  if (!rrcols.includes('sessions')) db.exec('ALTER TABLE reservation_resources ADD COLUMN sessions TEXT');
+}
+
 // Seed default resource: baby bed (global = no resource_properties rows).
 const babyBed = db.prepare(`
   SELECT r.id FROM resources r

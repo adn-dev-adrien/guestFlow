@@ -14,5 +14,7 @@ router.get('/linen-inventory', controller.linenInventory);
 router.get('/breakfast', controller.breakfastSummary);
 router.get('/option-cards', controller.optionCards);
 router.post('/option-cards/done', controller.setOptionCardDone);
+router.get('/resource-cards', controller.resourceCards);
+router.post('/resource-cards/done', controller.setResourceCardDone);
 
 module.exports = router;

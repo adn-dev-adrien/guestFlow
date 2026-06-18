@@ -1,3 +1,5 @@
+const { priceSessions } = require('./resourceHourlyPricing');
+
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
@@ -1221,6 +1223,45 @@ function calculateReservationQuote({
     .map((selected) => {
       debugResourceLine('input.selected', { selected });
 
+      const resourceId = Number(selected.resourceId);
+      const resourceForFlags = resourcesById.get(resourceId);
+      const hourlyScheduled = resourceForFlags
+        && Number(resourceForFlags.showsPlanningCard || 0) === 1
+        && resourceForFlags.priceType === 'per_hour';
+      const sessions = Array.isArray(selected?.sessions) ? selected.sessions : [];
+
+      // Hourly-scheduled resource: priced from the time-banded grid over the fiche sessions
+      // (specs/resource-hourly-scheduling.md §3.3). Sessions are the source of truth — no quantity field.
+      if (hourlyScheduled) {
+        const priced = priceSessions(
+          sessions,
+          {
+            dayRate: resourceForFlags.price,
+            eveningRate: resourceForFlags.hourlyEveningRate,
+            eveningStart: resourceForFlags.hourlyEveningStart,
+            slotMinutes: resourceForFlags.slotDuration,
+            openTime: resourceForFlags.openTime,
+            closeTime: resourceForFlags.closeTime,
+            minMinutes: resourceForFlags.minimumUsageMinutes,
+          },
+          resourceForFlags.freeMinutes,
+        );
+        if (priced.validSessions.length === 0) return null;
+        const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
+        const lockedLine = lockedResourcesById.get(resourceId);
+        const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
+        return {
+          resourceId,
+          name: resourceForFlags.name,
+          quantity: priced.validSessions.length,
+          unitPrice: priced.unitPrice,
+          billedUnits: priced.billedHours,
+          sessions: priced.validSessions,
+          ...applyOfferedToLine(priced.totalPrice, offered),
+          ...pickContribsAndForce(selected, lockedLine),
+        };
+      }
+
       const quantity = Math.max(0, Number(selected?.quantity || 0));
       debugResourceLine('parsed.quantity', { quantity });
       if (quantity <= 0) {
@@ -1228,7 +1269,6 @@ function calculateReservationQuote({
         return null;
       }
 
-      const resourceId = Number(selected.resourceId);
       debugResourceLine('parsed.resourceId', { resourceId });
       const resource = resourcesById.get(resourceId);
       if (!resource) {
