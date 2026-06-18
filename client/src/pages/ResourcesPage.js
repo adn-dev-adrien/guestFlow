@@ -275,6 +275,47 @@ function ComplexResourceFields({ form, setForm, properties }) {
   );
 }
 
+/**
+ * Maps the resource editor form to the API payload. Exported for the unit test — the hourly
+ * scheduling fields (specs/resource-hourly-scheduling.md) must survive the save, and be cleared when
+ * the resource isn't a per_hour planning resource.
+ */
+export function toResourcePayload(form) {
+  return {
+    name: form.name,
+    nameEn: (form.nameEn || '').trim(),
+    quantity: Number(form.quantity) || 0,
+    price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
+    priceType: form.priceType || 'per_stay',
+    propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
+    propertyPricing: Object.entries(form.propertyPricing || {})
+      .reduce((acc, [propertyId, rawPrice]) => {
+        const parsedPrice = Number(rawPrice?.price);
+        const parsedFreeMinutes = Number(rawPrice?.freeMinutes || 0);
+        const hasPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0;
+        const freeMinutes = Number.isFinite(parsedFreeMinutes) ? Math.max(0, Math.round(parsedFreeMinutes)) : 0;
+        if (hasPrice || freeMinutes > 0) acc[String(propertyId)] = { price: hasPrice ? parsedPrice : 0, freeMinutes };
+        return acc;
+      }, {}),
+    note: form.description || '',
+    isComplex: form.isComplex ? 1 : 0,
+    slotDuration: form.isComplex ? (Number(form.slotDuration) || 5) : 5,
+    minimumUsageMinutes: form.priceType === 'per_hour' ? (Number(form.minimumUsageMinutes) || 60) : 0,
+    openTime: form.isComplex ? (form.openTime || '08:00') : '08:00',
+    closeTime: form.isComplex ? (form.closeTime || '22:00') : '22:00',
+    openDays: JSON.stringify(form.isComplex ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),
+    turnoverMinutes: form.isComplex ? (Number(form.turnoverMinutes) || 0) : 0,
+    // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md §3.1). Only meaningful
+    // for a per_hour resource; cleared otherwise so toggling priceType away resets the planning flag.
+    showsPlanningCard: form.priceType === 'per_hour' && form.showsPlanningCard ? 1 : 0,
+    hourlyEveningStart: form.priceType === 'per_hour' && form.showsPlanningCard && form.hourlyEveningStart
+      ? form.hourlyEveningStart : null,
+    hourlyEveningRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyEveningRate) || 0) : 0,
+    hourlyExternalDayRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyExternalDayRate) || 0) : 0,
+    hourlyExternalEveningRate: form.priceType === 'per_hour' && form.showsPlanningCard ? (Number(form.hourlyExternalEveningRate) || 0) : 0,
+  };
+}
+
 export default function ResourcesPage() {
   return (
     <PricedItemsPage
@@ -322,39 +363,7 @@ export default function ResourcesPage() {
         // Bilingual devis PDF (specs/devis-english-language.md §3 rule 7).
         nameEn: item.nameEn || '',
       })}
-      toPayload={(form) => ({
-        name: form.name,
-        // Bilingual devis PDF — trimmed; empty = fallback to FR `name` in the EN PDF.
-        nameEn: (form.nameEn || '').trim(),
-        quantity: Number(form.quantity) || 0,
-        price: form.priceType === 'free' ? 0 : Number(form.price) || 0,
-        priceType: form.priceType || 'per_stay',
-        propertyIds: form.propertyIds && form.propertyIds.length > 0 ? form.propertyIds : [],
-        propertyPricing: Object.entries(form.propertyPricing || {})
-          .reduce((acc, [propertyId, rawPrice]) => {
-            const parsedPrice = Number(rawPrice?.price);
-            const parsedFreeMinutes = Number(rawPrice?.freeMinutes || 0);
-            const hasPrice = Number.isFinite(parsedPrice) && parsedPrice >= 0;
-            const freeMinutes = Number.isFinite(parsedFreeMinutes)
-              ? Math.max(0, Math.round(parsedFreeMinutes))
-              : 0;
-            if (hasPrice || freeMinutes > 0) {
-              acc[String(propertyId)] = {
-                price: hasPrice ? parsedPrice : 0,
-                freeMinutes,
-              };
-            }
-            return acc;
-          }, {}),
-        note: form.description || '',
-        isComplex: form.isComplex ? 1 : 0,
-        slotDuration: form.isComplex ? (Number(form.slotDuration) || 5) : 5,
-        minimumUsageMinutes: form.priceType === 'per_hour' ? (Number(form.minimumUsageMinutes) || 60) : 0,
-        openTime: form.isComplex ? (form.openTime || '08:00') : '08:00',
-        closeTime: form.isComplex ? (form.closeTime || '22:00') : '22:00',
-        openDays: JSON.stringify(form.isComplex ? (form.openDays || [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6]),
-        turnoverMinutes: form.isComplex ? (Number(form.turnoverMinutes) || 0) : 0,
-      })}
+      toPayload={toResourcePayload}
       formNameKey="name"
       formDescriptionKey="description"
       showQuantity={true}
