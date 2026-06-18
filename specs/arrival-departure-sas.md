@@ -123,6 +123,11 @@ confirmation — records the caution status and the complement(s) on the reserva
     `complementAmount`. The departure SAS sets it = **cleaning price** (ménage « Pas OK ») **+** the
     **missing linen/towels** selected at rule 14.ter.
 19. Both complements round to 2 decimals and never go negative.
+19.bis **Recap detail with quantities + prices (2026-06-18).** When there is a complement to settle, the
+    recap lists **each line** — the pre-existing in-complément extras (options / resources / custom, with
+    their quantity + unit price), the SAS-added items, and the end-of-stay lines — formatted
+    « libellé : qté × prix unitaire = total » (just « libellé : total » when qty ≤ 1), instead of a lump
+    « Déjà dû ». Applies to both the arrival and the departure recap. Display-only (totals unchanged).
 
 ### 3.4 Priced linen items (Réglages → Blanchisserie)
 20. The **« Stock blanchisserie »** settings page + menu entry is **renamed « Blanchisserie »** (route
