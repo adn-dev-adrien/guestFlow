@@ -50,12 +50,13 @@ describe('buildMonthLayout', () => {
     expect(b.rightEdge).toBe(b.endCol + 0.5);
   });
 
-  it('a closure spans full days (no half-day offset)', () => {
+  it('a closure is half-day at its start/end too (consistent with reservations)', () => {
     const bars = allBars(layout).filter((b) => b.item.key === 'c10');
     expect(bars.length).toBeGreaterThanOrEqual(1);
     const b = bars[0];
-    expect(b.leftEdge).toBe(b.startCol);
-    expect(b.rightEdge).toBe(b.endCol + 1);
+    expect(b.roundStart && b.roundEnd).toBe(true);
+    expect(b.leftEdge).toBe(b.startCol + 0.5);
+    expect(b.rightEdge).toBe(b.endCol + 0.5);
   });
 
   it('a stay crossing a week boundary splits; only the true edges are half-day', () => {

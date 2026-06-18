@@ -126,12 +126,11 @@ export function buildMonthLayout(year, month, items, todayStr) {
         const endCol = Math.max(0, Math.min(6, daysBetween(weekStart, segEnd)));
         const roundStart = segStart === it.startDate;
         const roundEnd = segEnd === it.lastDay;
-        // Reservations arrive mid-day and leave mid-day → the bar starts at the middle of the arrival
-        // day and ends at the middle of the departure day (only at the TRUE start/end, not at a
-        // week-split edge). Closures occupy whole days. Fractional column edges (0..7).
-        const isRes = it.kind === 'reservation';
-        const leftEdge = startCol + (isRes && roundStart ? 0.5 : 0);
-        const rightEdge = (endCol + 1) - (isRes && roundEnd ? 0.5 : 0);
+        // Bars start at the middle of their first day and end at the middle of their last day (only at
+        // the TRUE start/end, not at a week-split edge) — for reservations (arrival/departure mid-day)
+        // AND closures, for a consistent look. Fractional column edges (0..7).
+        const leftEdge = startCol + (roundStart ? 0.5 : 0);
+        const rightEdge = (endCol + 1) - (roundEnd ? 0.5 : 0);
         return { item: it, startCol, endCol, roundStart, roundEnd, leftEdge, rightEdge };
       });
 

@@ -1,0 +1,1 @@
+- Calendrier cumulé : les fermetures de logement commencent et se terminent désormais au milieu de la case (comme les réservations), pour un rendu cohérent des arrivées/départs et des bornes de fermeture.

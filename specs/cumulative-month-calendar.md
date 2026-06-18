@@ -34,7 +34,8 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
 2. **Bars** span their days, split per week row (a bar can't wrap). **Reservations** are coloured by
    platform (`getPlatformColor`) and drawn **half-day at the arrival and departure** (the bar starts at
    the middle of the check-in day and ends at the middle of the check-out day, so arrivals/departures —
-   and same-day turnovers — read visually). **Closures** are grey, full-day, span `[startDate, endDate)`
+   and same-day turnovers — read visually). **Closures** are grey and **also drawn half-day at their
+   start/end** (same look as reservations); they span `[startDate, endDate)`
    (the model's half-open interval → last occupied day = `endDate − 1`); a closure with no `propertyId`
    is **global** (« Tous les logements »).
 3. **Grouped by logement.** Within a week the lanes are organised **per logement** (a contiguous band of
