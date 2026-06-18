@@ -195,7 +195,10 @@ function MonthBlock({ year, month, reservations, todayStr, isMobile, onReservati
                   key={day.date}
                   onClick={() => onCreateReservation && onCreateReservation(day.date)}
                   sx={{
-                    border: '1px solid', borderColor: 'divider', borderRadius: 1,
+                    // Today is framed with a thicker primary border (specs/cumulative-month-calendar.md §6).
+                    border: day.isToday ? '2px solid' : '1px solid',
+                    borderColor: day.isToday ? 'primary.main' : 'divider',
+                    borderRadius: 1,
                     bgcolor: day.inMonth ? 'background.paper' : 'action.hover',
                     cursor: onCreateReservation ? 'pointer' : 'default',
                     '&:hover': onCreateReservation ? { bgcolor: 'action.selected' } : undefined,

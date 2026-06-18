@@ -11,7 +11,7 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
-import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
+import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
 import IcalCancellationAlert from '../components/IcalCancellationAlert';
@@ -100,12 +100,7 @@ export default function Dashboard() {
   }, [selectedDate]); // eslint-disable-line
 
   // Build timeline days (30 days)
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const handleOpenPropertyCalendar = (property) => {
-    const ref = new Date(selectedDate || todayStr);
-    navigate(`/calendar?propertyId=${property.id}&year=${ref.getFullYear()}&month=${ref.getMonth()}`);
-  };
+  const todayStr = new Date().toISOString().split('T')[0];
 
   if (loading) return <LinearProgress />;
 
@@ -361,16 +356,11 @@ export default function Dashboard() {
           </Card>
         </Grid>
       </Grid>
-      {/* Combined timeline calendar */}
+      {/* Cumulative month calendar — the SAME component as the Calendrier page (no duplication). */}
       <Divider sx={{ my: 3 }} />
-      <SyncedPropertyMiniCalendars
-        properties={properties}
-        reservations={reservations}
-        onOpenProperty={handleOpenPropertyCalendar}
-        onOpenReservation={(r) => navigate(withFrom(`/reservations/${r.id}`, '/'))}
-        onCreateReservation={({ propertyId, startDate, endDate }) => {
-          navigate(withFrom(`/reservations/new?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`, '/'));
-        }}
+      <CumulativeMonthCalendar
+        onReservationClick={(id) => navigate(withFrom(`/reservations/${id}`, '/'))}
+        onCreateReservation={(startDate) => navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/'))}
       />
     </Box>
   );

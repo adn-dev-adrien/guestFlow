@@ -6,7 +6,7 @@
 | **Branch** | `feature/cumulative-month-calendar` |
 | **Created** | 2026-06-18 |
 | **Author** | Adrien |
-| **Touches** | `pages/CalendarPage.js`, `components/CumulativeMonthCalendar.js` (new) |
+| **Touches** | `pages/CalendarPage.js`, `pages/Dashboard.js`, `components/CumulativeMonthCalendar.js` (new) |
 
 ---
 
@@ -43,7 +43,12 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    position maintained). Each month carries a **sticky label**. An « Aujourd'hui » button refocuses the
    current month; today's day cell is highlighted. No previous/next buttons.
 7. **Legend**: the platforms present, with their colours.
-8. Drilling into a single logement's full calendar stays via the toolbar's property selector (unchanged).
+8. **Today is framed**: today's day cell carries a 2 px primary border (in addition to the bold primary
+   day number).
+9. **Same component on the Dashboard.** The dashboard overview renders the **exact same**
+   `CumulativeMonthCalendar` (no duplication, identical behaviour), replacing its old per-logement
+   mini-calendars. Only the navigation callbacks differ (origin `'/'`).
+10. Drilling into a single logement's full calendar stays via the toolbar's property selector (unchanged).
 
 ## 4. Architecture
 | Layer | File | Responsibility |
@@ -51,6 +56,7 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
 | components | `CumulativeMonthCalendar.js` (new) | Self-contained: reuses `useInfiniteMonthScroll` for the stacked-months scroll machinery, incrementally fetches each visible month's reservations (all logements, merged by id), computes the week/lane bar layout, renders stacked month blocks + bars + legend. Render-only; reuses `getPlatformColor`. |
 | hooks | `useInfiniteMonthScroll.js` | Reused as-is (a truthy sentinel keeps its scroll effects active outside the per-property flow). |
 | pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `onReservationClick`, `onCreateReservation`). |
+| pages | `Dashboard.js` | Replace its `SyncedPropertyMiniCalendars` overview with the **same** `CumulativeMonthCalendar` (callbacks with origin `'/'`). |
 
 No server change (reuses `GET /reservations?from&to`).
 
