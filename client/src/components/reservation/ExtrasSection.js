@@ -130,15 +130,21 @@ function ResourceSessions({ resource }) {
   const times = timeOptions(resource.openTime, resource.closeTime, resource.slotDuration);
   const minMinutes = Math.max(0, Number(resource.minimumUsageMinutes || 0));
   const slot = Math.max(1, Number(resource.slotDuration || 30));
+  // The mandatory first whole hour: the minimum gap between start and end (≥ 1 h).
+  const firstDur = minMinutes > 0 ? minMinutes : 60;
+  const closeMin = toMinutes(resource.closeTime || '22:00');
+  // End of a session given its start: start + the first whole hour, clamped to the closing time.
+  const endForStart = (start) => minutesToTime(Math.min(closeMin, toMinutes(start) + firstDur));
 
   const dateLabel = (iso) => occurrenceDateLabel(iso);
   const updateSession = (idx, patch) => setResourceSessions(resource.id, sessions.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   const removeSession = (idx) => setResourceSessions(resource.id, sessions.filter((_, i) => i !== idx));
+  // Picking a start auto-sets the end to start + 1 h (the first whole hour).
+  const setStart = (idx, start) => updateSession(idx, { start, end: endForStart(start) });
   const addSession = () => {
     const date = days[0] || form.startDate;
     const start = (times[0]) || resource.openTime || '12:00';
-    const end = minutesToTime(toMinutes(start) + Math.max(slot, minMinutes || slot));
-    setResourceSessions(resource.id, [...sessions, { date, start, end }]);
+    setResourceSessions(resource.id, [...sessions, { date, start, end: endForStart(start) }]);
   };
   const isInvalid = (s) => {
     const dur = toMinutes(s.end) - toMinutes(s.start);
@@ -166,10 +172,11 @@ function ResourceSessions({ resource }) {
             </TextField>
             <TextField
               select size="small" label="Début" value={times.includes(s.start) ? s.start : ''}
-              onChange={(e) => updateSession(idx, { start: e.target.value })}
+              onChange={(e) => setStart(idx, e.target.value)}
               disabled={isReservationLocked} sx={{ width: 110 }}
             >
-              {times.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+              {/* A start that can't fit the first whole hour before closing is disabled. */}
+              {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) + firstDur > closeMin}>{t}</MenuItem>)}
             </TextField>
             <TextField
               select size="small" label="Fin" value={times.includes(s.end) ? s.end : ''}
@@ -178,7 +185,9 @@ function ResourceSessions({ resource }) {
               helperText={isInvalid(s) ? `min. ${Math.round(minMinutes / 60 * 10) / 10} h` : ''}
               disabled={isReservationLocked} sx={{ width: 110 }}
             >
-              {times.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+              {/* End options before « début + 1 h » are greyed out; the Select opens centred on the
+                  current value (MUI scrolls the selected item into view). */}
+              {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) < toMinutes(s.start) + firstDur}>{t}</MenuItem>)}
             </TextField>
             <IconButton size="small" color="error" onClick={() => removeSession(idx)} disabled={isReservationLocked} aria-label="Retirer la séance">
               <DeleteIcon fontSize="small" />
@@ -625,11 +634,14 @@ export default function ExtrasSection() {
                             </Stack>
                           </Stack>
 
-                          {enabled && isHourlyScheduled && <ResourceSessions resource={resource} />}
-
+                          {/* Same layout as the option card (uniform): the [Qté | spacer] + [Compl + Total]
+                              row first, then — for an hourly resource — the session editor below (mirrors
+                              the option's occurrence checklist placement). */}
                           {enabled && (
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                              {!isHourlyScheduled && (
+                              {isHourlyScheduled ? (
+                                <Box sx={{ flex: 1 }} />
+                              ) : (
                                 <TextField
                                   size="small"
                                   type="number"
@@ -646,7 +658,7 @@ export default function ExtrasSection() {
                                   }}
                                 />
                               )}
-                              <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end', ml: { sm: 'auto' } }}>
+                              <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
                                 {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                     Small Switch + Tooltip pattern, mirrors the option block above. Hidden
                                     on platform reservations
@@ -676,6 +688,8 @@ export default function ExtrasSection() {
                               </Stack>
                             </Stack>
                           )}
+
+                          {enabled && isHourlyScheduled && <ResourceSessions resource={resource} />}
                         </CardContent>
                       </Card>
                     );
