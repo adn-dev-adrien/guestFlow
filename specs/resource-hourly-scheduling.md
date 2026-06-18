@@ -186,6 +186,13 @@ unchanged). Existing `reservation_resources` rows have `sessions = NULL` (priced
   grid; tied to a reservation → guest grid; external rate empty → falls back to guest; non-hourly resource
   keeps flat pricing (regression).
 - [ ] `planningResourceCardsModel` — `cardsInRange` window filtering; `setSessionDone` toggles one.
+### Hotfix 2026-06-18 — catalog save was dropping the hourly fields
+- [x] `ResourcesPage` `toPayload` omitted the 5 new fields, so enabling « Planification par séances » +
+  the rates was never persisted (the fiche kept showing the plain quantity). Extracted as
+  `toResourcePayload(form)` (exported) and now includes `showsPlanningCard`, `hourlyEveningStart`,
+  `hourlyEveningRate`, `hourlyExternalDayRate`, `hourlyExternalEveningRate` (cleared when not
+  per_hour / planification off). +3 unit tests (`resourceToPayload.test.js`); round-trip dev-verified.
+
 ### Client unit tests
 - [ ] `resourceSessions` helpers — add/remove/edit, slot alignment, validation, preview total matches the
   server pricer for a representative case.
