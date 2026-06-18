@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import PageHeader from '../components/PageHeader';
-import SyncedPropertyMiniCalendars from '../components/SyncedPropertyMiniCalendars';
+import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import CalendarToolbar from '../components/CalendarToolbar';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
 import CalendarWeekView from '../components/CalendarWeekView';
@@ -25,7 +25,6 @@ export default function CalendarPage() {
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
-  const [overviewReservations, setOverviewReservations] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [devisList, setDevisList] = useState([]);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
@@ -66,14 +65,6 @@ export default function CalendarPage() {
   // ---------- DATA LOADING ----------
   const loadProperties = async () => setProperties(await api.getProperties());
   const loadSchoolHolidays = async () => setSchoolHolidays((await api.getSchoolHolidays()).periods || []);
-
-  const loadOverviewReservations = useCallback(async () => {
-    const from = new Date().toISOString().split('T')[0];
-    const toDate = new Date();
-    toDate.setDate(toDate.getDate() + 30);
-    const to = toDate.toISOString().split('T')[0];
-    setOverviewReservations(await api.getReservations({ from, to }));
-  }, []);
 
   const loadCalendarData = useCallback(async () => {
     if (!selectedProp || months.length === 0) return;
@@ -134,7 +125,7 @@ export default function CalendarPage() {
     focusOnMonth(now.getFullYear(), now.getMonth(), { resetNavLocks: true });
   };
 
-  useEffect(() => { loadProperties(); loadSchoolHolidays(); loadOverviewReservations(); }, [loadOverviewReservations]);
+  useEffect(() => { loadProperties(); loadSchoolHolidays(); }, []);
   useEffect(() => { loadCalendarData(); }, [loadCalendarData]);
 
   // Read URL params for navigation from dashboard
@@ -410,15 +401,10 @@ export default function CalendarPage() {
           />
         )
       ) : (
-        <SyncedPropertyMiniCalendars
-          properties={properties}
-          reservations={overviewReservations}
-          title="Calendrier simplifié"
-          helperText="Cliquez une date de début puis une date de fin sur un logement pour créer une réservation, ou ouvrez son calendrier complet."
-          openPropertyLabel="Ouvrir"
-          onOpenProperty={(property) => handleSelectProperty(property.id)}
-          onCreateReservation={({ propertyId, startDate, endDate }) => {
-            navigate(withFrom(`/reservations/new?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`, '/calendar'));
+        <CumulativeMonthCalendar
+          onReservationClick={handleReservationClick}
+          onCreateReservation={(startDate) => {
+            navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/calendar'));
           }}
         />
       )}
