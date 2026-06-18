@@ -1213,6 +1213,26 @@ db.prepare(`
   `).run(ARRIVAL_REMINDER_1D_BODY, PRE_COMPLEMENT_J1_BODY);
 }
 
+// Content migration (specs/j1-arrival-reminder-email.md): the arrival reminder moved from J-1 to J-2
+// and was fully rewritten (stay date instead of « demain », GPS line, nordic-bath gear/schedule block,
+// cleaning matched by option NAME). Adrien explicitly asked to OVERWRITE the row even if it was
+// personalised — so this is a one-shot FORCE-sync of name/subject/body/dayOffset to the registry def
+// (sendMode + enabled are preserved). Runs once, AFTER the exact-match chain above so it has the final
+// say; guarded by the `migrations` table so a later operator edit is never clobbered again.
+{
+  const migrationName = 'arrival_reminder_j2_overwrite_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runArrivalReminderJ2Migration } = require('./utils/migrateArrivalReminderJ2');
+    const tx = db.transaction(() => {
+      const { action } = runArrivalReminderJ2Migration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:arrival-reminder-j2] ${action}`);
+    });
+    tx();
+  }
+}
+
 // ---------- ARRIVAL / DEPARTURE SAS — specs/arrival-departure-sas.md ----------
 // Priced linen items shown in the SAS (operator-managed in Réglages → Blanchisserie). One table,
 // two categories ('bed' bed-linen elements + 'towel' towels/variants).
