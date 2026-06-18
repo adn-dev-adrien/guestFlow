@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { buildMonthLayout } from '../CumulativeMonthCalendar';
+import { buildMonthLayout, monthReservations, frRange } from '../CumulativeMonthCalendar';
 
 vi.mock('../../api', () => ({ default: { getReservations: vi.fn().mockResolvedValue([]) } }));
 import api from '../../api';
@@ -79,5 +79,25 @@ describe('CumulativeMonthCalendar (infinite scroll)', () => {
     render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
     expect(await screen.findByRole('button', { name: /Aujourd'hui/ })).toBeInTheDocument();
     expect(screen.getByText(/Faites défiler pour changer de mois/)).toBeInTheDocument();
+  });
+});
+
+describe('monthReservations (mobile agenda data)', () => {
+  const RES_M = [
+    { id: 1, startDate: '2026-07-20', endDate: '2026-07-22', propertyName: 'Studio' },
+    { id: 2, startDate: '2026-06-30', endDate: '2026-07-02', propertyName: 'Gîte' }, // overlaps July
+    { id: 3, startDate: '2026-08-01', endDate: '2026-08-03', propertyName: 'Loft' }, // not in July
+    { id: 4, startDate: '2026-07-05', endDate: '2026-07-06', propertyName: 'Cabane' },
+  ];
+  it('keeps only stays overlapping the month, sorted by start date', () => {
+    const ids = monthReservations(2026, 6, RES_M).map((r) => r.id); // July
+    expect(ids).toEqual([2, 4, 1]); // 06-30, 07-05, 07-20 — id 3 (August) excluded
+  });
+});
+
+describe('frRange', () => {
+  it('formats a single day and a range', () => {
+    expect(frRange('2026-07-05', '2026-07-05')).toBe('5 juillet');
+    expect(frRange('2026-06-30', '2026-07-02')).toBe('30 juin → 2 juillet');
   });
 });

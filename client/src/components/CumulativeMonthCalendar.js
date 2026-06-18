@@ -10,7 +10,7 @@
  *   onCreateReservation(dateStr)  — empty-day click → new reservation prefilled with that date.
  */
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { Box, Typography, Button, Stack, Tooltip, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, Stack, Tooltip, CircularProgress, Chip, useMediaQuery, useTheme } from '@mui/material';
 import api from '../api';
 import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 import { formatDate, shiftDate, getDaysInMonth } from '../utils/calendarVisuals';
@@ -41,6 +41,25 @@ function monthGridRange(year, month) {
   const first = formatDate(year, month, 1);
   const from = shiftDate(first, -mondayIndex(first));
   return { from, to: shiftDate(from, 6 * 7 - 1) };
+}
+
+function frDay(iso) {
+  const [, m, d] = String(iso).split('-').map(Number);
+  return `${d} ${MONTHS_FR[(m || 1) - 1]}`;
+}
+export function frRange(start, end) {
+  return start === end ? frDay(start) : `${frDay(start)} → ${frDay(end)}`;
+}
+
+// Reservations whose stay overlaps the given month, sorted by start date — the mobile agenda list.
+export function monthReservations(year, month, reservations) {
+  const mStart = formatDate(year, month, 1);
+  const mEnd = formatDate(year, month, getDaysInMonth(year, month));
+  return (Array.isArray(reservations) ? reservations : [])
+    .filter((r) => r && r.startDate && r.endDate && r.startDate <= mEnd && r.endDate >= mStart)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate)
+      || String(a.propertyName || '').localeCompare(String(b.propertyName || ''), 'fr')
+      || Number(a.id) - Number(b.id));
 }
 
 /**
@@ -99,20 +118,68 @@ export function buildMonthLayout(year, month, reservations, todayStr) {
   return { weeks };
 }
 
-function MonthBlock({ year, month, reservations, todayStr, onReservationClick, onCreateReservation }) {
-  const { weeks } = useMemo(() => buildMonthLayout(year, month, reservations, todayStr), [year, month, reservations, todayStr]);
+function MonthBlock({ year, month, reservations, todayStr, isMobile, onReservationClick, onCreateReservation }) {
+  const { weeks } = useMemo(
+    () => (isMobile ? { weeks: [] } : buildMonthLayout(year, month, reservations, todayStr)),
+    [year, month, reservations, todayStr, isMobile],
+  );
+  const monthList = useMemo(
+    () => (isMobile ? monthReservations(year, month, reservations) : []),
+    [year, month, reservations, isMobile],
+  );
+
+  const stickyLabel = (
+    <Typography
+      variant="subtitle1"
+      sx={{
+        position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', py: 0.5,
+        fontWeight: 800, textTransform: 'capitalize', borderBottom: '2px solid', borderColor: 'primary.light',
+      }}
+    >
+      {MONTHS_FR[month]} {year}
+    </Typography>
+  );
+
+  // Mobile = a readable agenda list (one row per reservation), no horizontal scrolling.
+  if (isMobile) {
+    return (
+      <Box data-month-anchor={`${year}-${month}`} sx={{ mb: 2 }}>
+        {stickyLabel}
+        {monthList.length === 0 && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', py: 1 }}>Aucune réservation.</Typography>
+        )}
+        <Stack spacing={0.75} sx={{ mt: 0.75 }}>
+          {monthList.map((r) => {
+            const color = getPlatformColor(r.platform);
+            return (
+              <Box
+                key={r.id}
+                onClick={() => onReservationClick && onReservationClick(r.id)}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1,
+                  borderLeft: '5px solid', borderColor: color, bgcolor: 'background.paper', boxShadow: 1,
+                  cursor: 'pointer', minHeight: 48, '&:active': { bgcolor: 'action.selected' },
+                }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>{r.propertyName || 'Logement'}</Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{resLabel(r)}</Typography>
+                </Box>
+                <Stack spacing={0.25} sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{frRange(r.startDate, r.endDate)}</Typography>
+                  <Chip label={formatPlatformLabel(r.platform)} size="small" sx={{ height: 18, fontSize: 10, bgcolor: color, color: '#fff' }} />
+                </Stack>
+              </Box>
+            );
+          })}
+        </Stack>
+      </Box>
+    );
+  }
+
   return (
     <Box data-month-anchor={`${year}-${month}`} sx={{ mb: 2 }}>
-      {/* Sticky month label so you always know where you are while scrolling. */}
-      <Typography
-        variant="subtitle1"
-        sx={{
-          position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', py: 0.5,
-          fontWeight: 800, textTransform: 'capitalize', borderBottom: '2px solid', borderColor: 'primary.light',
-        }}
-      >
-        {MONTHS_FR[month]} {year}
-      </Typography>
+      {stickyLabel}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', my: 0.5 }}>
         {WEEKDAYS.map((d) => (
           <Typography key={d} variant="caption" sx={{ textAlign: 'center', fontWeight: 700, color: 'text.secondary' }}>{d}</Typography>
@@ -183,6 +250,8 @@ function MonthBlock({ year, month, reservations, todayStr, onReservationClick, o
 export default function CumulativeMonthCalendar({ onReservationClick, onCreateReservation }) {
   // Reuse the per-property infinite-scroll machinery; the sentinel keeps its scroll effects active
   // (the hook only gates on `selectedProp` truthiness, not its value).
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { months, scrollRef, handleScroll, focusOnMonth } = useInfiniteMonthScroll('all');
   const [reservationsById, setReservationsById] = useState({});
   const [loading, setLoading] = useState(false);
@@ -248,8 +317,8 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
       </Stack>
 
       {/* Bounded, scrollable container = the infinite-scroll surface. Horizontal scroll on mobile. */}
-      <Box ref={scrollRef} onScroll={handleScroll} sx={{ overflowY: 'auto', overflowX: 'auto', maxHeight: { xs: '72vh', sm: 'calc(100vh - 240px)' }, pr: 0.5 }}>
-        <Box sx={{ minWidth: 720 }}>
+      <Box ref={scrollRef} onScroll={handleScroll} sx={{ overflowY: 'auto', overflowX: { xs: 'visible', sm: 'auto' }, maxHeight: { xs: '74vh', sm: 'calc(100vh - 240px)' }, pr: 0.5 }}>
+        <Box sx={{ minWidth: { xs: 'auto', sm: 720 } }}>
           {months.map((m) => (
             <MonthBlock
               key={`${m.year}-${m.month}`}
@@ -257,6 +326,7 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
               month={m.month}
               reservations={reservations}
               todayStr={todayStr}
+              isMobile={isMobile}
               onReservationClick={onReservationClick}
               onCreateReservation={onCreateReservation}
             />
