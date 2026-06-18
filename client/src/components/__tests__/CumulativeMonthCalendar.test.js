@@ -1,104 +1,99 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { buildMonthLayout, monthReservations, frRange } from '../CumulativeMonthCalendar';
+import { buildMonthLayout, normalizeItems, monthItems, frRange } from '../CumulativeMonthCalendar';
 
-vi.mock('../../api', () => ({ default: { getReservations: vi.fn().mockResolvedValue([]) } }));
+vi.mock('../../api', () => ({ default: {
+  getReservations: vi.fn().mockResolvedValue([]),
+  getEstablishmentClosures: vi.fn().mockResolvedValue([]),
+} }));
 import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
 
-// specs/cumulative-month-calendar.md §3 — spanning bars split per week, lane-packed.
+// specs/cumulative-month-calendar.md §3 — spanning bars split per week, lane-packed, GROUPED BY logement,
+// reservations half-day at arrival/departure, closures full-day.
 const RES = [
-  { id: 1, startDate: '2026-07-15', endDate: '2026-07-15', platform: 'direct', propertyName: 'Gîte', firstName: 'A', lastName: 'A' },
-  { id: 2, startDate: '2026-07-15', endDate: '2026-07-16', platform: 'airbnb', propertyName: 'Studio', firstName: 'B', lastName: 'B' },
-  { id: 3, startDate: '2026-07-04', endDate: '2026-07-12', platform: 'booking', propertyName: 'Loft', firstName: 'C', lastName: 'C' }, // spans 2+ week rows
+  { id: 1, startDate: '2026-07-15', endDate: '2026-07-17', platform: 'airbnb', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
+  { id: 2, startDate: '2026-07-16', endDate: '2026-07-18', platform: 'booking', propertyName: 'Studio', firstName: 'Anne', lastName: 'Bernard' }, // overlaps id1, other property
+  { id: 3, startDate: '2026-07-04', endDate: '2026-07-12', platform: 'direct', propertyName: 'Loft', firstName: 'C', lastName: 'C' }, // spans 2 week rows
 ];
+const CLOSURES = [
+  { id: 10, propertyId: 1, propertyName: 'Gîte', label: 'Travaux', startDate: '2026-07-20', endDate: '2026-07-22' }, // closed 20–21 (half-open)
+  { id: 11, propertyId: null, propertyName: null, label: 'Congés', startDate: '2026-07-25', endDate: '2026-07-27' }, // global
+];
+const ITEMS = normalizeItems(RES, CLOSURES);
 
-function allBars(layout) {
-  return layout.weeks.flatMap((w) => w.bars);
-}
+function allBars(layout) { return layout.weeks.flatMap((w) => w.bars); }
+
+describe('normalizeItems', () => {
+  it('maps reservations + closures, with closures using the last OCCUPIED day (endDate − 1)', () => {
+    const r = ITEMS.find((i) => i.key === 'r1');
+    expect(r.kind).toBe('reservation');
+    expect(r.lastDay).toBe('2026-07-17');
+    const c = ITEMS.find((i) => i.key === 'c10');
+    expect(c.kind).toBe('closure');
+    expect(c.lastDay).toBe('2026-07-21'); // endDate 22 → last occupied 21
+    const g = ITEMS.find((i) => i.key === 'c11');
+    expect(g.groupKey).toBe(''); // global closure → top band
+  });
+});
 
 describe('buildMonthLayout', () => {
-  const layout = buildMonthLayout(2026, 6, RES, '2026-07-15'); // July 2026 (month index 6)
+  const layout = buildMonthLayout(2026, 6, ITEMS, '2026-07-16'); // July 2026
 
-  it('a single-day stay yields exactly one rounded segment', () => {
-    const bars = allBars(layout).filter((b) => b.res.id === 1);
+  it('a reservation is half-day at arrival + departure (leftEdge/rightEdge offset by 0.5)', () => {
+    const bars = allBars(layout).filter((b) => b.item.reservationId === 1);
     expect(bars).toHaveLength(1);
-    expect(bars[0].roundStart && bars[0].roundEnd).toBe(true);
-    expect(bars[0].startCol).toBe(bars[0].endCol);
+    const b = bars[0];
+    expect(b.roundStart && b.roundEnd).toBe(true);
+    expect(b.leftEdge).toBe(b.startCol + 0.5);
+    expect(b.rightEdge).toBe(b.endCol + 0.5);
   });
 
-  it('a stay crossing a week boundary is split into multiple segments', () => {
-    const bars = allBars(layout).filter((b) => b.res.id === 3);
+  it('a closure spans full days (no half-day offset)', () => {
+    const bars = allBars(layout).filter((b) => b.item.key === 'c10');
+    expect(bars.length).toBeGreaterThanOrEqual(1);
+    const b = bars[0];
+    expect(b.leftEdge).toBe(b.startCol);
+    expect(b.rightEdge).toBe(b.endCol + 1);
+  });
+
+  it('a stay crossing a week boundary splits; only the true edges are half-day', () => {
+    const bars = allBars(layout).filter((b) => b.item.reservationId === 3);
     expect(bars.length).toBeGreaterThanOrEqual(2);
-    // first segment rounds on the true start, last on the true end; the split edges are square.
     expect(bars[0].roundStart).toBe(true);
-    expect(bars[bars.length - 1].roundEnd).toBe(true);
+    expect(bars[0].leftEdge).toBe(bars[0].startCol + 0.5);   // arrival half-day
     expect(bars[0].roundEnd).toBe(false);
+    expect(bars[0].rightEdge).toBe(bars[0].endCol + 1);       // week-split edge = full
+    expect(bars[bars.length - 1].roundEnd).toBe(true);
   });
 
-  it('two overlapping stays in the same week get distinct lanes', () => {
-    const week = layout.weeks.find((w) => w.bars.some((b) => b.res.id === 1) && w.bars.some((b) => b.res.id === 2));
+  it('groups by logement: Gîte and Studio overlap but sit in different lanes, Gîte above Studio', () => {
+    const week = layout.weeks.find((w) => w.bars.some((b) => b.item.reservationId === 1) && w.bars.some((b) => b.item.reservationId === 2));
     expect(week).toBeTruthy();
-    const laneA = week.bars.find((b) => b.res.id === 1).lane;
-    const laneB = week.bars.find((b) => b.res.id === 2).lane;
-    expect(laneA).not.toBe(laneB);
-    expect(week.laneCount).toBeGreaterThanOrEqual(2);
+    const laneG = week.bars.find((b) => b.item.reservationId === 1).lane;
+    const laneS = week.bars.find((b) => b.item.reservationId === 2).lane;
+    expect(laneG).not.toBe(laneS);
+    expect(laneG).toBeLessThan(laneS); // « Gîte » sorts before « Studio »
   });
 
-  it('covers the whole month (5 or 6 week rows, 7 days each)', () => {
-    expect(layout.weeks.length).toBeGreaterThanOrEqual(5);
-    layout.weeks.forEach((w) => expect(w.days).toHaveLength(7));
+  it('a global closure sits in the top lane band (lane 0)', () => {
+    const bars = allBars(layout).filter((b) => b.item.key === 'c11');
+    expect(bars.length).toBeGreaterThanOrEqual(1);
+    expect(bars[0].lane).toBe(0);
   });
 
-  it('flags exactly the today cell as isToday (drives the framed cell)', () => {
-    const days = layout.weeks.flatMap((w) => w.days);
-    const todays = days.filter((d) => d.isToday);
+  it('flags exactly the today cell as isToday', () => {
+    const todays = layout.weeks.flatMap((w) => w.days).filter((d) => d.isToday);
     expect(todays).toHaveLength(1);
-    expect(todays[0].date).toBe('2026-07-15');
+    expect(todays[0].date).toBe('2026-07-16');
   });
 });
 
-describe('CumulativeMonthCalendar (infinite scroll)', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-
-  function todayIso() {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-  }
-
-  it('stacks multiple months and renders reservation bars from the loaded data', async () => {
-    const d = todayIso();
-    api.getReservations.mockResolvedValue([
-      { id: 1, startDate: d, endDate: d, platform: 'airbnb', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
-    ]);
-    const { container } = render(<CumulativeMonthCalendar onReservationClick={() => {}} onCreateReservation={() => {}} />);
-
-    // The infinite-scroll hook seeds several stacked months (prev / current / next …).
-    await waitFor(() => expect(container.querySelectorAll('[data-month-anchor]').length).toBeGreaterThanOrEqual(3));
-    // The reservation surfaces as a bar (logement · client).
-    await waitFor(() => expect(container.textContent).toMatch(/Jean Dupont/));
-    expect(api.getReservations).toHaveBeenCalled();
-  });
-
-  it('shows the « Aujourd\'hui » control and the scroll hint (no month buttons)', async () => {
-    api.getReservations.mockResolvedValue([]);
-    render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
-    expect(await screen.findByRole('button', { name: /Aujourd'hui/ })).toBeInTheDocument();
-    expect(screen.getByText(/Faites défiler pour changer de mois/)).toBeInTheDocument();
-  });
-});
-
-describe('monthReservations (mobile agenda data)', () => {
-  const RES_M = [
-    { id: 1, startDate: '2026-07-20', endDate: '2026-07-22', propertyName: 'Studio' },
-    { id: 2, startDate: '2026-06-30', endDate: '2026-07-02', propertyName: 'Gîte' }, // overlaps July
-    { id: 3, startDate: '2026-08-01', endDate: '2026-08-03', propertyName: 'Loft' }, // not in July
-    { id: 4, startDate: '2026-07-05', endDate: '2026-07-06', propertyName: 'Cabane' },
-  ];
-  it('keeps only stays overlapping the month, sorted by start date', () => {
-    const ids = monthReservations(2026, 6, RES_M).map((r) => r.id); // July
-    expect(ids).toEqual([2, 4, 1]); // 06-30, 07-05, 07-20 — id 3 (August) excluded
+describe('monthItems (mobile agenda, grouped by logement)', () => {
+  it('orders global closures first, then per logement (alpha), then by date', () => {
+    const keys = monthItems(2026, 6, ITEMS).map((i) => i.key);
+    expect(keys).toEqual(['c11', 'r1', 'c10', 'r3', 'r2']); // global, Gîte(res→closure), Loft, Studio
   });
 });
 
@@ -106,5 +101,33 @@ describe('frRange', () => {
   it('formats a single day and a range', () => {
     expect(frRange('2026-07-05', '2026-07-05')).toBe('5 juillet');
     expect(frRange('2026-06-30', '2026-07-02')).toBe('30 juin → 2 juillet');
+  });
+});
+
+describe('CumulativeMonthCalendar (infinite scroll)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  function todayIso() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  }
+
+  it('stacks multiple months and renders reservation bars from the loaded data', async () => {
+    const d = todayIso();
+    const end = `${d.slice(0, 8)}${String(Number(d.slice(8, 10)) + 1).padStart(2, '0')}`;
+    api.getReservations.mockResolvedValue([
+      { id: 1, startDate: d, endDate: end, platform: 'airbnb', propertyName: 'Gîte', firstName: 'Jean', lastName: 'Dupont' },
+    ]);
+    api.getEstablishmentClosures.mockResolvedValue([]);
+    const { container } = render(<CumulativeMonthCalendar onReservationClick={() => {}} onCreateReservation={() => {}} />);
+    await waitFor(() => expect(container.querySelectorAll('[data-month-anchor]').length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(container.textContent).toMatch(/Jean Dupont/));
+  });
+
+  it('shows the « Aujourd\'hui » control and the scroll hint (no month buttons)', async () => {
+    api.getReservations.mockResolvedValue([]);
+    api.getEstablishmentClosures.mockResolvedValue([]);
+    render(<CumulativeMonthCalendar onReservationClick={() => {}} />);
+    expect(await screen.findByRole('button', { name: /Aujourd'hui/ })).toBeInTheDocument();
+    expect(screen.getByText(/Faites défiler pour changer de mois/)).toBeInTheDocument();
   });
 });

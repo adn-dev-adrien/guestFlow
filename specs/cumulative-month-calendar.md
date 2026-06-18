@@ -28,12 +28,19 @@ coloured by platform, labelled with the logement + client, clickable to open the
 buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
 
 ## 3. Functional rules
-1. **Scope** = every reservation (`kind = 'reservation'`) overlapping the visible month, all logements.
-   Fetched per displayed month (`api.getReservations({ from, to })`, no `propertyId`).
-2. **Bars** span `startDate → endDate` inclusive. A stay crossing a week boundary is **split** into one
-   segment per week row (a bar can't wrap). Colour = `getPlatformColor(platform)`.
-3. **Lanes**: within a week, bars are assigned to lanes (rows) greedily by start date so overlapping
-   stays never collide; the week row grows to fit the lane count.
+1. **Scope** = every reservation (`kind = 'reservation'`) **and every property closure** overlapping the
+   visible month, all logements. Fetched per displayed month (`api.getReservations` +
+   `api.getEstablishmentClosures`, no `propertyId`).
+2. **Bars** span their days, split per week row (a bar can't wrap). **Reservations** are coloured by
+   platform (`getPlatformColor`) and drawn **half-day at the arrival and departure** (the bar starts at
+   the middle of the check-in day and ends at the middle of the check-out day, so arrivals/departures —
+   and same-day turnovers — read visually). **Closures** are grey, full-day, span `[startDate, endDate)`
+   (the model's half-open interval → last occupied day = `endDate − 1`); a closure with no `propertyId`
+   is **global** (« Tous les logements »).
+3. **Grouped by logement.** Within a week the lanes are organised **per logement** (a contiguous band of
+   lanes per property: all of one logement's bars, then the next). Global closures take the **top** band.
+   Within a band, bars are lane-packed by start (a same-day departure→arrival shares a lane thanks to the
+   half-day edges). The week row grows to fit the total lane count.
 4. **Label**: logement name + client (`firstName lastName`, or the iCal summary / `Réservation #id`
    fallback), truncated. Tooltip with the full label + dates.
 5. **Click** a bar → open the reservation fiche (`onReservationClick`). Click an empty day → new
@@ -42,7 +49,8 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    scrolling near the bottom appends the next month, near the top prepends the previous one (scroll
    position maintained). Each month carries a **sticky label**. An « Aujourd'hui » button refocuses the
    current month; today's day cell is highlighted. No previous/next buttons.
-7. **Legend**: the platforms present, with their colours.
+7. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
+   are present. On mobile (agenda list) closures render as grey rows « Fermé — {logement} ».
 8. **Today is framed**: today's day cell carries a 2 px primary border (in addition to the bold primary
    day number).
 9. **Same component on the Dashboard.** The dashboard overview renders the **exact same**
@@ -53,16 +61,17 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
 ## 4. Architecture
 | Layer | File | Responsibility |
 |---|---|---|
-| components | `CumulativeMonthCalendar.js` (new) | Self-contained: reuses `useInfiniteMonthScroll` for the stacked-months scroll machinery, incrementally fetches each visible month's reservations (all logements, merged by id), computes the week/lane bar layout, renders stacked month blocks + bars + legend. Render-only; reuses `getPlatformColor`. |
+| components | `CumulativeMonthCalendar.js` (new) | Self-contained: reuses `useInfiniteMonthScroll`, incrementally fetches each visible month's reservations **+ closures** (merged by id), normalises them (`normalizeItems`), computes the week/lane layout grouped by logement with half-day reservation edges (`buildMonthLayout`), renders stacked month blocks + bars + legend. Render-only; reuses `getPlatformColor`. |
 | hooks | `useInfiniteMonthScroll.js` | Reused as-is (a truthy sentinel keeps its scroll effects active outside the per-property flow). |
 | pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `onReservationClick`, `onCreateReservation`). |
 | pages | `Dashboard.js` | Replace its `SyncedPropertyMiniCalendars` overview with the **same** `CumulativeMonthCalendar` (callbacks with origin `'/'`). |
 
-No server change (reuses `GET /reservations?from&to`).
+No server change (reuses `GET /reservations?from&to` + `GET /establishment-closures?from&to`).
 
 ## 5. Data model
-None. Reads existing reservation fields: `id, startDate, endDate, platform, propertyName, firstName,
-lastName, icalOriginalSummary`.
+None. Reads existing reservation fields (`id, startDate, endDate, platform, propertyName, firstName,
+lastName, icalOriginalSummary`) and closure fields (`id, propertyId, propertyName, label, startDate,
+endDate`).
 
 ## 6. UI / UX
 - Stacked month blocks inside a bounded scroll container: each block = sticky month label + weekday
