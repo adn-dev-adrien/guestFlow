@@ -236,6 +236,33 @@ test('J-1 body: linen-by-default with linen as the only option → the options l
   assert.doesNotMatch(out.body, /Option\(s\) réservée\(s\)/);
 });
 
+test('J-2 body: opens with the stay date (never « demain ») + GPS line', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input());
+  assert.doesNotMatch(out.body, /demain/);
+  assert.match(out.body, /nous vous accueillons le .*juillet 2026 au Gite/);
+  assert.match(out.body, /recherchez simplement « Domaine Solio » sur votre GPS/);
+});
+
+test('J-2 body: nordic bath booked → gear reminder renders; absent → it does not', () => {
+  const withBath = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    resources: [{ name: 'Bain nordique', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }],
+  }));
+  assert.match(withBath.body, /maillot de bain, un peignoir ou une serviette/);
+  assert.match(withBath.body, /une paire de tongs/);
+  assert.match(withBath.body, /Votre créneau est réservé le .*juillet 2026 de 18:00 à 19:30/);
+
+  const noBath = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ resources: [{ name: 'Lit bébé' }] }));
+  assert.doesNotMatch(noBath.body, /maillot de bain/);
+});
+
+test('J-2 body: operator "Ménage" option without a tag is detected by name → no "at your charge" line', () => {
+  const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
+    reservation: { cautionAmount: 0 },
+    options: [{ title: 'Ménage de fin de séjour' }], // no autoOptionType — the bug case
+  }));
+  assert.doesNotMatch(out.body, /à votre charge/);
+});
+
 // ── J-1 complement to collect (specs/j1-complement-to-collect.md) ────────────────
 
 test('J-1 body: unpaid complement renders the notice with the matched items', () => {

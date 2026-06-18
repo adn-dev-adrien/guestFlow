@@ -1,0 +1,1 @@
+- Rappel d'arrivée : la mention « le ménage de fin de séjour reste à votre charge » n'apparaît plus à tort lorsque l'option ménage est bien réservée — l'option est maintenant reconnue par son **nom** (et non plus seulement par un type interne que les options créées manuellement ne portent pas).
