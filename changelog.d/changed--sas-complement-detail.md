@@ -1,0 +1,1 @@
+- SAS arrivée et départ : le récapitulatif affiche désormais le détail des compléments à régler (chaque ligne avec quantité et prix : « libellé : qté × prix unitaire = total »), au lieu d'un simple montant « Déjà dû ».

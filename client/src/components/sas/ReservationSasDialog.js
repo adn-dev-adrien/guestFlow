@@ -304,9 +304,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // ---- totals ----
   const bedLines = useMemo(() => bedItems
     .filter((it) => Number(missingBed[it.id]) > 0)
-    .map((it) => ({ label: it.label, amount: Math.round(Number(it.price) * Number(missingBed[it.id]) * 100) / 100, qty: Number(missingBed[it.id]) })), [bedItems, missingBed]);
+    .map((it) => ({ label: it.label, unitPrice: Number(it.price) || 0, amount: Math.round(Number(it.price) * Number(missingBed[it.id]) * 100) / 100, qty: Number(missingBed[it.id]) })), [bedItems, missingBed]);
   const cleaningLine = (mode === 'arrival' && cleaningAdded && data?.cleaning?.price)
-    ? { label: 'Ménage', amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
+    ? { label: 'Ménage', unitPrice: Math.round(Number(data.cleaning.price) * 100) / 100, amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
   const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : [])];
   const arrivalAdded = arrivalAddedLines.reduce((s, l) => s + l.amount, 0);
   // On re-edit, the SAS-origin complement lines from the prior commit are REPLACED, not added — so
@@ -317,11 +317,36 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     .reduce((s, o) => s + Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0), 0), [r]);
   const preservedArrivalSum = preservedArrival.reduce((s, l) => s + Number(l.amount || 0), 0);
 
+  // Detail of the PRE-EXISTING complement (the « déjà dû »): every extra routed to the complément
+  // (options / resources / custom — `inComplement`), with its quantity + unit price, EXCLUDING the
+  // SAS-origin lines (those are re-shown as the « + » added lines). Lets the operator see exactly what
+  // makes up the complement to settle, not just the lump sum. Sum == `existing` in the recap.
+  const complementDetailLines = useMemo(() => {
+    const extras = [...((r?.options) || []), ...((r?.resources) || [])];
+    return extras
+      .filter((x) => Number(x.inComplement) === 1 && Number(x.offered || 0) !== 1
+        && Number(x.totalPrice || 0) > 0 && Number(x.sasArrivalOrigin || 0) !== 1)
+      .map((x) => ({
+        label: x.title || x.name || 'Prestation',
+        qty: Number(x.billedUnits || x.quantity || 1),
+        unitPrice: Number(x.unitPrice || 0),
+        amount: Math.round(Number(x.totalPrice || 0) * 100) / 100,
+      }));
+  }, [r]);
+
+  // « label : qty × unitPrice € = total € » when there is a meaningful quantity, else « label : total € ».
+  const lineText = (l) => {
+    const qty = Number(l.qty || 0);
+    const unit = Number(l.unitPrice || 0);
+    if (qty > 1 && unit > 0) return `${l.label} : ${qty} × ${euro(unit)} = ${euro(l.amount)}`;
+    return `${l.label} : ${euro(l.amount)}`;
+  };
+
   const depMissingLines = useMemo(() => allItems
     .filter((it) => Number(missingDep[it.id]) > 0)
-    .map((it) => ({ label: it.label, amount: Math.round(Number(it.price) * Number(missingDep[it.id]) * 100) / 100, qty: Number(missingDep[it.id]) })), [allItems, missingDep]);
+    .map((it) => ({ label: it.label, unitPrice: Number(it.price) || 0, amount: Math.round(Number(it.price) * Number(missingDep[it.id]) * 100) / 100, qty: Number(missingDep[it.id]) })), [allItems, missingDep]);
   const depCleaningLine = (cleaningOk === false && data?.cleaning?.price)
-    ? { label: 'Ménage de fin de séjour', amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
+    ? { label: 'Ménage de fin de séjour', unitPrice: Math.round(Number(data.cleaning.price) * 100) / 100, amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
   // Fire-extinguisher tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): at DEPARTURE, if the
   // extinguisher is not in good condition, the operator enters a quantity for each extinguisher_* tariff.
   // The bill is computed server-side from the quantities; these are PREVIEW lines for the recap only.
@@ -331,7 +356,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   );
   const extinguisherLines = useMemo(() => extinguisherTariffs
     .filter((t) => Number(extinguisherQty[t.repairKey]) > 0)
-    .map((t) => ({ repairKey: t.repairKey, label: t.label, qty: Number(extinguisherQty[t.repairKey]), amount: Math.round(Number(t.price) * Number(extinguisherQty[t.repairKey]) * 100) / 100 })), [extinguisherTariffs, extinguisherQty]);
+    .map((t) => ({ repairKey: t.repairKey, label: t.label, unitPrice: Number(t.price) || 0, qty: Number(extinguisherQty[t.repairKey]), amount: Math.round(Number(t.price) * Number(extinguisherQty[t.repairKey]) * 100) / 100 })), [extinguisherTariffs, extinguisherQty]);
   const extinguisherBilled = mode === 'departure' && extinguisherOk === false;
   const previewExtinguisherLines = extinguisherBilled ? extinguisherLines : [];
   // Lines billed by the laundry/cleaning flow (sent to the server verbatim). The extinguisher lines are
@@ -622,8 +647,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           return (
             <Stack spacing={1}>
               <Typography variant="h6">Récapitulatif — complément à percevoir</Typography>
-              {existing > 0 && <Typography variant="body2">Déjà dû : <strong>{euro(existing)}</strong></Typography>}
-              {arrivalAddedLines.map((l, i) => <Typography key={i} variant="body2">+ {l.label}{l.qty > 1 ? ` × ${l.qty}` : ''} : {euro(l.amount)}</Typography>)}
+              {/* Detail of what's already due (each complement line with quantity + price), instead of a
+                  lump « Déjà dû ». Falls back to the total if the breakdown isn't available. */}
+              {existing > 0 && (
+                complementDetailLines.length > 0
+                  ? complementDetailLines.map((l, i) => <Typography key={`d${i}`} variant="body2">{lineText(l)}</Typography>)
+                  : <Typography variant="body2">Déjà dû : <strong>{euro(existing)}</strong></Typography>
+              )}
+              {arrivalAddedLines.map((l, i) => <Typography key={i} variant="body2">+ {lineText(l)}</Typography>)}
               {preservedArrival.map((l, i) => <Typography key={`p${i}`} variant="body2">+ {l.label} : {euro(l.amount)}</Typography>)}
               <Divider />
               <Typography variant="h6">Total : {euro(total)}</Typography>
@@ -649,7 +680,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Stack spacing={1}>
             <Typography variant="h6">Récapitulatif fin de séjour</Typography>
             {endOfStayLines.length === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
-            {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{l.label}{l.qty > 1 ? ` × ${l.qty}` : ''} : {euro(l.amount)}</Typography>)}
+            {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{lineText(l)}</Typography>)}
             {endOfStayTotal > 0 && (<><Divider /><Typography variant="h6">Total à percevoir : {euro(endOfStayTotal)}</Typography></>)}
             {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
             {keysReceived === false && <Typography variant="body2" color="warning.main">⚠ Clés non récupérées.</Typography>}
@@ -703,9 +734,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </>;
         }
         if (data.cleaning.included) return <>{quit}{next()}</>;
+        // Cleaning NOT included → « Non merci » is the default (highlighted) button; adding it is secondary.
         return <>{quit}
-          <Button onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
-          <Button variant="contained" disabled={data.cleaning.price == null} onClick={() => { setCleaningAdded(true); goNext(); }}>Ajouter le ménage</Button>
+          <Button variant="outlined" disabled={data.cleaning.price == null} onClick={() => { setCleaningAdded(true); goNext(); }}>Ajouter le ménage</Button>
+          <Button variant="contained" onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
         </>;
       case 'missingAsk':
         // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.

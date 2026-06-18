@@ -170,6 +170,33 @@ test('arrival SAS: linen OK skips the priced-items page', async () => {
   expect(screen.queryByText('Éléments de linge manquants')).toBeNull();
 });
 
+test('arrival SAS recap: an in-complément extra is detailed with quantity + price (not a lump « Déjà dû »)', () => {
+  // The complement detail lists each extra routed to the complément with qty × unit price = total.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      cautionAmount: 0, cautionReceived: 1, complementAmount: 80, complementPaid: 0,
+      options: [{ optionId: 5, title: 'Repas du soir', quantity: 16, billedUnits: 16, unitPrice: 5, totalPrice: 80, inComplement: 1, offered: 0 }],
+    },
+    cleaning: { included: true, price: null },
+  }));
+  renderDialog({ mode: 'arrival' });
+  return (async () => {
+    await screen.findByText('Commencer');
+    clickBtn('Commencer');
+    // options step (an option is present) → Suivant
+    fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
+    // cleaning included → Suivant
+    await screen.findByText(/Le ménage est inclus/);
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
+    await screen.findByText('Récapitulatif — complément à percevoir');
+    // The MUI Dialog renders in a portal → assert on document.body.
+    expect(document.body.textContent).toMatch(/Repas du soir/);
+    expect(document.body.textContent).toMatch(/16\s*×/);          // quantity shown
+    expect(document.body.textContent).not.toMatch(/Déjà dû/);     // lump replaced by the detail
+    expect(screen.getByText(/Total : 80,00\s?€/)).toBeInTheDocument();
+  })();
+});
+
 // ---- breakfast page (specs/sas-breakfast-and-handover-note.md) ----
 
 function breakfastPayload(over = {}) {
