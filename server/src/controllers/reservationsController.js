@@ -6,7 +6,7 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { validateFinanceInputs, validateClientGrossAmount } = require('../utils/financeValidation');
+const { validateFinanceInputs, validateClientGrossAmount, ERROR_GROSS_BELOW_NET } = require('../utils/financeValidation');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -502,7 +502,19 @@ function update(req, res) {
   // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
   // So the gross the guest paid the platform is validated against the balance, not the full stay.
   const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
-  if (grossError) return res.status(400).json({ error: grossError });
+  if (grossError === ERROR_GROSS_BELOW_NET) {
+    // Phantom-error guard (2026-06-18): editing OTHER fields can raise the solde above a gross the
+    // operator set earlier and isn't touching in this save — blocking the whole modification then is
+    // a phantom error (same rationale as the direct-booking coercion). Tolerate GROSS_BELOW_NET when
+    // the gross is UNCHANGED from the stored value; a freshly-entered/lowered gross is still rejected.
+    const storedGross = beforeAuditSnapshot ? beforeAuditSnapshot.clientGrossAmount : null;
+    const incoming = req.body.clientGrossAmount;
+    const grossUnchanged = storedGross != null && incoming !== '' && incoming != null
+      && Math.abs(Number(incoming) - Number(storedGross)) < 0.005;
+    if (!grossUnchanged) return res.status(400).json({ error: grossError });
+  } else if (grossError) {
+    return res.status(400).json({ error: grossError });
+  }
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
   if (pastReservationLocked) {

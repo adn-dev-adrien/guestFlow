@@ -37,7 +37,7 @@ function fakeRes() {
   };
 }
 
-function buildController({ quoteFinalPrice = 648, quoteBalanceAmount, captures }) {
+function buildController({ quoteFinalPrice = 648, quoteBalanceAmount, storedGross, captures }) {
   // The gross-below check compares against the BALANCE (solde) since 2026-06-08
   // (specs/force-extras-complement-on-platform.md §10). Default the balance to finalPrice so the
   // pre-B tests keep the same threshold; B-specific tests pass a smaller balance explicitly.
@@ -79,7 +79,7 @@ function buildController({ quoteFinalPrice = 648, quoteBalanceAmount, captures }
       if (k === 'validateAvailability') return () => null;
       if (k === 'insertReservation') return (body) => { captures.inserted = { clientGrossAmount: body.clientGrossAmount, platform: body.platform }; return 1; };
       if (k === 'updateReservation') return (id, body) => { captures.updated = { id, clientGrossAmount: body.clientGrossAmount, platform: body.platform }; };
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10', clientGrossAmount: storedGross == null ? null : storedGross });
       if (k === 'getForUpdate') return () => ({ propertyId: 1 });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       return () => null;
@@ -156,6 +156,28 @@ test('update — direct + clientGrossAmount stale below finalPrice → coerced t
   controller.update(req, res);
   assert.equal(res.statusCode, 200);
   assert.equal(captures.updated.clientGrossAmount, 648);
+});
+
+// Phantom-error guard (2026-06-18): editing OTHER fields raises the solde above a gross the operator
+// set earlier and isn't touching → the save must NOT be blocked by GROSS_BELOW_NET.
+test('update — platform + UNCHANGED stale gross below the recomputed solde → 200 (not blocked)', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 648, quoteBalanceAmount: 600, storedGross: 580, captures });
+  const req = { params: { id: '12089' }, body: bodyFor('Airbnb', 580) }; // gross == stored, 580 < balance 600
+  const res = fakeRes();
+  controller.update(req, res);
+  assert.equal(res.statusCode, 200, 'unchanged stale gross does not block the modification');
+  assert.equal(captures.updated.clientGrossAmount, 580, 'operator gross preserved as-is');
+});
+
+test('update — platform + gross CHANGED to a new too-low value → still 400', () => {
+  const captures = {};
+  const controller = buildController({ quoteFinalPrice: 648, quoteBalanceAmount: 600, storedGross: 620, captures });
+  const req = { params: { id: '12089' }, body: bodyFor('Airbnb', 580) }; // operator lowered gross to 580 < balance 600
+  const res = fakeRes();
+  controller.update(req, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'GROSS_BELOW_NET');
 });
 
 test('update — platform=Airbnb + gross >= net → validates normally', () => {

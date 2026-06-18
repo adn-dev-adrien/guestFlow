@@ -448,3 +448,14 @@ that ships each step, per CLAUDE.md §4.1.)_
 - [x] **Arrival tile shows the complément.** `ReservationCard` (planning arrival card) renders a
       "Complément à percevoir : X€" chip ("(perçu)" when `complementPaid`) whenever
       `complementAmount > 0`, so the host knows what to collect at check-in. +3 client tests.
+
+### Hotfix 2026-06-18 — `GROSS_BELOW_NET` no longer blocks an unrelated edit
+
+- [x] **Phantom `GROSS_BELOW_NET` on save fixed (platform reservations).** The « prix payé client »
+      (`clientGrossAmount`) is validated to be ≥ the recomputed solde (`balanceAmount`). When the operator
+      edits OTHER fields and the solde rises above a gross they set earlier and aren't touching, the save
+      was rejected with a 400 — a phantom error (the operator never controlled the gross in this edit; same
+      rationale as the direct-booking coercion). Fix: on **update**, `GROSS_BELOW_NET` is **tolerated when
+      the gross is UNCHANGED** from the stored value (`getAuditSnapshotFromDb().clientGrossAmount`); a
+      freshly-entered/lowered gross is still rejected, and `create` stays strict. `NOT_A_NUMBER` /
+      `NEGATIVE_AMOUNT` are always rejected. +2 controller tests (`reservations-controller-gross-coercion`).
