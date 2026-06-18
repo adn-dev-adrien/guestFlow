@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, IconButton, Select, MenuItem,
   FormControl, InputLabel, Tooltip, Chip,
@@ -8,6 +9,7 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import AddIcon from '@mui/icons-material/Add';
 import PageHeader from '../components/PageHeader';
 import ResourceBookingDialog from '../components/ResourceBookingDialog';
+import { withFrom } from '../utils/navigation';
 import api from '../api';
 
 const PIXELS_PER_MINUTE = 1.5; // 60 min = 90px
@@ -48,10 +50,14 @@ function getWeekDates(mondayStr) {
 const todayStr = () => new Date().toISOString().split('T')[0];
 
 export default function ResourcePlanningPage() {
+  const navigate = useNavigate();
   const [resources, setResources] = useState([]);
   const [selectedResourceId, setSelectedResourceId] = useState(null);
   const [monday, setMonday] = useState(() => getMondayOf(todayStr()));
   const [bookings, setBookings] = useState([]);
+  // Reservation-attached hourly sessions (specs/resource-hourly-scheduling.md §3.4) — shown read-only
+  // alongside the standalone bookings, reusing the existing planning-resource-cards endpoint.
+  const [reservationSessions, setReservationSessions] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
   const [clickedDate, setClickedDate] = useState(null);
@@ -77,6 +83,30 @@ export default function ResourcePlanningPage() {
     api.getResourceBookings({ resourceId: selectedResourceId, weekStart: monday })
       .then(setBookings)
       .catch(() => setBookings([]));
+    // Reservation sessions for this resource in the visible week (read-only). Reuses the planning
+    // cards endpoint and filters to the selected resource.
+    api.getPlanningResourceCards({ from: monday, to: addDays(monday, 6) })
+      .then((summary) => {
+        const byDate = summary?.resourceCardsByDate || {};
+        const out = [];
+        for (const date of Object.keys(byDate)) {
+          for (const it of (byDate[date].items || [])) {
+            if (Number(it.resourceId) !== Number(selectedResourceId)) continue;
+            out.push({
+              id: `res-${it.reservationId}-${it.date}-${it.start}`,
+              reservationId: it.reservationId,
+              date: it.date,
+              startTime: it.start,
+              endTime: it.end,
+              displayName: it.clientName,
+              propertyName: it.propertyName,
+              isReservationSession: true,
+            });
+          }
+        }
+        setReservationSessions(out);
+      })
+      .catch(() => setReservationSessions([]));
   }, [selectedResourceId, monday]);
 
   useEffect(() => { loadBookings(); }, [loadBookings]);
@@ -121,7 +151,7 @@ export default function ResourcePlanningPage() {
   }, [openMin, closeMin]);
 
   function getBookingsForDate(date) {
-    return bookings.filter((b) => b.date === date);
+    return [...bookings.filter((b) => b.date === date), ...reservationSessions.filter((s) => s.date === date)];
   }
 
   function getBookingStyle(b) {
@@ -147,6 +177,11 @@ export default function ResourcePlanningPage() {
 
   function handleBookingClick(e, booking) {
     e.stopPropagation();
+    // A reservation session is read-only here → open the reservation fiche instead of the booking editor.
+    if (booking.isReservationSession) {
+      navigate(withFrom(`/reservations/${booking.reservationId}`, '/resource-planning'));
+      return;
+    }
     setEditingBooking(booking);
     setClickedDate(null);
     setClickedTime(null);
@@ -252,6 +287,10 @@ export default function ResourcePlanningPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Box sx={{ width: 14, height: 14, bgcolor: 'rgba(211, 47, 47, 0.35)', borderRadius: 0.5 }} />
               <Typography variant="caption">Remise en état</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 14, height: 14, bgcolor: '#00897b', borderRadius: 0.5 }} />
+              <Typography variant="caption">Réservation</Typography>
             </Box>
             <Typography variant="caption" color="text.secondary">
               Clic sur une case vide pour créer · Clic sur un créneau pour modifier (pas de 5 min)
@@ -386,7 +425,7 @@ export default function ResourcePlanningPage() {
                         return (
                           <Tooltip
                             key={b.id}
-                            title={`${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
+                            title={`${b.isReservationSession ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
                             arrow
                           >
                             <Box>
@@ -398,7 +437,7 @@ export default function ResourcePlanningPage() {
                                   right: 2,
                                   top,
                                   height,
-                                  bgcolor: b.paid ? '#388e3c' : '#1976d2',
+                                  bgcolor: b.isReservationSession ? '#00897b' : (b.paid ? '#388e3c' : '#1976d2'),
                                   color: 'white',
                                   borderRadius: 0.75,
                                   px: 0.5,
@@ -433,7 +472,7 @@ export default function ResourcePlanningPage() {
                                   </Typography>
                                 )}
                               </Box>
-                              {turnoverHeight > 0 && (
+                              {!b.isReservationSession && turnoverHeight > 0 && (
                                 <Typography
                                   component="div"
                                   sx={{

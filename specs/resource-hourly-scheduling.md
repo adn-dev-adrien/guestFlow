@@ -103,6 +103,20 @@ guest + external rates, evening switch, opening hours, slot, min duration — is
     grid. The per-property `freeMinutes` deduction (first hour) and the window/granularity rules are
     unchanged. A non-hourly-scheduled resource keeps its current flat pricing (regression-safe).
 
+### 3.6 Follow-up 2026-06-18 — end-to-end polish
+16. **Uniform fiche card.** The resource card lays out exactly like the option card: the
+    `[Qté | spacer] + [« Compl. » + Total]` row first, then (for an hourly resource) the session editor
+    below — so the « Compl. » toggle (force-to-complement) and the amount sit in the same place as for
+    options. The toggle already routes the line to the complément (incl. the hourly line).
+17. **End-time UX.** Picking a **début** auto-sets the **fin** to début + the first whole hour (1 h). The
+    fin dropdown **greys out** every option before début + 1 h (and starts that can't fit 1 h before the
+    close are greyed too); it opens centred on the current value.
+18. **Calendrier → Ressources shows reservation sessions.** The `ResourcePlanningPage` week grid now
+    renders the reservation-attached sessions of the selected resource (read-only, teal, a « Réservation »
+    legend entry) alongside the standalone bookings — reusing the `GET /planning/resource-cards` endpoint
+    (filtered to the resource). Clicking a session opens the reservation fiche. The main Planning already
+    shows one card per session (teal `OptionDayCard`, hot-tub icon, §3.4).
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The grid, the free-hour deduction, the validation, and the billed
