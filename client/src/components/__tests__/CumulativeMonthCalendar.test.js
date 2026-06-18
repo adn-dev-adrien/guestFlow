@@ -50,6 +50,13 @@ describe('buildMonthLayout', () => {
     expect(layout.weeks.length).toBeGreaterThanOrEqual(5);
     layout.weeks.forEach((w) => expect(w.days).toHaveLength(7));
   });
+
+  it('flags exactly the today cell as isToday (drives the framed cell)', () => {
+    const days = layout.weeks.flatMap((w) => w.days);
+    const todays = days.filter((d) => d.isToday);
+    expect(todays).toHaveLength(1);
+    expect(todays[0].date).toBe('2026-07-15');
+  });
 });
 
 describe('CumulativeMonthCalendar (infinite scroll)', () => {
