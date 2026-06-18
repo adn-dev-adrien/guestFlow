@@ -243,6 +243,13 @@ test('J-2 body: opens with the stay date (never « demain ») + GPS line', () =>
   assert.match(out.body, /recherchez simplement « Domaine Solio » sur votre GPS/);
 });
 
+test('J-2 body: recalls the reservation number when set, omits the line when blank', () => {
+  const withN = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ reservation: { reservationNumber: '2026-07-042' } }));
+  assert.match(withN.body, /N° de réservation : 2026-07-042/);
+  const blank = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({ reservation: { reservationNumber: '' } }));
+  assert.doesNotMatch(blank.body, /N° de réservation/);
+});
+
 test('J-2 body: nordic bath booked → gear reminder renders; absent → it does not', () => {
   const withBath = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
     resources: [{ name: 'Bain nordique', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }],

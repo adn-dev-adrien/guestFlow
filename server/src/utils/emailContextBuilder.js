@@ -237,6 +237,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       clientPhone:     safeStr(c.phone),
       clientAddress:   joinAddress(c),
       // Reservation
+      reservationNumber: safeStr(r.reservationNumber),
       startDate:    formatDateLong(r.startDate),
       endDate:      formatDateLong(r.endDate),
       checkInTime,
@@ -279,6 +280,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       senderName:   safeStr(settings.smtpFromName).trim() || safeStr(settings.companyName),
     },
     flags: {
+      hasReservationNumber: safeStr(r.reservationNumber).trim().length > 0,
       hasBedLinenOption,
       hasCleaningOption,
       bedLinenProvidedByDefault: bedLinenProvided,

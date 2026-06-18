@@ -372,7 +372,11 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   // 2026-06-06 — bilingual devis PDF (specs/devis-english-language.md). 'fr' (default) | 'en'.
   // Existing devis backfill to 'fr' via the DEFAULT clause; the PDF endpoint reads this column.
   if (!rcols.includes('pdfLanguage')) db.exec("ALTER TABLE reservations ADD COLUMN pdfLanguage TEXT NOT NULL DEFAULT 'fr'");
+  // Human-readable reservation number (specs/reservation-number-and-search.md). NULL for devis
+  // (they keep devisNumber); partial unique index mirrors ux_reservations_devisNumber.
+  if (!rcols.includes('reservationNumber')) db.exec('ALTER TABLE reservations ADD COLUMN reservationNumber TEXT');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_reservationNumber ON reservations(reservationNumber) WHERE reservationNumber IS NOT NULL');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
 
   const { migrateDevisIntoReservations, assessDevisFusion, dropLegacyDevisTables } = require('./utils/devisFusionMigration');
@@ -1228,6 +1232,42 @@ db.prepare(`
       const { action } = runArrivalReminderJ2Migration(db);
       db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
       console.log(`[migration:arrival-reminder-j2] ${action}`);
+    });
+    tx();
+  }
+}
+
+// Content migration (specs/reservation-number-and-search.md §4): the J-7 and J-2 reminders now recall
+// the reservation number in the stay recap. The seed is insert-only and the J-2 force-overwrite already
+// ran (guarded), so reach already-seeded rows with a targeted, idempotent REPLACE — insert the gated
+// `{{#if hasReservationNumber}}` line between the recap header and "- Logement". Idempotent (skipped once
+// the token is present); a no-op when the operator rewrote the recap header (the anchor won't match).
+for (const [stableKey, header] of [
+  ['arrival_reminder_7d', 'Rappel des informations de votre séjour :'],
+  ['arrival_reminder_1d', 'Votre séjour :'],
+]) {
+  const anchor = `${header}\n- Logement : {{propertyName}}`;
+  const replacement = `${header}\n{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}\n{{/if}}- Logement : {{propertyName}}`;
+  db.prepare(`
+    UPDATE email_templates
+       SET body = REPLACE(body, ?, ?), updatedAt = datetime('now')
+     WHERE stableKey = ? AND body NOT LIKE '%{{reservationNumber}}%'
+  `).run(anchor, replacement, stableKey);
+}
+
+// Backfill reservation numbers (specs/reservation-number-and-search.md §5). Existing reservations
+// predate the `reservationNumber` column, so give each one a number once — grouped by the month of
+// its createdAt, sequential within the month. Guarded by the `migrations` table; idempotent anyway
+// (only NULL/empty rows are filled). Devis are untouched.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'reservation_number_backfill_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { backfillReservationNumbers } = require('./utils/reservationNumber');
+    const tx = db.transaction(() => {
+      const assigned = backfillReservationNumbers(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:reservation-number-backfill] assigned ${assigned} number(s)`);
     });
     tx();
   }

@@ -221,6 +221,9 @@ export default function ReservationPage() {
   const [form, setForm] = useState({
     clientId: null, adults: 1, children: 0, teens: 0, babies: 0, platform: 'direct',
     status: 'draft',
+    // Human-readable reservation number (specs/reservation-number-and-search.md). Generated server-side
+    // on first save; editable (overridable). '' for a new reservation until the first save returns it.
+    reservationNumber: '',
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
@@ -609,6 +612,7 @@ export default function ReservationPage() {
           const importedBlankPrice = res.sourceType === 'ical' && res.totalPrice == null && res.finalPrice == null;
           setForm({
             clientId: res.clientId,
+            reservationNumber: res.reservationNumber || '',
             adults: res.adults || 1,
             children: res.children || 0,
             teens: res.teens || 0,
@@ -1920,6 +1924,8 @@ export default function ReservationPage() {
         await api.updateReservation(reservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
+          // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
+          reservationNumber: form.reservationNumber || '',
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,
@@ -1983,6 +1989,8 @@ export default function ReservationPage() {
         await api.createReservation({
           propertyId: Number(selectedProp),
           clientId: form.clientId,
+          // Optional override; blank → the server generates the AAAA-MM-### number.
+          reservationNumber: form.reservationNumber || '',
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,
