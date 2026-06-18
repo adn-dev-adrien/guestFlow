@@ -734,9 +734,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </>;
         }
         if (data.cleaning.included) return <>{quit}{next()}</>;
+        // Cleaning NOT included → « Non merci » is the default (highlighted) button; adding it is secondary.
         return <>{quit}
-          <Button onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
-          <Button variant="contained" disabled={data.cleaning.price == null} onClick={() => { setCleaningAdded(true); goNext(); }}>Ajouter le ménage</Button>
+          <Button variant="outlined" disabled={data.cleaning.price == null} onClick={() => { setCleaningAdded(true); goNext(); }}>Ajouter le ménage</Button>
+          <Button variant="contained" onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
         </>;
       case 'missingAsk':
         // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.
