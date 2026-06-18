@@ -1,0 +1,1 @@
+- La vue d'ensemble du Calendrier (sans logement sélectionné) affiche désormais un calendrier mensuel unique cumulant tous les logements : chaque réservation est une barre continue couvrant son séjour, empilée et colorée par plateforme, cliquable pour ouvrir la fiche — au lieu d'une mini-grille par logement.
