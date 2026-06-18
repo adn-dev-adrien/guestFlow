@@ -7,7 +7,10 @@ vi.mock('@mui/material', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, useMediaQuery: () => true };
 });
-vi.mock('../../api', () => ({ default: { getReservations: vi.fn().mockResolvedValue([]) } }));
+vi.mock('../../api', () => ({ default: {
+  getReservations: vi.fn().mockResolvedValue([]),
+  getEstablishmentClosures: vi.fn().mockResolvedValue([]),
+} }));
 
 import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
