@@ -50,17 +50,21 @@ const ARRIVAL_REMINDER_7D_BODY = [
   '{{senderName}}',
 ].join('\n');
 
-// J-1 last-minute reminder (specs/j1-arrival-reminder-email.md + j1-linen-default-message.md §6).
-// Warm tone; conditional blocks render only when relevant. Linen logic (3 states):
-//   - property provides linen by default → "beds made on arrival" (and the linen option is dropped
-//     from the "Option(s) réservée(s)" list server-side, via {{reservedOptionsList}});
+// Arrival reminder sent at J-2 (specs/j1-arrival-reminder-email.md). Warm tone; conditional blocks
+// render only when relevant. Sends 2 days before arrival → the copy uses the stay date, never
+// "demain". Linen logic (3 states):
+//   - property provides linen by default → "beds made on arrival" (the linen option is dropped from
+//     the "Option(s) réservée(s)" list server-side, via {{reservedOptionsList}});
 //   - linen neither provided nor booked → "bring your own linen" ({{#if bedLinenBringYourOwn}});
 //   - linen booked as a paid add-on → no message, listed in the options.
+// `hasCleaningOption` / `hasNordicBath` are matched on the option/resource NAME (emailContextBuilder).
+// The stableKey stays `arrival_reminder_1d` (legacy) even though it's now J-2 — renaming it would
+// re-seed a duplicate; the operator-facing name is "Rappel arrivée — J-2".
 const ARRIVAL_REMINDER_1D_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
-  'C\'est avec grand plaisir que nous vous accueillons dès demain {{propertyWithArticle}} !',
-  'Voici un dernier rappel avant votre arrivée.',
+  'C\'est avec grand plaisir que nous vous accueillons le {{startDate}} {{propertyWithArticle}} !',
+  'Voici les informations utiles avant votre arrivée.',
   '',
   'Votre séjour :',
   '- Logement : {{propertyName}}',
@@ -69,6 +73,8 @@ const ARRIVAL_REMINDER_1D_BODY = [
   '{{#if hasReservedOptions}}- Option(s) réservée(s) : {{reservedOptionsList}}',
   '{{/if}}{{#if hasResources}}- Équipements réservés : {{resourcesList}}',
   '{{/if}}',
+  'Pour vous rendre sur place, recherchez simplement « Domaine Solio » sur votre GPS.',
+  '',
   '{{#if cautionNotReceived}}Pour finaliser votre arrivée, pensez à prévoir un chèque de caution de {{cautionAmount}} à nous remettre sur place.',
   '',
   '{{/if}}{{#if complementToCollect}}{{complementNotice}}',
@@ -79,9 +85,11 @@ const ARRIVAL_REMINDER_1D_BODY = [
   '',
   '{{/if}}{{#if hasCleaningOption}}{{else}}Le ménage de fin de séjour n\'a pas été réservé : il reste à votre charge avant le départ. N\'hésitez pas si vous souhaitez l\'ajouter, nous nous en occupons volontiers.',
   '',
+  '{{/if}}{{#if hasNordicBath}}{{nordicBathReminder}}',
+  '',
   '{{/if}}Nous restons à votre entière disposition d\'ici là — répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
   '',
-  'Très belles vacances, et à demain !',
+  'Très belles vacances, et à très bientôt !',
   '{{senderName}}',
 ].join('\n');
 
@@ -97,10 +105,10 @@ const DEFAULT_TEMPLATES = Object.freeze([
   }),
   Object.freeze({
     stableKey: 'arrival_reminder_1d',
-    name:      'Rappel arrivée — J-1',
-    subject:   'Demain, votre arrivée {{propertyWithArticle}}',
+    name:      'Rappel arrivée — J-2',
+    subject:   'Votre arrivée approche {{propertyWithArticle}}',
     body:      ARRIVAL_REMINDER_1D_BODY,
-    dayOffset: -1,
+    dayOffset: -2,
     sendMode:  'manual',
     enabled:   true,
   }),

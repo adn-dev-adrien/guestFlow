@@ -11,7 +11,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { DEFAULT_TEMPLATES, ARRIVAL_REMINDER_7D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
+const { DEFAULT_TEMPLATES, ARRIVAL_REMINDER_7D_BODY, ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
 const { buildContext } = require('../utils/emailContextBuilder');
 
 // Build the canonical context against an empty input — the var KEYS are stable regardless of
@@ -96,4 +96,24 @@ test('arrival_reminder_7d is shipped with the canonical body string + 7-day offs
   assert.ok(def.body.includes('{{#if hasOptions}}'),         'hasOptions block present');
   assert.ok(def.body.includes('{{#if hasBedLinenOption}}'),  'hasBedLinenOption block present');
   assert.ok(def.body.includes('{{#if cautionNotBanked}}'),   'cautionNotBanked block present');
+});
+
+// ---- the arrival reminder is now shipped at J-2 (specs/j1-arrival-reminder-email.md) ----
+
+test('arrival_reminder_1d is shipped at J-2 with the GPS + nordic-bath copy (stableKey kept legacy)', () => {
+  const def = DEFAULT_TEMPLATES.find((d) => d.stableKey === 'arrival_reminder_1d');
+  assert.ok(def);
+  assert.equal(def.body, ARRIVAL_REMINDER_1D_BODY);
+  assert.equal(def.dayOffset, -2, 'reminder moved from J-1 to J-2');
+  assert.equal(def.name, 'Rappel arrivée — J-2');
+  assert.equal(def.subject, 'Votre arrivée approche {{propertyWithArticle}}');
+  assert.equal(def.sendMode, 'manual');
+  assert.equal(def.enabled, true);
+  // Copy guarantees: uses the stay date, never « demain ».
+  assert.ok(!def.body.includes('demain'), 'J-2 copy must not say « demain »');
+  assert.ok(def.body.includes('le {{startDate}} {{propertyWithArticle}}'), 'opens with the stay date');
+  assert.ok(def.body.includes('Domaine Solio'), 'GPS line present');
+  // Conditional blocks the spec mentioned.
+  assert.ok(def.body.includes('{{#if hasNordicBath}}{{nordicBathReminder}}'), 'nordic-bath block present');
+  assert.ok(def.body.includes('{{#if hasCleaningOption}}{{else}}'), 'cleaning-by-default notice present');
 });

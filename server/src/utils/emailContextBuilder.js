@@ -16,6 +16,13 @@ function safeStr(v) {
   return v == null ? '' : String(v);
 }
 
+// Accent/case-insensitive keyword matcher for option/resource NAMES (specs/email-automation.md).
+// Matching on the operator-facing name is more robust than an `autoOptionType` tag, which custom
+// catalog entries don't always carry (e.g. a hand-created « Ménage » or « Bain nordique »).
+function normalizeName(v) {
+  return safeStr(v).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+}
+
 function diffDays(startIso, endIso) {
   if (!startIso || !endIso) return 0;
   const s = new Date(`${startIso}T00:00:00Z`);
@@ -96,9 +103,11 @@ function buildContext({ reservation, client, property, options = [], resources =
 
   const hasOptions = optionsTitles.length > 0;
   const hasBedLinenOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'bed_linen');
-  // Cleaning ("Ménage") option — tagged `autoOptionType = 'cleaning'` by the boot seed
-  // (specs/j1-arrival-reminder-email.md §4.1). Drives the J-1 "cleaning at your charge" else-branch.
-  const hasCleaningOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'cleaning');
+  // Cleaning ("Ménage") option — matched on the option NAME ("menage") with the `autoOptionType`
+  // tag as a fallback. Name-matching fixes the bug where a hand-created « Ménage » option (no tag)
+  // left the "cleaning at your charge" else-branch showing even when cleaning WAS booked.
+  const hasCleaningOption = (options || []).some((o) =>
+    safeStr(o.autoOptionType) === 'cleaning' || normalizeName(o.title).includes('menage'));
 
   // "Linge fourni par défaut" — the reservation's PROPERTY includes bed linen as a default-offered
   // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
@@ -124,6 +133,36 @@ function buildContext({ reservation, client, property, options = [], resources =
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const resourcesList = resourcesTitles.join(', ');
   const hasResources = resourcesTitles.length > 0;
+
+  // Nordic-bath reminder (specs/email-automation.md): guests who booked the « Bain nordique »
+  // resource must bring their own swimsuit / towel / flip-flops (nothing is provided). Matched on
+  // the resource name. If hourly sessions are scheduled on the booking, recall the date/time too.
+  const nordicResource = (resources || []).find((rr) => normalizeName(rr.name).includes('nordique'));
+  const hasNordicBath = Boolean(nordicResource);
+  const parseSessions = (raw) => {
+    if (Array.isArray(raw)) return raw;
+    try { const parsed = JSON.parse(raw || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+  };
+  const nordicBathSchedule = (nordicResource ? parseSessions(nordicResource.sessions) : [])
+    .filter((s) => s && s.date)
+    .map((s) => {
+      const day = formatDateLong(s.date);
+      const start = s.start ? formatTimeShort(s.start) : '';
+      const end = s.end ? formatTimeShort(s.end) : '';
+      if (start && end) return `le ${day} de ${start} à ${end}`;
+      if (start) return `le ${day} à ${start}`;
+      return `le ${day}`;
+    })
+    .join(' et ');
+  // Composed server-side (the renderer has no nested conditionals): one sentence that optionally
+  // recalls the scheduled slot. The template renders it via `{{#if hasNordicBath}}{{nordicBathReminder}}{{/if}}`.
+  const nordicBathReminder = hasNordicBath
+    ? [
+      'Vous avez réservé le bain nordique : un véritable moment de détente vous attend !',
+      nordicBathSchedule ? `Votre créneau est réservé ${nordicBathSchedule}.` : '',
+      'Pour en profiter pleinement, pensez à emporter votre maillot de bain, un peignoir ou une serviette, ainsi qu\'une paire de tongs — ces équipements ne sont pas fournis sur place.',
+    ].filter(Boolean).join(' ')
+    : '';
 
   // Complement to collect on arrival (specs/j1-complement-to-collect.md). The notice appears only
   // when an unpaid complement remains. The per-item breakdown matches the options/resources/custom
@@ -225,6 +264,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       optionsList,
       reservedOptionsList,
       resourcesList,
+      nordicBathSchedule,
+      nordicBathReminder,
       bedConfig: formatBedConfig({
         singleBeds: r.singleBeds, doubleBeds: r.doubleBeds, babyBeds: r.babyBeds,
       }),
@@ -248,6 +289,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       hasOptions,
       hasReservedOptions,
       hasResources,
+      hasNordicBath,
       hasBabyBedNotice,
     },
   };

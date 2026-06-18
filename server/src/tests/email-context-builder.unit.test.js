@@ -228,11 +228,62 @@ test('cautionNotReceived is independent from depositPaid (the J-7 cautionNotBank
   assert.equal(flags.cautionNotBanked, false);
 });
 
-test('hasCleaningOption is true only when a booked option is autoOptionType=cleaning', () => {
-  const withCleaning = buildContext(baseInput({ options: [{ title: 'Ménage', autoOptionType: 'cleaning' }] }));
-  assert.equal(withCleaning.flags.hasCleaningOption, true);
+test('hasCleaningOption is true via autoOptionType=cleaning OR an option NAMED « ménage »', () => {
+  // Tagged option.
+  const tagged = buildContext(baseInput({ options: [{ title: 'Ménage', autoOptionType: 'cleaning' }] }));
+  assert.equal(tagged.flags.hasCleaningOption, true);
+  // Operator-created option that only carries a name (no autoOptionType) — matched by name,
+  // accent- and case-insensitive. This is the bug Adrien reported: the "cleaning at your charge"
+  // notice used to show even when cleaning WAS booked.
+  const byName = buildContext(baseInput({ options: [{ title: 'Ménage de fin de séjour' }] }));
+  assert.equal(byName.flags.hasCleaningOption, true);
+  const byNameNoAccent = buildContext(baseInput({ options: [{ title: 'MENAGE complet' }] }));
+  assert.equal(byNameNoAccent.flags.hasCleaningOption, true);
+  // Unrelated option.
   const without = buildContext(baseInput({ options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast' }] }));
   assert.equal(without.flags.hasCleaningOption, false);
+});
+
+// ── J-2 nordic-bath reminder (specs/j1-arrival-reminder-email.md) ────────────────
+
+test('hasNordicBath matches the resource by NAME (« nordique », accent/case-insensitive)', () => {
+  const yes = buildContext(baseInput({ resources: [{ name: 'Bain Nordique' }] }));
+  assert.equal(yes.flags.hasNordicBath, true);
+  const noAccent = buildContext(baseInput({ resources: [{ name: 'bain nordique premium' }] }));
+  assert.equal(noAccent.flags.hasNordicBath, true);
+  const no = buildContext(baseInput({ resources: [{ name: 'Lit bébé' }] }));
+  assert.equal(no.flags.hasNordicBath, false);
+});
+
+test('nordicBathReminder: gear sentence only when no slot scheduled', () => {
+  const { vars } = buildContext(baseInput({ resources: [{ name: 'Bain nordique' }] }));
+  assert.ok(vars.nordicBathReminder.includes('maillot de bain'), 'gear sentence present');
+  assert.ok(vars.nordicBathReminder.includes('tongs'), 'tongs mentioned');
+  assert.ok(!vars.nordicBathReminder.includes('Votre créneau'), 'no slot line when unscheduled');
+  assert.equal(vars.nordicBathSchedule, '');
+});
+
+test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', () => {
+  const { vars } = buildContext(baseInput({
+    resources: [{
+      name: 'Bain nordique',
+      sessions: JSON.stringify([
+        { date: '2026-07-12', start: '18:00', end: '19:30' },
+        { date: '2026-07-13', start: '17:00', end: '18:00' },
+      ]),
+    }],
+  }));
+  assert.ok(vars.nordicBathSchedule.includes('de 18'), 'first slot start present');
+  assert.ok(vars.nordicBathSchedule.includes(' et '), 'two slots joined');
+  assert.ok(vars.nordicBathReminder.includes('Votre créneau est réservé'), 'slot line present');
+  assert.ok(vars.nordicBathReminder.includes('maillot de bain'), 'gear sentence still present');
+});
+
+test('no nordic-bath resource → empty reminder + flag false', () => {
+  const { vars, flags } = buildContext(baseInput({ resources: [{ name: 'Lit bébé' }] }));
+  assert.equal(flags.hasNordicBath, false);
+  assert.equal(vars.nordicBathReminder, '');
+  assert.equal(vars.nordicBathSchedule, '');
 });
 
 // ── J-1 linen-by-default (specs/j1-linen-default-message.md) ─────────────────────
