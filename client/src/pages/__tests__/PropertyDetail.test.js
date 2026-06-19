@@ -35,8 +35,8 @@ vi.mock('../../api', () => ({
 
 // specs/platforms-and-ical-rework.md — the merged per-property platform list that drives the section.
 const PLATFORMS = [
-  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, isBuiltIn: true, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
-  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
 ];
 
 import PropertyDetail from '../PropertyDetail';
@@ -168,6 +168,24 @@ test('Plateformes & iCal: inline-editing a platform URL upserts the source + rel
   expect(payload.platformKey).toBe('airbnb');
   // The platform list reloads after the upsert (initial load + reload).
   await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledTimes(2));
+});
+
+test('Plateformes & iCal: the « Taxe de séjour » Select persists a 3-way mode change', async () => {
+  // specs/per-platform-tourist-tax-three-way.md — a non-direct platform shows a 3-option Select;
+  // choosing « Plateforme → vous » (platform_reversed) upserts the source with that value.
+  render(<PropertyDetail />);
+  await screen.findByText('Le Moulin');
+  await screen.findByText('Airbnb');
+
+  // Only the non-direct (Airbnb) row has the tax Select; direct shows "—".
+  const select = screen.getByLabelText('Mode de collecte de la taxe de séjour');
+  fireEvent.mouseDown(select);
+  fireEvent.click(await screen.findByRole('option', { name: 'Plateforme → vous' }));
+
+  await waitFor(() => expect(api.createPropertyIcalSource).toHaveBeenCalledTimes(1));
+  const [, payload] = api.createPropertyIcalSource.mock.calls[0];
+  expect(payload.platformKey).toBe('airbnb');
+  expect(payload.touristTaxCollection).toBe('platform_reversed');
 });
 
 test('Plateformes & iCal: clicking a platform name chip opens the colour palette', async () => {

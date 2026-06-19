@@ -35,8 +35,41 @@ const notificationService = require('../utils/notificationService');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
-  collectsTouristTax, disabled,
+  collectsTouristTax, touristTaxRemittedByPlatform, disabled,
   lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt`;
+
+// specs/per-platform-tourist-tax-three-way.md §3 rule 1 — derive the two stored booleans
+// (collectsTouristTax + touristTaxRemittedByPlatform) from the single 3-way `touristTaxCollection`
+// the client sends ('platform' | 'platform_reversed' | 'owner'). Falls back to the legacy
+// `collectsTouristTax` boolean (+ optional remittedByPlatform) when the 3-way value is absent, then to
+// the existing row, then to the default "platform handles everything". Normalises the invalid combo:
+// collectsTouristTax = 0 ⇒ remittedByPlatform = 0 (if we collect at arrival, we always remit).
+function resolveTouristTaxColumns(body = {}, existing = null) {
+  let collects;
+  let remitted;
+  const mode = body.touristTaxCollection;
+  if (mode === 'platform' || mode === 'platform_reversed' || mode === 'owner') {
+    collects = mode === 'owner' ? 0 : 1;
+    remitted = mode === 'platform' ? 1 : 0;
+  } else if (body.collectsTouristTax !== undefined) {
+    collects = body.collectsTouristTax === false || body.collectsTouristTax === 0 ? 0 : 1;
+    remitted = body.touristTaxRemittedByPlatform === false || body.touristTaxRemittedByPlatform === 0 ? 0 : 1;
+  } else if (existing) {
+    collects = Number(existing.collectsTouristTax) === 0 ? 0 : 1;
+    remitted = Number(existing.touristTaxRemittedByPlatform) === 0 ? 0 : 1;
+  } else {
+    collects = 1;
+    remitted = 1;
+  }
+  if (collects === 0) remitted = 0;
+  return { collectsTouristTax: collects, touristTaxRemittedByPlatform: remitted };
+}
+
+// Inverse of the above — the 3-way string consumers (UI Select, listForProperty payload) bind to.
+function touristTaxCollectionString(collects, remitted) {
+  if (Number(collects) === 0) return 'owner';
+  return Number(remitted) === 0 ? 'platform_reversed' : 'platform';
+}
 
 function createPropertyIcalModel(database) {
   // Bind the drift + cancellation models to the SAME database instance so prod and unit
@@ -132,13 +165,14 @@ function createPropertyIcalModel(database) {
         'SELECT id FROM ical_sources WHERE propertyId = ? AND lower(platformKey) = lower(?) ORDER BY id DESC LIMIT 1'
       ).get(propertyId, input.normalizedPlatformKey);
       if (existing) return model.updateSource(propertyId, existing.id, body);
-      // `collectsTouristTax` defaults to 1 (= platform collects, mirrors legacy behaviour). Explicit false → 0.
-      const collectsTouristTax = body.collectsTouristTax === false || body.collectsTouristTax === 0 ? 0 : 1;
+      // Tourist-tax handling: derive the two stored booleans from the 3-way `touristTaxCollection`
+      // (or the legacy boolean). Defaults to "platform handles everything" (collects = 1, remitted = 1).
+      const tax = resolveTouristTaxColumns(body);
       const result = database.prepare(`
         INSERT INTO ical_sources (
-          propertyId, name, url, platformKey, platformLabel, platformColor, isActive, collectsTouristTax, disabled, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, collectsTouristTax, input.disabled);
+          propertyId, name, url, platformKey, platformLabel, platformColor, isActive, collectsTouristTax, touristTaxRemittedByPlatform, disabled, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, tax.collectsTouristTax, tax.touristTaxRemittedByPlatform, input.disabled);
       // accounting-platform-commission-and-no-deposit.md §3.1 rule 2: surface this platform on
       // the dedicated config page right away (idempotent INSERT OR IGNORE).
       platformsModel.upsertByName(input.platformLabel);
@@ -151,15 +185,15 @@ function createPropertyIcalModel(database) {
       const input = resolveSourceInput(body, existing);
       if (input.error) return { error: input.error, status: 400 };
       const isActive = body.isActive === undefined ? existing.isActive : (body.isActive ? 1 : 0);
-      const collectsTouristTax = body.collectsTouristTax === undefined
-        ? existing.collectsTouristTax
-        : (body.collectsTouristTax ? 1 : 0);
+      // Tourist-tax handling: derive both booleans from the 3-way value (or legacy boolean), falling
+      // back to the existing row when neither is supplied (preserve on URL-only / colour-only edits).
+      const tax = resolveTouristTaxColumns(body, existing);
       database.prepare(`
         UPDATE ical_sources
         SET name = ?, url = ?, platformKey = ?, platformLabel = ?, platformColor = ?, isActive = ?,
-            collectsTouristTax = ?, disabled = ?, updatedAt = datetime('now')
+            collectsTouristTax = ?, touristTaxRemittedByPlatform = ?, disabled = ?, updatedAt = datetime('now')
         WHERE id = ? AND propertyId = ?
-      `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, collectsTouristTax, input.disabled, sourceId, propertyId);
+      `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, tax.collectsTouristTax, tax.touristTaxRemittedByPlatform, input.disabled, sourceId, propertyId);
       // §3.1 rule 2 — if the user renamed the platform, the previous row stays as a "ghost"
       // (see spec Q8); the new name lands on the page on next reload.
       platformsModel.upsertByName(input.platformLabel);

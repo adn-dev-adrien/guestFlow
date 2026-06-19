@@ -40,11 +40,17 @@ function seedTaxDb() {
   db.prepare(`INSERT INTO properties (id, name, touristTaxPerDayPerPerson, touristTaxMode, basePriceIncludedGuests, extraGuestPrice)
               VALUES (1, 'Gite', 1.0, 'per_day_per_person', 0, 0)`).run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
-  // Two iCal sources on the same property: Airbnb COLLECTS the tax (1), Booking does NOT (0 → we remit it).
-  const insSrc = db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, collectsTouristTax)
-                             VALUES (1, ?, ?, ?, ?, '#000000', ?)`);
-  insSrc.run('Airbnb', 'https://airbnb/x.ics', 'airbnb', 'Airbnb', 1);
-  insSrc.run('Booking', 'https://booking/x.ics', 'booking', 'Booking', 0);
+  // Three iCal sources on the same property, one per tourist-tax handling (specs/
+  // per-platform-tourist-tax-three-way.md). The tests load schema.sql directly (no database.js
+  // backfill), so the `touristTaxRemittedByPlatform` flag is set explicitly to mirror the migration:
+  //   Airbnb  → collects + remits to commune itself (1, 1) → NOT remitted by us → excluded from Suivi.
+  //   Expedia → collects then reverses to us           (1, 0) → remitted by us → INCLUDED in Suivi.
+  //   Booking → we collect at arrival                  (0, 0) → remitted by us → INCLUDED in Suivi.
+  const insSrc = db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, collectsTouristTax, touristTaxRemittedByPlatform)
+                             VALUES (1, ?, ?, ?, ?, '#000000', ?, ?)`);
+  insSrc.run('Airbnb', 'https://airbnb/x.ics', 'airbnb', 'Airbnb', 1, 1);
+  insSrc.run('Expedia', 'https://expedia/x.ics', 'expedia', 'Expedia', 1, 0);
+  insSrc.run('Booking', 'https://booking/x.ics', 'booking', 'Booking', 0, 0);
   return { db, model: financeModel.buildModel(db) };
 }
 
@@ -56,19 +62,21 @@ function insertStay(db, { id, platform, year, m }) {
               VALUES (?, 'reservation', 1, 1, ?, ?, ?, 2, 1.0, 4.0, 300, 300)`).run(id, start, end, platform);
 }
 
-test('Taxe de séjour: platform-collected stay is excluded; owner-collected + direct are included', () => {
+test('Taxe de séjour: platform-remits stay is excluded; platform-reverses + owner-collected + direct are included', () => {
   const { db, model } = seedTaxDb();
   const { month, year, m } = previousMonth();
   insertStay(db, { id: 1, platform: 'direct', year, m });   // direct → always remitted by us
-  insertStay(db, { id: 2, platform: 'Airbnb', year, m });   // platform collects → EXCLUDED
-  insertStay(db, { id: 3, platform: 'Booking', year, m });  // we collect → INCLUDED
+  insertStay(db, { id: 2, platform: 'Airbnb', year, m });   // platform collects + remits → EXCLUDED
+  insertStay(db, { id: 3, platform: 'Booking', year, m });  // we collect at arrival → INCLUDED
+  insertStay(db, { id: 4, platform: 'Expedia', year, m });  // platform reverses to us → INCLUDED (case 1)
 
   const res = model.getTouristTaxExtraction({ month });
   assert.equal(res.ok, true);
   const ids = res.data.reservations.map((r) => r.reservationId).sort((a, b) => a - b);
-  assert.deepEqual(ids, [1, 3], 'only the direct + owner-collected stays are in the tax-to-remit');
-  assert.ok(!ids.includes(2), 'the platform-collected (Airbnb) stay is NOT remitted by us');
-  // Each remitted stay carries a positive tax (2 adults × 2 nights × 1.0 = 4.00).
+  assert.deepEqual(ids, [1, 3, 4], 'direct + owner-collected + platform-reversed stays are in the tax-to-remit');
+  assert.ok(!ids.includes(2), 'the platform-remits (Airbnb) stay is NOT remitted by us');
+  // Each remitted stay carries a positive tax (2 adults × 2 nights × 1.0 = 4.00). The Expedia stay's
+  // tax is offered on the quote (touristTaxTotal = 0) but the Suivi recomputes it from nights/persons.
   for (const r of res.data.reservations) assert.ok(r.taxAmount > 0, `stay ${r.reservationId} has tax`);
 });
 
@@ -86,9 +94,9 @@ test('Taxe de séjour: a MULTI-WORD owner-collected platform (manual stay) is st
   // reservation stores the concatenated label. The extraction must match EITHER (specs/platforms-and-ical-rework.md).
   const { db, model } = seedTaxDb();
   const { month, year, m } = previousMonth();
-  // Owner-collected multi-word platform: key 'g-tes-de-france', label 'GitesDeFrance'.
-  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, collectsTouristTax)
-              VALUES (1, 'Gîtes de France', '', 'g-tes-de-france', 'GitesDeFrance', '#e6c832', 0)`).run();
+  // Owner-collected multi-word platform: key 'g-tes-de-france', label 'GitesDeFrance' (we remit → 0,0).
+  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, collectsTouristTax, touristTaxRemittedByPlatform)
+              VALUES (1, 'Gîtes de France', '', 'g-tes-de-france', 'GitesDeFrance', '#e6c832', 0, 0)`).run();
   insertStay(db, { id: 1, platform: 'GitesDeFrance', year, m }); // manual path → platform = label
 
   const res = model.getTouristTaxExtraction({ month });
@@ -141,8 +149,9 @@ test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the en
   assert.ok(taxLine.includes('4,80'), 'the tourist-tax line holds the 4,80 € amount');
 });
 
-test('Comptabilité: platform-collected tax → NO 46710000 line (tax is the platform\'s business)', () => {
-  // The platform collects (touristTaxCollectedOnArrival = false); the stay carries no owner-side tax.
+test('Comptabilité: platform-remits tax → NO 46710000 line (tax is the platform\'s business)', () => {
+  // The platform collects + remits to the commune (touristTaxCollectedOnArrival = false, not reversed);
+  // the stay carries no owner-side tax.
   const row = makeRow({ platform: 'airbnb', touristTaxTotal: 0 });
   const quote = makeQuote({ touristTaxCollectedOnArrival: false });
 
@@ -152,5 +161,32 @@ test('Comptabilité: platform-collected tax → NO 46710000 line (tax is the pla
   assert.equal(bal.taxTtc, 0);
 
   const lines = csvLines([dep, bal].filter(Boolean));
-  assert.ok(!lines.some((l) => l.includes(';46710000;')), 'no tourist-tax pass-through line for a platform-collected stay');
+  assert.ok(!lines.some((l) => l.includes(';46710000;')), 'no tourist-tax pass-through line for a platform-remits stay');
+});
+
+test('Comptabilité: platform-reversed tax (case 1) → the reversed tax rides the balance on a 46710000 line', () => {
+  // The platform collects the tax then reverses it to us at settlement (single platform payout → the
+  // `balance` entry). The tax is OFFERED on our quote (touristTaxTotal = 0, touristTaxOfferedByPlatform),
+  // yet WE remit it → it must surface on a 46710000 pass-through, ADDED on top of the stay payout.
+  const row = makeRow({
+    platform: 'expedia', touristTaxTotal: 0,
+    depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+  });
+  const quote = makeQuote({
+    touristTaxCollectedOnArrival: false,
+    touristTaxOfferedByPlatform: true,
+    touristTaxRemittedByOwner: true,
+    touristTaxOriginalTotal: 4.80,
+  });
+
+  const bal = buildEntry(row, quote, 'balance');
+  assert.ok(bal, 'the balance entry is emitted');
+  assert.equal(bal.taxTtc, 4.80, 'the reversed tax surfaces on its own (taxTtc)');
+  assert.equal(bal.encaissementTtc, 204.80, 'the payout we banked = stay 200 + reversed tax 4.80');
+
+  const lines = csvLines([bal]);
+  const taxLine = lines.find((l) => l.includes(';46710000;'));
+  assert.ok(taxLine, 'the CSV export carries a dedicated 46710000 tourist-tax credit line');
+  assert.ok(taxLine.includes('4,80'), 'the tourist-tax line holds the 4,80 € amount');
 });

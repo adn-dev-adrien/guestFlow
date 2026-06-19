@@ -870,6 +870,28 @@ function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
   return Number(row.collectsTouristTax) !== 0;
 }
 
+// Per-platform "do WE remit the tourist tax to the commune?" resolver (specs/
+// per-platform-tourist-tax-three-way.md §3). Orthogonal to `isPlatformCollectingTouristTax` (which
+// answers "is the tax charged to the guest by us?"). Drives the Suivi taxe de séjour + the 46710000
+// accounting pass-through.
+//   - direct        → always true (we collect + remit).
+//   - non-direct    → look up the property's iCal source matching this platformKey/platformLabel;
+//                     we remit iff its `touristTaxRemittedByPlatform = 0` (the platform reverses it
+//                     to us, or we collect at arrival). If the source/column is absent, default to
+//                     false (legacy "platform handles everything", hidden from Suivi).
+function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
+  if (!platformKey || platformKey === 'direct') return true;
+  let row = null;
+  try {
+    const needle = String(platformKey).toLowerCase();
+    row = db.prepare(
+      "SELECT touristTaxRemittedByPlatform FROM ical_sources WHERE propertyId = ? AND (lower(platformKey) = ? OR lower(platformLabel) = ?) LIMIT 1"
+    ).get(propertyId, needle, needle);
+  } catch (_) { /* table or column may be absent in minimal test DBs → fall back to default */ }
+  if (!row) return false; // legacy default: ad-hoc non-direct platforms are assumed to remit themselves.
+  return Number(row.touristTaxRemittedByPlatform) === 0;
+}
+
 // Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
 // options, resources, custom options. Defaults to 10 % when the column is missing (minimal
 // test DBs) or NULL.
@@ -1435,6 +1457,11 @@ function calculateReservationQuote({
   //                     (backwards-compatible with the legacy hardcoded rule).
   const normalizedPlatform = String(platform || 'direct').toLowerCase();
   const isTouristTaxOfferedByPlatform = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
+  // Orthogonal flag (specs/per-platform-tourist-tax-three-way.md §3): do WE remit the tax to the
+  // commune? Drives Suivi + the 46710000 accounting line. An offered tax can still be remitted by us
+  // (case 1 "platform reverses it to us") — that's exactly what the binary collectsTouristTax couldn't
+  // express. The guest-facing schedule below is unchanged whether the platform reverses or remits.
+  const isTouristTaxRemittedByOwnerFlag = isTouristTaxRemittedByOwner(db, propertyId, normalizedPlatform);
   let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
   if (isTouristTaxOfferedByPlatform) {
     touristTaxTotal = 0;
@@ -1563,6 +1590,7 @@ function calculateReservationQuote({
     touristTaxOriginalTotal: Number(touristTaxBreakdown.touristTaxTotal || 0),
     touristTaxTotal,
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
+    touristTaxRemittedByOwner: isTouristTaxRemittedByOwnerFlag,
     touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,
     touristTaxInComplement: isTouristTaxForcedToComplement,
     forcedItemsTotal,
@@ -1615,4 +1643,5 @@ module.exports.__test = {
   computeTouristTaxBreakdown,
   calculateReservationQuote,
   isPlatformCollectingTouristTax,
+  isTouristTaxRemittedByOwner,
 };

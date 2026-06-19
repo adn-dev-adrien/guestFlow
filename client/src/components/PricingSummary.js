@@ -558,10 +558,19 @@ export default function PricingSummary({
                 </Box>
               )}
 
+              {/* specs/per-platform-tourist-tax-three-way.md §3 — an offered tax is collected by the
+                  platform either way, but case 1 ("reversée à vous") means WE still remit it to the
+                  commune, so it surfaces in the Suivi taxe de séjour. Distinguish the two captions. */}
               {isTouristTaxOffered && (
-                <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
-                  Collectée par la plateforme
-                </Typography>
+                Boolean(quote?.touristTaxRemittedByOwner) ? (
+                  <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>
+                    Collectée par la plateforme, reversée — à déclarer (Suivi taxe de séjour)
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
+                    Collectée par la plateforme
+                  </Typography>
+                )
               )}
               {!isTouristTaxOffered && isTouristTaxCollectedOnArrival && (
                 <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>

@@ -122,6 +122,31 @@ test('platform-collect — tax = 0, schedule is identical to a no-tax stay', () 
   assert.equal(round4(bal.fraction), 0.7);
 });
 
+test('platform-reversed (case 1) — the offered tax rides the balance as a 46710000 pass-through', () => {
+  // The platform collects the tax then reverses it to us (single payout → balance entry). The tax is
+  // offered on the quote (touristTaxTotal = 0) but WE remit it → it must surface in the books, ADDED
+  // on top of the stay (deposit = 0 for platforms).
+  const row = makeRow({
+    platform: 'expedia', touristTaxTotal: 0,
+    depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+    balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15',
+  });
+  const quote = makeQuote({
+    touristTaxCollectedOnArrival: false,
+    touristTaxOfferedByPlatform: true,
+    touristTaxRemittedByOwner: true,
+    touristTaxOriginalTotal: 4.80,
+  });
+
+  const bal = buildEntry(row, quote, 'balance');
+  assert.equal(bal.taxTtc, 4.80, 'the reversed tax is surfaced (taxTtc)');
+  assert.equal(bal.encaissementTtc, 204.80, 'encaissement = stay 200 + reversed tax 4.80');
+  // A platform-remits stay (no reversal) on the same shape carries NO tax.
+  const noReverse = buildEntry(row, makeQuote({ touristTaxOfferedByPlatform: true, touristTaxRemittedByOwner: false, touristTaxOriginalTotal: 4.80 }), 'balance');
+  assert.equal(noReverse.taxTtc, 0, 'platform-remits → no tax in the books');
+  assert.equal(noReverse.encaissementTtc, 200, 'platform-remits → encaissement is the stay only');
+});
+
 test('owner-collect non-direct — deposit + balance pro-rate against finalPrice (NOT totalStayTtc)', () => {
   const row = makeRow({ platform: 'gitedefrance', depositAmount: 60, balanceAmount: 140 });
   const quote = makeQuote({ touristTaxCollectedOnArrival: true });

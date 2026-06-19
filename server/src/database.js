@@ -755,6 +755,19 @@ db.exec(`
   if (!icalSourceCols.includes('lastSyncCounts')) {
     db.exec('ALTER TABLE ical_sources ADD COLUMN lastSyncCounts TEXT');
   }
+  // specs/per-platform-tourist-tax-three-way.md §5 — split the binary `collectsTouristTax` into a
+  // three-way handling by adding a "who remits the tax to the commune" flag:
+  //   touristTaxRemittedByPlatform = 1 → the platform remits it itself (we never touch it; default,
+  //     = legacy `collectsTouristTax = 1` "platform" case).
+  //   touristTaxRemittedByPlatform = 0 → WE remit it (the platform reverses it to us, OR we collect
+  //     it at arrival) → the reservation shows in Suivi taxe de séjour + the 46710000 accounting line.
+  // The DEFAULT 1 + the backfill below make every existing source resolve to its current behaviour
+  // (owner-collect rows say "we remit", platform-collect rows stay hidden) until the operator picks
+  // the new "reversée à vous" mode.
+  if (!icalSourceCols.includes('touristTaxRemittedByPlatform')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1');
+    db.exec('UPDATE ical_sources SET touristTaxRemittedByPlatform = 0 WHERE collectsTouristTax = 0');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):

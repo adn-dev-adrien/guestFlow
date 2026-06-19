@@ -236,7 +236,7 @@ function createPlatformsModel(database) {
       // table; only this per-property merge actually needs it.
       const sources = database.prepare(`
         SELECT id AS sourceId, propertyId, name, url, platformKey, platformLabel, platformColor,
-               isActive, collectsTouristTax, disabled,
+               isActive, collectsTouristTax, touristTaxRemittedByPlatform, disabled,
                lastSyncAt, lastSyncStatus, lastSyncMessage, lastSyncCounts, lastImportedCount
           FROM ical_sources
          WHERE propertyId = ?
@@ -263,6 +263,13 @@ function createPlatformsModel(database) {
           isBuiltIn: Boolean(KNOWN_PLATFORM_COLORS[slug]),
           url: source ? (source.url || '') : '',
           collectsTouristTax: source ? Number(source.collectsTouristTax) : 1,
+          // specs/per-platform-tourist-tax-three-way.md §3 — the 3-way string the UI Select binds to.
+          // No source / default → 'platform' (the platform collects + remits to the commune itself).
+          touristTaxCollection: source
+            ? (Number(source.collectsTouristTax) === 0
+                ? 'owner'
+                : (Number(source.touristTaxRemittedByPlatform) === 0 ? 'platform_reversed' : 'platform'))
+            : 'platform',
           disabled: source ? Number(source.disabled) : 0,
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,
