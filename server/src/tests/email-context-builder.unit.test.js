@@ -244,6 +244,57 @@ test('hasCleaningOption is true via autoOptionType=cleaning OR an option NAMED �
   assert.equal(without.flags.hasCleaningOption, false);
 });
 
+// ── Bilingual context (specs/email-language-fr-en.md §3 rule 4) ──────────────────
+
+test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices render in English', () => {
+  const { vars, flags } = buildContext({
+    ...baseInput({
+      reservation: { startDate: '2026-07-10', endDate: '2026-07-13', singleBeds: 2, doubleBeds: 1, babyBeds: 1, babies: 1, cautionAmount: 0 },
+      property: { name: 'Gite', nameArticle: 'au' },
+      resources: [{ name: 'Bain nordique' }],
+    }),
+    lang: 'en',
+  });
+  assert.equal(vars.startDate, '10 July 2026');
+  assert.equal(vars.endDate, '13 July 2026');
+  assert.equal(vars.bedConfig, '1 double bed, 2 single beds, 1 baby cot');
+  assert.equal(vars.propertyWithArticle, 'Gite'); // EN drops the French article
+  assert.match(vars.babyBedNotice, /You are travelling with a baby/);
+  assert.match(vars.nordicBathReminder, /You have booked the nordic bath/);
+  assert.match(vars.nordicBathReminder, /flip-flops/);
+  assert.equal(flags.hasNordicBath, true);
+});
+
+test('lang="en": nordic-bath scheduled slot recalled in English', () => {
+  const { vars } = buildContext({
+    ...baseInput({ resources: [{ name: 'Bain nordique', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
+    lang: 'en',
+  });
+  assert.match(vars.nordicBathSchedule, /on 11 July 2026 from 18:00 to 19:30/);
+  assert.match(vars.nordicBathReminder, /Your slot is reserved/);
+});
+
+test('lang="en": complement notice + tourist-tax label in English', () => {
+  const { vars } = buildContext({
+    ...baseInput({
+      reservation: { complementAmount: 55, complementPaid: 0, touristTaxInComplement: 1, touristTaxTotal: 15 },
+    }),
+    lang: 'en',
+  });
+  assert.match(vars.complementNotice, /A balance of .* will be payable directly on site on arrival/);
+  assert.match(vars.complementNotice, /Tourist tax/);
+});
+
+test('default lang (fr) is unchanged — English path never leaks into French output', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { startDate: '2026-07-10', singleBeds: 1, doubleBeds: 1 },
+    resources: [{ name: 'Bain nordique' }],
+  }));
+  assert.equal(vars.startDate, '10 juillet 2026');
+  assert.match(vars.bedConfig, /lit double/);
+  assert.match(vars.nordicBathReminder, /bain nordique/);
+});
+
 // ── Reservation number recall (specs/reservation-number-and-search.md §4) ────────
 
 test('reservationNumber var + hasReservationNumber flag follow the reservation column', () => {

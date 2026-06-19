@@ -69,6 +69,9 @@ function buildController(model) {
       name:      String(req.body.name).trim(),
       subject:   String(req.body.subject),
       body:      String(req.body.body),
+      // Optional English side (specs/email-language-fr-en.md). '' / absent → no English version.
+      subjectEn: req.body.subjectEn === undefined ? undefined : String(req.body.subjectEn || ''),
+      bodyEn:    req.body.bodyEn    === undefined ? undefined : String(req.body.bodyEn || ''),
       dayOffset: Number(req.body.dayOffset),
       sendMode:  String(req.body.sendMode).toLowerCase(),
       enabled:   coerceEnabled(req.body.enabled),
@@ -85,6 +88,8 @@ function buildController(model) {
       name:      req.body.name      === undefined ? undefined : String(req.body.name).trim(),
       subject:   req.body.subject   === undefined ? undefined : String(req.body.subject),
       body:      req.body.body      === undefined ? undefined : String(req.body.body),
+      subjectEn: req.body.subjectEn === undefined ? undefined : String(req.body.subjectEn || ''),
+      bodyEn:    req.body.bodyEn    === undefined ? undefined : String(req.body.bodyEn || ''),
       dayOffset: req.body.dayOffset === undefined ? undefined : Number(req.body.dayOffset),
       sendMode:  req.body.sendMode  === undefined ? undefined : String(req.body.sendMode).toLowerCase(),
       enabled:   coerceEnabled(req.body.enabled),

@@ -56,6 +56,22 @@ export default function StaySection() {
             />
           )}
 
+          {/* Email language (specs/email-language-fr-en.md): the guest's reminder emails are generated in
+              this language. Hidden for devis. */}
+          {!isDevisMode && (
+            <FormControl fullWidth disabled={isReservationLocked}>
+              <InputLabel>Langue des emails</InputLabel>
+              <Select
+                value={form.emailLanguage === 'en' ? 'en' : 'fr'}
+                label="Langue des emails"
+                onChange={(e) => updateForm({ emailLanguage: e.target.value })}
+              >
+                <MenuItem value="fr">Français</MenuItem>
+                <MenuItem value="en">English</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+
           <MiniPlanningStrip
             miniCalendarStart={miniCalendarStart}
             setMiniCalendarStart={setMiniCalendarStart}

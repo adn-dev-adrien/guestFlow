@@ -13,6 +13,7 @@
 
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
+const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 
 function isoToday(now = new Date()) {
   // Use the server's local date — same locale the cron fires at 08:00 of.
@@ -103,9 +104,12 @@ async function performAutoEmailPass(deps) {
         ? Boolean(findBedLinenDefault.get(reservation.propertyId))
         : false;
 
-      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings });
+      // specs/email-language-fr-en.md: render in the reservation's email language (EN body if filled, else FR).
+      const lang = normaliseLang(reservation.emailLanguage);
+      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
+      const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(
-        { subject: template.subject, body: template.body },
+        { subject: side.subject, body: side.body },
         context,
       );
       const to = String(client?.email || '').trim();
