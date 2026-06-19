@@ -15,6 +15,7 @@ const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HO
 const { getOptionsSignature, getResourcesSignature, enrichHistoryChanges } = require('../utils/reservationAudit');
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
+const { generateReservationNumber } = require('../utils/reservationNumber');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 // specs/force-extras-complement-on-platform.md §3 rule 1: every extra line written for a
@@ -63,6 +64,33 @@ function createReservationsModel(database) {
     const raw = String(payload.breakfastTime || '').trim();
     const value = raw === '' ? null : (formatTimeShort(raw) || null); // '' / invalid → NULL = use option default
     database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
+  }
+  // Human-readable reservation number (specs/reservation-number-and-search.md §3). Guarded so minimal
+  // test schemas without the column simply skip it.
+  const HAS_RESERVATION_NUMBER = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'reservationNumber'); }
+    catch { return false; }
+  })();
+  // Applied after the core INSERT/UPDATE (like persistBreakfastTime). Rules:
+  //   - only `kind='reservation'` rows get a number (devis keep devisNumber);
+  //   - a non-empty `payload.reservationNumber` is an operator override → stored verbatim (trimmed).
+  //     Uniqueness is enforced by the controller (→ 400) before we get here; the partial unique index
+  //     is the last-resort guard;
+  //   - otherwise (undefined / blank) keep the existing number, and GENERATE one when missing — this
+  //     covers creation AND devis→reservation conversion (kind just flipped, still numberless).
+  function persistReservationNumber(reservationId, payload) {
+    if (!HAS_RESERVATION_NUMBER) return;
+    const row = database.prepare('SELECT reservationNumber, kind FROM reservations WHERE id = ?').get(reservationId);
+    if (!row || row.kind !== 'reservation') return;
+    const override = payload && payload.reservationNumber !== undefined ? String(payload.reservationNumber).trim() : '';
+    if (override) {
+      database.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?').run(override, reservationId);
+      return;
+    }
+    if (!row.reservationNumber) {
+      database.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?')
+        .run(generateReservationNumber(database), reservationId);
+    }
   }
   // Option-driven planning cards (specs/option-planning-card.md §3.2). The selected occurrences for a
   // card-option are stored on reservation_options.cardOccurrences (JSON). Guarded so minimal test
@@ -120,6 +148,50 @@ function createReservationsModel(database) {
           paymentComplete: payment.paymentComplete,
         };
       });
+    },
+
+    // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3 rule 8-9).
+    // Matches kind='reservation' rows by number, firstName, lastName, "first last" or "last first"
+    // (case-insensitive substring). Result is shaped + capped server-side (fat backend). Blank q → [].
+    search({ q } = {}) {
+      const term = String(q || '').trim().toLowerCase();
+      if (!term) return [];
+      const like = `%${term}%`;
+      const rows = database.prepare(`
+        SELECT r.id, r.reservationNumber, r.startDate, r.endDate,
+               c.firstName, c.lastName, p.name AS propertyName
+        FROM reservations r
+        JOIN clients c ON r.clientId = c.id
+        JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind = 'reservation' AND (
+          LOWER(COALESCE(r.reservationNumber, '')) LIKE ?
+          OR LOWER(COALESCE(c.firstName, '')) LIKE ?
+          OR LOWER(COALESCE(c.lastName, '')) LIKE ?
+          OR LOWER(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) LIKE ?
+          OR LOWER(COALESCE(c.lastName, '') || ' ' || COALESCE(c.firstName, '')) LIKE ?
+        )
+        ORDER BY r.startDate DESC, r.id DESC
+        LIMIT 20
+      `).all(like, like, like, like, like);
+      return rows.map((row) => ({
+        id: row.id,
+        reservationNumber: row.reservationNumber || '',
+        clientFullName: `${String(row.firstName || '').trim()} ${String(row.lastName || '').trim()}`.trim(),
+        propertyName: row.propertyName || '',
+        startDate: row.startDate || '',
+        endDate: row.endDate || '',
+      }));
+    },
+
+    // True when another reservation already carries this number (override-collision guard, →400 in
+    // the controller). `exceptId` excludes the row being updated.
+    isReservationNumberTaken(number, exceptId) {
+      const value = String(number || '').trim();
+      if (!value) return false;
+      let sql = "SELECT 1 FROM reservations WHERE kind = 'reservation' AND reservationNumber = ?";
+      const params = [value];
+      if (exceptId) { sql += ' AND id != ?'; params.push(Number(exceptId)); }
+      return Boolean(database.prepare(sql).get(...params));
     },
 
     getOccupiedReservations(propertyId, from, to, excludeReservationId) {
@@ -417,6 +489,14 @@ function createReservationsModel(database) {
       return database.prepare('SELECT id FROM reservations WHERE id = ?').get(reservationId);
     },
 
+    // The just-assigned/overridden number, returned to the client after create/update so the fiche
+    // field repopulates. Empty string when the column is absent (minimal schema) or unset.
+    getReservationNumber(reservationId) {
+      if (!HAS_RESERVATION_NUMBER) return '';
+      const row = database.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(reservationId);
+      return (row && row.reservationNumber) || '';
+    },
+
     // Batched lookup of (id, firstName, lastName, startDate, endDate) for a list of reservation
     // ids. Used by the Dashboard linen-shortage alert to label impacted chips with the client
     // name instead of a bare #id.
@@ -687,6 +767,7 @@ function createReservationsModel(database) {
         depositAmountOverride === undefined || depositAmountOverride === null || depositAmountOverride === '' ? null : Number(depositAmountOverride),
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
+      persistReservationNumber(result.lastInsertRowid, payload);
       return result.lastInsertRowid;
     },
 
@@ -737,6 +818,7 @@ function createReservationsModel(database) {
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);
+      persistReservationNumber(reservationId, payload);
     },
 
     // `inComplement` is carried on every write. `acompteContribTtc`/`soldeContribTtc` are

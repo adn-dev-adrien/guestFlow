@@ -21,6 +21,7 @@ const icalDateDriftModel = require('./icalDateDriftModel');
 const platformsModel = require('./platformsModel');
 const { formatPlatformName } = require('../utils/platformNameFormat');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const icalCancellationModel = require('./icalCancellationModel');
 const notificationService = require('../utils/notificationService');
 // Establishment closures (2026-06-06): every iCal event is checked against the
@@ -402,6 +403,7 @@ function createPropertyIcalModel(database) {
               );
               const reservationId = Number(result.lastInsertRowid);
               applyPropertyOptionDefaults(reservationId, source.propertyId);
+              assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
               createdCount += 1;
@@ -430,6 +432,7 @@ function createPropertyIcalModel(database) {
               );
               const reservationId = Number(result.lastInsertRowid);
               applyPropertyOptionDefaults(reservationId, source.propertyId);
+              assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               if (previousUid && previousUid !== event.uid) {
                 deleteMapping.run(source.id, previousUid);

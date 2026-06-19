@@ -296,6 +296,7 @@ keys; everything else passes through as empty string.
 | `clientEmail` | `clients.email` | string |
 | `clientPhone` | `clients.phone` | string |
 | `clientAddress` | concat of `streetNumber` + `street` + `postalCode` + `city` | string |
+| `reservationNumber` | `reservations.reservationNumber` (gated by `{{#if hasReservationNumber}}`) | `AAAA-MM-###` — see `specs/reservation-number-and-search.md` |
 | `startDate` | `reservations.startDate` | `dd MMMM yyyy` (FR locale) |
 | `endDate` | `reservations.endDate` | same |
 | `checkInTime` | `reservations.checkInTime` ⇢ fallback `property.defaultCheckIn` | `HH:mm` |

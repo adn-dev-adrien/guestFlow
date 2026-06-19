@@ -1,0 +1,2 @@
+- Chaque réservation a désormais un **numéro de réservation** lisible (`AAAA-MM-###`), généré automatiquement mais modifiable sur la fiche. Les réservations existantes sont numérotées automatiquement au démarrage.
+- Nouvelle **recherche de réservation** en haut du Calendrier et du Tableau de bord : tapez un numéro, un nom, un prénom ou « nom prénom » et les résultats s'affichent au fur et à mesure ; un clic ouvre la fiche.

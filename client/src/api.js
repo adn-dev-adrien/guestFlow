@@ -137,6 +137,8 @@ const api = {
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),
   getReservation: (id) => request(`/reservations/${id}`),
+  // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
+  searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),
   calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
   suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),

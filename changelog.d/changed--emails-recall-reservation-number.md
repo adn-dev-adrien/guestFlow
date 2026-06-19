@@ -1,0 +1,1 @@
+- Les emails de rappel J-7 et J-2 rappellent désormais le **numéro de réservation** dans le récapitulatif du séjour.
