@@ -1,0 +1,1 @@
+- Colonnes additives : `email_templates.subjectEn` / `bodyEn` (version anglaise optionnelle) et `reservations.emailLanguage` (`fr` par défaut). Les deux rappels d'arrivée par défaut reçoivent leur traduction anglaise au démarrage si elle est absente (le français existant n'est jamais modifié).

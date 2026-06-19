@@ -14,6 +14,7 @@
 
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
+const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
 
 /**
  * Pull the enriched reservation graph the context builder consumes.
@@ -84,11 +85,15 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     return emailServiceFactory(smtp);
   }
 
-  function buildPreview(reservationId, templateId, overrides = {}) {
+  function buildPreview(reservationId, templateId, overrides = {}, lang) {
     const template = templatesModel.findById(templateId);
     if (!template) return { error: 'TEMPLATE_NOT_FOUND', status: 404 };
     const graph = loadReservationGraph(database, reservationId);
     if (!graph) return { error: 'RESERVATION_NOT_FOUND', status: 404 };
+
+    // Language resolution (specs/email-language-fr-en.md §3 rule 3): explicit override wins, else the
+    // reservation's emailLanguage, else French.
+    const useLang = normaliseLang(lang || graph.reservation.emailLanguage);
 
     const context = buildContext({
       reservation: graph.reservation,
@@ -99,11 +104,14 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
+      lang:        useLang,
     });
 
+    // Template side for the language (EN if filled, else FR fallback). Operator overrides still win.
+    const side = pickTemplateSide(template, useLang);
     const useTemplate = {
-      subject: overrides.subject != null ? String(overrides.subject) : template.subject,
-      body:    overrides.body    != null ? String(overrides.body)    : template.body,
+      subject: overrides.subject != null ? String(overrides.subject) : side.subject,
+      body:    overrides.body    != null ? String(overrides.body)    : side.body,
     };
     const { subject, body, missingVariables } = renderTemplate(useTemplate, context);
 
@@ -116,6 +124,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       subject,
       body,
       missingVariables,
+      lang: useLang,
     };
   }
 
@@ -137,26 +146,27 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
   // ---------- HTTP handlers ----------
 
   function preview(req, res) {
-    const { reservationId, templateId } = req.query || {};
+    const { reservationId, templateId, lang } = req.query || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
-    const result = buildPreview(Number(reservationId), Number(templateId));
+    const result = buildPreview(Number(reservationId), Number(templateId), {}, lang);
     if (result.error) return res.status(result.status).json({ error: result.error });
     return res.json({
       to: result.to,
       subject: result.subject,
       body: result.body,
       missingVariables: result.missingVariables,
+      lang: result.lang,
     });
   }
 
   async function send(req, res) {
-    const { reservationId, templateId, overrides } = req.body || {};
+    const { reservationId, templateId, overrides, lang } = req.body || {};
     if (!reservationId || !templateId) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', fields: ['reservationId', 'templateId'] });
     }
-    const result = buildPreview(Number(reservationId), Number(templateId), overrides || {});
+    const result = buildPreview(Number(reservationId), Number(templateId), overrides || {}, lang);
     if (result.error) return res.status(result.status).json({ error: result.error });
 
     // Resolve the recipient: the client's email on file wins; otherwise the operator may
@@ -266,9 +276,11 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
+      lang:        normaliseLang(graph.reservation.emailLanguage),
     });
+    const side = pickTemplateSide(template, normaliseLang(graph.reservation.emailLanguage));
     const { subject, body } = renderTemplate(
-      { subject: template.subject, body: template.body },
+      { subject: side.subject, body: side.body },
       context,
     );
 

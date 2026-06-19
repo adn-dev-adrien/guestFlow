@@ -11,8 +11,14 @@ const FR_MONTHS = [
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
 
-// `2026-06-15` → `15 juin 2026`. Truncates the time portion if present.
-function formatDateLong(isoDate) {
+const EN_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+// `2026-06-15` → `15 juin 2026` (fr) / `15 June 2026` (en). Truncates the time portion if present.
+// `lang` defaults to 'fr' so every existing caller keeps today's output (specs/email-language-fr-en.md).
+function formatDateLong(isoDate, lang = 'fr') {
   if (!isoDate) return '';
   const [datePart] = String(isoDate).split('T');
   const [y, m, d] = datePart.split('-');
@@ -22,7 +28,8 @@ function formatDateLong(isoDate) {
   if (!Number.isInteger(monthIdx) || monthIdx < 0 || monthIdx > 11) return '';
   if (!Number.isInteger(dayNum) || dayNum <= 0 || dayNum > 31) return '';
   if (!Number.isInteger(yearNum) || yearNum < 1000) return '';
-  return `${dayNum} ${FR_MONTHS[monthIdx]} ${yearNum}`;
+  const months = lang === 'en' ? EN_MONTHS : FR_MONTHS;
+  return `${dayNum} ${months[monthIdx]} ${yearNum}`;
 }
 
 // `15:00:00` or `15:00` → `15:00`. Empty / malformed → empty string.
@@ -41,4 +48,5 @@ module.exports = {
   formatDateLong,
   formatTimeShort,
   FR_MONTHS,
+  EN_MONTHS,
 };
