@@ -56,10 +56,18 @@ function buildClientFields(payload) {
     phone: String(payload.phone || '').trim(),
     email: String(payload.email || '').trim(),
     notes: sentenceCase(payload.notes),
+    // Per-client email language (specs/email-client-language-and-fiche-polish.md). Drives every email
+    // for this client. 'en' or 'fr' (default).
+    emailLanguage: String(payload.emailLanguage || '').toLowerCase() === 'en' ? 'en' : 'fr',
   };
 }
 
 function createModel(database) {
+  // emailLanguage is optional in minimal/legacy schemas — include it in writes only when present.
+  const HAS_EMAIL_LANGUAGE = (() => {
+    try { return database.prepare('PRAGMA table_info(clients)').all().some((c) => c.name === 'emailLanguage'); }
+    catch { return false; }
+  })();
   function list(q) {
     if (q) {
       const s = `%${q}%`;
@@ -88,10 +96,11 @@ function createModel(database) {
 
   function insert(payload) {
     const fields = buildClientFields(payload);
-    const result = database.prepare(`
-      INSERT INTO clients (lastName, firstName, streetNumber, street, postalCode, city, address, phone, email, notes)
-      VALUES (@lastName, @firstName, @streetNumber, @street, @postalCode, @city, @address, @phone, @email, @notes)
-    `).run(fields);
+    const cols = 'lastName, firstName, streetNumber, street, postalCode, city, address, phone, email, notes'
+      + (HAS_EMAIL_LANGUAGE ? ', emailLanguage' : '');
+    const vals = '@lastName, @firstName, @streetNumber, @street, @postalCode, @city, @address, @phone, @email, @notes'
+      + (HAS_EMAIL_LANGUAGE ? ', @emailLanguage' : '');
+    const result = database.prepare(`INSERT INTO clients (${cols}) VALUES (${vals})`).run(fields);
     return findById(result.lastInsertRowid);
   }
 
@@ -100,7 +109,8 @@ function createModel(database) {
     database.prepare(`
       UPDATE clients
       SET lastName=@lastName, firstName=@firstName, streetNumber=@streetNumber, street=@street,
-          postalCode=@postalCode, city=@city, address=@address, phone=@phone, email=@email, notes=@notes,
+          postalCode=@postalCode, city=@city, address=@address, phone=@phone, email=@email, notes=@notes,${HAS_EMAIL_LANGUAGE ? `
+          emailLanguage=@emailLanguage,` : ''}
           updatedAt=datetime('now')
       WHERE id=@id
     `).run({ ...fields, id: Number(id) });

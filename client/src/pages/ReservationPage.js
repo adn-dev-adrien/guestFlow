@@ -6,7 +6,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery,
   ToggleButton, ToggleButtonGroup, Tooltip
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
@@ -224,8 +224,6 @@ export default function ReservationPage() {
     // Human-readable reservation number (specs/reservation-number-and-search.md). Generated server-side
     // on first save; editable (overridable). '' for a new reservation until the first save returns it.
     reservationNumber: '',
-    // Per-reservation email language (specs/email-language-fr-en.md). 'fr' (default) | 'en'.
-    emailLanguage: 'fr',
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
@@ -615,7 +613,6 @@ export default function ReservationPage() {
           setForm({
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
-            emailLanguage: res.emailLanguage === 'en' ? 'en' : 'fr',
             adults: res.adults || 1,
             children: res.children || 0,
             teens: res.teens || 0,
@@ -1929,7 +1926,6 @@ export default function ReservationPage() {
           clientId: form.clientId,
           // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
           reservationNumber: form.reservationNumber || '',
-          emailLanguage: form.emailLanguage === 'en' ? 'en' : 'fr',
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,
@@ -1995,7 +1991,6 @@ export default function ReservationPage() {
           clientId: form.clientId,
           // Optional override; blank → the server generates the AAAA-MM-### number.
           reservationNumber: form.reservationNumber || '',
-          emailLanguage: form.emailLanguage === 'en' ? 'en' : 'fr',
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,
@@ -2508,22 +2503,31 @@ export default function ReservationPage() {
                   <>
                     {/* Attached client — bold name, click to edit the fiche (mirrors the inline
                         edit affordance). "Changer le client" reveals the search to attach another. */}
+                    {/* Highlighted client card (specs/email-client-language-and-fiche-polish.md §3 rule 7):
+                        soft primary tint + thin border so the guest's name stands out, harmonious with the theme. */}
                     <Box
                       role="button"
                       tabIndex={0}
                       onClick={openEditClient}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditClient(); } }}
                       sx={{
-                        display: 'inline-flex', alignItems: 'center', gap: 0.75, width: 'fit-content',
-                        cursor: 'pointer', px: 1, py: 0.75, borderRadius: 1, mt: -0.5,
-                        '&:hover': { bgcolor: 'action.hover' },
+                        display: 'inline-flex', alignItems: 'center', gap: 0.75, width: 'fit-content', maxWidth: '100%',
+                        cursor: 'pointer', px: 1.25, py: 0.75, borderRadius: 2, mt: -0.25,
+                        bgcolor: (t) => alpha(t.palette.primary.main, 0.08),
+                        border: '1px solid',
+                        borderColor: (t) => alpha(t.palette.primary.main, 0.22),
+                        transition: 'background-color .15s ease, border-color .15s ease',
+                        '&:hover': {
+                          bgcolor: (t) => alpha(t.palette.primary.main, 0.14),
+                          borderColor: (t) => alpha(t.palette.primary.main, 0.35),
+                        },
                       }}
                     >
-                      <PersonOutlineIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                      <Typography sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3 }}>
+                      <PersonOutlineIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, color: 'primary.dark' }}>
                         {`${selectedClient.firstName || ''} ${selectedClient.lastName || ''}`.trim() || 'Client'}
                       </Typography>
-                      <EditOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                      <EditOutlinedIcon sx={{ fontSize: 16, color: (t) => alpha(t.palette.primary.main, 0.6) }} />
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
                       <Button size="small" variant="text" onClick={() => setClientSearchOpen(true)}>

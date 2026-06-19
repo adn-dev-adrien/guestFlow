@@ -22,10 +22,10 @@ function renderStay(overrides) {
 
 test('renders property select, both date fields, the time selects and the mini-calendar host', () => {
   renderStay();
-  // Four MUI Selects in DOM order: Logement, Langue des emails (specs/email-language-fr-en.md),
-  // Heure d'arrivée, Heure de départ.
-  expect(screen.getAllByRole('combobox')).toHaveLength(4);
-  expect(screen.getAllByText('Langue des emails').length).toBeGreaterThan(0);
+  // Three MUI Selects in DOM order: Logement, Heure d'arrivée, Heure de départ. (The email-language
+  // selector moved to the client fiche — specs/email-client-language-and-fiche-polish.md.)
+  expect(screen.getAllByRole('combobox')).toHaveLength(3);
+  expect(screen.queryByText('Langue des emails')).toBeNull();
   expect(screen.getAllByText('Logement').length).toBeGreaterThan(0);
   expect(screen.getByLabelText("Date d'arrivée")).toBeInTheDocument();
   expect(screen.getByLabelText('Date de départ')).toBeInTheDocument();
@@ -43,8 +43,8 @@ test('changing the arrival date calls handleManualDateInputChange', () => {
 test('changing the check-in time calls updateForm', async () => {
   const user = userEvent.setup();
   const ctx = renderStay();
-  // Combobox index 2 is the check-in time select (0 = Logement, 1 = Langue des emails).
-  await user.click(screen.getAllByRole('combobox')[2]);
+  // Combobox index 1 is the check-in time select (index 0 = Logement).
+  await user.click(screen.getAllByRole('combobox')[1]);
   const listbox = await screen.findByRole('listbox');
   await user.click(within(listbox).getByText('16:00'));
   expect(ctx.updateForm).toHaveBeenCalledWith({ checkInTime: '16:00' });
