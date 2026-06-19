@@ -3,11 +3,23 @@
 | Field | Value |
 |---|---|
 | **Status** | Implemented |
-| **Branch** | `feature/per-platform-tourist-tax-three-way` _(user-managed)_ |
+| **Branch** | `feature/per-platform-tourist-tax-three-way` → revised on `feature/tourist-tax-global-and-charged` _(user-managed)_ |
 | **Created** | 2026-06-19 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #249 (initial), follow-up (global + case-1 charged) |
 | **Supersedes** | extends [per-platform-tourist-tax-collection.md](per-platform-tourist-tax-collection.md) (binary → three-way) |
+
+> **Revision (2026-06-19, follow-up PR).** Two corrections after the first cut (#249):
+> 1. **The mode is GLOBAL per platform** — it lives on the `platforms` table (like `platforms.color`),
+>    not per-property on `ical_sources`. Changing a platform's mode on one property applies to **all**
+>    properties. The per-property `ical_sources.collectsTouristTax` / `touristTaxRemittedByPlatform`
+>    columns are deprecated (no longer read).
+> 2. **Case 1 (`platform_reversed`) is CHARGED, not offered.** The tax now appears on the reservation
+>    fiche (not struck-through) and is scheduled in the **balance** (the platform pays it to us with the
+>    settlement). Stored `touristTaxTotal` is the real amount, so the **standard** tax-in-balance path
+>    books it on `46710000` — the `reversedPlatformTaxTtc` special-case from #249 is removed.
+> "Offered" (struck-through, zeroed, absent from our books) now means **case 2 only**. The driving rule:
+> **anything WE remit to the commune (direct, case 1, case 3) appears in the « Taxe de séjour » page.**
 
 ---
 
@@ -41,11 +53,11 @@ recap total, in Suivi, and on the `46710000` accounting line. *(= today's `colle
 Turn the per-platform tourist-tax setting into a **three-way choice** and propagate it coherently to
 the quote, the *Suivi taxe de séjour* report, and the *Comptabilité* export:
 
-| Mode | Guest charged by us? | Complement at arrival? | We remit to commune? | Suivi | Compta `46710000` |
+| Mode (GLOBAL per platform) | Charged on the fiche? | Where in the schedule | We remit to commune? | « Taxe de séjour » page | Compta `46710000` |
 |---|---|---|---|---|---|
-| **`platform`** — plateforme collecte + reverse à la commune (case 2, default) | No (offered) | No | **No** | excluded | no |
-| **`platform_reversed`** — plateforme collecte + nous reverse (case 1, NEW) | No (offered) | No | **Yes** | **included** | **yes (on the platform payout)** |
-| **`owner`** — à collecter à l'arrivée (case 3) | Yes | Yes | **Yes** | included | yes (on the complement) |
+| **`platform`** — plateforme collecte + reverse à la commune (case 2, default) | No (offered, struck-through) | — (`touristTaxTotal = 0`) | **No** | excluded | no |
+| **`platform_reversed`** — plateforme collecte + nous reverse (case 1) | **Yes (charged)** | **balance** (platform pays it with the settlement) | **Yes** | **included** | **yes (in the balance)** |
+| **`owner`** — à collecter à l'arrivée (case 3) | Yes (charged) | complément (at check-in) | **Yes** | included | yes (in the complement) |
 
 `direct` bookings are implicitly « owner collects + we remit » (tax in the balance), unchanged.
 
@@ -164,20 +176,33 @@ the old `Switch` lived). The SAS line reuses the existing `lineText` renderer.
 
 ## 5. Data model
 
-`ical_sources` gains **`touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1`**:
-- `1` = the platform remits the tourist tax to the commune (we don't touch it) — combined with the
-  existing `collectsTouristTax = 1`, this is the legacy default (`platform`, case 2).
-- `0` = **we** remit (case 1 `platform_reversed` when `collectsTouristTax = 1`; case 3 `owner` when
-  `collectsTouristTax = 0`).
+**Revised (global storage).** The two booleans live on the **`platforms`** table (global per platform),
+not on `ical_sources`:
+- **`platforms.collectsTouristTax INTEGER NOT NULL DEFAULT 1`** — the platform charges the guest (1) vs
+  we charge at arrival (0).
+- **`platforms.touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1`** — the platform remits to the
+  commune (1) vs **we** remit (0).
+- Three valid states: `platform` (1,1), `platform_reversed` (1,0), `owner` (0,0). The model normalises
+  the invalid combo (collects=0 ⇒ remitted=0).
+- The per-property **`ical_sources.collectsTouristTax` / `touristTaxRemittedByPlatform`** columns (added
+  in #249) are **deprecated** — kept for back-compat but no longer read; the resolvers + the Suivi/compta
+  queries key on the global `platforms` row.
+
+**Resolution** of a reservation's platform → the global mode (the `platforms` row): (1) direct match
+`lower(platforms.name) = lower(r.platform)` (manual reservations store the label); (2) bridge through
+`ical_sources` (`platformKey`/`platformLabel` → `platformLabel` → `platforms.name`) for iCal imports
+whose `r.platform` is the hyphenated key. Mirrors how `platforms.color` is resolved.
 
 **Migration (idempotent, `database.js`):**
-1. PRAGMA-guarded `ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1`.
-2. One-time backfill `UPDATE ical_sources SET touristTaxRemittedByPlatform = 0 WHERE collectsTouristTax = 0`.
+1. PRAGMA-guarded `ALTER TABLE platforms ADD COLUMN collectsTouristTax INTEGER NOT NULL DEFAULT 1`.
+2. PRAGMA-guarded `ALTER TABLE platforms ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1`.
+3. One-time backfill from the previous per-property `ical_sources` flags (adopt the first non-default
+   per-source mode for each platform, matched by label), then enforce `remitted = 0 WHERE collects = 0`.
 
-**Data impact:** purely additive. The default `1` + the backfill make every existing source resolve
-to exactly its current behaviour — `platform` rows stay hidden from Suivi/compta, `owner` rows keep
-remitting — so nothing changes until the operator picks `platform_reversed`. No reservation/finance
-row is rewritten.
+**Data impact:** purely additive. The default `(1,1)` + the backfill make every existing platform resolve
+to its current behaviour, so nothing changes until the operator picks a non-default mode. No
+reservation/finance row is rewritten; stored `touristTaxTotal` on past reservations is left alone (case-1
+reservations created before this change keep their stored schedule until re-saved).
 
 ## 6. UI / UX
 

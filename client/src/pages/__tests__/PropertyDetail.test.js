@@ -25,7 +25,7 @@ vi.mock('../../api', () => ({
   default: {
     getProperty: vi.fn(), getOptions: vi.fn(),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
-    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(),
+    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(), setPlatformTouristTax: vi.fn(),
     createPropertyIcalSource: vi.fn(), updatePropertyIcalSource: vi.fn(),
     deletePropertyIcalSource: vi.fn(), syncPropertyIcalSource: vi.fn(), syncAllPropertyIcalSources: vi.fn(),
     createOption: vi.fn(), updateOption: vi.fn(),
@@ -170,9 +170,9 @@ test('Plateformes & iCal: inline-editing a platform URL upserts the source + rel
   await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledTimes(2));
 });
 
-test('Plateformes & iCal: the « Taxe de séjour » Select persists a 3-way mode change', async () => {
-  // specs/per-platform-tourist-tax-three-way.md — a non-direct platform shows a 3-option Select;
-  // choosing « Plateforme → vous » (platform_reversed) upserts the source with that value.
+test('Plateformes & iCal: the « Taxe de séjour » Select persists the GLOBAL 3-way mode', async () => {
+  // specs/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform;
+  // choosing « Plateforme → vous » (platform_reversed) calls the global setter (applies everywhere).
   render(<PropertyDetail />);
   await screen.findByText('Le Moulin');
   await screen.findByText('Airbnb');
@@ -182,10 +182,10 @@ test('Plateformes & iCal: the « Taxe de séjour » Select persists a 3-way mode
   fireEvent.mouseDown(select);
   fireEvent.click(await screen.findByRole('option', { name: 'Plateforme → vous' }));
 
-  await waitFor(() => expect(api.createPropertyIcalSource).toHaveBeenCalledTimes(1));
-  const [, payload] = api.createPropertyIcalSource.mock.calls[0];
-  expect(payload.platformKey).toBe('airbnb');
-  expect(payload.touristTaxCollection).toBe('platform_reversed');
+  await waitFor(() => expect(api.setPlatformTouristTax).toHaveBeenCalledTimes(1));
+  const [label, mode] = api.setPlatformTouristTax.mock.calls[0];
+  expect(label).toBe('Airbnb');
+  expect(mode).toBe('platform_reversed');
 });
 
 test('Plateformes & iCal: clicking a platform name chip opens the colour palette', async () => {

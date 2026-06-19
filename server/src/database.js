@@ -739,6 +739,40 @@ db.exec(`
   if (!platformCols.includes('color')) {
     db.exec('ALTER TABLE platforms ADD COLUMN color TEXT');
   }
+  // specs/per-platform-tourist-tax-three-way.md — the tourist-tax handling is now GLOBAL per platform
+  // (was per-property on `ical_sources`): changing it for a platform applies to every property.
+  //   collectsTouristTax           = 1 → the platform charges the guest (tax not billed by us);
+  //                                  0 → we charge it at arrival (complément).
+  //   touristTaxRemittedByPlatform = 1 → the platform remits it to the commune (we never touch it);
+  //                                  0 → WE remit it → the stay shows in the « Taxe de séjour » page.
+  // Three valid states: platform (1,1), platform_reversed (1,0), owner (0,0).
+  if (!platformCols.includes('collectsTouristTax')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN collectsTouristTax INTEGER NOT NULL DEFAULT 1');
+  }
+  if (!platformCols.includes('touristTaxRemittedByPlatform')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1');
+    // One-time backfill from the per-property ical_sources flags (the previous source of truth). For
+    // each platform, adopt the first non-default per-source mode so an operator who already flipped a
+    // source keeps that intent globally. Matched by slug-insensitive name = platformLabel. Idempotent
+    // (guarded on the column being freshly added).
+    try {
+      db.exec(`
+        UPDATE platforms SET
+          collectsTouristTax = COALESCE((
+            SELECT s.collectsTouristTax FROM ical_sources s
+            WHERE lower(s.platformLabel) = lower(platforms.name) ORDER BY s.collectsTouristTax ASC LIMIT 1
+          ), collectsTouristTax),
+          touristTaxRemittedByPlatform = COALESCE((
+            SELECT s.touristTaxRemittedByPlatform FROM ical_sources s
+            WHERE lower(s.platformLabel) = lower(platforms.name) ORDER BY s.touristTaxRemittedByPlatform ASC LIMIT 1
+          ), touristTaxRemittedByPlatform)
+      `);
+      // Enforce the invariant: collecting-at-arrival always means we remit.
+      db.exec('UPDATE platforms SET touristTaxRemittedByPlatform = 0 WHERE collectsTouristTax = 0');
+    } catch (e) {
+      console.error('[tourist-tax] platforms backfill from ical_sources failed (non-fatal):', e && e.message);
+    }
+  }
 }
 // specs/platforms-and-ical-rework.md §3 rule 10 — per (property, platform) "hidden from this
 // property's reservation views" flag. Independent of `isActive` (sync inclusion); a disabled

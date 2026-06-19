@@ -32,4 +32,17 @@ function setColor(req, res) {
   return res.json({ name: updated.name, color: updated.color });
 }
 
-module.exports = { listNames, listWithCommission, setCommission, setColor };
+// `:key` is the platform label/name. Sets the GLOBAL tourist-tax mode (applies to every property).
+// Body `{ touristTaxCollection: 'platform' | 'platform_reversed' | 'owner' }`.
+function setTouristTax(req, res) {
+  const key = decodeURIComponent(req.params.key || '');
+  const mode = req.body && req.body.touristTaxCollection;
+  if (!['platform', 'platform_reversed', 'owner'].includes(mode)) {
+    return res.status(400).json({ error: 'INVALID_TOURIST_TAX_MODE' });
+  }
+  const updated = platformsModel.setTouristTaxCollection(key, mode);
+  if (!updated) return res.status(400).json({ error: 'PLATFORM_REQUIRED' });
+  return res.json({ name: updated.name, touristTaxCollection: updated.touristTaxCollection });
+}
+
+module.exports = { listNames, listWithCommission, setCommission, setColor, setTouristTax };

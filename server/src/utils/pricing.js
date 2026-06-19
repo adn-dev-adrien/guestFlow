@@ -848,48 +848,59 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
   };
 }
 
-// Per-platform tourist-tax resolver. Direct → never offered (owner charges). Otherwise look up the
-// property's iCal source matching the platform key; respect its `collectsTouristTax` flag (default 1
-// when the source is missing, to keep the legacy "non-direct = offered" behaviour as a safe fallback).
-function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
-  if (!platformKey || platformKey === 'direct') return false;
-  let row = null;
-  // Match on platformLabel OR platformKey (both lowercased), mirroring the reservation hide-filter
-  // (reservationsModel.list). `reservations.platform` is written two different ways depending on the
-  // entry path: iCal imports store the hyphenated `source.platformKey`, while manual reservations store
-  // the concatenated `formatPlatformName(...)` which equals `source.platformLabel`. Matching only on
-  // platformKey silently missed multi-word / accented platforms (e.g. "Gîtes de France") on the manual
-  // path → the owner-collects toggle was ignored and the tourist tax wrongly zeroed.
+// GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
+// mode lives on the `platforms` table (one row per platform, shared across all properties), like the
+// calendar colour. Returns the `{ collectsTouristTax, touristTaxRemittedByPlatform }` row or null.
+//
+// A reservation's `platform` string is written two ways: manual reservations store the concatenated
+// label (= `platforms.name`), iCal imports store the hyphenated `source.platformKey`. So we resolve
+// in two steps: (1) direct match on `platforms.name`; (2) bridge through `ical_sources` (key OR label)
+// to recover the canonical `platformLabel`, then match `platforms.name`. The `propertyId` argument is
+// kept for call-site compatibility but ignored — the mode is global.
+function resolveGlobalPlatformTaxRow(db, platform) {
+  if (!platform || platform === 'direct') return null;
+  const needle = String(platform).toLowerCase();
   try {
-    const needle = String(platformKey).toLowerCase();
-    row = db.prepare(
-      "SELECT collectsTouristTax FROM ical_sources WHERE propertyId = ? AND (lower(platformKey) = ? OR lower(platformLabel) = ?) LIMIT 1"
-    ).get(propertyId, needle, needle);
-  } catch (_) { /* table or column may be absent in minimal test DBs → fall back to default */ }
-  if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
-  return Number(row.collectsTouristTax) !== 0;
+    let row = db.prepare(
+      'SELECT collectsTouristTax AS c, touristTaxRemittedByPlatform AS r FROM platforms WHERE lower(name) = ? LIMIT 1'
+    ).get(needle);
+    if (row) return row;
+    // Bridge: an iCal-imported reservation stores the hyphenated key; map it to the canonical label
+    // via any ical_sources row, then read the global mode for that label.
+    row = db.prepare(`
+      SELECT pl.collectsTouristTax AS c, pl.touristTaxRemittedByPlatform AS r
+      FROM ical_sources s JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
+      WHERE lower(s.platformKey) = ? OR lower(s.platformLabel) = ? LIMIT 1
+    `).get(needle, needle);
+    return row || null;
+  } catch (_) {
+    // `platforms`/`ical_sources` table or the tax columns may be absent in minimal test DBs.
+    return null;
+  }
 }
 
-// Per-platform "do WE remit the tourist tax to the commune?" resolver (specs/
-// per-platform-tourist-tax-three-way.md §3). Orthogonal to `isPlatformCollectingTouristTax` (which
-// answers "is the tax charged to the guest by us?"). Drives the Suivi taxe de séjour + the 46710000
-// accounting pass-through.
-//   - direct        → always true (we collect + remit).
-//   - non-direct    → look up the property's iCal source matching this platformKey/platformLabel;
-//                     we remit iff its `touristTaxRemittedByPlatform = 0` (the platform reverses it
-//                     to us, or we collect at arrival). If the source/column is absent, default to
-//                     false (legacy "platform handles everything", hidden from Suivi).
+// "Does the platform charge the tourist tax to the guest?" (i.e. it's not billed by us on the quote).
+//   - direct        → false (owner charges it).
+//   - non-direct    → the platform's GLOBAL `collectsTouristTax`; missing platform row → default true
+//                     (legacy "non-direct = platform collects" safe fallback).
+function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
+  if (!platformKey || platformKey === 'direct') return false;
+  const row = resolveGlobalPlatformTaxRow(db, platformKey);
+  if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
+  return Number(row.c) !== 0;
+}
+
+// "Do WE remit the tourist tax to the commune?" — drives the « Taxe de séjour » page + the 46710000
+// accounting line. Orthogonal to who charges the guest.
+//   - direct        → true (we collect + remit).
+//   - non-direct    → we remit iff the platform's GLOBAL `touristTaxRemittedByPlatform = 0` (the
+//                     platform reverses it to us, OR we collect at arrival). Missing platform row →
+//                     false (legacy "platform handles everything", hidden from the page).
 function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
   if (!platformKey || platformKey === 'direct') return true;
-  let row = null;
-  try {
-    const needle = String(platformKey).toLowerCase();
-    row = db.prepare(
-      "SELECT touristTaxRemittedByPlatform FROM ical_sources WHERE propertyId = ? AND (lower(platformKey) = ? OR lower(platformLabel) = ?) LIMIT 1"
-    ).get(propertyId, needle, needle);
-  } catch (_) { /* table or column may be absent in minimal test DBs → fall back to default */ }
+  const row = resolveGlobalPlatformTaxRow(db, platformKey);
   if (!row) return false; // legacy default: ad-hoc non-direct platforms are assumed to remit themselves.
-  return Number(row.touristTaxRemittedByPlatform) === 0;
+  return Number(row.r) === 0;
 }
 
 // Single global VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
@@ -1455,13 +1466,25 @@ function calculateReservationQuote({
   //   - non-direct   → look up the property's iCal source matching this platformKey; if found,
   //                     follow its `collectsTouristTax` flag; if absent, default to "collects"
   //                     (backwards-compatible with the legacy hardcoded rule).
+  // Tourist-tax handling resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-
+  // three-way.md). Two orthogonal facts:
+  //   collectsFromGuest      = the platform charges the tax to the guest (so we don't bill it).
+  //   isTouristTaxRemittedByOwnerFlag = WE remit it to the commune (→ « Taxe de séjour » page + 46710000).
+  // The three cases:
+  //   platform          (collects=1, remitted-by-platform)  → OFFERED: not billed by us, absent from
+  //                                                            our books (the platform handles it end-to-end).
+  //   platform_reversed (collects=1, remitted-by-us)         → CHARGED in the BALANCE: the platform pays
+  //                                                            it to us with the settlement; it shows on the
+  //                                                            fiche, in the page, and on 46710000.
+  //   owner             (collects=0, remitted-by-us)         → CHARGED at arrival in the COMPLÉMENT.
+  //   direct                                                 → charged in the balance (unchanged).
   const normalizedPlatform = String(platform || 'direct').toLowerCase();
-  const isTouristTaxOfferedByPlatform = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
-  // Orthogonal flag (specs/per-platform-tourist-tax-three-way.md §3): do WE remit the tax to the
-  // commune? Drives Suivi + the 46710000 accounting line. An offered tax can still be remitted by us
-  // (case 1 "platform reverses it to us") — that's exactly what the binary collectsTouristTax couldn't
-  // express. The guest-facing schedule below is unchanged whether the platform reverses or remits.
+  const collectsFromGuest = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
   const isTouristTaxRemittedByOwnerFlag = isTouristTaxRemittedByOwner(db, propertyId, normalizedPlatform);
+  // OFFERED (struck-through, zeroed) ONLY when the platform both collects it AND remits it itself
+  // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered — it's a
+  // real charge we must surface and declare.
+  const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
   let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
   if (isTouristTaxOfferedByPlatform) {
     touristTaxTotal = 0;
@@ -1469,12 +1492,12 @@ function calculateReservationQuote({
 
   const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
 
-  // Owner-collected tax on a non-direct platform is collected at check-in, not pre-paid via the
-  // deposit/balance schedule (Adrien collects it in person). So the pre-arrival schedule is built
-  // on `finalPrice` (stay excl. tax), and the tax lands in the "Complément à percevoir" bucket.
-  // Direct bookings keep the historic behaviour (tax in the balance) — unchanged.
+  // Tax collected at check-in (→ "Complément à percevoir") ONLY when WE charge the guest directly,
+  // i.e. the platform does NOT collect from the guest (case 3, `owner`). Case 1 (platform collects then
+  // reverses to us) is paid by the platform with the settlement → it stays in the BALANCE, not the
+  // complement. Direct keeps the historic balance behaviour.
   const isTouristTaxCollectedOnArrival = (
-    !isTouristTaxOfferedByPlatform
+    !collectsFromGuest
     && normalizedPlatform !== 'direct'
     && touristTaxTotal > 0
   );
@@ -1592,6 +1615,10 @@ function calculateReservationQuote({
     touristTaxOfferedByPlatform: isTouristTaxOfferedByPlatform,
     touristTaxRemittedByOwner: isTouristTaxRemittedByOwnerFlag,
     touristTaxCollectedOnArrival: isTouristTaxCollectedOnArrival,
+    // Case 1: the platform collects the tax from the guest then reverses it to us at settlement → it's
+    // charged in the BALANCE (not offered, not collected at arrival) and WE declare/remit it. Drives
+    // the dedicated PricingSummary caption.
+    touristTaxReversedByPlatform: collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0,
     touristTaxInComplement: isTouristTaxForcedToComplement,
     forcedItemsTotal,
     preArrivalAmount,
@@ -1633,6 +1660,8 @@ module.exports = {
   normalizeProgressiveTiers,
   buildProgressivePreview,
   calculateReservationQuote,
+  isPlatformCollectingTouristTax,
+  isTouristTaxRemittedByOwner,
 };
 
 module.exports.__test = {
