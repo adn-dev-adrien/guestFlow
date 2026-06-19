@@ -6,6 +6,8 @@ const sasController = require('../controllers/sasController');
 // model (DB), and utils (occupancy / audit / bed distribution).
 router.post('/suggest-beds', controller.suggestBeds);
 router.get('/', controller.list);
+// MUST stay before '/:id' — otherwise Express matches `:id = 'search'`.
+router.get('/search', controller.search);
 router.get('/occupied-dates/:propertyId', controller.occupiedDates);
 router.get('/:id', controller.getById);
 router.get('/:id/history', controller.getHistory);

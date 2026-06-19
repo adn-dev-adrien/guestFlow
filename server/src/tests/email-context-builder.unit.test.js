@@ -244,6 +244,21 @@ test('hasCleaningOption is true via autoOptionType=cleaning OR an option NAMED �
   assert.equal(without.flags.hasCleaningOption, false);
 });
 
+// ── Reservation number recall (specs/reservation-number-and-search.md §4) ────────
+
+test('reservationNumber var + hasReservationNumber flag follow the reservation column', () => {
+  const withNumber = buildContext(baseInput({ reservation: { reservationNumber: '2026-07-042' } }));
+  assert.equal(withNumber.vars.reservationNumber, '2026-07-042');
+  assert.equal(withNumber.flags.hasReservationNumber, true);
+
+  const without = buildContext(baseInput({ reservation: { reservationNumber: '' } }));
+  assert.equal(without.vars.reservationNumber, '');
+  assert.equal(without.flags.hasReservationNumber, false);
+
+  const missing = buildContext(baseInput());
+  assert.equal(missing.flags.hasReservationNumber, false);
+});
+
 // ── J-2 nordic-bath reminder (specs/j1-arrival-reminder-email.md) ────────────────
 
 test('hasNordicBath matches the resource by NAME (« nordique », accent/case-insensitive)', () => {
