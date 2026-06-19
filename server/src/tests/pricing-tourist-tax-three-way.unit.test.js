@@ -33,18 +33,28 @@ function createDb(sources = []) {
     CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT, quantity INTEGER DEFAULT 0, price REAL DEFAULT 0, priceType TEXT DEFAULT 'per_stay', isComplex INTEGER DEFAULT 0, propertyIds TEXT DEFAULT '[]');
     CREATE TABLE property_resource_prices (propertyId INTEGER, resourceId INTEGER, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId));
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
-    CREATE TABLE ical_sources (
-      id INTEGER PRIMARY KEY, propertyId INTEGER NOT NULL,
-      platformKey TEXT NOT NULL, platformLabel TEXT,
+    -- The tourist-tax mode is GLOBAL on platforms; ical_sources only bridges the hyphenated iCal
+    -- platformKey to the canonical platformLabel for iCal-imported reservations.
+    CREATE TABLE platforms (
+      id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL,
       collectsTouristTax INTEGER NOT NULL DEFAULT 1,
       touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE ical_sources (
+      id INTEGER PRIMARY KEY, propertyId INTEGER NOT NULL,
+      platformKey TEXT NOT NULL, platformLabel TEXT
     );
   `);
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Tente')").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 100, 1)').run();
-  const ins = db.prepare('INSERT INTO ical_sources (propertyId, platformKey, platformLabel, collectsTouristTax, touristTaxRemittedByPlatform) VALUES (1, ?, ?, ?, ?)');
-  for (const s of sources) ins.run(s.platformKey, s.platformLabel || s.platformKey, s.collects, s.remitted);
+  const insPlatform = db.prepare('INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES (?, ?, ?)');
+  const insSource = db.prepare('INSERT INTO ical_sources (propertyId, platformKey, platformLabel) VALUES (1, ?, ?)');
+  for (const s of sources) {
+    const label = s.platformLabel || s.platformKey;
+    insPlatform.run(label, s.collects, s.remitted);
+    insSource.run(s.platformKey, label); // bridge so the hyphenated key also resolves
+  }
   return db;
 }
 
@@ -125,24 +135,29 @@ test('quote exposes touristTaxRemittedByOwner for the four cases', () => {
   db.close();
 });
 
-test('platform_reversed leaves the guest-facing schedule IDENTICAL to platform (offered, no complement)', () => {
+test('platform (case 2) is OFFERED; platform_reversed (case 1) is CHARGED in the balance', () => {
   const db = createDb([
-    { platformKey: 'airbnb', collects: 1, remitted: 1 },   // platform
-    { platformKey: 'expedia', collects: 1, remitted: 0 },  // platform_reversed
+    { platformKey: 'airbnb', collects: 1, remitted: 1 },   // platform → remits to commune itself
+    { platformKey: 'expedia', collects: 1, remitted: 0 },  // platform_reversed → reverses to us
   ]);
   const platform = calculateReservationQuote({ ...BASE_INPUTS, db, platform: 'airbnb' });
   const reversed = calculateReservationQuote({ ...BASE_INPUTS, db, platform: 'expedia' });
 
-  // Both offered → tax not charged to the guest by us, not in the complement.
-  for (const q of [platform, reversed]) {
-    assert.equal(q.touristTaxOfferedByPlatform, true);
-    assert.equal(q.touristTaxTotal, 0);
-    assert.equal(q.touristTaxCollectedOnArrival, false);
-    assert.equal(q.touristTaxOriginalTotal, 4.80); // 2 adults × 2 nights × 1.20, kept for display
-  }
-  // The schedule numbers match — the ONLY difference is who remits.
-  assert.equal(reversed.totalStayPrice, platform.totalStayPrice);
-  assert.equal(reversed.balanceAmount, platform.balanceAmount);
-  assert.equal(reversed.complementAmount, platform.complementAmount);
+  // Case 2: OFFERED — the platform remits it to the commune; absent from our books.
+  assert.equal(platform.touristTaxOfferedByPlatform, true);
+  assert.equal(platform.touristTaxTotal, 0);
+  assert.equal(platform.touristTaxReversedByPlatform, false);
+  assert.equal(platform.totalStayPrice, platform.finalPrice); // no tax in the total
+
+  // Case 1: CHARGED — the real tax is billed and sits in the BALANCE (the platform pays it to us with
+  // the settlement). Not offered, not collected at arrival; it shows on the fiche + the « Taxe de séjour » page.
+  assert.equal(reversed.touristTaxOfferedByPlatform, false);
+  assert.equal(reversed.touristTaxTotal, 4.80); // 2 adults × 2 nights × 1.20
+  assert.equal(reversed.touristTaxCollectedOnArrival, false);
+  assert.equal(reversed.touristTaxReversedByPlatform, true);
+  assert.equal(reversed.touristTaxRemittedByOwner, true);
+  assert.equal(reversed.totalStayPrice, reversed.finalPrice + 4.80);
+  assert.equal(reversed.balanceAmount, platform.balanceAmount + 4.80); // tax rides the balance (deposit=0 on platforms)
+  assert.equal(reversed.complementAmount, 0);
   db.close();
 });

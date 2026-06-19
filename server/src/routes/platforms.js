@@ -15,5 +15,8 @@ router.put('/:id/commission', controller.setCommission);
 // specs/platforms-and-ical-rework.md §3 rules 5-6 — set a platform's GLOBAL calendar colour.
 // `:key` is the platform label/name (url-encoded); recolours that platform's reservations everywhere.
 router.put('/:key/color', controller.setColor);
+// specs/per-platform-tourist-tax-three-way.md — set a platform's GLOBAL tourist-tax mode (applies to
+// every property at once). `:key` is the platform label/name (url-encoded).
+router.put('/:key/tourist-tax', controller.setTouristTax);
 
 module.exports = router;
