@@ -230,6 +230,15 @@ if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0) {
   }
 }
 
+// Per-client email language (specs/email-client-language-and-fiche-polish.md). Additive; existing rows
+// backfill to 'fr' via the DEFAULT clause. Drives the language of every email sent to the client.
+{
+  const clientCols = db.prepare('PRAGMA table_info(clients)').all().map((c) => c.name);
+  if (!clientCols.includes('emailLanguage')) {
+    db.exec("ALTER TABLE clients ADD COLUMN emailLanguage TEXT NOT NULL DEFAULT 'fr'");
+  }
+}
+
 // Migrate app_settings company columns
 const appSettingsCols = db.prepare("PRAGMA table_info(app_settings)").all().map(c => c.name);
 const tryAddAppSettingsCol = (col, sql) => {

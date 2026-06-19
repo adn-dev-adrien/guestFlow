@@ -31,7 +31,8 @@ const emptyClient = {
   address: '',
   phone: '',
   email: '',
-  notes: ''
+  notes: '',
+  emailLanguage: 'fr',
 };
 
 function getTodayDateKey() {

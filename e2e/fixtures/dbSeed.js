@@ -128,13 +128,23 @@ function seedEmailLog({ reservationId, templateId = null, status = 'sent', chann
 }
 
 /**
- * Set a reservation's email language (specs/email-language-fr-en.md) directly — the API create helper
- * doesn't take it, so the bilingual-email spec stamps it here.
+ * Set a reservation's email language directly (transitional fallback path).
  */
 function setEmailLanguage(reservationId, lang) {
   return withDb((db) => {
     db.prepare('UPDATE reservations SET emailLanguage = ? WHERE id = ?')
       .run(String(lang) === 'en' ? 'en' : 'fr', reservationId);
+  });
+}
+
+/**
+ * Set a CLIENT's email language (specs/email-client-language-and-fiche-polish.md) — drives every email
+ * for that client. The API create helper doesn't take it, so the spec stamps it here.
+ */
+function setClientEmailLanguage(clientId, lang) {
+  return withDb((db) => {
+    db.prepare('UPDATE clients SET emailLanguage = ? WHERE id = ?')
+      .run(String(lang) === 'en' ? 'en' : 'fr', clientId);
   });
 }
 
@@ -148,4 +158,5 @@ module.exports = {
   setReservationDates,
   seedEmailLog,
   setEmailLanguage,
+  setClientEmailLanguage,
 };

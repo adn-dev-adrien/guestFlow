@@ -1,0 +1,1 @@
+- Colonne additive `clients.emailLanguage` (`fr` par défaut). La colonne `reservations.emailLanguage` est conservée comme repli transitoire.

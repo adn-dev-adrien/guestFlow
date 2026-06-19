@@ -244,6 +244,28 @@ test('hasCleaningOption is true via autoOptionType=cleaning OR an option NAMED �
   assert.equal(without.flags.hasCleaningOption, false);
 });
 
+// ── Bilingual catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4) ──
+
+test('lang="en": option + resource lists use the English name, falling back to French when empty', () => {
+  const input = baseInput({
+    options: [
+      { title: 'Petit-déjeuner', titleEn: 'Breakfast' },
+      { title: 'Ménage', titleEn: '' }, // no English → French fallback
+    ],
+    resources: [
+      { name: 'Bain nordique', nameEn: 'Nordic bath' },
+      { name: 'Lit bébé', nameEn: '' }, // no English → French fallback
+    ],
+  });
+  const en = buildContext({ ...input, lang: 'en' });
+  assert.equal(en.vars.optionsList, 'Breakfast, Ménage');       // EN name + FR fallback, sorted
+  assert.equal(en.vars.resourcesList, 'Lit bébé, Nordic bath'); // FR fallback + EN name, sorted
+
+  const fr = buildContext({ ...input, lang: 'fr' });
+  assert.equal(fr.vars.optionsList, 'Ménage, Petit-déjeuner');  // French names unchanged
+  assert.equal(fr.vars.resourcesList, 'Bain nordique, Lit bébé');
+});
+
 // ── Bilingual context (specs/email-language-fr-en.md §3 rule 4) ──────────────────
 
 test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices render in English', () => {

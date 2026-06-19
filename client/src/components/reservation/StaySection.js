@@ -29,48 +29,36 @@ export default function StaySection() {
       <CardContent sx={formSectionContentSx}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Séjour</Typography>
         <Stack spacing={2.25}>
-          <FormControl fullWidth>
-            <InputLabel>Logement</InputLabel>
-            <Select
-              value={selectedProp}
-              label="Logement"
-              onChange={(e) => handleReservationPropertyChange(e.target.value)}
-            >
-              {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
-            </Select>
-          </FormControl>
-
-          {/* Reservation number (specs/reservation-number-and-search.md): generated server-side on first
-              save, editable/overridable. Hidden for devis (they carry devisNumber instead). */}
-          {!isDevisMode && (
-            <TextField
-              label="Numéro de réservation"
-              value={form.reservationNumber || ''}
-              onChange={(e) => updateForm({ reservationNumber: e.target.value })}
-              disabled={isReservationLocked}
-              fullWidth
-              slotProps={{ inputLabel: { shrink: true } }}
-              helperText={form.reservationNumber
-                ? 'Généré automatiquement — modifiable'
-                : 'Attribué automatiquement à l\'enregistrement'}
-            />
-          )}
-
-          {/* Email language (specs/email-language-fr-en.md): the guest's reminder emails are generated in
-              this language. Hidden for devis. */}
-          {!isDevisMode && (
-            <FormControl fullWidth disabled={isReservationLocked}>
-              <InputLabel>Langue des emails</InputLabel>
+          {/* Logement + Numéro de réservation share one row on md+ (specs/email-client-language-and-fiche-polish.md
+              §3 rule 8); they stack on xs. Devis have no reservation number → Logement stays full-width. */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: isDevisMode ? '1fr' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel>Logement</InputLabel>
               <Select
-                value={form.emailLanguage === 'en' ? 'en' : 'fr'}
-                label="Langue des emails"
-                onChange={(e) => updateForm({ emailLanguage: e.target.value })}
+                value={selectedProp}
+                label="Logement"
+                onChange={(e) => handleReservationPropertyChange(e.target.value)}
               >
-                <MenuItem value="fr">Français</MenuItem>
-                <MenuItem value="en">English</MenuItem>
+                {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
               </Select>
             </FormControl>
-          )}
+
+            {/* Reservation number (specs/reservation-number-and-search.md): generated server-side on first
+                save, editable/overridable. Hidden for devis (they carry devisNumber instead). */}
+            {!isDevisMode && (
+              <TextField
+                label="Numéro de réservation"
+                value={form.reservationNumber || ''}
+                onChange={(e) => updateForm({ reservationNumber: e.target.value })}
+                disabled={isReservationLocked}
+                fullWidth
+                slotProps={{ inputLabel: { shrink: true } }}
+                helperText={form.reservationNumber
+                  ? 'Généré automatiquement — modifiable'
+                  : 'Attribué automatiquement à l\'enregistrement'}
+              />
+            )}
+          </Box>
 
           <MiniPlanningStrip
             miniCalendarStart={miniCalendarStart}

@@ -34,17 +34,16 @@ function loadReservationGraph(database, reservationId) {
   const property = reservation.propertyId
     ? database.prepare('SELECT * FROM properties WHERE id = ?').get(reservation.propertyId)
     : null;
-  // Joined options — surface `title` + `autoOptionType` for the renderer's bed-linen / cleaning flags.
+  // Joined options — surface `title` (+ `titleEn` for English emails) + `autoOptionType`.
   const options = database.prepare(`
-    SELECT ro.*, o.title, o.autoOptionType
+    SELECT ro.*, o.title, o.titleEn, o.autoOptionType
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
   `).all(id);
-  // Joined resources — surface `name` for the J-1 reminder's resources list
-  // (specs/j1-arrival-reminder-email.md §3 rule 4).
+  // Joined resources — surface `name` (+ `nameEn` for English emails) for the resources list.
   const resources = database.prepare(`
-    SELECT rr.*, res.name
+    SELECT rr.*, res.name, res.nameEn
     FROM reservation_resources rr
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
@@ -91,9 +90,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
     const graph = loadReservationGraph(database, reservationId);
     if (!graph) return { error: 'RESERVATION_NOT_FOUND', status: 404 };
 
-    // Language resolution (specs/email-language-fr-en.md §3 rule 3): explicit override wins, else the
-    // reservation's emailLanguage, else French.
-    const useLang = normaliseLang(lang || graph.reservation.emailLanguage);
+    // Language resolution (specs/email-client-language-and-fiche-polish.md §3 rule 2): explicit override
+    // wins, else the CLIENT's language, else the reservation's (transitional fallback), else French.
+    const useLang = normaliseLang(lang || graph.client?.emailLanguage || graph.reservation.emailLanguage);
 
     const context = buildContext({
       reservation: graph.reservation,
@@ -276,9 +275,9 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
-      lang:        normaliseLang(graph.reservation.emailLanguage),
+      lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
     });
-    const side = pickTemplateSide(template, normaliseLang(graph.reservation.emailLanguage));
+    const side = pickTemplateSide(template, normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage));
     const { subject, body } = renderTemplate(
       { subject: side.subject, body: side.body },
       context,

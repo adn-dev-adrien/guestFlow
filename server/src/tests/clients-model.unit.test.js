@@ -18,6 +18,7 @@ const DDL = `
     phone TEXT DEFAULT '',
     email TEXT DEFAULT '',
     notes TEXT DEFAULT '',
+    emailLanguage TEXT NOT NULL DEFAULT 'fr',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   );
@@ -86,6 +87,19 @@ test('update changes the stored phone and names', () => {
   assert.equal(updated.lastName, 'Martin');
   assert.equal(updated.phone, '0799999999');
   assert.equal(model.findById(c.id).phone, '0799999999');
+});
+
+// ---------- email language (specs/email-client-language-and-fiche-polish.md) ----------
+
+test('emailLanguage: persisted + normalised (en/fr, junk → fr), default fr', () => {
+  const { model } = freshModel();
+  assert.equal(model.insert({ lastName: 'a', firstName: 'b' }).emailLanguage, 'fr'); // default
+  assert.equal(model.insert({ lastName: 'a', firstName: 'b', emailLanguage: 'en' }).emailLanguage, 'en');
+  assert.equal(model.insert({ lastName: 'a', firstName: 'b', emailLanguage: 'EN' }).emailLanguage, 'en');
+  assert.equal(model.insert({ lastName: 'a', firstName: 'b', emailLanguage: 'de' }).emailLanguage, 'fr'); // junk → fr
+
+  const c = model.insert({ lastName: 'a', firstName: 'b', emailLanguage: 'en' });
+  assert.equal(model.update(c.id, { lastName: 'a', firstName: 'b', emailLanguage: 'fr' }).emailLanguage, 'fr');
 });
 
 // ---------- search ----------

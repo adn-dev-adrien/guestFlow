@@ -103,6 +103,16 @@ function buildContext({ reservation, client, property, options = [], resources =
   // specs/email-language-fr-en.md §3 rule 4 — every composed string below is emitted in `lang`.
   const L = normaliseLang(lang);
   const isEn = L === 'en';
+  // Localised catalog names (specs/email-client-language-and-fiche-polish.md §3 rule 4): in English use
+  // the option/resource English name, falling back to the French one when it's empty (never blanks an item).
+  const optionName = (o) => {
+    const fr = safeStr(o.title).trim();
+    return isEn ? (safeStr(o.titleEn).trim() || fr) : fr;
+  };
+  const resourceName = (rr) => {
+    const fr = safeStr(rr.name).trim();
+    return isEn ? (safeStr(rr.nameEn).trim() || fr) : fr;
+  };
 
   const fullName = `${safeStr(c.firstName).trim()} ${safeStr(c.lastName).trim()}`.trim();
   const checkInTime  = formatTimeShort(r.checkInTime  || p.defaultCheckIn  || '');
@@ -113,7 +123,7 @@ function buildContext({ reservation, client, property, options = [], resources =
 
   // Options list — sorted alphabetically for stable rendering across boots.
   const optionsTitles = (options || [])
-    .map((o) => safeStr(o.title).trim())
+    .map(optionName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const optionsList = optionsTitles.join(', ');
@@ -133,7 +143,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   const bedLinenProvided = linenByDefault;
   const reservedOptionsTitles = (options || [])
     .filter((o) => !(bedLinenProvided && safeStr(o.autoOptionType) === 'bed_linen'))
-    .map((o) => safeStr(o.title).trim())
+    .map(optionName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const reservedOptionsList = reservedOptionsTitles.join(', ');
@@ -145,7 +155,7 @@ function buildContext({ reservation, client, property, options = [], resources =
   // Resources list (specs/manual-email-from-template.md is unrelated; this is J-1 §3 rule 4) —
   // booked resources' names, sorted alphabetically for stable rendering.
   const resourcesTitles = (resources || [])
-    .map((rr) => safeStr(rr.name).trim())
+    .map(resourceName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const resourcesList = resourcesTitles.join(', ');
