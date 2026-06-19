@@ -5,7 +5,7 @@
 | **Status** | Implemented |
 | **Branch** | `feature/arrival-reminder-j2` _(user-managed)_ |
 | **Created** | 2026-06-12 |
-| **Updated** | 2026-06-18 — moved J-1 → J-2; stay date instead of « demain »; GPS line; conditional nordic-bath reminder (gear + scheduled slot); cleaning matched by option NAME (bug fix); force-overwrite migration. |
+| **Updated** | 2026-06-18 — moved J-1 → J-2; stay date instead of « demain »; GPS line; conditional nordic-bath reminder (gear + scheduled slot); cleaning matched by option NAME (bug fix); force-overwrite migration. Recap now recalls the **reservation number** (`{{#if hasReservationNumber}}{{reservationNumber}}`) — see `specs/reservation-number-and-search.md`. |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
@@ -192,7 +192,8 @@ C'est avec grand plaisir que nous vous accueillons le {{startDate}} {{propertyWi
 Voici les informations utiles avant votre arrivée.
 
 Votre séjour :
-- Logement : {{propertyName}}
+{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}
+{{/if}}- Logement : {{propertyName}}
 - Arrivée  : le {{startDate}} à partir de {{checkInTime}}
 - Départ   : le {{endDate}} avant {{checkOutTime}}
 {{#if hasReservedOptions}}- Option(s) réservée(s) : {{reservedOptionsList}}

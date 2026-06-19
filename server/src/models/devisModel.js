@@ -16,6 +16,7 @@ const { calculateReservationQuote } = require('../utils/pricing');
 const { sentenceCase } = require('../utils/textFormatters');
 const { roundMoney, addDaysToIsoDate } = require('../utils/devisHelpers');
 const { enrichHistoryChanges } = require('../utils/reservationAudit');
+const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 
 // Helpers shared between create + convertFromReservation
@@ -569,6 +570,8 @@ function createModel(database) {
       );
       const reservationId = info.lastInsertRowid;
       copyLineGraph(numId, reservationId);
+      // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
+      assignReservationNumberIfMissing(database, reservationId);
 
       database.prepare("UPDATE reservations SET devisStatus = 'converted', convertedReservationId = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(reservationId, numId);
 

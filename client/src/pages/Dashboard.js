@@ -11,6 +11,7 @@ import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
+import ReservationSearchBox from '../components/ReservationSearchBox';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import LinenShortageAlert from '../components/LinenShortageAlert';
 import IcalDateDriftAlert from '../components/IcalDateDriftAlert';
@@ -107,6 +108,11 @@ export default function Dashboard() {
   return (
     <Box>
       <PageHeader title="Tableau de bord" />
+
+      <Box sx={{ mb: 2, maxWidth: { xs: '100%', md: 480 } }}>
+        <ReservationSearchBox onSelect={(id) => navigate(withFrom(`/reservations/${id}`, '/'))} />
+      </Box>
+
       {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
           contained: renders nothing when no shortage is projected. */}
       <LinenShortageAlert />
