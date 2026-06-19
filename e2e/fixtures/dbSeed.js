@@ -102,6 +102,32 @@ function lockIcalReservation(reservationId) {
 }
 
 /**
+ * Force a reservation's stay dates directly (bypasses the API "no past dates" guard). Used to set up
+ * a past stay for the email-history rolling-window spec without flipping the global admin escape hatch.
+ */
+function setReservationDates(reservationId, startDate, endDate) {
+  return withDb((db) => {
+    db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?')
+      .run(startDate, endDate, reservationId);
+  });
+}
+
+/**
+ * Insert a row in `email_log` (specs/email-history-rolling-window.md). Used to exercise the
+ * history list + rolling window without an SMTP send.
+ */
+function seedEmailLog({ reservationId, templateId = null, status = 'sent', channel = 'smtp', renderedSubject = 'Sujet test', renderedBody = 'Corps test', recipientEmail = 'guest@test.fr' }) {
+  return withDb((db) => {
+    const res = db.prepare(`
+      INSERT INTO email_log
+        (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail)
+      VALUES (?, ?, datetime('now'), ?, ?, '', ?, ?, ?)
+    `).run(templateId, reservationId, status, channel, renderedSubject, renderedBody, recipientEmail);
+    return Number(res.lastInsertRowid);
+  });
+}
+
+/**
  * Set a reservation's email language (specs/email-language-fr-en.md) directly — the API create helper
  * doesn't take it, so the bilingual-email spec stamps it here.
  */
@@ -119,5 +145,7 @@ module.exports = {
   seedClosure,
   setAllowEditPastReservations,
   lockIcalReservation,
+  setReservationDates,
+  seedEmailLog,
   setEmailLanguage,
 };

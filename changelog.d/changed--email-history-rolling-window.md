@@ -1,0 +1,1 @@
+- L'historique des emails ne liste désormais que les envois des **séjours en cours et à venir** (jusqu'à 3 jours après l'arrivée) et devient accessible depuis le menu (**Emails → Historique**). Les envois plus anciens sont automatiquement retirés.

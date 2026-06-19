@@ -1,0 +1,1 @@
+- `email_log` devient une **fenêtre roulante** : une tâche quotidienne supprime physiquement les lignes dont la réservation a dépassé la date d'arrivée + 3 jours (et les lignes orphelines). Au premier démarrage après mise à jour, les anciens logs hors fenêtre sont purgés. Aucune donnée de réservation/client n'est touchée.

@@ -13,8 +13,15 @@
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
+// specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
+// today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
+const STAY_RETENTION_DAYS = 3;
+
 function buildModel(database) {
   const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail';
+
+  // Resolve "today" to a UTC ISO date (matches SQLite's date('now')); injectable for tests.
+  const resolveToday = (today) => (today ? String(today) : new Date().toISOString().slice(0, 10));
 
   const insertStmt = database.prepare(`
     INSERT INTO email_log
@@ -85,15 +92,25 @@ function buildModel(database) {
     `).all(String(today), Number(lookbackDays), String(today));
   }
 
-  function history({ limit = 50, offset = 0, reservationId, templateId, status } = {}) {
-    const where = [];
-    const params = [];
+  // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation
+  // exists AND is still current (today ≤ startDate + retention). The INNER JOIN to reservations also drops
+  // orphan rows (email_log has no FK cascade). The retention + today are bound, never interpolated.
+  function history({ limit = 50, offset = 0, reservationId, templateId, status, today } = {}) {
+    const day = resolveToday(today);
+    // Window predicate first → its two params lead the positional list.
+    const where = ["date(r.startDate, '+' || ? || ' days') >= date(?)"];
+    const params = [STAY_RETENTION_DAYS, day];
     if (reservationId != null) { where.push('l.reservationId = ?'); params.push(Number(reservationId)); }
     if (templateId    != null) { where.push('l.templateId    = ?'); params.push(Number(templateId)); }
     if (status        != null) { where.push('l.status        = ?'); params.push(String(status)); }
-    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereClause = `WHERE ${where.join(' AND ')}`;
 
-    const total = database.prepare(`SELECT COUNT(*) AS n FROM email_log l ${whereClause}`).get(...params).n;
+    const total = database.prepare(`
+      SELECT COUNT(*) AS n
+      FROM email_log l
+      JOIN reservations r ON r.id = l.reservationId
+      ${whereClause}
+    `).get(...params).n;
 
     const rows = database.prepare(`
       SELECT
@@ -105,8 +122,8 @@ function buildModel(database) {
         r.startDate AS reservationStartDate,
         r.endDate   AS reservationEndDate
       FROM email_log l
+      JOIN reservations         r ON r.id = l.reservationId
       LEFT JOIN email_templates t ON t.id = l.templateId
-      LEFT JOIN reservations    r ON r.id = l.reservationId
       LEFT JOIN clients         c ON c.id = r.clientId
       LEFT JOIN properties      p ON p.id = r.propertyId
       ${whereClause}
@@ -115,6 +132,22 @@ function buildModel(database) {
     `).all(...params, Number(limit), Number(offset));
 
     return { rows, total };
+  }
+
+  // Purge every email_log row that is no longer current (specs/email-history-rolling-window.md §3 rule 3):
+  // no reservation backs it within the retention window — covers both past-window rows and orphans (the
+  // reservation was deleted). Idempotent; returns the number of rows removed. `today` injectable for tests.
+  function purgeRealizedStays(today) {
+    const day = resolveToday(today);
+    const info = database.prepare(`
+      DELETE FROM email_log
+      WHERE NOT EXISTS (
+        SELECT 1 FROM reservations r
+        WHERE r.id = email_log.reservationId
+          AND date(r.startDate, '+' || ? || ' days') >= date(?)
+      )
+    `).run(STAY_RETENTION_DAYS, day);
+    return info.changes;
   }
 
   function findById(id) {
@@ -136,10 +169,13 @@ function buildModel(database) {
     existsFor,
     listPending,
     history,
+    purgeRealizedStays,
     findById,
     lastSentAt,
   };
 }
+
+buildModel.STAY_RETENTION_DAYS = STAY_RETENTION_DAYS;
 
 const defaultModel = (() => {
   try {
