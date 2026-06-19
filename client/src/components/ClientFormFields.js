@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, TextField, Autocomplete } from '@mui/material';
+import { Box, TextField, Autocomplete, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import FormRow from './FormRow';
 
 export default function ClientFormFields({ form, setForm, cityOptions, emailError = false, phoneError = false, autoFocusEmail = false }) {
@@ -57,6 +57,19 @@ export default function ClientFormFields({ form, setForm, cityOptions, emailErro
         error={phoneError}
         helperText={phoneError ? 'Format téléphone invalide' : ''}
       />
+      {/* Langue des emails (specs/email-client-language-and-fiche-polish.md): toutes les communications
+          de ce client sont rédigées dans cette langue. */}
+      <FormControl fullWidth>
+        <InputLabel>Langue des emails</InputLabel>
+        <Select
+          value={form.emailLanguage === 'en' ? 'en' : 'fr'}
+          label="Langue des emails"
+          onChange={(e) => setForm({ ...form, emailLanguage: e.target.value })}
+        >
+          <MenuItem value="fr">Français</MenuItem>
+          <MenuItem value="en">English</MenuItem>
+        </Select>
+      </FormControl>
       <TextField
         label="Adresse complète"
         value={[form.streetNumber, form.street, form.postalCode, form.city].filter(Boolean).join(' ')}

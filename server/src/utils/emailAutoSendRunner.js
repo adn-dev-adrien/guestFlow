@@ -49,13 +49,13 @@ async function performAutoEmailPass(deps) {
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');
   const findProperty = database.prepare('SELECT * FROM properties WHERE id = ?');
   const findOptions  = database.prepare(`
-    SELECT ro.*, o.title, o.autoOptionType
+    SELECT ro.*, o.title, o.titleEn, o.autoOptionType
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
   `);
   const findResources = database.prepare(`
-    SELECT rr.*, res.name
+    SELECT rr.*, res.name, res.nameEn
     FROM reservation_resources rr
     JOIN resources res ON res.id = rr.resourceId
     WHERE rr.reservationId = ?
@@ -104,8 +104,9 @@ async function performAutoEmailPass(deps) {
         ? Boolean(findBedLinenDefault.get(reservation.propertyId))
         : false;
 
-      // specs/email-language-fr-en.md: render in the reservation's email language (EN body if filled, else FR).
-      const lang = normaliseLang(reservation.emailLanguage);
+      // specs/email-client-language-and-fiche-polish.md §3 rule 2: render in the CLIENT's language (then the
+      // reservation as a transitional fallback, then FR). EN body if filled, else FR.
+      const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
       const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
       const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(
