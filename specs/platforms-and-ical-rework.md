@@ -259,5 +259,14 @@ Resolved during implementation review (2026-06-19, adversarial pass):
   (previously silently ignored → tax wrongly zeroed). +1 server test.
 - **Colour map server↔client sync.** Server `KNOWN_PLATFORM_COLORS` gained the plural `gitesdefrance`
   alias to mirror the client (the canonical stored form is the plural `GitesDeFrance`).
+- **Gîtes de France canonicalised to the plural + legacy duplicates merged.** The built-in default was the
+  singular "Gîte de France" (slug `gitedefrance`); it now ships as the plural **"GitesDeFrance"** (slug
+  `gitesdefrance`). The singular slug is kept **colour-only** (`COLOR_ONLY_SLUGS`) so legacy data still
+  renders gold but it's no longer offered as a separate dropdown entry. A boot-time, idempotent,
+  slug-based data migration (`utils/platformMerge.mergePlatformDuplicates`, called from `database.js`)
+  folds any existing singular/plural/spaced variant into the one canonical `GitesDeFrance` across
+  `reservations.platform`, `ical_sources` (collapsing per-property duplicates — a UNIQUE(propertyId,
+  platformKey) index forbids two; the URL'd feed wins, its bookings re-pointed) and the `platforms`
+  registry (colour carried over). +5 server tests, +1 client test updated.
 - **Custom-colour input debounce.** `PlatformColorPicker` buffers the native colour input in a local draft
   and commits once (on blur / popover close) instead of firing a `PUT` per drag event.

@@ -5,7 +5,7 @@
 // match the stored form so a saved-then-reloaded form repopulates the
 // `<Select>` correctly.
 export const PLATFORMS = [
-  'direct', 'Airbnb', 'Greengo', 'Abritel', 'Abracadaroom', 'Booking', 'Gitedefrance', 'Pitchup',
+  'direct', 'Airbnb', 'Greengo', 'Abritel', 'Abracadaroom', 'Booking', 'GitesDeFrance', 'Pitchup',
 ];
 
 // Color map keyed by the slug form (lowercase, alphanumeric only). The lookup

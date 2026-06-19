@@ -32,6 +32,22 @@ function freshDb() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+// 0. Built-in platform names — Gîtes de France is the plural "GitesDeFrance" (singular folded out)
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('listNames offers the plural "GitesDeFrance" built-in, not the legacy singular "Gitedefrance"', () => {
+  const db = freshDb();
+  const names = platformsModel.create(db).listNames();
+  assert.ok(names.includes('GitesDeFrance'), 'the plural built-in is offered');
+  assert.ok(!names.includes('Gitedefrance'), 'the legacy singular is no longer a separate entry');
+  assert.ok(!names.includes('Gitesdefrance'), 'no one-word fallback spelling leaks in');
+  // The colour still resolves to the brand gold for BOTH legacy and plural slugs (back-compat).
+  const platforms = platformsModel.create(db);
+  assert.equal(platforms.getColor('Gitedefrance'), '#e6c832');
+  assert.equal(platforms.getColor('GitesDeFrance'), '#e6c832');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
 // 1. platformsModel — global colour + merged per-property list
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
