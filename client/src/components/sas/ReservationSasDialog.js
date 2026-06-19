@@ -323,7 +323,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // makes up the complement to settle, not just the lump sum. Sum == `existing` in the recap.
   const complementDetailLines = useMemo(() => {
     const extras = [...((r?.options) || []), ...((r?.resources) || [])];
-    return extras
+    const lines = extras
       .filter((x) => Number(x.inComplement) === 1 && Number(x.offered || 0) !== 1
         && Number(x.totalPrice || 0) > 0 && Number(x.sasArrivalOrigin || 0) !== 1)
       .map((x) => ({
@@ -332,6 +332,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         unitPrice: Number(x.unitPrice || 0),
         amount: Math.round(Number(x.totalPrice || 0) * 100) / 100,
       }));
+    // specs/per-platform-tourist-tax-three-way.md §3 rule 7 — when the tourist tax is collected at
+    // arrival it's part of `complementAmount` but isn't an option/resource line; itemise it explicitly
+    // (server-computed amount) so the detail reconciles with the « existing » total.
+    const taxAmount = Math.round(Number(r?.touristTaxInComplementAmount || 0) * 100) / 100;
+    if (taxAmount > 0) lines.push({ label: 'Taxe de séjour', qty: 1, unitPrice: taxAmount, amount: taxAmount });
+    return lines;
   }, [r]);
 
   // « label : qty × unitPrice € = total € » when there is a meaningful quantity, else « label : total € ».

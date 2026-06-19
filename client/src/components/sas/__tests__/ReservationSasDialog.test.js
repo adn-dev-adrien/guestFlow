@@ -197,6 +197,30 @@ test('arrival SAS recap: an in-complément extra is detailed with quantity + pri
   })();
 });
 
+test('arrival SAS recap: the tourist tax collected at arrival is itemised as a « Taxe de séjour » line', () => {
+  // specs/per-platform-tourist-tax-three-way.md §3 rule 7 — the arrival-collected tax is part of the
+  // complement; it gets its own line so the detail reconciles with the total (here: Repas 80 + tax 4,80).
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      platform: 'Booking', cautionAmount: 0, cautionReceived: 1, complementAmount: 84.80, complementPaid: 0,
+      touristTaxInComplementAmount: 4.80,
+      options: [{ optionId: 5, title: 'Repas du soir', quantity: 16, billedUnits: 16, unitPrice: 5, totalPrice: 80, inComplement: 1, offered: 0 }],
+    },
+    cleaning: { included: true, price: null },
+  }));
+  renderDialog({ mode: 'arrival' });
+  return (async () => {
+    await screen.findByText('Commencer');
+    clickBtn('Commencer');
+    fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));      // options step
+    await screen.findByText(/Le ménage est inclus/);
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));             // cleaning step
+    await screen.findByText('Récapitulatif — complément à percevoir');
+    expect(document.body.textContent).toMatch(/Taxe de séjour\s*:\s*4,80\s?€/);   // the itemised tax line
+    expect(screen.getByText(/Total : 84,80\s?€/)).toBeInTheDocument();            // detail reconciles with the total
+  })();
+});
+
 // ---- breakfast page (specs/sas-breakfast-and-handover-note.md) ----
 
 function breakfastPayload(over = {}) {

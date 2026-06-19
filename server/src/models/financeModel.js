@@ -395,7 +395,11 @@ function createFinanceModel(database) {
                 -- reservations store the concatenated label. Matching only the key silently dropped
                 -- multi-word / accented owner-collected platforms from the tax-to-remit list.
                 AND (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
-                AND s.collectsTouristTax = 0
+                -- specs/per-platform-tourist-tax-three-way.md §3 rule 4: we remit (→ Suivi) when the
+                -- platform does NOT remit itself. Covers BOTH the new "platform reverses it to us"
+                -- (collectsTouristTax = 1) and the legacy "we collect at arrival" (collectsTouristTax = 0)
+                -- cases, since the migration backfilled remittedByPlatform = 0 for owner-collect rows.
+                AND s.touristTaxRemittedByPlatform = 0
             )
           )
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
