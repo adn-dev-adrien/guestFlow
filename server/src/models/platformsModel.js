@@ -47,11 +47,20 @@ function resolveColor(name, customColor) {
   return KNOWN_PLATFORM_COLORS[platformSlug(name)] || DEFAULT_PLATFORM_COLOR;
 }
 
+// Colour-only slugs: kept in KNOWN_PLATFORM_COLORS so legacy data still resolves to the brand colour,
+// but NOT offered as their own dropdown entry — they fold into another platform's canonical name.
+// `gitedefrance` (legacy singular "Gîte de France") folds into the plural "Gîtes de France".
+const COLOR_ONLY_SLUGS = new Set(['gitedefrance']);
+// Curated display names where the slug → formatPlatformName derivation isn't the nice multi-word form
+// ('gitesdefrance' → "Gitesdefrance" would lose the word boundaries; we want "GitesDeFrance").
+const BUILTIN_NAME_OVERRIDES = { gitesdefrance: 'GitesDeFrance' };
+
 // Canonical display names of the built-in well-known platforms ('Airbnb', 'Booking', …) derived
 // from the shared colour map so they stay in sync. These are always offered in the dropdowns even
 // before any reservation or iCal source has used them.
 const KNOWN_PLATFORM_NAMES = Object.keys(KNOWN_PLATFORM_COLORS)
-  .map((slug) => formatPlatformName(slug))
+  .filter((slug) => !COLOR_ONLY_SLUGS.has(slug))
+  .map((slug) => BUILTIN_NAME_OVERRIDES[slug] || formatPlatformName(slug))
   .filter(Boolean);
 
 function createPlatformsModel(database) {

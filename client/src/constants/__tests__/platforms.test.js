@@ -117,7 +117,10 @@ describe('PLATFORMS dropdown enum', () => {
     expect(PLATFORMS).toContain('direct');
     expect(PLATFORMS).toContain('Airbnb');
     expect(PLATFORMS).toContain('Booking');
-    expect(PLATFORMS).toContain('Gitedefrance');
+    // Gîtes de France is offered as the plural "GitesDeFrance" (the legacy singular "Gitedefrance"
+    // was folded out — see specs/platforms-and-ical-rework.md). Its slug still resolves to the brand gold.
+    expect(PLATFORMS).toContain('GitesDeFrance');
+    expect(PLATFORMS).not.toContain('Gitedefrance');
     // No accidental duplicate lowercase entries.
     expect(PLATFORMS.filter((p) => p === 'airbnb')).toHaveLength(0);
   });
