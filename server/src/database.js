@@ -733,6 +733,28 @@ db.exec(`
   if (!platformCols.includes('commissionPercent')) {
     db.exec('ALTER TABLE platforms ADD COLUMN commissionPercent REAL NOT NULL DEFAULT 0');
   }
+  // specs/platforms-and-ical-rework.md §3 rule 6 — the GLOBAL per-platform calendar colour. NULL ⇒
+  // fall back to the built-in `KNOWN_PLATFORM_COLORS` default. Authoritative source for the calendar
+  // colour endpoint (replaces the per-source `ical_sources.platformColor`, kept for back-compat).
+  if (!platformCols.includes('color')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN color TEXT');
+  }
+}
+// specs/platforms-and-ical-rework.md §3 rule 10 — per (property, platform) "hidden from this
+// property's reservation views" flag. Independent of `isActive` (sync inclusion); a disabled
+// platform's bookings still block dates (availability is unchanged) but are hidden from the
+// property calendar/list. Idempotent ADD COLUMN for DBs predating the baseline.
+{
+  const icalSourceCols = db.prepare('PRAGMA table_info(ical_sources)').all().map((c) => c.name);
+  if (!icalSourceCols.includes('disabled')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
+  }
+  // specs/platforms-and-ical-rework.md §6 — structured per-category sync counts (JSON) so the "État"
+  // cell can render one icon + number per category (created/updated/removed/unchanged/locked/skipped)
+  // instead of a free-text message. Written on every successful sync; the message is kept as fallback.
+  if (!icalSourceCols.includes('lastSyncCounts')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN lastSyncCounts TEXT');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):
@@ -752,6 +774,31 @@ db.exec(`
   SELECT DISTINCT platform FROM reservations
    WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
 `);
+
+// specs/platforms-and-ical-rework.md §5 — one-time backfill of the new GLOBAL `platforms.color`
+// from any operator-customised per-source `ical_sources.platformColor` (a colour that differs from
+// both the grey default and the platform's built-in brand colour). Only fills rows whose
+// `platforms.color` is still NULL, so it never overwrites a colour later chosen via the new palette.
+{
+  const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('./constants/platformColors');
+  const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const setColor = db.prepare('UPDATE platforms SET color = ? WHERE id = ? AND color IS NULL');
+  const platformRows = db.prepare('SELECT id, name FROM platforms WHERE color IS NULL').all();
+  for (const platform of platformRows) {
+    const key = slug(platform.name);
+    const source = db.prepare(`
+      SELECT platformColor FROM ical_sources
+       WHERE lower(platformLabel) = lower(?)
+         AND platformColor IS NOT NULL AND trim(platformColor) != ''
+       ORDER BY updatedAt DESC, id DESC LIMIT 1
+    `).get(platform.name);
+    const custom = source && String(source.platformColor).trim();
+    if (custom && custom.toLowerCase() !== DEFAULT_PLATFORM_COLOR.toLowerCase()
+        && custom.toLowerCase() !== String(KNOWN_PLATFORM_COLORS[key] || '').toLowerCase()) {
+      setColor.run(custom, platform.id);
+    }
+  }
+}
 
 // Global commission settings (default account + commission VAT rate). The VAT rate lives in
 // Settings → Général → Taux de TVA alongside the existing vatRate (per spec §3.7 rule 17b).

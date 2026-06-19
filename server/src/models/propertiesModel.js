@@ -12,6 +12,7 @@ const {
 } = require('../utils/pricing');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
+const platformsModel = require('./platformsModel');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 
 // Canonical French articles for "votre séjour <article> <name>" in client emails
@@ -73,6 +74,11 @@ function createPropertiesModel(database) {
         if (!key || customColors[key]) return;
         customColors[key] = row.platformColor;
       });
+
+      // specs/platforms-and-ical-rework.md §3 rule 6 — the GLOBAL `platforms.color` overrides are
+      // authoritative for the calendar; overlay them on top of any legacy per-source colour so the
+      // new palette wins. Built-in defaults stay in `knownColors` (the client merges both).
+      Object.assign(customColors, platformsModel.create(database).colorMap());
 
       return { knownColors: KNOWN_PLATFORM_COLORS, customColors };
     },

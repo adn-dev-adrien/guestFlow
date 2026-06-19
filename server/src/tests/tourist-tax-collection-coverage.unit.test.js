@@ -81,6 +81,21 @@ test('Taxe de séjour: when ALL non-direct stays are platform-collected, only di
   assert.deepEqual(res.data.reservations.map((r) => r.reservationId), [1]);
 });
 
+test('Taxe de séjour: a MULTI-WORD owner-collected platform (manual stay) is still in the tax-to-remit', () => {
+  // Regression for the platformKey/platformLabel divergence: iCal stores the hyphenated key, a manual
+  // reservation stores the concatenated label. The extraction must match EITHER (specs/platforms-and-ical-rework.md).
+  const { db, model } = seedTaxDb();
+  const { month, year, m } = previousMonth();
+  // Owner-collected multi-word platform: key 'g-tes-de-france', label 'GitesDeFrance'.
+  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, collectsTouristTax)
+              VALUES (1, 'Gîtes de France', '', 'g-tes-de-france', 'GitesDeFrance', '#e6c832', 0)`).run();
+  insertStay(db, { id: 1, platform: 'GitesDeFrance', year, m }); // manual path → platform = label
+
+  const res = model.getTouristTaxExtraction({ month });
+  assert.deepEqual(res.data.reservations.map((r) => r.reservationId), [1],
+    'the owner-collected multi-word stay is remitted by us (matched via platformLabel)');
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // 2. Suivi Financier → Comptabilité (accounting entry detail + CSV export)
 // ─────────────────────────────────────────────────────────────────────────────────────────────

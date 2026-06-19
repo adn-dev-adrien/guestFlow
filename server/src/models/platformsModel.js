@@ -13,9 +13,39 @@
 
 const db = require('../database');
 const { formatPlatformName } = require('../utils/platformNameFormat');
-const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
+const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 
 const DIRECT_NAME = 'direct';
+
+// Reduce any platform name/key shape to its slug (lowercase, alphanumeric only) — the key used by
+// KNOWN_PLATFORM_COLORS and by the client colour map. Mirrors client constants/platforms.js.
+function platformSlug(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// Parse the persisted JSON sync-counts blob into a plain object (null when absent / unparsable, e.g.
+// rows synced before the column existed). Shape: { created, updated, removed, unchanged, locked, skippedClosure }.
+function parseSyncCounts(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Resolve a platform's display colour from its (optional) custom override → built-in brand colour →
+// the grey default. `customColor` is `platforms.color` (NULL/'' when unset).
+function resolveColor(name, customColor) {
+  const custom = String(customColor || '').trim();
+  if (custom) return custom;
+  return KNOWN_PLATFORM_COLORS[platformSlug(name)] || DEFAULT_PLATFORM_COLOR;
+}
 
 // Canonical display names of the built-in well-known platforms ('Airbnb', 'Booking', …) derived
 // from the shared colour map so they stay in sync. These are always offered in the dropdowns even
@@ -27,16 +57,16 @@ const KNOWN_PLATFORM_NAMES = Object.keys(KNOWN_PLATFORM_COLORS)
 function createPlatformsModel(database) {
   const stmts = {
     listAll: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent, color
       FROM platforms
       ORDER BY (name = '${DIRECT_NAME}') DESC, name COLLATE NOCASE ASC
     `),
     findByName: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent, color
       FROM platforms WHERE name = ?
     `),
     findById: database.prepare(`
-      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent
+      SELECT id, name, commissionAccountNumber, hasVatOnCommission, COALESCE(commissionPercent, 0) AS commissionPercent, color
       FROM platforms WHERE id = ?
     `),
     upsert: database.prepare("INSERT OR IGNORE INTO platforms (name) VALUES (?)"),
@@ -47,6 +77,7 @@ function createPlatformsModel(database) {
        WHERE id = ?
     `),
     updateCommissionPercent: database.prepare("UPDATE platforms SET commissionPercent = ? WHERE id = ?"),
+    updateColor: database.prepare("UPDATE platforms SET color = ? WHERE id = ?"),
   };
 
   return {
@@ -138,6 +169,100 @@ function createPlatformsModel(database) {
       const c = Math.max(0, Math.min(99.99, Number(commissionPercent) || 0));
       stmts.updateCommissionPercent.run(c, Number(id));
       return stmts.findById.get(Number(id));
+    },
+
+    // ── Global per-platform colour (specs/platforms-and-ical-rework.md §3 rules 5-6) ─────────────
+    // Resolution everywhere: custom `platforms.color` → built-in `KNOWN_PLATFORM_COLORS[slug]` → grey.
+
+    // Resolved display colour for a platform name/key.
+    getColor(name) {
+      const slug = platformSlug(name);
+      const row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      return resolveColor(name, row && row.color);
+    },
+
+    // Set (or clear) a platform's global colour. Upserts the platform row by canonical name so a
+    // never-used built-in can still be recoloured. A colour equal to the built-in brand colour (or
+    // empty) clears the override (stored NULL) so the platform tracks the built-in default again.
+    setColor(name, hex) {
+      const slug = platformSlug(name);
+      if (!slug) return null;
+      let row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      if (!row) {
+        const canonical = slug === DIRECT_NAME ? DIRECT_NAME : (formatPlatformName(name) || String(name).trim());
+        if (!canonical) return null;
+        stmts.upsert.run(canonical);
+        row = stmts.findByName.get(canonical);
+        if (!row) return null;
+      }
+      const chosen = String(hex || '').trim();
+      const builtin = KNOWN_PLATFORM_COLORS[slug] || '';
+      const store = !chosen || chosen.toLowerCase() === builtin.toLowerCase() ? null : chosen;
+      stmts.updateColor.run(store, row.id);
+      return { id: row.id, name: row.name, color: resolveColor(row.name, store) };
+    },
+
+    // Custom colour OVERRIDES only (platforms with a non-NULL `color`), keyed by slug. Consumed by the
+    // calendar colour endpoint as `customColors` (the client already knows the built-in defaults).
+    colorMap() {
+      const map = {};
+      for (const p of stmts.listAll.all()) {
+        const color = String(p.color || '').trim();
+        if (!color) continue;
+        const slug = platformSlug(p.name);
+        if (slug) map[slug] = color;
+      }
+      return map;
+    },
+
+    // Merged per-property platform list (specs/platforms-and-ical-rework.md §3 rule 2 + §4.3). Every
+    // platform (built-ins ∪ DB registry, incl. `direct`) joined with THIS property's `ical_sources`
+    // config (matched by slug on platformKey/platformLabel/name). A platform with no source row still
+    // appears: empty URL, no sync, tax = default (platform collects), not disabled.
+    listForProperty(propertyId) {
+      const names = this.listNames();
+      const platformRows = stmts.listAll.all();
+      const colorBySlug = new Map(platformRows.map((p) => [platformSlug(p.name), p.color]));
+      // Prepared lazily: this model is constructed on minimal test DBs that have no `ical_sources`
+      // table; only this per-property merge actually needs it.
+      const sources = database.prepare(`
+        SELECT id AS sourceId, propertyId, name, url, platformKey, platformLabel, platformColor,
+               isActive, collectsTouristTax, disabled,
+               lastSyncAt, lastSyncStatus, lastSyncMessage, lastSyncCounts, lastImportedCount
+          FROM ical_sources
+         WHERE propertyId = ?
+         ORDER BY id DESC
+      `).all(Number(propertyId));
+      // Most-recent source wins when a property somehow has duplicate rows for one platform.
+      const sourceBySlug = new Map();
+      for (const s of sources) {
+        for (const candidate of [s.platformKey, s.platformLabel, s.name]) {
+          const slug = platformSlug(candidate);
+          if (slug && !sourceBySlug.has(slug)) sourceBySlug.set(slug, s);
+        }
+      }
+      return names.map((name) => {
+        const slug = platformSlug(name);
+        const source = sourceBySlug.get(slug) || null;
+        return {
+          platformKey: source ? source.platformKey : slug,
+          platformLabel: name,
+          color: resolveColor(name, colorBySlug.get(slug)),
+          isDirect: slug === DIRECT_NAME,
+          // Built-in (default) platform — present out of the box, can't be removed from the list. Only
+          // custom-added platforms expose the "réinitialiser la configuration" (delete) action.
+          isBuiltIn: Boolean(KNOWN_PLATFORM_COLORS[slug]),
+          url: source ? (source.url || '') : '',
+          collectsTouristTax: source ? Number(source.collectsTouristTax) : 1,
+          disabled: source ? Number(source.disabled) : 0,
+          sourceId: source ? source.sourceId : null,
+          lastSyncAt: source ? source.lastSyncAt : null,
+          lastSyncStatus: source ? source.lastSyncStatus : null,
+          lastSyncMessage: source ? source.lastSyncMessage : null,
+          // Per-category counts for the visual "État" cell (null when never synced / pre-migration).
+          syncCounts: source ? parseSyncCounts(source.lastSyncCounts) : null,
+        };
+      });
     },
   };
 }
