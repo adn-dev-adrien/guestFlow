@@ -31,8 +31,9 @@ overridable), and a **search box** to jump straight to a fiche by typing a numbe
 ## 2. Goal
 
 Every reservation gets a readable, unique **numéro de réservation** (auto-generated `AAAAMM###`, editable
-by the operator on the fiche). From the Calendrier (and Dashboard), the operator can **type a number, a name,
-a first name, or "nom prénom"** and see matching reservations appear live, then click one to open its fiche.
+by the operator on the fiche). From the **search box in the top bar** (global, reachable on every page), the
+operator can **type a number, a name, a first name, or "nom prénom"** and see matching reservations appear
+live, then click one to open its fiche.
 The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 
 ## 3. Functional rules
@@ -123,8 +124,8 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `components/ReservationSearchBox.js` | C | Generic MUI `Autocomplete` (async, debounced) that queries `api.searchReservations(q)`, renders `N° — Nom Prénom · Logement · dates`, and calls `onSelect(reservationId)`. JSDoc-documented props. |
-| `pages/` | `pages/CalendarPage.js` | T | Mount `<ReservationSearchBox onSelect={(id)=>navigate('/reservations/'+id)} />` at the top of the page. |
-| `pages/` | `pages/DashboardPage.js` | T | Mount the same `<ReservationSearchBox>` at the top (reuse, no duplication). |
+| `App.js` (`AppShell`) | `App.js` | T | **Global mount (2026-06-19):** the box lives in the top `AppBar`/`Toolbar` next to the « GuestFlow » wordmark, so the reservation jump is reachable from **every** page. Desktop (`md+`): the field is always visible (`maxWidth: 440`). Mobile (`< md`): a magnifier `IconButton` toggles `searchOpen`, expanding a full-width field (with a close button) over the bar. `onSelect` navigates to `/reservations/:id` with `withFrom(currentLocation)` for the back affordance. |
+| ~~`pages/CalendarPage.js`~~ / ~~`pages/Dashboard.js`~~ | — | **Removed (2026-06-19):** the per-page boxes are gone — redundant now the search is global in the header. `CalendarPage.handleReservationClick` stays (grid clicks); Dashboard keeps `withFrom`/`navigate` for its row links. |
 | `pages/` | `pages/ReservationPage.js` | T | Add `reservationNumber` to the form state; render a read-mostly field in `StaySection`; include it in the create/update payload; surface the 400 `RESERVATION_NUMBER_TAKEN` error. |
 | `components/` | `components/reservation/StaySection.js` | T | Render the "Numéro de réservation" field (editable TextField, helper "généré automatiquement, modifiable"). |
 | `api.js` | `api.js` | T | Add `searchReservations(q)` → `GET /reservations/search?q=`. `createReservation`/`updateReservation` already pass the full form payload (number rides along). |
@@ -134,7 +135,7 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | Category | Components | Notes |
 |---|---|---|
 | **Consumed (existing generic)** | `PageActionBar` (fiche), MUI `Autocomplete`/`TextField` | Pre-existing; reused as-is. |
-| **Created (new generic)** | `ReservationSearchBox` | Generic "jump to a reservation" box — mounted on Calendar **and** Dashboard now; reusable anywhere a reservation lookup is needed (e.g. could later replace the inline Autocomplete in `EmailComposeDialog`). Justified: ≥2 consumers immediately. |
+| **Created (new generic)** | `ReservationSearchBox` | Generic "jump to a reservation" box — **mounted globally in the top `AppBar`** (2026-06-19; was Calendar + Dashboard), so it's reachable from every page; reusable anywhere a reservation lookup is needed (e.g. could later replace the inline Autocomplete in `EmailComposeDialog`). |
 | **Specific (kept feature-local)** | — | None. |
 
 ### 4.3 API contract
@@ -193,23 +194,26 @@ numbers, never a value that would collide). Devis rows are never touched.
   other recap line. Existing installs are upgraded by an idempotent content migration (the seed is
   insert-only and the J-2 force-overwrite already ran).
 
-### Search box (`ReservationSearchBox`) on Calendrier + Dashboard
+### Search box (`ReservationSearchBox`) — global, in the top bar (2026-06-19)
 
 - A single-line Autocomplete with a search icon and placeholder *« Rechercher une réservation (n°, nom,
-  prénom)… »*, placed at the top of the page.
+  prénom)… »*, mounted in the top `AppBar` next to the « GuestFlow » wordmark, so it's reachable from **every**
+  page (was previously duplicated on Calendrier + Dashboard).
 - As the operator types (≥1 char, debounced 250 ms), the dropdown lists up to 20 matches, each rendered as:
   **`N° · Nom Prénom · Logement · 10 → 13 juil. 2026`**. `noOptionsText` = *« Aucune réservation »*; while
   fetching, *« Recherche… »*.
-- Selecting a row navigates to `/reservations/:id`. The box clears after navigation.
+- Selecting a row navigates to `/reservations/:id` (with `?from=<current location>` for the back affordance).
+  The box clears after navigation; on mobile the expanded field collapses again.
 
 ### Responsive
 
 - **Number field:** full-width on `xs`, sits in the existing StaySection grid on `md+` (no new breakpoints).
-- **Search box:** full-width on `xs` (stacks above the calendar/dashboard content), constrained width
-  (`maxWidth: 480`) and left-aligned on `md+`. The Autocomplete popup is natively mobile-friendly; touch
-  targets ≥44px. No horizontal scroll on `xs`.
-- The fiche keeps its existing `PageActionBar` (Save/Cancel/Delete) — no new page-level action. Calendrier and
-  Dashboard keep their existing bars; the search box is page content, not a bar action.
+- **Search box (header):** on `md+` the field is always visible next to the logo (`maxWidth: 440`). On
+  `< md` the header would be too tight (burger + wordmark), so the field collapses behind a **magnifier
+  `IconButton`**; tapping it expands a **full-width** field over the toolbar with a close (`×`) button.
+  Touch targets ≥44px. No horizontal scroll on `xs`.
+- The fiche keeps its existing `PageActionBar` (Save/Cancel/Delete) — no new page-level action. The search box
+  is now a header element, present on every page, not page content.
 
 ## 7. Test plan
 

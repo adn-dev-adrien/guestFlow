@@ -36,11 +36,15 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import SellIcon from '@mui/icons-material/Sell';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuIcon from '@mui/icons-material/Menu';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import theme from './theme';
 import DialogProvider from './components/DialogProvider';
 import EmailVerifyBanner from './components/EmailVerifyBanner';
+import ReservationSearchBox from './components/ReservationSearchBox';
+import { withFrom } from './utils/navigation';
 import api from './api';
 import { PLATFORM_COLORS, normalizePlatformKey } from './constants/platforms';
 
@@ -650,6 +654,13 @@ function AppShell() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [versionInfo, setVersionInfo] = useState(null);
+  // Global reservation search lives in the top bar (specs/reservation-number-and-search.md §6).
+  // On mobile it collapses behind a magnifier that expands into a full-width field.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const handleHeaderSearchSelect = (id) => {
+    setSearchOpen(false);
+    navigate(withFrom(`/reservations/${id}`, `${location.pathname}${location.search}`));
+  };
 
   // Push the configured company logo into the document's <link rel="icon"> at runtime. Server-side
   // middleware also serves the logo on /favicon.ico in prod, but the CRA dev server :3000 serves
@@ -754,20 +765,45 @@ function AppShell() {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'white', color: 'text.primary', borderBottom: '1px solid #e0e0e0' }}>
-        <Toolbar>
+        <Toolbar sx={{ gap: 1 }}>
           {isMobile && (
-            <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 1 }}>
+            <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
               <MenuIcon />
             </IconButton>
           )}
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            GuestFlow
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          {process.env.NODE_ENV === 'production' && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-              {versionInfo?.commitShaShort ? `prod ${versionInfo.commitShaShort}` : 'prod'}
-            </Typography>
+          {isMobile && searchOpen ? (
+            // Mobile, expanded: the search field takes over the bar, with a close affordance.
+            <>
+              <Box sx={{ flexGrow: 1 }}>
+                <ReservationSearchBox autoFocus onSelect={handleHeaderSearchSelect} />
+              </Box>
+              <IconButton onClick={() => setSearchOpen(false)} aria-label="Fermer la recherche">
+                <CloseIcon />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                GuestFlow
+              </Typography>
+              {!isMobile && (
+                // Desktop: the search field is always visible next to the logo.
+                <Box sx={{ ml: 3, flexGrow: 1, maxWidth: 440 }}>
+                  <ReservationSearchBox onSelect={handleHeaderSearchSelect} />
+                </Box>
+              )}
+              <Box sx={{ flexGrow: 1 }} />
+              {isMobile && (
+                <IconButton onClick={() => setSearchOpen(true)} aria-label="Rechercher une réservation">
+                  <SearchIcon />
+                </IconButton>
+              )}
+              {process.env.NODE_ENV === 'production' && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                  {versionInfo?.commitShaShort ? `prod ${versionInfo.commitShaShort}` : 'prod'}
+                </Typography>
+              )}
+            </>
           )}
         </Toolbar>
       </AppBar>
