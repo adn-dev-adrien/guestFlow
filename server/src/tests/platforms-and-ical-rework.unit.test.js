@@ -90,6 +90,38 @@ test('platformsModel.listForProperty: every platform listed; source config + col
   assert.ok(airbnb.sourceId, 'a source row now exists for this property+platform');
 });
 
+test('platformsModel.listForProperty: isBuiltIn marks default platforms (only custom ones are removable)', () => {
+  const db = freshDb();
+  const platforms = platformsModel.create(db);
+  // A custom platform added to the registry (e.g. via the "Ajouter une plateforme" → setColor path).
+  platforms.setColor('Vrbo', '');
+
+  const merged = platforms.listForProperty(1);
+  const byKey = (k) => merged.find((p) => p.platformKey === k);
+  assert.equal(byKey('direct').isBuiltIn, true, 'direct is a built-in');
+  assert.equal(byKey('airbnb').isBuiltIn, true, 'Airbnb is a built-in');
+  assert.equal(byKey('vrbo').isBuiltIn, false, 'a custom-added platform is NOT a built-in');
+});
+
+test('platformsModel.listForProperty: parses lastSyncCounts into a structured syncCounts object', () => {
+  const db = freshDb();
+  const platforms = platformsModel.create(db);
+  // A synced source with persisted per-category counts (the visual "État" breakdown).
+  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor,
+              lastSyncStatus, lastSyncCounts)
+              VALUES (1, 'Airbnb', 'https://a/c.ics', 'airbnb', 'Airbnb', '#FF5A5F', 'success',
+                      '{"created":2,"updated":1,"removed":0,"unchanged":5,"locked":0,"skippedClosure":0}')`).run();
+  // A second source with a malformed blob → syncCounts resolves to null (no crash).
+  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, lastSyncCounts)
+              VALUES (1, 'Booking', 'https://b/c.ics', 'booking', 'Booking', '#003580', 'not json')`).run();
+
+  const merged = platforms.listForProperty(1);
+  const airbnb = merged.find((p) => p.platformKey === 'airbnb');
+  assert.deepEqual(airbnb.syncCounts, { created: 2, updated: 1, removed: 0, unchanged: 5, locked: 0, skippedClosure: 0 });
+  assert.equal(merged.find((p) => p.platformKey === 'booking').syncCounts, null, 'malformed counts → null, never throws');
+  assert.equal(merged.find((p) => p.platformKey === 'airbnb' ? false : p.platformKey === 'greengo')?.syncCounts ?? null, null, 'unconfigured platform has no counts');
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // 2. propertyIcalModel — optional URL, skip-sync, upsert-by-platform, disabled
 // ─────────────────────────────────────────────────────────────────────────────────────────────

@@ -24,7 +24,7 @@ const PRESET_COLORS = [
   '#9c27b0', '#e91e63', '#795548', '#607d8b', '#2e7d32', '#00897b', '#5e35b1', '#757575',
 ];
 
-export default function PlatformColorPicker({ color, onChange, disabled = false, size = 24, label = null, title = 'Changer la couleur' }) {
+export default function PlatformColorPicker({ color, onChange, disabled = false, size = 24, label = null, title = 'Changer la couleur', showSwatch = true }) {
   const [anchorEl, setAnchorEl] = useState(null);
   // Draft for the native colour input: it fires `onChange` continuously while the user drags through
   // the gamut. Buffer locally and commit ONCE (on blur / popover close) so we don't emit a burst of
@@ -73,11 +73,16 @@ export default function PlatformColorPicker({ color, onChange, disabled = false,
 
   return (
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-      <Tooltip title={disabled ? '' : title}>{swatch}</Tooltip>
+      {showSwatch && <Tooltip title={disabled ? '' : title}>{swatch}</Tooltip>}
       {label != null && (
+        // When the swatch is hidden the label IS the trigger → make it a proper button for a11y + tests.
         <Box
           onClick={disabled ? undefined : (e) => setAnchorEl(e.currentTarget)}
-          sx={{ cursor: disabled ? 'default' : 'pointer' }}
+          role={disabled ? undefined : 'button'}
+          aria-label={disabled ? undefined : title}
+          tabIndex={disabled ? -1 : 0}
+          onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setAnchorEl(e.currentTarget); } }}
+          sx={{ cursor: disabled ? 'default' : 'pointer', display: 'inline-flex' }}
         >
           {label}
         </Box>

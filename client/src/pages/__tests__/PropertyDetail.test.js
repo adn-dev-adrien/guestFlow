@@ -35,8 +35,8 @@ vi.mock('../../api', () => ({
 
 // specs/platforms-and-ical-rework.md — the merged per-property platform list that drives the section.
 const PLATFORMS = [
-  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
-  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, isBuiltIn: true, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
 ];
 
 import PropertyDetail from '../PropertyDetail';
@@ -154,8 +154,9 @@ test('Plateformes & iCal: inline-editing a platform URL upserts the source + rel
   await screen.findByText('Airbnb');
 
   // The Airbnb row (only non-direct platform here) → enter inline edit, set a URL, save.
+  // In edit mode the URL moves to its own full-width row, labelled "URL iCal".
   fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
-  fireEvent.change(screen.getByPlaceholderText(/laisser vide = saisie manuelle/i), {
+  fireEvent.change(screen.getByLabelText(/URL iCal/i), {
     target: { value: 'https://airbnb.test/cal.ics' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
@@ -169,13 +170,31 @@ test('Plateformes & iCal: inline-editing a platform URL upserts the source + rel
   await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledTimes(2));
 });
 
-test('Plateformes & iCal: clicking a platform colour swatch opens the palette', async () => {
+test('Plateformes & iCal: clicking a platform name chip opens the colour palette', async () => {
   render(<PropertyDetail />);
   await screen.findByText('Le Moulin');
   await screen.findByText('Airbnb');
 
-  // Each row carries a "Changer la couleur" swatch; clicking it opens the palette popover.
-  const swatches = screen.getAllByRole('button', { name: 'Changer la couleur' });
-  fireEvent.click(swatches[0]);
+  // The platform name chip is the colour trigger ("Changer la couleur"); clicking it opens the palette.
+  const triggers = screen.getAllByRole('button', { name: 'Changer la couleur' });
+  fireEvent.click(triggers[0]);
   expect(await screen.findByText('Couleur sur le calendrier')).toBeInTheDocument();
+});
+
+test('Plateformes & iCal: a configured DEFAULT platform cannot be deleted; a custom one can', async () => {
+  // A built-in (Airbnb) and a custom (Vrbo) platform, both configured (sourceId set). Only the custom
+  // one exposes the "Réinitialiser la configuration" (delete) action.
+  api.getPropertyPlatforms.mockResolvedValue({
+    platforms: [
+      { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: 'https://a/c.ics', collectsTouristTax: 1, disabled: 0, sourceId: 10, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+      { platformKey: 'vrbo', platformLabel: 'Vrbo', color: '#757575', isDirect: false, isBuiltIn: false, url: 'https://v/c.ics', collectsTouristTax: 1, disabled: 0, sourceId: 11, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+    ],
+  });
+  render(<PropertyDetail />);
+  await screen.findByText('Le Moulin');
+  await screen.findByText('Vrbo');
+
+  // Exactly one delete affordance — the custom platform's. The built-in (Airbnb), though configured, has none.
+  const deletes = screen.queryAllByRole('button', { name: 'Réinitialiser la configuration' });
+  expect(deletes).toHaveLength(1);
 });

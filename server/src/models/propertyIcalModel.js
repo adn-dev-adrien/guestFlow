@@ -581,11 +581,22 @@ function createPropertyIcalModel(database) {
       }
       try {
         const result = await model.syncSource(source);
+        // specs/platforms-and-ical-rework.md §6 — persist the per-category counts (JSON) for the
+        // visual "État" cell, alongside the legacy free-text message (kept as a hover fallback).
+        const syncCounts = JSON.stringify({
+          created: result.createdCount,
+          updated: result.updatedCount,
+          removed: result.removedCount,
+          unchanged: result.unchangedCount,
+          locked: result.lockedCount,
+          skippedClosure: result.skippedClosureCount,
+        });
         database.prepare(`
           UPDATE ical_sources
           SET lastSyncAt = datetime('now'),
               lastSyncStatus = 'success',
               lastSyncMessage = ?,
+              lastSyncCounts = ?,
               lastImportedCount = ?,
               updatedAt = datetime('now')
           WHERE id = ?
@@ -596,6 +607,7 @@ function createPropertyIcalModel(database) {
           // declared establishment closure. Surfaced for operator visibility in
           // `ical_sources.lastSyncMessage`.
           `${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}, ${result.unchangedCount} inchangé(s)`,
+          syncCounts,
           result.createdCount + result.updatedCount,
           source.id,
         );

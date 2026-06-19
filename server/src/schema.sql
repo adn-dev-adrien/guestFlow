@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS ical_sources (
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now')), collectsTouristTax INTEGER NOT NULL DEFAULT 1,
     disabled INTEGER NOT NULL DEFAULT 0,
+    lastSyncCounts TEXT,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
   );
 

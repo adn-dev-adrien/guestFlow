@@ -27,6 +27,18 @@ function platformSlug(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+// Parse the persisted JSON sync-counts blob into a plain object (null when absent / unparsable, e.g.
+// rows synced before the column existed). Shape: { created, updated, removed, unchanged, locked, skippedClosure }.
+function parseSyncCounts(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Resolve a platform's display colour from its (optional) custom override → built-in brand colour →
 // the grey default. `customColor` is `platforms.color` (NULL/'' when unset).
 function resolveColor(name, customColor) {
@@ -216,7 +228,7 @@ function createPlatformsModel(database) {
       const sources = database.prepare(`
         SELECT id AS sourceId, propertyId, name, url, platformKey, platformLabel, platformColor,
                isActive, collectsTouristTax, disabled,
-               lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount
+               lastSyncAt, lastSyncStatus, lastSyncMessage, lastSyncCounts, lastImportedCount
           FROM ical_sources
          WHERE propertyId = ?
          ORDER BY id DESC
@@ -237,6 +249,9 @@ function createPlatformsModel(database) {
           platformLabel: name,
           color: resolveColor(name, colorBySlug.get(slug)),
           isDirect: slug === DIRECT_NAME,
+          // Built-in (default) platform — present out of the box, can't be removed from the list. Only
+          // custom-added platforms expose the "réinitialiser la configuration" (delete) action.
+          isBuiltIn: Boolean(KNOWN_PLATFORM_COLORS[slug]),
           url: source ? (source.url || '') : '',
           collectsTouristTax: source ? Number(source.collectsTouristTax) : 1,
           disabled: source ? Number(source.disabled) : 0,
@@ -244,6 +259,8 @@ function createPlatformsModel(database) {
           lastSyncAt: source ? source.lastSyncAt : null,
           lastSyncStatus: source ? source.lastSyncStatus : null,
           lastSyncMessage: source ? source.lastSyncMessage : null,
+          // Per-category counts for the visual "État" cell (null when never synced / pre-migration).
+          syncCounts: source ? parseSyncCounts(source.lastSyncCounts) : null,
         };
       });
     },

@@ -16,6 +16,15 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import UploadIcon from '@mui/icons-material/Upload';
 import SyncIcon from '@mui/icons-material/Sync';
 import AddIcon from '@mui/icons-material/Add';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import FiberNewIcon from '@mui/icons-material/FiberNew';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import CancelIcon from '@mui/icons-material/Cancel';
+import LockIcon from '@mui/icons-material/Lock';
+import RemoveIcon from '@mui/icons-material/Remove';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import PlatformColorPicker from '../components/PlatformColorPicker';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { PLATFORM_COLORS, normalizePlatformKey } from '../constants/platforms';
@@ -52,6 +61,25 @@ const NEW_DEFAULTS = {
 };
 
 const DEFAULT_ICAL_COLOR = '#757575';
+
+// Visual breakdown of a sync result (specs/platforms-and-ical-rework.md §6): one icon + count per
+// category, mirroring the legacy free-text message so no info is lost. `always` items render even at 0
+// (greyed) to keep the row stable; rarer ones appear only when non-zero.
+const SYNC_COUNT_CATEGORIES = [
+  { key: 'created', label: 'Créé(s)', Icon: FiberNewIcon, color: 'success.main', always: true },
+  { key: 'updated', label: 'Mis à jour', Icon: AutorenewIcon, color: 'info.main', always: true },
+  { key: 'removed', label: 'Annulation(s) à valider', Icon: CancelIcon, color: 'warning.main', always: true },
+  { key: 'locked', label: 'Verrouillé(s)', Icon: LockIcon, color: 'text.secondary', always: true },
+  { key: 'unchanged', label: 'Inchangé(s)', Icon: RemoveIcon, color: 'text.secondary', always: true },
+  { key: 'skippedClosure', label: 'Ignoré(s) (fermeture)', Icon: EventBusyIcon, color: 'text.secondary', always: false },
+];
+
+// Show only the END of a (long) iCal URL — the trailing path/filename is the part that distinguishes
+// one feed from another. Leading "…" + the last `max` chars. Full URL stays available via the title.
+const shortenUrlEnd = (url, max = 30) => {
+  const u = String(url || '');
+  return u.length > max ? `…${u.slice(-(max - 1))}` : u;
+};
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_PHOTO_FORMATS_TEXT = 'Formats pris en charge: JPG, JPEG, PNG, WEBP.';
@@ -509,7 +537,8 @@ export default function PropertyDetail() {
   };
 
   const handleDeletePlatformSource = async (row) => {
-    if (!canManageExtras || !row.sourceId) return;
+    if (!canManageExtras || !row.sourceId || row.isBuiltIn) return; // default platforms are never removable
+
     await api.deletePropertyIcalSource(id, row.sourceId);
     if (editingKey === row.platformKey) setEditingKey(null);
     await loadPlatforms();
@@ -537,16 +566,24 @@ export default function PropertyDetail() {
     await loadPlatforms();
   };
 
-  // Platform name + clickable colour swatch (opens the palette). Greyed when the platform is disabled.
+  // Platform name as a colour-filled chip (its background = the platform's calendar colour). Clicking
+  // it opens the palette. Greyed when the platform is disabled.
   const renderPlatformName = (row) => (
     <PlatformColorPicker
       color={row.color || DEFAULT_ICAL_COLOR}
       disabled={!canManageExtras}
+      showSwatch={false}
       onChange={(hex) => handleSetPlatformColor(row, hex)}
       label={(
-        <Typography variant="body2" sx={{ fontWeight: 600, color: row.disabled ? 'text.disabled' : 'text.primary' }}>
-          {row.platformLabel}
-        </Typography>
+        <Chip
+          label={row.platformLabel}
+          size="small"
+          sx={{
+            fontWeight: 600,
+            bgcolor: row.disabled ? 'action.disabledBackground' : (row.color || DEFAULT_ICAL_COLOR),
+            color: row.disabled ? 'text.disabled' : '#fff',
+          }}
+        />
       )}
     />
   );
@@ -563,6 +600,41 @@ export default function PropertyDetail() {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <Switch size="small" checked={checked} onChange={onChange} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)} />
         <Typography variant="caption" color="text.secondary">{checked ? 'Plateforme' : 'Vous'}</Typography>
+      </Box>
+    );
+  };
+
+  // A single status glyph (used for error / never-synced / counts-less success).
+  const syncGlyph = (Icon, color, tip) => (
+    <Tooltip title={tip}>
+      <Box component="span" aria-label={tip} sx={{ color, display: 'inline-flex', verticalAlign: 'middle' }}><Icon fontSize="small" /></Box>
+    </Tooltip>
+  );
+
+  // Sync "État": on success, a per-category icon + count breakdown (créé / màj / annulation / verrouillé /
+  // inchangé / ignoré) — visual but lossless; error → red icon (+message); never synced → grey schedule.
+  // Empty for a manual-entry platform (no URL → nothing to sync).
+  const renderSyncStatus = (row) => {
+    if (!row.url) return null;
+    if (row.lastSyncStatus === 'error') return syncGlyph(ErrorIcon, 'error.main', row.lastSyncMessage || 'Erreur de synchronisation');
+    if (row.lastSyncStatus !== 'success') return syncGlyph(ScheduleIcon, 'text.disabled', 'Jamais synchronisé');
+
+    const counts = row.syncCounts;
+    if (!counts) return syncGlyph(CheckCircleIcon, 'success.main', row.lastSyncMessage || 'Synchronisé');
+    const shown = SYNC_COUNT_CATEGORIES.filter((c) => c.always || Number(counts[c.key]) > 0);
+    return (
+      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+        {shown.map(({ key, label, Icon, color }) => {
+          const n = Number(counts[key]) || 0;
+          return (
+            <Tooltip key={key} title={label}>
+              <Box component="span" aria-label={`${label} : ${n}`} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, color: n > 0 ? color : 'text.disabled' }}>
+                <Icon fontSize="small" />
+                <Typography variant="caption" sx={{ fontWeight: 600, color: n > 0 ? 'text.primary' : 'text.disabled' }}>{n}</Typography>
+              </Box>
+            </Tooltip>
+          );
+        })}
       </Box>
     );
   };
@@ -600,7 +672,7 @@ export default function PropertyDetail() {
             <span><IconButton size="small" aria-label="Modifier" onClick={() => startEditPlatform(row)} disabled={!canManageExtras}><EditIcon fontSize="small" /></IconButton></span>
           </Tooltip>
         )}
-        {row.sourceId && (
+        {row.sourceId && !row.isBuiltIn && (
           <Tooltip title="Réinitialiser la configuration">
             <span><IconButton size="small" color="error" aria-label="Réinitialiser la configuration" onClick={() => handleDeletePlatformSource(row)} disabled={!canManageExtras}><DeleteIcon fontSize="small" /></IconButton></span>
           </Tooltip>
@@ -1145,8 +1217,8 @@ export default function PropertyDetail() {
                                   placeholder="https://…  (laisser vide = saisie manuelle)"
                                 />
                               ) : (
-                                <Typography variant="body2" sx={{ wordBreak: 'break-all', color: muted ? 'text.disabled' : 'text.secondary' }}>
-                                  {row.url || 'Saisie manuelle (pas d’URL iCal)'}
+                                <Typography variant="body2" title={row.url || ''} noWrap sx={{ color: muted ? 'text.disabled' : 'text.secondary' }}>
+                                  {row.url ? shortenUrlEnd(row.url, 40) : 'Saisie manuelle (pas d’URL iCal)'}
                                 </Typography>
                               )}
                             </Box>
@@ -1158,10 +1230,12 @@ export default function PropertyDetail() {
                             </Box>
                           )}
                           {hasUrl && (
-                            <Typography variant="caption" display="block" sx={{ mt: 0.5 }} color={row.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
-                              {row.lastSyncAt ? `Sync : ${displayDate(row.lastSyncAt.slice(0, 10))} — ` : ''}
-                              {row.lastSyncStatus === 'error' ? (row.lastSyncMessage || 'Erreur') : (row.lastSyncMessage || 'Jamais synchronisé')}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                              {renderSyncStatus(row)}
+                              <Typography variant="caption" color="text.secondary">
+                                {row.lastSyncAt ? `Dernière synchro : ${displayDate(row.lastSyncAt.slice(0, 10))}` : 'Jamais synchronisé'}
+                              </Typography>
+                            </Box>
                           )}
                         </CardContent>
                       </Card>
@@ -1188,42 +1262,51 @@ export default function PropertyDetail() {
                         const hasUrl = Boolean(row.url);
                         const muted = Boolean(row.disabled);
                         const textColor = muted ? 'text.disabled' : 'text.primary';
+                        const editingUrl = isEditing && !row.isDirect;
                         return (
-                          <TableRow key={row.platformKey} sx={{ opacity: muted ? 0.75 : 1 }}>
-                            <TableCell>{renderPlatformName(row)}</TableCell>
-                            <TableCell sx={{ maxWidth: 300 }}>
-                              {row.isDirect ? (
-                                <Typography variant="caption" color="text.secondary">—</Typography>
-                              ) : isEditing ? (
-                                <TextField
-                                  size="small"
-                                  fullWidth
-                                  value={editDraft.url}
-                                  onChange={(e) => setEditDraft((d) => ({ ...d, url: e.target.value }))}
-                                  disabled={!canManageExtras}
-                                  placeholder="https://…  (laisser vide = saisie manuelle)"
-                                />
-                              ) : (
-                                <Typography variant="body2" noWrap title={row.url} sx={{ color: textColor, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {row.url || '—'}
+                          <React.Fragment key={row.platformKey}>
+                            {/* When editing, the URL moves to its own full-width row below; drop the
+                                main row's bottom border so the two read as one taller editing block. */}
+                            <TableRow sx={{ opacity: muted ? 0.75 : 1, '& > td': editingUrl ? { borderBottom: 'none' } : undefined }}>
+                              <TableCell>{renderPlatformName(row)}</TableCell>
+                              <TableCell sx={{ maxWidth: 220 }}>
+                                {row.isDirect ? (
+                                  <Typography variant="caption" color="text.secondary">—</Typography>
+                                ) : editingUrl ? (
+                                  <Typography variant="caption" color="text.secondary">Édition ci-dessous</Typography>
+                                ) : (
+                                  <Typography variant="body2" noWrap title={row.url || ''} sx={{ color: textColor }}>
+                                    {row.url ? shortenUrlEnd(row.url) : '—'}
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              <TableCell>{renderTaxControl(row, isEditing)}</TableCell>
+                              <TableCell>
+                                <Typography variant="caption" sx={{ color: textColor }}>
+                                  {hasUrl ? (row.lastSyncAt ? displayDate(row.lastSyncAt.slice(0, 10)) : '—') : ''}
                                 </Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>{renderTaxControl(row, isEditing)}</TableCell>
-                            <TableCell>
-                              <Typography variant="caption" sx={{ color: textColor }}>
-                                {hasUrl ? (row.lastSyncAt ? displayDate(row.lastSyncAt.slice(0, 10)) : '—') : ''}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              {hasUrl && (
-                                <Typography variant="caption" color={row.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
-                                  {row.lastSyncStatus === 'error' ? (row.lastSyncMessage || 'Erreur') : (row.lastSyncMessage || 'Jamais synchronisé')}
-                                </Typography>
-                              )}
-                            </TableCell>
-                            <TableCell align="right">{renderPlatformActions(row)}</TableCell>
-                          </TableRow>
+                              </TableCell>
+                              <TableCell>{renderSyncStatus(row)}</TableCell>
+                              <TableCell align="right">{renderPlatformActions(row)}</TableCell>
+                            </TableRow>
+                            {editingUrl && (
+                              <TableRow sx={{ opacity: muted ? 0.75 : 1 }}>
+                                <TableCell colSpan={6} sx={{ pt: 0 }}>
+                                  <TextField
+                                    size="small"
+                                    fullWidth
+                                    autoFocus
+                                    label="URL iCal"
+                                    value={editDraft.url}
+                                    onChange={(e) => setEditDraft((d) => ({ ...d, url: e.target.value }))}
+                                    disabled={!canManageExtras}
+                                    placeholder="https://…"
+                                    helperText="Laisser vide = saisie manuelle (pas de synchronisation iCal)"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </TableBody>

@@ -86,12 +86,20 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
     **Annuler** commit or revert the row. (Replaces the former edit-form-above-the-table.)
 12. **`direct`** row: colour + disable only (no URL field, no tax toggle, no sync). It can be recoloured but
     not synced.
+13. **Only custom (non-built-in) platforms are removable.** The "Réinitialiser la configuration" (delete)
+    action is shown **only** for a platform that is **not** a default (`isBuiltIn = false`) AND already has a
+    source row. A default/built-in platform (incl. `direct`) is permanent: its config is reverted via the
+    inline edit / tax / réactiver controls, never deleted. The client hides the action and the handler
+    refuses it for built-ins.
+14. The platform **name** is rendered as a **colour-filled chip** (its background = the platform's calendar
+    colour); clicking the chip opens the palette (there is no separate grey swatch).
 
 **Edge cases:**
 - Empty URL + tax left at default + default colour → no source row persisted (nothing to store).
 - Sync-all skips empty-URL platforms (no fetch, no error rows).
-- Deleting a configured platform row removes its `ical_sources` row (URL + tax reset to defaults here); the
-  platform itself stays in the registry (still listed, default colour/tax).
+- Deleting a configured **custom** platform row removes its `ical_sources` row (URL + tax reset to defaults
+  here); the platform itself stays in the registry (still listed, default colour/tax). Built-in platforms
+  cannot be deleted (rule 13).
 - A platform colour set then reset to the built-in default → store the built-in (or clear the override).
 
 ---
@@ -131,7 +139,7 @@ any platform-colour edit. The list stays a feature-local table in `PropertyDetai
 
 | Method | Endpoint | Notes |
 |---|---|---|
-| GET | `/api/properties/:id/platforms` | Merged rows: `[{ platformKey, platformLabel, color, isDirect, url, collectsTouristTax, disabled, sourceId?, lastSyncAt?, lastSyncStatus?, lastSyncMessage? }]`. |
+| GET | `/api/properties/:id/platforms` | Merged rows: `[{ platformKey, platformLabel, color, isDirect, isBuiltIn, url, collectsTouristTax, disabled, sourceId?, lastSyncAt?, lastSyncStatus?, lastSyncMessage?, syncCounts? }]`. `isBuiltIn` = the platform is one of the defaults (`KNOWN_PLATFORM_COLORS`, incl. `direct`) → never removable. `syncCounts` = `{ created, updated, removed, unchanged, locked, skippedClosure }` (parsed from `ical_sources.lastSyncCounts`; `null` when never synced / pre-migration). |
 | PUT | `/api/platforms/:key/color` | `{ color }` → sets the global platform colour (`platforms.color`). |
 | POST/PUT/DELETE | `/api/properties/:id/ical-sources(/:sourceId)` | URL now optional; upsert-by-platform for configure-on-demand. |
 | POST | `/api/properties/:id/ical-sources/:sourceId/sync` | Unchanged; only offered when URL set. |
@@ -145,6 +153,8 @@ any platform-colour edit. The list stays a feature-local table in `PropertyDetai
 - **`ical_sources.url`** — relaxed to optional (`''`/NULL allowed). Empty ⇒ no sync.
 - **`ical_sources.disabled`** INTEGER NOT NULL DEFAULT 0 — per (property, platform) "hidden from this
   property's reservation views" flag. Independent of `isActive` (sync inclusion). Persisted on demand.
+- **`ical_sources.lastSyncCounts`** TEXT NULL — JSON `{ created, updated, removed, unchanged, locked,
+  skippedClosure }` written on each successful sync; backs the visual per-category "État" breakdown.
 - **`ical_sources.platformColor`** — kept for back-compat but no longer authoritative (calendar reads
   `platforms.color`); may be deprecated later.
 
@@ -161,16 +171,29 @@ preserves today's custom calendar colours. No reservation/finance data touched.
 ## 6. UI / UX
 
 - **Title:** "Plateformes & iCal".
-- **Row (read mode):** `[■ colour] Plateforme | URL iCal (or « — »)| Taxe collectée [toggle] | Dernière synchro | État | [sync?] [Désactiver] [Modifier] [Suppr?]`. No URL → sync cell + status empty, no sync icon.
-- **Disabled row:** the whole row's text is **greyed** (muted) and the toggle shows "Réactiver"; the
-  platform's bookings disappear from the property calendar/list.
-- **Colour:** clicking the name or the square opens a palette popover; pick → saved (optimistic), calendar
-  recolours.
-- **Row (edit mode):** URL becomes a `TextField` (label "URL iCal", placeholder "https://…  (laisser vide = saisie manuelle)"); tax toggle live; colour square clickable; **Enregistrer / Annuler**.
+- **Row (read mode):** `[colour-filled name chip] | URL iCal (truncated) | Taxe collectée [toggle] | Dernière synchro | État [icon] | [sync?] [Désactiver] [Modifier] [Suppr? — custom only]`. No URL → sync date + état empty, no sync icon.
+- **Platform name = colour chip:** the name is a chip whose background is the platform's calendar colour;
+  clicking it opens the palette (no separate grey swatch).
+- **URL display (read):** long URLs are **truncated to show only the END** (leading « … » + the trailing
+  path/filename — the distinguishing part); the full URL is on the element's `title` (hover).
+- **Disabled row:** the whole row's text is **greyed** (muted), the name chip greys out, and the toggle
+  shows "Réactiver"; the platform's bookings disappear from the property calendar/list.
+- **Colour:** clicking the name chip opens a palette popover; pick → saved (optimistic) + the in-memory
+  colour map updates so the calendar recolours **live** (no reload). The native custom-colour input commits
+  once (on blur / close), not per drag event.
+- **Row (edit mode):** the row grows taller — the **URL iCal field moves to its own full-width row below**
+  (so almost the whole URL is visible), labelled "URL iCal" with helper "Laisser vide = saisie manuelle (pas
+  de synchronisation iCal)"; the main row keeps the tax toggle (live draft) + **Enregistrer / Annuler**.
+- **État (sync state) = visual per-category breakdown:** on a successful sync the cell shows **one icon +
+  count per category** — créé (new), mis à jour (update), annulation à valider (cancel), verrouillé (lock),
+  inchangé, ignoré (fermeture) — each with a hover tooltip; non-zero categories are coloured, zero ones
+  greyed (lossless, just visual). Error → a red error icon (message on hover); never synced → a grey
+  schedule icon. No URL → empty. Counts come from `syncCounts` (persisted `ical_sources.lastSyncCounts`);
+  pre-migration rows fall back to a single success check with the legacy message on hover.
 - **Add platform:** an inline "Ajouter une plateforme" (name field → creates + appears in the list).
-- **`direct`:** colour only; URL/tax/sync hidden.
+- **`direct`:** colour only; URL/tax/sync hidden; not removable.
 - **Responsive:** on `xs` the table becomes stacked cards (one platform per card) with the same controls;
-  inline edit expands the card. No horizontal scroll on `xs`.
+  inline edit expands the card (full-width URL field). No horizontal scroll on `xs`.
 - **PageActionBar:** unchanged (the property fiche keeps its bar).
 
 ## 7. Test plan

@@ -749,6 +749,12 @@ db.exec(`
   if (!icalSourceCols.includes('disabled')) {
     db.exec('ALTER TABLE ical_sources ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
   }
+  // specs/platforms-and-ical-rework.md §6 — structured per-category sync counts (JSON) so the "État"
+  // cell can render one icon + number per category (created/updated/removed/unchanged/locked/skipped)
+  // instead of a free-text message. Written on every successful sync; the message is kept as fallback.
+  if (!icalSourceCols.includes('lastSyncCounts')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN lastSyncCounts TEXT');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):
