@@ -221,6 +221,16 @@ numbers are skipped.
 - [x] Boot-verified: backfill assigns per-month numbers on an existing DB; the email content migration injects
   the line once (idempotent) into already-seeded J-7/J-2 bodies.
 
+### E2E (Playwright — `e2e/specs/reservations/reservation-search.spec.js`, +2)
+- [x] Search by client name → the result (carrying its number) appears → click opens the fiche, whose number
+  field holds the value. Also guards that `ReservationSearchBox` mounts without crashing the Dashboard/Calendar.
+- [x] Search by reservation number → the matching result appears with the client name.
+
+> **Render note (MUI v9):** `ReservationSearchBox.renderInput` reads the input slot via
+> `params.slotProps.input` (MUI v9 dropped `params.InputProps`); `renderOption` extracts `key` before
+> spreading (React 19 warns on a spread `key`). The first cut used the old `params.InputProps` API and blanked
+> both pages — caught by the E2E suite, now pinned by the two specs above.
+
 ### Manual UI verification
 - [ ] Create a reservation → number `AAAA-MM-###` appears on the fiche after save; a second one increments.
 - [ ] Override the number → saved; reopen → persisted. Override to an existing number → save-error dialog, not saved.

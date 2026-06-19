@@ -16,7 +16,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Autocomplete, TextField, InputAdornment, CircularProgress, Box, Typography } from '@mui/material';
+import { Autocomplete, TextField, InputAdornment, Box, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import api from '../api';
 
@@ -85,33 +85,38 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
       isOptionEqualToValue={(o, v) => o.id === v.id}
       noOptionsText={inputValue.trim() ? 'Aucune réservation' : 'Tapez un numéro ou un nom…'}
       loadingText="Recherche…"
-      renderOption={(props, option) => (
-        <Box component="li" {...props} key={option.id} sx={{ display: 'block !important', py: 1 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {option.reservationNumber ? `${option.reservationNumber} · ` : ''}{option.clientFullName || '—'}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {[option.propertyName, formatStayRange(option.startDate, option.endDate)].filter(Boolean).join(' · ')}
-          </Typography>
-        </Box>
-      )}
+      renderOption={(props, option) => {
+        // React 19 + MUI v9: `key` is part of `props`; extract it so it isn't spread (spreading a
+        // `key` is a React warning → would trip the E2E "zero console errors" guard).
+        const { key, ...liProps } = props;
+        return (
+          <Box component="li" key={key} {...liProps} sx={{ display: 'block !important', py: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {option.reservationNumber ? `${option.reservationNumber} · ` : ''}{option.clientFullName || '—'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {[option.propertyName, formatStayRange(option.startDate, option.endDate)].filter(Boolean).join(' · ')}
+            </Typography>
+          </Box>
+        );
+      }}
       renderInput={(params) => (
+        // MUI v9 exposes the input slot via `params.slotProps.input` (no more `params.InputProps`).
+        // Merge our search-icon start adornment in; the Autocomplete keeps its own end adornment
+        // (clear/popup icons + the `loading` spinner) through the spread.
         <TextField
           {...params}
           autoFocus={autoFocus}
           placeholder={placeholder}
           aria-label="Rechercher une réservation"
-          InputProps={{
-            ...params.InputProps,
-            startAdornment: (
-              <InputAdornment position="start"><SearchIcon fontSize="small" color="action" /></InputAdornment>
-            ),
-            endAdornment: (
-              <>
-                {loading ? <CircularProgress color="inherit" size={18} /> : null}
-                {params.InputProps.endAdornment}
-              </>
-            ),
+          slotProps={{
+            ...params.slotProps,
+            input: {
+              ...(params.slotProps && params.slotProps.input),
+              startAdornment: (
+                <InputAdornment position="start"><SearchIcon fontSize="small" color="action" /></InputAdornment>
+              ),
+            },
           }}
         />
       )}

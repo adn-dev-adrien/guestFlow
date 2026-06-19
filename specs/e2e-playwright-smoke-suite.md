@@ -35,7 +35,7 @@ on master, the same suite becomes the acceptance criterion for the Vite migratio
 
 ## 2. Goal
 
-A Playwright E2E suite of **24 deterministic specs**, organised by feature domain,
+A Playwright E2E suite of **26 deterministic specs**, organised by feature domain,
 running in CI on every PR creation / push to master, catches regressions across every
 user-visible flow that an implemented spec promises. The suite is fully self-contained:
 it boots a server + client against a fresh ephemeral SQLite DB, seeds a deterministic
@@ -164,8 +164,11 @@ or mutable state.
 | 23 | `closures/blocks-new-reservation.spec.js` | Seed a closure window. Open `/reservations/new`, select dates inside the closure. Assert the form blocks save with the documented error. | `establishment-closures` |
 | **Mobile (1)** ||||
 | 24 | `mobile/xs-viewport.spec.js` | Viewport 390×844. Open `/`. Assert sidebar drawer collapsed by default. Open it. Assert all sidebar links reachable + tap targets ≥ 44 px. | All mobile rules across specs (`responsive-design` memory rule) |
+| **Reservation search (2)** ||||
+| 25 | `reservations/reservation-search.spec.js` | Seed a reservation. On the Dashboard, type the client name in the search box → the result (carrying its `AAAA-MM-###` number) appears → click opens the fiche, whose number field holds the value. Also guards that the search box mounts without crashing the Dashboard/Calendar. | `reservation-number-and-search` |
+| 26 | `reservations/reservation-search.spec.js` | Type the reservation number into the search box → the matching result appears with the client name. | `reservation-number-and-search` |
 
-**Total: 24 specs.** Expected CI runtime: ~3–5 minutes.
+**Total: 26 specs.** Expected CI runtime: ~3–5 minutes.
 
 ### 3.5 What's NOT covered by tests (deliberate)
 
