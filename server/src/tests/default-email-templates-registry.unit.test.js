@@ -52,7 +52,7 @@ test('every entry has the required fields with valid values', () => {
 test('every {{token}} the registry references is supported by the context builder', () => {
   const tokenRe = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
   for (const def of DEFAULT_TEMPLATES) {
-    const text = `${def.subject}\n${def.body}`;
+    const text = `${def.subject}\n${def.body}\n${def.subjectEn || ''}\n${def.bodyEn || ''}`;
     let m;
     while ((m = tokenRe.exec(text)) !== null) {
       const token = m[1];
@@ -71,7 +71,7 @@ test('every {{token}} the registry references is supported by the context builde
 test('every {{#if flag}} the registry uses is supported by the context builder', () => {
   const condRe = /\{\{#if\s+([a-zA-Z0-9_]+)\s*\}\}/g;
   for (const def of DEFAULT_TEMPLATES) {
-    const text = `${def.subject}\n${def.body}`;
+    const text = `${def.subject}\n${def.body}\n${def.subjectEn || ''}\n${def.bodyEn || ''}`;
     let m;
     while ((m = condRe.exec(text)) !== null) {
       const flag = m[1];
@@ -118,4 +118,18 @@ test('arrival_reminder_1d is shipped at J-2 with the GPS + nordic-bath copy (sta
   assert.ok(def.body.includes('{{#if hasNordicBath}}{{nordicBathReminder}}'), 'nordic-bath block present');
   assert.ok(def.body.includes('{{#if hasCleaningOption}}{{else}}'), 'cleaning-by-default notice present');
   assert.ok(def.body.includes('{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}'), 'reservation number recall present');
+});
+
+// ---- both shipped reminders carry an English translation (specs/email-language-fr-en.md) ----
+
+test('the two default reminders ship a non-empty English subject + body with the same flags', () => {
+  for (const key of ['arrival_reminder_7d', 'arrival_reminder_1d']) {
+    const def = DEFAULT_TEMPLATES.find((d) => d.stableKey === key);
+    assert.ok(def.subjectEn && def.subjectEn.trim().length > 0, `${key}: subjectEn present`);
+    assert.ok(def.bodyEn && def.bodyEn.trim().length > 0, `${key}: bodyEn present`);
+    assert.ok(!def.bodyEn.includes('Bonjour'), `${key}: EN body is actually English`);
+    // The EN body keeps the same conditional flags as the FR body (renderer is language-agnostic).
+    const flagsOf = (s) => (s.match(/\{\{#if\s+([a-zA-Z0-9_]+)/g) || []).sort().join(',');
+    assert.equal(flagsOf(def.bodyEn), flagsOf(def.body), `${key}: EN/FR use the same flags`);
+  }
 });

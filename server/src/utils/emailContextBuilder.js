@@ -45,11 +45,17 @@ function joinAddress(client) {
 //   { single: 1, double: 2, baby: 0 } → "2 lits doubles, 1 lit simple"
 //   { single: 0, double: 0, baby: 1 } → "1 lit bébé"
 //   { single: 0, double: 0, baby: 0 } → ""
-function formatBedConfig({ singleBeds, doubleBeds, babyBeds }) {
+function formatBedConfig({ singleBeds, doubleBeds, babyBeds }, lang = 'fr') {
   const parts = [];
   const dn = Number(doubleBeds || 0);
   const sn = Number(singleBeds || 0);
   const bn = Number(babyBeds || 0);
+  if (lang === 'en') {
+    if (dn > 0) parts.push(`${dn} double bed${dn > 1 ? 's' : ''}`);
+    if (sn > 0) parts.push(`${sn} single bed${sn > 1 ? 's' : ''}`);
+    if (bn > 0) parts.push(`${bn} baby cot${bn > 1 ? 's' : ''}`);
+    return parts.join(', ');
+  }
   if (dn > 0) parts.push(`${dn} lit${dn > 1 ? 's' : ''} double${dn > 1 ? 's' : ''}`);
   if (sn > 0) parts.push(`${sn} lit${sn > 1 ? 's' : ''} simple${sn > 1 ? 's' : ''}`);
   if (bn > 0) parts.push(`${bn} lit${bn > 1 ? 's' : ''} bébé`);
@@ -63,11 +69,19 @@ function formatBedConfig({ singleBeds, doubleBeds, babyBeds }) {
 //   'à la'  + 'Tente'          → 'à la Tente'
 //   "à l'"  + 'Aventura Lodge' → "à l'Aventura Lodge"   (elided forms glue, no space)
 //   'aux'   + 'Gîtes'          → 'aux Gîtes'
-function formatPropertyWithArticle(name, article) {
+function formatPropertyWithArticle(name, article, lang = 'fr') {
   const n = safeStr(name).trim();
   if (!n) return '';
+  // English has no gendered article to glue — the EN bodies phrase it as "at {{propertyWithArticle}}",
+  // so we return the bare name (e.g. "the Gite" would over-assume; the name alone reads cleanly).
+  if (lang === 'en') return n;
   const a = safeStr(article).trim() || 'au';
   return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
+}
+
+// Minimal language normaliser shared with the send pipeline (kept inline to avoid a circular require).
+function normaliseLang(v) {
+  return String(v || '').toLowerCase() === 'en' ? 'en' : 'fr';
 }
 
 /**
@@ -81,11 +95,14 @@ function formatPropertyWithArticle(name, article) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr' }) {
   const r = reservation || {};
   const c = client || {};
   const p = property || {};
   const linenByDefault = Boolean(bedLinenProvidedByDefault);
+  // specs/email-language-fr-en.md §3 rule 4 — every composed string below is emitted in `lang`.
+  const L = normaliseLang(lang);
+  const isEn = L === 'en';
 
   const fullName = `${safeStr(c.firstName).trim()} ${safeStr(c.lastName).trim()}`.trim();
   const checkInTime  = formatTimeShort(r.checkInTime  || p.defaultCheckIn  || '');
@@ -146,22 +163,33 @@ function buildContext({ reservation, client, property, options = [], resources =
   const nordicBathSchedule = (nordicResource ? parseSessions(nordicResource.sessions) : [])
     .filter((s) => s && s.date)
     .map((s) => {
-      const day = formatDateLong(s.date);
+      const day = formatDateLong(s.date, L);
       const start = s.start ? formatTimeShort(s.start) : '';
       const end = s.end ? formatTimeShort(s.end) : '';
+      if (isEn) {
+        if (start && end) return `on ${day} from ${start} to ${end}`;
+        if (start) return `on ${day} at ${start}`;
+        return `on ${day}`;
+      }
       if (start && end) return `le ${day} de ${start} à ${end}`;
       if (start) return `le ${day} à ${start}`;
       return `le ${day}`;
     })
-    .join(' et ');
+    .join(isEn ? ' and ' : ' et ');
   // Composed server-side (the renderer has no nested conditionals): one sentence that optionally
   // recalls the scheduled slot. The template renders it via `{{#if hasNordicBath}}{{nordicBathReminder}}{{/if}}`.
   const nordicBathReminder = hasNordicBath
-    ? [
-      'Vous avez réservé le bain nordique : un véritable moment de détente vous attend !',
-      nordicBathSchedule ? `Votre créneau est réservé ${nordicBathSchedule}.` : '',
-      'Pour en profiter pleinement, pensez à emporter votre maillot de bain, un peignoir ou une serviette, ainsi qu\'une paire de tongs — ces équipements ne sont pas fournis sur place.',
-    ].filter(Boolean).join(' ')
+    ? (isEn
+      ? [
+        'You have booked the nordic bath: a real moment of relaxation awaits you!',
+        nordicBathSchedule ? `Your slot is reserved ${nordicBathSchedule}.` : '',
+        'To make the most of it, remember to bring your swimsuit, a bathrobe or a towel, and a pair of flip-flops — these items are not provided on site.',
+      ].filter(Boolean).join(' ')
+      : [
+        'Vous avez réservé le bain nordique : un véritable moment de détente vous attend !',
+        nordicBathSchedule ? `Votre créneau est réservé ${nordicBathSchedule}.` : '',
+        'Pour en profiter pleinement, pensez à emporter votre maillot de bain, un peignoir ou une serviette, ainsi qu\'une paire de tongs — ces équipements ne sont pas fournis sur place.',
+      ].filter(Boolean).join(' '))
     : '';
 
   // Complement to collect on arrival (specs/j1-complement-to-collect.md). The notice appears only
@@ -188,7 +216,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     }
   }
   if (Number(r.touristTaxInComplement || 0) === 1 && Number(r.touristTaxTotal || 0) > 0) {
-    inComplementItems.push({ label: 'Taxe de séjour', amount: Number(r.touristTaxTotal || 0) });
+    inComplementItems.push({ label: isEn ? 'Tourist tax' : 'Taxe de séjour', amount: Number(r.touristTaxTotal || 0) });
   }
   const complementBreakdown = inComplementItems
     .filter((it) => it.label && it.amount > 0)
@@ -196,9 +224,12 @@ function buildContext({ reservation, client, property, options = [], resources =
     .join(', ');
   let complementNotice = '';
   if (complementToCollect) {
-    complementNotice = `Un complément de ${formatCurrency(complementAmountNum)} sera à régler directement sur place à votre arrivée.`;
-    if (complementBreakdown) {
-      complementNotice += ` Il comprend notamment : ${complementBreakdown}.`;
+    if (isEn) {
+      complementNotice = `A balance of ${formatCurrency(complementAmountNum)} will be payable directly on site on arrival.`;
+      if (complementBreakdown) complementNotice += ` It notably includes: ${complementBreakdown}.`;
+    } else {
+      complementNotice = `Un complément de ${formatCurrency(complementAmountNum)} sera à régler directement sur place à votre arrivée.`;
+      if (complementBreakdown) complementNotice += ` Il comprend notamment : ${complementBreakdown}.`;
     }
   }
 
@@ -217,7 +248,16 @@ function buildContext({ reservation, client, property, options = [], resources =
   const babyBedsNum = Number(r.babyBeds || 0);
   const hasBabyBedNotice = babiesNum > 0;
   let babyBedNotice = '';
-  if (babiesNum > 0 && babyBedsNum > 0) {
+  if (isEn) {
+    const babiesPart = babiesNum > 1 ? 'babies' : 'a baby';
+    if (babiesNum > 0 && babyBedsNum > 0) {
+      babyBedNotice = babyBedsNum > 1
+        ? `You are travelling with ${babiesPart}: ${babyBedsNum} baby cots are provided.`
+        : `You are travelling with ${babiesPart}: a baby cot is provided.`;
+    } else if (babiesNum > 0) {
+      babyBedNotice = `You are travelling with ${babiesPart}: we no longer have a baby cot available for your dates. Please plan to bring your own.`;
+    }
+  } else if (babiesNum > 0 && babyBedsNum > 0) {
     const babiesPart = babiesNum > 1 ? 'des bébés' : 'un bébé';
     babyBedNotice = babyBedsNum > 1
       ? `Vous voyagez avec ${babiesPart} : ${babyBedsNum} lits bébé vous sont fournis.`
@@ -238,8 +278,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       clientAddress:   joinAddress(c),
       // Reservation
       reservationNumber: safeStr(r.reservationNumber),
-      startDate:    formatDateLong(r.startDate),
-      endDate:      formatDateLong(r.endDate),
+      startDate:    formatDateLong(r.startDate, L),
+      endDate:      formatDateLong(r.endDate, L),
       checkInTime,
       checkOutTime,
       nights:       String(nights),
@@ -250,14 +290,14 @@ function buildContext({ reservation, client, property, options = [], resources =
       totalGuests:  String(totalGuests),
       // Property
       propertyName:        safeStr(p.name),
-      propertyWithArticle: formatPropertyWithArticle(p.name, p.nameArticle),
+      propertyWithArticle: formatPropertyWithArticle(p.name, p.nameArticle, L),
       propertyAddress:     '', // see §4.4: column doesn't exist yet, ship as empty string.
       // Financial
       finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
       depositAmount:   formatCurrency(Number(r.depositAmount || 0)),
-      depositDueDate:  formatDateLong(r.depositDueDate),
+      depositDueDate:  formatDateLong(r.depositDueDate, L),
       balanceAmount:   formatCurrency(Number(r.balanceAmount || 0)),
-      balanceDueDate:  formatDateLong(r.balanceDueDate),
+      balanceDueDate:  formatDateLong(r.balanceDueDate, L),
       cautionAmount:   formatCurrency(cautionAmountNum),
       complementAmount: formatCurrency(complementAmountNum),
       complementNotice,
@@ -269,7 +309,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       nordicBathReminder,
       bedConfig: formatBedConfig({
         singleBeds: r.singleBeds, doubleBeds: r.doubleBeds, babyBeds: r.babyBeds,
-      }),
+      }, L),
       babyBedNotice,
       // Company
       companyName:  safeStr(settings.companyName),
@@ -299,6 +339,7 @@ function buildContext({ reservation, client, property, options = [], resources =
 
 module.exports = {
   buildContext,
+  normaliseLang,
   // Exposed for tests.
   __test: { formatBedConfig, joinAddress, diffDays, formatPropertyWithArticle },
 };

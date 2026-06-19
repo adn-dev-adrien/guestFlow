@@ -83,6 +83,9 @@ const emptyTemplate = {
   name: '',
   subject: '',
   body: '',
+  // Optional English side (specs/email-language-fr-en.md). Empty → reservation sends in French.
+  subjectEn: '',
+  bodyEn: '',
   dayOffset: -7,
   sendMode: 'manual',
   enabled: true,
@@ -105,6 +108,8 @@ export default function EmailTemplatesPage() {
   const [form, setForm] = useState(emptyTemplate);
   const bodyRef = useRef(null);
   const subjectRef = useRef(null);
+  const bodyEnRef = useRef(null);
+  const subjectEnRef = useRef(null);
   const [focusedField, setFocusedField] = useState('body');
 
   const [pending, setPending] = useState([]);
@@ -219,6 +224,8 @@ export default function EmailTemplatesPage() {
         name: row.name || '',
         subject: row.subject || '',
         body: row.body || '',
+        subjectEn: row.subjectEn || '',
+        bodyEn: row.bodyEn || '',
         dayOffset: Number(row.dayOffset || 0),
         sendMode: row.sendMode || 'manual',
         enabled: row.enabled !== 0,
@@ -233,7 +240,7 @@ export default function EmailTemplatesPage() {
   const handleClose = () => setOpen(false);
 
   const insertToken = (token) => {
-    const ref = focusedField === 'subject' ? subjectRef : bodyRef;
+    const ref = { subject: subjectRef, body: bodyRef, subjectEn: subjectEnRef, bodyEn: bodyEnRef }[focusedField] || bodyRef;
     const field = ref.current;
     if (!field) {
       setForm((f) => ({ ...f, [focusedField]: (f[focusedField] || '') + token }));
@@ -259,6 +266,8 @@ export default function EmailTemplatesPage() {
       name: String(form.name || '').trim(),
       subject: String(form.subject || ''),
       body: String(form.body || ''),
+      subjectEn: String(form.subjectEn || ''),
+      bodyEn: String(form.bodyEn || ''),
       dayOffset: Number(form.dayOffset || 0),
       sendMode: form.sendMode || 'manual',
       enabled: !!form.enabled,
@@ -495,6 +504,30 @@ export default function EmailTemplatesPage() {
             inputRef={bodyRef}
             fullWidth
             required
+            multiline
+            minRows={12}
+          />
+
+          {/* English version (specs/email-language-fr-en.md): used when the reservation's email language
+              is English. Optional — leave empty to always send in French. */}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Version anglaise (optionnelle) — utilisée pour les réservations en anglais. Laissez vide pour envoyer en français.
+          </Typography>
+          <TextField
+            label="Sujet (EN)"
+            value={form.subjectEn || ''}
+            onChange={(e) => setForm({ ...form, subjectEn: e.target.value })}
+            onFocus={() => setFocusedField('subjectEn')}
+            inputRef={subjectEnRef}
+            fullWidth
+          />
+          <TextField
+            label="Corps du message (EN)"
+            value={form.bodyEn || ''}
+            onChange={(e) => setForm({ ...form, bodyEn: e.target.value })}
+            onFocus={() => setFocusedField('bodyEn')}
+            inputRef={bodyEnRef}
+            fullWidth
             multiline
             minRows={12}
           />

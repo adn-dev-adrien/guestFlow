@@ -65,6 +65,17 @@ function createReservationsModel(database) {
     const value = raw === '' ? null : (formatTimeShort(raw) || null); // '' / invalid → NULL = use option default
     database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
   }
+  // Per-reservation email language (specs/email-language-fr-en.md). Guarded; 'en' or 'fr' (default), only
+  // written when the payload carries it. Absent column (minimal test schema) → no-op.
+  const HAS_EMAIL_LANGUAGE = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'emailLanguage'); }
+    catch { return false; }
+  })();
+  function persistEmailLanguage(reservationId, payload) {
+    if (!HAS_EMAIL_LANGUAGE || !payload || payload.emailLanguage === undefined) return;
+    const value = String(payload.emailLanguage || '').toLowerCase() === 'en' ? 'en' : 'fr';
+    database.prepare('UPDATE reservations SET emailLanguage = ? WHERE id = ?').run(value, reservationId);
+  }
   // Human-readable reservation number (specs/reservation-number-and-search.md §3). Guarded so minimal
   // test schemas without the column simply skip it.
   const HAS_RESERVATION_NUMBER = (() => {
@@ -768,6 +779,7 @@ function createReservationsModel(database) {
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistReservationNumber(result.lastInsertRowid, payload);
+      persistEmailLanguage(result.lastInsertRowid, payload);
       return result.lastInsertRowid;
     },
 
@@ -819,6 +831,7 @@ function createReservationsModel(database) {
       );
       persistBreakfastTime(reservationId, payload);
       persistReservationNumber(reservationId, payload);
+      persistEmailLanguage(reservationId, payload);
     },
 
     // `inComplement` is carried on every write. `acompteContribTtc`/`soldeContribTtc` are

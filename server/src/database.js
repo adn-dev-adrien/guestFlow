@@ -375,6 +375,9 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   // Human-readable reservation number (specs/reservation-number-and-search.md). NULL for devis
   // (they keep devisNumber); partial unique index mirrors ux_reservations_devisNumber.
   if (!rcols.includes('reservationNumber')) db.exec('ALTER TABLE reservations ADD COLUMN reservationNumber TEXT');
+  // Per-reservation email language (specs/email-language-fr-en.md). 'fr' (default) | 'en'. Existing rows
+  // backfill to 'fr' via the DEFAULT clause; the email preview/send pipeline reads this column.
+  if (!rcols.includes('emailLanguage')) db.exec("ALTER TABLE reservations ADD COLUMN emailLanguage TEXT NOT NULL DEFAULT 'fr'");
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_devisNumber ON reservations(devisNumber) WHERE devisNumber IS NOT NULL');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_reservations_reservationNumber ON reservations(reservationNumber) WHERE reservationNumber IS NOT NULL');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_kind ON reservations(kind)');
@@ -1110,9 +1113,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_payment_links_status ON payment_links(status);
 `);
 
+// Bilingual templates (specs/email-language-fr-en.md): optional English subject/body. Additive +
+// idempotent; must run BEFORE the seed so fresh installs insert the EN side too.
+{
+  const etCols = db.prepare('PRAGMA table_info(email_templates)').all().map((c) => c.name);
+  if (!etCols.includes('subjectEn')) db.exec('ALTER TABLE email_templates ADD COLUMN subjectEn TEXT');
+  if (!etCols.includes('bodyEn'))    db.exec('ALTER TABLE email_templates ADD COLUMN bodyEn TEXT');
+}
+
 const { ensureDefaultEmailTemplates } = require('./utils/defaultEmailTemplatesSeed');
 ensureDefaultEmailTemplates(db);
 db.ensureDefaultEmailTemplates = ensureDefaultEmailTemplates;
+
+// Content migration (specs/email-language-fr-en.md §3 rule 6): backfill the shipped English subject/body
+// onto the two default reminders for installs seeded before the bilingual feature — ONLY when the EN
+// columns are still empty (operator EN edits + the French side are never touched). Idempotent.
+{
+  const { DEFAULT_TEMPLATES } = require('./utils/defaultEmailTemplatesRegistry');
+  const upd = db.prepare(`
+    UPDATE email_templates SET subjectEn = ?, bodyEn = ?, updatedAt = datetime('now')
+     WHERE stableKey = ? AND (subjectEn IS NULL OR subjectEn = '') AND (bodyEn IS NULL OR bodyEn = '')
+  `);
+  for (const def of DEFAULT_TEMPLATES) {
+    if (def.bodyEn) upd.run(def.subjectEn || '', def.bodyEn, def.stableKey);
+  }
+}
 
 // Content migration (specs/email-automation.md §3 rule 13): the shipped J-7 reminder gained
 // the {{propertyWithArticle}} token, but the seed is insert-only, so installs seeded before

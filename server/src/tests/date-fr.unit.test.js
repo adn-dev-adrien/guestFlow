@@ -17,6 +17,14 @@ test('formatDateLong: drops a time component if present', () => {
   assert.equal(formatDateLong('2026-06-15T15:00:00Z'), '15 juin 2026');
 });
 
+test('formatDateLong: lang="en" renders English months; default stays French (specs/email-language-fr-en.md)', () => {
+  assert.equal(formatDateLong('2026-06-15', 'en'), '15 June 2026');
+  assert.equal(formatDateLong('2026-12-25', 'en'), '25 December 2026');
+  assert.equal(formatDateLong('2026-01-01', 'en'), '1 January 2026');
+  assert.equal(formatDateLong('2026-06-15'), '15 juin 2026');       // default unchanged
+  assert.equal(formatDateLong('2026-06-15', 'fr'), '15 juin 2026');
+});
+
 test('formatDateLong: empty / falsy → empty string', () => {
   assert.equal(formatDateLong(''), '');
   assert.equal(formatDateLong(null), '');
