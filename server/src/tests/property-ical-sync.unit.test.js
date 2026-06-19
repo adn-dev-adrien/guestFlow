@@ -23,7 +23,7 @@ const DDL = `
   CREATE TABLE ical_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, name TEXT, url TEXT, platformKey TEXT,
     platformLabel TEXT, platformColor TEXT, isActive INTEGER DEFAULT 1,
-    lastSyncAt TEXT, lastSyncStatus TEXT, lastSyncMessage TEXT, lastImportedCount INTEGER, createdAt TEXT, updatedAt TEXT
+    lastSyncAt TEXT, lastSyncStatus TEXT, lastSyncMessage TEXT, lastSyncCounts TEXT, lastImportedCount INTEGER, createdAt TEXT, updatedAt TEXT
   );
   CREATE TABLE ical_import_events (
     sourceId INTEGER, eventUid TEXT, reservationId INTEGER, eventHash TEXT,

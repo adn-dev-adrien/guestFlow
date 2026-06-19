@@ -7,6 +7,10 @@ const KNOWN_PLATFORM_COLORS = {
   abracadaroom: '#00bcd4',
   booking: '#003580',
   gitedefrance: '#e6c832',
+  // The accent-stripped slug of the plural "Gîtes de France" (canonical stored form is the plural
+  // 'GitesDeFrance' → slug 'gitesdefrance'). Same gold as the singular so the two never drift to grey.
+  // Mirrors client/src/constants/platforms.js which carries both spellings.
+  gitesdefrance: '#e6c832',
   pitchup: '#f57c00',
 };
 

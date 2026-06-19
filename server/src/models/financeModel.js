@@ -391,7 +391,10 @@ function createFinanceModel(database) {
             OR EXISTS (
               SELECT 1 FROM ical_sources s
               WHERE s.propertyId = r.propertyId
-                AND lower(s.platformKey) = lower(r.platform)
+                -- Match platformKey OR platformLabel: iCal imports store the hyphenated key, manual
+                -- reservations store the concatenated label. Matching only the key silently dropped
+                -- multi-word / accented owner-collected platforms from the tax-to-remit list.
+                AND (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
                 AND s.collectsTouristTax = 0
             )
           )

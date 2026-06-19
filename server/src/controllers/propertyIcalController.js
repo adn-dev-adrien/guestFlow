@@ -1,10 +1,18 @@
-// Property iCal controller — thin handlers over propertyIcalModel (sources CRUD + sync).
+// Property iCal controller — thin handlers over propertyIcalModel (sources CRUD + sync) and the
+// merged per-property platform list (platformsModel.listForProperty).
 
 const model = require('../models/propertyIcalModel');
+const platformsModel = require('../models/platformsModel');
 
 function respond(res, result) {
   if (result && result.error) return res.status(result.status || 400).json({ error: result.error });
   return res.json(result.data);
+}
+
+// specs/platforms-and-ical-rework.md §4.3 — merged list: every platform (built-ins ∪ DB) + this
+// property's iCal-source config + the global colour. Thin: the model owns the merge.
+function listPlatforms(req, res) {
+  res.json({ platforms: platformsModel.listForProperty(Number(req.params.id)) });
 }
 
 function listSources(req, res) {
@@ -31,4 +39,4 @@ async function syncAll(req, res) {
   res.json(await model.syncAllForProperty(Number(req.params.id)));
 }
 
-module.exports = { listSources, createSource, updateSource, removeSource, sync, syncAll };
+module.exports = { listPlatforms, listSources, createSource, updateSource, removeSource, sync, syncAll };

@@ -136,7 +136,17 @@ function createReservationsModel(database) {
         WHERE r.kind = 'reservation'
       `;
       const params = [];
-      if (propertyId) { sql += ' AND r.propertyId = ?'; params.push(propertyId); }
+      if (propertyId) {
+        sql += ' AND r.propertyId = ?'; params.push(propertyId);
+        // specs/platforms-and-ical-rework.md §3 rule 10 — hide reservations of a platform DISABLED
+        // for this property. DISPLAY filter only: availability/getOccupiedReservations is unchanged,
+        // so a disabled platform's bookings still block dates (no double-booking regression).
+        sql += ` AND NOT EXISTS (
+          SELECT 1 FROM ical_sources s
+          WHERE s.propertyId = r.propertyId AND s.disabled = 1
+            AND (lower(s.platformLabel) = lower(r.platform) OR lower(s.platformKey) = lower(r.platform))
+        )`;
+      }
       if (clientId) { sql += ' AND r.clientId = ?'; params.push(clientId); }
       if (from) { sql += ' AND r.endDate >= ?'; params.push(from); }
       if (to) { sql += ' AND r.startDate <= ?'; params.push(to); }

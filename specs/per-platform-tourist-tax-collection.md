@@ -35,13 +35,19 @@ visible inconsistency between the reservation summary, the export, and the Suivi
 1. Each `ical_sources` row carries a boolean **`collectsTouristTax`**:
    - `1` (default) — the platform collects the tax (offered on the quote, hidden from Suivi).
    - `0` — the owner collects it (charged on the quote, listed in Suivi).
-2. The **pricing engine** resolves the "platform collects" flag like this (case-insensitive on
-   `platformKey`):
+2. The **pricing engine** resolves the "platform collects" flag like this (case-insensitive, matching
+   the reservation's `platform` against the source's **`platformKey` OR `platformLabel`**):
    - `platform = 'direct'` → owner collects (never offered, always charged).
-   - `platform = other` → look up the property's iCal source matching the platform key:
+   - `platform = other` → look up the property's iCal source whose `platformKey` **or** `platformLabel`
+     equals the reservation's `platform`:
      - matching row found → follow its `collectsTouristTax`.
      - no matching row → **default to "collects"** so legacy data and ad-hoc platforms keep the
        previous behaviour (no surprise on existing reservations).
+   > **Why match both** (2026-06-19): `reservations.platform` is written two ways — iCal imports store
+   > the hyphenated `source.platformKey` (`g-tes-de-france`), manual reservations store the concatenated
+   > `formatPlatformName(...)` (= `source.platformLabel`, `GitesDeFrance`). Matching only `platformKey`
+   > silently dropped multi-word / accented platforms on the manual path. Applies identically to
+   > `financeModel.getTouristTaxExtraction` (the Suivi remittance query).
 3. The reservation `quote` returns both `touristTaxTotal` (the amount actually charged — `0` when
    offered) and `touristTaxOriginalTotal` (the would-be amount, kept for display in the summary).
    The `touristTaxOfferedByPlatform` flag mirrors rule 2.
@@ -96,8 +102,8 @@ visible inconsistency between the reservation summary, the export, and the Suivi
 | `database.js` | `database.js` | T | `ALTER TABLE ical_sources ADD COLUMN collectsTouristTax INTEGER NOT NULL DEFAULT 1`; matching column in the `CREATE TABLE` for fresh installs. Idempotent (skips if column already exists). |
 | `models/propertyIcalModel.js` | `propertyIcalModel.js` | T | `SOURCE_COLUMNS` lists the new column; `createSource` defaults to `1` unless the body explicitly says `false`/`0`; `updateSource` preserves the existing value when the body omits it. |
 | `models/propertiesModel.js` | `propertiesModel.js` | T | `getByIdWithDetails` SELECT for `icalSources` must include `collectsTouristTax` (otherwise the iCal sources table on `/properties/:id` shows the old "Plateforme" chip regardless of the saved value). Bugfix 2026-05-30. |
-| `utils/pricing.js` | `pricing.js` | T | New `isPlatformCollectingTouristTax(db, propertyId, platformKey)` helper. The hardcoded `platform !== 'direct'` check is replaced by this lookup. The helper is defensive (`try/catch` on the SELECT to handle minimal test DBs). **2026-05-30:** when the resolved state is "non-direct + owner collects + tax > 0", the engine sets `touristTaxCollectedOnArrival = true`, uses `finalPrice` (not `totalStayPrice`) as the pre-arrival amount for `depositAmount` + `balanceAmount`, and routes the tax into `complementAmount` from save 1. Direct + platform-collect cases are unchanged. |
-| `models/financeModel.js` | `financeModel.js` | T | `getTouristTaxExtraction` SQL `WHERE` now reads `r.platform = 'direct' OR EXISTS (SELECT 1 FROM ical_sources s WHERE s.propertyId = r.propertyId AND lower(s.platformKey) = lower(r.platform) AND s.collectsTouristTax = 0)`. |
+| `utils/pricing.js` | `pricing.js` | T | New `isPlatformCollectingTouristTax(db, propertyId, platformKey)` helper. The hardcoded `platform !== 'direct'` check is replaced by this lookup. The helper is defensive (`try/catch` on the SELECT to handle minimal test DBs). **2026-05-30:** when the resolved state is "non-direct + owner collects + tax > 0", the engine sets `touristTaxCollectedOnArrival = true`, uses `finalPrice` (not `totalStayPrice`) as the pre-arrival amount for `depositAmount` + `balanceAmount`, and routes the tax into `complementAmount` from save 1. Direct + platform-collect cases are unchanged. **2026-06-19:** the SELECT now matches `lower(platformKey) = ? OR lower(platformLabel) = ?` (multi-word platforms on the manual path). |
+| `models/financeModel.js` | `financeModel.js` | T | `getTouristTaxExtraction` SQL `WHERE` now reads `r.platform = 'direct' OR EXISTS (SELECT 1 FROM ical_sources s WHERE s.propertyId = r.propertyId AND (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform)) AND s.collectsTouristTax = 0)` (2026-06-19: added the `platformLabel` arm). |
 | `models/accountingModel.js` | `accountingModel.js` | T | **2026-05-30:** `buildEntry` branches on `quote.touristTaxCollectedOnArrival`. When true: pro-rate deposit + balance against `finalPrice` (not `totalStayTtc`), and carve the tourist-tax portion out of the complement (`encaissementTtc -= touristTaxTotal`); if the residual is `0`, return `null` so the export drops the entry entirely. Direct + platform-collect cases unchanged. Matches the spec rule "tourist tax is excluded from the revenue accounts — it's reported via Suivi taxe de séjour". |
 | `controllers/propertyIcalController.js` | — | — | No change — controller passes `req.body` through; the model handles the new field. |
 | `tests/` | `pricing-tourist-tax-platform-collection.unit.test.js` | C | Direct / collects=true / collects=false / no matching source / case-insensitive / missing table — 6 cases. |

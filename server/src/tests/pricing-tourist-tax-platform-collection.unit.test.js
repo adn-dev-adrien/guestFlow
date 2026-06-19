@@ -34,7 +34,7 @@ function createDb({ collectsTouristTax } = {}) {
     CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRate REAL NOT NULL DEFAULT 10);
     CREATE TABLE ical_sources (
       id INTEGER PRIMARY KEY, propertyId INTEGER NOT NULL,
-      platformKey TEXT NOT NULL, collectsTouristTax INTEGER NOT NULL DEFAULT 1
+      platformKey TEXT NOT NULL, platformLabel TEXT, collectsTouristTax INTEGER NOT NULL DEFAULT 1
     );
   `);
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();

@@ -32,6 +32,10 @@ router.get('/:id/option-defaults', optionDefaults.listForProperty);
 router.put('/:id/option-defaults/:optionId', optionDefaults.setForProperty);
 router.delete('/:id/option-defaults/:optionId', optionDefaults.unsetForProperty);
 
+// Merged platform list for a property (specs/platforms-and-ical-rework.md §4.3): every platform +
+// this property's iCal-source config + the global colour.
+router.get('/:id/platforms', ical.listPlatforms);
+
 // iCal sources
 router.get('/:id/ical-sources', ical.listSources);
 router.post('/:id/ical-sources', ical.createSource);
