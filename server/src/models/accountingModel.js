@@ -300,17 +300,10 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   const totalStayTtc = finalPriceTtc + touristTaxTotal;
   const collectedOnArrival = Boolean(quote.touristTaxCollectedOnArrival);
   const taxRoutedToComplement = collectedOnArrival || Number(row.touristTaxInComplement || 0) === 1;
-
-  // specs/per-platform-tourist-tax-three-way.md §3 rule 5 — case 1 "platform reverses the tax to us".
-  // The tax is OFFERED on our quote (so `row.touristTaxTotal` is 0 and it's NOT in the deposit/balance
-  // schedule), yet WE remit it to the commune. The platform settles in a single payout that INCLUDES
-  // the tax → it rides the `balance` entry as a 46710000 pass-through (added to the encaissement, not
-  // to revenue; the commission is computed on the stay only, so it's untouched). Cases 2/3/direct are
-  // unchanged: case 2 has no tax in the books, case 3 + direct already carry it via `touristTaxTotal`.
-  const isPlatformReversedTax = Boolean(quote.touristTaxOfferedByPlatform) && Boolean(quote.touristTaxRemittedByOwner);
-  const reversedPlatformTaxTtc = (isPlatformReversedTax && kind === 'balance')
-    ? round2(Number(quote.touristTaxOriginalTotal || 0))
-    : 0;
+  // specs/per-platform-tourist-tax-three-way.md — case 1 "platform reverses the tax to us" is now a
+  // REAL charge stored in `row.touristTaxTotal` and scheduled in the balance (the platform pays it
+  // with the settlement). So the standard tax-in-balance path books it on 46710000 with no special
+  // casing: the offered case (platform remits to the commune itself) is the only one with tax = 0.
 
   const amountByKind = {
     deposit:    Number(row.depositAmount)    || 0,
@@ -388,10 +381,7 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     // time it's "what's left of the tax after the two prior buckets took their share". The
     // tax is part of the encaissement TTC (the customer paid it) but credited to the
     // pass-through account 46710000 in the export, NOT to a 70xxx revenue line.
-    // `reversedPlatformTaxTtc` adds the case-1 "platform reverses it to us" tax onto the balance
-    // payout (it's 0 for every other case/kind). `totalGrossTtc` + the encaissement below pick it
-    // up automatically since they sum `taxTtc`.
-    const taxTtc = computeTaxTtcForKind(row, kind) + reversedPlatformTaxTtc;
+    const taxTtc = computeTaxTtcForKind(row, kind);
 
     // Scale per-bucket TTCs by the gross ratio so the credited HT + VAT reflect the BRUT
     // the customer paid the platform (§3.5). For directs grossRatio === 1, so this is a
@@ -446,19 +436,17 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   if (collectedOnArrival) {
     legacyTaxTtc = kind === 'complement' ? Math.min(touristTaxTotal, encaissementTtc) : 0;
   } else {
+    // Direct + case 1 (platform reverses to us): the tax sits in the balance, pro-rated against the
+    // total stay TTC like the rest of the encaissement.
     legacyTaxTtc = round2(touristTaxTotal * fraction);
   }
-  // Case 1 (platform reverses it to us): the offered tax (touristTaxTotal = 0 here) rides the
-  // balance payout as a 46710000 pass-through. Added on top — it's not scaled by the stay fraction
-  // and carries no commission.
-  legacyTaxTtc = round2(legacyTaxTtc + reversedPlatformTaxTtc);
 
   // §3.5 — legacy path: same gross-ratio scaling, applied through `fraction`. We scale the
   // computed `fraction` by `grossRatio` so the buckets (still computed on NET in the engine
   // quote) end up at the right gross HT/VAT when the CSV does `bucket.ht × fraction`.
   // The encaissement reported to the export = encaissement × grossRatio so the credits sum
   // to the gross. Commission gets booked separately on the debit side.
-  const legacyEncaissementGross = round2(encaissementTtc * grossRatio + reversedPlatformTaxTtc);
+  const legacyEncaissementGross = round2(encaissementTtc * grossRatio);
   const legacyFraction = collectedOnArrival && totalStayTtc > 0
     ? ((encaissementTtc - legacyTaxTtc) / finalPriceTtc) * grossRatio
     : fraction * grossRatio;

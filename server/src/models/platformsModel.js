@@ -47,6 +47,20 @@ function resolveColor(name, customColor) {
   return KNOWN_PLATFORM_COLORS[platformSlug(name)] || DEFAULT_PLATFORM_COLOR;
 }
 
+// specs/per-platform-tourist-tax-three-way.md — the GLOBAL 3-way tourist-tax mode ⇄ the two stored
+// booleans. 'platform' = collects + remits to commune (1,1); 'platform_reversed' = collects, reverses
+// to us (1,0); 'owner' = we collect at arrival (0,0). Invalid combo (collects=0 + remitted=1) is
+// normalised away (we-collect always means we remit).
+function touristTaxCollectionToFlags(mode) {
+  if (mode === 'owner') return { collectsTouristTax: 0, touristTaxRemittedByPlatform: 0 };
+  if (mode === 'platform_reversed') return { collectsTouristTax: 1, touristTaxRemittedByPlatform: 0 };
+  return { collectsTouristTax: 1, touristTaxRemittedByPlatform: 1 }; // 'platform' (default)
+}
+function flagsToTouristTaxCollection(collects, remitted) {
+  if (Number(collects) === 0) return 'owner';
+  return Number(remitted) === 0 ? 'platform_reversed' : 'platform';
+}
+
 // Colour-only slugs: kept in KNOWN_PLATFORM_COLORS so legacy data still resolves to the brand colour,
 // but NOT offered as their own dropdown entry — they fold into another platform's canonical name.
 // `gitedefrance` (legacy singular "Gîte de France") folds into the plural "Gîtes de France".
@@ -87,6 +101,9 @@ function createPlatformsModel(database) {
     `),
     updateCommissionPercent: database.prepare("UPDATE platforms SET commissionPercent = ? WHERE id = ?"),
     updateColor: database.prepare("UPDATE platforms SET color = ? WHERE id = ?"),
+    // `updateTouristTax` is prepared lazily (inside setTouristTaxCollection) — the tax columns are
+    // absent on minimal test DBs that pre-date the migration, and an eager prepare would throw at
+    // model construction and break every platforms-model consumer.
   };
 
   return {
@@ -211,6 +228,34 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, color: resolveColor(row.name, store) };
     },
 
+    // The platform's GLOBAL tourist-tax 3-way mode ('platform' | 'platform_reversed' | 'owner').
+    getTouristTaxCollection(name) {
+      const slug = platformSlug(name);
+      if (slug === DIRECT_NAME) return 'owner'; // direct: we collect + remit (no platform notion)
+      const row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      if (!row) return 'platform';
+      return flagsToTouristTaxCollection(row.collectsTouristTax, row.touristTaxRemittedByPlatform);
+    },
+
+    // Set the platform's GLOBAL tourist-tax mode. Upserts the platform row by canonical name (so a
+    // never-synced built-in can still be configured) and applies to every property at once.
+    setTouristTaxCollection(name, mode) {
+      const slug = platformSlug(name);
+      if (!slug || slug === DIRECT_NAME) return null; // direct has no platform-tax notion
+      let row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      if (!row) {
+        const canonical = formatPlatformName(name) || String(name).trim();
+        if (!canonical) return null;
+        stmts.upsert.run(canonical);
+        row = stmts.findByName.get(canonical);
+        if (!row) return null;
+      }
+      const flags = touristTaxCollectionToFlags(mode);
+      database.prepare('UPDATE platforms SET collectsTouristTax = ?, touristTaxRemittedByPlatform = ? WHERE id = ?')
+        .run(flags.collectsTouristTax, flags.touristTaxRemittedByPlatform, row.id);
+      return { id: row.id, name: row.name, touristTaxCollection: flagsToTouristTaxCollection(flags.collectsTouristTax, flags.touristTaxRemittedByPlatform) };
+    },
+
     // Custom colour OVERRIDES only (platforms with a non-NULL `color`), keyed by slug. Consumed by the
     // calendar colour endpoint as `customColors` (the client already knows the built-in defaults).
     colorMap() {
@@ -232,6 +277,14 @@ function createPlatformsModel(database) {
       const names = this.listNames();
       const platformRows = stmts.listAll.all();
       const colorBySlug = new Map(platformRows.map((p) => [platformSlug(p.name), p.color]));
+      // GLOBAL tourist-tax mode per platform (specs/per-platform-tourist-tax-three-way.md). Read
+      // defensively — the columns are absent on minimal test DBs that pre-date the migration.
+      const taxBySlug = new Map();
+      try {
+        for (const r of database.prepare('SELECT name, collectsTouristTax AS c, touristTaxRemittedByPlatform AS r FROM platforms').all()) {
+          taxBySlug.set(platformSlug(r.name), r);
+        }
+      } catch (_) { /* tax columns missing → every platform falls back to the 'platform' default */ }
       // Prepared lazily: this model is constructed on minimal test DBs that have no `ical_sources`
       // table; only this per-property merge actually needs it.
       const sources = database.prepare(`
@@ -262,14 +315,17 @@ function createPlatformsModel(database) {
           // custom-added platforms expose the "réinitialiser la configuration" (delete) action.
           isBuiltIn: Boolean(KNOWN_PLATFORM_COLORS[slug]),
           url: source ? (source.url || '') : '',
-          collectsTouristTax: source ? Number(source.collectsTouristTax) : 1,
-          // specs/per-platform-tourist-tax-three-way.md §3 — the 3-way string the UI Select binds to.
-          // No source / default → 'platform' (the platform collects + remits to the commune itself).
-          touristTaxCollection: source
-            ? (Number(source.collectsTouristTax) === 0
-                ? 'owner'
-                : (Number(source.touristTaxRemittedByPlatform) === 0 ? 'platform_reversed' : 'platform'))
-            : 'platform',
+          // specs/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform
+          // (read from `platforms`, not the per-property source). The 3-way string the UI Select binds
+          // to; no platform row / missing columns → 'platform' (the platform collects + remits itself).
+          touristTaxCollection: (() => {
+            const t = taxBySlug.get(slug);
+            return t ? flagsToTouristTaxCollection(t.c, t.r) : 'platform';
+          })(),
+          collectsTouristTax: (() => {
+            const t = taxBySlug.get(slug);
+            return t ? Number(t.c) : 1;
+          })(),
           disabled: source ? Number(source.disabled) : 0,
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,

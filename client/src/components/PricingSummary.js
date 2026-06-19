@@ -558,19 +558,19 @@ export default function PricingSummary({
                 </Box>
               )}
 
-              {/* specs/per-platform-tourist-tax-three-way.md §3 — an offered tax is collected by the
-                  platform either way, but case 1 ("reversée à vous") means WE still remit it to the
-                  commune, so it surfaces in the Suivi taxe de séjour. Distinguish the two captions. */}
+              {/* specs/per-platform-tourist-tax-three-way.md — three cases, three captions:
+                  - offered (case 2): the platform collects AND remits to the commune → struck-through, absent from our books.
+                  - reversed (case 1): the platform collects then reverses it to us → CHARGED in the balance, we declare it.
+                  - on-arrival (case 3): we collect it at check-in → charged in the complement. */}
               {isTouristTaxOffered && (
-                Boolean(quote?.touristTaxRemittedByOwner) ? (
-                  <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>
-                    Collectée par la plateforme, reversée — à déclarer (Suivi taxe de séjour)
-                  </Typography>
-                ) : (
-                  <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
-                    Collectée par la plateforme
-                  </Typography>
-                )
+                <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
+                  Collectée par la plateforme
+                </Typography>
+              )}
+              {!isTouristTaxOffered && Boolean(quote?.touristTaxReversedByPlatform) && (
+                <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>
+                  Collectée par la plateforme puis reversée — incluse dans le solde, à déclarer (Suivi taxe de séjour)
+                </Typography>
               )}
               {!isTouristTaxOffered && isTouristTaxCollectedOnArrival && (
                 <Typography variant="caption" sx={{ display: 'block', color: 'warning.main', fontStyle: 'italic' }}>

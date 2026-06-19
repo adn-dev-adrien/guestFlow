@@ -454,15 +454,13 @@ export default function PropertyDetail() {
   // ── Plateformes & iCal handlers (specs/platforms-and-ical-rework.md) ───────────────────────────
 
   // Upsert this property's source row for a platform (configure-on-demand): create when no row
-  // exists yet, otherwise update. `changes` overrides url / touristTaxCollection / disabled.
+  // exists yet, otherwise update. `changes` overrides url / disabled. (The tourist-tax mode is GLOBAL
+  // per platform — set via api.setPlatformTouristTax, not stored on the per-property source.)
   const upsertPlatformSource = async (row, changes = {}) => {
     const payload = {
       platformKey: row.platformKey,
       platformLabel: row.platformLabel,
       url: changes.url !== undefined ? changes.url : (row.url || ''),
-      // 3-way tourist-tax handling ('platform' | 'platform_reversed' | 'owner'); the server derives
-      // the two stored booleans. Default to the row's current value so URL/disabled-only edits preserve it.
-      touristTaxCollection: changes.touristTaxCollection !== undefined ? changes.touristTaxCollection : (row.touristTaxCollection || 'platform'),
       disabled: changes.disabled !== undefined ? changes.disabled : Boolean(row.disabled),
     };
     if (row.sourceId) await api.updatePropertyIcalSource(id, row.sourceId, payload);
@@ -484,11 +482,12 @@ export default function PropertyDetail() {
     }
   };
 
+  // The tourist-tax mode is GLOBAL per platform — setting it here applies to every property.
   const handleSetTaxMode = async (row, value) => {
     if (!canManageExtras || row.isDirect) return;
     setBusyKey(row.platformKey);
     try {
-      await upsertPlatformSource(row, { touristTaxCollection: value });
+      await api.setPlatformTouristTax(row.platformLabel, value);
       await loadPlatforms();
     } finally {
       setBusyKey(null);
@@ -519,7 +518,11 @@ export default function PropertyDetail() {
     if (url && !/^https?:\/\//i.test(url)) return; // UX guard; the server validates authoritatively
     setSavingKey(row.platformKey);
     try {
-      await upsertPlatformSource(row, { url, touristTaxCollection: editDraft.touristTaxCollection });
+      // The tourist-tax mode is GLOBAL — persist it separately from the per-property URL/disabled.
+      if (!row.isDirect && editDraft.touristTaxCollection !== (row.touristTaxCollection || 'platform')) {
+        await api.setPlatformTouristTax(row.platformLabel, editDraft.touristTaxCollection);
+      }
+      await upsertPlatformSource(row, { url });
       await loadPlatforms();
       setEditingKey(null);
     } finally {
@@ -1176,6 +1179,11 @@ export default function PropertyDetail() {
                   </Button>
                 </Box>
               </Box>
+              {/* specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » mode is global per
+                  platform; the colour + URL are per platform too (colour global, URL per property). */}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Le mode de « Taxe de séjour » et la couleur sont communs à tous les logements ; l'URL iCal est propre à ce logement.
+              </Typography>
 
               {addingPlatform && (
                 <Box sx={{ display: 'flex', gap: 1, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>

@@ -96,12 +96,14 @@ test('platformsModel.listForProperty: every platform listed; source config + col
 
   // Configure Airbnb (URL + owner-collected tax) and give it a global colour.
   platforms.setColor('Airbnb', '#222222');
-  pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: 'https://a/c.ics', collectsTouristTax: false });
+  pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: 'https://a/c.ics' });
+  platforms.setTouristTaxCollection('Airbnb', 'owner'); // GLOBAL tourist-tax mode (was per-source)
 
   const merged = platforms.listForProperty(1);
   const airbnb = merged.find((p) => p.platformKey === 'airbnb');
-  assert.equal(airbnb.url, 'https://a/c.ics');
-  assert.equal(airbnb.collectsTouristTax, 0, 'owner-collected persisted');
+  assert.equal(airbnb.url, 'https://a/c.ics', 'the per-property URL is on the source row');
+  assert.equal(airbnb.collectsTouristTax, 0, 'global owner-collected mode reflected');
+  assert.equal(airbnb.touristTaxCollection, 'owner');
   assert.equal(airbnb.color, '#222222', 'global colour reflected in the merged row');
   assert.ok(airbnb.sourceId, 'a source row now exists for this property+platform');
 });
@@ -167,37 +169,31 @@ test('propertyIcalModel: createSource upserts ONE row per (property, platform)',
   assert.equal(rows[0].collectsTouristTax, 0);
 });
 
-test('propertyIcalModel: 3-way touristTaxCollection maps to the two stored booleans (+ normalisation)', () => {
+test('platformsModel: setTouristTaxCollection maps the 3-way GLOBAL mode (+ normalisation), exposed by listForProperty everywhere', () => {
   const db = freshDb();
-  const pim = propertyIcalModel.buildModel(db);
   const platforms = platformsModel.create(db);
-  const read = (key) => db.prepare('SELECT collectsTouristTax AS c, touristTaxRemittedByPlatform AS r FROM ical_sources WHERE lower(platformKey) = ?').get(key);
+  const read = (name) => db.prepare('SELECT collectsTouristTax AS c, touristTaxRemittedByPlatform AS r FROM platforms WHERE lower(name) = lower(?)').get(name);
 
-  // platform → collects + remits to commune (1, 1)
-  pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '', touristTaxCollection: 'platform' });
-  assert.deepEqual(read('airbnb'), { c: 1, r: 1 });
+  platforms.setTouristTaxCollection('Airbnb', 'platform');           // collects + remits to commune (1, 1)
+  assert.deepEqual(read('Airbnb'), { c: 1, r: 1 });
+  platforms.setTouristTaxCollection('Greengo', 'platform_reversed'); // collects, reverses to us (1, 0)
+  assert.deepEqual(read('Greengo'), { c: 1, r: 0 });
+  platforms.setTouristTaxCollection('Booking', 'owner');             // we collect at arrival (0, 0)
+  assert.deepEqual(read('Booking'), { c: 0, r: 0 });
 
-  // platform_reversed → collects, reverses to us (1, 0)
-  pim.createSource(1, { platformKey: 'greengo', platformLabel: 'Greengo', url: '', touristTaxCollection: 'platform_reversed' });
-  assert.deepEqual(read('greengo'), { c: 1, r: 0 });
+  // The getter + the merged list expose the 3-way string the UI Select binds to (+ default for an
+  // unconfigured platform). The mode is GLOBAL — the same on every property.
+  assert.equal(platforms.getTouristTaxCollection('Airbnb'), 'platform');
+  const merged1 = platforms.listForProperty(1);
+  assert.equal(merged1.find((p) => p.platformKey === 'airbnb').touristTaxCollection, 'platform');
+  assert.equal(merged1.find((p) => p.platformKey === 'greengo').touristTaxCollection, 'platform_reversed');
+  assert.equal(merged1.find((p) => p.platformKey === 'booking').touristTaxCollection, 'owner');
+  assert.equal(merged1.find((p) => p.platformKey === 'pitchup').touristTaxCollection, 'platform', 'unconfigured → default platform');
+  assert.equal(platforms.listForProperty(2).find((p) => p.platformKey === 'booking').touristTaxCollection, 'owner', 'same mode on another property (global)');
 
-  // owner → we collect at arrival (0, 0)
-  pim.createSource(1, { platformKey: 'booking', platformLabel: 'Booking', url: '', touristTaxCollection: 'owner' });
-  assert.deepEqual(read('booking'), { c: 0, r: 0 });
-
-  // The merged list exposes the 3-way string the UI Select binds to (+ default for an unconfigured one).
-  const merged = platforms.listForProperty(1);
-  assert.equal(merged.find((p) => p.platformKey === 'airbnb').touristTaxCollection, 'platform');
-  assert.equal(merged.find((p) => p.platformKey === 'greengo').touristTaxCollection, 'platform_reversed');
-  assert.equal(merged.find((p) => p.platformKey === 'booking').touristTaxCollection, 'owner');
-  assert.equal(merged.find((p) => p.platformKey === 'pitchup').touristTaxCollection, 'platform', 'unconfigured → default platform');
-
-  // Normalisation: legacy boolean collectsTouristTax=false (owner) forces remitted=0 even if a stale
-  // remitted=1 is supplied; switching back to 'platform' restores (1,1).
-  pim.updateSource(1, db.prepare("SELECT id FROM ical_sources WHERE lower(platformKey)='greengo'").get().id, { collectsTouristTax: false, touristTaxRemittedByPlatform: 1 });
-  assert.deepEqual(read('greengo'), { c: 0, r: 0 }, 'we-collect-at-arrival always remits (invalid combo normalised)');
-  pim.updateSource(1, db.prepare("SELECT id FROM ical_sources WHERE lower(platformKey)='booking'").get().id, { touristTaxCollection: 'platform' });
-  assert.deepEqual(read('booking'), { c: 1, r: 1 });
+  // direct has no platform-tax notion → the setter is a no-op (null); the getter reports 'owner'.
+  assert.equal(platforms.setTouristTaxCollection('direct', 'platform'), null);
+  assert.equal(platforms.getTouristTaxCollection('direct'), 'owner');
 });
 
 test('propertyIcalModel: sync skips empty-URL sources (no fetch, status untouched)', async () => {
@@ -273,17 +269,18 @@ test('propertiesModel.getPlatformColors is backed by platforms.color', () => {
 // 5. Tourist-tax toggle resolves for multi-word / accented platforms (manual-entry path)
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-test('isPlatformCollectingTouristTax matches platformLabel OR platformKey (multi-word platforms)', () => {
+test('isPlatformCollectingTouristTax resolves the GLOBAL mode via platforms (label) + iCal-key bridge', () => {
   const db = freshDb();
-  // A multi-word platform configured owner-collects (collectsTouristTax = 0). The iCal import stores the
-  // hyphenated platformKey; a MANUAL reservation stores the concatenated label ('GitesDeFrance').
-  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor, collectsTouristTax)
-              VALUES (1, 'Gîtes de France', '', 'g-tes-de-france', 'GitesDeFrance', '#e6c832', 0)`).run();
+  // A multi-word platform configured owner-collects (collectsTouristTax = 0), GLOBALLY on platforms. An
+  // ical_sources row bridges the hyphenated key 'g-tes-de-france' to the canonical label 'GitesDeFrance'.
+  db.prepare('INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES (?, 0, 0)').run('GitesDeFrance');
+  db.prepare(`INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, platformColor)
+              VALUES (1, 'Gîtes de France', '', 'g-tes-de-france', 'GitesDeFrance', '#e6c832')`).run();
 
-  // Manual path: reservations.platform = 'GitesDeFrance' (matches platformLabel).
-  assert.equal(isPlatformCollectingTouristTax(db, 1, 'GitesDeFrance'), false, 'owner-collects toggle honoured on the manual path');
-  // iCal path: reservations.platform = the hyphenated key.
-  assert.equal(isPlatformCollectingTouristTax(db, 1, 'g-tes-de-france'), false, 'owner-collects toggle honoured on the iCal path');
+  // Manual path: reservations.platform = 'GitesDeFrance' (direct match on platforms.name).
+  assert.equal(isPlatformCollectingTouristTax(db, 1, 'GitesDeFrance'), false, 'owner-collects honoured on the manual path');
+  // iCal path: reservations.platform = the hyphenated key (resolved through the ical_sources bridge).
+  assert.equal(isPlatformCollectingTouristTax(db, 1, 'g-tes-de-france'), false, 'owner-collects honoured on the iCal path');
   // An unconfigured platform falls back to the legacy default (platform collects).
   assert.equal(isPlatformCollectingTouristTax(db, 1, 'Airbnb'), true, 'unconfigured non-direct platform defaults to platform-collects');
   // direct is never platform-collected.
@@ -297,6 +294,9 @@ test('isPlatformCollectingTouristTax matches platformLabel OR platformKey (multi
 test('getByIdWithDetails: touristTaxInComplementAmount itemises the arrival-collected tax (and only it)', () => {
   const db = freshDb();
   const rm = reservationsModel.create(db);
+  // GLOBAL mode: Booking is owner-collect (collects=0) → its tax goes to the complement; Airbnb is the
+  // default platform-collects (offered). The case-3 detection reads this global mode, not the source.
+  db.prepare('INSERT INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES (?, 0, 0)').run('Booking');
   const seedTax = (id, { platform, touristTaxTotal, touristTaxInComplement = 0 }) => {
     db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults, finalPrice, totalPrice, touristTaxTotal, touristTaxInComplement)
                 VALUES (?, 'reservation', 1, 1, '2026-07-10', '2026-07-12', ?, 2, 300, 300, ?, ?)`).run(id, platform, touristTaxTotal, touristTaxInComplement);

@@ -387,19 +387,25 @@ function createFinanceModel(database) {
           AND DATE(r.endDate, '-1 day') >= ?
           AND DATE(r.endDate, '-1 day') < ?
           AND (
+            -- specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every
+            -- stay WE must remit to the commune: direct, the new "platform collects then reverses it
+            -- to us" (case 1), and "we collect at arrival" (case 3) — i.e. everything whose GLOBAL
+            -- platform mode has touristTaxRemittedByPlatform = 0. Only "platform collects + remits to
+            -- the commune itself" (case 2) is excluded.
             r.platform = 'direct'
+            -- Manual reservations store the concatenated label (= platforms.name) → direct match.
+            OR EXISTS (
+              SELECT 1 FROM platforms pl
+              WHERE lower(pl.name) = lower(r.platform)
+                AND pl.touristTaxRemittedByPlatform = 0
+            )
+            -- iCal imports store the hyphenated platformKey → bridge to the canonical label via any
+            -- ical_sources row, then read the global mode. (The key→label map is platform-wide.)
             OR EXISTS (
               SELECT 1 FROM ical_sources s
-              WHERE s.propertyId = r.propertyId
-                -- Match platformKey OR platformLabel: iCal imports store the hyphenated key, manual
-                -- reservations store the concatenated label. Matching only the key silently dropped
-                -- multi-word / accented owner-collected platforms from the tax-to-remit list.
-                AND (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
-                -- specs/per-platform-tourist-tax-three-way.md §3 rule 4: we remit (→ Suivi) when the
-                -- platform does NOT remit itself. Covers BOTH the new "platform reverses it to us"
-                -- (collectsTouristTax = 1) and the legacy "we collect at arrival" (collectsTouristTax = 0)
-                -- cases, since the migration backfilled remittedByPlatform = 0 for owner-collect rows.
-                AND s.touristTaxRemittedByPlatform = 0
+              JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
+              WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
+                AND pl.touristTaxRemittedByPlatform = 0
             )
           )
         ORDER BY p.name, r.startDate, c.lastName, c.firstName

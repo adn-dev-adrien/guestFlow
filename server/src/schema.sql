@@ -219,7 +219,9 @@ CREATE TABLE IF NOT EXISTS platforms (
     name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT,
     hasVatOnCommission INTEGER NOT NULL DEFAULT 0
-  , commissionPercent REAL NOT NULL DEFAULT 0, color TEXT);
+  , commissionPercent REAL NOT NULL DEFAULT 0, color TEXT,
+    collectsTouristTax INTEGER NOT NULL DEFAULT 1,
+    touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1);
 
 CREATE TABLE IF NOT EXISTS pricing_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -16,6 +16,7 @@ const { getOptionsSignature, getResourcesSignature, enrichHistoryChanges } = req
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { generateReservationNumber } = require('../utils/reservationNumber');
+const { isPlatformCollectingTouristTax } = require('../utils/pricing');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 // specs/force-extras-complement-on-platform.md §3 rule 1: every extra line written for a
@@ -377,15 +378,18 @@ function createReservationsModel(database) {
         options: reservation.options,
         bedLinenProvidedByDefault,
       });
-      // specs/per-platform-tourist-tax-three-way.md §3 rule 7 — the tourist-tax portion of the
-      // complement, computed server-side so the SAS arrival recap can itemise a « Taxe de séjour »
-      // line without re-deriving the rule. The tax is in the complement when it's forced there
-      // (touristTaxInComplement = 1) or collected at arrival on a non-direct platform (case 3: not
-      // offered → the stored touristTaxTotal is the real amount, routed to the complement by the
-      // engine). Direct (tax in the balance) and offered platforms (touristTaxTotal = 0) → 0.
+      // specs/per-platform-tourist-tax-three-way.md — the tourist-tax portion of the complement,
+      // computed server-side so the SAS arrival recap can itemise a « Taxe de séjour » line. The tax
+      // is in the complement ONLY when it's forced there (touristTaxInComplement = 1) or WE collect it
+      // at arrival (case 3 `owner` = the platform does NOT charge the guest). Case 1 (platform collects
+      // then reverses it to us) charges it in the BALANCE → NOT in the complement. Direct (balance) and
+      // offered platforms (touristTaxTotal = 0) → 0.
+      const taxPlatform = String(reservation.platform || 'direct').toLowerCase();
+      const weCollectAtArrival = taxPlatform !== 'direct'
+        && Number(reservation.touristTaxTotal || 0) > 0
+        && !isPlatformCollectingTouristTax(database, reservation.propertyId, taxPlatform);
       reservation.touristTaxInComplementAmount = (
-        Number(reservation.touristTaxInComplement || 0) === 1
-        || (String(reservation.platform || 'direct').toLowerCase() !== 'direct' && Number(reservation.touristTaxTotal || 0) > 0)
+        Number(reservation.touristTaxInComplement || 0) === 1 || weCollectAtArrival
       ) ? Number(reservation.touristTaxTotal || 0) : 0;
       return reservation;
     },
