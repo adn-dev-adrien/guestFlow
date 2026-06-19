@@ -800,6 +800,16 @@ db.exec(`
   }
 }
 
+// specs/platforms-and-ical-rework.md — fold the legacy singular "Gîte de France" (slug `gitedefrance`)
+// into the canonical plural "Gîtes de France" ("GitesDeFrance"). Same brand, must show as one. Slug-based
+// + idempotent (no-op once merged); safe (relabels, drops only empty-URL placeholder duplicates).
+try {
+  const { mergePlatformDuplicates } = require('./utils/platformMerge');
+  mergePlatformDuplicates(db, { slugs: ['gitedefrance', 'gitesdefrance'], targetName: 'GitesDeFrance' });
+} catch (e) {
+  console.error('[platform-merge] Gîtes-de-France fold failed (non-fatal):', e && e.message);
+}
+
 // Global commission settings (default account + commission VAT rate). The VAT rate lives in
 // Settings → Général → Taux de TVA alongside the existing vatRate (per spec §3.7 rule 17b).
 tryAddAppSettingsCol('defaultCommissionAccountNumber', "ALTER TABLE app_settings ADD COLUMN defaultCommissionAccountNumber TEXT NOT NULL DEFAULT '622600'");
