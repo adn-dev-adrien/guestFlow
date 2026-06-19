@@ -30,7 +30,7 @@ overridable), and a **search box** to jump straight to a fiche by typing a numbe
 
 ## 2. Goal
 
-Every reservation gets a readable, unique **numéro de réservation** (auto-generated `AAAA-MM-###`, editable
+Every reservation gets a readable, unique **numéro de réservation** (auto-generated `AAAAMM###`, editable
 by the operator on the fiche). From the Calendrier (and Dashboard), the operator can **type a number, a name,
 a first name, or "nom prénom"** and see matching reservations appear live, then click one to open its fiche.
 The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
@@ -40,10 +40,12 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 ### Reservation number
 
 1. A new column `reservations.reservationNumber` (TEXT) holds a human-readable identifier for
-   `kind = 'reservation'` rows. Format: **`AAAA-MM-###`** — year, month, 3-digit counter reset each month
-   (same scheme as `devisNumber`, computed independently with its own sequence).
+   `kind = 'reservation'` rows. Format: **`AAAAMM###`** — year + month + a 3-digit counter reset each month,
+   **no separators** (e.g. `202606001`). Independent sequence from `devisNumber`.
+   _(The number was originally `AAAA-MM-###`; the separators were dropped — a one-shot migration reformats
+   the original-format values, see §5.)_
 2. The number is **generated server-side at reservation creation** (`generateReservationNumber()`), scanning
-   existing `reservationNumber` values for the current `AAAA-MM-` prefix and incrementing the max.
+   existing `reservationNumber` values for the current `AAAAMM` prefix and incrementing the max.
 3. The number is **overridable**: the operator can edit it on the fiche. On save, a non-empty value is taken
    verbatim (trimmed); an empty value means "keep the existing number" (never blanks it). The server is the
    authority — the client never generates a number.
@@ -84,7 +86,7 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 - A devis (not yet a reservation) does not appear in search results and shows no reservation number on its fiche.
 - Backfill on a DB where some reservations already have a number (e.g. partial prior run) → only the
   numberless ones are filled; idempotent across boots (migrations-table guard).
-- Query matches a number fragment (`2026-06`) → all that month's reservations list (capped at 20).
+- Query matches a number fragment (`202606`) → all that month's reservations list (capped at 20).
 - Accent sensitivity: matching uses SQLite `LOWER` + `LIKE` (ASCII-case-insensitive), mirroring the existing
   `/emails/eligible-reservations` search. Accent-insensitive matching is out of scope (see §8).
 
@@ -105,10 +107,10 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 | `models/` | `models/reservationsModel.js` | T | `search({ q })` (the 5-way LIKE query, shaped + capped). `insertReservation`/`updateReservation` persist `reservationNumber` (`persistReservationNumber`: override verbatim, else keep/generate). `isReservationNumberTaken(number, exceptId)` + `getReservationNumber(id)`. |
 | `models/` | `models/devisModel.js` | T | `convertToReservation` calls `assignReservationNumberIfMissing` so a converted devis gets a number (rule 5). |
 | `models/` | `models/propertyIcalModel.js` | T | Each iCal-imported reservation calls `assignReservationNumberIfMissing` so iCal bookings are numbered too. |
-| `utils/` | `utils/reservationNumber.js` | C | Pure helpers: `monthPrefix`, `nextNumberForPrefix`, `generateReservationNumber(db,{now})`, `assignReservationNumberIfMissing(db,id)` (the shared "number any reservation that lacks one" used by the side insert paths), `backfillReservationNumbers(db)`. Mirrors `generateDevisNumber` but scoped to `reservationNumber`. |
+| `utils/` | `utils/reservationNumber.js` | C | Pure helpers: `monthPrefix`, `nextNumberForPrefix`, `generateReservationNumber(db,{now})`, `assignReservationNumberIfMissing(db,id)` (the shared "number any reservation that lacks one" used by the side insert paths), `backfillReservationNumbers(db)`, `dehyphenateReservationNumbers(db)` (the one-shot format reformat). Mirrors `generateDevisNumber` but scoped to `reservationNumber`. |
 | `utils/` | `utils/emailContextBuilder.js` | T | New `vars.reservationNumber` + `flags.hasReservationNumber` (from the reservation row — both email loaders `SELECT *`). |
 | `utils/` | `utils/defaultEmailTemplatesRegistry.js` | T | J-7 + J-2 bodies gain the gated `{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}{{/if}}` recap line. |
-| `database.js` | `database.js` | T | Idempotent `ALTER TABLE reservations ADD COLUMN reservationNumber TEXT`; partial unique index `ux_reservations_reservationNumber`; one-shot backfill migration (migrations-table guard, key `reservation_number_backfill_v1`); idempotent content REPLACE injecting the number line into already-seeded J-7/J-2 bodies. |
+| `database.js` | `database.js` | T | Idempotent `ALTER TABLE reservations ADD COLUMN reservationNumber TEXT`; partial unique index `ux_reservations_reservationNumber`; one-shot backfill migration (migrations-table guard, key `reservation_number_backfill_v1`); a one-shot **drop-hyphens** migration (`reservation_number_drop_hyphens_v1`) reformatting original-format numbers `AAAA-MM-###`→`AAAAMM###` (custom/non-conforming left as-is, collision-safe); idempotent content REPLACE injecting the number line into already-seeded J-7/J-2 bodies. |
 
 **Notes:**
 - `generateReservationNumber` lives in `utils/` (pure, takes `db` + an injectable `now`) so the backfill and
@@ -157,13 +159,18 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 2. Create the partial unique index (`IF NOT EXISTS`).
 3. **Backfill** (run once, `migrations` table key `reservation_number_backfill_v1`): for each
    `kind = 'reservation'` row with NULL/empty `reservationNumber`, ordered by `createdAt, id`, assign
-   `strftime('%Y-%m', createdAt)-###` where `###` is the per-month running counter (starting after any number
-   already present for that month). Wrapped in a transaction.
+   the per-month running counter `AAAAMM###` (starting after any number already present for that month).
+   Wrapped in a transaction.
+4. **Drop hyphens** (run once, key `reservation_number_drop_hyphens_v1`): when the format changed from
+   `AAAA-MM-###` to `AAAAMM###`, reformat the existing values. The migration matches **only** the original
+   shape (SQLite `GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9]'`) and strips the hyphens
+   (`REPLACE(..., '-', '')`). Custom / non-conforming numbers are **left untouched**. A row is skipped when
+   its de-hyphenated value would collide with an existing number (the partial unique index stays satisfied).
+   Idempotent.
 
-**Data impact:** additive column; no existing data lost. Backfill only writes rows where the number is
-currently NULL/empty. Devis rows are never touched. The unique index could in theory reject a hand-set
-duplicate during backfill — the counter is computed per month so generated values cannot collide; pre-existing
-numbers are skipped.
+**Data impact:** additive column; no existing data lost. Backfill only writes NULL/empty rows; the
+drop-hyphens migration only rewrites original-format `reservationNumber` values (never devis, never custom
+numbers, never a value that would collide). Devis rows are never touched.
 
 ## 6. UI / UX
 
@@ -233,7 +240,7 @@ numbers are skipped.
 > both pages — caught by the E2E suite, now pinned by the two specs above.
 
 ### Manual UI verification
-- [ ] Create a reservation → number `AAAA-MM-###` appears on the fiche after save; a second one increments.
+- [ ] Create a reservation → number `AAAAMM###` appears on the fiche after save; a second one increments.
 - [ ] Override the number → saved; reopen → persisted. Override to an existing number → save-error dialog, not saved.
 - [ ] Calendrier search: type a number fragment → matches; type a last name → matches; type "prénom nom" and
   "nom prénom" → both match; click a result → fiche opens.
@@ -248,14 +255,14 @@ numbers are skipped.
   normalization could be added globally.
 - A **global header / Cmd-K** command palette (search lives on Calendrier + Dashboard, per decision).
 - Searching **devis** or clients by this box (reservations only).
-- Changing the **devisNumber** scheme or the reservation number **format** (fixed at `AAAA-MM-###`).
+- Changing the **devisNumber** scheme or the reservation number **format** (fixed at `AAAAMM###`).
 - Showing the reservation number on **PDFs** (devis/invoice PDFs keep `devisNumber`; not in this spec).
 - Reusing `ReservationSearchBox` inside `EmailComposeDialog` (noted as a future cleanup).
 
 ## 9. Open questions
 
 Resolved during scoping (2026-06-18):
-- **Number format?** → `AAAA-MM-###`, same scheme as devis, independent sequence.
+- **Number format?** → `AAAAMM###` (no separators), independent sequence from devis. (Originally `AAAA-MM-###`; separators dropped 2026-06-19 with a reformat migration.)
 - **Where does the search live?** → Top of the Calendrier and Dashboard pages (shared component), not a global
   header bar.
 - **Override semantics?** → Editable on the fiche; empty keeps the existing number; non-empty must be unique

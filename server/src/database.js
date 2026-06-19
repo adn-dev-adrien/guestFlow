@@ -1298,6 +1298,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Drop the separators from reservation numbers (specs/reservation-number-and-search.md §3): the format
+// changed from `AAAA-MM-###` to `AAAAMM###`. Reformat ONLY values still in the original hyphenated shape;
+// operator-customised / non-conforming numbers are left as-is. Guarded once; collision-safe.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'reservation_number_drop_hyphens_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { dehyphenateReservationNumbers } = require('./utils/reservationNumber');
+    const tx = db.transaction(() => {
+      const reformatted = dehyphenateReservationNumbers(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:reservation-number-drop-hyphens] reformatted ${reformatted} number(s)`);
+    });
+    tx();
+  }
+}
+
 // ---------- ARRIVAL / DEPARTURE SAS — specs/arrival-departure-sas.md ----------
 // Priced linen items shown in the SAS (operator-managed in Réglages → Blanchisserie). One table,
 // two categories ('bed' bed-linen elements + 'towel' towels/variants).

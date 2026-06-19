@@ -35,10 +35,10 @@ function basePayload(over = {}) {
   };
 }
 
-test('insertReservation generates a AAAA-MM-### number when none is supplied', () => {
+test('insertReservation generates a AAAAMM### number when none is supplied', () => {
   const { model } = freshModel();
   const id = model.insertReservation(basePayload(), QUOTE, NIGHT_BLOCKS);
-  assert.match(model.getReservationNumber(id), /^\d{4}-\d{2}-001$/);
+  assert.match(model.getReservationNumber(id), /^\d{6}001$/);
 });
 
 test('insertReservation increments the per-month sequence', () => {
@@ -47,9 +47,9 @@ test('insertReservation increments the per-month sequence', () => {
   const id2 = model.insertReservation(basePayload(), QUOTE, NIGHT_BLOCKS);
   const n1 = model.getReservationNumber(id1);
   const n2 = model.getReservationNumber(id2);
-  assert.match(n1, /-001$/);
-  assert.match(n2, /-002$/);
-  assert.equal(n1.slice(0, 8), n2.slice(0, 8), 'same month prefix');
+  assert.match(n1, /001$/);
+  assert.match(n2, /002$/);
+  assert.equal(n1.slice(0, 6), n2.slice(0, 6), 'same month prefix (AAAAMM)');
 });
 
 test('insertReservation honours an operator override (stored verbatim, trimmed)', () => {
@@ -82,7 +82,7 @@ test('devis→reservation conversion generates a number on the next save (kind=r
   const id = info.lastInsertRowid;
   assert.equal(model.getReservationNumber(id), '', 'no number yet');
   model.updateReservation(id, basePayload(), QUOTE, NIGHT_BLOCKS, 0);
-  assert.match(model.getReservationNumber(id), /^\d{4}-\d{2}-001$/, 'generated on save');
+  assert.match(model.getReservationNumber(id), /^\d{6}001$/, 'generated on save');
 });
 
 test('isReservationNumberTaken: true for a duplicate, false for self (exceptId) and unknown', () => {

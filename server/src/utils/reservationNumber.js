@@ -1,37 +1,37 @@
 /**
  * Reservation number generation (specs/reservation-number-and-search.md §3).
  *
- * Human-readable identifier for `kind = 'reservation'` rows, format `AAAA-MM-###` with a per-month
- * counter — the same scheme as `devisNumber`, but an INDEPENDENT sequence (it scans
- * `reservationNumber`, never `devisNumber`). Pure helpers: they take the `db` handle (so the model,
- * the boot backfill, and tests all share one implementation) and never assume a clock — `now` is
- * injectable. Generation does NOT write; `backfillReservationNumbers` is the only writer here.
+ * Human-readable identifier for `kind = 'reservation'` rows, format `AAAAMM###` (year + month + a
+ * per-month counter, NO separators) — an INDEPENDENT sequence (it scans `reservationNumber`, never
+ * `devisNumber`). Pure helpers: they take the `db` handle (so the model, the boot backfill, and tests
+ * all share one implementation) and never assume a clock — `now` is injectable. Generation does NOT
+ * write; `backfillReservationNumbers` / `dehyphenateReservationNumbers` are the only writers here.
  */
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
-// `AAAA-MM-` prefix for a date. Accepts a Date (live generation, local month — matching
-// generateDevisNumber) or a stored ISO/SQLite string like `2026-06-18 12:30:00` (backfill), whose
-// leading `YYYY-MM` is sliced verbatim to avoid cross-engine `new Date('… …')` parsing quirks.
+// `AAAAMM` prefix for a date (6 digits, no separators). Accepts a Date (live generation, local month —
+// matching generateDevisNumber) or a stored ISO/SQLite string like `2026-06-18 12:30:00` (backfill),
+// whose leading `YYYY-MM` is sliced verbatim to avoid cross-engine `new Date('… …')` parsing quirks.
 function monthPrefix(date) {
   if (typeof date === 'string') {
     const m = date.match(/^(\d{4})-(\d{2})/);
-    if (m) return `${m[1]}-${m[2]}-`;
+    if (m) return `${m[1]}${m[2]}`;
   }
   const d = date instanceof Date ? date : new Date(date);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-`;
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}`;
 }
 
-// Next free `AAAA-MM-###` for a month prefix: max existing counter + 1, zero-padded to 3 digits.
-// Zero-padding keeps the lexical DESC sort numeric (same constraint as devisNumber).
+// Next free `AAAAMM###` for a month prefix: max existing counter + 1, zero-padded to 3 digits. The
+// counter is the suffix after the 6-digit prefix. Zero-padding keeps the lexical DESC sort numeric.
 function nextNumberForPrefix(db, prefix) {
   const existing = db.prepare(
     "SELECT reservationNumber FROM reservations WHERE kind = 'reservation' AND reservationNumber LIKE ? ORDER BY reservationNumber DESC LIMIT 1",
   ).get(`${prefix}%`);
   let increment = 1;
   if (existing && existing.reservationNumber) {
-    const parts = String(existing.reservationNumber).split('-');
-    increment = parseInt(parts[2] || '0', 10) + 1;
+    const counter = String(existing.reservationNumber).slice(prefix.length);
+    increment = parseInt(counter || '0', 10) + 1;
   }
   return `${prefix}${String(increment).padStart(3, '0')}`;
 }
@@ -75,10 +75,30 @@ function backfillReservationNumbers(db) {
   return assigned;
 }
 
+// One-shot reformat: strip the separators from numbers still in the ORIGINAL `AAAA-MM-###` shape
+// (e.g. `2026-06-001` → `202606001`). Operator-customised or otherwise non-conforming numbers are left
+// untouched (the GLOB matches the original format exactly). A row is skipped when its de-hyphenated
+// value would collide with an existing number (the partial unique index stays satisfied). Returns the
+// count reformatted. Idempotent (after the run, no value matches the hyphenated GLOB any more).
+function dehyphenateReservationNumbers(db) {
+  const info = db.prepare(`
+    UPDATE reservations
+       SET reservationNumber = REPLACE(reservationNumber, '-', ''), updatedAt = datetime('now')
+     WHERE kind = 'reservation'
+       AND reservationNumber GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9]'
+       AND NOT EXISTS (
+         SELECT 1 FROM reservations r2
+         WHERE r2.reservationNumber = REPLACE(reservations.reservationNumber, '-', '')
+       )
+  `).run();
+  return info.changes;
+}
+
 module.exports = {
   monthPrefix,
   nextNumberForPrefix,
   generateReservationNumber,
   assignReservationNumberIfMissing,
   backfillReservationNumbers,
+  dehyphenateReservationNumbers,
 };
