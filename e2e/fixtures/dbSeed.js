@@ -127,6 +127,17 @@ function seedEmailLog({ reservationId, templateId = null, status = 'sent', chann
   });
 }
 
+/**
+ * Set a reservation's email language (specs/email-language-fr-en.md) directly — the API create helper
+ * doesn't take it, so the bilingual-email spec stamps it here.
+ */
+function setEmailLanguage(reservationId, lang) {
+  return withDb((db) => {
+    db.prepare('UPDATE reservations SET emailLanguage = ? WHERE id = ?')
+      .run(String(lang) === 'en' ? 'en' : 'fr', reservationId);
+  });
+}
+
 module.exports = {
   seedPendingDateDrift,
   seedPendingCancellation,
@@ -136,4 +147,5 @@ module.exports = {
   lockIcalReservation,
   setReservationDates,
   seedEmailLog,
+  setEmailLanguage,
 };

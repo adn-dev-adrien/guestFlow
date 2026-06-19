@@ -23,12 +23,22 @@ function ensureDefaultEmailTemplates(database, { logger = console } = {}) {
     }
 
     const find = database.prepare('SELECT id FROM email_templates WHERE stableKey = ?');
-    const insert = database.prepare(`
-      INSERT INTO email_templates
-        (stableKey, name, subject, body, dayOffset, sendMode, enabled)
-      VALUES
-        (@stableKey, @name, @subject, @body, @dayOffset, @sendMode, @enabled)
-    `);
+    // Bilingual columns (specs/email-language-fr-en.md) are optional in minimal/legacy schemas — only
+    // insert subjectEn/bodyEn when the columns exist.
+    const hasEnCols = cols.includes('subjectEn') && cols.includes('bodyEn');
+    const insert = hasEnCols
+      ? database.prepare(`
+        INSERT INTO email_templates
+          (stableKey, name, subject, body, subjectEn, bodyEn, dayOffset, sendMode, enabled)
+        VALUES
+          (@stableKey, @name, @subject, @body, @subjectEn, @bodyEn, @dayOffset, @sendMode, @enabled)
+      `)
+      : database.prepare(`
+        INSERT INTO email_templates
+          (stableKey, name, subject, body, dayOffset, sendMode, enabled)
+        VALUES
+          (@stableKey, @name, @subject, @body, @dayOffset, @sendMode, @enabled)
+      `);
 
     const insertedKeys = [];
     const skippedKeys = [];
@@ -39,7 +49,7 @@ function ensureDefaultEmailTemplates(database, { logger = console } = {}) {
           skippedKeys.push(def.stableKey);
           continue;
         }
-        insert.run({
+        const row = {
           stableKey: def.stableKey,
           name:      def.name,
           subject:   def.subject,
@@ -47,7 +57,12 @@ function ensureDefaultEmailTemplates(database, { logger = console } = {}) {
           dayOffset: Number(def.dayOffset),
           sendMode:  def.sendMode,
           enabled:   def.enabled ? 1 : 0,
-        });
+        };
+        if (hasEnCols) {
+          row.subjectEn = def.subjectEn || null;
+          row.bodyEn    = def.bodyEn || null;
+        }
+        insert.run(row);
         insertedKeys.push(def.stableKey);
       }
     });
