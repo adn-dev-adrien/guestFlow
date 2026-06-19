@@ -88,6 +88,7 @@ const navItems = [
 // (matches the JSX below) instead of derived from ROUTE_ROLES because the JSX itself is hand-rolled
 // and the children's order matters for display.
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
+const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
 const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/paiements', '/account'];
 
@@ -107,6 +108,7 @@ function NavContent({ onItemClick }) {
 
   const [properties, setProperties] = useState([]);
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
+  const [emailsMenuOpen, setEmailsMenuOpen] = useState(false);
   const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [settingsPropertiesMenuOpen, setSettingsPropertiesMenuOpen] = useState(false);
@@ -129,18 +131,28 @@ function NavContent({ onItemClick }) {
   useEffect(() => {
     if (location.pathname.startsWith('/properties')) {
       setCalendarMenuOpen(false);
+      setEmailsMenuOpen(false);
       setFinanceMenuOpen(false);
       setSettingsMenuOpen(true);
       setSettingsPropertiesMenuOpen(true);
     }
     if (location.pathname.startsWith('/calendar')) {
       setCalendarMenuOpen(true);
+      setEmailsMenuOpen(false);
       setFinanceMenuOpen(false);
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
     if (location.pathname === '/resource-planning') {
       setCalendarMenuOpen(true);
+      setEmailsMenuOpen(false);
+      setFinanceMenuOpen(false);
+      setSettingsMenuOpen(false);
+      setSettingsPropertiesMenuOpen(false);
+    }
+    if (location.pathname.startsWith('/emails')) {
+      setEmailsMenuOpen(true);
+      setCalendarMenuOpen(false);
       setFinanceMenuOpen(false);
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
@@ -148,6 +160,7 @@ function NavContent({ onItemClick }) {
     if (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite')) {
       setFinanceMenuOpen(true);
       setCalendarMenuOpen(false);
+      setEmailsMenuOpen(false);
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
@@ -162,6 +175,7 @@ function NavContent({ onItemClick }) {
     ) {
       setSettingsMenuOpen(true);
       setCalendarMenuOpen(false);
+      setEmailsMenuOpen(false);
       setFinanceMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
@@ -184,7 +198,7 @@ function NavContent({ onItemClick }) {
         // their authorised child. Drawer auto-close is also suppressed for these rows so the menu
         // stays expanded on mobile.
         const isParentReachable = can(item.path);
-        const isSubmenuParent = item.path === '/calendar' || item.path === '/finance' || item.path === '/settings';
+        const isSubmenuParent = item.path === '/calendar' || item.path === '/emails' || item.path === '/finance' || item.path === '/settings';
         const linkProps = isParentReachable ? { component: Link, to: item.path } : {};
         return (
           <Box key={item.path}>
@@ -193,11 +207,18 @@ function NavContent({ onItemClick }) {
               onClick={(e) => {
                 if (item.path === '/calendar') {
                   setCalendarMenuOpen((location.pathname.startsWith('/calendar') || location.pathname === '/resource-planning') ? true : (prev) => !prev);
+                  setEmailsMenuOpen(false);
+                  setFinanceMenuOpen(false);
+                  setSettingsMenuOpen(false);
+                } else if (item.path === '/emails') {
+                  setEmailsMenuOpen(location.pathname.startsWith('/emails') ? true : (prev) => !prev);
+                  setCalendarMenuOpen(false);
                   setFinanceMenuOpen(false);
                   setSettingsMenuOpen(false);
                 } else if (item.path === '/finance') {
                   setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite')) ? true : (prev) => !prev);
                   setCalendarMenuOpen(false);
+                  setEmailsMenuOpen(false);
                   setSettingsMenuOpen(false);
                 } else if (item.path === '/settings') {
                   setSettingsMenuOpen(
@@ -213,10 +234,12 @@ function NavContent({ onItemClick }) {
                       : (prev) => !prev
                   );
                   setCalendarMenuOpen(false);
+                  setEmailsMenuOpen(false);
                   setFinanceMenuOpen(false);
                   setSettingsPropertiesMenuOpen(location.pathname.startsWith('/properties'));
                 } else {
                   setCalendarMenuOpen(false);
+                  setEmailsMenuOpen(false);
                   setFinanceMenuOpen(false);
                   setSettingsMenuOpen(false);
                   setSettingsPropertiesMenuOpen(false);
@@ -227,6 +250,8 @@ function NavContent({ onItemClick }) {
               selected={
                 item.path === '/properties'
                   ? location.pathname.startsWith('/properties')
+                  : item.path === '/emails'
+                    ? location.pathname.startsWith('/emails')
                   : item.path === '/finance'
                     ? (location.pathname.startsWith('/finance') || location.pathname.startsWith('/comptabilite'))
                     : item.path === '/settings'
@@ -257,6 +282,19 @@ function NavContent({ onItemClick }) {
                   sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
                 >
                   {calendarMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                </Box>
+              )}
+              {item.path === '/emails' && (
+                <Box
+                  component="span"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEmailsMenuOpen((prev) => !prev);
+                  }}
+                  sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                >
+                  {emailsMenuOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                 </Box>
               )}
               {item.path === '/finance' && (
@@ -325,6 +363,38 @@ function NavContent({ onItemClick }) {
                       />
                     </ListItemButton>
                   ))}
+                </List>
+              </Collapse>
+            )}
+            {item.path === '/emails' && (
+              <Collapse in={emailsMenuOpen} timeout="auto" unmountOnExit>
+                <List disablePadding sx={{ px: 1, pb: 0.5 }}>
+                  {can('/emails') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/emails"
+                    onClick={(e) => onItemClick && onItemClick(e, '/emails')}
+                    selected={location.pathname === '/emails'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText primary="Modèles" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
+                  {can('/emails') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/emails/historique"
+                    onClick={(e) => onItemClick && onItemClick(e, '/emails/historique')}
+                    selected={location.pathname === '/emails/historique'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemText primary="Historique" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
                 </List>
               </Collapse>
             )}

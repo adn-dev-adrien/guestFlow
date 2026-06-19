@@ -28,6 +28,8 @@ let arrivalDeparturePushFirstRun = true;
 // Track the local-date YYYY-MM-DD of the last successful auto-email run so the per-minute
 // tick doesn't fire the pass more than once per day.
 let lastEmailAutoSendDate = null;
+// Same once-per-day guard for the email-history rolling-window purge.
+let lastEmailHistoryPurgeDate = null;
 
 async function performAutoSync() {
   if (syncInProgress) {
@@ -149,6 +151,25 @@ function tickEmailAutoSend() {
   runEmailAutoSendPass('daily 08:00 pass').catch((err) => console.error('[email-auto-send] unhandled:', err));
 }
 
+// Email-history rolling-window purge (specs/email-history-rolling-window.md §3 rule 3). Deletes log rows
+// for reservations past arrival + retention (and orphans). Synchronous (better-sqlite3) + idempotent.
+function runEmailHistoryPurge(reason = 'cron') {
+  try {
+    const removed = emailLogModel.purgeRealizedStays();
+    if (removed > 0) console.log(`[email-history-purge] ${reason}: removed ${removed} past-stay log row(s)`);
+  } catch (err) {
+    console.error('[email-history-purge] error:', err && err.message ? err.message : err);
+  }
+}
+
+// Hourly tick, once-per-local-day guard (the window only moves day-by-day).
+function tickEmailHistoryPurge() {
+  const today = isoToday(new Date());
+  if (lastEmailHistoryPurgeDate === today) return;
+  lastEmailHistoryPurgeDate = today;
+  runEmailHistoryPurge('daily pass');
+}
+
 // Per-minute arrival/departure push pass. Isolated from the other jobs (its own in-progress guard +
 // try/catch). The first pass after boot stamps already-due events without sending (rule 12).
 async function runArrivalDeparturePushPass(reason = 'tick') {
@@ -190,6 +211,12 @@ function startScheduledTasks() {
   const EMAIL_AUTO_SEND_TICK = 60 * 1000;
   setInterval(tickEmailAutoSend, EMAIL_AUTO_SEND_TICK);
   setTimeout(tickEmailAutoSend, 90 * 1000);
+
+  // Email-history purge: hourly tick (once-per-day guard) + a boot pass 100 s after start, so the rolling
+  // window is trimmed without waiting a full day after a restart.
+  const EMAIL_HISTORY_PURGE_TICK = 60 * 60 * 1000; // 1 hour
+  setInterval(tickEmailHistoryPurge, EMAIL_HISTORY_PURGE_TICK);
+  setTimeout(tickEmailHistoryPurge, 100 * 1000);
 
   // Arrival/departure push: per-minute tick. First pass 95 s after boot (firstRun → stamps the day's
   // already-passed events without sending). Then each minute it pushes events as they cross their time.
