@@ -16,7 +16,14 @@
  */
 
 function buildModel(database) {
-  const SELECT_COLS = 'id, stableKey, name, subject, body, dayOffset, sendMode, enabled, createdAt, updatedAt';
+  // Bilingual columns (specs/email-language-fr-en.md) are optional in minimal/legacy schemas. Detect them
+  // once so SELECT/INSERT/UPDATE include subjectEn/bodyEn only when present — keeps test DDLs simple.
+  const HAS_EN_COLS = (() => {
+    try { return database.prepare('PRAGMA table_info(email_templates)').all().some((c) => c.name === 'bodyEn'); }
+    catch { return false; }
+  })();
+  const EN_SELECT = HAS_EN_COLS ? ', subjectEn, bodyEn' : '';
+  const SELECT_COLS = `id, stableKey, name, subject, body${EN_SELECT}, dayOffset, sendMode, enabled, createdAt, updatedAt`;
 
   const listStmt = database.prepare(
     `SELECT ${SELECT_COLS} FROM email_templates ORDER BY dayOffset ASC, name ASC`
@@ -32,10 +39,11 @@ function buildModel(database) {
   );
 
   // INSERT — stableKey is deliberately omitted: only the registry seed sets it (§4.3).
-  const insertStmt = database.prepare(`
-    INSERT INTO email_templates (name, subject, body, dayOffset, sendMode, enabled)
-    VALUES (@name, @subject, @body, @dayOffset, @sendMode, @enabled)
-  `);
+  const insertStmt = database.prepare(HAS_EN_COLS
+    ? `INSERT INTO email_templates (name, subject, body, subjectEn, bodyEn, dayOffset, sendMode, enabled)
+       VALUES (@name, @subject, @body, @subjectEn, @bodyEn, @dayOffset, @sendMode, @enabled)`
+    : `INSERT INTO email_templates (name, subject, body, dayOffset, sendMode, enabled)
+       VALUES (@name, @subject, @body, @dayOffset, @sendMode, @enabled)`);
 
   // Per-field 3-way UPDATE — every field is rewritten with COALESCE(?, currentValue) so a
   // partial payload preserves the existing row's other columns.
@@ -43,7 +51,9 @@ function buildModel(database) {
     UPDATE email_templates SET
       name      = COALESCE(@name,      name),
       subject   = COALESCE(@subject,   subject),
-      body      = COALESCE(@body,      body),
+      body      = COALESCE(@body,      body),${HAS_EN_COLS ? `
+      subjectEn = COALESCE(@subjectEn, subjectEn),
+      bodyEn    = COALESCE(@bodyEn,    bodyEn),` : ''}
       dayOffset = COALESCE(@dayOffset, dayOffset),
       sendMode  = COALESCE(@sendMode,  sendMode),
       enabled   = COALESCE(@enabled,   enabled),
@@ -70,14 +80,19 @@ function buildModel(database) {
   }
 
   function insert(payload) {
-    const info = insertStmt.run({
+    const row = {
       name:      String(payload.name || '').trim(),
       subject:   String(payload.subject || ''),
       body:      String(payload.body || ''),
       dayOffset: Number(payload.dayOffset || 0),
       sendMode:  payload.sendMode === 'auto' ? 'auto' : 'manual',
       enabled:   payload.enabled === false ? 0 : 1,
-    });
+    };
+    if (HAS_EN_COLS) {
+      row.subjectEn = payload.subjectEn === undefined || payload.subjectEn === null ? null : String(payload.subjectEn);
+      row.bodyEn    = payload.bodyEn === undefined || payload.bodyEn === null ? null : String(payload.bodyEn);
+    }
+    const info = insertStmt.run(row);
     return findById(info.lastInsertRowid);
   }
 
@@ -91,6 +106,11 @@ function buildModel(database) {
       sendMode:  payload.sendMode === undefined ? null : (payload.sendMode === 'auto' ? 'auto' : 'manual'),
       enabled:   payload.enabled === undefined ? null : (payload.enabled === false ? 0 : 1),
     };
+    if (HAS_EN_COLS) {
+      // '' is a meaningful value (clear the EN side) → only `undefined` preserves; COALESCE keeps existing on null.
+      params.subjectEn = payload.subjectEn === undefined ? null : String(payload.subjectEn || '');
+      params.bodyEn    = payload.bodyEn === undefined ? null : String(payload.bodyEn || '');
+    }
     updateStmt.run(params);
     return findById(id);
   }

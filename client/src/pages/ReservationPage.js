@@ -224,6 +224,8 @@ export default function ReservationPage() {
     // Human-readable reservation number (specs/reservation-number-and-search.md). Generated server-side
     // on first save; editable (overridable). '' for a new reservation until the first save returns it.
     reservationNumber: '',
+    // Per-reservation email language (specs/email-language-fr-en.md). 'fr' (default) | 'en'.
+    emailLanguage: 'fr',
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
@@ -613,6 +615,7 @@ export default function ReservationPage() {
           setForm({
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
+            emailLanguage: res.emailLanguage === 'en' ? 'en' : 'fr',
             adults: res.adults || 1,
             children: res.children || 0,
             teens: res.teens || 0,
@@ -1926,6 +1929,7 @@ export default function ReservationPage() {
           clientId: form.clientId,
           // '' = keep the existing number; a non-empty value is an override (unique-checked server-side).
           reservationNumber: form.reservationNumber || '',
+          emailLanguage: form.emailLanguage === 'en' ? 'en' : 'fr',
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,
@@ -1991,6 +1995,7 @@ export default function ReservationPage() {
           clientId: form.clientId,
           // Optional override; blank → the server generates the AAAA-MM-### number.
           reservationNumber: form.reservationNumber || '',
+          emailLanguage: form.emailLanguage === 'en' ? 'en' : 'fr',
           startDate: form.startDate,
           endDate: form.endDate,
           adults: form.adults,

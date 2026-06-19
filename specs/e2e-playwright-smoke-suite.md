@@ -35,7 +35,7 @@ on master, the same suite becomes the acceptance criterion for the Vite migratio
 
 ## 2. Goal
 
-A Playwright E2E suite of **26 deterministic specs**, organised by feature domain,
+A Playwright E2E suite of **27 deterministic specs**, organised by feature domain,
 running in CI on every PR creation / push to master, catches regressions across every
 user-visible flow that an implemented spec promises. The suite is fully self-contained:
 it boots a server + client against a fresh ephemeral SQLite DB, seeds a deterministic
@@ -167,8 +167,10 @@ or mutable state.
 | **Reservation search (2)** ||||
 | 25 | `reservations/reservation-search.spec.js` | Seed a reservation. On the Dashboard, type each of the **5 query forms** — number, first name, last name, "first last", "last first" — and assert the result (carrying its `AAAA-MM-###` number) appears each time. Also guards that the search box mounts without crashing the Dashboard/Calendar. | `reservation-number-and-search` |
 | 26 | `reservations/reservation-search.spec.js` | Selecting a result opens the reservation fiche; its number field holds the generated value. | `reservation-number-and-search` |
+| **Email language (1)** ||||
+| 27 | `emails/email-language-fr-en.spec.js` | A reservation defaults to a French J-2 preview; switching it to English flips the preview (body + dates) to English with no French leakage; the fiche shows the language selector. | `email-language-fr-en` |
 
-**Total: 26 specs.** Expected CI runtime: ~3–5 minutes.
+**Total: 27 specs.** Expected CI runtime: ~3–5 minutes.
 
 ### 3.5 What's NOT covered by tests (deliberate)
 
