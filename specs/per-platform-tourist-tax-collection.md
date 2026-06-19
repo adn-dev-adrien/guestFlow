@@ -3,6 +3,7 @@
 | Field | Value |
 |---|---|
 | **Status** | Implemented |
+| **Extended by** | [per-platform-tourist-tax-three-way.md](per-platform-tourist-tax-three-way.md) (2026-06-19) — the binary `collectsTouristTax` gains a second flag `touristTaxRemittedByPlatform`, splitting the "platform collects" case into "platform remits to the commune" vs "platform reverses it to us (we remit)". The Suivi filter + accounting now key on **who remits**, not just who collects. |
 | **Branch** | `feature/per-platform-tourist-tax-collection` |
 | **Created** | 2026-05-30 |
 | **Author** | Adrien |

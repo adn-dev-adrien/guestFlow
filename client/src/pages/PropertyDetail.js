@@ -140,7 +140,7 @@ export default function PropertyDetail() {
   // this property's source config + global colour) drives the whole section.
   const [platformRows, setPlatformRows] = useState([]);
   const [editingKey, setEditingKey] = useState(null);
-  const [editDraft, setEditDraft] = useState({ url: '', collectsTouristTax: true });
+  const [editDraft, setEditDraft] = useState({ url: '', touristTaxCollection: 'platform' });
   const [savingKey, setSavingKey] = useState(null);
   const [busyKey, setBusyKey] = useState(null);     // tax/disable toggle or single sync in flight
   const [syncingAll, setSyncingAll] = useState(false);
@@ -454,13 +454,15 @@ export default function PropertyDetail() {
   // ── Plateformes & iCal handlers (specs/platforms-and-ical-rework.md) ───────────────────────────
 
   // Upsert this property's source row for a platform (configure-on-demand): create when no row
-  // exists yet, otherwise update. `changes` overrides url / collectsTouristTax / disabled.
+  // exists yet, otherwise update. `changes` overrides url / touristTaxCollection / disabled.
   const upsertPlatformSource = async (row, changes = {}) => {
     const payload = {
       platformKey: row.platformKey,
       platformLabel: row.platformLabel,
       url: changes.url !== undefined ? changes.url : (row.url || ''),
-      collectsTouristTax: changes.collectsTouristTax !== undefined ? changes.collectsTouristTax : Boolean(row.collectsTouristTax),
+      // 3-way tourist-tax handling ('platform' | 'platform_reversed' | 'owner'); the server derives
+      // the two stored booleans. Default to the row's current value so URL/disabled-only edits preserve it.
+      touristTaxCollection: changes.touristTaxCollection !== undefined ? changes.touristTaxCollection : (row.touristTaxCollection || 'platform'),
       disabled: changes.disabled !== undefined ? changes.disabled : Boolean(row.disabled),
     };
     if (row.sourceId) await api.updatePropertyIcalSource(id, row.sourceId, payload);
@@ -482,11 +484,11 @@ export default function PropertyDetail() {
     }
   };
 
-  const handleToggleTax = async (row) => {
+  const handleSetTaxMode = async (row, value) => {
     if (!canManageExtras || row.isDirect) return;
     setBusyKey(row.platformKey);
     try {
-      await upsertPlatformSource(row, { collectsTouristTax: !row.collectsTouristTax });
+      await upsertPlatformSource(row, { touristTaxCollection: value });
       await loadPlatforms();
     } finally {
       setBusyKey(null);
@@ -506,7 +508,7 @@ export default function PropertyDetail() {
 
   const startEditPlatform = (row) => {
     setEditingKey(row.platformKey);
-    setEditDraft({ url: row.url || '', collectsTouristTax: Boolean(row.collectsTouristTax) });
+    setEditDraft({ url: row.url || '', touristTaxCollection: row.touristTaxCollection || 'platform' });
   };
 
   const cancelEditPlatform = () => setEditingKey(null);
@@ -517,7 +519,7 @@ export default function PropertyDetail() {
     if (url && !/^https?:\/\//i.test(url)) return; // UX guard; the server validates authoritatively
     setSavingKey(row.platformKey);
     try {
-      await upsertPlatformSource(row, { url, collectsTouristTax: editDraft.collectsTouristTax });
+      await upsertPlatformSource(row, { url, touristTaxCollection: editDraft.touristTaxCollection });
       await loadPlatforms();
       setEditingKey(null);
     } finally {
@@ -588,19 +590,29 @@ export default function PropertyDetail() {
     />
   );
 
-  // Taxe collectée: live toggle in read mode (persists on flip); draft toggle in edit mode. `direct`
-  // has no platform-tax notion → "—". On = the platform collects, off = we do.
+  // Taxe de séjour (specs/per-platform-tourist-tax-three-way.md): a 3-way Select — live in read mode
+  // (persists on change), draft in edit mode. `direct` has no platform-tax notion → "—".
+  //   platform          → the platform collects it AND remits it to the commune (we never touch it).
+  //   platform_reversed → the platform collects it then reverses it to us → we remit (Suivi + compta).
+  //   owner             → we collect it at arrival (complément, SAS) → we remit (Suivi + compta).
   const renderTaxControl = (row, editing) => {
     if (row.isDirect) return <Typography variant="caption" color="text.secondary">—</Typography>;
-    const checked = editing ? editDraft.collectsTouristTax : Boolean(row.collectsTouristTax);
+    const value = editing ? editDraft.touristTaxCollection : (row.touristTaxCollection || 'platform');
     const onChange = editing
-      ? (e) => setEditDraft((d) => ({ ...d, collectsTouristTax: e.target.checked }))
-      : () => handleToggleTax(row);
+      ? (e) => setEditDraft((d) => ({ ...d, touristTaxCollection: e.target.value }))
+      : (e) => handleSetTaxMode(row, e.target.value);
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <Switch size="small" checked={checked} onChange={onChange} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)} />
-        <Typography variant="caption" color="text.secondary">{checked ? 'Plateforme' : 'Vous'}</Typography>
-      </Box>
+      <FormControl size="small" sx={{ minWidth: 168 }} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)}>
+        <Select
+          value={value}
+          onChange={onChange}
+          aria-label="Mode de collecte de la taxe de séjour"
+        >
+          <MenuItem value="platform">Plateforme → commune</MenuItem>
+          <MenuItem value="platform_reversed">Plateforme → vous</MenuItem>
+          <MenuItem value="owner">À l'arrivée</MenuItem>
+        </Select>
+      </FormControl>
     );
   };
 
@@ -1225,7 +1237,7 @@ export default function PropertyDetail() {
                           )}
                           {!row.isDirect && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary">Taxe collectée :</Typography>
+                              <Typography variant="caption" color="text.secondary">Taxe de séjour :</Typography>
                               {renderTaxControl(row, isEditing)}
                             </Box>
                           )}
@@ -1250,7 +1262,7 @@ export default function PropertyDetail() {
                       <TableRow>
                         <TableCell>Plateforme</TableCell>
                         <TableCell>URL iCal</TableCell>
-                        <TableCell>Taxe collectée</TableCell>
+                        <TableCell>Taxe de séjour</TableCell>
                         <TableCell>Dernière synchro</TableCell>
                         <TableCell>État</TableCell>
                         <TableCell align="right">Actions</TableCell>

@@ -167,6 +167,39 @@ test('propertyIcalModel: createSource upserts ONE row per (property, platform)',
   assert.equal(rows[0].collectsTouristTax, 0);
 });
 
+test('propertyIcalModel: 3-way touristTaxCollection maps to the two stored booleans (+ normalisation)', () => {
+  const db = freshDb();
+  const pim = propertyIcalModel.buildModel(db);
+  const platforms = platformsModel.create(db);
+  const read = (key) => db.prepare('SELECT collectsTouristTax AS c, touristTaxRemittedByPlatform AS r FROM ical_sources WHERE lower(platformKey) = ?').get(key);
+
+  // platform → collects + remits to commune (1, 1)
+  pim.createSource(1, { platformKey: 'airbnb', platformLabel: 'Airbnb', url: '', touristTaxCollection: 'platform' });
+  assert.deepEqual(read('airbnb'), { c: 1, r: 1 });
+
+  // platform_reversed → collects, reverses to us (1, 0)
+  pim.createSource(1, { platformKey: 'greengo', platformLabel: 'Greengo', url: '', touristTaxCollection: 'platform_reversed' });
+  assert.deepEqual(read('greengo'), { c: 1, r: 0 });
+
+  // owner → we collect at arrival (0, 0)
+  pim.createSource(1, { platformKey: 'booking', platformLabel: 'Booking', url: '', touristTaxCollection: 'owner' });
+  assert.deepEqual(read('booking'), { c: 0, r: 0 });
+
+  // The merged list exposes the 3-way string the UI Select binds to (+ default for an unconfigured one).
+  const merged = platforms.listForProperty(1);
+  assert.equal(merged.find((p) => p.platformKey === 'airbnb').touristTaxCollection, 'platform');
+  assert.equal(merged.find((p) => p.platformKey === 'greengo').touristTaxCollection, 'platform_reversed');
+  assert.equal(merged.find((p) => p.platformKey === 'booking').touristTaxCollection, 'owner');
+  assert.equal(merged.find((p) => p.platformKey === 'pitchup').touristTaxCollection, 'platform', 'unconfigured → default platform');
+
+  // Normalisation: legacy boolean collectsTouristTax=false (owner) forces remitted=0 even if a stale
+  // remitted=1 is supplied; switching back to 'platform' restores (1,1).
+  pim.updateSource(1, db.prepare("SELECT id FROM ical_sources WHERE lower(platformKey)='greengo'").get().id, { collectsTouristTax: false, touristTaxRemittedByPlatform: 1 });
+  assert.deepEqual(read('greengo'), { c: 0, r: 0 }, 'we-collect-at-arrival always remits (invalid combo normalised)');
+  pim.updateSource(1, db.prepare("SELECT id FROM ical_sources WHERE lower(platformKey)='booking'").get().id, { touristTaxCollection: 'platform' });
+  assert.deepEqual(read('booking'), { c: 1, r: 1 });
+});
+
 test('propertyIcalModel: sync skips empty-URL sources (no fetch, status untouched)', async () => {
   const db = freshDb();
   const pim = propertyIcalModel.buildModel(db);
@@ -255,4 +288,31 @@ test('isPlatformCollectingTouristTax matches platformLabel OR platformKey (multi
   assert.equal(isPlatformCollectingTouristTax(db, 1, 'Airbnb'), true, 'unconfigured non-direct platform defaults to platform-collects');
   // direct is never platform-collected.
   assert.equal(isPlatformCollectingTouristTax(db, 1, 'direct'), false);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 6. getByIdWithDetails exposes the tourist-tax-in-complement amount for the SAS arrival recap
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('getByIdWithDetails: touristTaxInComplementAmount itemises the arrival-collected tax (and only it)', () => {
+  const db = freshDb();
+  const rm = reservationsModel.create(db);
+  const seedTax = (id, { platform, touristTaxTotal, touristTaxInComplement = 0 }) => {
+    db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults, finalPrice, totalPrice, touristTaxTotal, touristTaxInComplement)
+                VALUES (?, 'reservation', 1, 1, '2026-07-10', '2026-07-12', ?, 2, 300, 300, ?, ?)`).run(id, platform, touristTaxTotal, touristTaxInComplement);
+  };
+
+  // Case 3 — non-direct owner-collect: stored tax is the real amount, routed to the complement.
+  seedTax(1, { platform: 'Booking', touristTaxTotal: 4.80 });
+  // Direct: the tax is in the BALANCE, not the complement → 0.
+  seedTax(2, { platform: 'direct', touristTaxTotal: 4.80 });
+  // Offered platform: tax zeroed on the quote → 0.
+  seedTax(3, { platform: 'Airbnb', touristTaxTotal: 0 });
+  // Forced-to-complement (even on direct) → itemised.
+  seedTax(4, { platform: 'direct', touristTaxTotal: 3.00, touristTaxInComplement: 1 });
+
+  assert.equal(rm.getByIdWithDetails(1).touristTaxInComplementAmount, 4.80, 'arrival-collected tax is itemised');
+  assert.equal(rm.getByIdWithDetails(2).touristTaxInComplementAmount, 0, 'direct tax stays in the balance');
+  assert.equal(rm.getByIdWithDetails(3).touristTaxInComplementAmount, 0, 'offered tax is not in the complement');
+  assert.equal(rm.getByIdWithDetails(4).touristTaxInComplementAmount, 3.00, 'forced-to-complement tax is itemised');
 });
