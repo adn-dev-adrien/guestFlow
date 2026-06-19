@@ -12,5 +12,8 @@ router.get('/', controller.listNames);
 // per-platform commission % editor used by the property tarif page.
 router.get('/with-commission', controller.listWithCommission);
 router.put('/:id/commission', controller.setCommission);
+// specs/platforms-and-ical-rework.md §3 rules 5-6 — set a platform's GLOBAL calendar colour.
+// `:key` is the platform label/name (url-encoded); recolours that platform's reservations everywhere.
+router.put('/:key/color', controller.setColor);
 
 module.exports = router;

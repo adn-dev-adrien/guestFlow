@@ -4,17 +4,21 @@ import {
   Box, Typography, Card, CardContent, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel
+  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
+  Tooltip, useMediaQuery, useTheme
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import UploadIcon from '@mui/icons-material/Upload';
 import SyncIcon from '@mui/icons-material/Sync';
 import AddIcon from '@mui/icons-material/Add';
+import PlatformColorPicker from '../components/PlatformColorPicker';
 import { TIME_OPTIONS } from '../constants/timeOptions';
-import { getPlatformColor, isKnownPlatformKey } from '../constants/platforms';
-import usePlatforms from '../hooks/usePlatforms';
+import { PLATFORM_COLORS, normalizePlatformKey } from '../constants/platforms';
 import { displayDate } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -48,17 +52,6 @@ const NEW_DEFAULTS = {
 };
 
 const DEFAULT_ICAL_COLOR = '#757575';
-
-const EMPTY_ICAL_FORM = {
-  id: null,
-  url: '',
-  platformOption: 'airbnb',
-  platformKey: '',
-  platformLabel: '',
-  platformColor: getPlatformColor('airbnb') || DEFAULT_ICAL_COLOR,
-  isActive: true,
-  collectsTouristTax: true, // default true → mirrors legacy "non-direct platforms collect the tax"
-};
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_PHOTO_FORMATS_TEXT = 'Formats pris en charge: JPG, JPEG, PNG, WEBP.';
@@ -98,13 +91,8 @@ export default function PropertyDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = getFromParam(location.search);
-  // Platform dropdown options: dynamic list (built-ins ∪ DB platforms, incl. iCal-added) + the
-  // "autre" escape hatch for a brand-new platform. specs/ical-platforms-in-dropdowns.md.
-  const platforms = usePlatforms();
-  const icalPlatformOptions = [
-    ...platforms.map((platform) => ({ value: platform, label: platform, known: true })),
-    { value: 'other', label: 'autre', known: false },
-  ];
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
@@ -120,10 +108,16 @@ export default function PropertyDetail() {
   const [photoFile, setPhotoFile] = useState(null);
   const [photoValidationError, setPhotoValidationError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [icalForm, setIcalForm] = useState(EMPTY_ICAL_FORM);
-  const [icalSaving, setIcalSaving] = useState(false);
-  const [syncingSourceId, setSyncingSourceId] = useState(null);
+  // Plateformes & iCal (specs/platforms-and-ical-rework.md): the merged list (built-ins ∪ DB +
+  // this property's source config + global colour) drives the whole section.
+  const [platformRows, setPlatformRows] = useState([]);
+  const [editingKey, setEditingKey] = useState(null);
+  const [editDraft, setEditDraft] = useState({ url: '', collectsTouristTax: true });
+  const [savingKey, setSavingKey] = useState(null);
+  const [busyKey, setBusyKey] = useState(null);     // tax/disable toggle or single sync in flight
   const [syncingAll, setSyncingAll] = useState(false);
+  const [addingPlatform, setAddingPlatform] = useState(false);
+  const [newPlatformName, setNewPlatformName] = useState('');
   const [timedOptions, setTimedOptions] = useState({ early: null, late: null });
   const [initialTimedOptions, setInitialTimedOptions] = useState({ early: null, late: null });
   const [timedOptionsSaving, setTimedOptionsSaving] = useState(false);
@@ -200,6 +194,14 @@ export default function PropertyDetail() {
     setInitialTimedOptions(loadedTimedOptions);
   }, [id, isNew]);
 
+  // Merged platform list (built-ins ∪ DB + this property's source config + global colour). Loaded
+  // independently of `load()` so a sync/colour/tax change can refresh just this section.
+  const loadPlatforms = useCallback(async () => {
+    if (isNew) return;
+    const res = await api.getPropertyPlatforms(id);
+    setPlatformRows(res.platforms || []);
+  }, [id, isNew]);
+
   const updateTimedOptionField = (kind, field, value) => {
     setTimedOptions((prev) => {
       const option = prev[kind];
@@ -250,6 +252,7 @@ export default function PropertyDetail() {
   }, [canManageExtras, timedOptions, id, load]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadPlatforms(); }, [loadPlatforms]);
 
   // Warn on browser close/refresh
   useEffect(() => {
@@ -420,81 +423,96 @@ export default function PropertyDetail() {
     load();
   };
 
-  const setIcalField = (field, value) => {
-    setIcalForm((prev) => ({ ...prev, [field]: value }));
-  };
+  // ── Plateformes & iCal handlers (specs/platforms-and-ical-rework.md) ───────────────────────────
 
-  const resetIcalForm = () => {
-    setIcalForm(EMPTY_ICAL_FORM);
-  };
-
-  const startEditIcalSource = (source) => {
-    const isKnown = isKnownPlatformKey(source.platformKey);
-    setIcalForm({
-      id: source.id,
-      url: source.url || '',
-      platformOption: isKnown ? source.platformKey : 'other',
-      platformKey: isKnown ? '' : (source.platformKey || ''),
-      platformLabel: source.platformLabel || source.platformKey || '',
-      platformColor: source.platformColor || getPlatformColor(source.platformKey) || DEFAULT_ICAL_COLOR,
-      isActive: source.isActive !== 0,
-      collectsTouristTax: source.collectsTouristTax !== 0,
-    });
-  };
-
-  const handleSaveIcalSource = async () => {
-    if (!canManageExtras) return;
-    if (!icalForm.url.trim()) return;
-    const isOther = icalForm.platformOption === 'other';
+  // Upsert this property's source row for a platform (configure-on-demand): create when no row
+  // exists yet, otherwise update. `changes` overrides url / collectsTouristTax / disabled.
+  const upsertPlatformSource = async (row, changes = {}) => {
     const payload = {
-      url: icalForm.url.trim(),
-      platformKey: isOther ? icalForm.platformKey.trim() : icalForm.platformOption,
-      platformLabel: isOther ? (icalForm.platformLabel.trim() || icalForm.platformKey.trim()) : icalForm.platformOption,
-      platformColor: isOther ? (icalForm.platformColor || DEFAULT_ICAL_COLOR) : (getPlatformColor(icalForm.platformOption) || DEFAULT_ICAL_COLOR),
-      isActive: Boolean(icalForm.isActive),
-      collectsTouristTax: Boolean(icalForm.collectsTouristTax),
+      platformKey: row.platformKey,
+      platformLabel: row.platformLabel,
+      url: changes.url !== undefined ? changes.url : (row.url || ''),
+      collectsTouristTax: changes.collectsTouristTax !== undefined ? changes.collectsTouristTax : Boolean(row.collectsTouristTax),
+      disabled: changes.disabled !== undefined ? changes.disabled : Boolean(row.disabled),
     };
-    if (!payload.platformKey) return;
+    if (row.sourceId) await api.updatePropertyIcalSource(id, row.sourceId, payload);
+    else await api.createPropertyIcalSource(id, payload);
+  };
 
-    setIcalSaving(true);
+  const handleSetPlatformColor = async (row, hex) => {
+    if (!canManageExtras) return;
+    setPlatformRows((prev) => prev.map((r) => (r.platformKey === row.platformKey ? { ...r, color: hex } : r)));
     try {
-      if (icalForm.id) {
-        await api.updatePropertyIcalSource(id, icalForm.id, payload);
-      } else {
-        await api.createPropertyIcalSource(id, payload);
-      }
-      resetIcalForm();
-      await load();
-    } finally {
-      setIcalSaving(false);
+      await api.setPlatformColor(row.platformLabel, hex);
+      // Recolour the calendar/planning/finance views live (same module map App.js seeds from
+      // GET /properties/platform-colors). Keyed by the label normalised the way getPlatformColor
+      // looks up reservation.platform — so the change shows without a full reload.
+      const slug = normalizePlatformKey(row.platformLabel);
+      if (slug) PLATFORM_COLORS[slug] = hex;
+    } catch {
+      await loadPlatforms(); // revert to server truth on failure
     }
   };
 
-  const handleDeleteIcalSource = async (sourceId) => {
-    if (!canManageExtras) return;
-    await api.deletePropertyIcalSource(id, sourceId);
-    if (icalForm.id === sourceId) resetIcalForm();
-    await load();
+  const handleToggleTax = async (row) => {
+    if (!canManageExtras || row.isDirect) return;
+    setBusyKey(row.platformKey);
+    try {
+      await upsertPlatformSource(row, { collectsTouristTax: !row.collectsTouristTax });
+      await loadPlatforms();
+    } finally {
+      setBusyKey(null);
+    }
   };
 
-  const handleSyncIcalSource = async (sourceId) => {
+  const handleToggleDisabled = async (row) => {
     if (!canManageExtras) return;
-    setSyncingSourceId(sourceId);
+    setBusyKey(row.platformKey);
     try {
-      const result = await api.syncPropertyIcalSource(id, sourceId);
-      console.log('📥 Contenu iCal brut reçu:', result.rawIcal);
-      console.log('✅ Événements parsés:', result.parsedEvents);
-      console.log('📊 Résumé de la synchronisation:', {
-        scannedEvents: result.scannedEvents,
-        createdCount: result.createdCount,
-        updatedCount: result.updatedCount,
-        unchangedCount: result.unchangedCount,
-        removedCount: result.removedCount,
-      });
-      await load();
+      await upsertPlatformSource(row, { disabled: !row.disabled });
+      await loadPlatforms();
     } finally {
-      setSyncingSourceId(null);
+      setBusyKey(null);
     }
+  };
+
+  const startEditPlatform = (row) => {
+    setEditingKey(row.platformKey);
+    setEditDraft({ url: row.url || '', collectsTouristTax: Boolean(row.collectsTouristTax) });
+  };
+
+  const cancelEditPlatform = () => setEditingKey(null);
+
+  const handleSavePlatform = async (row) => {
+    if (!canManageExtras) return;
+    const url = (editDraft.url || '').trim();
+    if (url && !/^https?:\/\//i.test(url)) return; // UX guard; the server validates authoritatively
+    setSavingKey(row.platformKey);
+    try {
+      await upsertPlatformSource(row, { url, collectsTouristTax: editDraft.collectsTouristTax });
+      await loadPlatforms();
+      setEditingKey(null);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const handleSyncPlatform = async (row) => {
+    if (!canManageExtras || !row.sourceId || !row.url) return;
+    setBusyKey(row.platformKey);
+    try {
+      await api.syncPropertyIcalSource(id, row.sourceId);
+      await loadPlatforms();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleDeletePlatformSource = async (row) => {
+    if (!canManageExtras || !row.sourceId) return;
+    await api.deletePropertyIcalSource(id, row.sourceId);
+    if (editingKey === row.platformKey) setEditingKey(null);
+    await loadPlatforms();
   };
 
   const handleSyncAllIcalSources = async () => {
@@ -502,10 +520,93 @@ export default function PropertyDetail() {
     setSyncingAll(true);
     try {
       await api.syncAllPropertyIcalSources(id);
-      await load();
+      await loadPlatforms();
     } finally {
       setSyncingAll(false);
     }
+  };
+
+  const handleAddPlatform = async () => {
+    if (!canManageExtras) return;
+    const name = newPlatformName.trim();
+    if (!name) return;
+    // Upsert the platform into the registry (empty colour ⇒ tracks the built-in / grey default).
+    await api.setPlatformColor(name, '');
+    setNewPlatformName('');
+    setAddingPlatform(false);
+    await loadPlatforms();
+  };
+
+  // Platform name + clickable colour swatch (opens the palette). Greyed when the platform is disabled.
+  const renderPlatformName = (row) => (
+    <PlatformColorPicker
+      color={row.color || DEFAULT_ICAL_COLOR}
+      disabled={!canManageExtras}
+      onChange={(hex) => handleSetPlatformColor(row, hex)}
+      label={(
+        <Typography variant="body2" sx={{ fontWeight: 600, color: row.disabled ? 'text.disabled' : 'text.primary' }}>
+          {row.platformLabel}
+        </Typography>
+      )}
+    />
+  );
+
+  // Taxe collectée: live toggle in read mode (persists on flip); draft toggle in edit mode. `direct`
+  // has no platform-tax notion → "—". On = the platform collects, off = we do.
+  const renderTaxControl = (row, editing) => {
+    if (row.isDirect) return <Typography variant="caption" color="text.secondary">—</Typography>;
+    const checked = editing ? editDraft.collectsTouristTax : Boolean(row.collectsTouristTax);
+    const onChange = editing
+      ? (e) => setEditDraft((d) => ({ ...d, collectsTouristTax: e.target.checked }))
+      : () => handleToggleTax(row);
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Switch size="small" checked={checked} onChange={onChange} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)} />
+        <Typography variant="caption" color="text.secondary">{checked ? 'Plateforme' : 'Vous'}</Typography>
+      </Box>
+    );
+  };
+
+  // Per-row action buttons (shared by the desktop table + the mobile cards).
+  const renderPlatformActions = (row) => {
+    const isEditing = editingKey === row.platformKey;
+    const isBusy = busyKey === row.platformKey;
+    const isSaving = savingKey === row.platformKey;
+    const hasUrl = Boolean(row.url);
+    if (isEditing) {
+      return (
+        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+          <Tooltip title="Enregistrer">
+            <span><IconButton size="small" color="primary" aria-label="Enregistrer" onClick={() => handleSavePlatform(row)} disabled={!canManageExtras || isSaving}><CheckIcon fontSize="small" /></IconButton></span>
+          </Tooltip>
+          <Tooltip title="Annuler">
+            <span><IconButton size="small" aria-label="Annuler" onClick={cancelEditPlatform} disabled={isSaving}><CloseIcon fontSize="small" /></IconButton></span>
+          </Tooltip>
+        </Box>
+      );
+    }
+    return (
+      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        {hasUrl && row.sourceId && (
+          <Tooltip title="Synchroniser">
+            <span><IconButton size="small" color="info" aria-label="Synchroniser" onClick={() => handleSyncPlatform(row)} disabled={!canManageExtras || isBusy}><SyncIcon fontSize="small" /></IconButton></span>
+          </Tooltip>
+        )}
+        <Tooltip title={row.disabled ? 'Réactiver' : 'Désactiver'}>
+          <span><IconButton size="small" color={row.disabled ? 'warning' : 'default'} aria-label={row.disabled ? 'Réactiver' : 'Désactiver'} onClick={() => handleToggleDisabled(row)} disabled={!canManageExtras || isBusy}>{row.disabled ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}</IconButton></span>
+        </Tooltip>
+        {!row.isDirect && (
+          <Tooltip title="Modifier">
+            <span><IconButton size="small" aria-label="Modifier" onClick={() => startEditPlatform(row)} disabled={!canManageExtras}><EditIcon fontSize="small" /></IconButton></span>
+          </Tooltip>
+        )}
+        {row.sourceId && (
+          <Tooltip title="Réinitialiser la configuration">
+            <span><IconButton size="small" color="error" aria-label="Réinitialiser la configuration" onClick={() => handleDeletePlatformSource(row)} disabled={!canManageExtras}><DeleteIcon fontSize="small" /></IconButton></span>
+          </Tooltip>
+        )}
+      </Box>
+    );
   };
 
   if (!property) return <Typography>Chargement…</Typography>;
@@ -971,181 +1072,164 @@ export default function PropertyDetail() {
           </Box>
         )}
 
-        {/* iCal Sync */}
+        {/* Plateformes & iCal (specs/platforms-and-ical-rework.md) */}
         <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                <Typography variant="h6">Connexions iCal</Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<SyncIcon />}
-                  onClick={handleSyncAllIcalSources}
-                  disabled={!canManageExtras || syncingAll || !(property.icalSources || []).length}
-                >
-                  {syncingAll ? 'Synchronisation…' : 'Synchroniser tout'}
-                </Button>
-              </Box>
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 0.7fr 1.8fr auto' }, gap: 1, mb: 1.5 }}>
-                <FormControl size="small" fullWidth>
-                  <InputLabel>Plateforme</InputLabel>
-                  <Select
-                    value={icalForm.platformOption}
-                    label="Plateforme"
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setIcalField('platformOption', next);
-                      if (next !== 'other') {
-                        setIcalField('platformColor', getPlatformColor(next) || DEFAULT_ICAL_COLOR);
-                        setIcalField('platformLabel', next);
-                      }
-                    }}
-                    disabled={!canManageExtras}
-                  >
-                    {icalPlatformOptions.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                {icalForm.platformOption === 'other' ? (
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <TextField
-                      size="small"
-                      label="Code plateforme"
-                      value={icalForm.platformKey}
-                      onChange={(e) => setIcalField('platformKey', e.target.value)}
-                      disabled={!canManageExtras}
-                      placeholder="ex: vrbo-fr"
-                      fullWidth
-                    />
-                    <TextField
-                      type="color"
-                      size="small"
-                      value={icalForm.platformColor || DEFAULT_ICAL_COLOR}
-                      onChange={(e) => setIcalField('platformColor', e.target.value)}
-                      disabled={!canManageExtras}
-                      sx={{ width: 58 }}
-                    />
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                    <Typography variant="body2" color="text.secondary">Couleur auto</Typography>
-                  </Box>
-                )}
-                <TextField
-                  size="small"
-                  label="URL iCal"
-                  value={icalForm.url}
-                  onChange={(e) => setIcalField('url', e.target.value)}
-                  disabled={!canManageExtras}
-                  placeholder="https://.../calendar.ics"
-                />
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleSaveIcalSource}
-                    disabled={!canManageExtras || icalSaving || !icalForm.url.trim()}
-                  >
-                    {icalSaving ? 'Enregistrement…' : (icalForm.id ? 'Mettre à jour' : 'Ajouter')}
+                <Typography variant="h6">Plateformes &amp; iCal</Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button variant="text" startIcon={<AddIcon />} onClick={() => setAddingPlatform((v) => !v)} disabled={!canManageExtras}>
+                    Ajouter une plateforme
                   </Button>
-                  {icalForm.id && (
-                    <Button variant="text" onClick={resetIcalForm} disabled={!canManageExtras}>Annuler</Button>
-                  )}
+                  <Button
+                    variant="outlined"
+                    startIcon={<SyncIcon />}
+                    onClick={handleSyncAllIcalSources}
+                    disabled={!canManageExtras || syncingAll || !platformRows.some((r) => r.url)}
+                  >
+                    {syncingAll ? 'Synchronisation…' : 'Synchroniser tout'}
+                  </Button>
                 </Box>
               </Box>
 
-              {/* La plateforme collecte-t-elle la taxe de séjour à votre place ?
-                  Activé par défaut (mirrors legacy "non-direct platforms collect"). Désactiver
-                  bascule la réservation comme "à percevoir/reverser" — apparaît alors dans le
-                  Suivi taxe de séjour avec les ventes directes. */}
-              <Box sx={{ mb: 1.5 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={Boolean(icalForm.collectsTouristTax)}
-                      onChange={(e) => setIcalField('collectsTouristTax', e.target.checked)}
-                      disabled={!canManageExtras}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        La plateforme collecte la taxe de séjour
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {icalForm.collectsTouristTax
-                          ? 'Le client paie la taxe à la plateforme ; vous ne la facturez pas et elle n\'apparaît pas dans le Suivi taxe de séjour.'
-                          : 'Vous collectez la taxe vous-même ; elle s\'ajoute au total et apparaît dans le Suivi taxe de séjour.'}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Box>
+              {addingPlatform && (
+                <Box sx={{ display: 'flex', gap: 1, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                  <TextField
+                    size="small"
+                    label="Nom de la plateforme"
+                    value={newPlatformName}
+                    onChange={(e) => setNewPlatformName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddPlatform(); }}
+                    placeholder="ex: Vrbo"
+                    autoFocus
+                    fullWidth
+                    disabled={!canManageExtras}
+                  />
+                  <Button variant="contained" onClick={handleAddPlatform} disabled={!canManageExtras || !newPlatformName.trim()}>Ajouter</Button>
+                  <Button variant="text" onClick={() => { setAddingPlatform(false); setNewPlatformName(''); }}>Annuler</Button>
+                </Box>
+              )}
 
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 900 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Plateforme</TableCell>
-                      <TableCell>URL</TableCell>
-                      <TableCell>Taxe collectée</TableCell>
-                      <TableCell>Dernière synchro</TableCell>
-                      <TableCell>État</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(property.icalSources || []).map((source) => {
-                      const sourceColor = source.platformColor || getPlatformColor(source.platformKey) || DEFAULT_ICAL_COLOR;
-                      return (
-                        <TableRow key={source.id}>
-                          <TableCell>
-                            <Chip label={source.platformLabel || source.platformKey} size="small" sx={{ bgcolor: sourceColor, color: 'white' }} />
-                          </TableCell>
-                          <TableCell sx={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={source.url}>{source.url}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={Number(source.collectsTouristTax) === 0 ? 'Vous' : 'Plateforme'}
-                              size="small"
-                              variant="outlined"
-                              color={Number(source.collectsTouristTax) === 0 ? 'warning' : 'success'}
-                            />
-                          </TableCell>
-                          <TableCell>{source.lastSyncAt ? displayDate(source.lastSyncAt.slice(0, 10)) : '-'}</TableCell>
-                          <TableCell>
-                            <Typography variant="caption" color={source.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
-                              {source.lastSyncStatus === 'error' ? (source.lastSyncMessage || 'Erreur') : (source.lastSyncMessage || 'Jamais synchronisé')}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Cliquez sur le nom ou le carré de couleur pour changer la couleur d&apos;affichage sur le calendrier.
+                Une URL iCal vide signifie une saisie manuelle (pas de synchronisation).
+              </Typography>
+
+              {platformRows.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Chargement…</Typography>
+              ) : isMobile ? (
+                /* Mobile: one stacked card per platform (no horizontal scroll). */
+                <Box>
+                  {platformRows.map((row) => {
+                    const isEditing = editingKey === row.platformKey;
+                    const hasUrl = Boolean(row.url);
+                    const muted = Boolean(row.disabled);
+                    return (
+                      <Card key={row.platformKey} variant="outlined" sx={{ mb: 1.5, opacity: muted ? 0.75 : 1 }}>
+                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
+                            {renderPlatformName(row)}
+                            {renderPlatformActions(row)}
+                          </Box>
+                          {!row.isDirect && (
+                            <Box sx={{ mb: 1 }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  label="URL iCal"
+                                  value={editDraft.url}
+                                  onChange={(e) => setEditDraft((d) => ({ ...d, url: e.target.value }))}
+                                  disabled={!canManageExtras}
+                                  placeholder="https://…  (laisser vide = saisie manuelle)"
+                                />
+                              ) : (
+                                <Typography variant="body2" sx={{ wordBreak: 'break-all', color: muted ? 'text.disabled' : 'text.secondary' }}>
+                                  {row.url || 'Saisie manuelle (pas d’URL iCal)'}
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                          {!row.isDirect && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="caption" color="text.secondary">Taxe collectée :</Typography>
+                              {renderTaxControl(row, isEditing)}
+                            </Box>
+                          )}
+                          {hasUrl && (
+                            <Typography variant="caption" display="block" sx={{ mt: 0.5 }} color={row.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
+                              {row.lastSyncAt ? `Sync : ${displayDate(row.lastSyncAt.slice(0, 10))} — ` : ''}
+                              {row.lastSyncStatus === 'error' ? (row.lastSyncMessage || 'Erreur') : (row.lastSyncMessage || 'Jamais synchronisé')}
                             </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Button
-                              size="small"
-                              startIcon={<SyncIcon />}
-                              onClick={() => handleSyncIcalSource(source.id)}
-                              disabled={!canManageExtras || syncingSourceId === source.id}
-                            >
-                              {syncingSourceId === source.id ? 'Sync…' : 'Sync'}
-                            </Button>
-                            <IconButton size="small" onClick={() => startEditIcalSource(source)} disabled={!canManageExtras}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton size="small" color="error" onClick={() => handleDeleteIcalSource(source.id)} disabled={!canManageExtras}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {(!property.icalSources || property.icalSources.length === 0) && (
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </Box>
+              ) : (
+                /* Desktop / tablet: table. */
+                <TableContainer>
+                  <Table size="small" sx={{ minWidth: 760 }}>
+                    <TableHead>
                       <TableRow>
-                        <TableCell colSpan={6} align="center">Aucune connexion iCal configurée.</TableCell>
+                        <TableCell>Plateforme</TableCell>
+                        <TableCell>URL iCal</TableCell>
+                        <TableCell>Taxe collectée</TableCell>
+                        <TableCell>Dernière synchro</TableCell>
+                        <TableCell>État</TableCell>
+                        <TableCell align="right">Actions</TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {platformRows.map((row) => {
+                        const isEditing = editingKey === row.platformKey;
+                        const hasUrl = Boolean(row.url);
+                        const muted = Boolean(row.disabled);
+                        const textColor = muted ? 'text.disabled' : 'text.primary';
+                        return (
+                          <TableRow key={row.platformKey} sx={{ opacity: muted ? 0.75 : 1 }}>
+                            <TableCell>{renderPlatformName(row)}</TableCell>
+                            <TableCell sx={{ maxWidth: 300 }}>
+                              {row.isDirect ? (
+                                <Typography variant="caption" color="text.secondary">—</Typography>
+                              ) : isEditing ? (
+                                <TextField
+                                  size="small"
+                                  fullWidth
+                                  value={editDraft.url}
+                                  onChange={(e) => setEditDraft((d) => ({ ...d, url: e.target.value }))}
+                                  disabled={!canManageExtras}
+                                  placeholder="https://…  (laisser vide = saisie manuelle)"
+                                />
+                              ) : (
+                                <Typography variant="body2" noWrap title={row.url} sx={{ color: textColor, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {row.url || '—'}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>{renderTaxControl(row, isEditing)}</TableCell>
+                            <TableCell>
+                              <Typography variant="caption" sx={{ color: textColor }}>
+                                {hasUrl ? (row.lastSyncAt ? displayDate(row.lastSyncAt.slice(0, 10)) : '—') : ''}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              {hasUrl && (
+                                <Typography variant="caption" color={row.lastSyncStatus === 'error' ? 'error.main' : 'text.secondary'}>
+                                  {row.lastSyncStatus === 'error' ? (row.lastSyncMessage || 'Erreur') : (row.lastSyncMessage || 'Jamais synchronisé')}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="right">{renderPlatformActions(row)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </CardContent>
           </Card>
         </Box>

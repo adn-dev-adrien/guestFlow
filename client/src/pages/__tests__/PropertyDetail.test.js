@@ -19,19 +19,25 @@ vi.mock('react-router-dom', async (importOriginal) => {
     useLocation: () => ({ search: '' }),
   };
 });
-vi.mock('../../hooks/usePlatforms', () => ({ default: () => ['airbnb', 'booking'] }));
 vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../components/PropertyDefaultOptionsCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
     getProperty: vi.fn(), getOptions: vi.fn(),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
+    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(),
     createPropertyIcalSource: vi.fn(), updatePropertyIcalSource: vi.fn(),
     deletePropertyIcalSource: vi.fn(), syncPropertyIcalSource: vi.fn(), syncAllPropertyIcalSources: vi.fn(),
     createOption: vi.fn(), updateOption: vi.fn(),
     uploadDocument: vi.fn(), deleteDocument: vi.fn(), getIcalToken: vi.fn(),
   },
 }));
+
+// specs/platforms-and-ical-rework.md — the merged per-property platform list that drives the section.
+const PLATFORMS = [
+  { platformKey: 'direct', platformLabel: 'Direct', color: '#c9a227', isDirect: true, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+  { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, url: '', collectsTouristTax: 1, disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
+];
 
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
@@ -58,6 +64,8 @@ beforeEach(() => {
   api.updateProperty.mockResolvedValue({ ...PROPERTY });
   api.createProperty.mockResolvedValue({ id: 9 });
   api.createPropertyIcalSource.mockResolvedValue({});
+  api.getPropertyPlatforms.mockResolvedValue({ platforms: PLATFORMS.map((p) => ({ ...p })) });
+  api.setPlatformColor.mockResolvedValue({});
 });
 
 // ── load → populate ──────────────────────────────────────────────────────
@@ -126,28 +134,48 @@ test('new property: Create is disabled until a name is set, then posts a FormDat
   await waitFor(() => expect(routerState.navigate).toHaveBeenCalledWith('/properties/9', { replace: true }));
 });
 
-// ── iCal source CRUD ─────────────────────────────────────────────────────
+// ── Plateformes & iCal (specs/platforms-and-ical-rework.md) ───────────────
 
-test('iCal: adding a source posts {url, platformKey,…} then reloads', async () => {
+test('Plateformes & iCal: renders the merged platform list (built-ins incl. direct)', async () => {
   render(<PropertyDetail />);
   await screen.findByText('Le Moulin');
+  await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledWith('5'));
 
-  fireEvent.change(screen.getByLabelText(/URL iCal/), { target: { value: 'https://airbnb.test/cal.ics' } });
-  const addBtn = screen.getByRole('button', { name: 'Ajouter' });
-  expect(addBtn).toBeEnabled();
-  fireEvent.click(addBtn);
+  expect(screen.getByText('Plateformes & iCal')).toBeInTheDocument();
+  expect(await screen.findByText('Airbnb')).toBeInTheDocument();
+  expect(screen.getByText('Direct')).toBeInTheDocument();
+  // No URL set on any platform → "Synchroniser tout" is disabled.
+  expect(screen.getByRole('button', { name: 'Synchroniser tout' })).toBeDisabled();
+});
+
+test('Plateformes & iCal: inline-editing a platform URL upserts the source + reloads the list', async () => {
+  render(<PropertyDetail />);
+  await screen.findByText('Le Moulin');
+  await screen.findByText('Airbnb');
+
+  // The Airbnb row (only non-direct platform here) → enter inline edit, set a URL, save.
+  fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+  fireEvent.change(screen.getByPlaceholderText(/laisser vide = saisie manuelle/i), {
+    target: { value: 'https://airbnb.test/cal.ics' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
 
   await waitFor(() => expect(api.createPropertyIcalSource).toHaveBeenCalledTimes(1));
   const [propId, payload] = api.createPropertyIcalSource.mock.calls[0];
   expect(propId).toBe('5');
   expect(payload.url).toBe('https://airbnb.test/cal.ics');
-  expect(payload.platformKey).toBe('airbnb'); // default platform option
-  // getProperty called twice: initial load + reload after the create.
-  await waitFor(() => expect(api.getProperty).toHaveBeenCalledTimes(2));
+  expect(payload.platformKey).toBe('airbnb');
+  // The platform list reloads after the upsert (initial load + reload).
+  await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledTimes(2));
 });
 
-test('iCal: the Add button stays disabled while the URL is empty', async () => {
+test('Plateformes & iCal: clicking a platform colour swatch opens the palette', async () => {
   render(<PropertyDetail />);
   await screen.findByText('Le Moulin');
-  expect(screen.getByRole('button', { name: 'Ajouter' })).toBeDisabled();
+  await screen.findByText('Airbnb');
+
+  // Each row carries a "Changer la couleur" swatch; clicking it opens the palette popover.
+  const swatches = screen.getAllByRole('button', { name: 'Changer la couleur' });
+  fireEvent.click(swatches[0]);
+  expect(await screen.findByText('Couleur sur le calendrier')).toBeInTheDocument();
 });

@@ -16,7 +16,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT,
-    hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0
+    hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0, color TEXT
   );
 `;
 
@@ -103,7 +103,7 @@ test('rescan unions ical_sources + reservations.platform (idempotent, returns in
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT UNIQUE NOT NULL,
       commissionAccountNumber TEXT,
-      hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0
+      hasVatOnCommission INTEGER NOT NULL DEFAULT 0, commissionPercent REAL NOT NULL DEFAULT 0, color TEXT
     );
   `);
   db.prepare('INSERT INTO ical_sources (platformLabel) VALUES (?)').run('Airbnb');

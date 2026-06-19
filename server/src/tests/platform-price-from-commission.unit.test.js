@@ -27,7 +27,7 @@ function platformsDb() {
   db.exec(`CREATE TABLE platforms (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
     commissionAccountNumber TEXT, hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-    commissionPercent REAL NOT NULL DEFAULT 0
+    commissionPercent REAL NOT NULL DEFAULT 0, color TEXT
   );
   CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, platformLabel TEXT);
   CREATE TABLE reservations (id INTEGER PRIMARY KEY, platform TEXT);`);

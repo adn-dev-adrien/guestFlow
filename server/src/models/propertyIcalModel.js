@@ -35,7 +35,7 @@ const notificationService = require('../utils/notificationService');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
-  collectsTouristTax,
+  collectsTouristTax, disabled,
   lastSyncAt, lastSyncStatus, lastSyncMessage, lastImportedCount, createdAt, updatedAt`;
 
 function createPropertyIcalModel(database) {
@@ -86,14 +86,21 @@ function createPropertyIcalModel(database) {
     const platformLabelRaw = sentenceCase(platformLabelInput || platformKeyInput || normalizedPlatformKey);
     const platformLabel = formatPlatformName(platformLabelRaw) || platformLabelRaw;
 
-    if (!url || !/^https?:\/\//i.test(url)) return { error: 'URL iCal invalide (http(s) requis).' };
+    // specs/platforms-and-ical-rework.md §3 rule 7 — the URL iCal is now OPTIONAL: empty ⇒ no sync
+    // (the operator enters that platform's bookings manually). Only validate the format when present.
+    if (url && !/^https?:\/\//i.test(url)) return { error: 'URL iCal invalide (http(s) requis).' };
     if (!normalizedPlatformKey) return { error: 'La plateforme est requise.' };
 
     const knownColor = KNOWN_PLATFORM_COLORS[normalizedPlatformKey];
     const chosenColor = String(body.platformColor || '').trim();
     const platformColor = knownColor || chosenColor || existing?.platformColor || DEFAULT_PLATFORM_COLOR;
 
-    return { url, normalizedPlatformKey, platformLabel, name: platformLabel, platformColor };
+    // §3 rule 10 — per (property, platform) "hidden from this property's reservation views" flag.
+    const disabled = body.disabled === undefined
+      ? (existing ? Number(existing.disabled) || 0 : 0)
+      : (body.disabled === true || body.disabled === 1 ? 1 : 0);
+
+    return { url, normalizedPlatformKey, platformLabel, name: platformLabel, platformColor, disabled };
   }
 
   const model = {
@@ -118,13 +125,20 @@ function createPropertyIcalModel(database) {
       if (!property) return { error: 'Logement non trouvé', status: 404 };
       const input = resolveSourceInput(body);
       if (input.error) return { error: input.error, status: 400 };
+      // Configure-on-demand (specs/platforms-and-ical-rework.md §3 rule 3): one row per
+      // (property, platform). If this property already has a source for the platform, UPDATE it
+      // instead of inserting a duplicate — so toggling tax then setting a URL both land on one row.
+      const existing = database.prepare(
+        'SELECT id FROM ical_sources WHERE propertyId = ? AND lower(platformKey) = lower(?) ORDER BY id DESC LIMIT 1'
+      ).get(propertyId, input.normalizedPlatformKey);
+      if (existing) return model.updateSource(propertyId, existing.id, body);
       // `collectsTouristTax` defaults to 1 (= platform collects, mirrors legacy behaviour). Explicit false → 0.
       const collectsTouristTax = body.collectsTouristTax === false || body.collectsTouristTax === 0 ? 0 : 1;
       const result = database.prepare(`
         INSERT INTO ical_sources (
-          propertyId, name, url, platformKey, platformLabel, platformColor, isActive, collectsTouristTax, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, collectsTouristTax);
+          propertyId, name, url, platformKey, platformLabel, platformColor, isActive, collectsTouristTax, disabled, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, collectsTouristTax, input.disabled);
       // accounting-platform-commission-and-no-deposit.md §3.1 rule 2: surface this platform on
       // the dedicated config page right away (idempotent INSERT OR IGNORE).
       platformsModel.upsertByName(input.platformLabel);
@@ -143,9 +157,9 @@ function createPropertyIcalModel(database) {
       database.prepare(`
         UPDATE ical_sources
         SET name = ?, url = ?, platformKey = ?, platformLabel = ?, platformColor = ?, isActive = ?,
-            collectsTouristTax = ?, updatedAt = datetime('now')
+            collectsTouristTax = ?, disabled = ?, updatedAt = datetime('now')
         WHERE id = ? AND propertyId = ?
-      `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, collectsTouristTax, sourceId, propertyId);
+      `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, collectsTouristTax, input.disabled, sourceId, propertyId);
       // §3.1 rule 2 — if the user renamed the platform, the previous row stays as a "ghost"
       // (see spec Q8); the new name lands on the page on next reload.
       platformsModel.upsertByName(input.platformLabel);
@@ -556,6 +570,15 @@ function createPropertyIcalModel(database) {
     // Sync + persist the source status row (DRYs the formerly triplicated UPDATE block:
     // the /sync route, /sync-all route, and scheduledTasks.performAutoSync all use this).
     async syncSourceAndRecord(source) {
+      // specs/platforms-and-ical-rework.md §3 rule 7 / edge case — a platform with no URL iCal is
+      // manual-entry only: never fetch, never touch its sync status. Central guard so every caller
+      // (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) skips it identically.
+      if (!String(source.url || '').trim()) {
+        return {
+          createdCount: 0, updatedCount: 0, unchangedCount: 0, lockedCount: 0,
+          removedCount: 0, skippedClosureCount: 0, createdReservationIds: [], skipped: true,
+        };
+      }
       try {
         const result = await model.syncSource(source);
         database.prepare(`
@@ -599,6 +622,10 @@ function createPropertyIcalModel(database) {
     async syncOne(propertyId, sourceId) {
       const source = model.getSource(propertyId, sourceId);
       if (!source) return { error: 'Connexion iCal introuvable.', status: 404 };
+      // No URL ⇒ manual-entry platform; the UI hides the sync control, but defend the endpoint too.
+      if (!String(source.url || '').trim()) {
+        return { error: 'Aucune URL iCal configurée pour cette plateforme.', status: 400 };
+      }
       try {
         return { data: await model.syncSourceAndRecord(source) };
       } catch (error) {
@@ -606,8 +633,26 @@ function createPropertyIcalModel(database) {
       }
     },
 
+    // The property's disabled platform labels (specs/platforms-and-ical-rework.md §3 rule 10) — the
+    // platforms whose bookings are hidden from this property's reservation views. Returns the set of
+    // platform labels + keys (lowercased) so callers can match `reservations.platform` either way.
+    disabledPlatformLabels(propertyId) {
+      const rows = database.prepare(
+        "SELECT platformLabel, platformKey FROM ical_sources WHERE propertyId = ? AND disabled = 1"
+      ).all(propertyId);
+      const set = new Set();
+      for (const r of rows) {
+        if (r.platformLabel) set.add(String(r.platformLabel).toLowerCase());
+        if (r.platformKey) set.add(String(r.platformKey).toLowerCase());
+      }
+      return [...set];
+    },
+
     async syncAllForProperty(propertyId) {
-      const sources = database.prepare('SELECT * FROM ical_sources WHERE propertyId = ? AND isActive = 1 ORDER BY id').all(propertyId);
+      // Skip empty-URL sources (manual-entry platforms) — no fetch, no error rows (§3 edge case).
+      const sources = database.prepare(
+        "SELECT * FROM ical_sources WHERE propertyId = ? AND isActive = 1 AND trim(COALESCE(url, '')) != '' ORDER BY id"
+      ).all(propertyId);
       if (!sources.length) return { ok: true, results: [] };
 
       const results = [];

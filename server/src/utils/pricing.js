@@ -854,10 +854,17 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
 function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
   if (!platformKey || platformKey === 'direct') return false;
   let row = null;
+  // Match on platformLabel OR platformKey (both lowercased), mirroring the reservation hide-filter
+  // (reservationsModel.list). `reservations.platform` is written two different ways depending on the
+  // entry path: iCal imports store the hyphenated `source.platformKey`, while manual reservations store
+  // the concatenated `formatPlatformName(...)` which equals `source.platformLabel`. Matching only on
+  // platformKey silently missed multi-word / accented platforms (e.g. "Gîtes de France") on the manual
+  // path → the owner-collects toggle was ignored and the tourist tax wrongly zeroed.
   try {
+    const needle = String(platformKey).toLowerCase();
     row = db.prepare(
-      "SELECT collectsTouristTax FROM ical_sources WHERE propertyId = ? AND lower(platformKey) = ? LIMIT 1"
-    ).get(propertyId, String(platformKey).toLowerCase());
+      "SELECT collectsTouristTax FROM ical_sources WHERE propertyId = ? AND (lower(platformKey) = ? OR lower(platformLabel) = ?) LIMIT 1"
+    ).get(propertyId, needle, needle);
   } catch (_) { /* table or column may be absent in minimal test DBs → fall back to default */ }
   if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
   return Number(row.collectsTouristTax) !== 0;
@@ -1607,4 +1614,5 @@ module.exports.__test = {
   calculateProgressiveParticipantOptionTotal,
   computeTouristTaxBreakdown,
   calculateReservationQuote,
+  isPlatformCollectingTouristTax,
 };

@@ -58,6 +58,10 @@ const api = {
   createProperty: (formData) => request('/properties', { method: 'POST', body: formData }),
   updateProperty: (id, formData) => request(`/properties/${id}`, { method: 'PUT', body: formData }),
   deleteProperty: (id) => request(`/properties/${id}`, { method: 'DELETE' }),
+  // specs/platforms-and-ical-rework.md — merged per-property platform list (built-ins ∪ DB + this
+  // property's iCal-source config + global colour) and the global per-platform colour setter.
+  getPropertyPlatforms: (propId) => request(`/properties/${propId}/platforms`),
+  setPlatformColor: (platformKey, color) => request(`/platforms/${encodeURIComponent(platformKey)}/color`, { method: 'PUT', body: { color } }),
   getPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources`),
   createPropertyIcalSource: (propId, data) => request(`/properties/${propId}/ical-sources`, { method: 'POST', body: data }),
   updatePropertyIcalSource: (propId, sourceId, data) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'PUT', body: data }),
