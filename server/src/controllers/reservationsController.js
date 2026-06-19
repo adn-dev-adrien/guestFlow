@@ -44,6 +44,18 @@ function normalisePlatform(platform) {
   return trimmed === '' ? 'direct' : trimmed;
 }
 
+// Reservation number override (specs/reservation-number-and-search.md §3 rules 3-4): a non-empty value
+// must be unique among reservations. Returns a 400 body when it collides, else null. An empty/undefined
+// value is always OK (the model keeps the existing number or generates a fresh one).
+function reservationNumberOverrideError(value, exceptId) {
+  const override = value !== undefined && value !== null ? String(value).trim() : '';
+  if (!override) return null;
+  if (model.isReservationNumberTaken(override, exceptId)) {
+    return { error: 'Ce numéro est déjà utilisé par une autre réservation.', code: 'RESERVATION_NUMBER_TAKEN' };
+  }
+  return null;
+}
+
 // specs/bed-config-in-linen-card.md §3 rule 7 — true iff at least one optionId in the list
 // maps to a `countsAsBedLinen = 1` row in `options`. Used by create + update to gate the
 // bed-counts coercion: if the saved reservation has no bed-linen contract, `singleBeds /
@@ -167,6 +179,12 @@ function list(req, res) {
   res.json(model.list({ propertyId, clientId, from, to }));
 }
 
+// Live "jump to a reservation" search (specs/reservation-number-and-search.md §3). Matching + shaping
+// happen in the model; the controller just forwards the query string.
+function search(req, res) {
+  res.json(model.search({ q: req.query.q }));
+}
+
 function occupiedDates(req, res) {
   const { propertyId } = req.params;
   const { from, to, excludeReservationId } = req.query;
@@ -268,6 +286,10 @@ function create(req, res) {
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
+
+  // Reservation number override collision guard (specs/reservation-number-and-search.md §3 rule 4).
+  const numberError = reservationNumberOverrideError(req.body.reservationNumber, null);
+  if (numberError) return res.status(400).json(numberError);
 
   // Data invariant: never persist an empty platform — see `normalisePlatform`.
   req.body.platform = normalisePlatform(req.body.platform);
@@ -394,7 +416,7 @@ function create(req, res) {
     if (resourceError) return res.status(resourceError.status).json(resourceError.body);
   }
 
-  res.json({ id: reservationId });
+  res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
 }
 
 function update(req, res) {
@@ -413,6 +435,12 @@ function update(req, res) {
   req.body.platform = normalisePlatform(req.body.platform);
 
   const id = Number(req.params.id);
+
+  // Reservation number override collision guard (specs/reservation-number-and-search.md §3 rule 4) —
+  // a blank value keeps the existing number (handled in the model), so only a non-empty duplicate fails.
+  const numberError = reservationNumberOverrideError(req.body.reservationNumber, id);
+  if (numberError) return res.status(400).json(numberError);
+
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
@@ -602,7 +630,7 @@ function update(req, res) {
   }
   if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
 
-  res.json({ ok: true });
+  res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
 }
 
 function updatePayment(req, res) {
@@ -731,6 +759,6 @@ function remove(req, res) {
 }
 
 module.exports = {
-  suggestBeds, list, occupiedDates, getById, getHistory, calculatePrice,
+  suggestBeds, list, search, occupiedDates, getById, getHistory, calculatePrice,
   create, update, updatePayment, remove,
 };

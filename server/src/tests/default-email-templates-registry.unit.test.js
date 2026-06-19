@@ -96,6 +96,7 @@ test('arrival_reminder_7d is shipped with the canonical body string + 7-day offs
   assert.ok(def.body.includes('{{#if hasOptions}}'),         'hasOptions block present');
   assert.ok(def.body.includes('{{#if hasBedLinenOption}}'),  'hasBedLinenOption block present');
   assert.ok(def.body.includes('{{#if cautionNotBanked}}'),   'cautionNotBanked block present');
+  assert.ok(def.body.includes('{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}'), 'reservation number recall present');
 });
 
 // ---- the arrival reminder is now shipped at J-2 (specs/j1-arrival-reminder-email.md) ----
@@ -116,4 +117,5 @@ test('arrival_reminder_1d is shipped at J-2 with the GPS + nordic-bath copy (sta
   // Conditional blocks the spec mentioned.
   assert.ok(def.body.includes('{{#if hasNordicBath}}{{nordicBathReminder}}'), 'nordic-bath block present');
   assert.ok(def.body.includes('{{#if hasCleaningOption}}{{else}}'), 'cleaning-by-default notice present');
+  assert.ok(def.body.includes('{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}'), 'reservation number recall present');
 });

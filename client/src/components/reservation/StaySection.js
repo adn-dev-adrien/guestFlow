@@ -15,7 +15,7 @@ import { useReservationForm } from './ReservationFormContext';
 export default function StaySection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, updateForm,
+    form, updateForm, isDevisMode,
     properties, selectedProp, handleReservationPropertyChange,
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked,
@@ -39,6 +39,22 @@ export default function StaySection() {
               {properties.map(p => <MenuItem key={p.id} value={p.id}>{p.label || p.name}</MenuItem>)}
             </Select>
           </FormControl>
+
+          {/* Reservation number (specs/reservation-number-and-search.md): generated server-side on first
+              save, editable/overridable. Hidden for devis (they carry devisNumber instead). */}
+          {!isDevisMode && (
+            <TextField
+              label="Numéro de réservation"
+              value={form.reservationNumber || ''}
+              onChange={(e) => updateForm({ reservationNumber: e.target.value })}
+              disabled={isReservationLocked}
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText={form.reservationNumber
+                ? 'Généré automatiquement — modifiable'
+                : 'Attribué automatiquement à l\'enregistrement'}
+            />
+          )}
 
           <MiniPlanningStrip
             miniCalendarStart={miniCalendarStart}
