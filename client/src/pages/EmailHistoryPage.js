@@ -73,7 +73,12 @@ export default function EmailHistoryPage() {
       <DataPageScaffold
         title="Historique des emails"
         topContent={(
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Historique des emails pour les séjours en cours et à venir. Les envois sont automatiquement
+              retirés 3 jours après la date d&apos;arrivée.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel>Statut</InputLabel>
               <Select label="Statut" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}>
@@ -102,6 +107,7 @@ export default function EmailHistoryPage() {
             <Button startIcon={<RefreshIcon />} onClick={() => reload()} variant="outlined">
               Actualiser
             </Button>
+            </Box>
           </Box>
         )}
         minWidth={920}
