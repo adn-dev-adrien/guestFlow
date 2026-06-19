@@ -222,9 +222,10 @@ numbers are skipped.
   the line once (idempotent) into already-seeded J-7/J-2 bodies.
 
 ### E2E (Playwright — `e2e/specs/reservations/reservation-search.spec.js`, +2)
-- [x] Search by client name → the result (carrying its number) appears → click opens the fiche, whose number
-  field holds the value. Also guards that `ReservationSearchBox` mounts without crashing the Dashboard/Calendar.
-- [x] Search by reservation number → the matching result appears with the client name.
+- [x] All **5 query forms** surface the reservation: number, first name, last name, "first last", "last first"
+  (one seed, asserted on the unique number). Also guards that `ReservationSearchBox` mounts without crashing
+  the Dashboard/Calendar.
+- [x] Selecting a result opens the fiche, whose number field holds the generated value.
 
 > **Render note (MUI v9):** `ReservationSearchBox.renderInput` reads the input slot via
 > `params.slotProps.input` (MUI v9 dropped `params.InputProps`); `renderOption` extracts `key` before

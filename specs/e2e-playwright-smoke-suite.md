@@ -165,8 +165,8 @@ or mutable state.
 | **Mobile (1)** ||||
 | 24 | `mobile/xs-viewport.spec.js` | Viewport 390×844. Open `/`. Assert sidebar drawer collapsed by default. Open it. Assert all sidebar links reachable + tap targets ≥ 44 px. | All mobile rules across specs (`responsive-design` memory rule) |
 | **Reservation search (2)** ||||
-| 25 | `reservations/reservation-search.spec.js` | Seed a reservation. On the Dashboard, type the client name in the search box → the result (carrying its `AAAA-MM-###` number) appears → click opens the fiche, whose number field holds the value. Also guards that the search box mounts without crashing the Dashboard/Calendar. | `reservation-number-and-search` |
-| 26 | `reservations/reservation-search.spec.js` | Type the reservation number into the search box → the matching result appears with the client name. | `reservation-number-and-search` |
+| 25 | `reservations/reservation-search.spec.js` | Seed a reservation. On the Dashboard, type each of the **5 query forms** — number, first name, last name, "first last", "last first" — and assert the result (carrying its `AAAA-MM-###` number) appears each time. Also guards that the search box mounts without crashing the Dashboard/Calendar. | `reservation-number-and-search` |
+| 26 | `reservations/reservation-search.spec.js` | Selecting a result opens the reservation fiche; its number field holds the generated value. | `reservation-number-and-search` |
 
 **Total: 26 specs.** Expected CI runtime: ~3–5 minutes.
 
