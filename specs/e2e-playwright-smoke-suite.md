@@ -35,7 +35,7 @@ on master, the same suite becomes the acceptance criterion for the Vite migratio
 
 ## 2. Goal
 
-A Playwright E2E suite of **24 deterministic specs**, organised by feature domain,
+A Playwright E2E suite of **25 deterministic specs**, organised by feature domain,
 running in CI on every PR creation / push to master, catches regressions across every
 user-visible flow that an implemented spec promises. The suite is fully self-contained:
 it boots a server + client against a fresh ephemeral SQLite DB, seeds a deterministic
@@ -164,8 +164,10 @@ or mutable state.
 | 23 | `closures/blocks-new-reservation.spec.js` | Seed a closure window. Open `/reservations/new`, select dates inside the closure. Assert the form blocks save with the documented error. | `establishment-closures` |
 | **Mobile (1)** ||||
 | 24 | `mobile/xs-viewport.spec.js` | Viewport 390×844. Open `/`. Assert sidebar drawer collapsed by default. Open it. Assert all sidebar links reachable + tap targets ≥ 44 px. | All mobile rules across specs (`responsive-design` memory rule) |
+| **Email history (1)** ||||
+| 25 | `emails/email-history-rolling-window.spec.js` | Reach the history via the sidebar ("Emails" → "Historique"); the rolling-window caption shows; a send for a current stay appears, a send for a stay arrived > 3 days ago does not. | `email-history-rolling-window` |
 
-**Total: 24 specs.** Expected CI runtime: ~3–5 minutes.
+**Total: 25 specs.** Expected CI runtime: ~3–5 minutes.
 
 ### 3.5 What's NOT covered by tests (deliberate)
 

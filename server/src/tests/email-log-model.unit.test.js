@@ -142,7 +142,8 @@ test('history: paginated, joined with template + client + property + reservation
   model.insert({ templateId: 10, reservationId: 100, status: 'sent',   renderedSubject: 'S1', renderedBody: 'B1', recipientEmail: 'jane@s.com' });
   model.insert({ templateId: 11, reservationId: 101, status: 'failed', errorMessage: 'EMAIL_NOT_CONFIGURED', renderedSubject: 'S2', renderedBody: 'B2', recipientEmail: 'marc@p.fr' });
 
-  const all = model.history({ limit: 50 });
+  // `today` pinned inside the rolling window (startDate 2026-06-17 → kept until 2026-06-20).
+  const all = model.history({ limit: 50, today: '2026-06-18' });
   assert.equal(all.total, 2);
   assert.equal(all.rows.length, 2);
   const r1 = all.rows.find((r) => r.reservationId === 100);
@@ -151,11 +152,11 @@ test('history: paginated, joined with template + client + property + reservation
   assert.equal(r1.propertyName, 'Villa A');
   assert.equal(r1.reservationStartDate, '2026-06-17');
 
-  const filteredByStatus = model.history({ status: 'failed' });
+  const filteredByStatus = model.history({ status: 'failed', today: '2026-06-18' });
   assert.equal(filteredByStatus.total, 1);
   assert.equal(filteredByStatus.rows[0].errorMessage, 'EMAIL_NOT_CONFIGURED');
 
-  const filteredByReservation = model.history({ reservationId: 100 });
+  const filteredByReservation = model.history({ reservationId: 100, today: '2026-06-18' });
   assert.equal(filteredByReservation.total, 1);
 });
 
@@ -165,11 +166,33 @@ test('history: limit + offset pagination', () => {
   for (let i = 0; i < 5; i += 1) {
     model.insert({ templateId: 10, reservationId: 100 + (i % 3), status: 'sent', renderedSubject: `S${i}`, renderedBody: 'B' });
   }
-  const page1 = model.history({ limit: 2, offset: 0 });
-  const page2 = model.history({ limit: 2, offset: 2 });
-  const page3 = model.history({ limit: 2, offset: 4 });
+  const page1 = model.history({ limit: 2, offset: 0, today: '2026-06-18' });
+  const page2 = model.history({ limit: 2, offset: 2, today: '2026-06-18' });
+  const page3 = model.history({ limit: 2, offset: 4, today: '2026-06-18' });
   assert.equal(page1.rows.length, 2);
   assert.equal(page2.rows.length, 2);
   assert.equal(page3.rows.length, 1);
   assert.equal(page1.total, 5);
+});
+
+// ---- history: rolling window (specs/email-history-rolling-window.md §3 rule 2) ----
+
+test('history: keeps in-window stays (incl. exactly arrival+3), drops past-window + orphans', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jane', 'Smith')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  // r300 arrival in the future, r301 arrives exactly today-3 (boundary kept), r302 arrives today-4 (out),
+  // r999 referenced by a log but never inserted (orphan).
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (300, 'reservation', 1, 1, '2026-06-25', '2026-06-28')").run();
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (301, 'reservation', 1, 1, '2026-06-15', '2026-06-16')").run();
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (302, 'reservation', 1, 1, '2026-06-14', '2026-06-15')").run();
+  for (const rid of [300, 301, 302, 999]) {
+    model.insert({ templateId: null, reservationId: rid, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
+  }
+  const today = '2026-06-18';
+  const res = model.history({ limit: 50, today });
+  const ids = res.rows.map((r) => r.reservationId).sort();
+  // 300 (future) + 301 (arrival+3 == today, boundary inclusive) kept; 302 (arrival+4 < today) + 999 (orphan) dropped.
+  assert.deepEqual(ids, [300, 301]);
+  assert.equal(res.total, 2);
 });
