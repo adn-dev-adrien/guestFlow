@@ -186,6 +186,11 @@ owner explicitly flips one to `0`.
       `totalStayTtc`); complement = pure tax → entry dropped; complement = tax + extras → emit
       only the extras portion; direct legacy options-late complement unchanged; without extras,
       Σ emitted encaissements equals `finalPrice` (2026-05-30).
+- [x] `tourist-tax-collection-coverage.unit.test.js` (4, 2026-06-19) — end-to-end, reservation-simulated:
+      **Suivi → Taxe de séjour** (`getTouristTaxExtraction`) excludes a platform-collected stay and includes
+      the owner-collected + direct ones; **Suivi → Comptabilité** surfaces the owner-collected tax on a
+      dedicated `46710000` line of the accounting detail **and** the CSV export, and emits no such line for a
+      platform-collected stay.
 
 ### Manual UI verification
 - [x] Property form — adding a new iCal source with the toggle ON, then OFF, then editing it back.
