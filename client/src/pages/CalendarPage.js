@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import PageHeader from '../components/PageHeader';
-import ReservationSearchBox from '../components/ReservationSearchBox';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
 import CalendarToolbar from '../components/CalendarToolbar';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
@@ -363,10 +362,6 @@ export default function CalendarPage() {
   return (
     <Box>
       <PageHeader title="Calendrier des réservations" />
-
-      <Box sx={{ mb: 1.5, maxWidth: { xs: '100%', md: 480 } }}>
-        <ReservationSearchBox onSelect={handleReservationClick} />
-      </Box>
 
       <CalendarToolbar
         properties={properties}
