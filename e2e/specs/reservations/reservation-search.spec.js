@@ -25,8 +25,8 @@ test('search matches by number, first name, last name, and both name orders', as
   const { client, reservation } = await seedReservation({
     firstName: 'Amandine', lastName: 'Berthollet', startDate: '2099-08-10', endDate: '2099-08-12',
   });
-  // The create response carries the generated number (AAAA-MM-###).
-  expect(reservation.reservationNumber).toMatch(/^\d{4}-\d{2}-\d{3}$/);
+  // The create response carries the generated number (AAAAMM###).
+  expect(reservation.reservationNumber).toMatch(/^\d{9}$/);
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Tableau de bord' })).toBeVisible({ timeout: 10_000 });

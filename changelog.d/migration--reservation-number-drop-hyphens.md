@@ -1,0 +1,1 @@
+- Les numéros de réservation existants au format d'origine `AAAA-MM-###` sont reformatés en `AAAAMM###` au démarrage. Les numéros personnalisés ou non conformes sont laissés tels quels ; aucun reformatage en cas de collision.
