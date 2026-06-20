@@ -281,9 +281,9 @@ function calculatePrice(req, res) {
     freezeTouristTax: Boolean(frozenTouristTax),
     frozenTouristTaxTotal: frozenTouristTax ? frozenTouristTax.touristTaxTotal : 0,
     frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
-    // specs/platform-commission-line.md — feed the operator-entered gross so the quote returns the
-    // platform commission for the « brut − commission = net perçu » summary block.
-    clientGrossAmount: req.body.clientGrossAmount,
+    // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
+    // returns the « total séjour − commission = net perçu » figures for the summary block.
+    platformCommissionAmount: req.body.platformCommissionAmount,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -297,6 +297,7 @@ function create(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
+    platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
@@ -441,6 +442,7 @@ function update(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
+    platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });

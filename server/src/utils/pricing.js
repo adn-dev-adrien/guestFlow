@@ -973,10 +973,10 @@ function calculateReservationQuote({
   freezeTouristTax,
   frozenTouristTaxTotal,
   frozenTouristTaxRate,
-  // specs/platform-commission-line.md — the gross the guest paid the platform (operator-entered). The
-  // engine derives the platform commission from it (commission = gross − net stay) so the fiche summary
-  // can show « brut − commission = net perçu ». 0 / null / direct → no commission.
-  clientGrossAmount,
+  // specs/platform-commission-line.md — the platform commission the operator enters directly (€, TTC).
+  // The fiche summary shows « total séjour − commission = net perçu ». 0 / null / direct → no
+  // commission (the summary collapses to a single « Total du séjour TTC » line).
+  platformCommissionAmount: platformCommissionAmountInput,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1552,12 +1552,19 @@ function calculateReservationQuote({
   // enforces the same on every recompute so an edit can't reintroduce a phantom acompte.
   // Direct reservations keep the full deposit/balance/complement flow.
   const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
-  // specs/platform-commission-line.md — platform commission = gross paid by the guest − net stay
-  // (finalPrice). Only for a non-direct platform with an operator-entered gross above the net; else 0.
-  const grossEntered = clientGrossAmount === '' || clientGrossAmount == null ? null : Number(clientGrossAmount);
-  const platformCommissionAmount = (platformIsNonDirect && grossEntered != null && Number.isFinite(grossEntered) && grossEntered > finalPrice)
-    ? roundMoney(grossEntered - finalPrice)
+  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
+  // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
+  // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
+  // so the summary shows the single « Total du séjour TTC » line).
+  const enteredCommission = platformCommissionAmountInput === '' || platformCommissionAmountInput == null
+    ? 0
+    : Number(platformCommissionAmountInput);
+  const platformCommissionAmount = (platformIsNonDirect && Number.isFinite(enteredCommission) && enteredCommission > 0)
+    ? roundMoney(enteredCommission)
     : 0;
+  const platformNetReceivedAmount = platformCommissionAmount > 0
+    ? roundMoney(totalStayPrice - platformCommissionAmount)
+    : null;
   if (platformIsNonDirect) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);
@@ -1654,9 +1661,11 @@ function calculateReservationQuote({
     forcedItemsTotal,
     preArrivalAmount,
     totalStayPrice,
-    // specs/platform-commission-line.md — the platform commission (gross − net) for the « brut −
-    // commission = net perçu » summary block. 0 for direct / no gross entered.
+    // specs/platform-commission-line.md — operator-entered platform commission + the resulting net
+    // for the « total séjour − commission = net perçu » summary block. Commission 0 (direct / none) →
+    // platformNetReceivedAmount null, the summary shows the single « Total du séjour TTC » line.
     platformCommissionAmount,
+    platformNetReceivedAmount,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
