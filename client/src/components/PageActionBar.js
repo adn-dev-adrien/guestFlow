@@ -10,6 +10,7 @@
  *   backTo?      string         (router path; shows a back IconButton on the left)
  *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
+ *   center?      ReactNode      (rendered CENTERED in the bar; hidden on xs — too tight on mobile)
  *
  *   onSave?      () => void     (omit → no Save button)
  *   saveDisabled? boolean
@@ -33,7 +34,8 @@
  *  - Sticky top: 56px (xs), 64px (sm+); white bg; thin bottom border.
  *  - Each button is a bordered IconButton + Tooltip (icon-only, French tooltip).
  *  - Save renders with a filled primary background (the only "filled" button).
- *  - Layout: [Back] [Title + Subtitle] ……… [actionsBefore] [Save] [Cancel] [actionsAfter]
+ *  - Layout: [Back Title Subtitle] … [center] … [actionsBefore Save Cancel actionsAfter]
+ *    (with `center`, the two side sections take equal flex so the centre is truly centred).
  *  - On xs, if `actionsBefore + actionsAfter` has > 2 items, the extras collapse
  *    into a "…" overflow menu (Save/Cancel always stay visible).
  */
@@ -91,6 +93,10 @@ export default function PageActionBar({
   backTo,
   onBack,
   subtitle,
+  // Optional ReactNode rendered CENTERED in the bar (between the title and the actions). When set, the
+  // bar switches to a 3-equal-columns layout so the content is truly centred. Hidden on xs (the mobile
+  // bar is too tight) — pass content that the page can afford to drop on small screens.
+  center,
   onSave,
   saveDisabled = false,
   saveTooltip = 'Enregistrer',
@@ -129,15 +135,16 @@ export default function PageActionBar({
         mb: 2,
       }}
     >
-      {(onBack || backTo) && (
-        <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
-          <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
-            <ArrowBackIcon />
-          </IconButton>
-        </Tooltip>
-      )}
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1, minWidth: 0 }}>
+      {/* Left section: back + title + subtitle. When a `center` node is set, both side sections take an
+          equal flex basis (1 1 0) so the centre node is truly centred across the bar. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, ...(center ? { flex: '1 1 0' } : { flexGrow: 1 }) }}>
+        {(onBack || backTo) && (
+          <Tooltip title="Retour" enterDelay={500} enterNextDelay={500}>
+            <IconButton aria-label="Retour" onClick={onBack || (() => navigate(backTo))} sx={borderedSx('default')}>
+              <ArrowBackIcon />
+            </IconButton>
+          </Tooltip>
+        )}
         {title && (
           <Typography
             variant="h6"
@@ -149,7 +156,24 @@ export default function PageActionBar({
         {subtitle}
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+      {center && (
+        <Box
+          sx={{
+            display: { xs: 'none', sm: 'flex' },
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            flex: '0 1 auto',
+            minWidth: 0,
+            px: 1,
+          }}
+        >
+          {center}
+        </Box>
+      )}
+
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', minWidth: 0, ...(center ? { flex: '1 1 0' } : {}) }}>
         {visibleBefore.map((action, i) => renderCustomAction(action, `before-${i}`))}
 
         {useOverflow && (

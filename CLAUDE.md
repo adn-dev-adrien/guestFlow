@@ -308,6 +308,7 @@ The component bundles two canonical actions — **Save** and **Cancel** — that
   title="Paramètres"                   // string, shown left (hidden on xs by default)
   backTo="/"                           // optional path; shows a back icon button on the left
   subtitle={<Chip ... />}              // optional ReactNode beside the title (chip, caption, etc.)
+  center={<Box>…</Box>}                // optional ReactNode CENTERED in the bar (3-equal-cols layout); hidden on xs
 
   // Canonical actions — both optional. Omit a prop to hide the button.
   onSave={handleSave}                  // omit → no Save button
@@ -346,7 +347,7 @@ Each action item:
 - **Buttons are icon-only** (`<IconButton>` wrapped in `<Tooltip>`), each rendered with a **1px colored border** matching its `color` prop (`divider` for `default`, `<color>.main` for colored). Save uses a filled primary background; everything else is bordered.
 - **Tooltips in French**, MUI defaults for hover/long-press timing.
 - **Touch targets:** ≥44×44px (MUI's IconButton handles this; if not, force `sx={{ minWidth: 44, minHeight: 44 }}`).
-- **Layout order, left → right:** `[Back] [Title + Subtitle] ………… [actionsBefore[]] [Save] [Cancel] [actionsAfter[]]`.
+- **Layout order, left → right:** `[Back] [Title + Subtitle] … [center] … [actionsBefore[]] [Save] [Cancel] [actionsAfter[]]`. When `center` is set, the two side sections take an equal flex basis so the centered node is truly centered; `center` is hidden on `xs`.
 - **Responsive overflow:** on `xs`, if `actionsBefore + actionsAfter` has more than 2 items combined, the extras collapse into a "…" overflow menu before Save (the canonical Save/Cancel always stay visible).
 - **Save button visual:** filled `bgcolor: 'primary.main'`, white icon, hover darkens. When `saveBusy` is true → swap icon for `<CircularProgress size={18} color="inherit" />`.
 - **Cancel button visual:** bordered IconButton with divider border, default icon color.
