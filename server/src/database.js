@@ -1497,6 +1497,10 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // the arrival (resp. departure) push was sent for this reservation, so it fires once.
   if (!rcols.includes('arrivalNotifiedAt')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalNotifiedAt TEXT");
   if (!rcols.includes('departureNotifiedAt')) db.exec("ALTER TABLE reservations ADD COLUMN departureNotifiedAt TEXT");
+  // specs/platform-commission-line.md — operator-entered platform commission (€, TTC). Drives the
+  // « total séjour − commission = net perçu » block on the fiche. NULL/0 on direct bookings. Distinct
+  // from the accounting commission, which is still derived from `clientGrossAmount` (gross − net).
+  if (!rcols.includes('platformCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformCommissionAmount REAL');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
 db.exec(`

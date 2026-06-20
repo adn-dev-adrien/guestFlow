@@ -127,14 +127,9 @@ export default function FinanceSection() {
             {String(form.platform || 'direct').toLowerCase() !== 'direct' && (() => {
               const grossRaw = form.clientGrossAmount;
               const grossNumber = grossRaw === '' || grossRaw == null ? null : Number(grossRaw);
-              const net = Number(pricingQuote?.finalPrice || 0);
-              const commission = grossNumber != null && Number.isFinite(grossNumber)
-                ? Math.max(0, Math.round((grossNumber - net) * 100) / 100)
-                : null;
               // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform covers
               // the SOLDE only (extras/complément are collected on arrival), so the gross is
-              // validated against the balance, not the full stay. Commission display is unchanged
-              // (gross − net encaissé).
+              // validated against the balance, not the full stay.
               const balanceRef = Number(pricingQuote?.balanceAmount || 0);
               const grossBelowNet = grossNumber != null && Number.isFinite(grossNumber) && grossNumber < balanceRef;
               return (
@@ -166,17 +161,16 @@ export default function FinanceSection() {
                           xs: 12,
                           md: 6
                         }}>
-                        <Box sx={{ p: 1.5, bgcolor: '#f7fafc', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                            Commission plateforme
-                          </Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
-                            {commission == null ? '—' : `${commission.toFixed(2)}€`}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Calculée automatiquement : prix payé client − net encaissé ({net.toFixed(2)}€).
-                          </Typography>
-                        </Box>
+                        {/* specs/platform-commission-line.md — operator-entered commission. Deducted from
+                            the total séjour to surface the « Net perçu » on the fiche. */}
+                        <ArithmeticTextField
+                          label="Commission plateforme"
+                          value={form.platformCommissionAmount ?? ''}
+                          onCommit={(v) => updateForm({ platformCommissionAmount: v })}
+                          fullWidth
+                          size="small"
+                          helperText="Montant TTC retenu par la plateforme. Déduit du total du séjour pour le « Net perçu »."
+                        />
                       </Grid>
                     </Grid>
                   </Box>

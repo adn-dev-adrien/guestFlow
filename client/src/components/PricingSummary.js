@@ -612,13 +612,15 @@ export default function PricingSummary({
             </Box>
           </Box>
 
-          {/* Total du séjour — for a platform reservation with a known gross, the engine returns the
-              commission (specs/platform-commission-line.md): show the BRUT (what the guest paid the
-              platform), deduct the commission, and surface the net the operator actually receives. */}
+          {/* Total du séjour — for a platform reservation with an operator-entered commission, the engine
+              returns the net (specs/platform-commission-line.md): the BRUT line is the full stay total
+              (nights + options + resources), the commission is deducted, and the net perçu = total séjour
+              − commission. Direct reservations have no commission → single « Total du séjour TTC » line. */}
           <Divider />
           {(() => {
             const commission = Number(quote?.platformCommissionAmount || 0);
-            if (commission <= 0) {
+            const netReceived = quote?.platformNetReceivedAmount;
+            if (commission <= 0 || netReceived == null) {
               return (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC</Typography>
@@ -626,12 +628,11 @@ export default function PricingSummary({
                 </Box>
               );
             }
-            const brut = Math.round((totalSejour + commission) * 100) / 100;
             return (
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC (brut)</Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{brut.toFixed(2)}€</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totalSejour.toFixed(2)}€</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body2" color="text.secondary">Commission plateforme</Typography>
@@ -639,7 +640,7 @@ export default function PricingSummary({
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Net perçu TTC</Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{Number(netReceived).toFixed(2)}€</Typography>
                 </Box>
               </>
             );

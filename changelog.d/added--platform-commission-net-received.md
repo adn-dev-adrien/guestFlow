@@ -1,0 +1,1 @@
+- Fiche réservation (plateforme) : nouveau champ **« Commission plateforme »** (€) à saisir, et le bloc « Total du séjour » affiche désormais **Total du séjour TTC (brut)** = total des nuits + options + ressources, **− Commission plateforme**, puis **Net perçu TTC** = total du séjour − commission. En direct, la commission est toujours nulle (bloc à une seule ligne).

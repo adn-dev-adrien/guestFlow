@@ -4,9 +4,10 @@ const Database = require('better-sqlite3');
 
 const { calculateReservationQuote } = require('../utils/pricing').__test;
 
-// specs/platform-commission-line.md — the engine derives the platform commission from the
-// operator-entered gross (`clientGrossAmount`): commission = gross − net stay (finalPrice), only for a
-// non-direct platform with a gross above the net. The fiche summary shows « brut − commission = net ».
+// specs/platform-commission-line.md — the platform commission is operator-entered
+// (`platformCommissionAmount`, €) and only applies to a non-direct platform. The engine echoes it back
+// (clamped ≥ 0, 0 on direct) and returns `platformNetReceivedAmount = total séjour − commission` (null
+// when no commission). The fiche summary shows « total séjour − commission = net perçu ».
 
 function createDb() {
   const db = new Database(':memory:');
@@ -37,31 +38,51 @@ const BASE = {
   depositPaid: false, balancePaid: false,
 };
 
-test('platform reservation with a gross above net → commission = gross − net', () => {
+test('platform reservation with an entered commission → echoed back + net = total séjour − commission', () => {
   const db = createDb();
-  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', clientGrossAmount: 235 });
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', platformCommissionAmount: 35 });
   assert.equal(q.finalPrice, 200);
-  assert.equal(q.platformCommissionAmount, 35); // 235 − 200
+  assert.equal(q.totalStayPrice, 200);
+  assert.equal(q.platformCommissionAmount, 35);
+  assert.equal(q.platformNetReceivedAmount, 165); // 200 − 35
   db.close();
 });
 
-test('direct reservation → no commission even with a gross', () => {
+test('direct reservation → no commission even with a value entered', () => {
   const db = createDb();
-  const q = calculateReservationQuote({ ...BASE, db, platform: 'direct', clientGrossAmount: 235 });
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'direct', platformCommissionAmount: 35 });
   assert.equal(q.platformCommissionAmount, 0);
+  assert.equal(q.platformNetReceivedAmount, null);
   db.close();
 });
 
-test('platform reservation with no gross entered → commission 0', () => {
+test('platform reservation with no commission entered → commission 0, net null (single-line total)', () => {
   const db = createDb();
-  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', clientGrossAmount: '' });
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', platformCommissionAmount: '' });
   assert.equal(q.platformCommissionAmount, 0);
+  assert.equal(q.platformNetReceivedAmount, null);
   db.close();
 });
 
-test('gross below/equal net → commission 0 (no negative commission)', () => {
+test('negative entered commission is clamped to 0 (no commission)', () => {
   const db = createDb();
-  assert.equal(calculateReservationQuote({ ...BASE, db, platform: 'airbnb', clientGrossAmount: 200 }).platformCommissionAmount, 0);
-  assert.equal(calculateReservationQuote({ ...BASE, db, platform: 'airbnb', clientGrossAmount: 150 }).platformCommissionAmount, 0);
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', platformCommissionAmount: -10 });
+  assert.equal(q.platformCommissionAmount, 0);
+  assert.equal(q.platformNetReceivedAmount, null);
+  db.close();
+});
+
+test('commission with options/resources → net = full total séjour − commission', () => {
+  const db = createDb();
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 50)").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db, platform: 'airbnb',
+    selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
+    platformCommissionAmount: 40,
+  });
+  assert.equal(q.totalStayPrice, 250); // 200 nights + 50 option
+  assert.equal(q.platformCommissionAmount, 40);
+  assert.equal(q.platformNetReceivedAmount, 210); // 250 − 40
   db.close();
 });
