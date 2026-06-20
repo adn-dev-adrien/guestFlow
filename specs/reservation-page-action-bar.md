@@ -45,6 +45,12 @@ backward-compatible capabilities so it can host this (and future) richer bars.
    instead of an icon descriptor; it is rendered as-is (used for the devis-status `<Select>`). Existing
    `{ icon, tooltip, onClick, … }` items are unchanged. In the mobile overflow menu, node items are
    skipped (kept inline) so the canonical Save/Cancel still collapse correctly.
+3. **`center` slot (2026-06-20).** `PageActionBar` accepts an optional `center` ReactNode rendered
+   **centered** in the bar (the two side sections take an equal flex basis so it's truly centered).
+   **Hidden on `xs`** (the mobile bar is too tight). On the reservation fiche it carries the **client
+   name + reservation number** (name in `body2`/600 with ellipsis, `N° <number>` as a `caption` below);
+   rendered only when a client is attached or a number exists. Backward-compatible: pages without
+   `center` keep the previous `[title]…[actions]` layout.
 
 **ReservationPage migration (behavior-preserving)**
 3. The inline fixed bar is replaced by `<PageActionBar>` with the same actions, same conditions, same

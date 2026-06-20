@@ -2475,6 +2475,18 @@ export default function ReservationPage() {
         subtitle={useCurrentPricing
           ? <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />
           : null}
+        center={(selectedClient || form.reservationNumber) ? (
+          <>
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {`${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim() || 'Client'}
+            </Typography>
+            {form.reservationNumber && (
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                N° {form.reservationNumber}
+              </Typography>
+            )}
+          </>
+        ) : null}
         actionsBefore={actionBarBefore}
         onSave={handleSaveReservation}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
