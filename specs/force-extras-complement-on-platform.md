@@ -45,21 +45,30 @@ to audit retroactively.
 ## 2. Goal
 
 For every reservation where `platform != 'direct'`, every extra line
-(option, custom option, resource, auto-option) is **automatically and
-authoritatively** treated as paid in the Complément — without a UI
-toggle, and without the operator having to think about it.
+(option, custom option, resource, auto-option) **defaults** to paid in
+the Complément — without the operator having to think about it.
+
+> **Update 2026-06-20 (rule 1bis):** the default is no longer
+> irreversible. For **operator-added extras** (regular options, custom
+> options, resources) the per-line "Compl." toggle stays available so a
+> line can be pulled back **out** of the Complément when needed. Only the
+> engine-derived **auto-options** (early/late check-in/out) keep the
+> default locked. See the dated section under §10 for the authoritative
+> rules; the statements below marked "_(superseded by rule 1bis)_" reflect
+> the original irreversible design.
 
 ## 3. Functional rules
 
-1. **Server is authoritative.** On `insertReservation` /
-   `updateReservation` / `replaceOptions` / `replaceCustomOptions` /
-   `replaceResources` / `replaceAutoOptions`, when
-   `reservations.platform != 'direct'` (after normalization by
-   `formatPlatformName`), every inserted/updated row in
-   `reservation_options`, `reservation_custom_options`,
-   `reservation_resources` is written with `inComplement = 1`, regardless
-   of the payload value. The flag in the request body is ignored on
-   non-direct reservations — never trusted.
+1. **The pricing engine is authoritative** _(amended by rule 1bis)_. The
+   single source of truth for each line's `inComplement` is
+   `pricing.js` (`resolveInComplement`): an explicit per-line flag always
+   wins; an unflagged line on a non-direct platform **defaults** to
+   `inComplement = 1`. The model (`replaceOptions` /
+   `insertCustomOptions` / `insertResourceLine`) persists the
+   engine-resolved value verbatim — it no longer re-forces by platform
+   (the previous `readPlatformForcing` re-force was removed, as it
+   overrode the operator's deliberate opt-out). The boot migration
+   (rule 6) still backfilled legacy rows once.
 2. **Forced lines carry NULL contributions.** As already enforced by
    `replaceOptions` / `replaceResources` for forced lines (see
    `reservationsModel.js` line ~552–554): when `inComplement = 1` we
@@ -69,16 +78,17 @@ toggle, and without the operator having to think about it.
 3. **Direct reservations: unchanged.** When `platform = 'direct'` (or
    absent), the per-line `inComplement` toggle keeps its current
    behaviour: operator opt-in, default `0`, user-controllable in the UI.
-4. **UI hides the complement toggle on platform reservations — but
-   keeps "Offrir" available.** When
-   `form.platform && form.platform != 'direct'`:
-   - `ExtrasSection` hides the "Compl." Checkbox on every line type
-     (property options, custom options, resources, auto-options) and
-     shows a single muted caption at the top of the section:
-     *"Réservation plateforme — les extras sont automatiquement
-     facturés en paiement complémentaire."*
-   - `PricingSummary` also hides the per-line `<ComplementChip>` (the
-     small "compl." chip mirrored from the ExtrasSection toggle). The
+4. **UI keeps the complement toggle on operator extras — and "Offrir"
+   stays available** _(amended by rule 1bis; originally: hidden on all
+   lines)_. When `form.platform && form.platform != 'direct'`:
+   - `ExtrasSection` keeps the "Compl." Switch on operator-added line
+     types (property options, custom options, resources) — defaulting
+     ON but editable — and hides it only on engine-derived auto-options.
+     A muted caption at the top reads: *"Réservation plateforme — les
+     extras sont placés en paiement complémentaire par défaut (modifiable
+     par ligne)."*
+   - `PricingSummary` keeps the per-line `<ComplementChip>` on operator
+     extras (hidden only for auto-options on platform). The
      "Offert/Offrir" button (`<Button>` next to each line, lines
      ~341-359) **stays visible and fully interactive** — an operator
      can always make a geste commercial on an extra, regardless of
@@ -459,3 +469,45 @@ that ships each step, per CLAUDE.md §4.1.)_
       the gross is UNCHANGED** from the stored value (`getAuditSnapshotFromDb().clientGrossAmount`); a
       freshly-entered/lowered gross is still rejected, and `create` stays strict. `NOT_A_NUMBER` /
       `NEGATIVE_AMOUNT` are always rejected. +2 controller tests (`reservations-controller-gross-coercion`).
+
+### Update 2026-06-20 — rule 1bis: operator can pull an extra back OUT of Complément
+
+**Why:** Adrien needs to keep the "complémentaire" toggle available on platform reservations —
+"même si via l'algorithme on place une option dans complémentaire, je veux pouvoir le retirer du
+complémentaire". The original irreversible forcing (rules 1 + 4) made the routing un-editable.
+
+**New authoritative contract (supersedes the irreversible parts of rules 1 & 4):**
+
+- **Default ON, explicit wins.** On a non-direct platform reservation an extra **defaults** into
+  Complément, but an explicit per-line `inComplement` flag always wins. The engine
+  (`pricing.js#resolveInComplement`) resolves: `explicit != null ? explicit : (platform != 'direct')`.
+  A freshly-added line carries no flag → defaults to Complément; once the operator toggles it, the
+  explicit value (0 or 1) is honoured everywhere (live preview AND save).
+- **Scope = operator-added extras** (regular options, custom options, resources). **Auto-options**
+  (early/late check-in/out, `autoEnabled = 1`) are explicitly OUT of scope: they stay forced into
+  Complément on platform (engine `forceExtrasToComplement` on the auto-option line + the client
+  `autoOptionsInComplement` union) and their toggle stays hidden — their routing is the algorithm's,
+  not the operator's.
+- **Model no longer re-forces.** `reservationsModel` persists the engine-resolved `inComplement`
+  verbatim; the `readPlatformForcing` / `isPlatformNonDirect` helpers + their `|| platformForcing`
+  OR-guards were removed (they overrode a deliberate opt-out). The save path already feeds
+  engine-resolved `quote.optionLines`, so the engine is the single authority.
+- **Client preserves tri-state.** `ReservationPage` no longer coerces `inComplement` to `0/1` with a
+  `|| isPlatformReservation` default; it sends `null` for a flagless line (live-preview signature +
+  save payload) so the engine applies the platform default, and an explicit `0/1` once toggled.
+- **Switch/chip default-aware.** `ExtrasSection` shows the "Compl." Switch for operator extras
+  (default-aware: a flagless line reads ON on platform via `complementChecked`); `PricingSummary`
+  shows the `<ComplementChip>` for operator extras (`hideChipForPlatform = isPlatformReservation &&
+  isAuto`). The caption now reads *"… placés en paiement complémentaire par défaut (modifiable par
+  ligne)."*
+
+**Tests reworked/added:**
+- Server: `reservations-extras-platform-force-complement.unit.test.js` rewritten — the model now
+  honours `inComplement = 0` on a platform reservation (operator override) and persists the
+  engine value verbatim (9 cases). `pricing-force-and-snapshot.unit.test.js` +5 cases (platform
+  default vs explicit override on options / resources / custom). Full server suite green (1729).
+- Client: `PricingSummary.platform-force-complement.test.js` + `ExtrasSection.platform-force-complement.test.js`
+  rewritten — chips/switches now render + are editable for operator extras on platform, auto-options
+  stay chip-less. Full client suite green (563).
+- E2E: `platform-force-complement.spec.js` caption text updated (no extras seeded → switch count
+  still 0).

@@ -5,10 +5,11 @@ import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
 import { makeMockContext } from '../mockReservationForm';
 
-// specs/force-extras-complement-on-platform.md §3 rule 4 + §7.2.
-// On non-direct platform reservations, the per-line "Forcer en complément"
-// small Switches are hidden + a muted caption replaces them at the top of the
-// section. Direct reservations are unaffected.
+// specs/force-extras-complement-on-platform.md §3 rule 1bis + §7.2.
+// On non-direct platform reservations, the per-line "Forcer en complément" small Switches for
+// operator-added extras (regular option + custom option + resource) STAY visible so a line can be
+// pulled back out of Complément; a muted caption explains the default. Only the engine-derived
+// auto-option Switch is hidden (rule 5). Direct reservations show all of them.
 //
 // The Compl. toggle was reshaped in this branch: small Switch (`size="small"`)
 // instead of a Checkbox, no inline label, aria-label "Forcer en complément" for
@@ -65,10 +66,26 @@ test('direct reservation: 4 "Forcer en complément" Switches rendered (property 
   expect(screen.queryByText(/Réservation plateforme — les extras sont automatiquement/i)).not.toBeInTheDocument();
 });
 
-test('platform reservation: caption renders + ZERO "Forcer en complément" Switches', () => {
+test('platform reservation: caption renders + operator-extra Switches stay (auto-option hidden)', () => {
   renderExtras({ form: { platform: 'Airbnb' } });
-  expect(screen.getByText(/Réservation plateforme — les extras sont automatiquement facturés en paiement complémentaire/i)).toBeInTheDocument();
-  expect(screen.queryAllByRole('switch', { name: 'Forcer en complément' })).toHaveLength(0);
+  expect(screen.getByText(/Réservation plateforme — les extras sont placés en paiement complémentaire par défaut/i)).toBeInTheDocument();
+  // 3 Switches: regular option (id 10) + custom option + resource. The auto-timed option (id 11,
+  // autoEnabled = 1) keeps its toggle hidden on platform.
+  expect(screen.getAllByRole('switch', { name: 'Forcer en complément' })).toHaveLength(3);
+});
+
+test('platform reservation: a flagless operator extra defaults its Switch to ON', () => {
+  // Drop the seed's explicit `inComplement: false` on the custom option so every operator extra is
+  // flagless → the platform default routes them INTO Complément and the Switch reads ON.
+  renderExtras({
+    form: {
+      platform: 'Airbnb',
+      customOptions: [{ customKey: 'custom_1', description: 'Frais ménage', amount: 30, offered: false }],
+    },
+  });
+  for (const sw of screen.getAllByRole('switch', { name: 'Forcer en complément' })) {
+    expect(sw).toBeChecked();
+  }
 });
 
 test('platform reservation: option totals (Chip) are unchanged — only the Compl. Switch disappears', () => {

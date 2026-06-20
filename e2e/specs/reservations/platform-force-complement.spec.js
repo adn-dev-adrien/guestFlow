@@ -1,17 +1,15 @@
 // @ts-check
 // specs/force-extras-complement-on-platform.md §7 — Playwright smoke for the user-visible
-// behaviour: on a non-direct platform reservation, the Extras section shows the muted
-// caption "Réservation plateforme — les extras sont automatiquement facturés en paiement
-// complémentaire." and ZERO "Forcer en complément" Switches are present.
-//
-// Direct reservations are the inverse: no caption, ≥1 Compl. Switch on every selected
-// extra. We don't seed any extras here (the catalog is empty in the e2e DB), so the
-// direct check is implicit — covered by the Vitest unit tests
-// `ExtrasSection.platform-force-complement.test.js`.
+// behaviour: on a non-direct platform reservation, the Extras section shows the muted caption
+// "Réservation plateforme — les extras sont placés en paiement complémentaire par défaut
+// (modifiable par ligne)." The per-line "Forcer en complément" Switches now STAY visible on
+// operator-added extras (spec rule 1bis) — we don't seed any extras here (the e2e catalog is empty),
+// so the switch count is trivially 0; the editable-switch behaviour is covered by the Vitest unit
+// test `ExtrasSection.platform-force-complement.test.js`.
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
 
-test('platform reservation hides Compl. Switches + shows the caption in the Extras section', async ({ page }) => {
+test('platform reservation shows the default-routing caption in the Extras section', async ({ page }) => {
   const property = await createProperty({ name: 'E2E platform-force-complement villa' });
   const client = await createClient({ firstName: 'Test', lastName: 'PlatformForce' });
   const reservation = await createReservation({
@@ -28,12 +26,12 @@ test('platform reservation hides Compl. Switches + shows the caption in the Extr
   // The Extras section card heading anchors the page render.
   await expect(page.getByText('Options et ressources', { exact: true })).toBeVisible({ timeout: 10_000 });
 
-  // The user-visible signal that the routing is automatic.
+  // The user-visible signal that extras default into Complément (but stay editable per line).
   await expect(
-    page.getByText(/Réservation plateforme — les extras sont automatiquement facturés en paiement complémentaire/i),
+    page.getByText(/Réservation plateforme — les extras sont placés en paiement complémentaire par défaut/i),
   ).toBeVisible();
 
-  // The per-line "Forcer en complément" Switches are gone on platform reservations.
-  // (Direct reservations would render ≥1 of these — see ExtrasSection.platform-force-complement.test.js.)
+  // No extras are seeded in the e2e catalog, so no per-line Switch renders here. The editable-switch
+  // behaviour on platform is covered by ExtrasSection.platform-force-complement.test.js.
   await expect(page.getByRole('switch', { name: 'Forcer en complément' })).toHaveCount(0);
 });
