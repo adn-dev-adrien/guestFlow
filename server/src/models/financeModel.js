@@ -315,7 +315,8 @@ function createFinanceModel(database) {
       };
     },
 
-    // Tourist-tax extraction for a past month (direct bookings only).
+    // Tourist-tax extraction up to and including the current month (direct bookings only).
+    // Future months are still rejected — there's nothing to declare yet.
     getTouristTaxExtraction({ month } = {}) {
       const bounds = getMonthBounds(month);
       if (!bounds) {
@@ -324,8 +325,8 @@ function createFinanceModel(database) {
 
       const now = new Date();
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      if (month >= currentMonth) {
-        return { ok: false, status: 400, error: 'Seuls les mois déjà passés sont autorisés.' };
+      if (month > currentMonth) {
+        return { ok: false, status: 400, error: 'Les mois futurs ne sont pas autorisés.' };
       }
 
       const rows = database.prepare(`

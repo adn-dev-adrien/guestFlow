@@ -24,12 +24,17 @@ const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8')
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
-// A month strictly in the past (getTouristTaxExtraction only accepts already-closed months), plus a
-// stay that ends inside it (its last night falls in the month).
+// A month strictly in the past (getTouristTaxExtraction accepts up to and including the current
+// month, never the future), plus a stay that ends inside it (its last night falls in the month).
 function previousMonth() {
   const now = new Date();
   const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   return { month: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`, year: d.getFullYear(), m: d.getMonth() + 1 };
+}
+
+function currentMonth() {
+  const now = new Date();
+  return { month: `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`, year: now.getFullYear(), m: now.getMonth() + 1 };
 }
 
 function seedTaxDb() {
@@ -104,6 +109,29 @@ test('Taxe de séjour: a MULTI-WORD owner-collected platform (manual stay) is st
   const res = model.getTouristTaxExtraction({ month });
   assert.deepEqual(res.data.reservations.map((r) => r.reservationId).sort((a, b) => a - b), [1, 2],
     'both the manual-label and the iCal-key stays of an owner-collected multi-word platform are remitted by us');
+});
+
+test('Taxe de séjour: the CURRENT month is accepted (declarations run up to the month in progress)', () => {
+  // Regression: the page failed with « Seuls les mois déjà passés sont autorisés. » on the current
+  // month. getTouristTaxExtraction now accepts up to and including the month in progress.
+  const { db, model } = seedTaxDb();
+  const { month, year, m } = currentMonth();
+  insertStay(db, { id: 1, platform: 'direct', year, m });   // direct → remitted by us, included
+  insertStay(db, { id: 2, platform: 'Booking', year, m });  // we collect at arrival → included
+
+  const res = model.getTouristTaxExtraction({ month });
+  assert.equal(res.ok, true, 'the current month is no longer rejected');
+  assert.deepEqual(res.data.reservations.map((r) => r.reservationId).sort((a, b) => a - b), [1, 2]);
+});
+
+test('Taxe de séjour: a FUTURE month is still rejected', () => {
+  const { model } = seedTaxDb();
+  const now = new Date();
+  const future = `${now.getFullYear() + 1}-01`;
+  const res = model.getTouristTaxExtraction({ month: future });
+  assert.equal(res.ok, false);
+  assert.equal(res.status, 400);
+  assert.match(res.error, /futurs/i);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────

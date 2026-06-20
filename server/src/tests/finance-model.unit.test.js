@@ -217,10 +217,12 @@ test('getProjection: Σ total-de-séjour of reservations whose endDate ≤ targe
 
 // ── tourist-tax extraction (unchanged) ──────────────────────────────────────────────────
 
-test('getTouristTaxExtraction rejects a non-past or malformed month', () => {
+test('getTouristTaxExtraction rejects a future or malformed month (current-month acceptance: see tourist-tax-collection-coverage)', () => {
   const { model } = freshModel();
+  // Malformed month → 400.
   assert.equal(model.getTouristTaxExtraction({ month: 'bad' }).status, 400);
+  // A future month is still rejected (the guard short-circuits before any SQL).
   const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  assert.equal(model.getTouristTaxExtraction({ month: thisMonth }).status, 400);
+  const future = `${now.getFullYear() + 1}-01`;
+  assert.equal(model.getTouristTaxExtraction({ month: future }).status, 400);
 });
