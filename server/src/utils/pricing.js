@@ -1074,16 +1074,20 @@ function calculateReservationQuote({
   //   `acompteContribTtc` / `soldeContribTtc` → snapshots captured by reservationsController
   //     .updatePayment on `*Paid` 0→1 flips, surfaced from the DB-side locked line. They drive
   //     the per-bucket attribution in accounting (no recomputation here — pure pass-through).
-  // specs/force-extras-complement-on-platform.md §3 rule 1 — on a non-direct platform reservation
-  // (incl. iCal imports), EVERY extra is forced into the Complément bucket. The model already
-  // forces `inComplement = 1` on write; the engine MUST mirror it so `complementAmount` reflects
-  // those lines (otherwise the option price leaks into the deposit/balance split while the DB row
-  // says inComplement=1 — the prod regression this fixes). Forced lines carry NULL contribs (they
-  // live 100% in Complément, never in Acompte/Solde).
+  // specs/force-extras-complement-on-platform.md §3 — on a non-direct platform reservation (incl.
+  // iCal imports), an extra DEFAULTS into the Complément bucket, but the operator can pull it back
+  // out: an explicit per-line `inComplement` flag always wins. Only a freshly-added line that carries
+  // no flag yet falls back to the platform default. Forced lines carry NULL contribs (they live
+  // 100% in Complément, never in Acompte/Solde). The default keeps `complementAmount` correct so the
+  // option price never leaks into the deposit/balance split when the line is in Complément.
   const forceExtrasToComplement = String(platform || 'direct').toLowerCase() !== 'direct';
+  const resolveInComplement = (explicit) => (
+    (explicit != null ? Number(explicit) : (forceExtrasToComplement ? 1 : 0)) ? 1 : 0
+  );
   const pickContribsAndForce = (selected, locked) => {
-    const inComplement = (forceExtrasToComplement
-      || Number((selected && selected.inComplement != null ? selected.inComplement : locked?.inComplement) || 0)) ? 1 : 0;
+    const explicit = (selected && selected.inComplement != null) ? selected.inComplement
+      : (locked && locked.inComplement != null ? locked.inComplement : null);
+    const inComplement = resolveInComplement(explicit);
     return {
       inComplement,
       acompteContribTtc: inComplement ? null : (locked && locked.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null),
@@ -1213,10 +1217,10 @@ function calculateReservationQuote({
         priceType: 'per_stay',
         originalTotalPrice: amount,
         totalPrice: offered ? 0 : amount,
-        // Non-direct platform forces every extra into the Complément bucket (see pickContribsAndForce).
-        inComplement: (forceExtrasToComplement || Number(line?.inComplement || 0)) ? 1 : 0,
-        acompteContribTtc: (forceExtrasToComplement || Number(line?.inComplement || 0)) ? null : (line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
-        soldeContribTtc: (forceExtrasToComplement || Number(line?.inComplement || 0)) ? null : (line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
+        // Explicit flag wins; an unflagged custom line defaults to the platform routing (see resolveInComplement).
+        inComplement: resolveInComplement(line?.inComplement != null ? line.inComplement : null),
+        acompteContribTtc: resolveInComplement(line?.inComplement != null ? line.inComplement : null) ? null : (line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
+        soldeContribTtc: resolveInComplement(line?.inComplement != null ? line.inComplement : null) ? null : (line?.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
       };
     })
     .filter(Boolean);

@@ -316,6 +316,11 @@ export default function PricingSummary({
                 //            them would break conservation against those payment buckets)
                 //   simple → 1 row + faded "+ compl." toggle so the user can route this line.
                 const split = isOffered ? { kind: 'simple', snapshot: total, delta: 0 } : getLineSplit(so, total);
+                // specs/force-extras-complement-on-platform.md §3 rule 1bis: on a platform reservation
+                // the operator-added extras keep a clickable Complément chip so a line can be pulled
+                // back out of Complément. Engine-derived auto-options (early/late check) stay forced
+                // and chip-less — their routing is the algorithm's, not the operator's.
+                const hideChipForPlatform = isPlatformReservation && isAuto;
                 const baseLabel = `${so.title || opt?.title || '—'}${Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}`;
                 const baseKey = so.optionId || so.customKey || `custom_${index}`;
 
@@ -384,15 +389,12 @@ export default function PricingSummary({
                   </Box>
                 );
 
-                // Platform reservations: server forces inComplement = 1 on save. The chip
-                // disappears here so the operator never sees a meaningless toggle, but the
-                // numerical routing through `split` stays correct because ReservationPage feeds
-                // an `inComplement: true` flag through `quoteInput` on platform reservations
-                // (specs/force-extras-complement-on-platform.md §3 rule 4).
+                // The chip is hidden only for engine-forced auto-options on a platform reservation
+                // (`hideChipForPlatform`); operator-added extras keep it so the routing is editable.
                 if (split.kind === 'forced') {
                   return (
                     <Box key={baseKey}>
-                      {renderRow({ label: baseLabel, amount: split.delta, chip: isPlatformReservation ? null : 'on', withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'on', withOfferedToggle: true })}
                     </Box>
                   );
                 }
@@ -400,13 +402,13 @@ export default function PricingSummary({
                   return (
                     <Stack key={baseKey} spacing={0.5}>
                       {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: true })}
-                      {renderRow({ label: baseLabel, amount: split.delta, chip: isPlatformReservation ? null : 'readonly', withOfferedToggle: false })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
                 return (
                   <Box key={baseKey}>
-                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || isPlatformReservation) ? null : 'off', withOfferedToggle: true })}
+                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || hideChipForPlatform) ? null : 'off', withOfferedToggle: true })}
                   </Box>
                 );
               })}
@@ -485,20 +487,21 @@ export default function PricingSummary({
                   </Box>
                 );
 
-                // Same platform-hide-chip rule as the options block above
-                // (specs/force-extras-complement-on-platform.md §3 rule 4).
+                // Resources have no engine-derived "auto" variant, so the Complément chip is always
+                // editable — including on platform reservations (specs/force-extras-complement-on-platform.md
+                // §3 rule 1bis): the operator can pull a resource back out of Complément.
                 if (split.kind === 'forced') {
-                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: isPlatformReservation ? null : 'on', withOfferedToggle: true })}</Box>;
+                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: true })}</Box>;
                 }
                 if (split.kind === 'split') {
                   return (
                     <Stack key={sr.resourceId} spacing={0.5}>
                       {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: true })}
-                      {renderRow({ amount: split.delta, chip: isPlatformReservation ? null : 'readonly', withOfferedToggle: false })}
+                      {renderRow({ amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
-                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: (isOffered || isPlatformReservation) ? null : 'off', withOfferedToggle: true })}</Box>;
+                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: true })}</Box>;
               })}
             </>
           )}
