@@ -451,6 +451,26 @@ export default function OptionsPage() {
       emptyForm={emptyOption}
       priceTypes={OPTION_PRICE_TYPES}
       explicitPropertyScope
+      // specs/per-property-option-prices.md — surface the per-property price overrides in the list:
+      // the base price, then one line per property that overrides it (« Logement : X € »).
+      renderPriceCell={(item, properties) => {
+        if (item.priceType === 'free') return 'Gratuit';
+        const overrides = Object.entries(item.propertyPrices || {})
+          .filter(([, v]) => v !== null && v !== undefined && v !== '');
+        if (overrides.length === 0) return `${item.price} €`;
+        return (
+          <Box>
+            <Typography variant="body2" sx={{ lineHeight: 1.35 }}>
+              {item.price} € <Typography component="span" variant="caption" color="text.secondary">(base)</Typography>
+            </Typography>
+            {overrides.map(([pid, price]) => (
+              <Typography key={pid} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
+                {(properties.find((p) => Number(p.id) === Number(pid))?.name) || `#${pid}`} : {Number(price)} €
+              </Typography>
+            ))}
+          </Box>
+        );
+      }}
       loadItems={async () => {
         const [items, properties] = await Promise.all([api.getOptions(), api.getProperties()]);
         return { items, properties };

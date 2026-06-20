@@ -2,6 +2,7 @@
 // documents, option linkage, and platform colours. SQL moved verbatim from routes/properties.js.
 
 const db = require('../database');
+const optionsModel = require('./optionsModel');
 const { sentenceCase } = require('../utils/textFormatters');
 const {
   normalizeDateRanges,
@@ -109,6 +110,16 @@ function createPropertiesModel(database) {
         });
       property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id);
       property.optionIds = database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id).map((r) => r.optionId);
+      // Options applicable to this property, each carrying its EFFECTIVE price for THIS property (the
+      // per-property override when set, else the base price — specs/per-property-option-prices.md). The
+      // reservation fiche consumes `property.options` so the option unit price it displays matches what
+      // the pricing engine computes for this property (previously it fell back to the base price).
+      // Defensive: minimal schemas (some unit-test DBs) have no `options` table → degrade to [].
+      try {
+        property.options = optionsModel.buildModel(database).listForProperty(id);
+      } catch (_) {
+        property.options = [];
+      }
       property.icalSources = database.prepare(`
         SELECT id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
           collectsTouristTax, touristTaxRemittedByPlatform,

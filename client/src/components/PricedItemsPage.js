@@ -40,6 +40,9 @@ export default function PricedItemsPage({
   renderExtraFormFields,
   getRowSx,
   priceTypes,
+  // Optional: render the « Prix » cell content. Receives (item, properties). Defaults to `${price} €`.
+  // Used by the Options page to surface the per-property price overrides next to the base price.
+  renderPriceCell,
   // Optional: fully replace the dialog form body (Nom/Description/Type/Prix/Logements + extras) with
   // a bespoke layout. Receives ({ form, setForm, properties, priceTypes }). When provided,
   // renderExtraFormFields is ignored (the custom form renders everything).
@@ -217,7 +220,7 @@ export default function PricedItemsPage({
                     : pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
                 })()}
               </TableCell>
-              <TableCell>{item.price} €</TableCell>
+              <TableCell>{renderPriceCell ? renderPriceCell(item, properties) : `${item.price} €`}</TableCell>
               {showQuantity && <TableCell>{item.quantity}</TableCell>}
               <TableCell>{resolvedPriceTypes.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
               <TableCell align="right">
