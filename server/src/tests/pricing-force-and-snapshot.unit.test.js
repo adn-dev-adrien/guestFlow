@@ -343,3 +343,76 @@ test('auto-option forced → contribs are cleared to NULL (line lives 100 % in C
   assert.equal(lateLine.acompteContribTtc, null);
   assert.equal(lateLine.soldeContribTtc, null);
 });
+
+// ── specs/force-extras-complement-on-platform.md §3 rule 1bis: platform default + operator override ──
+// On a non-direct platform reservation an extra DEFAULTS into Complément when the line carries no
+// explicit flag (a freshly-added line), but an explicit per-line `inComplement` always wins so the
+// operator can pull a line back out of Complément.
+
+test('platform + unflagged option → defaults into Complément', () => {
+  const db = createDb({ withOption: true });
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'Airbnb',
+    selectedOptions: [{ optionId: 10, quantity: 1 }], // no inComplement flag
+  });
+  assert.equal(q.optionLines.find((l) => l.optionId === 10).inComplement, 1);
+  assert.equal(q.forcedItemsTotal, 50);
+  assert.equal(q.preArrivalAmount, 200);
+  db.close();
+});
+
+test('platform + explicit inComplement = 0 → operator override wins (line leaves Complément)', () => {
+  const db = createDb({ withOption: true });
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'Airbnb',
+    selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 0 }],
+  });
+  assert.equal(q.optionLines.find((l) => l.optionId === 10).inComplement, 0);
+  assert.equal(q.forcedItemsTotal, 0);
+  assert.equal(q.preArrivalAmount, 250); // option folded back into the auto deposit/balance split
+  assert.equal(q.complementAmount, 0);
+  db.close();
+});
+
+test('platform + unflagged resource → defaults into Complément', () => {
+  const db = createDb({ withResource: true });
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'Booking',
+    selectedResources: [{ resourceId: 20, quantity: 1 }],
+  });
+  assert.equal(q.resourceLines.find((l) => l.resourceId === 20).inComplement, 1);
+  assert.equal(q.forcedItemsTotal, 30);
+  db.close();
+});
+
+test('platform + explicit resource inComplement = 0 → override wins', () => {
+  const db = createDb({ withResource: true });
+  const q = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'Booking',
+    selectedResources: [{ resourceId: 20, quantity: 1, inComplement: 0 }],
+  });
+  assert.equal(q.resourceLines.find((l) => l.resourceId === 20).inComplement, 0);
+  assert.equal(q.forcedItemsTotal, 0);
+  db.close();
+});
+
+test('platform + unflagged custom option → defaults into Complément; explicit 0 overrides', () => {
+  const db = createDb();
+  const def = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'Airbnb',
+    customOptions: [{ description: 'Panier bienvenue', amount: 30 }],
+  });
+  assert.equal(def.optionLines.find((l) => l.isCustom).inComplement, 1);
+  const override = calculateReservationQuote({
+    ...BASE_INPUTS, db,
+    platform: 'Airbnb',
+    customOptions: [{ description: 'Panier bienvenue', amount: 30, inComplement: 0 }],
+  });
+  assert.equal(override.optionLines.find((l) => l.isCustom).inComplement, 0);
+  db.close();
+});

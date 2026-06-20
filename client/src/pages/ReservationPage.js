@@ -340,7 +340,7 @@ export default function ReservationPage() {
       // round-trip to the server.
       .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
       .map((item) => {
-        const line = { optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0 };
+        const line = { optionId: Number(item.optionId), quantity: Number(item.quantity || 0), inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0) };
         // Include the checked occurrences so the live preview re-fetches when the selection changes.
         if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
         return line;
@@ -352,12 +352,12 @@ export default function ReservationPage() {
         description: String(line.description || '').trim(),
         amount: Number(line.amount || 0),
         offered: Boolean(line.offered),
-        inComplement: (line.inComplement || isPlatformReservation) ? 1 : 0,
+        inComplement: line.inComplement == null ? null : (line.inComplement ? 1 : 0),
       }))
       .filter((line) => line.description && Number(line.amount || 0) > 0)
       .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
-      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: (item.inComplement || isPlatformReservation) ? 1 : 0, sessions: Array.isArray(item.sessions) ? item.sessions : [] }))
+      .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0), sessions: Array.isArray(item.sessions) ? item.sessions : [] }))
       .sort((a, b) => a.resourceId - b.resourceId),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
@@ -1500,7 +1500,7 @@ export default function ReservationPage() {
       // (autoEnabled = 1), not the typed-default linen options (autoOptionType set, autoEnabled = 0).
       .filter((item) => Number(propertyOptions.find((o) => o.id === Number(item.optionId))?.autoEnabled || 0) !== 1)
       .map((item) => {
-        const line = { optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement ? 1 : 0 };
+        const line = { optionId: item.optionId, quantity: item.quantity, inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0) };
         // Option-driven planning cards (specs/option-planning-card.md §3.4): send the CHECKED
         // occurrences ({date,time}). The server derives billedUnits from them (authoritative).
         if (Array.isArray(item.cardOccurrences)) line.cardOccurrences = toWireCardOccurrences(item.cardOccurrences);
@@ -1516,7 +1516,7 @@ export default function ReservationPage() {
         description: String(line.description || '').trim(),
         amount: Number(line.amount || 0),
         offered: Boolean(line.offered),
-        inComplement: line.inComplement ? 1 : 0,
+        inComplement: line.inComplement == null ? null : (line.inComplement ? 1 : 0),
       }))
       .filter((line) => line.description && Number(line.amount || 0) > 0);
   };
@@ -1528,7 +1528,7 @@ export default function ReservationPage() {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         offered: Boolean(item.offered),
-        inComplement: item.inComplement ? 1 : 0,
+        inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0),
         // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) — drive the server pricer.
         sessions: Array.isArray(item.sessions) ? item.sessions : [],
       }))
