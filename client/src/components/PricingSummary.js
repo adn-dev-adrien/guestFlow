@@ -555,9 +555,9 @@ export default function PricingSummary({
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {isTouristTaxOffered && (
-                    <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, whiteSpace: 'nowrap' }}>✓ Offert</Typography>
-                  )}
+                  {/* Case 2 (platform collects AND remits to the commune): the amount is struck through
+                      to signal it doesn't land in our books — but NOT labelled "Offert" (it isn't a
+                      geste commercial). The short caption below explains who handles it. */}
                   <Typography variant="body2" sx={{ fontWeight: 600, textDecoration: isTouristTaxOffered ? 'line-through' : 'none', opacity: isTouristTaxOffered ? 0.5 : 1, whiteSpace: 'nowrap' }}>
                     {touristTaxDisplayedAmount.toFixed(2)}€
                   </Typography>
@@ -580,8 +580,8 @@ export default function PricingSummary({
                   - reversed (case 1): the platform collects then reverses it to us → CHARGED in the balance, we declare it.
                   - on-arrival (case 3): we collect it at check-in → charged in the complement. */}
               {isTouristTaxOffered && (
-                <Typography variant="caption" sx={{ display: 'block', color: 'success.main', fontStyle: 'italic' }}>
-                  Collectée par la plateforme
+                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
+                  Collectée et reversée à la commune par la plateforme
                 </Typography>
               )}
               {!isTouristTaxOffered && Boolean(quote?.touristTaxReversedByPlatform) && (
