@@ -144,3 +144,36 @@ describe('PricingSummary — refresh button for a frozen (past) reservation', ()
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });
+
+// specs/per-platform-tourist-tax-three-way.md §6.2 — case 2 (platform collects AND remits the tax to
+// the commune itself). The fiche shows the tax amount STRUCK THROUGH (it never lands in our books)
+// but NOT labelled "Offert" — it isn't a geste commercial. A short neutral caption explains who
+// handles it.
+describe('PricingSummary — tourist tax case 2 (platform collects + remits to the commune)', () => {
+  const QUOTE_OFFERED_BY_PLATFORM = {
+    touristTaxTotal: 0, // nets to 0 in our books — the platform handles it
+    touristTaxOriginalTotal: 16.80, // the struck-through amount we still surface for context
+    touristTaxUnitAmount: 1.05,
+    touristTaxAdultsCount: 8,
+    touristTaxNights: 2,
+    touristTaxLabel: 'taxe collectée par la plateforme',
+    touristTaxOfferedByPlatform: true,
+    touristTaxCollectedOnArrival: false,
+    touristTaxReversedByPlatform: false,
+    finalPrice: 1000,
+    totalStayPrice: 1000,
+    nights: 2,
+    optionLines: [],
+    resourceLines: [],
+  };
+
+  test('shows the gross amount + the short explanation, never "Offert"', () => {
+    renderSummary({ quote: QUOTE_OFFERED_BY_PLATFORM });
+    // The original gross is surfaced (rendered struck-through via sx), not the netted 0.
+    expect(screen.getByText('16.80€')).toBeInTheDocument();
+    // No "Offert" badge — this is not a geste commercial.
+    expect(screen.queryByText(/Offert/i)).toBeNull();
+    // A short neutral caption explains the routing.
+    expect(screen.getByText('Collectée et reversée à la commune par la plateforme')).toBeInTheDocument();
+  });
+});

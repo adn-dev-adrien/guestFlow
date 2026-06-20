@@ -153,7 +153,7 @@ the quote, the *Suivi taxe de séjour* report, and the *Comptabilité* export:
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/PropertyDetail.js` | [PropertyDetail.js:591](../client/src/pages/PropertyDetail.js#L591) | T | Replace the « Taxe collectée » `Switch` with a 3-option `Select` (`renderTaxControl`) bound to `row.touristTaxCollection`; read-mode change persists immediately, edit-mode keeps a draft. `editDraft` + `upsertPlatformSource` + `handleToggleTax`→`handleSetTaxMode` send `touristTaxCollection`. `direct` still shows « — ». Column header « Taxe collectée » → « Taxe de séjour ». Mobile cards mirror the Select. |
-| `components/PricingSummary.js` | [PricingSummary.js](../client/src/components/PricingSummary.js) | T | When the tax is offered (`touristTaxOfferedByPlatform`), branch the caption on `quote.touristTaxRemittedByOwner`: case 1 → « Collectée par la plateforme, reversée — à déclarer (Suivi taxe de séjour) » ; case 2 → today's « Collectée par la plateforme ». Strike-through unchanged. |
+| `components/PricingSummary.js` | [PricingSummary.js](../client/src/components/PricingSummary.js) | T | When the tax is offered (`touristTaxOfferedByPlatform`), branch the caption on `quote.touristTaxRemittedByOwner`: case 1 → « Collectée par la plateforme, reversée — à déclarer (Suivi taxe de séjour) » ; case 2 (2026-06-20) → struck-through amount + a short **neutral** caption « Collectée et reversée à la commune par la plateforme » and **no « Offert » badge** (it isn't a geste commercial). |
 | `components/sas/ReservationSasDialog.js` | [ReservationSasDialog.js:324](../client/src/components/sas/ReservationSasDialog.js#L324) | T | Add a « Taxe de séjour : X € » line to the arrival recap detail when `r.touristTaxInComplementAmount > 0` (folded into `complementDetailLines` or rendered alongside). |
 | `api.js` | [api.js](../client/src/api.js) | T | iCal-source CRUD already exists; payload now carries `touristTaxCollection`. No new endpoint. |
 
@@ -218,8 +218,10 @@ reservations created before this change keep their stored schedule until re-save
   - **Responsive:** the `Select` replaces the `Switch` in both the desktop table cell and the `xs`
     stacked card; full-width on `xs`, no horizontal scroll.
 - **Fiche réservation → PricingSummary:** for an offered tax, the caption distinguishes case 1
-  (« …reversée — à déclarer ») from case 2 (« Collectée par la plateforme »). Owner-collect (case 3)
-  and direct captions unchanged.
+  (« …reversée — à déclarer ») from case 2. **Case 2 (2026-06-20):** the amount is shown
+  **struck-through** with **no « Offert » badge** (it isn't a geste commercial), and a short neutral
+  caption underneath explains the routing: « Collectée et reversée à la commune par la plateforme ».
+  Owner-collect (case 3) and direct captions unchanged.
 - **SAS arrivée:** the « complément à percevoir » detail gains a **« Taxe de séjour : X € »** line
   when the reservation routes the tax to the complement (case 3 / forced). The total is unchanged
   (the tax was already in `complementAmount`); the line just makes it explicit and reconciles the
