@@ -1,0 +1,1 @@
+- Page « Suivi taxe de séjour » : le **mois en cours** s'affiche désormais réellement. Le sélecteur l'autorisait déjà mais le serveur le refusait encore avec « Seuls les mois déjà passés sont autorisés. » — seuls les mois **futurs** sont maintenant rejetés.
