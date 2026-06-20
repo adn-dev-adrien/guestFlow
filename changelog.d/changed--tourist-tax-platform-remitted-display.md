@@ -1,0 +1,1 @@
+- Fiche réservation : quand la **plateforme collecte ET reverse la taxe de séjour à la commune**, le montant s'affiche désormais **barré** avec une courte explication « Collectée et reversée à la commune par la plateforme » — sans le badge « Offert » (ce n'est pas un geste commercial).
