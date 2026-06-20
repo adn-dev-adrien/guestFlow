@@ -144,6 +144,9 @@ export default function ReservationPage() {
   const [pricingQuote, setPricingQuote] = useState(null);
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
+  // specs/tourist-tax-freeze-past-with-refresh.md — past reservations keep a FROZEN tourist tax; this
+  // flag (set by the refresh button) forces a one-off live recompute until the reservation is reloaded.
+  const [touristTaxRefreshRequested, setTouristTaxRefreshRequested] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
 
   // §3.7 — cache of the current property's option defaults. Refreshed whenever `form.propertyId`
@@ -288,8 +291,23 @@ export default function ReservationPage() {
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form,
   }), [selectedProp, form]);
+  // A reservation is "past" (→ frozen tourist tax) when its last night (endDate − 1 day) is before the
+  // 1st of the current month (specs/tourist-tax-freeze-past-with-refresh.md §3 rule 1).
+  const isPastReservation = useMemo(() => {
+    if (!editingReservationId || !form.endDate) return false;
+    const lastNight = new Date(`${form.endDate}T00:00:00`);
+    lastNight.setDate(lastNight.getDate() - 1);
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return lastNight < firstOfMonth;
+  }, [editingReservationId, form.endDate]);
+  const freezeTouristTax = isPastReservation && !touristTaxRefreshRequested;
+  // Reset the manual refresh when switching to another reservation (the frozen value is re-loaded).
+  useEffect(() => { setTouristTaxRefreshRequested(false); }, [editingReservationId]);
+
   const pricingQuoteSignature = useMemo(() => JSON.stringify({
     propertyId: selectedProp ? Number(selectedProp) : null,
+    freezeTouristTax,
     startDate: form.startDate,
     endDate: form.endDate,
     checkInTime: form.checkInTime,
@@ -1058,6 +1076,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
           ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         });
 
@@ -1590,6 +1609,7 @@ export default function ReservationPage() {
         platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       }),
       api.getReservations({ propertyId: nextPropertyId }),
@@ -1729,6 +1749,7 @@ export default function ReservationPage() {
         platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         forceCurrentPricing: true,
         customPrice: '',
@@ -1843,6 +1864,7 @@ export default function ReservationPage() {
         platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
         ...(editingReservationId ? { reservationId: editingReservationId } : {}),
       });
       setPricingQuote(quote);
@@ -1879,6 +1901,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
           status: form.status || 'draft',
           totalPrice: quote.totalPrice,
           touristTaxRate: quote.touristTaxRate || 0,
@@ -1941,6 +1964,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
@@ -2006,6 +2030,7 @@ export default function ReservationPage() {
           platform: form.platform,
         touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
         autoOptionsInComplement: form.autoOptionsInComplement || [],
+        freezeTouristTax,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
           finalPrice: quote.finalPrice,
@@ -2624,6 +2649,8 @@ export default function ReservationPage() {
           onToggleCustomOptionInComplement={setCustomOptionInComplementFromSummary}
           onToggleResourceInComplement={setResourceInComplement}
           onToggleTouristTaxInComplement={(next) => setForm((prev) => ({ ...prev, touristTaxInComplement: Boolean(next) }))}
+          isPastReservation={isPastReservation}
+          onRefreshTouristTax={() => setTouristTaxRefreshRequested(true)}
         />
 
         {editingReservationId && (
