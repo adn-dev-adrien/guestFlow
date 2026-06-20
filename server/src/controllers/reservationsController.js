@@ -240,6 +240,14 @@ function calculatePrice(req, res) {
     }
   }
 
+  // specs/tourist-tax-freeze-past-with-refresh.md — when the client asks to freeze the tourist tax
+  // (a PAST reservation, not being refreshed), source the frozen amount from the stored reservation so
+  // the engine pins it instead of recomputing. No reservationId / no stored row → no freeze.
+  let frozenTouristTax = null;
+  if (req.body.freezeTouristTax && reservationId > 0) {
+    frozenTouristTax = db.prepare('SELECT touristTaxTotal, touristTaxRate FROM reservations WHERE id = ?').get(reservationId);
+  }
+
   const quote = calculateReservationQuote({
     db,
     propertyId,
@@ -270,6 +278,9 @@ function calculatePrice(req, res) {
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
+    freezeTouristTax: Boolean(frozenTouristTax),
+    frozenTouristTaxTotal: frozenTouristTax ? frozenTouristTax.touristTaxTotal : 0,
+    frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Card, Stack, Typography, Divider, Button, Chip } from '@mui/material';
+import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Tooltip } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 // Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
 // (spec force-item-to-complement.md §6.2). When `onClick` is provided, the chip becomes a
@@ -96,6 +97,10 @@ export default function PricingSummary({
   onToggleCustomOptionInComplement,
   onToggleResourceInComplement,
   onToggleTouristTaxInComplement,
+  // specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tourist tax is frozen; show a
+  // refresh button next to the label to force a live recompute.
+  isPastReservation = false,
+  onRefreshTouristTax,
 }) {
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [showTouristTaxDetail, setShowTouristTaxDetail] = useState(false);
@@ -506,6 +511,15 @@ export default function PricingSummary({
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">Taxe de séjour</Typography>
+                    {/* specs/tourist-tax-freeze-past-with-refresh.md — past reservations keep a frozen
+                        tax; this button forces a live recompute (then Save persists it). */}
+                    {isPastReservation && onRefreshTouristTax && (
+                      <Tooltip title="Recalculer la taxe de séjour (séjour passé — figée)">
+                        <IconButton size="small" onClick={onRefreshTouristTax} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
+                          <RefreshIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {/* Manual routing to Complément (spec force-item-to-complement.md §6.2).
                         Two render paths:
                           - `collectedOnArrival = true` (engine auto-routes — non-direct platform

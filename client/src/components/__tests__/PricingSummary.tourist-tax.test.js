@@ -53,7 +53,7 @@ const QUOTE_USER_BUG_SCENARIO = {
   resourceLines: [],
 };
 
-function renderSummary({ quote, form = MIN_FORM, selectedProperty = { name: 'Villa A' } } = {}) {
+function renderSummary({ quote, form = MIN_FORM, selectedProperty = { name: 'Villa A' }, isPastReservation = false, onRefreshTouristTax } = {}) {
   return render(
     <PricingSummary
       quote={quote}
@@ -64,6 +64,8 @@ function renderSummary({ quote, form = MIN_FORM, selectedProperty = { name: 'Vil
       availableResources={[]}
       parsedTotalPrice={1000}
       accommodationDiscountedPriceDisplay={'1000.00'}
+      isPastReservation={isPastReservation}
+      onRefreshTouristTax={onRefreshTouristTax}
     />
   );
 }
@@ -122,5 +124,23 @@ describe('PricingSummary — tourist tax mirrors the engine quote (devis PDF par
     expect(
       screen.getByText('(227.27EUR HT/nuit ÷ 12 occupants) x 5.00% + 10.00% dep = 1.05EUR/adulte/nuit')
     ).toBeInTheDocument();
+  });
+});
+
+// specs/tourist-tax-freeze-past-with-refresh.md — a past reservation's tax is frozen; a refresh
+// button next to the « Taxe de séjour » label forces a live recompute.
+describe('PricingSummary — refresh button for a frozen (past) reservation', () => {
+  test('no refresh button when the reservation is not past', () => {
+    renderSummary({ quote: QUOTE_USER_BUG_SCENARIO, isPastReservation: false, onRefreshTouristTax: () => {} });
+    expect(screen.queryByRole('button', { name: /Recalculer la taxe de séjour/i })).toBeNull();
+  });
+
+  test('past reservation → the refresh button shows and calls onRefreshTouristTax', async () => {
+    const user = userEvent.setup();
+    const onRefresh = vi.fn();
+    renderSummary({ quote: QUOTE_USER_BUG_SCENARIO, isPastReservation: true, onRefreshTouristTax: onRefresh });
+    const btn = screen.getByRole('button', { name: /Recalculer la taxe de séjour/i });
+    await user.click(btn);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });

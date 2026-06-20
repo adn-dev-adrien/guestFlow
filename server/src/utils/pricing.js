@@ -965,6 +965,14 @@ function calculateReservationQuote({
   // signal. The client builds it from a dedicated form field; on load, it's hydrated by
   // reading the auto-options that already have `inComplement = 1` in `reservation_options`.
   autoOptionsInComplement,
+  // specs/tourist-tax-freeze-past-with-refresh.md — when truthy, the tourist tax AMOUNT is frozen to
+  // the provided `frozenTouristTaxTotal` / `frozenTouristTaxRate` (the reservation's stored values)
+  // instead of being recomputed from current property settings. Used for PAST reservations so a later
+  // commune-rate / nightly-price change never silently rewrites an already-declared tax. The routing
+  // (offered / balance / complément) still applies to that frozen amount.
+  freezeTouristTax,
+  frozenTouristTaxTotal,
+  frozenTouristTaxRate,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1460,6 +1468,15 @@ function calculateReservationQuote({
     accommodationAmountTtc: baseAccommodationAdjustedPrice,
     accommodationVatRate: vatPercentageAccommodation,
   });
+  // specs/tourist-tax-freeze-past-with-refresh.md — for a PAST reservation, freeze the tax AMOUNT to
+  // the reservation's stored values (passed in) instead of the recompute, so a later commune-rate or
+  // nightly-price change never rewrites an already-declared tax. The platform-mode routing below still
+  // applies to this frozen amount; only the magnitude is pinned.
+  if (freezeTouristTax) {
+    touristTaxBreakdown.touristTaxTotal = roundMoney(Number(frozenTouristTaxTotal || 0));
+    touristTaxBreakdown.touristTaxRate = Number(frozenTouristTaxRate || 0);
+    touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
+  }
   // Tourist tax — the platform may or may not collect it on the owner's behalf, configurable per
   // iCal source on the property (column `ical_sources.collectsTouristTax`, default 1 = collects).
   //   - direct       → owner always collects (never offered).
