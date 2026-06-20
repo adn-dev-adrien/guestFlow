@@ -318,6 +318,9 @@ export default function ReservationPage() {
     extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
     discountPercent: Number(form.discountPercent || 0),
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
+    // specs/platform-commission-line.md — recompute when the operator-entered gross changes (drives the
+    // platform commission line in the summary).
+    clientGrossAmount: form.clientGrossAmount === '' ? '' : Number(form.clientGrossAmount),
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
     complementPaid: Boolean(form.complementPaid),
@@ -1059,6 +1062,7 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           discountPercent: form.discountPercent,
           customPrice: form.customPrice,
+          clientGrossAmount: form.clientGrossAmount, // specs/platform-commission-line.md (commission in the summary)
           depositPaid: form.depositPaid,
           balancePaid: form.balancePaid,
           complementPaid: form.complementPaid,
