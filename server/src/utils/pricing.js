@@ -973,6 +973,10 @@ function calculateReservationQuote({
   freezeTouristTax,
   frozenTouristTaxTotal,
   frozenTouristTaxRate,
+  // specs/platform-commission-line.md — the gross the guest paid the platform (operator-entered). The
+  // engine derives the platform commission from it (commission = gross − net stay) so the fiche summary
+  // can show « brut − commission = net perçu ». 0 / null / direct → no commission.
+  clientGrossAmount,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1544,6 +1548,12 @@ function calculateReservationQuote({
   // enforces the same on every recompute so an edit can't reintroduce a phantom acompte.
   // Direct reservations keep the full deposit/balance/complement flow.
   const platformIsNonDirect = String(platform || 'direct').toLowerCase() !== 'direct';
+  // specs/platform-commission-line.md — platform commission = gross paid by the guest − net stay
+  // (finalPrice). Only for a non-direct platform with an operator-entered gross above the net; else 0.
+  const grossEntered = clientGrossAmount === '' || clientGrossAmount == null ? null : Number(clientGrossAmount);
+  const platformCommissionAmount = (platformIsNonDirect && grossEntered != null && Number.isFinite(grossEntered) && grossEntered > finalPrice)
+    ? roundMoney(grossEntered - finalPrice)
+    : 0;
   if (platformIsNonDirect) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);
@@ -1640,6 +1650,9 @@ function calculateReservationQuote({
     forcedItemsTotal,
     preArrivalAmount,
     totalStayPrice,
+    // specs/platform-commission-line.md — the platform commission (gross − net) for the « brut −
+    // commission = net perçu » summary block. 0 for direct / no gross entered.
+    platformCommissionAmount,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,

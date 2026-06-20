@@ -281,6 +281,9 @@ function calculatePrice(req, res) {
     freezeTouristTax: Boolean(frozenTouristTax),
     frozenTouristTaxTotal: frozenTouristTax ? frozenTouristTax.touristTaxTotal : 0,
     frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
+    // specs/platform-commission-line.md — feed the operator-entered gross so the quote returns the
+    // platform commission for the « brut − commission = net perçu » summary block.
+    clientGrossAmount: req.body.clientGrossAmount,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
