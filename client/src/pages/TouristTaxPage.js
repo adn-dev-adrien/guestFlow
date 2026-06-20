@@ -20,8 +20,10 @@ function getPreviousMonth() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
-function getMaxPastMonth() {
-  return getPreviousMonth();
+// The current month is selectable too (the extraction shows the tax already to-collect this month).
+function getMaxSelectableMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
 function formatDateFr(dateStr) {
@@ -48,7 +50,7 @@ export default function TouristTaxPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  const maxPastMonth = useMemo(() => getMaxPastMonth(), []);
+  const maxSelectableMonth = useMemo(() => getMaxSelectableMonth(), []);
   const groupedByProperty = useMemo(() => {
     const properties = data?.byProperty || [];
     const rows = data?.reservations || [];
@@ -94,8 +96,8 @@ export default function TouristTaxPage() {
             month={m}
             year={y}
             onChange={({ month: nm, year: ny }) => setMonth(MonthYearPicker.toYearMonth({ month: nm, year: ny }))}
-            maxMonth={maxPastMonth}
-            helperText="Uniquement les mois déjà passés."
+            maxMonth={maxSelectableMonth}
+            helperText="Jusqu'au mois en cours inclus."
           />
         );
       })()}

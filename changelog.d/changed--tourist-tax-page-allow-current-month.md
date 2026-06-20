@@ -1,0 +1,1 @@
+- **Suivi taxe de séjour : le mois en cours est sélectionnable** (2026-06-20). La page « Extraction taxe de séjour » plafonnait le sélecteur de mois au **mois précédent** ; elle va désormais **jusqu'au mois en cours inclus** (utile pour voir la taxe déjà à percevoir sur le mois en cours). Les mois futurs restent masqués. Le mois ouvert par défaut reste le mois précédent.
