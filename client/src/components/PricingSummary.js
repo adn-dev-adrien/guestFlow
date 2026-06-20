@@ -609,12 +609,38 @@ export default function PricingSummary({
             </Box>
           </Box>
 
-          {/* Total du séjour */}
+          {/* Total du séjour — for a platform reservation with a known gross, the engine returns the
+              commission (specs/platform-commission-line.md): show the BRUT (what the guest paid the
+              platform), deduct the commission, and surface the net the operator actually receives. */}
           <Divider />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC</Typography>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
-          </Box>
+          {(() => {
+            const commission = Number(quote?.platformCommissionAmount || 0);
+            if (commission <= 0) {
+              return (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
+                </Box>
+              );
+            }
+            const brut = Math.round((totalSejour + commission) * 100) / 100;
+            return (
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC (brut)</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{brut.toFixed(2)}€</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">Commission plateforme</Typography>
+                  <Typography variant="body2" sx={{ color: 'warning.main' }}>− {commission.toFixed(2)}€</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Net perçu TTC</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
+                </Box>
+              </>
+            );
+          })()}
 
           {/* Acompte — when `depositDisabled` is on (per-reservation opt-out, see
               specs/disable-deposit-per-reservation.md), the row stays so the operator can
