@@ -65,6 +65,15 @@ option's base price is used, exactly as today.
    least one override; turning it OFF clears all overrides. The toggle is UI-only (not persisted) — the
    "mode" is implied by the presence of override rows.
 9. **Backward compatible.** Until an override row exists, every option behaves exactly as today.
+10. **Reservation fiche displays the effective price (2026-06-20).** `propertiesModel.getByIdWithDetails`
+    now returns `property.options` = `optionsModel.listForProperty(id)` (each option carrying its
+    **effective** per-property price). The reservation fiche already prefers `property.options`, so the
+    option unit price it **displays** now matches the per-property price the engine computes — previously
+    it fell back to `GET /options` (the base price), so the displayed unit price could disagree with the
+    quoted line total.
+11. **Options list shows the overrides (2026-06-20).** On the Options page list, the « Prix » cell shows
+    the base price plus one line per property that overrides it (« Logement : X € »), via a generic
+    `renderPriceCell` slot on `PricedItemsPage`.
 
 **Edge cases:**
 - Override = 0 with a non-free priceType → a genuine **0 €** for that property (an explicit row is
@@ -90,6 +99,7 @@ option's base price is used, exactly as today.
 |---|---|---|---|
 | `database.js` | `database.js` | T | Idempotent `CREATE TABLE IF NOT EXISTS property_option_prices` + indices (mirrors `property_resource_prices`). |
 | `models/` | `optionsModel.js` | T | Read a `propertyPrices` map (`getById`/`list`); `create`/`update` replace override rows; `listForProperty(propertyId)` returns the **effective** price (LEFT JOIN). |
+| `models/` | `propertiesModel.js` | T | **2026-06-20:** `getByIdWithDetails` now returns `property.options = optionsModel.listForProperty(id)` (effective per-property price) so the reservation fiche displays the correct unit price (defensive: `[]` on minimal schemas without the `options` table). |
 | `utils/` | `pricing.js` | T | `getApplicableOptions` LEFT JOINs `property_option_prices` and sets each option's effective `price` for the requested property. |
 | `controllers/` | `optionsController.js` | T | Accept/forward `propertyPrices` on create/update. |
 | `routes/` | `options.js` | T | Thin: pass `propertyPrices` through (validation in controller/model). |
@@ -105,7 +115,7 @@ override persistence mirrors `resourcesModel` (delete-then-insert in a transacti
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `OptionsPage.js` | T | Option form: a "Prix différent selon le logement" toggle that hides the single price and shows one price input per applicable property; derive the toggle from existing overrides; include `propertyPrices` in the payload (only when ON); wrap the extra fields so they don't touch the Logements selector. |
-| `components/` | `PricedItemsPage.js` | T | New `shouldHidePrice(form)` prop to hide the generic single-price field when an option is in per-property mode (no effect on the Resources page, which doesn't pass it). |
+| `components/` | `PricedItemsPage.js` | T | New `shouldHidePrice(form)` prop to hide the generic single-price field when an option is in per-property mode (no effect on the Resources page, which doesn't pass it). **2026-06-20:** new optional `renderPriceCell(item, properties)` prop — the list « Prix » cell; OptionsPage passes one that shows the base price + per-property overrides. |
 | `services/`|  `api.js` / options service | T | Pass `propertyPrices` through create/update. |
 
 **Component reuse declaration:**
