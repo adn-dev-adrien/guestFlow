@@ -152,6 +152,24 @@ test('normal deposit + balance flow (regression guard): both entries emitted wit
   assert.equal(byKind.balance.encaissementTtc, 140);
 });
 
+// specs/platform-commission-line.md (2026-06-21) — the engine now stores the NET (total − commission)
+// as the platform solde. The accounting reads `row.balanceAmount`, so the balance encaissement IS the
+// net the operator banked — i.e. the solde drives the compta, as requested.
+test('platform reservation: the balance entry encaissement is the stored (net) solde', () => {
+  const db = createDb();
+  insertReservation(db, {
+    platform: 'airbnb', finalPrice: 200, totalPrice: 200,
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 165, balancePaid: 1, balancePaidDate: '2026-08-15', // net = 200 − 35 commission
+    clientGrossAmount: null,
+  });
+  const model = createAccountingModel(db);
+  const entries = model.encaissementsByMonth({ month: 8, year: 2026 });
+  const byKind = Object.fromEntries(entries.map((e) => [e.kind, e]));
+  assert.equal(byKind.balance.encaissementTtc, 165, 'compta encaisse le solde net, pas le brut');
+  assert.equal(byKind.deposit, undefined, 'no deposit entry on a platform reservation');
+});
+
 // ── Bug 2 regression: direct bookings missing from platforms preview ─────────
 
 function mockRes() {
