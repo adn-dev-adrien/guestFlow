@@ -1,0 +1,1 @@
+- Fiche réservation : le bouton **« Recalculer la taxe de séjour »** (résa passée) recalcule désormais immédiatement sur les **montants en cours**, même non enregistrés. Avant, le recalcul ne se faisait qu'après avoir enregistré la fiche (dépendance manquante dans le memo du devis live).
