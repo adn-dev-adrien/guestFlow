@@ -297,9 +297,15 @@ export default function PricingSummary({
                 const isOffered = isCustom
                   ? Boolean(so.offered)
                   : Boolean(so.offered ?? offeredOptionIds.has(Number(so.optionId)));
-                const total = isOffered
-                  ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
-                  : Number(so.totalPrice || 0);
+                // specs/per-property-default-options.md — a property-default option configured
+                // « offered » is INCLUDED in the night rate: show « Comprise » at 0 €, not « Offert »
+                // (struck-through original price). The engine tags the line `includedInRate`.
+                const isIncludedInRate = !isCustom && Boolean(so.includedInRate);
+                const total = isIncludedInRate
+                  ? 0
+                  : (isOffered
+                    ? Number(so.originalTotalPrice ?? so.totalPrice ?? 0)
+                    : Number(so.totalPrice || 0));
                 // "Auto" hint = engine-derived early/late check option only. Linen options
                 // carry autoOptionType for undeletability but autoEnabled=0 — they're manual
                 // and must NOT display the "nuit complète" / "Xh suppl." hint.
@@ -352,6 +358,11 @@ export default function PricingSummary({
                           {autoHint}
                         </Typography>
                       )}
+                      {isIncludedInRate && (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', width: '100%' }}>
+                          incluse dans le tarif
+                        </Typography>
+                      )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {withOfferedToggle && (
@@ -370,7 +381,7 @@ export default function PricingSummary({
                           }}
                           sx={{ minWidth: 60, fontSize: 11, textTransform: 'none' }}
                         >
-                          {isOffered ? '✓ Offert' : 'Offrir'}
+                          {isIncludedInRate ? 'Comprise' : (isOffered ? '✓ Offert' : 'Offrir')}
                         </Button>
                       )}
                       <Typography
@@ -378,7 +389,9 @@ export default function PricingSummary({
                         sx={{
                           fontWeight: 600,
                           whiteSpace: 'nowrap',
-                          textDecoration: isOffered ? 'line-through' : 'none',
+                          // « Comprise » (included in the rate) shows a plain 0 €; « Offert » (geste
+                          // commercial) keeps the struck-through original price.
+                          textDecoration: (isOffered && !isIncludedInRate) ? 'line-through' : 'none',
                           opacity: isOffered ? 0.6 : 1,
                           color: isOffered ? 'text.secondary' : 'inherit',
                         }}

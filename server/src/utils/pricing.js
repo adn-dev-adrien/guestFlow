@@ -1047,6 +1047,19 @@ function calculateReservationQuote({
   const optionUnitOverrides = lockedOptionUnits || {};
   const resourceUnitOverrides = lockedResourceUnits || {};
   const offeredOptionIdSet = new Set((Array.isArray(offeredOptionIds) ? offeredOptionIds : []).map((id) => Number(id)));
+  // specs/per-property-default-options.md — options that are a property DEFAULT configured « offered »
+  // (`property_option_defaults.offered = 1`) are INCLUDED in the night rate, not a one-off geste
+  // commercial. When such a line is offered we tag it `includedInRate` so the summary renders « Comprise »
+  // (at 0 €) instead of « Offert ». Guarded for minimal test DBs without the table.
+  const defaultOfferedOptionIds = (() => {
+    try {
+      return new Set(
+        db.prepare('SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1')
+          .all(propertyId)
+          .map((r) => Number(r.optionId)),
+      );
+    } catch { return new Set(); }
+  })();
   const lockedOptionsById = new Map(
     (Array.isArray(lockedOptionLines) ? lockedOptionLines : [])
       .map((line) => [Number(line.optionId), line])
@@ -1273,7 +1286,12 @@ function calculateReservationQuote({
   const finalOptionLines = [
     ...[...optionLines, ...autoOptionLines].sort(byTitle),
     ...customOptionLines,
-  ];
+  ].map((line) => (
+    // A property-default « offered » option that is indeed offered → « Comprise » (included in the rate).
+    line && !line.isCustom && line.offered && defaultOfferedOptionIds.has(Number(line.optionId))
+      ? { ...line, includedInRate: true }
+      : line
+  ));
 
   const resourceLines = (Array.isArray(selectedResources) ? selectedResources : [])
     .map((selected) => {
