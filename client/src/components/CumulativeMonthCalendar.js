@@ -162,14 +162,15 @@ export function buildMonthLayout(year, month, items, todayStr) {
   return { weeks };
 }
 
-// Items overlapping a month, grouped by logement then start date — the mobile agenda list.
+// Items overlapping a month, ordered by arrival date (the mobile agenda list reads as a chronological
+// timeline of check-ins). Logement + key only break ties between same-day arrivals for a stable order.
 export function monthItems(year, month, items) {
   const mStart = formatDate(year, month, 1);
   const mEnd = formatDate(year, month, getDaysInMonth(year, month));
   return (Array.isArray(items) ? items : [])
     .filter((it) => it && it.startDate && it.lastDay && it.startDate <= mEnd && it.lastDay >= mStart)
-    .sort((a, b) => a.groupKey.localeCompare(b.groupKey, 'fr')
-      || a.startDate.localeCompare(b.startDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate)
+      || a.groupKey.localeCompare(b.groupKey, 'fr')
       || String(a.key).localeCompare(String(b.key)));
 }
 

@@ -91,10 +91,11 @@ describe('buildMonthLayout', () => {
   });
 });
 
-describe('monthItems (mobile agenda, grouped by logement)', () => {
-  it('orders global closures first, then per logement (alpha), then by date', () => {
+describe('monthItems (mobile agenda, ordered by arrival date)', () => {
+  it('orders strictly by arrival (startDate), logement only breaking same-day ties', () => {
     const keys = monthItems(2026, 6, ITEMS).map((i) => i.key);
-    expect(keys).toEqual(['c11', 'r1', 'c10', 'r3', 'r2']); // global, Gîte(res→closure), Loft, Studio
+    // r3 04/07 → r1 15/07 → r2 16/07 → c10 20/07 → c11 25/07.
+    expect(keys).toEqual(['r3', 'r1', 'r2', 'c10', 'c11']);
   });
 });
 
