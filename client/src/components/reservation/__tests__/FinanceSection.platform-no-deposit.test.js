@@ -66,3 +66,16 @@ test("case-insensitive Direct enum: 'Direct' / 'DIRECT' keep the regular Acompte
     unmount();
   }
 });
+
+// specs/platform-commission-line.md (2026-06-22) — « Prix payé par le client » (clientGrossAmount) was
+// retired; the platform block now exposes only the operator-entered « Commission plateforme » field.
+test('platform reservation: « Commission plateforme » is shown, « Prix payé par le client » is gone', () => {
+  renderFinance({ form: { platform: 'Airbnb' } });
+  expect(screen.getByLabelText('Commission plateforme')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Prix payé par le client')).not.toBeInTheDocument();
+});
+
+test('direct reservation: no platform block (no commission field)', () => {
+  renderFinance({ form: { platform: 'direct' } });
+  expect(screen.queryByLabelText('Commission plateforme')).not.toBeInTheDocument();
+});

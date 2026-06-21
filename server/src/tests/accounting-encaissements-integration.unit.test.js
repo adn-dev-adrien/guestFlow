@@ -50,7 +50,7 @@ function createDb() {
       complementPaidCash INTEGER DEFAULT 0,
       endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
-      finalPrice REAL DEFAULT 0, clientGrossAmount REAL,
+      finalPrice REAL DEFAULT 0, clientGrossAmount REAL, platformCommissionAmount REAL,
       totalPrice REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, touristTaxRate REAL DEFAULT 0,
       touristTaxInComplement INTEGER DEFAULT 0, extraGuestSurchargeOffered INTEGER DEFAULT 0,
       accommodationAcompteContribTtc REAL, accommodationSoldeContribTtc REAL,

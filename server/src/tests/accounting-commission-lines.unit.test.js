@@ -111,6 +111,37 @@ test('Case 4: Platform-row override beats the global default account', () => {
   assert.equal(entry.commission.account, '62260500');
 });
 
+test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount (« Prix payé client » retired)', () => {
+  // specs/platform-commission-line.md (2026-06-22): the CA is the total séjour (= finalPrice 300), the
+  // commission is the operator-entered `platformCommissionAmount` (40), and the engine already stored the
+  // NET in the solde (260). buildEntry grosses the net back up to the total séjour, books the commission,
+  // and the net = the solde. Output: CA 300, commission 40, net perçu 260.
+  const newQuote = {
+    ...baseQuote,
+    finalPrice: 300,
+    accommodationNetPrice: 272.73, accommodationVatAmount: 27.27, // 300 TTC @ 10 %
+  };
+  const row = {
+    id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Villa A',
+    platform: 'Airbnb', finalPrice: 300, totalPrice: 300, touristTaxTotal: 0, touristTaxInComplement: 0,
+    clientGrossAmount: null, platformCommissionAmount: 40,
+    depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+    balanceAmount: 260, balancePaid: 1, balancePaidDate: '2026-06-04', // net = 300 − 40
+    complementAmount: 0, complementPaid: 0, complementPaidDate: null,
+    accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
+    touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
+  };
+  const entry = buildEntry(row, newQuote, 'balance', null, commissionContext);
+  assert.equal(round2(entry.commission.ttc), 40, 'commission = the operator-entered field');
+  assert.equal(round2(entry.encaissementTtc), 300, 'CA = total séjour');
+  assert.equal(round2(entry.encaissementNetTtc), 260, 'net perçu = solde = total − commission');
+  const rows = entryToRows(entry);
+  const sumDebits = rows.reduce((s, r) => s + (typeof r[7] === 'number' ? r[7] : 0), 0);
+  const sumCredits = rows.reduce((s, r) => s + (typeof r[8] === 'number' ? r[8] : 0), 0);
+  assert.equal(round2(sumDebits), 300);
+  assert.equal(round2(sumCredits), 300);
+});
+
 test('Case 5: Unknown platform → falls back to default account; hasVat defaults to false', () => {
   const row = rowForPlatform({ platform: 'Booking.com', gross: 687, balance: 626 });
   const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);

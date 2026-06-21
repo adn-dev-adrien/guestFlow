@@ -321,9 +321,8 @@ export default function ReservationPage() {
     extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
     discountPercent: Number(form.discountPercent || 0),
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
-    // specs/platform-commission-line.md — recompute when the operator-entered gross OR the platform
-    // commission changes (the commission drives the « net perçu » line in the summary).
-    clientGrossAmount: form.clientGrossAmount === '' ? '' : Number(form.clientGrossAmount),
+    // specs/platform-commission-line.md — recompute when the platform commission changes (it drives the
+    // « net perçu » line + the solde).
     platformCommissionAmount: form.platformCommissionAmount === '' ? '' : Number(form.platformCommissionAmount),
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
@@ -378,7 +377,7 @@ export default function ReservationPage() {
           ...propertyOptions.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)),
         ])).sort((a, b) => a - b)
       : [...(form.autoOptionsInComplement || [])].map(Number).sort((a, b) => a - b),
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.clientGrossAmount, form.platformCommissionAmount, isPlatformReservation]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, isPlatformReservation]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -730,7 +729,6 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
             endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
             endOfStayComplementDetail: res.endOfStayComplementDetail || null,
-            clientGrossAmount: res.clientGrossAmount == null ? '' : res.clientGrossAmount,
             platformCommissionAmount: res.platformCommissionAmount == null || res.platformCommissionAmount === '' ? '' : res.platformCommissionAmount,
             touristTaxInComplement: Boolean(res.touristTaxInComplement),
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
@@ -857,7 +855,6 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: '',
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
-            clientGrossAmount: '',
             platformCommissionAmount: '',
           });
 
@@ -956,7 +953,6 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: '',
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
-            clientGrossAmount: '',
             platformCommissionAmount: '',
           });
 
@@ -1069,7 +1065,6 @@ export default function ReservationPage() {
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           discountPercent: form.discountPercent,
           customPrice: form.customPrice,
-          clientGrossAmount: form.clientGrossAmount, // specs/platform-commission-line.md (commission in the summary)
           platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (net perçu line)
           depositPaid: form.depositPaid,
           balancePaid: form.balancePaid,
@@ -1999,7 +1994,6 @@ export default function ReservationPage() {
           complementPaid: form.complementPaid,
           complementPaidDate: form.complementPaidDate || null,
           complementAmount: quote.complementAmount,
-          clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
@@ -2055,7 +2049,6 @@ export default function ReservationPage() {
           depositAmountOverride: form.depositAmountOverride === '' ? null : Number(form.depositAmountOverride),
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
-          clientGrossAmount: form.clientGrossAmount === '' ? null : form.clientGrossAmount,
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
