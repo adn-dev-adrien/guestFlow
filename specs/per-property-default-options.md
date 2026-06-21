@@ -56,8 +56,14 @@ per-property defaults table (`property_option_defaults`) backs it, so the proper
 7. **Future-only (unchanged).** Toggling a default only affects **new** reservations (defaults are
    snapshotted at create time — see specs/property-default-option-applicability.md). Existing reservations
    are never modified.
-8. **Offered semantics (unchanged).** `offered = 1` → the option is included **free** (0 € line); `offered
-   = 0` → it's auto-added but **billed** (per-property price or base).
+8. **Offered semantics.** `offered = 1` → the option is included **free** (0 € line); `offered = 0` → it's
+   auto-added but **billed** (per-property price or base).
+9. **« Comprise » in the reservation summary (2026-06-21).** Because a default-`offered` option is part of
+   the night rate (not a one-off geste commercial), the pricing engine tags such an offered line
+   `includedInRate` (it reads `property_option_defaults.offered = 1` for the property). `PricingSummary`
+   then renders it as **« Comprise »** with the hint *« incluse dans le tarif »* at **0,00 €**, instead of
+   the green **« ✓ Offert »** + struck-through original price (which stays for a manually-offered line). If
+   the operator un-offers the line (to bill it), it loses `includedInRate` and shows its real price.
 
 **Edge cases:**
 - Removing a property from the option's applicable list (`propertyIds`) → its default row is cleared too
