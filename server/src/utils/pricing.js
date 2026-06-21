@@ -1567,7 +1567,11 @@ function calculateReservationQuote({
     : null;
   if (platformIsNonDirect) {
     resolvedDepositAmount = 0;
-    resolvedBalanceAmount = roundMoney(preArrivalAmount);
+    // specs/platform-commission-line.md — the solde IS the « net perçu »: the platform settles the
+    // stay minus its commission in a single transfer, so the operator receives the net. We deduct the
+    // commission here (clamped ≥ 0). The complement keeps the on-arrival extras; the commission is NOT
+    // a complement — the auto-gap baseline below is reduced by the same amount so it can't leak there.
+    resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - platformCommissionAmount));
   } else if (depositDisabled) {
   // `depositDisabled` opt-out wins over every other branch below — it's the explicit
   // "this reservation has no deposit concept, the platform handled it" toggle. See
@@ -1600,9 +1604,13 @@ function calculateReservationQuote({
   // + auto-gap when the total stay TTC drifted past the frozen deposit+balance. The auto-gap
   // appears once both `*Paid` flags are 1 (legacy behavior) OR when the tax is collected on
   // arrival (visible immediately as a check-in collection target). Frozen once `complementPaid`.
+  // specs/platform-commission-line.md — on a platform reservation the owner's total receipts are the
+  // NET (total séjour − commission), so the auto-gap reconciles against that net, not the gross stay
+  // total. Without this the commission deducted from the solde would re-surface as a phantom complement.
+  const ownerStayTotal = roundMoney(totalStayPrice - (platformIsNonDirect ? platformCommissionAmount : 0));
   const autoGapBetweenDepositAndBalance = roundMoney(Math.max(
     0,
-    totalStayPrice - resolvedDepositAmount - resolvedBalanceAmount - forcedItemsTotal - taxInComplement,
+    ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount - forcedItemsTotal - taxInComplement,
   ));
   const rawComplement = roundMoney(forcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   let resolvedComplementAmount;

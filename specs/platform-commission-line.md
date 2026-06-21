@@ -50,7 +50,18 @@ Both the commission and the net are **engine-authoritative** (`quote.platformCom
    0, the single « Total du séjour TTC » line is shown exactly as before.
 4. **Tax is a pass-through**, untouched by the commission: it sits in `totalStayPrice` (the brut); the
    commission is then deducted from that.
-5. **Live recompute.** The commission is in the quote signature, so the « net perçu » updates as the
+5. **The solde IS the net perçu (2026-06-21).** On a non-direct platform reservation the engine deducts
+   the commission from the **balance**: `balanceAmount = max(0, preArrivalAmount − commission)`. The
+   commission is **not** a complement — the auto-gap baseline is reduced to the owner's net
+   (`ownerStayTotal = totalStayPrice − commission`) so it can't re-surface there. So for a stay with no
+   on-arrival complement, **solde = net perçu**; with a complement, `solde + complément = net perçu`
+   (the owner's total receipts). Direct reservations are untouched.
+6. **Accounting reads the solde.** `accountingModel.encaissementsByMonth` books `row.balanceAmount` as
+   the balance encaissement — which is now the **net** — so the compta records what the operator actually
+   banked. The existing gross-based CA recognition (on `clientGrossAmount`) is **unchanged** (kept per the
+   2026-06-21 questionnaire): when no gross is entered the commission journal is inert and the net solde is
+   booked as-is; « Prix payé par le client » + « Total du séjour » keep their name/formula.
+7. **Live recompute.** The commission is in the quote signature, so the « net perçu » + solde update as the
    operator types.
 6. **« Prix payé par le client » stays separate/informative.** The existing `clientGrossAmount` field is
    unchanged and keeps driving the **accounting** commission (`gross − finalPrice` in `accountingModel` +
@@ -101,10 +112,14 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 ## 7. Test plan
 
 ### Server
-- [x] `pricing-platform-commission.unit.test.js` (5) — entered commission echoed + net = total − commission;
-  direct → 0/null; no commission → 0/null; negative clamped to 0; commission with options → net on the full total.
+- [x] `pricing-platform-commission.unit.test.js` (8) — entered commission echoed + net = total − commission;
+  direct → 0/null; no commission → 0/null; negative clamped to 0; commission with options; **solde = net perçu
+  (commission off the balance)**; **forced-complement extra stays in the complement, commission only on the
+  solde**; direct balance untouched.
 - [x] `reservations-platform-commission-persistence.unit.test.js` (6) — insert/update round-trip; clamp ≥ 0;
   empty → NULL; direct forced NULL; switching to direct clears it.
+- [x] `accounting-encaissements-integration.unit.test.js` (+1) — the balance entry encaissement is the stored
+  (net) solde for a platform reservation → the compta books the net.
 
 ### Client (vitest)
 - [x] `PricingSummary.commission.test.js` (2) — commission > 0 → brut = total séjour / « Commission
@@ -112,9 +127,10 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 
 ## 8. Out of scope
 
-- **Accounting/CSV change.** The accounting commission stays derived from `clientGrossAmount`
-  (`gross − net`). The new field drives the **fiche net perçu** only; the two can differ and that's
-  intentional for now (a future task may unify them).
+- **Gross-based CA recognition stays.** The accounting still recognises CA on `clientGrossAmount` (gross)
+  with the commission journal when a gross is entered — unchanged per the 2026-06-21 questionnaire. The new
+  commission field drives the **solde/net** (and therefore the balance encaissement). « Total du séjour » +
+  « Prix payé par le client » keep their name/formula.
 - Deriving the commission from a platform % (the tarif-page feature).
 - Showing the commission on direct bookings (0 by definition).
 
@@ -124,3 +140,7 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
   net(=total séjour) ».
 - ✅ **2026-06-21 (revised, questionnaire):** commission source = **new operator-entered field**; display =
   « brut(=total séjour) − commission = net perçu ». « Prix payé par le client » kept separate/informative.
+- ✅ **2026-06-21 (follow-up):** the **solde = net perçu** (commission deducted from the balance) and the
+  **compta books that net solde** (`accountingModel` reads `row.balanceAmount`). Per the questionnaire: CA
+  basis = total paid by client (= net + commission, the existing gross-based recognition) → **no accounting
+  formula change**; « Total du séjour » **not renamed**, no formula change; `clientGrossAmount` **kept**.
