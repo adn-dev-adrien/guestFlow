@@ -74,7 +74,7 @@ applies to future stays).
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/ReservationPage.js` | `ReservationPage.js` | T | Compute `isPastReservation` (last night < 1st of current month). Hold `touristTaxRefreshRequested` state. Pass `freezeTouristTax = isPastReservation && !touristTaxRefreshRequested` into `api.calculatePrice` (added to the quote signature so a refresh re-triggers a recompute). Pass `isPastReservation` + an `onRefreshTouristTax` callback to `PricingSummary`. |
+| `pages/ReservationPage.js` | `ReservationPage.js` | T | Compute `isPastReservation` (last night < 1st of current month). Hold `touristTaxRefreshRequested` state. Pass `freezeTouristTax = isPastReservation && !touristTaxRefreshRequested` into `api.calculatePrice` (added to the quote signature so a refresh re-triggers a recompute). Pass `isPastReservation` + an `onRefreshTouristTax` callback to `PricingSummary`. **Bugfix 2026-06-21:** `freezeTouristTax` must also be in the `pricingQuoteSignature` useMemo **dependency array** — it was in the signature object but missing from the deps, so the memo stayed stale on a refresh, the live-preview effect never re-fired, and the tax only recomputed after a save. The « Recalculer » button now recomputes live on the unsaved form amounts. |
 | `components/PricingSummary.js` | `PricingSummary.js` | T | Render a small refresh `IconButton` (tooltip « Recalculer la taxe de séjour ») next to the « Taxe de séjour » label, **only when `isPastReservation`**. Calls `onRefreshTouristTax`. |
 | `api.js` | `api.js` | T | `calculatePrice` already forwards the whole body; add `freezeTouristTax` to the payload it sends. |
 
