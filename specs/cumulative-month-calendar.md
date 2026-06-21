@@ -82,8 +82,11 @@ endDate`).
   (square on a week-split edge to signal continuation).
 - **Mobile** (`xs`): the wide 7-column bar grid is replaced by a readable **agenda list** — each month
   renders its reservations as rows (platform-coloured left border, logement, client, date range « 30 juin
-  → 2 juillet », platform chip), tappable → fiche. No horizontal scrolling; the vertical infinite scroll +
-  sticky month label + legend are unchanged. The desktop bar grid is kept on `sm+`.
+  → 2 juillet », platform chip), tappable → fiche. **Rows are ordered by arrival date** (`startDate`
+  ascending) so the list reads as a chronological timeline of check-ins; the logement + item key only break
+  ties between same-day arrivals (2026-06-21 — was previously grouped by logement first). No horizontal
+  scrolling; the vertical infinite scroll + sticky month label + legend are unchanged. The desktop bar grid
+  is kept on `sm+`.
 
 ## 7. Test plan
 - [x] Unit (`buildMonthLayout`): single-day → one rounded segment; week-boundary split → 2 segments;
