@@ -86,3 +86,41 @@ test('commission with options/resources → net = full total séjour − commiss
   assert.equal(q.platformNetReceivedAmount, 210); // 250 − 40
   db.close();
 });
+
+// specs/platform-commission-line.md (2026-06-21) — the SOLDE is the net the operator receives: the
+// commission is deducted from the balance, never surfaced as a phantom complement.
+test('platform reservation: the solde equals the net perçu (commission deducted from the balance)', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', platformCommissionAmount: 35 });
+  assert.equal(q.depositAmount, 0);
+  assert.equal(q.balanceAmount, 165);                            // 200 − 35
+  assert.equal(q.balanceAmount, q.platformNetReceivedAmount, 'solde = net perçu');
+  assert.equal(q.complementAmount, 0, 'the commission does NOT leak into the complement');
+  db.close();
+});
+
+test('platform reservation: a forced-complement extra stays in the complement, commission only hits the solde', () => {
+  const db = createDb();
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 50)").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10)').run();
+  const q = calculateReservationQuote({
+    ...BASE, db, platform: 'airbnb',
+    selectedOptions: [{ optionId: 10, quantity: 1, inComplement: 1 }], // extra forced to complement
+    platformCommissionAmount: 40,
+  });
+  assert.equal(q.totalStayPrice, 250);
+  assert.equal(q.complementAmount, 50, 'the extra is the complement, not the commission');
+  assert.equal(q.balanceAmount, 160);                            // (250 − 50 extra) − 40 commission
+  // Owner receipts = solde + complement = the net perçu (250 − 40 = 210).
+  assert.equal(q.balanceAmount + q.complementAmount, q.platformNetReceivedAmount);
+  db.close();
+});
+
+test('direct reservation: the balance is untouched (no commission deducted)', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'direct', platformCommissionAmount: 35 });
+  assert.equal(q.platformCommissionAmount, 0);
+  // Conservation: nothing is removed from a direct reservation's total.
+  assert.equal(q.depositAmount + q.balanceAmount + q.complementAmount, 200);
+  db.close();
+});
