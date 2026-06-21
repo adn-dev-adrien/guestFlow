@@ -48,7 +48,7 @@ function createAccountingModel(database) {
                COALESCE(r.complementPaidCash, 0) AS complementPaidCash,
                r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidDate,
                COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
-               r.finalPrice, r.clientGrossAmount,
+               r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
@@ -329,18 +329,39 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   // export.md §3.4 rule 12bis.
   if (encaissementTtc === 0) return null;
 
-  // Gross/net resolution + commission for this entry (§3.5).
-  // - Direct: gross === net (= finalPrice). The backfill at boot ensures `row.clientGrossAmount`
-  //   is populated for directs; we still defensively fall back to finalPrice on legacy NULL.
-  // - Platform: gross > net by the commission amount. The full commission rides on the
-  //   `balance` entry (deposit is 0 post-migration; complement is on-site extras).
+  // Gross/net resolution + commission for this entry (§3.5, revised 2026-06-21).
+  // The platform commission is now operator-entered (`platformCommissionAmount`); « Prix payé par le
+  // client » was retired. Two modes:
+  //   - NEW (commission entered): the client pays the **total séjour** (= finalPrice), so CA is
+  //     recognised on finalPrice (grossRatio = 1), the commission rides on the balance debit, and the
+  //     net = finalPrice − commission (= the solde the engine now stores, spec platform-commission-line.md).
+  //   - LEGACY fallback (no entered commission but a stored `clientGrossAmount` > net): keep the old
+  //     gross-based recognition so already-booked platform reservations are unchanged.
+  // Direct → gross === net (= finalPrice), no commission.
   const platformIsNonDirect = String(row.platform || 'direct').toLowerCase() !== 'direct';
-  const effectiveGross = Math.max(
-    finalPriceTtc,
-    Number(row.clientGrossAmount != null ? row.clientGrossAmount : finalPriceTtc) || 0,
-  );
-  const commissionTtcTotal = round2(Math.max(0, effectiveGross - finalPriceTtc));
-  const grossRatio = finalPriceTtc > 0 ? effectiveGross / finalPriceTtc : 1;
+  const enteredCommissionTtc = platformIsNonDirect ? round2(Math.max(0, Number(row.platformCommissionAmount || 0))) : 0;
+  let effectiveGross;
+  let commissionTtcTotal;
+  let grossRatio;
+  if (enteredCommissionTtc > 0) {
+    // NEW model: the CA is the total séjour (= finalPrice); the commission is operator-entered and the
+    // engine already stored the NET in deposit/balance/complement (spec platform-commission-line.md). So
+    // the stored amounts sum to (finalPrice − commission) — `grossRatio` grosses them BACK UP to the
+    // total séjour, the commission rides on the balance debit, and the net = the stored amounts.
+    commissionTtcTotal = enteredCommissionTtc;
+    effectiveGross = finalPriceTtc;
+    const netStay = finalPriceTtc - commissionTtcTotal;
+    grossRatio = netStay > 0 ? finalPriceTtc / netStay : 1;
+  } else {
+    // LEGACY fallback: commission derived from the stored `clientGrossAmount` (> net); the stored amounts
+    // summed to finalPrice (not reduced), so the ratio grosses them up to the gross.
+    effectiveGross = Math.max(
+      finalPriceTtc,
+      Number(row.clientGrossAmount != null ? row.clientGrossAmount : finalPriceTtc) || 0,
+    );
+    commissionTtcTotal = round2(Math.max(0, effectiveGross - finalPriceTtc));
+    grossRatio = finalPriceTtc > 0 ? effectiveGross / finalPriceTtc : 1;
+  }
   // Per-entry commission share — full on balance for non-direct platforms; 0 otherwise.
   const commissionTtcEntry = (platformIsNonDirect && kind === 'balance')
     ? commissionTtcTotal
@@ -409,7 +430,7 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
       client: { firstName: row.firstName || '', lastName: row.lastName || '' },
       propertyName: row.propertyName || '',
       platform: row.platform || 'direct',
-      clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
+      clientGrossAmount: round2(effectiveGross),
       finalPrice: finalPriceTtc,
       // Encaissement TTC = revenue-on-gross TTC + tax TTC. The export engine credits revenue
       // 70xxx + VAT 44571xxx on this gross figure, and the CCLIENT debit + commission debits

@@ -124,59 +124,33 @@ export default function FinanceSection() {
               </Grid>
             </Box>
 
-            {String(form.platform || 'direct').toLowerCase() !== 'direct' && (() => {
-              const grossRaw = form.clientGrossAmount;
-              const grossNumber = grossRaw === '' || grossRaw == null ? null : Number(grossRaw);
-              // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform covers
-              // the SOLDE only (extras/complément are collected on arrival), so the gross is
-              // validated against the balance, not the full stay.
-              const balanceRef = Number(pricingQuote?.balanceAmount || 0);
-              const grossBelowNet = grossNumber != null && Number.isFinite(grossNumber) && grossNumber < balanceRef;
-              return (
-                <>
-                  <Divider />
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Plateforme</Typography>
-                    <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
-                      <Grid
-                        size={{
-                          xs: 12,
-                          md: 6
-                        }}>
-                        {/* Accepts arithmetic (e.g. "350+12,50"), committed on Enter/blur. */}
-                        <ArithmeticTextField
-                          label="Prix payé par le client"
-                          value={form.clientGrossAmount ?? ''}
-                          onCommit={(v) => updateForm({ clientGrossAmount: v })}
-                          fullWidth
-                          size="small"
-                          error={grossBelowNet}
-                          helperText={grossBelowNet
-                            ? `Doit être ≥ ${balanceRef.toFixed(2)}€ (solde réglé via la plateforme).`
-                            : 'Montant TTC réellement payé par le client sur la plateforme.'}
-                        />
-                      </Grid>
-                      <Grid
-                        size={{
-                          xs: 12,
-                          md: 6
-                        }}>
-                        {/* specs/platform-commission-line.md — operator-entered commission. Deducted from
-                            the total séjour to surface the « Net perçu » on the fiche. */}
-                        <ArithmeticTextField
-                          label="Commission plateforme"
-                          value={form.platformCommissionAmount ?? ''}
-                          onCommit={(v) => updateForm({ platformCommissionAmount: v })}
-                          fullWidth
-                          size="small"
-                          helperText="Montant TTC retenu par la plateforme. Déduit du total du séjour pour le « Net perçu »."
-                        />
-                      </Grid>
+            {String(form.platform || 'direct').toLowerCase() !== 'direct' && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Plateforme</Typography>
+                  <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
+                    <Grid
+                      size={{
+                        xs: 12,
+                        md: 6
+                      }}>
+                      {/* specs/platform-commission-line.md — operator-entered commission. The CA in
+                          accounting is the total séjour; the commission is deducted to surface the « Net
+                          perçu » (= solde). « Prix payé par le client » was retired 2026-06-22. */}
+                      <ArithmeticTextField
+                        label="Commission plateforme"
+                        value={form.platformCommissionAmount ?? ''}
+                        onCommit={(v) => updateForm({ platformCommissionAmount: v })}
+                        fullWidth
+                        size="small"
+                        helperText="Montant TTC retenu par la plateforme. Déduit du total du séjour pour le « Net perçu »."
+                      />
                     </Grid>
-                  </Box>
-                </>
-              );
-            })()}
+                  </Grid>
+                </Box>
+              </>
+            )}
 
             <Divider />
 
