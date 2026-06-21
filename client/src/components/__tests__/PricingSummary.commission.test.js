@@ -3,13 +3,14 @@ import { render, screen } from '@testing-library/react';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/platform-commission-line.md — for a platform reservation, the summary shows the BRUT (what the
-// guest paid the platform), deducts the engine-computed commission, and surfaces the net the operator
-// receives. The amount is engine-authoritative (quote.platformCommissionAmount), never re-derived here.
+// specs/platform-commission-line.md — for a platform reservation with an operator-entered commission,
+// the summary shows the BRUT = total séjour (nights + options + resources), deducts the commission, and
+// surfaces the net perçu = total séjour − commission. Both figures are engine-authoritative
+// (quote.platformCommissionAmount + quote.platformNetReceivedAmount), never re-derived here.
 
 const FORM = {
   startDate: '2099-09-15', endDate: '2099-09-17', finalPrice: 200, customPrice: '',
-  platform: 'airbnb', touristTaxTotal: 0, depositAmount: 0, balanceAmount: 235, cautionAmount: 0,
+  platform: 'airbnb', touristTaxTotal: 0, depositAmount: 0, balanceAmount: 200, cautionAmount: 0,
   depositPaid: 0, balancePaid: 0, depositDisabled: false,
 };
 
@@ -28,22 +29,23 @@ function renderSummary(quote) {
   );
 }
 
-const QUOTE = { finalPrice: 200, totalStayPrice: 200, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0 };
+const QUOTE = { finalPrice: 250, totalStayPrice: 250, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0 };
 
-test('platform reservation with a commission → brut, « Commission plateforme », net perçu', () => {
-  renderSummary({ ...QUOTE, platformCommissionAmount: 35 });
-  // Labels for the 3-line block + the unique commission amount (brut/net amounts collide with the
-  // balance/total rows elsewhere in the panel, so we assert the deduction value which is unique).
+test('platform reservation with a commission → brut = total séjour, « Commission plateforme », net perçu = total − commission', () => {
+  // total séjour 250, commission 40 → net perçu 210 (engine-provided).
+  renderSummary({ ...QUOTE, platformCommissionAmount: 40, platformNetReceivedAmount: 210 });
   expect(screen.getByText('Total du séjour TTC (brut)')).toBeInTheDocument();
+  // Brut = the full total séjour (250), NOT total + commission.
+  expect(screen.getByText('250.00€')).toBeInTheDocument();
   expect(screen.getByText('Commission plateforme')).toBeInTheDocument();
-  expect(screen.getByText('− 35.00€')).toBeInTheDocument();
+  expect(screen.getByText('− 40.00€')).toBeInTheDocument();
   expect(screen.getByText('Net perçu TTC')).toBeInTheDocument();
-  // The brut (net 200 + commission 35) is shown.
-  expect(screen.getAllByText('235.00€').length).toBeGreaterThan(0);
+  // Net perçu = total séjour − commission = 210 (the unique deducted figure).
+  expect(screen.getByText('210.00€')).toBeInTheDocument();
 });
 
 test('no commission → the plain « Total du séjour TTC » line (no deduction block)', () => {
-  renderSummary({ ...QUOTE, platformCommissionAmount: 0 });
+  renderSummary({ ...QUOTE, platformCommissionAmount: 0, platformNetReceivedAmount: null });
   expect(screen.getByText('Total du séjour TTC')).toBeInTheDocument();
   expect(screen.queryByText('Commission plateforme')).toBeNull();
   expect(screen.queryByText('Net perçu TTC')).toBeNull();
