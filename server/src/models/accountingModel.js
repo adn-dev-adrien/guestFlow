@@ -344,14 +344,19 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   let commissionTtcTotal;
   let grossRatio;
   if (enteredCommissionTtc > 0) {
-    // NEW model: the CA is the total séjour (= finalPrice); the commission is operator-entered and the
-    // engine already stored the NET in deposit/balance/complement (spec platform-commission-line.md). So
-    // the stored amounts sum to (finalPrice − commission) — `grossRatio` grosses them BACK UP to the
-    // total séjour, the commission rides on the balance debit, and the net = the stored amounts.
+    // NEW model: the CA is the total séjour (= finalPrice); the commission is operator-entered; the
+    // commission rides on the balance debit and the net = total − commission (spec platform-commission-line.md).
+    // `grossRatio` grosses the STORED encaissement amounts (deposit + balance + complement) up to the total
+    // séjour. CRUCIAL: derive the ratio from the ACTUAL stored sum, not from (finalPrice − commission).
+    // Reservations saved AFTER « solde = net » store the net (sum = finalPrice − commission), but older ones
+    // (or any not re-saved) still store the FULL total (sum = finalPrice). Using a fixed (finalPrice −
+    // commission) denominator double-grosses the latter (prod bug 2026-06-22: CA 122,14 / net 105,66 instead
+    // of 102,50 / 86,02). `finalPrice / storedSum` makes CA = finalPrice + net = finalPrice − commission for
+    // both shapes (≈1 when the sum is already the full total, the gross-up factor when it's the net).
     commissionTtcTotal = enteredCommissionTtc;
     effectiveGross = finalPriceTtc;
-    const netStay = finalPriceTtc - commissionTtcTotal;
-    grossRatio = netStay > 0 ? finalPriceTtc / netStay : 1;
+    const storedSum = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0) + (Number(row.complementAmount) || 0));
+    grossRatio = storedSum > 0 ? finalPriceTtc / storedSum : 1;
   } else {
     // LEGACY fallback: commission derived from the stored `clientGrossAmount` (> net); the stored amounts
     // summed to finalPrice (not reduced), so the ratio grosses them up to the gross.
