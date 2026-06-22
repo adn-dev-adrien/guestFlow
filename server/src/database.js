@@ -1535,6 +1535,15 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   )
 `);
+// specs/direct-payment-method-commission.md — some processors (Stripe…) bill a FIXED part per
+// transaction on top of the percentage (e.g. 0,25 € + 2,5 %). `commissionFixed` is that per-échéance
+// fixed fee (€). Idempotent ADD COLUMN for DBs predating it; DEFAULT 0 → no behaviour change.
+{
+  const pmCols = db.prepare('PRAGMA table_info(payment_methods)').all().map((c) => c.name);
+  if (!pmCols.includes('commissionFixed')) {
+    db.exec('ALTER TABLE payment_methods ADD COLUMN commissionFixed REAL NOT NULL DEFAULT 0');
+  }
+}
 // Seed the four common French methods at 0 % (idempotent: only when the table is empty), so existing
 // direct reservations resolve to a zero-commission default and nothing moves until the operator sets a
 // real rate AND re-saves. « Virement » is the default method.
