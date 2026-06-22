@@ -369,8 +369,18 @@ function create(req, res) {
     balanceAmount: req.body.balanceAmount,
     offeredOptionIds,
     depositDisabled: depositDisabledFlag,
+    // `platform` MUST reach the engine on CREATE too — without it a platform reservation is priced as
+    // « direct » at creation (no single-transfer balance, no commission, no brut pin, no tax routing),
+    // diverging from the live preview until the first edit.
+    platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
+    // specs/platform-payment-entry.md + platform-commission-line.md — these MUST reach the engine on SAVE
+    // (not just the live preview), else the persisted finalPrice ignores the brut pin and the solde isn't
+    // reduced to the net. Without this the fiche (live) and the books diverged (Yann P.: stored 983/892
+    // vs fiche 994/903).
+    platformCommissionAmount: req.body.platformCommissionAmount,
+    platformGrossAmount: req.body.platformGrossAmount,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -518,6 +528,10 @@ function update(req, res) {
     platform: req.body.platform,
     touristTaxInComplement: req.body.touristTaxInComplement,
     autoOptionsInComplement: req.body.autoOptionsInComplement,
+    // specs/platform-payment-entry.md + platform-commission-line.md — forward the brut (pins finalPrice)
+    // and the commission (reduces the solde to the net) to the engine on SAVE, not just the live preview.
+    platformCommissionAmount: req.body.platformCommissionAmount,
+    platformGrossAmount: req.body.platformGrossAmount,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
