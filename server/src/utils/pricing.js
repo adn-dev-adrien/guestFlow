@@ -1593,8 +1593,15 @@ function calculateReservationQuote({
   const taxInPreArrival = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? 0 : touristTaxTotal;
   const taxInComplement = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? touristTaxTotal : 0;
   const preArrivalAmount = roundMoney(Math.max(0, finalPrice - forcedItemsTotal + taxInPreArrival));
+  // specs/tourist-tax-on-solde.md — when there's an acompte, the tourist tax rides entirely on the SOLDE.
+  // The acompte is therefore a % of the ACCOMMODATION pre-arrival only (no tax); the balance is the rest of
+  // the accommodation PLUS the full pre-arrival tax. Because `balance = preArrivalAmount − deposit` (and
+  // `preArrivalAmount = accommodationPreArrival + taxInPreArrival`), simply computing the deposit on
+  // `accommodationPreArrival` puts the whole tax on the solde automatically. No acompte → balance =
+  // preArrivalAmount (tax included), unchanged.
+  const accommodationPreArrival = roundMoney(Math.max(0, finalPrice - forcedItemsTotal));
 
-  const autoDepositAmount = roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
+  const autoDepositAmount = roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
   const autoBalanceAmount = roundMoney(preArrivalAmount - autoDepositAmount);
   let resolvedDepositAmount = autoDepositAmount;
   let resolvedBalanceAmount = autoBalanceAmount;
@@ -1639,11 +1646,12 @@ function calculateReservationQuote({
         dep = roundMoney(depositAmount);
       } else if (depositAmountOverride !== null && depositAmountOverride !== undefined && depositAmountOverride !== '') {
         const overrideRaw = Number(depositAmountOverride);
+        // specs/tourist-tax-on-solde.md — acompte clamped to the ACCOMMODATION (tax stays on the solde).
         dep = Number.isFinite(overrideRaw)
-          ? roundMoney(Math.min(Math.max(0, overrideRaw), preArrivalAmount))
-          : roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
+          ? roundMoney(Math.min(Math.max(0, overrideRaw), accommodationPreArrival))
+          : roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
       } else {
-        dep = roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
+        dep = roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
       }
       resolvedDepositAmount = dep;
       resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - dep));
@@ -1669,8 +1677,9 @@ function calculateReservationQuote({
     // absorbs the rest of the pre-arrival total — and any later growth of it, since the override is
     // re-fed on every recompute.
     const overrideRaw = Number(depositAmountOverride);
+    // specs/tourist-tax-on-solde.md — acompte clamped to the ACCOMMODATION (the tax stays on the solde).
     const clamped = Number.isFinite(overrideRaw)
-      ? roundMoney(Math.min(Math.max(0, overrideRaw), preArrivalAmount))
+      ? roundMoney(Math.min(Math.max(0, overrideRaw), accommodationPreArrival))
       : autoDepositAmount;
     resolvedDepositAmount = clamped;
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - clamped));
@@ -1744,6 +1753,9 @@ function calculateReservationQuote({
     touristTaxInComplement: isTouristTaxForcedToComplement,
     forcedItemsTotal,
     preArrivalAmount,
+    // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
+    // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
+    accommodationPreArrival,
     totalStayPrice,
     // specs/platform-commission-line.md — operator-entered platform commission + the resulting net
     // for the « total séjour − commission = net perçu » summary block. Commission 0 (direct / none) →
