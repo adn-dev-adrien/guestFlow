@@ -140,7 +140,7 @@ export default function PropertyDetail() {
   // this property's source config + global colour) drives the whole section.
   const [platformRows, setPlatformRows] = useState([]);
   const [editingKey, setEditingKey] = useState(null);
-  const [editDraft, setEditDraft] = useState({ url: '', touristTaxCollection: 'platform' });
+  const [editDraft, setEditDraft] = useState({ url: '', touristTaxCollection: 'platform', platformTakesDeposit: 0 });
   const [savingKey, setSavingKey] = useState(null);
   const [busyKey, setBusyKey] = useState(null);     // tax/disable toggle or single sync in flight
   const [syncingAll, setSyncingAll] = useState(false);
@@ -494,6 +494,18 @@ export default function PropertyDetail() {
     }
   };
 
+  // specs/platform-deposit-toggle.md — the acompte flag is GLOBAL per platform — applies to every property.
+  const handleSetDepositMode = async (row, value) => {
+    if (!canManageExtras || row.isDirect) return;
+    setBusyKey(row.platformKey);
+    try {
+      await api.setPlatformDepositMode(row.platformLabel, value === 1 || value === '1');
+      await loadPlatforms();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   const handleToggleDisabled = async (row) => {
     if (!canManageExtras) return;
     setBusyKey(row.platformKey);
@@ -507,7 +519,7 @@ export default function PropertyDetail() {
 
   const startEditPlatform = (row) => {
     setEditingKey(row.platformKey);
-    setEditDraft({ url: row.url || '', touristTaxCollection: row.touristTaxCollection || 'platform' });
+    setEditDraft({ url: row.url || '', touristTaxCollection: row.touristTaxCollection || 'platform', platformTakesDeposit: row.platformTakesDeposit ? 1 : 0 });
   };
 
   const cancelEditPlatform = () => setEditingKey(null);
@@ -521,6 +533,10 @@ export default function PropertyDetail() {
       // The tourist-tax mode is GLOBAL — persist it separately from the per-property URL/disabled.
       if (!row.isDirect && editDraft.touristTaxCollection !== (row.touristTaxCollection || 'platform')) {
         await api.setPlatformTouristTax(row.platformLabel, editDraft.touristTaxCollection);
+      }
+      // The acompte flag is GLOBAL too — persist when changed.
+      if (!row.isDirect && (editDraft.platformTakesDeposit ? 1 : 0) !== (row.platformTakesDeposit ? 1 : 0)) {
+        await api.setPlatformDepositMode(row.platformLabel, Boolean(editDraft.platformTakesDeposit));
       }
       await upsertPlatformSource(row, { url });
       await loadPlatforms();
@@ -614,6 +630,26 @@ export default function PropertyDetail() {
           <MenuItem value="platform">Plateforme → commune</MenuItem>
           <MenuItem value="platform_reversed">Plateforme → vous</MenuItem>
           <MenuItem value="owner">À l'arrivée</MenuItem>
+        </Select>
+      </FormControl>
+    );
+  };
+
+  // Acompte (specs/platform-deposit-toggle.md): a Oui/Non Select — live in read mode (persists on
+  // change), draft in edit mode. `direct` has its own deposit flow → "—". GLOBAL per platform.
+  //   Non (default) → no acompte, everything in the solde (legacy behaviour).
+  //   Oui           → the platform's reservations use the normal acompte/solde split.
+  const renderDepositControl = (row, editing) => {
+    if (row.isDirect) return <Typography variant="caption" color="text.secondary">—</Typography>;
+    const value = editing ? (editDraft.platformTakesDeposit ? 1 : 0) : (row.platformTakesDeposit ? 1 : 0);
+    const onChange = editing
+      ? (e) => setEditDraft((d) => ({ ...d, platformTakesDeposit: Number(e.target.value) }))
+      : (e) => handleSetDepositMode(row, Number(e.target.value));
+    return (
+      <FormControl size="small" sx={{ minWidth: 96 }} disabled={!canManageExtras || (!editing && busyKey === row.platformKey)}>
+        <Select value={value} onChange={onChange} aria-label="Acompte sur cette plateforme">
+          <MenuItem value={0}>Non</MenuItem>
+          <MenuItem value={1}>Oui</MenuItem>
         </Select>
       </FormControl>
     );
@@ -1249,6 +1285,12 @@ export default function PropertyDetail() {
                               {renderTaxControl(row, isEditing)}
                             </Box>
                           )}
+                          {!row.isDirect && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="caption" color="text.secondary">Acompte :</Typography>
+                              {renderDepositControl(row, isEditing)}
+                            </Box>
+                          )}
                           {hasUrl && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                               {renderSyncStatus(row)}
@@ -1271,6 +1313,7 @@ export default function PropertyDetail() {
                         <TableCell>Plateforme</TableCell>
                         <TableCell>URL iCal</TableCell>
                         <TableCell>Taxe de séjour</TableCell>
+                        <TableCell>Acompte</TableCell>
                         <TableCell>Dernière synchro</TableCell>
                         <TableCell>État</TableCell>
                         <TableCell align="right">Actions</TableCell>
@@ -1301,6 +1344,7 @@ export default function PropertyDetail() {
                                 )}
                               </TableCell>
                               <TableCell>{renderTaxControl(row, isEditing)}</TableCell>
+                              <TableCell>{renderDepositControl(row, isEditing)}</TableCell>
                               <TableCell>
                                 <Typography variant="caption" sx={{ color: textColor }}>
                                   {hasUrl ? (row.lastSyncAt ? displayDate(row.lastSyncAt.slice(0, 10)) : '—') : ''}
@@ -1311,7 +1355,7 @@ export default function PropertyDetail() {
                             </TableRow>
                             {editingUrl && (
                               <TableRow sx={{ opacity: muted ? 0.75 : 1 }}>
-                                <TableCell colSpan={6} sx={{ pt: 0 }}>
+                                <TableCell colSpan={7} sx={{ pt: 0 }}>
                                   <TextField
                                     size="small"
                                     fullWidth

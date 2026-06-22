@@ -773,6 +773,13 @@ db.exec(`
       console.error('[tourist-tax] platforms backfill from ical_sources failed (non-fatal):', e && e.message);
     }
   }
+  // specs/platform-deposit-toggle.md — per-platform "takes an acompte?" flag (GLOBAL per platform, like
+  // the tourist-tax mode). 0 (default) = no acompte → the engine forces deposit=0 and puts everything in
+  // the solde (the legacy behaviour for every platform). 1 = the platform's reservations use the normal
+  // acompte/solde split. Idempotent ADD COLUMN; DEFAULT 0 → no behaviour change for existing platforms.
+  if (!platformCols.includes('platformTakesDeposit')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN platformTakesDeposit INTEGER NOT NULL DEFAULT 0');
+  }
 }
 // specs/platforms-and-ical-rework.md §3 rule 10 — per (property, platform) "hidden from this
 // property's reservation views" flag. Independent of `isActive` (sync inclusion); a disabled

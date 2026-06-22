@@ -400,8 +400,23 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     balance:    round2(Math.max(0, Number(row.balanceCommissionAmount    || 0))),
     complement: round2(Math.max(0, Number(row.complementCommissionAmount || 0))),
   };
+  // specs/platform-deposit-toggle.md — the platform commission is split PRO RATA across the acompte +
+  // solde (the platform-settled échéances); the complement is on-site/host-billed → 0 (unchanged rule).
+  // The solde carries the rounding remainder so the shares sum exactly to the commission. For a
+  // no-acompte platform (deposit = 0) the whole commission still lands on the solde — backward-compatible.
+  const platformDepositTtc = Number(row.depositAmount) || 0;
+  const platformBalanceTtc = Number(row.balanceAmount) || 0;
+  const platformSettledSum = round2(platformDepositTtc + platformBalanceTtc);
+  const platformDepShare = (platformIsNonDirect && commissionTtcTotal > 0 && platformSettledSum > 0)
+    ? round2(commissionTtcTotal * platformDepositTtc / platformSettledSum)
+    : 0;
+  const platformCommissionByKind = {
+    deposit:    platformDepShare,
+    balance:    round2(commissionTtcTotal - platformDepShare),
+    complement: 0,
+  };
   const commissionTtcEntry = platformIsNonDirect
-    ? (kind === 'balance' ? commissionTtcTotal : 0)
+    ? (platformCommissionByKind[kind] || 0)
     : (directCommissionByKind[kind] || 0);
   // Resolve compte commission + hasVat: from the platform config (platform) or the échéance's payment
   // method (direct). Clamp the commission to the encaissement so the net cash line can't go negative.
