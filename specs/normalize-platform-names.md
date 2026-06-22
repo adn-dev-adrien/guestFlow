@@ -352,3 +352,31 @@ re-normalize tool.
   - **Resolved**: off the current PR branch. The migration uses the
     `platforms` table introduced by PR #116. Adrien merges #116 first,
     then this PR's base auto-rebases on the new master.
+
+---
+
+## Addendum — durable slug de-duplication (2026-06-22)
+
+**Problem.** The one-shot `platform_names_normalized_v1` migration runs once. But the boot seeding
+(`INSERT OR IGNORE INTO platforms … SELECT DISTINCT platformLabel/platform …`) is case-sensitive, so a
+lowercase variant that appears *after* the migration (e.g. a new iCal source or reservation labelled
+`lodgify` while `Lodgify` already exists) creates a **second row for the same slug**. With duplicates,
+the per-platform tourist-tax write (`setTouristTaxCollection`) updates one row while the per-property
+read (`listForProperty`, last-wins map) reflects the other → the operator's mode change **silently
+doesn't apply**.
+
+**Fix.** A new util `utils/platformSlugDedupMigration.runPlatformSlugDedup(db)` runs on **every boot**
+(idempotent — a no-op once clean), called from `database.js` after the one-shot normalization:
+- groups `platforms` rows by canonical name (`formatPlatformName`);
+- keeps the canonical-named row (else the lowest id) as the survivor;
+- **merges the operator-customised settings** from the duplicates into the survivor where the survivor
+  sits at default (tourist-tax mode, colour, commission account/%/VAT) — so a setting that had landed on
+  a soon-to-be-deleted duplicate is preserved (most-recently-inserted duplicate wins on conflict);
+- re-points `ical_sources.platformLabel` + `reservations.platform` to the canonical name, deletes the
+  duplicates.
+
+This supersedes Q2's "losing config is silently lost": customised settings are now carried over.
+Distinct slugs (e.g. the typo `Logify` vs `Lodgify`) are **never** merged — only exact-slug duplicates.
+
+Tests: `tests/platformSlugDedup.unit.test.js` (7). Manual: changing the « Taxe de séjour » mode for a
+previously-duplicated platform (Lodgify) now persists across reload.

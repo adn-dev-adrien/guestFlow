@@ -1003,6 +1003,24 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Durable platform de-duplication by canonical name — runs on EVERY boot (idempotent), unlike the
+// one-shot above. Heals case-duplicate rows (e.g. « Lodgify » + « lodgify ») that the seeding can
+// re-introduce after the one-shot ran, which otherwise break the per-platform tourist-tax write/read
+// (the write hits one row, the read another). Merges operator-customised settings into the survivor.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const { runPlatformSlugDedup } = require('./utils/platformSlugDedupMigration');
+    const tx = db.transaction(() => runPlatformSlugDedup(db));
+    const { mergedCount, renamedCount } = tx();
+    if (mergedCount || renamedCount) {
+      // eslint-disable-next-line no-console
+      console.log(`[platform-slug-dedup] merged ${mergedCount} duplicate(s), renamed ${renamedCount} row(s)`);
+    }
+  } catch (e) {
+    console.error('[platform-slug-dedup] failed (non-fatal):', e && e.message);
+  }
+}
+
 // ---------- FORCE EXTRAS TO COMPLÉMENT ON PLATFORM RESERVATIONS ----------
 // specs/force-extras-complement-on-platform.md §3 rule 6. One-shot migration: every
 // extra line (`reservation_options`, `reservation_custom_options`, `reservation_resources`)
