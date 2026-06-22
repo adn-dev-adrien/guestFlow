@@ -71,6 +71,14 @@ property's deposit %), like a direct booking.
 > **Fat backend.** The deposit split + commission allocation are 100 % engine/accounting. The client
 > only renders the new toggle and the (already-computed) acompte/solde figures.
 
+> **Fiche display (fix 2026-06-22).** `FinanceSection` previously hid the Acompte block for **every**
+> platform reservation (« Pas d'acompte — virement unique »), so a platform set « Acompte = Oui » still
+> showed no acompte on the fiche. The engine now **echoes `platformTakesDeposit`** in the live quote, and
+> `FinanceSection` shows the normal Acompte block (override + due date + « marquer payé ») when the
+> reservation is direct **or** a platform with `platformTakesDeposit`; the « pas d'acompte » caption is
+> kept only for a platform set « Non ». `PricingSummary` already reads `form.depositAmount` (synced from
+> the quote), so the acompte amount displays once the engine returns it.
+
 ### 4.1 Server side (`server/src/`)
 
 | Layer | File | T/C | Responsibility |

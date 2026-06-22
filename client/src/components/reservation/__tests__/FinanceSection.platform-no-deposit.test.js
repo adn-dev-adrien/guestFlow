@@ -53,6 +53,26 @@ test("platform reservation: the Solde block stays rendered (it's the single enca
   expect(soldeHeadings.length).toBeGreaterThan(0);
 });
 
+// specs/platform-deposit-toggle.md — a platform configured « Acompte = Oui » (the engine echoes
+// `platformTakesDeposit` in the quote) shows the normal Acompte block, NOT the no-deposit caption.
+test("platform « Acompte = Oui »: the Acompte block is shown (no no-deposit caption)", () => {
+  renderFinance({
+    form: { platform: 'Lodgify' },
+    pricingQuote: { platformTakesDeposit: true, finalPrice: 300, totalStayPrice: 300 },
+  });
+  expect(screen.queryByText(/Pas d'acompte/i)).not.toBeInTheDocument();
+  expect(screen.getByLabelText(/Échéance acompte/i)).toBeInTheDocument();
+  expect(screen.getByText(/Marquer acompte payé/i)).toBeInTheDocument();
+});
+
+test("platform « Acompte = Non » (default): the no-deposit caption stays", () => {
+  renderFinance({
+    form: { platform: 'Lodgify' },
+    pricingQuote: { platformTakesDeposit: false, finalPrice: 300, totalStayPrice: 300 },
+  });
+  expect(screen.getByText(/Pas d'acompte/i)).toBeInTheDocument();
+});
+
 test("case-insensitive Direct enum: 'Direct' / 'DIRECT' keep the regular Acompte block", () => {
   // The code path uses `String(form.platform || 'direct').toLowerCase() !== 'direct'` so any
   // casing variant of 'direct' should NOT trigger the platform caption.
