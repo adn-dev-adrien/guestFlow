@@ -1682,11 +1682,12 @@ function calculateReservationQuote({
   }
 
   // ── Per-payment-method commissions (DIRECT reservations only) ───────────────────────────────────
-  // specs/direct-payment-method-commission.md §3.3. Each échéance's commission = its resolved TTC
-  // amount × the chosen method's rate. An unset échéance resolves to the catalogue default. Platform
-  // reservations keep 0 here (their commission rides on platformCommissionAmount). No CA gross-up is
-  // applied downstream: the échéances already sum to the gross finalPrice — the commission is purely an
-  // expense + a reduction of the net cash line.
+  // specs/direct-payment-method-commission.md §3.3. Each CHARGED échéance is one processor transaction:
+  // commission = fixed fee + (amount TTC × rate). The fixed part (e.g. Stripe's 0,25 €) applies once per
+  // échéance with a non-zero amount; a 0 € échéance is no transaction → no fee. An unset échéance
+  // resolves to the catalogue default. Platform reservations keep 0 here (their commission rides on
+  // platformCommissionAmount). No CA gross-up downstream: the échéances already sum to the gross
+  // finalPrice — the commission is purely an expense + a reduction of the net cash line.
   const methodRates = paymentMethodRates && typeof paymentMethodRates === 'object' ? paymentMethodRates : {};
   const resolveMethodId = (id) => {
     if (id != null && methodRates[id]) return Number(id);
@@ -1694,16 +1695,21 @@ function calculateReservationQuote({
     if (id != null) return Number(id);
     return defaultPaymentMethodId != null ? Number(defaultPaymentMethodId) : null;
   };
-  const rateFor = (id) => {
+  // Commission for one échéance: 0 when nothing is charged, else fixed + amount × rate.
+  const commissionForEcheance = (id, amount) => {
+    const amt = Number(amount) || 0;
+    if (amt <= 0) return 0;
     const entry = id == null ? null : methodRates[id];
-    return entry && Number.isFinite(Number(entry.rate)) ? Number(entry.rate) : 0;
+    const rate = entry && Number.isFinite(Number(entry.rate)) ? Number(entry.rate) : 0;
+    const fixed = entry && Number.isFinite(Number(entry.fixed)) ? Number(entry.fixed) : 0;
+    return roundMoney(fixed + amt * rate / 100);
   };
   const effectiveDepositMethodId = platformIsNonDirect ? null : resolveMethodId(depositPaymentMethodId);
   const effectiveBalanceMethodId = platformIsNonDirect ? null : resolveMethodId(balancePaymentMethodId);
   const effectiveComplementMethodId = platformIsNonDirect ? null : resolveMethodId(complementPaymentMethodId);
-  const depositCommissionAmount = platformIsNonDirect ? 0 : roundMoney(resolvedDepositAmount * rateFor(effectiveDepositMethodId) / 100);
-  const balanceCommissionAmount = platformIsNonDirect ? 0 : roundMoney(resolvedBalanceAmount * rateFor(effectiveBalanceMethodId) / 100);
-  const complementCommissionAmount = platformIsNonDirect ? 0 : roundMoney(resolvedComplementAmount * rateFor(effectiveComplementMethodId) / 100);
+  const depositCommissionAmount = platformIsNonDirect ? 0 : commissionForEcheance(effectiveDepositMethodId, resolvedDepositAmount);
+  const balanceCommissionAmount = platformIsNonDirect ? 0 : commissionForEcheance(effectiveBalanceMethodId, resolvedBalanceAmount);
+  const complementCommissionAmount = platformIsNonDirect ? 0 : commissionForEcheance(effectiveComplementMethodId, resolvedComplementAmount);
   const totalPaymentCommission = roundMoney(depositCommissionAmount + balanceCommissionAmount + complementCommissionAmount);
   // Net the operator actually receives after processor fees = total charged to the guest (the sum of the
   // three échéances, tax included — the processor bills on the full transaction) minus the commissions.

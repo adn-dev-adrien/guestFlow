@@ -48,11 +48,13 @@ const BASE = {
   discountPercent: 0, customPrice: '',
 };
 
-// Method 1 = Virement 0 % (default), Method 2 = CB 1,5 %, Method 3 = SumUp 1,75 % (with VAT account).
+// Method 1 = Virement 0 % (default), Method 2 = CB 1,5 %, Method 3 = SumUp 1,75 % (with VAT account),
+// Method 5 = Stripe 2,5 % + 0,25 € fixed per transaction.
 const RATES = {
-  1: { rate: 0, account: null, hasVat: false },
-  2: { rate: 1.5, account: '622600', hasVat: false },
-  3: { rate: 1.75, account: '622610', hasVat: true },
+  1: { rate: 0, fixed: 0, account: null, hasVat: false },
+  2: { rate: 1.5, fixed: 0, account: '622600', hasVat: false },
+  3: { rate: 1.75, fixed: 0, account: '622610', hasVat: true },
+  5: { rate: 2.5, fixed: 0.25, account: '622600', hasVat: false },
 };
 
 test('direct: same method (CB 1,5 %) on every échéance → per-échéance commission + net', () => {
@@ -74,6 +76,22 @@ test('direct: same method (CB 1,5 %) on every échéance → per-échéance comm
   // (which would silently drop any tourist tax riding in an échéance).
   const echeanceSum = Math.round((q.depositAmount + q.balanceAmount + q.complementAmount) * 100) / 100;
   assert.equal(q.paymentNetReceivedAmount, Math.round((echeanceSum - q.totalPaymentCommission) * 100) / 100);
+  db.close();
+});
+
+test('direct: Stripe (2,5 % + 0,25 € fixed) bills the fixed part once per charged échéance', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, db, platform: 'direct',
+    paymentMethodRates: RATES, defaultPaymentMethodId: 1,
+    depositPaymentMethodId: 5, balancePaymentMethodId: 5, complementPaymentMethodId: 5,
+  });
+  // deposit 60 → 0.25 + 60×2.5% = 1.75 ; balance 140 → 0.25 + 140×2.5% = 3.75 ; complément 0 → 0 (no txn)
+  assert.equal(q.depositCommissionAmount, 1.75);
+  assert.equal(q.balanceCommissionAmount, 3.75);
+  assert.equal(q.complementCommissionAmount, 0);
+  assert.equal(q.totalPaymentCommission, 5.5);
+  assert.equal(q.paymentNetReceivedAmount, 194.5); // 200 − 5.5
   db.close();
 });
 

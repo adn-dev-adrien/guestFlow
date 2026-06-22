@@ -40,6 +40,16 @@ test('create clamps the rate and can claim the default (clearing the previous on
   assert.equal(model.listAll().filter((m) => m.isDefault === 1).length, 1);
 });
 
+test('create + rateMap carry the fixed fee (Stripe 2,5 % + 0,25 €); negatives clamp to 0', () => {
+  const { model } = freshModel();
+  const stripe = model.create({ name: 'Stripe', commissionPercent: 2.5, commissionFixed: 0.25 });
+  assert.equal(stripe.commissionPercent, 2.5);
+  assert.equal(stripe.commissionFixed, 0.25);
+  assert.equal(model.rateMap()[stripe.id].fixed, 0.25);
+  const updated = model.update(stripe.id, { commissionFixed: -3 });
+  assert.equal(updated.commissionFixed, 0); // clamped ≥ 0
+});
+
 test('create rejects a duplicate name', () => {
   const { model } = freshModel();
   assert.throws(() => model.create({ name: 'Virement' }), /NAME_TAKEN/);

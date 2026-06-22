@@ -25,6 +25,12 @@ function clampPercent(value) {
   return Math.max(0, Math.min(MAX_PERCENT, n));
 }
 
+function clampFixed(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.round(n * 100) / 100);
+}
+
 function normalizeAccount(value) {
   return value == null || String(value).trim() === '' ? null : String(value).trim();
 }
@@ -36,6 +42,7 @@ function toBool01(value) {
 function createPaymentMethodsModel(database) {
   const SELECT = `
     SELECT id, name, COALESCE(commissionPercent, 0) AS commissionPercent,
+           COALESCE(commissionFixed, 0) AS commissionFixed,
            commissionAccountNumber, hasVatOnCommission, isDefault, isActive, sortOrder
       FROM payment_methods
   `;
@@ -45,13 +52,14 @@ function createPaymentMethodsModel(database) {
     findById: database.prepare(`${SELECT} WHERE id = ?`),
     findByName: database.prepare(`${SELECT} WHERE name = ? COLLATE NOCASE`),
     insert: database.prepare(`
-      INSERT INTO payment_methods (name, commissionPercent, commissionAccountNumber, hasVatOnCommission, isDefault, isActive, sortOrder)
-      VALUES (@name, @commissionPercent, @commissionAccountNumber, @hasVatOnCommission, @isDefault, 1, @sortOrder)
+      INSERT INTO payment_methods (name, commissionPercent, commissionFixed, commissionAccountNumber, hasVatOnCommission, isDefault, isActive, sortOrder)
+      VALUES (@name, @commissionPercent, @commissionFixed, @commissionAccountNumber, @hasVatOnCommission, @isDefault, 1, @sortOrder)
     `),
     update: database.prepare(`
       UPDATE payment_methods
          SET name = @name,
              commissionPercent = @commissionPercent,
+             commissionFixed = @commissionFixed,
              commissionAccountNumber = @commissionAccountNumber,
              hasVatOnCommission = @hasVatOnCommission
        WHERE id = @id
@@ -113,13 +121,14 @@ function createPaymentMethodsModel(database) {
       return d ? d.id : null;
     },
 
-    // Engine-facing rate map: { id → { rate, account, hasVat } } over ALL methods (incl. inactive) so
-    // a reservation referencing a now-deactivated method still resolves its commission.
+    // Engine-facing rate map: { id → { rate, fixed, account, hasVat } } over ALL methods (incl.
+    // inactive) so a reservation referencing a now-deactivated method still resolves its commission.
     rateMap() {
       const map = {};
       for (const m of stmts.listAll.all()) {
         map[m.id] = {
           rate: Number(m.commissionPercent) || 0,
+          fixed: Number(m.commissionFixed) || 0,
           account: m.commissionAccountNumber || null,
           hasVat: Number(m.hasVatOnCommission) === 1,
         };
@@ -127,7 +136,7 @@ function createPaymentMethodsModel(database) {
       return map;
     },
 
-    create({ name, commissionPercent, commissionAccountNumber, hasVatOnCommission, isDefault }) {
+    create({ name, commissionPercent, commissionFixed, commissionAccountNumber, hasVatOnCommission, isDefault }) {
       const clean = String(name == null ? '' : name).trim();
       if (!clean) throw new Error('NAME_REQUIRED');
       if (stmts.findByName.get(clean)) throw new Error('NAME_TAKEN');
@@ -135,6 +144,7 @@ function createPaymentMethodsModel(database) {
       const info = stmts.insert.run({
         name: clean,
         commissionPercent: clampPercent(commissionPercent),
+        commissionFixed: clampFixed(commissionFixed),
         commissionAccountNumber: normalizeAccount(commissionAccountNumber),
         hasVatOnCommission: toBool01(hasVatOnCommission),
         isDefault: 0,
@@ -145,7 +155,7 @@ function createPaymentMethodsModel(database) {
       return stmts.findById.get(info.lastInsertRowid);
     },
 
-    update(id, { name, commissionPercent, commissionAccountNumber, hasVatOnCommission, isDefault }) {
+    update(id, { name, commissionPercent, commissionFixed, commissionAccountNumber, hasVatOnCommission, isDefault }) {
       const row = stmts.findById.get(Number(id));
       if (!row) return null;
       const clean = name == null ? row.name : String(name).trim();
@@ -156,6 +166,7 @@ function createPaymentMethodsModel(database) {
         id: row.id,
         name: clean,
         commissionPercent: commissionPercent === undefined ? row.commissionPercent : clampPercent(commissionPercent),
+        commissionFixed: commissionFixed === undefined ? row.commissionFixed : clampFixed(commissionFixed),
         commissionAccountNumber: commissionAccountNumber === undefined
           ? row.commissionAccountNumber
           : normalizeAccount(commissionAccountNumber),

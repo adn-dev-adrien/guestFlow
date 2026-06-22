@@ -20,6 +20,7 @@ function MethodRow({ method, onPatch, onSetDefault, onToggleActive, onDelete }) 
   const [draft, setDraft] = useState({
     name: method.name,
     commissionPercent: String(method.commissionPercent ?? 0),
+    commissionFixed: String(method.commissionFixed ?? 0),
     commissionAccountNumber: method.commissionAccountNumber || '',
   });
   // Re-sync when the upstream row changes (e.g. after a reload).
@@ -27,15 +28,18 @@ function MethodRow({ method, onPatch, onSetDefault, onToggleActive, onDelete }) 
     setDraft({
       name: method.name,
       commissionPercent: String(method.commissionPercent ?? 0),
+      commissionFixed: String(method.commissionFixed ?? 0),
       commissionAccountNumber: method.commissionAccountNumber || '',
     });
-  }, [method.id, method.name, method.commissionPercent, method.commissionAccountNumber]);
+  }, [method.id, method.name, method.commissionPercent, method.commissionFixed, method.commissionAccountNumber]);
 
   const commit = (field, value) => {
     if (field === 'commissionPercent' && Number(value) === Number(method.commissionPercent)) return;
+    if (field === 'commissionFixed' && Number(value) === Number(method.commissionFixed)) return;
     if (field === 'name' && value.trim() === method.name) return;
     if (field === 'commissionAccountNumber' && (value.trim() || null) === (method.commissionAccountNumber || null)) return;
-    onPatch(method.id, { [field]: field === 'commissionPercent' ? Number(value || 0) : value.trim() });
+    const numeric = field === 'commissionPercent' || field === 'commissionFixed';
+    onPatch(method.id, { [field]: numeric ? Number(value || 0) : value.trim() });
   };
 
   const inactive = Number(method.isActive) !== 1;
@@ -43,7 +47,7 @@ function MethodRow({ method, onPatch, onSetDefault, onToggleActive, onDelete }) 
     <Box sx={{ opacity: inactive ? 0.55 : 1 }}>
       <Box sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: '1fr', md: '1.4fr 0.8fr 1fr auto auto auto auto' },
+        gridTemplateColumns: { xs: '1fr', md: '1.3fr 0.7fr 0.7fr 1fr auto auto auto auto' },
         gap: 1, alignItems: 'center',
       }}>
         <TextField
@@ -57,6 +61,13 @@ function MethodRow({ method, onPatch, onSetDefault, onToggleActive, onDelete }) 
           onChange={(e) => setDraft((d) => ({ ...d, commissionPercent: e.target.value }))}
           onBlur={(e) => commit('commissionPercent', e.target.value)}
           slotProps={{ htmlInput: { min: 0, max: 99.99, step: 0.05 } }}
+          fullWidth
+        />
+        <TextField
+          label="Frais fixe €" size="small" type="number" value={draft.commissionFixed}
+          onChange={(e) => setDraft((d) => ({ ...d, commissionFixed: e.target.value }))}
+          onBlur={(e) => commit('commissionFixed', e.target.value)}
+          slotProps={{ htmlInput: { min: 0, step: 0.05 } }}
           fullWidth
         />
         <TextField
@@ -116,6 +127,7 @@ export default function SettingsPaymentMethodsSection() {
   const [error, setError] = useState('');
   const [newName, setNewName] = useState('');
   const [newRate, setNewRate] = useState('');
+  const [newFixed, setNewFixed] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -154,8 +166,12 @@ export default function SettingsPaymentMethodsSection() {
     if (!newName.trim()) return;
     setError('');
     try {
-      await api.createPaymentMethod({ name: newName.trim(), commissionPercent: Number(newRate || 0) });
-      setNewName(''); setNewRate('');
+      await api.createPaymentMethod({
+        name: newName.trim(),
+        commissionPercent: Number(newRate || 0),
+        commissionFixed: Number(newFixed || 0),
+      });
+      setNewName(''); setNewRate(''); setNewFixed('');
       await refresh();
     } catch (err) {
       setError(err?.message === 'NAME_TAKEN' ? 'Ce nom existe déjà.' : (err?.message || "Ajout impossible."));
@@ -206,7 +222,13 @@ export default function SettingsPaymentMethodsSection() {
                   label="Commission %" size="small" type="number" value={newRate}
                   onChange={(e) => setNewRate(e.target.value)}
                   slotProps={{ htmlInput: { min: 0, max: 99.99, step: 0.05 } }}
-                  sx={{ width: 140 }}
+                  sx={{ width: 130 }}
+                />
+                <TextField
+                  label="Frais fixe €" size="small" type="number" value={newFixed}
+                  onChange={(e) => setNewFixed(e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, step: 0.05 } }}
+                  sx={{ width: 120 }}
                 />
                 <Button variant="outlined" startIcon={<AddIcon />} onClick={add} disabled={!newName.trim()}>
                   Ajouter

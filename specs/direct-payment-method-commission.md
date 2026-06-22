@@ -43,9 +43,11 @@ accounting books the fee exactly as it already does for platform commissions.
 
 1. A new **Moyens de paiement** section in Paramètres manages a list of payment methods. Each method
    has: a **name** (unique, e.g. « Virement », « Espèces », « Chèque », « Carte bancaire »), a
-   **commission rate** in `%` (≥ 0, default `0`), an optional **commission account number** (falls
-   back to `app_settings.defaultCommissionAccountNumber` when blank), a **VAT-on-commission** flag, an
-   **active** flag, and a **default** flag (exactly one method is the default).
+   **commission rate** in `%` (≥ 0, default `0`), a **fixed fee** in `€` (≥ 0, default `0` — the
+   per-transaction flat part some processors bill, e.g. Stripe « 0,25 € + 2,5 % »), an optional
+   **commission account number** (falls back to `app_settings.defaultCommissionAccountNumber` when
+   blank), a **VAT-on-commission** flag, an **active** flag, and a **default** flag (exactly one method
+   is the default).
 2. The list is seeded on first migration with four methods, all at **0 %** so existing data is
    unaffected: « Virement » (**default**), « Espèces », « Chèque », « Carte bancaire ». The operator
    then edits « Carte bancaire » (and any other) to its real rate.
@@ -69,9 +71,11 @@ accounting books the fee exactly as it already does for platform commissions.
 
 ### 3.3 Commission computation (engine, authoritative)
 
-8. For each échéance `k ∈ {deposit, balance, complement}` of a direct reservation, the engine
-   computes `commission_k = roundMoney(amount_k × rate(method_k) / 100)`, where `amount_k` is the
-   échéance's **TTC** amount and `rate(method_k)` is the chosen method's commission rate.
+8. For each échéance `k ∈ {deposit, balance, complement}` of a direct reservation, the engine computes
+   `commission_k = amount_k > 0 ? roundMoney(fixed(method_k) + amount_k × rate(method_k) / 100) : 0`,
+   where `amount_k` is the échéance's **TTC** amount and `rate`/`fixed` are the chosen method's rate +
+   per-transaction fixed fee. Each charged échéance is one processor transaction, so the **fixed part is
+   billed once per non-zero échéance** (a 0 € échéance is no transaction → no fee). Resolved 2026-06-22.
 9. The reservation's **total commission** = `commission_deposit + commission_balance +
    commission_complement`; the reservation's **net perçu** = `(deposit + balance + complement) − total
    commission` — i.e. the total actually charged to the guest across the three échéances (tax included,
@@ -188,6 +192,7 @@ CREATE TABLE IF NOT EXISTS payment_methods (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT UNIQUE NOT NULL,
   commissionPercent REAL NOT NULL DEFAULT 0,
+  commissionFixed REAL NOT NULL DEFAULT 0,      -- per-transaction flat fee (€), e.g. Stripe 0,25 €
   commissionAccountNumber TEXT,                 -- NULL → app_settings.defaultCommissionAccountNumber
   hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
   isDefault INTEGER NOT NULL DEFAULT 0,
@@ -195,6 +200,8 @@ CREATE TABLE IF NOT EXISTS payment_methods (
   sortOrder INTEGER NOT NULL DEFAULT 0
 );
 ```
+
+`commissionFixed` is added by an idempotent `ALTER TABLE … ADD COLUMN` (DEFAULT 0) for DBs predating it.
 
 Seed (idempotent, only if table empty): Virement (0 %, default), Espèces (0 %), Chèque (0 %), Carte
 bancaire (0 %).
@@ -252,15 +259,17 @@ reservation page bar is unchanged. No new bar introduced.
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `tests/directPaymentCommission.unit.test.js` (7 tests) — per-échéance commission (mixed methods,
-  0 %, rounding); total commission + net perçu (= échéance sum − commission invariant); default fill;
-  direct-vs-platform exclusivity; no-rate-map → zero.
-- [x] `tests/paymentMethodsModel.unit.test.js` (9 tests) — seed; single-default invariant;
-  deactivate-not-delete when referenced; default cannot be deactivated/deleted; rateMap includes inactive.
+- [x] `tests/directPaymentCommission.unit.test.js` (8 tests) — per-échéance commission (mixed methods,
+  0 %, rounding); **Stripe fixed + variable (0,25 € + 2,5 %) billed once per non-zero échéance**; total
+  commission + net perçu (= échéance sum − commission invariant); default fill; direct-vs-platform
+  exclusivity; no-rate-map → zero.
+- [x] `tests/paymentMethodsModel.unit.test.js` (10 tests) — seed; single-default invariant;
+  deactivate-not-delete when referenced; default cannot be deactivated/deleted; rateMap includes inactive;
+  **fixed fee round-trips + clamps ≥ 0**.
 - [x] `tests/accounting-direct-payment-commission.unit.test.js` (5 tests) — a direct reservation with a
   card-paid balance books the commission expense + VAT (if flagged) and nets the bank line; `grossRatio = 1`;
   CA = finalPrice; Σ debits = Σ credits.
-- Full server suite: **1787/1787** passing (was 1767; +20).
+- Full server suite: **1789/1789** passing.
 
 ### Manual UI verification (2026-06-22, Playwright on dev :3000)
 - [x] Paramètres: « Moyens de paiement » renders the 4 seeded methods; setting Carte bancaire to 1,5 %
