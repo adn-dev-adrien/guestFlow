@@ -228,6 +228,7 @@ CREATE TABLE IF NOT EXISTS payment_methods (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     commissionPercent REAL NOT NULL DEFAULT 0,
+    commissionFixed REAL NOT NULL DEFAULT 0,
     commissionAccountNumber TEXT,
     hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
     isDefault INTEGER NOT NULL DEFAULT 0,

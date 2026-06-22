@@ -8,7 +8,7 @@ import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
  * Props:
  *  - value: number | null            currently-selected method id (null → falls back to defaultId)
  *  - onChange: (id: number) => void  called with the chosen method id
- *  - methods: Array<{ id, name, commissionPercent, isActive }>  catalogue (active + the selected one)
+ *  - methods: Array<{ id, name, commissionPercent, commissionFixed, isActive }>  catalogue (active + selected)
  *  - defaultId: number | null        id used for display when value is null
  *  - label, size, fullWidth, disabled: standard MUI passthroughs
  *  - showRate: boolean               append « (1,5 %) » to each option label (default true)
@@ -23,8 +23,12 @@ export default function PaymentMethodSelect({
   const effective = value ?? defaultId ?? '';
   const options = methods.filter((m) => Number(m.isActive) === 1 || m.id === effective);
   const fmtRate = (m) => {
+    if (!showRate) return '';
     const r = Number(m.commissionPercent) || 0;
-    return showRate ? ` (${r.toFixed(2).replace('.', ',')} %)` : '';
+    const f = Number(m.commissionFixed) || 0;
+    const parts = [`${r.toFixed(2).replace('.', ',')} %`];
+    if (f > 0) parts.push(`${f.toFixed(2).replace('.', ',')} €`);
+    return ` (${parts.join(' + ')})`;
   };
   return (
     <FormControl fullWidth={fullWidth} size={size} disabled={disabled}>
