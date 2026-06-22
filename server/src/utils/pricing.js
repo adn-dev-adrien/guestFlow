@@ -1434,15 +1434,23 @@ function calculateReservationQuote({
     ? null
     : Number(customPrice);
   // specs/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` PINS the
-  // total séjour: the accommodation is back-solved so `finalPrice = platformGrossAmount`. It supersedes
-  // `customPrice`/`discountPercent` (the brut is the single price lever for platforms). Clamped ≥ 0 so an
-  // inconsistent brut (< options) can't drive a negative accommodation.
+  // PLATFORM-PAID portion of the stay (the brut the guest paid the platform). It supersedes
+  // `customPrice`/`discountPercent` (the brut is the single price lever for platforms). The accommodation
+  // is back-solved so that `accommodation + extra-guest + the NON-complement options/resources = brut`.
+  // Complement items (extras collected ON ARRIVAL — `inComplement = 1`) are NOT part of the platform
+  // payment, so they are excluded from the back-solve and END UP ADDED ON TOP: finalPrice = brut +
+  // complement. Clamped ≥ 0 so an inconsistent brut (< pre-arrival options) can't go negative.
   const platformGrossPin = (String(platform || 'direct').toLowerCase() !== 'direct')
     && platformGrossAmountInput !== '' && platformGrossAmountInput != null && Number.isFinite(Number(platformGrossAmountInput))
     ? roundMoney(Number(platformGrossAmountInput))
     : null;
+  const complementOptionsResourcesTotal = roundMoney(
+    finalOptionLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0)
+    + resourceLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0),
+  );
+  const preArrivalOptionsResources = roundMoney(optionsTotal + resourcesTotal - complementOptionsResourcesTotal);
   const pinnedAccommodation = platformGrossPin != null
-    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - optionsTotal - resourcesTotal))
+    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources))
     : null;
   const accommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null

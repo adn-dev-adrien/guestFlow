@@ -45,11 +45,18 @@ The net perçu (= solde) and the accounting are unchanged downstream — only th
 
 ## 3. Functional rules
 
-1. **Brut pins the total séjour.** When `platformGrossAmount` is set (non-empty) on a **non-direct**
-   reservation, the engine forces `finalPrice = platformGrossAmount`, and derives the accommodation price
-   = `platformGrossAmount − billedOptionsTotal − billedResourcesTotal` (the *billed*, i.e. non-offered,
-   totals), clamped to ≥ 0. So adding/removing/offering an option re-allocates within the fixed brut
-   instead of changing the total — which matches reality (the guest paid a fixed amount to the platform).
+1. **Brut pins the PLATFORM-PAID portion of the stay.** When `platformGrossAmount` is set (non-empty) on a
+   **non-direct** reservation, the brut is what the guest paid the platform = the pre-arrival total. The
+   engine derives the accommodation = `platformGrossAmount − extraGuestSurcharge − billed NON-complement
+   options − billed NON-complement resources` (the *billed*, i.e. non-offered, pre-arrival totals), clamped
+   to ≥ 0. So a non-complement option/resource re-allocates within the fixed brut.
+1bis. **Complement extras are ADDED ON TOP (collected on arrival).** Options/resources routed to the
+   **Complément** (`inComplement = 1`) are NOT part of the platform payment — they're collected on arrival.
+   They are therefore EXCLUDED from the back-solve and **add to the total**: `finalPrice = brut +
+   complement`. (Regression 2026-06-22: before this, the brut subtracted EVERY option incl. complement, so
+   an arrival extra silently lowered the accommodation and the total stayed = brut — wrong. Locked by
+   `pricing-platform-gross-pin.unit.test.js`.) The operator keeps the per-line « Compl. » toggle to choose,
+   per option, whether it's part of the brut (in the platform payment) or collected on arrival.
 2. **Precedence.** On a non-direct reservation, `platformGrossAmount` **replaces** `customPrice` /
    `discountPercent` as the accommodation driver (the block hides « Prix ajusté » for platform
    reservations). On a direct reservation the field is absent and the existing pricing path is unchanged.
@@ -130,9 +137,10 @@ Paiement plateforme
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `pricing-platform-gross-pin.unit.test.js` (6) — brut set → `finalPrice = brut`; accommodation = brut
-      − options; offered option excluded; brut < options → accommodation clamps 0; empty brut → normal
-      pricing (regression); direct ignores the brut; brut + commission → net = brut − commission.
+- [x] `pricing-platform-gross-pin.unit.test.js` (7) — brut set → `finalPrice = brut`; accommodation = brut
+      − non-complement options; **a complement option is ADDED on top (collected on arrival), not folded in
+      (regression — operator-reported 2026-06-22)**; offered option excluded; brut < options → accommodation
+      clamps 0; empty brut → normal pricing; direct ignores the brut; brut + commission → net = brut − commission.
 - [x] `reservations-platform-commission-persistence.unit.test.js` (+4) — round-trip `platformGrossAmount` +
       `platformPayoutAmount`; empty → NULL; direct forced NULL; update + switch-to-direct clears them.
 
