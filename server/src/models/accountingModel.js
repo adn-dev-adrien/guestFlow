@@ -23,6 +23,7 @@
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const platformsModel = require('./platformsModel');
+const paymentMethodsModel = require('./paymentMethodsModel');
 const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
 
@@ -116,11 +117,16 @@ function buildCommissionContext(database) {
   const platforms = (platformsModel.listAll ? platformsModel.listAll() : []) || [];
   const byName = new Map();
   for (const p of platforms) byName.set(String(p.name || '').toLowerCase(), p);
-  return { defaultAccount, vatRateCommission, vatRate, platformByName: byName };
+  // specs/direct-payment-method-commission.md — index the payment-method catalogue by id so a direct
+  // reservation's per-échéance commission resolves its account + VAT flag (mirroring the platform map).
+  const paymentMethods = (paymentMethodsModel.listAll ? paymentMethodsModel.listAll() : []) || [];
+  const paymentMethodById = new Map();
+  for (const m of paymentMethods) paymentMethodById.set(Number(m.id), m);
+  return { defaultAccount, vatRateCommission, vatRate, platformByName: byName, paymentMethodById };
 }
 
-// Resolve the commission config for one reservation. Returns null for direct bookings (no
-// platform → no commission line). Returns `{ account, hasVat }` otherwise.
+// Resolve the commission config for one PLATFORM reservation. Returns null for direct bookings (no
+// platform → handled by resolveDirectCommissionConfig). Returns `{ account, hasVat }` otherwise.
 function resolveCommissionConfig(row, commissionContext) {
   if (!commissionContext) return null;
   const platform = String(row.platform || 'direct').toLowerCase();
@@ -128,6 +134,23 @@ function resolveCommissionConfig(row, commissionContext) {
   const platformRow = commissionContext.platformByName.get(platform);
   const account = (platformRow && platformRow.commissionAccountNumber) || commissionContext.defaultAccount;
   const hasVat = platformRow ? Boolean(Number(platformRow.hasVatOnCommission)) : false;
+  return { account, hasVat };
+}
+
+// specs/direct-payment-method-commission.md §3.4 — resolve the commission account + VAT flag for a
+// DIRECT reservation's échéance from the payment method chosen for that échéance. Falls back to the
+// global default commission account when the method has no override (or is unknown / deactivated).
+function resolveDirectCommissionConfig(row, kind, commissionContext) {
+  if (!commissionContext || !commissionContext.paymentMethodById) return null;
+  const methodIdByKind = {
+    deposit: row.depositPaymentMethodId,
+    balance: row.balancePaymentMethodId,
+    complement: row.complementPaymentMethodId,
+  };
+  const id = methodIdByKind[kind];
+  const method = id != null ? commissionContext.paymentMethodById.get(Number(id)) : null;
+  const account = (method && method.commissionAccountNumber) || commissionContext.defaultAccount;
+  const hasVat = method ? Boolean(Number(method.hasVatOnCommission)) : false;
   return { account, hasVat };
 }
 
@@ -367,13 +390,25 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     commissionTtcTotal = round2(Math.max(0, effectiveGross - finalPriceTtc));
     grossRatio = finalPriceTtc > 0 ? effectiveGross / finalPriceTtc : 1;
   }
-  // Per-entry commission share — full on balance for non-direct platforms; 0 otherwise.
-  const commissionTtcEntry = (platformIsNonDirect && kind === 'balance')
-    ? commissionTtcTotal
-    : 0;
-  // Resolve compte commission + hasVat from the global config snapshot.
+  // Per-entry commission share.
+  //  - Platform: the whole commission rides on the balance debit (single transfer), 0 on the others.
+  //  - Direct (specs/direct-payment-method-commission.md §3.4): each échéance carries its OWN snapshotted
+  //    payment-method commission. grossRatio stays 1 (direct stores gross amounts), so the commission is
+  //    purely an expense + a reduction of this kind's net cash line.
+  const directCommissionByKind = {
+    deposit:    round2(Math.max(0, Number(row.depositCommissionAmount    || 0))),
+    balance:    round2(Math.max(0, Number(row.balanceCommissionAmount    || 0))),
+    complement: round2(Math.max(0, Number(row.complementCommissionAmount || 0))),
+  };
+  const commissionTtcEntry = platformIsNonDirect
+    ? (kind === 'balance' ? commissionTtcTotal : 0)
+    : (directCommissionByKind[kind] || 0);
+  // Resolve compte commission + hasVat: from the platform config (platform) or the échéance's payment
+  // method (direct). Clamp the commission to the encaissement so the net cash line can't go negative.
   const commissionResolved = commissionTtcEntry > 0
-    ? resolveCommissionConfig(row, commissionContext)
+    ? (platformIsNonDirect
+        ? resolveCommissionConfig(row, commissionContext)
+        : resolveDirectCommissionConfig(row, kind, commissionContext))
     : null;
   const vatRateCommission = commissionContext && Number.isFinite(Number(commissionContext.vatRateCommission))
     ? Number(commissionContext.vatRateCommission)

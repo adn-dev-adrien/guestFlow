@@ -18,6 +18,7 @@ const { computePaymentStatus } = require('../utils/paymentStatus');
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax } = require('../utils/pricing');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+const paymentMethodsModel = require('./paymentMethodsModel');
 
 // Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
 // The owner's net stays in `finalPrice`. Commission = gross − net (clipped to 0). Null on direct bookings
@@ -343,6 +344,29 @@ function createReservationsModel(database) {
       // the form's fields repopulate correctly on load.
       reservation.platformGrossAmount = reservation.platformGrossAmount == null ? '' : Number(reservation.platformGrossAmount);
       reservation.platformPayoutAmount = reservation.platformPayoutAmount == null ? '' : Number(reservation.platformPayoutAmount);
+      // specs/direct-payment-method-commission.md — per-échéance payment methods + commission snapshots.
+      // For DIRECT reservations a NULL method id (legacy / never-saved row) resolves to the catalogue
+      // default so the form's selects show a sensible value. Platform reservations keep NULL (no picker).
+      {
+        const isDirect = String(reservation.platform || 'direct').toLowerCase() === 'direct';
+        const fallback = isDirect ? paymentMethodsModel.getDefaultId() : null;
+        reservation.depositPaymentMethodId = reservation.depositPaymentMethodId ?? fallback;
+        reservation.balancePaymentMethodId = reservation.balancePaymentMethodId ?? fallback;
+        reservation.complementPaymentMethodId = reservation.complementPaymentMethodId ?? fallback;
+        reservation.depositCommissionAmount = Number(reservation.depositCommissionAmount || 0);
+        reservation.balanceCommissionAmount = Number(reservation.balanceCommissionAmount || 0);
+        reservation.complementCommissionAmount = Number(reservation.complementCommissionAmount || 0);
+        reservation.totalPaymentCommission = Number(
+          (reservation.depositCommissionAmount + reservation.balanceCommissionAmount + reservation.complementCommissionAmount).toFixed(2)
+        );
+        // Net = total charged (échéance sum, tax included) − commissions, matching the engine.
+        const echeanceSum = Number(reservation.depositAmount || 0)
+          + Number(reservation.balanceAmount || 0)
+          + Number(reservation.complementAmount || 0);
+        reservation.paymentNetReceivedAmount = reservation.totalPaymentCommission > 0
+          ? Number((echeanceSum - reservation.totalPaymentCommission).toFixed(2))
+          : null;
+      }
       reservation.complementAmount = Number(reservation.complementAmount || 0);
       reservation.complementPaid = Number(reservation.complementPaid || 0);
       reservation.complementPaidDate = reservation.complementPaidDate || null;
@@ -782,8 +806,10 @@ function createReservationsModel(database) {
           platform, totalPrice, touristTaxRate, touristTaxTotal, discountPercent, customPrice, finalPrice, depositAmount, depositDueDate,
           balanceAmount, balanceDueDate, sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
           notes, cautionAmount, extraGuestSurchargeOffered, blocksPreviousNight, blocksNextNight, clientGrossAmount,
-          depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, platformGrossAmount, platformPayoutAmount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          depositDisabled, touristTaxInComplement, depositAmountOverride, platformCommissionAmount, platformGrossAmount, platformPayoutAmount,
+          depositPaymentMethodId, balancePaymentMethodId, complementPaymentMethodId,
+          depositCommissionAmount, balanceCommissionAmount, complementCommissionAmount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId, clientId, startDate, endDate, adults || 1, children || 0, teens || 0, babies || 0,
         singleBeds ?? null, doubleBeds ?? null, babyBeds ?? null,
@@ -803,6 +829,14 @@ function createReservationsModel(database) {
         platformCommissionForStore,
         platformGrossForStore,
         platformPayoutForStore,
+        // specs/direct-payment-method-commission.md — the engine resolved the per-échéance methods (null
+        // for platform) + snapshotted each commission (0 for platform / 0 % methods).
+        quote.depositPaymentMethodId ?? null,
+        quote.balancePaymentMethodId ?? null,
+        quote.complementPaymentMethodId ?? null,
+        Number(quote.depositCommissionAmount || 0),
+        Number(quote.balanceCommissionAmount || 0),
+        Number(quote.complementCommissionAmount || 0),
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
       persistReservationNumber(result.lastInsertRowid, payload);
@@ -846,6 +880,8 @@ function createReservationsModel(database) {
           blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
           depositDisabled=?, touristTaxInComplement=?, depositAmountOverride=?, platformCommissionAmount=?,
           platformGrossAmount=?, platformPayoutAmount=?,
+          depositPaymentMethodId=?, balancePaymentMethodId=?, complementPaymentMethodId=?,
+          depositCommissionAmount=?, balanceCommissionAmount=?, complementCommissionAmount=?,
           updatedAt=datetime('now')
         WHERE id=?
       `).run(
@@ -870,6 +906,13 @@ function createReservationsModel(database) {
         platformCommissionForStore,
         platformGrossForStore,
         platformPayoutForStore,
+        // specs/direct-payment-method-commission.md — engine-resolved per-échéance methods + snapshots.
+        quote.depositPaymentMethodId ?? null,
+        quote.balancePaymentMethodId ?? null,
+        quote.complementPaymentMethodId ?? null,
+        Number(quote.depositCommissionAmount || 0),
+        Number(quote.balanceCommissionAmount || 0),
+        Number(quote.complementCommissionAmount || 0),
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);
