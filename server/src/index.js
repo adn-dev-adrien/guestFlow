@@ -154,6 +154,7 @@ app.use('/api/resources', require('./routes/resources'));
 app.use('/api/resource-bookings', require('./routes/resourceBookings'));
 app.use('/api/reservations', require('./routes/reservations'));
 app.use('/api/platforms', require('./routes/platforms'));
+app.use('/api/payment-methods', require('./routes/paymentMethods'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/school-holidays', require('./routes/schoolHolidays'));
 app.use('/api/public-holidays', require('./routes/publicHolidays'));

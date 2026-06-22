@@ -659,6 +659,27 @@ export default function PricingSummary({
             );
           })()}
 
+          {/* specs/direct-payment-method-commission.md — DIRECT reservations: when an échéance is paid by
+              a commissioned payment method (CB/SumUp…), surface the processor fee + the net perçu,
+              mirroring the platform block. Collapses to nothing when no commission applies. */}
+          {(() => {
+            const directCommission = Number(quote?.totalPaymentCommission || 0);
+            const directNet = quote?.paymentNetReceivedAmount;
+            if (directCommission <= 0 || directNet == null) return null;
+            return (
+              <>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">Commission (moyens de paiement)</Typography>
+                  <Typography variant="body2" sx={{ color: 'warning.main' }}>− {directCommission.toFixed(2)}€</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Net perçu TTC</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{Number(directNet).toFixed(2)}€</Typography>
+                </Box>
+              </>
+            );
+          })()}
+
           {/* Acompte — when `depositDisabled` is on (per-reservation opt-out, see
               specs/disable-deposit-per-reservation.md), the row stays so the operator can
               see the deposit was considered and explicitly removed, but the amount + due

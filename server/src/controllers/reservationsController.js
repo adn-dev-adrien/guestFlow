@@ -17,8 +17,22 @@ const establishmentClosuresModel = require('../models/establishmentClosuresModel
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
+const paymentMethodsModel = require('../models/paymentMethodsModel');
 
 const model = reservationsModel;
+
+// specs/direct-payment-method-commission.md — build the engine params for per-échéance payment-method
+// commissions: the 3 selected method ids from the request + the catalogue's rate map and default id
+// (so the engine resolves rates and fills unset échéances). Loaded fresh per call; cheap.
+function paymentMethodEngineParams(body) {
+  return {
+    depositPaymentMethodId: body.depositPaymentMethodId,
+    balancePaymentMethodId: body.balancePaymentMethodId,
+    complementPaymentMethodId: body.complementPaymentMethodId,
+    paymentMethodRates: paymentMethodsModel.rateMap(),
+    defaultPaymentMethodId: paymentMethodsModel.getDefaultId(),
+  };
+}
 
 // "Empty platform" must never be persisted. The data invariant is: every reservation
 // either belongs to a platform (Airbnb, Booking, etc.) or is 'direct'. NULL / '' /
@@ -276,6 +290,8 @@ function calculatePrice(req, res) {
     // specs/platform-payment-entry.md — the brut pins the total séjour (finalPrice = brut, accommodation
     // back-solved). Forwarded so the live preview reflects it.
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
+    ...paymentMethodEngineParams(req.body),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -381,6 +397,8 @@ function create(req, res) {
     // vs fiche 994/903).
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
+    ...paymentMethodEngineParams(req.body),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -532,6 +550,8 @@ function update(req, res) {
     // and the commission (reduces the solde to the net) to the engine on SAVE, not just the live preview.
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
+    ...paymentMethodEngineParams(req.body),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
