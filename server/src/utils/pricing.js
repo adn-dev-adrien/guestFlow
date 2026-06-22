@@ -1798,6 +1798,9 @@ function calculateReservationQuote({
     // platformNetReceivedAmount null, the summary shows the single « Total du séjour TTC » line.
     platformCommissionAmount,
     platformNetReceivedAmount,
+    // specs/platform-deposit-toggle.md — echo whether THIS platform takes an acompte, so the fiche
+    // shows the acompte block (vs the « pas d'acompte » message) for a platform reservation.
+    platformTakesDeposit: platformIsNonDirect && Boolean(platformTakesDeposit),
     // specs/platform-payment-entry.md — echo the brut (pins finalPrice) so the client repopulates the field.
     platformGrossAmount: platformGrossPin,
     // specs/direct-payment-method-commission.md — per-échéance payment method (resolved, incl. default
