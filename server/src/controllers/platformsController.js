@@ -45,4 +45,14 @@ function setTouristTax(req, res) {
   return res.json({ name: updated.name, touristTaxCollection: updated.touristTaxCollection });
 }
 
-module.exports = { listNames, listWithCommission, setCommission, setColor, setTouristTax };
+// specs/platform-deposit-toggle.md — set a platform's GLOBAL acompte flag. `:key` is the platform
+// label/name. Body `{ takesDeposit: boolean }`. Applies to every property.
+function setDepositMode(req, res) {
+  const key = decodeURIComponent(req.params.key || '');
+  const takesDeposit = req.body && req.body.takesDeposit;
+  const updated = platformsModel.setDepositMode(key, takesDeposit);
+  if (!updated) return res.status(400).json({ error: 'PLATFORM_REQUIRED' });
+  return res.json({ name: updated.name, platformTakesDeposit: updated.platformTakesDeposit });
+}
+
+module.exports = { listNames, listWithCommission, setCommission, setColor, setTouristTax, setDepositMode };
