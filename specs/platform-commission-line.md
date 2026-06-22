@@ -131,8 +131,13 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 > reservation with an operator-entered `platformCommissionAmount`, `accountingModel.buildEntry` recognises
 > the **CA on the total séjour** (= `finalPrice`, with the settings VAT), books the **commission** (the
 > entered field) on `622600`/`6226xx`, and reports the **net perçu** (= solde = total − commission). Because
-> the engine already stores the NET in the solde (spec §3 rule 5), `grossRatio = finalPrice / (finalPrice −
-> commission)` grosses the stored amounts back up to the total séjour so Σ debits = Σ credits = total séjour.
+> the engine already stores the NET in the solde (spec §3 rule 5), `grossRatio = finalPrice / storedSum`
+> (where `storedSum = deposit + balance + complement`) grosses the stored amounts back up to the total
+> séjour so Σ debits = Σ credits = total séjour. **Bugfix 2026-06-22:** the ratio uses the ACTUAL stored
+> sum, NOT a fixed `finalPrice − commission` denominator — older platform reservations (or any not re-saved
+> after « solde = net ») still store the FULL total in the solde, and a fixed denominator double-grossed them
+> (prod: Estelle Z. showed CA 122,14 / net 105,66 instead of 102,50 / 86,02). With `finalPrice / storedSum`
+> the CA = `finalPrice` and the net = `finalPrice − commission` whatever the stored balance's shape.
 > A **legacy fallback** keeps the old gross-based recognition for reservations that still have a stored
 > `clientGrossAmount` and no entered commission. Confirmed by questionnaire: CA = total séjour, VAT at the
 > settings %, commission = the fiche field, net perçu shown. The `clientGrossAmount` column is kept for

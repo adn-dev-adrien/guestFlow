@@ -173,6 +173,38 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
   assert.equal(round2(sumCredits), 102.50);
 });
 
+test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved after « solde = net »)', () => {
+  // Prod bug 2026-06-22 (Estelle Z. after the deploy): the reservation kept its OLD stored balance =
+  // the full total (102,50), not the net (86,02), because it predates « solde = net » and was never
+  // re-saved. The gross-up must derive its ratio from the ACTUAL stored sum, not from (finalPrice −
+  // commission) — otherwise it double-grosses (CA 122,14 / net 105,66). Whatever the stored balance,
+  // the books MUST read CA 102,50 / commission 16,48 / net 86,02.
+  const bookingQuote = {
+    ...baseQuote,
+    finalPrice: 102.50,
+    accommodationNetPrice: 93.18, accommodationVatAmount: 9.32,
+  };
+  const row = {
+    id: 1, firstName: 'Estelle', lastName: 'Zmyslowski', propertyName: 'Aventura lodge',
+    platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50, touristTaxTotal: 0, touristTaxInComplement: 0,
+    clientGrossAmount: 102.51, platformCommissionAmount: 16.48,
+    depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+    balanceAmount: 102.50, balancePaid: 1, balancePaidDate: '2026-05-18', // STALE: full total, not the net
+    complementAmount: 0, complementPaid: 0, complementPaidDate: null,
+    accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
+    touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
+  };
+  const entry = buildEntry(row, bookingQuote, 'balance', null, commissionContext);
+  assert.equal(round2(entry.commission.ttc), 16.48);
+  assert.equal(round2(entry.encaissementTtc), 102.50, 'CA = total séjour, NOT 122,14');
+  assert.equal(round2(entry.encaissementNetTtc), 86.02, 'net = 86,02, NOT 105,66');
+  const rows = entryToRows(entry);
+  const sumDebits = rows.reduce((s, r) => s + (typeof r[7] === 'number' ? r[7] : 0), 0);
+  const sumCredits = rows.reduce((s, r) => s + (typeof r[8] === 'number' ? r[8] : 0), 0);
+  assert.equal(round2(sumDebits), 102.50);
+  assert.equal(round2(sumCredits), 102.50);
+});
+
 test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW model, VAT 20% on commission', () => {
   // Real prod résa #1415. Location 607 + options 80 = total séjour 687 ; commission 61 € TTC
   // (50,83 HT + 10,17 TVA 20 %, compte Gîtes de France 62260500) ; virement 626 €. This is the
