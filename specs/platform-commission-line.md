@@ -125,14 +125,24 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 - [x] `PricingSummary.commission.test.js` (2) — commission > 0 → brut = total séjour / « Commission
   plateforme » / net perçu = total − commission; commission 0 → the plain single total line.
 
+> **Revision 2026-06-22 — « Prix payé par le client » retired + accounting wired to the commission field.**
+> The `clientGrossAmount` input was removed from the fiche (it was redundant now that the commission is
+> entered directly). The accounting no longer derives the commission from a gross; instead, for a platform
+> reservation with an operator-entered `platformCommissionAmount`, `accountingModel.buildEntry` recognises
+> the **CA on the total séjour** (= `finalPrice`, with the settings VAT), books the **commission** (the
+> entered field) on `622600`/`6226xx`, and reports the **net perçu** (= solde = total − commission). Because
+> the engine already stores the NET in the solde (spec §3 rule 5), `grossRatio = finalPrice / (finalPrice −
+> commission)` grosses the stored amounts back up to the total séjour so Σ debits = Σ credits = total séjour.
+> A **legacy fallback** keeps the old gross-based recognition for reservations that still have a stored
+> `clientGrossAmount` and no entered commission. Confirmed by questionnaire: CA = total séjour, VAT at the
+> settings %, commission = the fiche field, net perçu shown. The `clientGrossAmount` column is kept for
+> legacy data + the boot backfill but is no longer entered or used for new reservations.
+
 ## 8. Out of scope
 
-- **Gross-based CA recognition stays.** The accounting still recognises CA on `clientGrossAmount` (gross)
-  with the commission journal when a gross is entered — unchanged per the 2026-06-21 questionnaire. The new
-  commission field drives the **solde/net** (and therefore the balance encaissement). « Total du séjour » +
-  « Prix payé par le client » keep their name/formula.
 - Deriving the commission from a platform % (the tarif-page feature).
 - Showing the commission on direct bookings (0 by definition).
+- Removing the legacy `clientGrossAmount` column (kept for already-booked reservations + the boot backfill).
 
 ## 9. Open questions
 
@@ -144,3 +154,7 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
   **compta books that net solde** (`accountingModel` reads `row.balanceAmount`). Per the questionnaire: CA
   basis = total paid by client (= net + commission, the existing gross-based recognition) → **no accounting
   formula change**; « Total du séjour » **not renamed**, no formula change; `clientGrossAmount` **kept**.
+- ✅ **2026-06-22 (revised):** « Prix payé par le client » **retired**; the accounting commission now comes
+  from the **`platformCommissionAmount` field** — CA on the total séjour (with settings VAT), commission
+  booked, net perçu = solde. Legacy reservations (stored gross, no entered commission) keep the old
+  recognition via a fallback. Supersedes the « gross-based recognition stays » note above.

@@ -79,7 +79,10 @@ function createAccountingController(accountingModel) {
           platform: e.platform,
           gross: e.clientGrossAmount == null ? null : Number(e.clientGrossAmount),
           encaissement: Number(e.encaissementTtc),
-          commission: e.clientGrossAmount == null ? null : Math.max(0, Math.round((Number(e.clientGrossAmount) - Number(e.finalPrice)) * 100) / 100),
+          // specs/platform-commission-line.md — the commission is the engine-computed line
+          // (operator-entered `platformCommissionAmount`, or the legacy gross−net fallback inside
+          // buildEntry). Read it off the entry instead of re-deriving from the gross here.
+          commission: e.commission ? Math.round(Number(e.commission.ttc) * 100) / 100 : null,
         }));
       const totalCommission = platformRows.reduce((s, r) => s + (r.commission || 0), 0);
       return res.json({ rows: platformRows, totalCommission: Math.round(totalCommission * 100) / 100 });

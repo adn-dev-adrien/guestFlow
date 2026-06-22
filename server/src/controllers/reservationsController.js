@@ -6,7 +6,7 @@
 
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { validateFinanceInputs, validateClientGrossAmount, ERROR_GROSS_BELOW_NET } = require('../utils/financeValidation');
+const { validateFinanceInputs } = require('../utils/financeValidation');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
@@ -19,17 +19,6 @@ const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 
 const model = reservationsModel;
-
-// Direct bookings have no platform commission → the customer pays the owner directly, so
-// `clientGrossAmount` MUST equal `finalPrice`. The form doesn't render the gross input for
-// directs (FinanceSection.js only shows it for platform reservations), so the stored value
-// drifts the moment finalPrice recomputes (e.g. the operator adds an option). Without this
-// coercion the validator rightfully rejects gross < net with a 400 GROSS_BELOW_NET, but
-// from the operator's POV it's a phantom error — they never controlled the value.
-// Spec: specs/bed-config-in-linen-card.md §10 hotfix follow-up #2 (2026-06-05).
-function isDirectPlatform(platform) {
-  return !platform || String(platform).trim() === '' || String(platform).toLowerCase() === 'direct';
-}
 
 // "Empty platform" must never be persisted. The data invariant is: every reservation
 // either belongs to a platform (Airbnb, Booking, etc.) or is 'direct'. NULL / '' /
@@ -296,7 +285,6 @@ function create(req, res) {
     depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-    clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
@@ -387,17 +375,6 @@ function create(req, res) {
     });
   }
 
-  // Direct: derive gross from net before the validator runs (the client form never edits this
-  // field for direct bookings — see comment on `isDirectPlatform` above).
-  if (isDirectPlatform(req.body.platform)) {
-    req.body.clientGrossAmount = quote.finalPrice;
-  }
-  // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform only covers the
-  // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
-  // So the gross the guest paid the platform is validated against the balance, not the full stay.
-  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
-  if (grossError) return res.status(400).json({ error: grossError });
-
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
   // The model rejects `startDate < today` by default. When the admin escape hatch is ON
   // (Paramètres → Réservations passées), that single guard is lifted so backfilling /
@@ -441,7 +418,6 @@ function update(req, res) {
     depositAmountOverride: { value: req.body.depositAmountOverride, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
-    clientGrossAmount: { value: req.body.clientGrossAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
@@ -537,28 +513,6 @@ function update(req, res) {
     autoOptionsInComplement: req.body.autoOptionsInComplement,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
-
-  // Same coercion as `create`: direct → gross = net (see `isDirectPlatform` comment).
-  if (isDirectPlatform(req.body.platform)) {
-    req.body.clientGrossAmount = quote.finalPrice;
-  }
-  // specs/force-extras-complement-on-platform.md §10 (2026-06-08): the platform only covers the
-  // SOLDE (accommodation) — the extras/complément are collected on arrival, not via the platform.
-  // So the gross the guest paid the platform is validated against the balance, not the full stay.
-  const grossError = validateClientGrossAmount(req.body.clientGrossAmount, quote.balanceAmount);
-  if (grossError === ERROR_GROSS_BELOW_NET) {
-    // Phantom-error guard (2026-06-18): editing OTHER fields can raise the solde above a gross the
-    // operator set earlier and isn't touching in this save — blocking the whole modification then is
-    // a phantom error (same rationale as the direct-booking coercion). Tolerate GROSS_BELOW_NET when
-    // the gross is UNCHANGED from the stored value; a freshly-entered/lowered gross is still rejected.
-    const storedGross = beforeAuditSnapshot ? beforeAuditSnapshot.clientGrossAmount : null;
-    const incoming = req.body.clientGrossAmount;
-    const grossUnchanged = storedGross != null && incoming !== '' && incoming != null
-      && Math.abs(Number(incoming) - Number(storedGross)) < 0.005;
-    if (!grossUnchanged) return res.status(400).json({ error: grossError });
-  } else if (grossError) {
-    return res.status(400).json({ error: grossError });
-  }
 
   const afterAuditSnapshot = buildAuditSnapshotFromPayload(req.body, quote);
   if (pastReservationLocked) {
