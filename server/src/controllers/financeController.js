@@ -6,6 +6,12 @@ function summary(req, res) {
   res.json(model.getSummary({ from: req.query.from, to: req.query.to }));
 }
 
+function breakdown(req, res) {
+  const result = model.getBreakdown({ metric: req.query.metric, from: req.query.from, to: req.query.to });
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  return res.json(result.data);
+}
+
 function projection(req, res) {
   res.json(model.getProjection({ date: req.query.date }));
 }
@@ -20,4 +26,4 @@ function touristTax(req, res) {
   return res.json(result.data);
 }
 
-module.exports = { summary, projection, operational, touristTax };
+module.exports = { summary, breakdown, projection, operational, touristTax };
