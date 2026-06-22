@@ -139,9 +139,6 @@ export default function ReservationPage() {
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
-  // specs/direct-payment-method-commission.md — active payment-method catalogue for the per-échéance
-  // selects on direct reservations. Loaded once on mount.
-  const [paymentMethods, setPaymentMethods] = useState([]);
   const [availableResources, setAvailableResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
@@ -257,12 +254,6 @@ export default function ReservationPage() {
     // specs/platform-payment-entry.md — brut (pins the total séjour) + virement (reconciliation), '' = unset.
     platformGrossAmount: '',
     platformPayoutAmount: '',
-    // specs/direct-payment-method-commission.md — per-échéance payment method for DIRECT reservations.
-    // null = use the catalogue default (resolved server-side); the form hydrates these from the active
-    // payment-methods list on mount and from the reservation on load.
-    depositPaymentMethodId: null,
-    balancePaymentMethodId: null,
-    complementPaymentMethodId: null,
   });
 
   // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
@@ -338,10 +329,6 @@ export default function ReservationPage() {
     platformCommissionAmount: form.platformCommissionAmount === '' ? '' : Number(form.platformCommissionAmount),
     // specs/platform-payment-entry.md — the brut pins the total séjour (recompute when it changes).
     platformGrossAmount: form.platformGrossAmount === '' ? '' : Number(form.platformGrossAmount),
-    // specs/direct-payment-method-commission.md — per-échéance payment methods drive the commission/net.
-    depositPaymentMethodId: form.depositPaymentMethodId ?? null,
-    balancePaymentMethodId: form.balancePaymentMethodId ?? null,
-    complementPaymentMethodId: form.complementPaymentMethodId ?? null,
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
     complementPaid: Boolean(form.complementPaid),
@@ -398,7 +385,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-freeze-past-with-refresh.md — `freezeTouristTax` MUST be a dependency: the
     // « Recalculer » button flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.platformGrossAmount, form.depositPaymentMethodId, form.balancePaymentMethodId, form.complementPaymentMethodId, isPlatformReservation, freezeTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -556,21 +543,6 @@ export default function ReservationPage() {
       nights: Number(quote?.nights || 0),
     });
   }, []);
-
-  // specs/direct-payment-method-commission.md — load the active payment-method catalogue once for the
-  // per-échéance selects on direct reservations. Failure is non-fatal (the selects fall back to empty;
-  // the server resolves the default on save).
-  useEffect(() => {
-    let cancelled = false;
-    api.getPaymentMethods(true)
-      .then((list) => { if (!cancelled) setPaymentMethods(Array.isArray(list) ? list : []); })
-      .catch(() => { if (!cancelled) setPaymentMethods([]); });
-    return () => { cancelled = true; };
-  }, []);
-  const paymentMethodDefaultId = useMemo(() => {
-    const def = paymentMethods.find((m) => Number(m.isDefault) === 1);
-    return def ? def.id : (paymentMethods[0] ? paymentMethods[0].id : null);
-  }, [paymentMethods]);
 
   // ==================== INITIALIZATION & DATA LOADING ====================
   useEffect(() => {
@@ -768,11 +740,6 @@ export default function ReservationPage() {
             platformCommissionAmount: res.platformCommissionAmount == null || res.platformCommissionAmount === '' ? '' : res.platformCommissionAmount,
             platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
             platformPayoutAmount: res.platformPayoutAmount == null || res.platformPayoutAmount === '' ? '' : res.platformPayoutAmount,
-            // specs/direct-payment-method-commission.md — per-échéance payment methods (server already
-            // resolved NULL → default for direct reservations).
-            depositPaymentMethodId: res.depositPaymentMethodId ?? null,
-            balancePaymentMethodId: res.balancePaymentMethodId ?? null,
-            complementPaymentMethodId: res.complementPaymentMethodId ?? null,
             touristTaxInComplement: Boolean(res.touristTaxInComplement),
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
             // bit lives in `reservation_options`, but they're not part of form.selectedOptions
@@ -901,9 +868,6 @@ export default function ReservationPage() {
             platformCommissionAmount: '',
             platformGrossAmount: '',
             platformPayoutAmount: '',
-            depositPaymentMethodId: paymentMethodDefaultId,
-            balancePaymentMethodId: paymentMethodDefaultId,
-            complementPaymentMethodId: paymentMethodDefaultId,
           });
 
           const offeredOpts = new Set((devis.options || [])
@@ -1004,9 +968,6 @@ export default function ReservationPage() {
             platformCommissionAmount: '',
             platformGrossAmount: '',
             platformPayoutAmount: '',
-            depositPaymentMethodId: paymentMethodDefaultId,
-            balancePaymentMethodId: paymentMethodDefaultId,
-            complementPaymentMethodId: paymentMethodDefaultId,
           });
 
           await loadResourcesAvailability(startDate, endDate, initialPropId);
@@ -1120,10 +1081,6 @@ export default function ReservationPage() {
           customPrice: form.customPrice,
           platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (net perçu line)
           platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour)
-          // specs/direct-payment-method-commission.md — per-échéance payment methods (direct only).
-          depositPaymentMethodId: form.depositPaymentMethodId ?? null,
-          balancePaymentMethodId: form.balancePaymentMethodId ?? null,
-          complementPaymentMethodId: form.complementPaymentMethodId ?? null,
           depositPaid: form.depositPaid,
           balancePaid: form.balancePaid,
           complementPaid: form.complementPaid,
@@ -2055,10 +2012,6 @@ export default function ReservationPage() {
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
           platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
-          // specs/direct-payment-method-commission.md — per-échéance payment methods (direct only).
-          depositPaymentMethodId: form.depositPaymentMethodId ?? null,
-          balancePaymentMethodId: form.balancePaymentMethodId ?? null,
-          complementPaymentMethodId: form.complementPaymentMethodId ?? null,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
           cautionReceivedDate: form.cautionReceivedDate,
@@ -2116,10 +2069,6 @@ export default function ReservationPage() {
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
           platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
           platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
-          // specs/direct-payment-method-commission.md — per-échéance payment methods (direct only).
-          depositPaymentMethodId: form.depositPaymentMethodId ?? null,
-          balancePaymentMethodId: form.balancePaymentMethodId ?? null,
-          complementPaymentMethodId: form.complementPaymentMethodId ?? null,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,
@@ -2542,8 +2491,6 @@ export default function ReservationPage() {
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
     accommodationBasePriceDisplay, pricingQuote,
-    // specs/direct-payment-method-commission.md — payment-method catalogue + default for the selects.
-    paymentMethods, paymentMethodDefaultId,
   };
 
   return (

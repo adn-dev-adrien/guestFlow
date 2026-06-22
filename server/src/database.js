@@ -1506,58 +1506,6 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // only). Both NULL on direct / unused.
   if (!rcols.includes('platformGrossAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformGrossAmount REAL');
   if (!rcols.includes('platformPayoutAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPayoutAmount REAL');
-  // specs/direct-payment-method-commission.md — direct reservations carry a payment method per échéance
-  // (acompte / solde / complément). Each method has a commission rate; the engine snapshots the resulting
-  // commission € per échéance. NULL method id → resolved to the catalogue's default method at compute
-  // time; 0 commission → behaviour identical to pre-feature direct bookings. Platform reservations keep
-  // their own `platformCommissionAmount` flow and leave these NULL/0.
-  if (!rcols.includes('depositPaymentMethodId')) db.exec('ALTER TABLE reservations ADD COLUMN depositPaymentMethodId INTEGER');
-  if (!rcols.includes('balancePaymentMethodId')) db.exec('ALTER TABLE reservations ADD COLUMN balancePaymentMethodId INTEGER');
-  if (!rcols.includes('complementPaymentMethodId')) db.exec('ALTER TABLE reservations ADD COLUMN complementPaymentMethodId INTEGER');
-  if (!rcols.includes('depositCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN depositCommissionAmount REAL NOT NULL DEFAULT 0');
-  if (!rcols.includes('balanceCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN balanceCommissionAmount REAL NOT NULL DEFAULT 0');
-  if (!rcols.includes('complementCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN complementCommissionAmount REAL NOT NULL DEFAULT 0');
-}
-// specs/direct-payment-method-commission.md §3.1 — catalogue of payment methods for DIRECT reservations,
-// each with a commission rate (%) charged by the processor (CB/SumUp/Stripe…). Mirrors the `platforms`
-// commission config: optional per-method `commissionAccountNumber` (NULL ⇒ app_settings default) +
-// `hasVatOnCommission`. Exactly one row is the default (`isDefault = 1`); referenced methods are
-// deactivated (`isActive = 0`), never hard-deleted, so historical reservations keep their snapshot.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS payment_methods (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    commissionPercent REAL NOT NULL DEFAULT 0,
-    commissionAccountNumber TEXT,
-    hasVatOnCommission INTEGER NOT NULL DEFAULT 0,
-    isDefault INTEGER NOT NULL DEFAULT 0,
-    isActive INTEGER NOT NULL DEFAULT 1,
-    sortOrder INTEGER NOT NULL DEFAULT 0
-  )
-`);
-// specs/direct-payment-method-commission.md — some processors (Stripe…) bill a FIXED part per
-// transaction on top of the percentage (e.g. 0,25 € + 2,5 %). `commissionFixed` is that per-échéance
-// fixed fee (€). Idempotent ADD COLUMN for DBs predating it; DEFAULT 0 → no behaviour change.
-{
-  const pmCols = db.prepare('PRAGMA table_info(payment_methods)').all().map((c) => c.name);
-  if (!pmCols.includes('commissionFixed')) {
-    db.exec('ALTER TABLE payment_methods ADD COLUMN commissionFixed REAL NOT NULL DEFAULT 0');
-  }
-}
-// Seed the four common French methods at 0 % (idempotent: only when the table is empty), so existing
-// direct reservations resolve to a zero-commission default and nothing moves until the operator sets a
-// real rate AND re-saves. « Virement » is the default method.
-if (!db.prepare('SELECT 1 FROM payment_methods LIMIT 1').get()) {
-  const seed = db.prepare(
-    'INSERT INTO payment_methods (name, commissionPercent, isDefault, sortOrder) VALUES (?, 0, ?, ?)'
-  );
-  const seedMany = db.transaction(() => {
-    seed.run('Virement', 1, 0);
-    seed.run('Espèces', 0, 1);
-    seed.run('Chèque', 0, 2);
-    seed.run('Carte bancaire', 0, 3);
-  });
-  seedMany();
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
 db.exec(`

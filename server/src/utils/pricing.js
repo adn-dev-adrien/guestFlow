@@ -981,17 +981,6 @@ function calculateReservationQuote({
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
   // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
   platformGrossAmount: platformGrossAmountInput,
-  // specs/direct-payment-method-commission.md — DIRECT reservations carry a payment method per échéance
-  // (acompte / solde / complément), each charged a commission rate by the processor. `paymentMethodRates`
-  // is { id → { rate, account, hasVat } } (the controller passes paymentMethodsModel.rateMap());
-  // `defaultPaymentMethodId` fills any unset échéance. The engine snapshots commission_k = round(amount_k
-  // TTC × rate_k / 100). Platform reservations ignore these — their commission rides on
-  // platformCommissionAmount above.
-  depositPaymentMethodId,
-  balancePaymentMethodId,
-  complementPaymentMethodId,
-  paymentMethodRates,
-  defaultPaymentMethodId,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1681,46 +1670,6 @@ function calculateReservationQuote({
     resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
 
-  // ── Per-payment-method commissions (DIRECT reservations only) ───────────────────────────────────
-  // specs/direct-payment-method-commission.md §3.3. Each CHARGED échéance is one processor transaction:
-  // commission = fixed fee + (amount TTC × rate). The fixed part (e.g. Stripe's 0,25 €) applies once per
-  // échéance with a non-zero amount; a 0 € échéance is no transaction → no fee. An unset échéance
-  // resolves to the catalogue default. Platform reservations keep 0 here (their commission rides on
-  // platformCommissionAmount). No CA gross-up downstream: the échéances already sum to the gross
-  // finalPrice — the commission is purely an expense + a reduction of the net cash line.
-  const methodRates = paymentMethodRates && typeof paymentMethodRates === 'object' ? paymentMethodRates : {};
-  const resolveMethodId = (id) => {
-    if (id != null && methodRates[id]) return Number(id);
-    if (defaultPaymentMethodId != null && methodRates[defaultPaymentMethodId]) return Number(defaultPaymentMethodId);
-    if (id != null) return Number(id);
-    return defaultPaymentMethodId != null ? Number(defaultPaymentMethodId) : null;
-  };
-  // Commission for one échéance: 0 when nothing is charged, else fixed + amount × rate.
-  const commissionForEcheance = (id, amount) => {
-    const amt = Number(amount) || 0;
-    if (amt <= 0) return 0;
-    const entry = id == null ? null : methodRates[id];
-    const rate = entry && Number.isFinite(Number(entry.rate)) ? Number(entry.rate) : 0;
-    const fixed = entry && Number.isFinite(Number(entry.fixed)) ? Number(entry.fixed) : 0;
-    return roundMoney(fixed + amt * rate / 100);
-  };
-  const effectiveDepositMethodId = platformIsNonDirect ? null : resolveMethodId(depositPaymentMethodId);
-  const effectiveBalanceMethodId = platformIsNonDirect ? null : resolveMethodId(balancePaymentMethodId);
-  const effectiveComplementMethodId = platformIsNonDirect ? null : resolveMethodId(complementPaymentMethodId);
-  const depositCommissionAmount = platformIsNonDirect ? 0 : commissionForEcheance(effectiveDepositMethodId, resolvedDepositAmount);
-  const balanceCommissionAmount = platformIsNonDirect ? 0 : commissionForEcheance(effectiveBalanceMethodId, resolvedBalanceAmount);
-  const complementCommissionAmount = platformIsNonDirect ? 0 : commissionForEcheance(effectiveComplementMethodId, resolvedComplementAmount);
-  const totalPaymentCommission = roundMoney(depositCommissionAmount + balanceCommissionAmount + complementCommissionAmount);
-  // Net the operator actually receives after processor fees = total charged to the guest (the sum of the
-  // three échéances, tax included — the processor bills on the full transaction) minus the commissions.
-  // Null (→ summary collapses to a single total line) when there is no commission, mirroring
-  // platformNetReceivedAmount. Use the échéance sum, NOT finalPrice, so the tourist tax (which rides in an
-  // échéance) is not silently dropped from the net.
-  const paymentEcheanceSum = roundMoney(resolvedDepositAmount + resolvedBalanceAmount + resolvedComplementAmount);
-  const paymentNetReceivedAmount = (!platformIsNonDirect && totalPaymentCommission > 0)
-    ? roundMoney(paymentEcheanceSum - totalPaymentCommission)
-    : null;
-
   return {
     property,
     nights,
@@ -1772,17 +1721,6 @@ function calculateReservationQuote({
     platformNetReceivedAmount,
     // specs/platform-payment-entry.md — echo the brut (pins finalPrice) so the client repopulates the field.
     platformGrossAmount: platformGrossPin,
-    // specs/direct-payment-method-commission.md — per-échéance payment method (resolved, incl. default
-    // fill) + the snapshotted commission € per échéance, the total, and the resulting net perçu. All
-    // null/0 for platform reservations.
-    depositPaymentMethodId: effectiveDepositMethodId,
-    balancePaymentMethodId: effectiveBalanceMethodId,
-    complementPaymentMethodId: effectiveComplementMethodId,
-    depositCommissionAmount,
-    balanceCommissionAmount,
-    complementCommissionAmount,
-    totalPaymentCommission,
-    paymentNetReceivedAmount,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
