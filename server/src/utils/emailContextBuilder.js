@@ -244,12 +244,15 @@ function buildContext({ reservation, client, property, options = [], resources =
   }
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy
-  // until a dedicated cautionMethod column lands.
+  // until a dedicated cautionMethod column lands. Also suppressed once the caution has been
+  // RECEIVED (`cautionReceived = 1`): if the operator already has the caution in hand, no arrival
+  // email should ask the guest to bring it (2026-06-22 fix — was reminding on a received caution).
   const cautionAmountNum = Number(r.cautionAmount || 0);
-  const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1;
+  const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
+  const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1 && !cautionReceivedFlag;
   // Precise caution signal for the J-1 reminder (specs/j1-arrival-reminder-email.md §3 rule 5):
   // the caution cheque is still owed when an amount is due AND it has not been received yet.
-  const cautionNotReceived = cautionAmountNum > 0 && Number(r.cautionReceived || 0) !== 1;
+  const cautionNotReceived = cautionAmountNum > 0 && !cautionReceivedFlag;
 
   // Baby-bed notice for the J-7 reminder (specs/j7-email-baby-beds.md). Only relevant when the
   // booking has at least one baby. If baby beds are provided → tell the guest how many; if the
