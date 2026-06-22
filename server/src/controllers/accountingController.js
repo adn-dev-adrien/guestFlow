@@ -78,7 +78,11 @@ function createAccountingController(accountingModel) {
           client: `${e.client.firstName || ''} ${e.client.lastName || ''}`.trim() || `Réservation #${e.reservationId}`,
           platform: e.platform,
           gross: e.clientGrossAmount == null ? null : Number(e.clientGrossAmount),
+          // Revenu brut (CA) = what the guest paid the platform = `encaissementTtc`. The NET (versement
+          // banked by the owner) = `encaissementNetTtc` (= revenu brut − commission). Surfacing the net
+          // so the operator can reconcile against the platform's bank transfer (2026-06-22).
           encaissement: Number(e.encaissementTtc),
+          net: Number(e.encaissementNetTtc),
           // specs/platform-commission-line.md — the commission is the engine-computed line
           // (operator-entered `platformCommissionAmount`, or the legacy gross−net fallback inside
           // buildEntry). Read it off the entry instead of re-deriving from the gross here.

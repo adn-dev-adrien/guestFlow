@@ -267,6 +267,9 @@ function entryToStructured(entry) {
     ? {
         platform: entry.platform,
         gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
+        // Net (versement) banked by the owner = revenu brut − commission, surfaced so the journal
+        // card can show what actually hit the bank (2026-06-22).
+        net: round2(Number(entry.encaissementNetTtc)),
         commission: entry.commission ? round2(entry.commission.ttc)
           : (entry.clientGrossAmount == null ? null
               : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
@@ -275,7 +278,7 @@ function entryToStructured(entry) {
         commissionVat: entry.commission ? entry.commission.vat : null,
         commissionHasVat: entry.commission ? entry.commission.hasVat : null,
       }
-    : { platform: null, gross: null, commission: null, commissionAccount: null, commissionHt: null, commissionVat: null, commissionHasVat: null };
+    : { platform: null, gross: null, net: null, commission: null, commissionAccount: null, commissionHt: null, commissionVat: null, commissionHasVat: null };
 
   // Position indices follow CSV_HEADERS exactly.
   const lines = rows.map((row) => {

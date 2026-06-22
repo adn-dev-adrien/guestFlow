@@ -137,6 +137,15 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 > `clientGrossAmount` and no entered commission. Confirmed by questionnaire: CA = total séjour, VAT at the
 > settings %, commission = the fiche field, net perçu shown. The `clientGrossAmount` column is kept for
 > legacy data + the boot backfill but is no longer entered or used for new reservations.
+>
+> **Accounting display (AccountingPage).** The platforms table + the journal cards now show
+> **Revenu brut / Commission / Net perçu (versement)** — the net is `encaissementNetTtc` (exposed as
+> `net` by `platformsPreview` + the structured export), so the operator can reconcile against the
+> platform's actual bank transfer. Validated on the real prod case Booking #6622323293 (Estelle Z.):
+> revenu brut 102,50 € · commission 16,48 € · versement 86,02 € (was wrongly showing commission 0,01 €
+> and no versement under the old gross-based model). The sales CSV already carries the columns the
+> accountant requires (Jour/Mois/Année, comptes 70600000/70600010/70601000, TVA 44571200/44571100,
+> compte client, libellé, débit, crédit) — unchanged.
 
 ## 8. Out of scope
 
