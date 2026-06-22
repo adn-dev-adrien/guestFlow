@@ -1,1 +1,0 @@
-- **Moyens de paiement — frais fixe.** Un moyen de paiement peut désormais porter, en plus du taux (%), une part **fixe par transaction** (€). Exemple Stripe : `0,25 € + 2,5 %`. La part fixe est facturée une fois par échéance encaissée (acompte / solde / complément ≠ 0) ; une échéance à 0 € ne coûte rien.

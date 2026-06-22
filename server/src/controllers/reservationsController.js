@@ -17,7 +17,6 @@ const establishmentClosuresModel = require('../models/establishmentClosuresModel
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
-const paymentMethodsModel = require('../models/paymentMethodsModel');
 const platformsModel = require('../models/platformsModel');
 
 // specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
@@ -28,19 +27,6 @@ function resolvePlatformTakesDeposit(platform) {
 }
 
 const model = reservationsModel;
-
-// specs/direct-payment-method-commission.md — build the engine params for per-échéance payment-method
-// commissions: the 3 selected method ids from the request + the catalogue's rate map and default id
-// (so the engine resolves rates and fills unset échéances). Loaded fresh per call; cheap.
-function paymentMethodEngineParams(body) {
-  return {
-    depositPaymentMethodId: body.depositPaymentMethodId,
-    balancePaymentMethodId: body.balancePaymentMethodId,
-    complementPaymentMethodId: body.complementPaymentMethodId,
-    paymentMethodRates: paymentMethodsModel.rateMap(),
-    defaultPaymentMethodId: paymentMethodsModel.getDefaultId(),
-  };
-}
 
 // "Empty platform" must never be persisted. The data invariant is: every reservation
 // either belongs to a platform (Airbnb, Booking, etc.) or is 'direct'. NULL / '' /
@@ -300,8 +286,6 @@ function calculatePrice(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
-    // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
-    ...paymentMethodEngineParams(req.body),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -409,8 +393,6 @@ function create(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
-    // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
-    ...paymentMethodEngineParams(req.body),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   if (quote.minNightsBreached && !forceMinNights) {
@@ -564,8 +546,6 @@ function update(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
-    // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
-    ...paymentMethodEngineParams(req.body),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 

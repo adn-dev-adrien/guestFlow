@@ -3,10 +3,7 @@ import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Bu
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
 import DateField from '../DateField';
-import PaymentMethodSelect from '../PaymentMethodSelect';
 import { useReservationForm } from './ReservationFormContext';
-
-function eur(n) { return `${Number(n || 0).toFixed(2).replace('.', ',')} €`; }
 
 function todayStr() {
   const d = new Date();
@@ -33,7 +30,6 @@ export default function FinanceSection() {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
     form, updateForm, pricingQuote, accommodationBasePriceDisplay,
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
-    paymentMethods = [], paymentMethodDefaultId = null,
   } = useReservationForm();
 
   // specs/platform-payment-entry.md — on a platform reservation the brut is the single price lever, so
@@ -44,17 +40,6 @@ export default function FinanceSection() {
   // The flag is echoed by the engine in the live quote (true only for non-direct platforms).
   const platformTakesDeposit = Boolean(pricingQuote?.platformTakesDeposit);
   const showNoDepositMessage = isPlatform && !platformTakesDeposit;
-
-  // specs/direct-payment-method-commission.md — per-échéance payment method. Default = one method for the
-  // whole reservation; « Détailler par paiement » reveals a select per échéance. The detail view turns on
-  // automatically when the stored échéance methods differ (an existing mixed-method reservation).
-  const depMethod = form.depositPaymentMethodId ?? paymentMethodDefaultId ?? null;
-  const balMethod = form.balancePaymentMethodId ?? paymentMethodDefaultId ?? null;
-  const compMethod = form.complementPaymentMethodId ?? paymentMethodDefaultId ?? null;
-  const methodsDiffer = !(depMethod === balMethod && balMethod === compMethod);
-  const [detailOverride, setDetailOverride] = React.useState(null);
-  const detailedMethods = detailOverride == null ? methodsDiffer : detailOverride;
-  const totalPaymentCommission = Number(pricingQuote?.totalPaymentCommission || 0);
 
   return (
     <Card variant="outlined" sx={formSectionCardSx}>
@@ -217,97 +202,6 @@ export default function FinanceSection() {
                 </>
               );
             })()}
-
-            {/* specs/direct-payment-method-commission.md — DIRECT reservations: a payment method per
-                échéance, each charged its catalogue commission. Hidden for platform reservations (they
-                use the « Paiement plateforme » block above). */}
-            {!isPlatform && paymentMethods.length > 0 && (
-              <>
-                <Divider />
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Moyen de paiement</Typography>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          size="small"
-                          checked={detailedMethods}
-                          onChange={(e) => {
-                            const on = e.target.checked;
-                            setDetailOverride(on);
-                            // Collapsing back to a single method → align the three échéances on the acompte's.
-                            if (!on) updateForm({ balancePaymentMethodId: depMethod, complementPaymentMethodId: depMethod });
-                          }}
-                          disabled={isReservationLocked}
-                        />
-                      }
-                      label={<Typography variant="caption" color="text.secondary">Détailler par paiement</Typography>}
-                      labelPlacement="start"
-                      sx={{ mr: 0, ml: 0 }}
-                    />
-                  </Box>
-                  {!detailedMethods ? (
-                    <PaymentMethodSelect
-                      label="Moyen de paiement"
-                      value={depMethod}
-                      defaultId={paymentMethodDefaultId}
-                      methods={paymentMethods}
-                      disabled={isReservationLocked}
-                      onChange={(id) => updateForm({ depositPaymentMethodId: id, balancePaymentMethodId: id, complementPaymentMethodId: id })}
-                    />
-                  ) : (
-                    <Grid container spacing={2} sx={sectionGridSx}>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <PaymentMethodSelect
-                          label="Acompte" value={depMethod} defaultId={paymentMethodDefaultId}
-                          methods={paymentMethods} disabled={isReservationLocked}
-                          onChange={(id) => updateForm({ depositPaymentMethodId: id })}
-                        />
-                        {Number(pricingQuote?.depositCommissionAmount || 0) > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                            Commission : {eur(pricingQuote.depositCommissionAmount)}
-                          </Typography>
-                        )}
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <PaymentMethodSelect
-                          label="Solde" value={balMethod} defaultId={paymentMethodDefaultId}
-                          methods={paymentMethods} disabled={isReservationLocked}
-                          onChange={(id) => updateForm({ balancePaymentMethodId: id })}
-                        />
-                        {Number(pricingQuote?.balanceCommissionAmount || 0) > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                            Commission : {eur(pricingQuote.balanceCommissionAmount)}
-                          </Typography>
-                        )}
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <PaymentMethodSelect
-                          label="Complément" value={compMethod} defaultId={paymentMethodDefaultId}
-                          methods={paymentMethods} disabled={isReservationLocked}
-                          onChange={(id) => updateForm({ complementPaymentMethodId: id })}
-                        />
-                        {Number(pricingQuote?.complementCommissionAmount || 0) > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                            Commission : {eur(pricingQuote.complementCommissionAmount)}
-                          </Typography>
-                        )}
-                      </Grid>
-                    </Grid>
-                  )}
-                  {totalPaymentCommission > 0 && (
-                    <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Typography variant="body2">
-                        Commission totale : <strong>{eur(totalPaymentCommission)}</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        Net perçu : <strong>{eur(pricingQuote?.paymentNetReceivedAmount ?? ((Number(pricingQuote?.depositAmount || 0) + Number(pricingQuote?.balanceAmount || 0) + Number(pricingQuote?.complementAmount || 0)) - totalPaymentCommission))}</strong>
-                      </Typography>
-                    </Stack>
-                  )}
-                </Box>
-              </>
-            )}
 
             <Divider />
 
