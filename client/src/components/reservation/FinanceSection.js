@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, Chip } from '@mui/material';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
 import DateField from '../DateField';
@@ -31,6 +31,10 @@ export default function FinanceSection() {
     form, updateForm, pricingQuote, accommodationBasePriceDisplay,
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
   } = useReservationForm();
+
+  // specs/platform-payment-entry.md — on a platform reservation the brut is the single price lever, so
+  // « Prix hébergement ajusté » / « Réduction » are hidden (they'd conflict with the brut pin).
+  const isPlatform = String(form.platform || 'direct').toLowerCase() !== 'direct';
 
   return (
     <Card variant="outlined" sx={formSectionCardSx}>
@@ -67,6 +71,7 @@ export default function FinanceSection() {
                     </CardContent>
                   </Card>
                 </Grid>
+                {!isPlatform && (
                 <Grid
                   size={{
                     xs: 12,
@@ -121,36 +126,77 @@ export default function FinanceSection() {
                     </CardContent>
                   </Card>
                 </Grid>
+                )}
               </Grid>
             </Box>
 
-            {String(form.platform || 'direct').toLowerCase() !== 'direct' && (
-              <>
-                <Divider />
-                <Box>
-                  <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Plateforme</Typography>
-                  <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
-                    <Grid
-                      size={{
-                        xs: 12,
-                        md: 6
-                      }}>
-                      {/* specs/platform-commission-line.md — operator-entered commission. The CA in
-                          accounting is the total séjour; the commission is deducted to surface the « Net
-                          perçu » (= solde). « Prix payé par le client » was retired 2026-06-22. */}
-                      <ArithmeticTextField
-                        label="Commission plateforme"
-                        value={form.platformCommissionAmount ?? ''}
-                        onCommit={(v) => updateForm({ platformCommissionAmount: v })}
-                        fullWidth
-                        size="small"
-                        helperText="Montant TTC retenu par la plateforme. Déduit du total du séjour pour le « Net perçu »."
-                      />
+            {String(form.platform || 'direct').toLowerCase() !== 'direct' && (() => {
+              // specs/platform-payment-entry.md — type the platform's figures verbatim: the brut pins the
+              // total séjour (accommodation auto-fits), the commission is deducted to the « Net perçu »
+              // (= solde), and the virement is a reconciliation control (✓ when net == virement).
+              const totalSejour = Number(pricingQuote?.totalStayPrice ?? pricingQuote?.finalPrice ?? 0);
+              const commission = Number(form.platformCommissionAmount || 0);
+              const netPercu = pricingQuote?.platformNetReceivedAmount != null
+                ? Number(pricingQuote.platformNetReceivedAmount)
+                : Math.round((totalSejour - commission) * 100) / 100;
+              const virement = form.platformPayoutAmount === '' || form.platformPayoutAmount == null
+                ? null : Number(form.platformPayoutAmount);
+              const ecart = virement == null ? null : Math.round((netPercu - virement) * 100) / 100;
+              const reconcileOk = ecart != null && Math.abs(ecart) < 0.01;
+              return (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Paiement plateforme</Typography>
+                    <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <ArithmeticTextField
+                          label="Montant total payé par le client"
+                          value={form.platformGrossAmount ?? ''}
+                          onCommit={(v) => updateForm({ platformGrossAmount: v })}
+                          fullWidth
+                          size="small"
+                          helperText="Le brut facturé par la plateforme — l'hébergement s'ajuste automatiquement (brut − options)."
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <ArithmeticTextField
+                          label="Commission plateforme"
+                          value={form.platformCommissionAmount ?? ''}
+                          onCommit={(v) => updateForm({ platformCommissionAmount: v })}
+                          fullWidth
+                          size="small"
+                          helperText="Montant TTC retenu par la plateforme."
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <ArithmeticTextField
+                          label="Virement reçu (contrôle)"
+                          value={form.platformPayoutAmount ?? ''}
+                          onCommit={(v) => updateForm({ platformPayoutAmount: v })}
+                          fullWidth
+                          size="small"
+                          helperText="Le montant réellement viré (facultatif) — pour vérifier la cohérence."
+                        />
+                      </Grid>
                     </Grid>
-                  </Grid>
-                </Box>
-              </>
-            )}
+                    <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Typography variant="body2">
+                        Net perçu : <strong>{netPercu.toFixed(2)}€</strong>
+                      </Typography>
+                      {virement != null && (
+                        <Chip
+                          size="small"
+                          color={reconcileOk ? 'success' : 'warning'}
+                          variant="outlined"
+                          label={reconcileOk ? '✓ cohérent avec le virement' : `écart : ${ecart.toFixed(2)}€`}
+                        />
+                      )}
+                    </Stack>
+                  </Box>
+                </>
+              );
+            })()}
 
             <Divider />
 

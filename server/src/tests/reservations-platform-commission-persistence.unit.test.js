@@ -69,3 +69,39 @@ test('switching a reservation to direct clears the commission', () => {
   model.updateReservation(id, basePayload({ platform: 'direct', platformCommissionAmount: 35 }), QUOTE, NIGHT_BLOCKS, 0);
   assert.equal(readCommission(db, id), null);
 });
+
+// specs/platform-payment-entry.md — brut (pins the total) + virement (reconciliation) round-trip.
+const readGross = (db, id) => db.prepare('SELECT platformGrossAmount FROM reservations WHERE id = ?').get(id).platformGrossAmount;
+const readPayout = (db, id) => db.prepare('SELECT platformPayoutAmount FROM reservations WHERE id = ?').get(id).platformPayoutAmount;
+
+test('platform: brut + virement are persisted (clamped ≥ 0)', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Gîtes de France', platformGrossAmount: 687, platformPayoutAmount: 626 }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readGross(db, id), 687);
+  assert.equal(readPayout(db, id), 626);
+});
+
+test('platform: empty brut/virement → NULL', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Airbnb', platformGrossAmount: '', platformPayoutAmount: '' }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readGross(db, id), null);
+  assert.equal(readPayout(db, id), null);
+});
+
+test('direct: brut/virement forced to NULL even when supplied', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'direct', platformGrossAmount: 687, platformPayoutAmount: 626 }), QUOTE, NIGHT_BLOCKS);
+  assert.equal(readGross(db, id), null);
+  assert.equal(readPayout(db, id), null);
+});
+
+test('updateReservation persists new brut + virement; switching to direct clears them', () => {
+  const { db, model } = freshModel();
+  const id = model.insertReservation(basePayload({ platform: 'Airbnb', platformGrossAmount: 100, platformPayoutAmount: 90 }), QUOTE, NIGHT_BLOCKS);
+  model.updateReservation(id, basePayload({ platform: 'Airbnb', platformGrossAmount: 120, platformPayoutAmount: 110 }), QUOTE, NIGHT_BLOCKS, 0);
+  assert.equal(readGross(db, id), 120);
+  assert.equal(readPayout(db, id), 110);
+  model.updateReservation(id, basePayload({ platform: 'direct', platformGrossAmount: 120, platformPayoutAmount: 110 }), QUOTE, NIGHT_BLOCKS, 0);
+  assert.equal(readGross(db, id), null);
+  assert.equal(readPayout(db, id), null);
+});

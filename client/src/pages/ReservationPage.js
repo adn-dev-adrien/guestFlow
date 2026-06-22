@@ -251,6 +251,9 @@ export default function ReservationPage() {
     // specs/platform-commission-line.md — operator-entered platform commission (€), '' = none. Drives
     // the « total séjour − commission = net perçu » block on the fiche (platform reservations only).
     platformCommissionAmount: '',
+    // specs/platform-payment-entry.md — brut (pins the total séjour) + virement (reconciliation), '' = unset.
+    platformGrossAmount: '',
+    platformPayoutAmount: '',
   });
 
   // §3.7 — keep the defaults cache in sync with the form's current property. This covers the
@@ -324,6 +327,8 @@ export default function ReservationPage() {
     // specs/platform-commission-line.md — recompute when the platform commission changes (it drives the
     // « net perçu » line + the solde).
     platformCommissionAmount: form.platformCommissionAmount === '' ? '' : Number(form.platformCommissionAmount),
+    // specs/platform-payment-entry.md — the brut pins the total séjour (recompute when it changes).
+    platformGrossAmount: form.platformGrossAmount === '' ? '' : Number(form.platformGrossAmount),
     depositPaid: Boolean(form.depositPaid),
     balancePaid: Boolean(form.balancePaid),
     complementPaid: Boolean(form.complementPaid),
@@ -380,7 +385,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-freeze-past-with-refresh.md — `freezeTouristTax` MUST be a dependency: the
     // « Recalculer » button flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, isPlatformReservation, freezeTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.platformGrossAmount, isPlatformReservation, freezeTouristTax]);
   const isDirty = initialSnapshot !== null && formSnapshot !== initialSnapshot;
   const miniVisibleDays = downSm ? 5 : downMd ? 6 : downLg ? 7 : 8;
   const isExistingReservationPricingLocked = Boolean(
@@ -733,6 +738,8 @@ export default function ReservationPage() {
             endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
             endOfStayComplementDetail: res.endOfStayComplementDetail || null,
             platformCommissionAmount: res.platformCommissionAmount == null || res.platformCommissionAmount === '' ? '' : res.platformCommissionAmount,
+            platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
+            platformPayoutAmount: res.platformPayoutAmount == null || res.platformPayoutAmount === '' ? '' : res.platformPayoutAmount,
             touristTaxInComplement: Boolean(res.touristTaxInComplement),
             // Auto-options that were flipped to Complément on this reservation. Their inComplement
             // bit lives in `reservation_options`, but they're not part of form.selectedOptions
@@ -859,6 +866,8 @@ export default function ReservationPage() {
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
             platformCommissionAmount: '',
+            platformGrossAmount: '',
+            platformPayoutAmount: '',
           });
 
           const offeredOpts = new Set((devis.options || [])
@@ -957,6 +966,8 @@ export default function ReservationPage() {
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
             platformCommissionAmount: '',
+            platformGrossAmount: '',
+            platformPayoutAmount: '',
           });
 
           await loadResourcesAvailability(startDate, endDate, initialPropId);
@@ -1069,6 +1080,7 @@ export default function ReservationPage() {
           discountPercent: form.discountPercent,
           customPrice: form.customPrice,
           platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (net perçu line)
+          platformGrossAmount: form.platformGrossAmount, // specs/platform-payment-entry.md (pins the total séjour)
           depositPaid: form.depositPaid,
           balancePaid: form.balancePaid,
           complementPaid: form.complementPaid,
@@ -1998,6 +2010,8 @@ export default function ReservationPage() {
           complementPaidDate: form.complementPaidDate || null,
           complementAmount: quote.complementAmount,
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
+          platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
+          platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           cautionAmount: form.cautionAmount,
           cautionReceived: form.cautionReceived,
           cautionReceivedDate: form.cautionReceivedDate,
@@ -2053,6 +2067,8 @@ export default function ReservationPage() {
           balanceAmount: quote.balanceAmount,
           balanceDueDate: quote.balanceDueDate,
           platformCommissionAmount: form.platformCommissionAmount === '' ? null : form.platformCommissionAmount,
+          platformGrossAmount: form.platformGrossAmount === '' ? null : form.platformGrossAmount,
+          platformPayoutAmount: form.platformPayoutAmount === '' ? null : form.platformPayoutAmount,
           cautionAmount: form.cautionAmount,
           notes: form.notes,
           forceMinNights,
