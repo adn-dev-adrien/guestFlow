@@ -5,6 +5,8 @@ const Database = require('better-sqlite3');
 const { create: createAccountingModel } = require('../models/accountingModel');
 const { create: createAccountingController } = require('../controllers/accountingController');
 
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
 // Integration-style regression tests for the two prod bugs Adrien spotted 2026-06-02:
 //   (1) "phantom tout à zéro" entry duplicating a reservation when `*Paid = 1` but the
 //       corresponding `*Amount = 0` (typical cause: depositDisabled toggled ON after the
@@ -218,6 +220,29 @@ test('platformsPreview: direct rows have null gross + null commission (rendered 
   assert.equal(directRow.commission, null);
   // But encaissement IS populated.
   assert.equal(directRow.encaissement, 200);
+  // Direct: net (versement) == encaissement (no commission).
+  assert.equal(directRow.net, 200);
+});
+
+// specs/platform-commission-line.md (2026-06-22) — the preview surfaces the NET (versement) so the
+// operator finds the amount actually wired by the platform. New model: revenu brut = total séjour,
+// commission = the entered field, net = revenu brut − commission.
+test('platformsPreview: a platform row exposes net (versement) = revenu brut − commission', () => {
+  const db = createDb();
+  insertReservation(db, {
+    propertyId: 1, platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50,
+    platformCommissionAmount: 16.48, clientGrossAmount: null,
+    depositAmount: 0, depositPaid: 0,
+    balanceAmount: 86.02, balancePaid: 1, balancePaidDate: '2026-08-15', // solde = net
+  });
+  const controller = createAccountingController(createAccountingModel(db));
+  const res = mockRes();
+  controller.platformsPreview({ query: { month: '8', year: '2026' } }, res);
+  const row = res.body.rows.find((r) => r.platform === 'Booking');
+  assert.ok(row);
+  assert.equal(round2(row.encaissement), 102.50, 'revenu brut = total séjour');
+  assert.equal(round2(row.commission), 16.48, 'commission = the entered field');
+  assert.equal(round2(row.net), 86.02, 'net (versement) = revenu brut − commission');
 });
 
 test('platformsPreview totalCommission aggregates ONLY non-direct rows', () => {
