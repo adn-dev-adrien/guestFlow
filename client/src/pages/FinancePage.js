@@ -11,6 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import PageHeader from '../components/PageHeader';
 import ReservationCard from '../components/ReservationCard';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
+import FinanceBreakdownDialog from '../components/FinanceBreakdownDialog';
 import { displayDate } from '../utils/formatters';
 import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
@@ -56,6 +57,8 @@ export default function FinancePage() {
   // detail (options/resources/beds…) exactly as PlanningPage does, then render the cards.
   const [upcomingDetails, setUpcomingDetails] = useState([]);
   const [sas, setSas] = useState(null);
+  // specs/finance-card-breakdown.md — the card whose breakdown dialog is open (null = closed).
+  const [breakdownMetric, setBreakdownMetric] = useState(null);
 
   useEffect(() => {
     api.getFinanceSummary(from, to).then(setSummary);
@@ -147,18 +150,26 @@ export default function FinancePage() {
   // colour language: the two annual cards first, then the three period cards (revenu total / encaissé /
   // en attente). Each card shows its element-by-element HT (server-computed) in smaller text.
   const yearCards = summary ? [
-    { label: 'Revenus', caption: "depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, bg: '#00838f' },
-    { label: 'Revenu total', caption: "sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, bg: '#006064' },
+    { metric: 'yearToDate', label: 'Revenus', caption: "depuis le début de l'année", value: summary.yearToDate, valueHt: summary.yearToDateHt, bg: '#00838f' },
+    { metric: 'yearTotal', label: 'Revenu total', caption: "sur l'année", value: summary.yearTotal, valueHt: summary.yearTotalHt, bg: '#006064' },
   ] : [];
   const periodCards = summary ? [
-    { label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, bg: 'primary.main' },
-    { label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, bg: '#4CAF50' },
-    { label: 'En attente de règlement', caption: 'sur la période', value: summary.totalPending, valueHt: summary.totalPendingHt, bg: '#f57c00' },
+    { metric: 'revenueTotal', label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, bg: 'primary.main' },
+    { metric: 'totalCollected', label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, bg: '#4CAF50' },
+    { metric: 'totalPending', label: 'En attente de règlement', caption: 'sur la période', value: summary.totalPending, valueHt: summary.totalPendingHt, bg: '#f57c00' },
   ] : [];
 
+  // specs/finance-card-breakdown.md — every card opens its breakdown dialog (keyboard-activable).
   const renderCard = (c, size) => (
     <Grid key={c.label} size={size}>
-      <Card sx={{ bgcolor: c.bg, color: 'white', height: '100%' }}>
+      <Card
+        onClick={() => setBreakdownMetric(c.metric)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBreakdownMetric(c.metric); } }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Voir le détail : ${c.label}`}
+        sx={{ bgcolor: c.bg, color: 'white', height: '100%', cursor: 'pointer', transition: 'transform .1s, box-shadow .1s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }}
+      >
         <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 0.75, '&:last-child': { pb: 0.75 } }}>
           <Typography variant="subtitle2" sx={{ lineHeight: 1.2 }}>
             {c.label}
@@ -572,6 +583,16 @@ export default function FinancePage() {
       </Card>
       {/* Projection moved to the very end of the page (less central than the operational tracking). */}
       {projectionCard}
+
+      {/* Breakdown of a clicked card figure — the reservations behind the amount. */}
+      <FinanceBreakdownDialog
+        open={!!breakdownMetric}
+        metric={breakdownMetric}
+        from={from}
+        to={to}
+        onClose={() => setBreakdownMetric(null)}
+        onOpenReservation={(id) => navigate(`/reservations/${id}`)}
+      />
 
       {/* Arrival SAS launched from an upcoming card (same dialog as the Planning). */}
       <ReservationSasDialog

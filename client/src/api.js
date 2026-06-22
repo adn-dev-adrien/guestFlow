@@ -167,6 +167,13 @@ const api = {
     if (to) params.set('to', to);
     return request(`/finance/summary?${params}`);
   },
+  getFinanceBreakdown: (metric, from, to) => {
+    const params = new URLSearchParams();
+    params.set('metric', metric);
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    return request(`/finance/breakdown?${params}`);
+  },
   getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),
   getFinanceOperational: () => request('/finance/operational'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),

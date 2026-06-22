@@ -1,0 +1,1 @@
+- **Suivi financier** : chaque carte de montant (Revenu total, Encaissé, En attente de règlement, Revenus depuis le début de l'année, Revenu total sur l'année) est désormais cliquable et ouvre le détail des réservations qui composent ce montant, avec une colonne dont le total correspond exactement au chiffre de la carte ; un clic sur une ligne ouvre la fiche de réservation.
