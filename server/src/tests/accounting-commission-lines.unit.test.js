@@ -173,6 +173,50 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
   assert.equal(round2(sumCredits), 102.50);
 });
 
+test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW model, VAT 20% on commission', () => {
+  // Real prod résa #1415. Location 607 + options 80 = total séjour 687 ; commission 61 € TTC
+  // (50,83 HT + 10,17 TVA 20 %, compte Gîtes de France 62260500) ; virement 626 €. This is the
+  // accountant's verbatim example, but stored in the NEW shape: finalPrice = 687 (total séjour),
+  // platformCommissionAmount = 61, solde = 626 (net). The accounting must reproduce CA 687 (split
+  // location 70600000 + options 70600010), commission 61 (HT/VAT), versement 626 — and balance.
+  const gdfQuote = {
+    ...baseQuote,
+    finalPrice: 687,
+    accommodationNetPrice: 551.82, accommodationVatAmount: 55.18, // 607 TTC @ 10 %
+    optionsNetPrice: 72.73, optionsVatAmount: 7.27,               //  80 TTC @ 10 %
+  };
+  const row = {
+    id: 1, firstName: 'Chloé', lastName: 'Le Lann', propertyName: 'Gite',
+    platform: 'Gîtes de France', finalPrice: 687, totalPrice: 687, touristTaxTotal: 0, touristTaxInComplement: 0,
+    clientGrossAmount: null, platformCommissionAmount: 61,
+    depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+    balanceAmount: 626, balancePaid: 1, balancePaidDate: '2026-05-07', // solde = net = 687 − 61
+    complementAmount: 0, complementPaid: 0, complementPaidDate: null,
+    accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
+    touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
+  };
+  const entry = buildEntry(row, gdfQuote, 'balance', null, commissionContext);
+  // Commission 61 € TTC with 20 % VAT → 50,83 HT + 10,17 VAT, Gîtes-de-France account.
+  assert.equal(round2(entry.commission.ttc), 61);
+  assert.equal(round2(entry.commission.ht), 50.83);
+  assert.equal(round2(entry.commission.vat), 10.17);
+  assert.equal(entry.commission.account, '62260500');
+  assert.equal(entry.commission.hasVat, true);
+  // Revenu brut 687, versement 626.
+  assert.equal(round2(entry.encaissementTtc), 687, 'revenu brut (CA) = total séjour');
+  assert.equal(round2(entry.encaissementNetTtc), 626, 'versement = solde');
+  // Both revenue accounts are credited: location (70600000) + prestations complémentaires (70600010).
+  const rows = entryToRows(entry);
+  const creditAccounts = rows.filter((r) => typeof r[8] === 'number' && r[8] > 0).map((r) => r[6]);
+  assert.ok(creditAccounts.includes('70600000'), 'location gîte credited');
+  assert.ok(creditAccounts.includes('70600010'), 'prestations complémentaires (options) credited');
+  // Balanced at the total séjour.
+  const sumDebits = rows.reduce((s, r) => s + (typeof r[7] === 'number' ? r[7] : 0), 0);
+  const sumCredits = rows.reduce((s, r) => s + (typeof r[8] === 'number' ? r[8] : 0), 0);
+  assert.equal(round2(sumDebits), 687);
+  assert.equal(round2(sumCredits), 687);
+});
+
 test('Case 5: Unknown platform → falls back to default account; hasVat defaults to false', () => {
   const row = rowForPlatform({ platform: 'Booking.com', gross: 687, balance: 626 });
   const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
