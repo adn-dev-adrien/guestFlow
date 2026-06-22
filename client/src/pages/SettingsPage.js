@@ -13,6 +13,7 @@ import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarS
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
+import SettingsPaymentMethodsSection from '../components/SettingsPaymentMethodsSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY_FORM = {
@@ -433,6 +434,10 @@ export default function SettingsPage() {
           {/* Push notifications (per-user, self-contained — not part of the global settings form). */}
           <Box sx={{ breakInside: 'avoid' }}>
             <SettingsPushNotificationsSection />
+          </Box>
+
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsPaymentMethodsSection />
           </Box>
         </Box>
       </Box>

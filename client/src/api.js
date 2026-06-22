@@ -142,6 +142,13 @@ const api = {
   // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),
+  // specs/direct-payment-method-commission.md — payment-method catalogue (direct-reservation commissions).
+  getPaymentMethods: (all = false) => request(`/payment-methods${all ? '?all=1' : ''}`).then((r) => r.paymentMethods || []),
+  createPaymentMethod: (data) => request('/payment-methods', { method: 'POST', body: data }).then((r) => r.paymentMethod),
+  updatePaymentMethod: (id, data) => request(`/payment-methods/${id}`, { method: 'PUT', body: data }).then((r) => r.paymentMethod),
+  setPaymentMethodDefault: (id) => request(`/payment-methods/${id}/default`, { method: 'PUT' }).then((r) => r.paymentMethod),
+  setPaymentMethodActive: (id, isActive) => request(`/payment-methods/${id}/active`, { method: 'PUT', body: { isActive } }).then((r) => r.paymentMethod),
+  deletePaymentMethod: (id) => request(`/payment-methods/${id}`, { method: 'DELETE' }),
   getReservation: (id) => request(`/reservations/${id}`),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
