@@ -681,9 +681,15 @@ export default function PricingSummary({
                 Désactivé (ajouté au solde)
               </Typography>
             ) : (
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.depositAmount.toFixed(2)}€</Typography>
+              // specs/platform-per-echeance-commission.md — show the NET acompte (montant − commission acompte).
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{(Number(form.depositAmount || 0) - Number(quote?.acompteCommissionAmount || 0)).toFixed(2)}€</Typography>
             )}
           </Box>
+          {!form.depositDisabled && Number(quote?.acompteCommissionAmount || 0) > 0 && (
+            <Typography variant="caption" color="text.secondary">
+              net de la commission acompte ({Number(quote.acompteCommissionAmount).toFixed(2)}€)
+            </Typography>
+          )}
           {!form.depositDisabled && form.depositDueDate && (
             <Typography variant="caption" color="text.secondary">
               À payer avant : {new Date(form.depositDueDate).toLocaleDateString('fr-FR')}
@@ -704,13 +710,19 @@ export default function PricingSummary({
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">Solde</Typography>
+            {/* specs/platform-per-echeance-commission.md — show the NET solde (montant − commission solde). */}
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {form.depositDisabled
-                ? (Number(form.depositAmount || 0) + Number(form.balanceAmount || 0)).toFixed(2)
-                : form.balanceAmount.toFixed(2)}
+              {((form.depositDisabled
+                ? (Number(form.depositAmount || 0) + Number(form.balanceAmount || 0))
+                : Number(form.balanceAmount || 0)) - Number(quote?.platformCommissionAmount || 0)).toFixed(2)}
               €
             </Typography>
           </Box>
+          {Number(quote?.platformCommissionAmount || 0) > 0 && (
+            <Typography variant="caption" color="text.secondary">
+              net de la commission solde ({Number(quote.platformCommissionAmount).toFixed(2)}€)
+            </Typography>
+          )}
           {form.balanceDueDate && (
             <Typography variant="caption" color="text.secondary">
               À payer avant : {new Date(form.balanceDueDate).toLocaleDateString('fr-FR')}
