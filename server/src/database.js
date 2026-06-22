@@ -1501,6 +1501,11 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // « total séjour − commission = net perçu » block on the fiche. NULL/0 on direct bookings. Distinct
   // from the accounting commission, which is still derived from `clientGrossAmount` (gross − net).
   if (!rcols.includes('platformCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformCommissionAmount REAL');
+  // specs/platform-payment-entry.md — platform-payment block: `platformGrossAmount` (the brut the guest
+  // paid, pins the total séjour) + `platformPayoutAmount` (the bank transfer received, reconciliation
+  // only). Both NULL on direct / unused.
+  if (!rcols.includes('platformGrossAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformGrossAmount REAL');
+  if (!rcols.includes('platformPayoutAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPayoutAmount REAL');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
 db.exec(`

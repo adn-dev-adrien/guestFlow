@@ -273,6 +273,9 @@ function calculatePrice(req, res) {
     // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
     // returns the « total séjour − commission = net perçu » figures for the summary block.
     platformCommissionAmount: req.body.platformCommissionAmount,
+    // specs/platform-payment-entry.md — the brut pins the total séjour (finalPrice = brut, accommodation
+    // back-solved). Forwarded so the live preview reflects it.
+    platformGrossAmount: req.body.platformGrossAmount,
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   res.json(quote);
@@ -286,6 +289,8 @@ function create(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
+    platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
+    platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });
@@ -419,6 +424,8 @@ function update(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
+    platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
+    platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
   });
   if (financeError) return res.status(400).json({ error: financeError });

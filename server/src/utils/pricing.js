@@ -977,6 +977,10 @@ function calculateReservationQuote({
   // The fiche summary shows « total séjour − commission = net perçu ». 0 / null / direct → no
   // commission (the summary collapses to a single « Total du séjour TTC » line).
   platformCommissionAmount: platformCommissionAmountInput,
+  // specs/platform-payment-entry.md — the gross the guest paid the platform. When set on a non-direct
+  // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
+  // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
+  platformGrossAmount: platformGrossAmountInput,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1429,19 +1433,34 @@ function calculateReservationQuote({
   const customFinalPrice = customPrice === '' || customPrice === null || customPrice === undefined
     ? null
     : Number(customPrice);
+  // specs/platform-payment-entry.md — on a non-direct reservation a set `platformGrossAmount` PINS the
+  // total séjour: the accommodation is back-solved so `finalPrice = platformGrossAmount`. It supersedes
+  // `customPrice`/`discountPercent` (the brut is the single price lever for platforms). Clamped ≥ 0 so an
+  // inconsistent brut (< options) can't drive a negative accommodation.
+  const platformGrossPin = (String(platform || 'direct').toLowerCase() !== 'direct')
+    && platformGrossAmountInput !== '' && platformGrossAmountInput != null && Number.isFinite(Number(platformGrossAmountInput))
+    ? roundMoney(Number(platformGrossAmountInput))
+    : null;
+  const pinnedAccommodation = platformGrossPin != null
+    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - optionsTotal - resourcesTotal))
+    : null;
   const accommodationAdjustedPrice = roundMoney(
-    Number.isFinite(customFinalPrice)
-      ? customFinalPrice
-      : accommodationBaseTotal * (1 - normalizedDiscountPercent / 100)
+    pinnedAccommodation != null
+      ? pinnedAccommodation
+      : (Number.isFinite(customFinalPrice)
+        ? customFinalPrice
+        : accommodationBaseTotal * (1 - normalizedDiscountPercent / 100))
   );
   const finalPrice = roundMoney(accommodationAdjustedPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
   const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
   const accommodationDeltaAmount = roundMoney(Math.abs(accommodationBaseTotal - accommodationAdjustedPrice));
   const baseAccommodationAdjustedPrice = roundMoney(
-    Number.isFinite(customFinalPrice)
-      ? customFinalPrice
-      : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100)
+    pinnedAccommodation != null
+      ? pinnedAccommodation
+      : (Number.isFinite(customFinalPrice)
+        ? customFinalPrice
+        : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100))
   );
   const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
     ? 'reduction'
@@ -1451,7 +1470,7 @@ function calculateReservationQuote({
 
   // Engine price = what the pricing engine computes ignoring any manual override, so the client can
   // show the engine value alongside an overridden price. `finalPrice` stays the effective amount.
-  const priceOverridden = Number.isFinite(customFinalPrice);
+  const priceOverridden = pinnedAccommodation != null || Number.isFinite(customFinalPrice);
   const engineAccommodationPrice = roundMoney(accommodationBaseTotal * (1 - normalizedDiscountPercent / 100));
   const engineFinalPrice = roundMoney(engineAccommodationPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
 
@@ -1692,6 +1711,8 @@ function calculateReservationQuote({
     // platformNetReceivedAmount null, the summary shows the single « Total du séjour TTC » line.
     platformCommissionAmount,
     platformNetReceivedAmount,
+    // specs/platform-payment-entry.md — echo the brut (pins finalPrice) so the client repopulates the field.
+    platformGrossAmount: platformGrossPin,
     defaultCheckIn: property.defaultCheckIn || '15:00',
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
