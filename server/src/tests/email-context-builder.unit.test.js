@@ -102,7 +102,7 @@ test('flag hasBedLinenOption is true iff an option carries autoOptionType=bed_li
   assert.equal(no.flags.hasBedLinenOption, false);
 });
 
-test('flag cautionNotBanked: depends on cautionAmount > 0 AND depositPaid != 1', () => {
+test('flag cautionNotBanked: cautionAmount > 0 AND depositPaid != 1 AND caution NOT yet received', () => {
   const notPaid = buildContext(baseInput({ reservation: { cautionAmount: 500, depositPaid: 0 } }));
   assert.equal(notPaid.flags.cautionNotBanked, true);
 
@@ -111,6 +111,11 @@ test('flag cautionNotBanked: depends on cautionAmount > 0 AND depositPaid != 1',
 
   const noCaution = buildContext(baseInput({ reservation: { cautionAmount: 0, depositPaid: 0 } }));
   assert.equal(noCaution.flags.cautionNotBanked, false);
+
+  // 2026-06-22 fix: once the caution is RECEIVED, no arrival email asks the guest to bring it —
+  // even when it wasn't taken by bank transfer (depositPaid = 0).
+  const received = buildContext(baseInput({ reservation: { cautionAmount: 500, depositPaid: 0, cautionReceived: 1 } }));
+  assert.equal(received.flags.cautionNotBanked, false);
 });
 
 test('flag hasOptions reflects the options array', () => {
