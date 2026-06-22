@@ -142,6 +142,37 @@ test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount
   assert.equal(round2(sumCredits), 300);
 });
 
+test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, commission 16.48, versement 86.02', () => {
+  // Regression for the prod report (2026-06-22): Booking #6622323293. The owner listed the stay at
+  // 102,50 € (= what the guest pays the platform), Booking kept 16,48 € commission, and wired 86,02 €.
+  // The accounting MUST surface: CA (revenu brut) = 102,50 ; commission = 16,48 ; net (versement) = 86,02.
+  // Booking is unknown to the commissionContext map → default account 622600, no VAT on the commission.
+  const bookingQuote = {
+    ...baseQuote,
+    finalPrice: 102.50,
+    accommodationNetPrice: 93.18, accommodationVatAmount: 9.32, // 102,50 TTC @ 10 %
+  };
+  const row = {
+    id: 1, firstName: 'Estelle', lastName: 'Zmyslowski', propertyName: 'Aventura lodge',
+    platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50, touristTaxTotal: 0, touristTaxInComplement: 0,
+    clientGrossAmount: 102.51, platformCommissionAmount: 16.48, // stale gross present; the new field wins
+    depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+    balanceAmount: 86.02, balancePaid: 1, balancePaidDate: '2026-05-18', // solde = net = 102,50 − 16,48
+    complementAmount: 0, complementPaid: 0, complementPaidDate: null,
+    accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
+    touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
+  };
+  const entry = buildEntry(row, bookingQuote, 'balance', null, commissionContext);
+  assert.equal(round2(entry.commission.ttc), 16.48, 'commission = the operator-entered field, NOT gross − net (0.01)');
+  assert.equal(round2(entry.encaissementTtc), 102.50, 'revenu brut (CA) = total séjour');
+  assert.equal(round2(entry.encaissementNetTtc), 86.02, 'versement (net banked) = solde');
+  const rows = entryToRows(entry);
+  const sumDebits = rows.reduce((s, r) => s + (typeof r[7] === 'number' ? r[7] : 0), 0);
+  const sumCredits = rows.reduce((s, r) => s + (typeof r[8] === 'number' ? r[8] : 0), 0);
+  assert.equal(round2(sumDebits), 102.50);
+  assert.equal(round2(sumCredits), 102.50);
+});
+
 test('Case 5: Unknown platform → falls back to default account; hasVat defaults to false', () => {
   const row = rowForPlatform({ platform: 'Booking.com', gross: 687, balance: 626 });
   const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);

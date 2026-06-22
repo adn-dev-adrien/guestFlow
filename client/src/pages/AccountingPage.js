@@ -251,9 +251,9 @@ export default function AccountingPage() {
                       <TableCell>Plateforme</TableCell>
                       {/* Small badge column with no header label (the badges speak for themselves). */}
                       <TableCell sx={{ width: 32, p: 0.5 }} />
-                      <TableCell sx={{ fontWeight: 700, bgcolor: 'primary.50' }}>Encaissement</TableCell>
+                      <TableCell>Revenu brut</TableCell>
                       <TableCell>Commission</TableCell>
-                      <TableCell>Brut payé client</TableCell>
+                      <TableCell sx={{ fontWeight: 700, bgcolor: 'rgba(46,125,50,0.08)' }}>Net perçu (versement)</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -277,13 +277,14 @@ export default function AccountingPage() {
                           <TableCell sx={{ width: 32, p: 0.5 }}>
                             <KindBadge kind={row.kind} />
                           </TableCell>
-                          {/* Encaissement: highlighted column — bold + tinted background so the
-                              eye lands on it first when scanning the table. */}
-                          <TableCell sx={{ fontWeight: 700, bgcolor: 'primary.50' }}>
-                            {formatEur(row.encaissement)}
+                          {/* Revenu brut (CA) = what the guest paid the platform. */}
+                          <TableCell>{formatEur(row.encaissement)}</TableCell>
+                          <TableCell>{row.commission == null ? '—' : `− ${formatEur(row.commission)}`}</TableCell>
+                          {/* Net perçu (versement) — highlighted: it's the figure the operator reconciles
+                              against the platform's bank transfer. */}
+                          <TableCell sx={{ fontWeight: 700, bgcolor: 'rgba(46,125,50,0.08)' }}>
+                            {formatEur(row.net)}
                           </TableCell>
-                          <TableCell>{formatEur(row.commission)}</TableCell>
-                          <TableCell>{formatEur(row.gross)}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -411,10 +412,13 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
         <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 1, bgcolor: 'rgba(33, 150, 243, 0.04)', borderBottom: '1px dashed', borderColor: 'divider' }}>
           <Stack direction="row" spacing={3} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Typography variant="caption" color="text.secondary">
-              Prix payé client : <strong>{formatEur(entry.platform.gross)}</strong>
+              Revenu brut : <strong>{formatEur(entry.encaissementTtc)}</strong>
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Commission plateforme : <strong>{formatEur(entry.platform.commission)}</strong>
+              Commission plateforme : <strong>− {formatEur(entry.platform.commission)}</strong>
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'success.dark' }}>
+              Net perçu (versement) : <strong>{formatEur(entry.platform.net)}</strong>
             </Typography>
           </Stack>
         </Box>
