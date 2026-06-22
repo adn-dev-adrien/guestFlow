@@ -79,3 +79,38 @@ test('direct reservation: no platform block (no commission field)', () => {
   renderFinance({ form: { platform: 'direct' } });
   expect(screen.queryByLabelText('Commission plateforme')).not.toBeInTheDocument();
 });
+
+// specs/platform-payment-entry.md — the « Paiement plateforme » block: type the brut + commission +
+// virement; « Prix ajusté » is hidden on platform (the brut is the single price lever); a ✓/✗ chip
+// reconciles the net perçu against the virement.
+test('platform: the 3 platform-payment fields render + « Prix ajusté » is hidden', () => {
+  renderFinance({ form: { platform: 'Gîtes de France' } });
+  expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
+  expect(screen.getByLabelText('Commission plateforme')).toBeInTheDocument();
+  expect(screen.getByLabelText('Virement reçu (contrôle)')).toBeInTheDocument();
+  // The brut is the single price lever → « Prix ajusté » is gone on platform.
+  expect(screen.queryByLabelText('Prix ajusté')).not.toBeInTheDocument();
+});
+
+test('direct: « Prix ajusté » is shown, no platform-payment block', () => {
+  renderFinance({ form: { platform: 'direct' } });
+  expect(screen.getByLabelText('Prix ajusté')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Montant total payé par le client')).not.toBeInTheDocument();
+});
+
+test('platform: ✓ chip when the net perçu matches the virement', () => {
+  renderFinance({
+    form: { platform: 'Gîtes de France', platformPayoutAmount: 626 },
+    pricingQuote: { totalStayPrice: 687, finalPrice: 687, platformNetReceivedAmount: 626 },
+  });
+  expect(screen.getByText(/cohérent avec le virement/i)).toBeInTheDocument();
+  expect(screen.queryByText(/écart/i)).not.toBeInTheDocument();
+});
+
+test('platform: ✗ écart chip when the net perçu differs from the virement', () => {
+  renderFinance({
+    form: { platform: 'Gîtes de France', platformPayoutAmount: 600 },
+    pricingQuote: { totalStayPrice: 687, finalPrice: 687, platformNetReceivedAmount: 626 },
+  });
+  expect(screen.getByText(/écart : 26\.00€/i)).toBeInTheDocument();
+});
