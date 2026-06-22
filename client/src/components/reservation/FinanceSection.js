@@ -136,11 +136,12 @@ export default function FinanceSection() {
             </Box>
 
             {String(form.platform || 'direct').toLowerCase() !== 'direct' && (() => {
-              // specs/platform-payment-entry.md — type the platform's figures verbatim: the brut pins the
-              // total séjour (accommodation auto-fits), the commission is deducted to the « Net perçu »
-              // (= solde), and the virement is a reconciliation control (✓ when net == virement).
+              // specs/platform-payment-entry.md + platform-per-echeance-commission.md — the brut pins the
+              // total séjour; the commissions are now entered per échéance (acompte + solde blocks). The
+              // « Net perçu » here = total − the engine's total commission; the virement reconciles it.
               const totalSejour = Number(pricingQuote?.totalStayPrice ?? pricingQuote?.finalPrice ?? 0);
-              const commission = Number(form.platformCommissionAmount || 0);
+              const commission = Number(pricingQuote?.totalPlatformCommission
+                ?? ((Number(form.platformCommissionAmount || 0)) + (Number(form.acompteCommissionAmount || 0))));
               const netPercu = pricingQuote?.platformNetReceivedAmount != null
                 ? Number(pricingQuote.platformNetReceivedAmount)
                 : Math.round((totalSejour - commission) * 100) / 100;
@@ -154,7 +155,7 @@ export default function FinanceSection() {
                   <Box>
                     <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Paiement plateforme</Typography>
                     <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
-                      <Grid size={{ xs: 12, md: 4 }}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <ArithmeticTextField
                           label="Montant total payé par le client"
                           value={form.platformGrossAmount ?? ''}
@@ -164,17 +165,7 @@ export default function FinanceSection() {
                           helperText="Le brut facturé par la plateforme — l'hébergement s'ajuste automatiquement (brut − options)."
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <ArithmeticTextField
-                          label="Commission plateforme"
-                          value={form.platformCommissionAmount ?? ''}
-                          onCommit={(v) => updateForm({ platformCommissionAmount: v })}
-                          fullWidth
-                          size="small"
-                          helperText="Montant TTC retenu par la plateforme."
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <ArithmeticTextField
                           label="Virement reçu (contrôle)"
                           value={form.platformPayoutAmount ?? ''}
@@ -279,6 +270,20 @@ export default function FinanceSection() {
                           }
                         />
                       )}
+                      {/* specs/platform-per-echeance-commission.md — commission on the acompte (platform
+                          only), booked on the platform's account on the deposit entry. */}
+                      {isPlatform && (
+                        <ArithmeticTextField
+                          label="Commission acompte (€)"
+                          value={form.acompteCommissionAmount ?? ''}
+                          onCommit={(v) => updateForm({ acompteCommissionAmount: v })}
+                          fullWidth
+                          size="small"
+                          disabled={isReservationLocked}
+                          sx={{ mb: 1.5 }}
+                          helperText="Frais retenus sur l'acompte (compta : compte de la plateforme)."
+                        />
+                      )}
                       <DateField
                         label="Échéance acompte"
                         type="date"
@@ -337,6 +342,20 @@ export default function FinanceSection() {
                     md: 6
                   }}>
                   <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Solde</Typography>
+                  {/* specs/platform-per-echeance-commission.md — commission on the solde (platform only),
+                      booked on the platform's account on the balance entry. */}
+                  {isPlatform && (
+                    <ArithmeticTextField
+                      label="Commission solde (€)"
+                      value={form.platformCommissionAmount ?? ''}
+                      onCommit={(v) => updateForm({ platformCommissionAmount: v })}
+                      fullWidth
+                      size="small"
+                      disabled={isReservationLocked}
+                      sx={{ mb: 1.5 }}
+                      helperText="Frais retenus sur le solde (compta : compte de la plateforme)."
+                    />
+                  )}
                   <DateField
                     label="Échéance solde"
                     type="date"

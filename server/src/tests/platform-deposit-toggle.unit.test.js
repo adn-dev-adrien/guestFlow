@@ -67,23 +67,30 @@ test('platform « Oui » splits the pre-arrival into acompte/solde (no commissio
   db.close();
 });
 
-test('platform « Oui » with a commission splits the NET pre-arrival (acompte + solde = net)', () => {
+// specs/platform-per-echeance-commission.md — the acompte/solde split the GROSS pre-arrival; the
+// commission is per-échéance (acompte + solde) and tracked separately. Net perçu = total − Σ commission.
+test('platform « Oui » with per-échéance commissions: gross split, net perçu = total − (acompte+solde)', () => {
   const db = createDb();
-  const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb', platformTakesDeposit: 1, platformCommissionAmount: 30 });
-  // net pre-arrival = 200 − 30 = 170 ; acompte = 30% × 170 = 51 ; solde = 119
-  assert.equal(q.depositAmount, 51);
-  assert.equal(q.balanceAmount, 119);
-  assert.equal(round2(q.depositAmount + q.balanceAmount), 170); // = net perçu
-  assert.equal(q.platformNetReceivedAmount, 170);
+  const q = calculateReservationQuote({
+    ...BASE, db, platform: 'Airbnb', platformTakesDeposit: 1,
+    acompteCommissionAmount: 1, platformCommissionAmount: 2, // acompte 1 €, solde 2 €
+  });
+  assert.equal(q.depositAmount, 60);   // GROSS 30% of 200
+  assert.equal(q.balanceAmount, 140);  // GROSS
+  assert.equal(q.depositAmount + q.balanceAmount, 200);
+  assert.equal(q.acompteCommissionAmount, 1);
+  assert.equal(q.platformCommissionAmount, 2);
+  assert.equal(q.totalPlatformCommission, 3);
+  assert.equal(q.platformNetReceivedAmount, 197); // 200 − 3
   db.close();
 });
 
-test('platform « Oui » with a manual acompte override → solde absorbs the rest of the net', () => {
+test('platform « Oui » with a manual acompte override → solde absorbs the rest of the gross', () => {
   const db = createDb();
-  const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb', platformTakesDeposit: 1, platformCommissionAmount: 30, depositAmountOverride: 40 });
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb', platformTakesDeposit: 1, depositAmountOverride: 40 });
   assert.equal(q.depositAmount, 40);
-  assert.equal(q.balanceAmount, 130); // 170 − 40
-  assert.equal(round2(q.depositAmount + q.balanceAmount), 170);
+  assert.equal(q.balanceAmount, 160); // 200 − 40 (gross)
+  assert.equal(q.depositAmount + q.balanceAmount, 200);
   db.close();
 });
 
@@ -108,14 +115,15 @@ const commissionContext = {
   platformByName: new Map([['airbnb', { name: 'Airbnb', commissionAccountNumber: '62260300', hasVatOnCommission: 0 }]]),
   paymentMethodById: new Map(),
 };
-// Platform Airbnb « Oui », commission 30. net = 270 → acompte 81 (30%×270), solde 189 (both NET, as stored).
+// Platform Airbnb « Oui ». GROSS amounts (deposit 90, balance 210); explicit per-échéance commission:
+// acompte 9 €, solde 21 €. CA = 300, net perçu = 270.
 function depositRow() {
   return {
     id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Lodge',
     platform: 'Airbnb', finalPrice: 300, totalPrice: 300, touristTaxTotal: 0, touristTaxInComplement: 0,
-    clientGrossAmount: null, platformCommissionAmount: 30,
-    depositAmount: 81, depositPaid: 1, depositPaidDate: '2026-06-04',
-    balanceAmount: 189, balancePaid: 1, balancePaidDate: '2026-06-20',
+    clientGrossAmount: null, platformCommissionAmount: 21, acompteCommissionAmount: 9,
+    depositAmount: 90, depositPaid: 1, depositPaidDate: '2026-06-04',
+    balanceAmount: 210, balancePaid: 1, balancePaidDate: '2026-06-20',
     complementAmount: 0, complementPaid: 0, complementPaidDate: null,
     accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
     touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
@@ -124,19 +132,21 @@ function depositRow() {
 function sumDebits(rows) { return round2(rows.reduce((s, r) => s + (typeof r[7] === 'number' ? r[7] : 0), 0)); }
 function sumCredits(rows) { return round2(rows.reduce((s, r) => s + (typeof r[8] === 'number' ? r[8] : 0), 0)); }
 
-test('accounting: commission split pro rata across acompte + solde; net cash per kind = stored amount', () => {
+test('accounting: explicit per-échéance commission — acompte on deposit, solde on balance; CA on gross', () => {
   const row = depositRow();
   const dep = buildEntry(row, acctQuote, 'deposit', null, commissionContext);
   const bal = buildEntry(row, acctQuote, 'balance', null, commissionContext);
-  // commission 30 split 81:189 of 270 → 9 on acompte, 21 on solde.
+  // acompteCommissionAmount on the deposit entry, platformCommissionAmount on the balance entry.
   assert.equal(round2(dep.commission.ttc), 9);
   assert.equal(round2(bal.commission.ttc), 21);
-  // Each échéance's net cash (bank movement) == its stored amount.
-  assert.equal(round2(dep.encaissementNetTtc), 81);
-  assert.equal(round2(bal.encaissementNetTtc), 189);
+  // Both book on the PLATFORM's commission account (Airbnb → 62260300).
+  assert.equal(dep.commission.account, '62260300');
+  assert.equal(bal.commission.account, '62260300');
+  // Net cash per échéance = its gross amount − its commission.
+  assert.equal(round2(dep.encaissementNetTtc), 81);  // 90 − 9
+  assert.equal(round2(bal.encaissementNetTtc), 189); // 210 − 21
   // CA recognised on the gross: deposit 90 + balance 210 = finalPrice 300.
   assert.equal(round2(dep.encaissementTtc + bal.encaissementTtc), 300);
-  // Both entries balance.
   for (const e of [dep, bal]) {
     const rows = entryToRows(e);
     assert.equal(sumDebits(rows), sumCredits(rows));
@@ -144,10 +154,10 @@ test('accounting: commission split pro rata across acompte + solde; net cash per
 });
 
 test('accounting backward-compat: a no-acompte platform books the whole commission on the solde', () => {
-  const row = { ...depositRow(), depositAmount: 0, depositPaid: 0, depositPaidDate: null, balanceAmount: 270 };
+  const row = { ...depositRow(), depositAmount: 0, depositPaid: 0, depositPaidDate: null, balanceAmount: 300, platformCommissionAmount: 30, acompteCommissionAmount: 0 };
   const dep = buildEntry(row, acctQuote, 'deposit', null, commissionContext);
   const bal = buildEntry(row, acctQuote, 'balance', null, commissionContext);
   assert.equal(dep, null); // no acompte encaissement
   assert.equal(round2(bal.commission.ttc), 30); // whole commission on the solde
-  assert.equal(round2(bal.encaissementNetTtc), 270);
+  assert.equal(round2(bal.encaissementNetTtc), 270); // 300 − 30
 });

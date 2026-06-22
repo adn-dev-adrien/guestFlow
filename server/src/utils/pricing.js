@@ -973,14 +973,17 @@ function calculateReservationQuote({
   freezeTouristTax,
   frozenTouristTaxTotal,
   frozenTouristTaxRate,
-  // specs/platform-commission-line.md — the platform commission the operator enters directly (€, TTC).
-  // The fiche summary shows « total séjour − commission = net perçu ». 0 / null / direct → no
-  // commission (the summary collapses to a single « Total du séjour TTC » line).
+  // specs/platform-commission-line.md + platform-per-echeance-commission.md — the platform commission on
+  // the SOLDE, operator-entered (€, TTC). Non-direct only. Books on the platform account on the balance
+  // entry; the acompte has its own `acompteCommissionAmount` below.
   platformCommissionAmount: platformCommissionAmountInput,
+  // specs/platform-per-echeance-commission.md — the platform commission on the ACOMPTE (€, TTC), operator-
+  // entered. Books on the platform account on the deposit entry. Net perçu = total − (acompte + solde).
+  acompteCommissionAmount: acompteCommissionAmountInput,
   // specs/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag (the controller
   // resolves it from the platforms table by name). Falsy (default) → the platform keeps the legacy
   // single-payment behaviour (deposit=0, all in the solde). Truthy → the platform's reservations use the
-  // normal acompte/solde split, computed on the NET pre-arrival (net = pre-arrival − commission).
+  // normal acompte/solde split of the GROSS pre-arrival.
   platformTakesDeposit,
   // specs/platform-payment-entry.md — the gross the guest paid the platform. When set on a non-direct
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
@@ -1606,27 +1609,27 @@ function calculateReservationQuote({
   // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
   // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
   // so the summary shows the single « Total du séjour TTC » line).
-  const enteredCommission = platformCommissionAmountInput === '' || platformCommissionAmountInput == null
-    ? 0
-    : Number(platformCommissionAmountInput);
-  const platformCommissionAmount = (platformIsNonDirect && Number.isFinite(enteredCommission) && enteredCommission > 0)
-    ? roundMoney(enteredCommission)
-    : 0;
-  const platformNetReceivedAmount = platformCommissionAmount > 0
-    ? roundMoney(totalStayPrice - platformCommissionAmount)
+  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
+  // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
+  // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
+  const clampCommission = (input) => {
+    const n = input === '' || input == null ? 0 : Number(input);
+    return platformIsNonDirect && Number.isFinite(n) && n > 0 ? roundMoney(n) : 0;
+  };
+  const platformCommissionAmount = clampCommission(platformCommissionAmountInput); // solde
+  const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput);   // acompte
+  const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
+  const platformNetReceivedAmount = totalPlatformCommission > 0
+    ? roundMoney(totalStayPrice - totalPlatformCommission)
     : null;
   if (platformIsNonDirect) {
-    // specs/platform-commission-line.md — the operator receives the NET (stay minus commission), so the
-    // acompte + solde split the NET pre-arrival. The complement keeps the on-arrival extras; the
-    // auto-gap baseline below is reduced by the same commission so it can't leak there.
-    const netPreArrival = roundMoney(Math.max(0, preArrivalAmount - platformCommissionAmount));
-    // specs/platform-deposit-toggle.md — platforms flagged « no acompte » (default) keep the legacy
-    // single-payment behaviour: deposit=0, the whole net pre-arrival in the solde. `depositDisabled`
-    // (the per-reservation opt-out) forces the same. Otherwise the platform takes a normal acompte/solde
-    // split of the NET pre-arrival — manual override allowed (a smaller acompte grows the solde).
+    // specs/platform-per-echeance-commission.md — the acompte/solde split the GROSS pre-arrival (the
+    // guest-facing amounts); the commission is booked separately per échéance, NOT subtracted from the
+    // displayed amounts. specs/platform-deposit-toggle.md — « no acompte » (default) or `depositDisabled`
+    // → deposit=0, everything in the solde; otherwise a normal acompte/solde split (manual override OK).
     if (!platformTakesDeposit || depositDisabled) {
       resolvedDepositAmount = 0;
-      resolvedBalanceAmount = netPreArrival;
+      resolvedBalanceAmount = roundMoney(preArrivalAmount);
     } else if (depositPaid && balancePaid) {
       resolvedDepositAmount = roundMoney(depositAmount);
       resolvedBalanceAmount = roundMoney(balanceAmount);
@@ -1637,13 +1640,13 @@ function calculateReservationQuote({
       } else if (depositAmountOverride !== null && depositAmountOverride !== undefined && depositAmountOverride !== '') {
         const overrideRaw = Number(depositAmountOverride);
         dep = Number.isFinite(overrideRaw)
-          ? roundMoney(Math.min(Math.max(0, overrideRaw), netPreArrival))
-          : roundMoney(netPreArrival * (Number(property.depositPercent || 0) / 100));
+          ? roundMoney(Math.min(Math.max(0, overrideRaw), preArrivalAmount))
+          : roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
       } else {
-        dep = roundMoney(netPreArrival * (Number(property.depositPercent || 0) / 100));
+        dep = roundMoney(preArrivalAmount * (Number(property.depositPercent || 0) / 100));
       }
       resolvedDepositAmount = dep;
-      resolvedBalanceAmount = roundMoney(Math.max(0, netPreArrival - dep));
+      resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - dep));
     }
   } else if (depositDisabled) {
   // `depositDisabled` opt-out wins over every other branch below — it's the explicit
@@ -1677,10 +1680,10 @@ function calculateReservationQuote({
   // + auto-gap when the total stay TTC drifted past the frozen deposit+balance. The auto-gap
   // appears once both `*Paid` flags are 1 (legacy behavior) OR when the tax is collected on
   // arrival (visible immediately as a check-in collection target). Frozen once `complementPaid`.
-  // specs/platform-commission-line.md — on a platform reservation the owner's total receipts are the
-  // NET (total séjour − commission), so the auto-gap reconciles against that net, not the gross stay
-  // total. Without this the commission deducted from the solde would re-surface as a phantom complement.
-  const ownerStayTotal = roundMoney(totalStayPrice - (platformIsNonDirect ? platformCommissionAmount : 0));
+  // specs/platform-per-echeance-commission.md — the acompte/solde now store the GROSS amounts (the
+  // commission is tracked + booked separately), so the auto-gap reconciles against the gross stay total
+  // for direct AND platform alike.
+  const ownerStayTotal = roundMoney(totalStayPrice);
   const autoGapBetweenDepositAndBalance = roundMoney(Math.max(
     0,
     ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount - forcedItemsTotal - taxInComplement,
@@ -1746,6 +1749,9 @@ function calculateReservationQuote({
     // for the « total séjour − commission = net perçu » summary block. Commission 0 (direct / none) →
     // platformNetReceivedAmount null, the summary shows the single « Total du séjour TTC » line.
     platformCommissionAmount,
+    // specs/platform-per-echeance-commission.md — the acompte commission + the total (acompte + solde).
+    acompteCommissionAmount,
+    totalPlatformCommission,
     platformNetReceivedAmount,
     // specs/platform-deposit-toggle.md — echo whether THIS platform takes an acompte, so the fiche
     // shows the acompte block (vs the « pas d'acompte » message) for a platform reservation.

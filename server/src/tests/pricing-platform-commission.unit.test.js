@@ -87,19 +87,20 @@ test('commission with options/resources → net = full total séjour − commiss
   db.close();
 });
 
-// specs/platform-commission-line.md (2026-06-21) — the SOLDE is the net the operator receives: the
-// commission is deducted from the balance, never surfaced as a phantom complement.
-test('platform reservation: the solde equals the net perçu (commission deducted from the balance)', () => {
+// specs/platform-per-echeance-commission.md (2026-06-22) — the acompte/solde now store the GROSS amounts
+// (what the guest pays); the commission is tracked separately and booked per échéance. The « net perçu »
+// = total − commission is a separate figure, no longer the stored solde.
+test('platform reservation: the solde is the gross (commission tracked separately, net perçu = total − commission)', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb', platformCommissionAmount: 35 });
   assert.equal(q.depositAmount, 0);
-  assert.equal(q.balanceAmount, 165);                            // 200 − 35
-  assert.equal(q.balanceAmount, q.platformNetReceivedAmount, 'solde = net perçu');
+  assert.equal(q.balanceAmount, 200);                            // GROSS — no longer net of commission
+  assert.equal(q.platformNetReceivedAmount, 165);                // 200 − 35 (separate figure)
   assert.equal(q.complementAmount, 0, 'the commission does NOT leak into the complement');
   db.close();
 });
 
-test('platform reservation: a forced-complement extra stays in the complement, commission only hits the solde', () => {
+test('platform reservation: a forced-complement extra stays in the complement; the solde is the gross pre-arrival', () => {
   const db = createDb();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Lit', 'per_stay', 50)").run();
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10)').run();
@@ -109,10 +110,11 @@ test('platform reservation: a forced-complement extra stays in the complement, c
     platformCommissionAmount: 40,
   });
   assert.equal(q.totalStayPrice, 250);
-  assert.equal(q.complementAmount, 50, 'the extra is the complement, not the commission');
-  assert.equal(q.balanceAmount, 160);                            // (250 − 50 extra) − 40 commission
-  // Owner receipts = solde + complement = the net perçu (250 − 40 = 210).
-  assert.equal(q.balanceAmount + q.complementAmount, q.platformNetReceivedAmount);
+  assert.equal(q.complementAmount, 50, 'the extra is the complement');
+  assert.equal(q.balanceAmount, 200);                            // gross pre-arrival = 250 − 50 complement
+  // The gross échéances sum to the total séjour; the commission is separate.
+  assert.equal(q.balanceAmount + q.complementAmount, q.totalStayPrice);
+  assert.equal(q.platformNetReceivedAmount, 210);                // 250 − 40
   db.close();
 });
 

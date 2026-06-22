@@ -1526,6 +1526,10 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // « total séjour − commission = net perçu » block on the fiche. NULL/0 on direct bookings. Distinct
   // from the accounting commission, which is still derived from `clientGrossAmount` (gross − net).
   if (!rcols.includes('platformCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformCommissionAmount REAL');
+  // specs/platform-per-echeance-commission.md — the platform commission on the ACOMPTE (€, TTC). The
+  // existing `platformCommissionAmount` now means the SOLDE commission; this one books on the deposit
+  // entry. NULL/0 on direct / no-acompte. Idempotent ADD COLUMN.
+  if (!rcols.includes('acompteCommissionAmount')) db.exec('ALTER TABLE reservations ADD COLUMN acompteCommissionAmount REAL');
   // specs/platform-payment-entry.md — platform-payment block: `platformGrossAmount` (the brut the guest
   // paid, pins the total séjour) + `platformPayoutAmount` (the bank transfer received, reconciliation
   // only). Both NULL on direct / unused.

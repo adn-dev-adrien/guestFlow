@@ -31,22 +31,30 @@ function renderSummary(quote) {
 
 const QUOTE = { finalPrice: 250, totalStayPrice: 250, nights: 2, optionLines: [], resourceLines: [], touristTaxTotal: 0, touristTaxOriginalTotal: 0 };
 
-test('platform reservation with a commission → brut = total séjour, « Commission plateforme », net perçu = total − commission', () => {
-  // total séjour 250, commission 40 → net perçu 210 (engine-provided).
-  renderSummary({ ...QUOTE, platformCommissionAmount: 40, platformNetReceivedAmount: 210 });
+test('platform with per-échéance commissions → brut + « Commission acompte »/« Commission solde », net perçu', () => {
+  // total séjour 250, acompte commission 9 + solde commission 21 → net perçu 220 (engine-provided).
+  renderSummary({ ...QUOTE, acompteCommissionAmount: 9, platformCommissionAmount: 21, totalPlatformCommission: 30, platformNetReceivedAmount: 220 });
   expect(screen.getByText('Total du séjour TTC (brut)')).toBeInTheDocument();
-  // Brut = the full total séjour (250), NOT total + commission.
   expect(screen.getByText('250.00€')).toBeInTheDocument();
-  expect(screen.getByText('Commission plateforme')).toBeInTheDocument();
-  expect(screen.getByText('− 40.00€')).toBeInTheDocument();
+  expect(screen.getByText('Commission acompte')).toBeInTheDocument();
+  expect(screen.getByText('− 9.00€')).toBeInTheDocument();
+  expect(screen.getByText('Commission solde')).toBeInTheDocument();
+  expect(screen.getByText('− 21.00€')).toBeInTheDocument();
   expect(screen.getByText('Net perçu TTC')).toBeInTheDocument();
-  // Net perçu = total séjour − commission = 210 (the unique deducted figure).
+  expect(screen.getByText('220.00€')).toBeInTheDocument();
+});
+
+test('solde-only commission → only the « Commission solde » line shows', () => {
+  renderSummary({ ...QUOTE, acompteCommissionAmount: 0, platformCommissionAmount: 40, totalPlatformCommission: 40, platformNetReceivedAmount: 210 });
+  expect(screen.getByText('Commission solde')).toBeInTheDocument();
+  expect(screen.queryByText('Commission acompte')).toBeNull();
   expect(screen.getByText('210.00€')).toBeInTheDocument();
 });
 
 test('no commission → the plain « Total du séjour TTC » line (no deduction block)', () => {
   renderSummary({ ...QUOTE, platformCommissionAmount: 0, platformNetReceivedAmount: null });
   expect(screen.getByText('Total du séjour TTC')).toBeInTheDocument();
-  expect(screen.queryByText('Commission plateforme')).toBeNull();
+  expect(screen.queryByText('Commission acompte')).toBeNull();
+  expect(screen.queryByText('Commission solde')).toBeNull();
   expect(screen.queryByText('Net perçu TTC')).toBeNull();
 });
