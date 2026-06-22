@@ -18,5 +18,7 @@ router.put('/:key/color', controller.setColor);
 // specs/per-platform-tourist-tax-three-way.md — set a platform's GLOBAL tourist-tax mode (applies to
 // every property at once). `:key` is the platform label/name (url-encoded).
 router.put('/:key/tourist-tax', controller.setTouristTax);
+// specs/platform-deposit-toggle.md — set a platform's GLOBAL acompte flag (applies to every property).
+router.put('/:key/deposit-mode', controller.setDepositMode);
 
 module.exports = router;

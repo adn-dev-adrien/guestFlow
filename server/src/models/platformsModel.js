@@ -256,6 +256,37 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, touristTaxCollection: flagsToTouristTaxCollection(flags.collectsTouristTax, flags.touristTaxRemittedByPlatform) };
     },
 
+    // specs/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag. Read defensively
+    // (column absent on minimal test DBs → 0). `direct` always returns 0 (it has its own deposit flow).
+    getDepositMode(name) {
+      const slug = platformSlug(name);
+      if (slug === DIRECT_NAME) return 0;
+      try {
+        const row = database.prepare('SELECT platformTakesDeposit AS d FROM platforms WHERE name = ? COLLATE NOCASE').get(String(name));
+        return row && Number(row.d) === 1 ? 1 : 0;
+      } catch (_) {
+        return 0;
+      }
+    },
+
+    // Set the platform's GLOBAL acompte flag. Upserts the platform row by canonical name (mirrors
+    // setTouristTaxCollection) so a never-synced built-in can be configured. `direct` is rejected.
+    setDepositMode(name, takesDeposit) {
+      const slug = platformSlug(name);
+      if (!slug || slug === DIRECT_NAME) return null;
+      let row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
+      if (!row) {
+        const canonical = formatPlatformName(name) || String(name).trim();
+        if (!canonical) return null;
+        stmts.upsert.run(canonical);
+        row = stmts.findByName.get(canonical);
+        if (!row) return null;
+      }
+      const value = takesDeposit === true || Number(takesDeposit) === 1 ? 1 : 0;
+      database.prepare('UPDATE platforms SET platformTakesDeposit = ? WHERE id = ?').run(value, row.id);
+      return { id: row.id, name: row.name, platformTakesDeposit: value };
+    },
+
     // Custom colour OVERRIDES only (platforms with a non-NULL `color`), keyed by slug. Consumed by the
     // calendar colour endpoint as `customColors` (the client already knows the built-in defaults).
     colorMap() {
@@ -285,6 +316,14 @@ function createPlatformsModel(database) {
           taxBySlug.set(platformSlug(r.name), r);
         }
       } catch (_) { /* tax columns missing → every platform falls back to the 'platform' default */ }
+      // specs/platform-deposit-toggle.md — GLOBAL per-platform "takes an acompte?" flag. Read
+      // defensively (column absent on minimal/pre-migration test DBs → default 0 = no acompte).
+      const depositBySlug = new Map();
+      try {
+        for (const r of database.prepare('SELECT name, platformTakesDeposit AS d FROM platforms').all()) {
+          depositBySlug.set(platformSlug(r.name), Number(r.d) === 1 ? 1 : 0);
+        }
+      } catch (_) { /* column missing → every platform falls back to 0 (no acompte) */ }
       // Prepared lazily: this model is constructed on minimal test DBs that have no `ical_sources`
       // table; only this per-property merge actually needs it.
       const sources = database.prepare(`
@@ -326,6 +365,8 @@ function createPlatformsModel(database) {
             const t = taxBySlug.get(slug);
             return t ? Number(t.c) : 1;
           })(),
+          // specs/platform-deposit-toggle.md — GLOBAL per-platform acompte flag (0 = no acompte, default).
+          platformTakesDeposit: slug === DIRECT_NAME ? 0 : (depositBySlug.get(slug) || 0),
           disabled: source ? Number(source.disabled) : 0,
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,

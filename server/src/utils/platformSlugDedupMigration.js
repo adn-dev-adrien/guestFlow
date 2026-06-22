@@ -21,7 +21,7 @@ const { formatPlatformName } = require('./platformNameFormat');
 
 const OPTIONAL_COLS = [
   'commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent',
-  'color', 'collectsTouristTax', 'touristTaxRemittedByPlatform',
+  'color', 'collectsTouristTax', 'touristTaxRemittedByPlatform', 'platformTakesDeposit',
 ];
 
 function tableExists(database, name) {
@@ -88,7 +88,7 @@ function runPlatformSlugDedup(database) {
       finalVals.collectsTouristTax = src.collectsTouristTax;
       if (present.includes('touristTaxRemittedByPlatform')) finalVals.touristTaxRemittedByPlatform = src.touristTaxRemittedByPlatform;
     }
-    for (const col of ['commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent', 'color']) {
+    for (const col of ['commissionAccountNumber', 'hasVatOnCommission', 'commissionPercent', 'color', 'platformTakesDeposit']) {
       if (!present.includes(col)) continue;
       if (isCustomScalar(col, winner[col])) { finalVals[col] = winner[col]; continue; }
       const donor = [...losers].filter((l) => isCustomScalar(col, l[col])).sort((a, b) => b.id - a.id)[0];

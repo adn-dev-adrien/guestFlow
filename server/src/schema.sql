@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS platforms (
     hasVatOnCommission INTEGER NOT NULL DEFAULT 0
   , commissionPercent REAL NOT NULL DEFAULT 0, color TEXT,
     collectsTouristTax INTEGER NOT NULL DEFAULT 1,
-    touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1);
+    touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1, platformTakesDeposit INTEGER NOT NULL DEFAULT 0);
 
 -- specs/direct-payment-method-commission.md §3.1 — payment-method catalogue for DIRECT reservations.
 CREATE TABLE IF NOT EXISTS payment_methods (

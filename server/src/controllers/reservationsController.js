@@ -18,6 +18,14 @@ const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const paymentMethodsModel = require('../models/paymentMethodsModel');
+const platformsModel = require('../models/platformsModel');
+
+// specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
+// platform name, to feed the pricing engine. Direct / unknown → 0 (no acompte).
+function resolvePlatformTakesDeposit(platform) {
+  if (platform == null || String(platform).trim() === '' || String(platform).toLowerCase() === 'direct') return 0;
+  try { return platformsModel.getDepositMode(platform); } catch (_) { return 0; }
+}
 
 const model = reservationsModel;
 
@@ -290,6 +298,8 @@ function calculatePrice(req, res) {
     // specs/platform-payment-entry.md — the brut pins the total séjour (finalPrice = brut, accommodation
     // back-solved). Forwarded so the live preview reflects it.
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
+    platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
     ...paymentMethodEngineParams(req.body),
   });
@@ -397,6 +407,8 @@ function create(req, res) {
     // vs fiche 994/903).
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
+    platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
     ...paymentMethodEngineParams(req.body),
   });
@@ -550,6 +562,8 @@ function update(req, res) {
     // and the commission (reduces the solde to the net) to the engine on SAVE, not just the live preview.
     platformCommissionAmount: req.body.platformCommissionAmount,
     platformGrossAmount: req.body.platformGrossAmount,
+    // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
+    platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
     // specs/direct-payment-method-commission.md — per-échéance payment methods + the catalogue rate map.
     ...paymentMethodEngineParams(req.body),
   });
