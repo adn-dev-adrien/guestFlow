@@ -76,6 +76,18 @@ function htAmount(r, ttcPortion, vatRate) {
   return round2(portion * ratio);
 }
 
+// specs/finance-card-breakdown.md §3.5 — the five clickable cards, each mapped to the reservation window
+// it sums over and the label its amount column carries in the breakdown dialog. The `total` of a
+// breakdown is guaranteed equal to the matching getSummary figure because both reuse totalSejour /
+// comptaCollected / isSettled over the same set.
+const BREAKDOWN_METRICS = {
+  revenueTotal:   { label: 'Revenu total sur la période',         column: 'Total de séjour', window: 'period' },
+  totalCollected: { label: 'Encaissé',                            column: 'Encaissé',        window: 'period' },
+  totalPending:   { label: 'En attente de règlement',             column: 'En attente',      window: 'period' },
+  yearToDate:     { label: "Revenus depuis le début de l'année",  column: 'Total de séjour', window: 'year' },
+  yearTotal:      { label: "Revenu total sur l'année",            column: 'Total de séjour', window: 'year' },
+};
+
 function createFinanceModel(database) {
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
@@ -180,6 +192,89 @@ function createFinanceModel(database) {
         yearTotalHt:    round2(yearTotalHt),
         reservations:   enriched,
         revenueByProperty,
+      };
+    },
+
+    // specs/finance-card-breakdown.md — the reservations behind a single card figure, with one amount
+    // column whose Σ equals the card. Reuses the SAME per-reservation helpers as getSummary so the total
+    // is coherent by construction. Period metrics honour the du/au range; annual metrics use the calendar
+    // year computed here (the from/to are ignored for them).
+    getBreakdown({ metric, from, to } = {}) {
+      const def = BREAKDOWN_METRICS[metric];
+      if (!def) return { ok: false, status: 400, error: 'Métrique inconnue.' };
+
+      const today = todayIso();
+      const vatRate = getVatRate(database);
+
+      const selectRows = (start, end) => database.prepare(`
+        SELECT r.*, c.lastName, c.firstName, p.name as propertyName
+        FROM reservations r
+        JOIN clients c ON r.clientId = c.id
+        JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
+        ORDER BY r.endDate
+      `).all(start, end);
+
+      let rows;
+      let windowMeta;
+      if (def.window === 'period') {
+        const start = from || today;
+        const end = to || '2099-12-31';
+        rows = selectRows(start, end);
+        windowMeta = { kind: 'period', from: start, to: end };
+      } else {
+        const year = new Date().getFullYear();
+        const yearStart = `${year}-01-01`;
+        const yearEnd = `${year}-12-31`;
+        rows = selectRows(yearStart, yearEnd);
+        windowMeta = { kind: 'year', year, from: yearStart, to: yearEnd };
+      }
+
+      // include = does this reservation contribute to the figure; amount = its contribution. Mirrors the
+      // exact predicates getSummary applies for each figure (a non-contributing row would just add 0).
+      const contribution = (r) => {
+        switch (metric) {
+          case 'totalCollected': { const amount = comptaCollected(r); return { include: amount > 0, amount }; }
+          case 'totalPending':   return { include: r.endDate < today && !isSettled(r), amount: totalSejour(r) };
+          case 'yearToDate':     return { include: r.endDate <= today, amount: totalSejour(r) };
+          case 'revenueTotal':
+          case 'yearTotal':
+          default:               return { include: true, amount: totalSejour(r) };
+        }
+      };
+
+      let total = 0;
+      let totalHt = 0;
+      const outRows = [];
+      for (const r of rows) {
+        const { include, amount } = contribution(r);
+        if (!include) continue;
+        const amountHt = htAmount(r, amount, vatRate);
+        total += amount;
+        totalHt += amountHt;
+        outRows.push({
+          id: r.id,
+          clientName: `${r.firstName} ${r.lastName}`.trim(),
+          propertyName: r.propertyName,
+          platform: r.platform,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          amount: round2(amount),
+          amountHt,
+        });
+      }
+
+      return {
+        ok: true,
+        data: {
+          metric,
+          label: def.label,
+          column: def.column,
+          window: windowMeta,
+          total: round2(total),
+          totalHt: round2(totalHt),
+          rows: outRows,
+        },
       };
     },
 
