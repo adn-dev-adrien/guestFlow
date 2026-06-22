@@ -47,6 +47,7 @@ const SAMPLE_PLATFORMS = {
       gross: 220,
       encaissement: 200,
       commission: 20,
+      net: 180,
     },
   ],
   totalCommission: 20,
