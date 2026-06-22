@@ -93,7 +93,7 @@ The net perçu (= solde) and the accounting are unchanged downstream — only th
 | `database.js` + `schema.sql` | — | T | Two new nullable columns on `reservations`: `platformGrossAmount REAL`, `platformPayoutAmount REAL` (idempotent ADD COLUMN + base schema). |
 | `utils/pricing.js` | `pricing.js` | T | `calculateReservationQuote` accepts `platformGrossAmount`. When set + non-direct: derive the accommodation price so `finalPrice = platformGrossAmount` (= brut − billed options − billed resources, ≥ 0); bypass the `customPrice`/`discountPercent` accommodation path. Returns `platformGrossAmount` echoed + the usual `platformCommissionAmount`/`platformNetReceivedAmount`. |
 | `models/reservationsModel.js` | `reservationsModel.js` | T | Persist `platformGrossAmount` + `platformPayoutAmount` (NULL on direct) on insert/update; expose them from `getReservationById`. |
-| `controllers/reservationsController.js` | `reservationsController.js` | T | Validate both (money) on create/update; forward `platformGrossAmount` to the engine in `calculatePrice`. |
+| `controllers/reservationsController.js` | `reservationsController.js` | T | Validate both (money) on create/update; forward `platformGrossAmount` (+ `platform` + `platformCommissionAmount`) to the engine in **`calculatePrice` AND `create`/`update`** — **bugfix 2026-06-22:** create/update previously didn't pass them (nor `platform` on create), so the persisted finalPrice ignored the brut pin and the solde wasn't reduced to the net (fiche showed 994/903, books stored 983/892). The live preview and the books must price identically. |
 
 ### 4.2 Client (`client/src/`)
 
