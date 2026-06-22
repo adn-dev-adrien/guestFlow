@@ -34,7 +34,8 @@ function fakeRes() {
 function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }) {
   const balanceAmount = quoteBalanceAmount === undefined ? quoteFinalPrice : quoteBalanceAmount;
   const pricingMock = {
-    calculateReservationQuote() {
+    calculateReservationQuote(input) {
+      captures.quoteInput = input; // last input the controller passed to the engine
       return {
         totalPrice: 0, finalPrice: quoteFinalPrice, depositAmount: 0, balanceAmount,
         optionLines: [], resourceLines: [], nightlyBreakdown: [],
@@ -130,4 +131,26 @@ test('create — a real platform value is preserved', () => {
   const controller = buildController({ captures });
   controller.create({ body: bodyFor('Airbnb') }, fakeRes());
   assert.equal(captures.inserted.platform, 'Airbnb', 'non-empty platform left intact');
+});
+
+// specs/platform-payment-entry.md + platform-commission-line.md — the engine must receive `platform`,
+// `platformGrossAmount` (brut → pins finalPrice) and `platformCommissionAmount` (→ solde = net) on SAVE,
+// not just the live preview. Regression: Yann P. — stored finalPrice ignored the brut (983 vs 994) and
+// older résas had a full-total solde because these never reached the engine on create/update.
+test('create forwards platform + brut + commission to the pricing engine', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  controller.create({ body: bodyFor('Gîtes de France', { platformGrossAmount: 994, platformCommissionAmount: 91 }) }, fakeRes());
+  assert.equal(captures.quoteInput.platform, 'Gîtes de France', 'platform reaches the engine on create');
+  assert.equal(captures.quoteInput.platformGrossAmount, 994, 'brut reaches the engine on create');
+  assert.equal(captures.quoteInput.platformCommissionAmount, 91, 'commission reaches the engine on create');
+});
+
+test('update forwards platform + brut + commission to the pricing engine', () => {
+  const captures = {};
+  const controller = buildController({ captures });
+  controller.update({ params: { id: '999' }, body: bodyFor('Gîtes de France', { platformGrossAmount: 994, platformCommissionAmount: 91 }) }, fakeRes());
+  assert.equal(captures.quoteInput.platform, 'Gîtes de France');
+  assert.equal(captures.quoteInput.platformGrossAmount, 994);
+  assert.equal(captures.quoteInput.platformCommissionAmount, 91);
 });
