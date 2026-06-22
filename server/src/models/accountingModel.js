@@ -48,7 +48,7 @@ function createAccountingModel(database) {
                COALESCE(r.complementPaidCash, 0) AS complementPaidCash,
                r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidDate,
                COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
-               r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount,
+               r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
@@ -339,7 +339,11 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   //     gross-based recognition so already-booked platform reservations are unchanged.
   // Direct → gross === net (= finalPrice), no commission.
   const platformIsNonDirect = String(row.platform || 'direct').toLowerCase() !== 'direct';
-  const enteredCommissionTtc = platformIsNonDirect ? round2(Math.max(0, Number(row.platformCommissionAmount || 0))) : 0;
+  // specs/platform-per-echeance-commission.md — per-échéance platform commission: the acompte commission
+  // books on the deposit entry, the solde commission (`platformCommissionAmount`) on the balance entry.
+  const acompteCommissionTtc = platformIsNonDirect ? round2(Math.max(0, Number(row.acompteCommissionAmount || 0))) : 0;
+  const soldeCommissionTtc = platformIsNonDirect ? round2(Math.max(0, Number(row.platformCommissionAmount || 0))) : 0;
+  const enteredCommissionTtc = round2(acompteCommissionTtc + soldeCommissionTtc);
   let effectiveGross;
   let commissionTtcTotal;
   let grossRatio;
@@ -367,19 +371,16 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     commissionTtcTotal = round2(Math.max(0, effectiveGross - finalPriceTtc));
     grossRatio = finalPriceTtc > 0 ? effectiveGross / finalPriceTtc : 1;
   }
-  // specs/platform-deposit-toggle.md — the platform commission is split PRO RATA across the acompte +
-  // solde (the platform-settled échéances); the complement is on-site/host-billed → 0 (unchanged rule).
-  // The solde carries the rounding remainder so the shares sum exactly to the commission. For a
-  // no-acompte platform (deposit = 0) the whole commission still lands on the solde — backward-compatible.
-  const platformDepositTtc = Number(row.depositAmount) || 0;
-  const platformBalanceTtc = Number(row.balanceAmount) || 0;
-  const platformSettledSum = round2(platformDepositTtc + platformBalanceTtc);
-  const platformDepShare = (platformIsNonDirect && commissionTtcTotal > 0 && platformSettledSum > 0)
-    ? round2(commissionTtcTotal * platformDepositTtc / platformSettledSum)
-    : 0;
+  // specs/platform-per-echeance-commission.md — explicit per-échéance allocation: the operator-entered
+  // acompte commission rides on the deposit entry, the solde commission on the balance entry; the
+  // complement carries none (on-site / host-billed). For a no-acompte platform the acompte commission is
+  // 0 → the whole `platformCommissionAmount` lands on the solde (backward-compatible with the prior model).
+  // The balance carries `commissionTtcTotal − acompteCommission`: in the entered-commission path that's
+  // exactly the solde commission; in the LEGACY path (commission derived from `clientGrossAmount`, no
+  // acompte commission) it's the whole derived commission — both correct, both backward-compatible.
   const platformCommissionByKind = {
-    deposit:    platformDepShare,
-    balance:    round2(commissionTtcTotal - platformDepShare),
+    deposit:    acompteCommissionTtc,
+    balance:    round2(commissionTtcTotal - acompteCommissionTtc),
     complement: 0,
   };
   const commissionTtcEntry = platformIsNonDirect ? (platformCommissionByKind[kind] || 0) : 0;
