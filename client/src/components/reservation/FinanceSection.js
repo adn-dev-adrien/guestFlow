@@ -35,6 +35,11 @@ export default function FinanceSection() {
   // specs/platform-payment-entry.md — on a platform reservation the brut is the single price lever, so
   // « Prix hébergement ajusté » / « Réduction » are hidden (they'd conflict with the brut pin).
   const isPlatform = String(form.platform || 'direct').toLowerCase() !== 'direct';
+  // specs/platform-deposit-toggle.md — a platform configured « Acompte = Oui » takes a normal
+  // acompte/solde split, so the fiche shows the acompte block instead of the « pas d'acompte » message.
+  // The flag is echoed by the engine in the live quote (true only for non-direct platforms).
+  const platformTakesDeposit = Boolean(pricingQuote?.platformTakesDeposit);
+  const showNoDepositMessage = isPlatform && !platformTakesDeposit;
 
   return (
     <Card variant="outlined" sx={formSectionCardSx}>
@@ -203,9 +208,10 @@ export default function FinanceSection() {
             <Box>
               <Grid container spacing={2} sx={sectionGridSx}>
                 {/* accounting-platform-commission-and-no-deposit.md §3.3 rule 5 + §3.8 rule 21.
-                    Platform reservations are paid in a single bank transfer — no acompte.
-                    The whole pre-arrival amount lands on the Solde block to the right. */}
-                {String(form.platform || 'direct').toLowerCase() !== 'direct' ? (
+                    A platform configured « sans acompte » (default) is paid in a single transfer — the
+                    whole pre-arrival amount lands on the Solde. A platform set « Acompte = Oui »
+                    (specs/platform-deposit-toggle.md) shows the normal acompte block below. */}
+                {showNoDepositMessage ? (
                   <Grid
                     size={{ xs: 12, md: 6 }}>
                     <Typography variant="subtitle2" gutterBottom sx={{ mb: 1 }}>Acompte</Typography>

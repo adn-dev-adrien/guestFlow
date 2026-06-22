@@ -773,6 +773,13 @@ db.exec(`
       console.error('[tourist-tax] platforms backfill from ical_sources failed (non-fatal):', e && e.message);
     }
   }
+  // specs/platform-deposit-toggle.md — per-platform "takes an acompte?" flag (GLOBAL per platform, like
+  // the tourist-tax mode). 0 (default) = no acompte → the engine forces deposit=0 and puts everything in
+  // the solde (the legacy behaviour for every platform). 1 = the platform's reservations use the normal
+  // acompte/solde split. Idempotent ADD COLUMN; DEFAULT 0 → no behaviour change for existing platforms.
+  if (!platformCols.includes('platformTakesDeposit')) {
+    db.exec('ALTER TABLE platforms ADD COLUMN platformTakesDeposit INTEGER NOT NULL DEFAULT 0');
+  }
 }
 // specs/platforms-and-ical-rework.md §3 rule 10 — per (property, platform) "hidden from this
 // property's reservation views" flag. Independent of `isActive` (sync inclusion); a disabled
@@ -1000,6 +1007,24 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
       console.log(`[migration:platform-names-normalized] merged ${mergedCount} conflict(s), renamed ${renamedCount} row(s)`);
     });
     tx();
+  }
+}
+
+// Durable platform de-duplication by canonical name — runs on EVERY boot (idempotent), unlike the
+// one-shot above. Heals case-duplicate rows (e.g. « Lodgify » + « lodgify ») that the seeding can
+// re-introduce after the one-shot ran, which otherwise break the per-platform tourist-tax write/read
+// (the write hits one row, the read another). Merges operator-customised settings into the survivor.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const { runPlatformSlugDedup } = require('./utils/platformSlugDedupMigration');
+    const tx = db.transaction(() => runPlatformSlugDedup(db));
+    const { mergedCount, renamedCount } = tx();
+    if (mergedCount || renamedCount) {
+      // eslint-disable-next-line no-console
+      console.log(`[platform-slug-dedup] merged ${mergedCount} duplicate(s), renamed ${renamedCount} row(s)`);
+    }
+  } catch (e) {
+    console.error('[platform-slug-dedup] failed (non-fatal):', e && e.message);
   }
 }
 

@@ -367,10 +367,22 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     commissionTtcTotal = round2(Math.max(0, effectiveGross - finalPriceTtc));
     grossRatio = finalPriceTtc > 0 ? effectiveGross / finalPriceTtc : 1;
   }
-  // Per-entry commission share — full on balance for non-direct platforms; 0 otherwise.
-  const commissionTtcEntry = (platformIsNonDirect && kind === 'balance')
-    ? commissionTtcTotal
+  // specs/platform-deposit-toggle.md — the platform commission is split PRO RATA across the acompte +
+  // solde (the platform-settled échéances); the complement is on-site/host-billed → 0 (unchanged rule).
+  // The solde carries the rounding remainder so the shares sum exactly to the commission. For a
+  // no-acompte platform (deposit = 0) the whole commission still lands on the solde — backward-compatible.
+  const platformDepositTtc = Number(row.depositAmount) || 0;
+  const platformBalanceTtc = Number(row.balanceAmount) || 0;
+  const platformSettledSum = round2(platformDepositTtc + platformBalanceTtc);
+  const platformDepShare = (platformIsNonDirect && commissionTtcTotal > 0 && platformSettledSum > 0)
+    ? round2(commissionTtcTotal * platformDepositTtc / platformSettledSum)
     : 0;
+  const platformCommissionByKind = {
+    deposit:    platformDepShare,
+    balance:    round2(commissionTtcTotal - platformDepShare),
+    complement: 0,
+  };
+  const commissionTtcEntry = platformIsNonDirect ? (platformCommissionByKind[kind] || 0) : 0;
   // Resolve compte commission + hasVat from the global config snapshot.
   const commissionResolved = commissionTtcEntry > 0
     ? resolveCommissionConfig(row, commissionContext)

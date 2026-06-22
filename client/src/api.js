@@ -64,6 +64,8 @@ const api = {
   setPlatformColor: (platformKey, color) => request(`/platforms/${encodeURIComponent(platformKey)}/color`, { method: 'PUT', body: { color } }),
   // Global per-platform tourist-tax mode ('platform' | 'platform_reversed' | 'owner') — applies to every property.
   setPlatformTouristTax: (platformKey, touristTaxCollection) => request(`/platforms/${encodeURIComponent(platformKey)}/tourist-tax`, { method: 'PUT', body: { touristTaxCollection } }),
+  // specs/platform-deposit-toggle.md — global per-platform « acompte » flag (applies to every property).
+  setPlatformDepositMode: (platformKey, takesDeposit) => request(`/platforms/${encodeURIComponent(platformKey)}/deposit-mode`, { method: 'PUT', body: { takesDeposit } }),
   getPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources`),
   createPropertyIcalSource: (propId, data) => request(`/properties/${propId}/ical-sources`, { method: 'POST', body: data }),
   updatePropertyIcalSource: (propId, sourceId, data) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'PUT', body: data }),
