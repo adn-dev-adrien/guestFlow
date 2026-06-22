@@ -228,6 +228,34 @@ test('touristTaxInComplement on direct → tax contrib stays 0 on both flips', (
   assert.equal(after.touristTaxSoldeContribTtc, 0);
 });
 
+test('direct booking with acompte + tax-on-solde → tax contrib 0 on deposit, full tax on solde', () => {
+  // specs/tourist-tax-on-solde.md: when there is an acompte, the whole pre-arrival tax rides on the
+  // SOLDE. The deposit is 30 % of the ACCOMMODATION only (200 → 60, no tax); the balance carries the
+  // accommodation remainder (140) + the full tax (4). Contribs must mirror that: 0 tax on the acompte,
+  // the full 4 on the solde — never pro-rated across both buckets.
+  const db = createDb({ withTax: true });
+  const id = seedReservation(db, {
+    finalPrice: 200, totalPrice: 200, touristTaxTotal: 4,
+    depositAmount: 60, balanceAmount: 144, complementAmount: 0,
+    platform: 'direct',
+  });
+  captureContribsOnFlip({ db, reservation: getRow(db, id), bucket: 'deposit' });
+  db.prepare('UPDATE reservations SET depositPaid = 1 WHERE id = ?').run(id);
+  captureContribsOnFlip({ db, reservation: getRow(db, id), bucket: 'balance' });
+
+  const after = getRow(db, id);
+  assert.equal(after.touristTaxAcompteContribTtc, 0);
+  assert.equal(after.touristTaxSoldeContribTtc, 4);
+  assert.equal(after.accommodationAcompteContribTtc, 60);
+  assert.equal(after.accommodationSoldeContribTtc, 140);
+  // Conservation: 60 + 0 (acompte) + 140 + 4 (solde) = 204 = depositAmount + balanceAmount.
+  assert.equal(
+    after.accommodationAcompteContribTtc + after.touristTaxAcompteContribTtc
+      + after.accommodationSoldeContribTtc + after.touristTaxSoldeContribTtc,
+    204,
+  );
+});
+
 test('custom option included in capture (keyed by customOptionId)', () => {
   const db = createDb();
   const id = seedReservation(db, { finalPrice: 250, totalPrice: 200, depositAmount: 75, balanceAmount: 175 });

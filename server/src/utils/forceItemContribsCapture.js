@@ -153,6 +153,11 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     ? roundCents(reservation.depositAmount || 0)
     : roundCents(reservation.balanceAmount || 0);
   const preArrivalAmount = roundCents(quote.preArrivalAmount || 0);
+  // specs/tourist-tax-on-solde.md — the acompte covers the ACCOMMODATION only (no tourist tax); the whole
+  // pre-arrival tax rides on the solde. So the deposit fraction is computed on `accommodationPreArrival`
+  // (accommodation/options/resources, no tax) and the deposit's tax contrib is 0. Fallback to
+  // preArrivalAmount for safety on quotes that predate the field.
+  const accommodationPreArrival = roundCents(quote.accommodationPreArrival != null ? quote.accommodationPreArrival : (quote.preArrivalAmount || 0));
 
   // Bucket fraction of the non-forced pre-arrival amount. On the deposit flip this is the
   // depositPercent applied at quote time; on the balance flip it's the remainder. Both are
@@ -164,7 +169,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
 
   // ── DEPOSIT capture ─────────────────────────────────────────────────────
   if (bucket === 'deposit') {
-    if (preArrivalAmount <= 0) {
+    if (accommodationPreArrival <= 0) {
       // No pre-arrival amount → encaissement should be 0; trivially conserved.
       assertConservation(0, encaissementAmount, 'deposit (empty preArrival)');
       writeDepositContribs(db, reservation, quote, {
@@ -177,7 +182,8 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
       return;
     }
 
-    const depositPercent = encaissementAmount / preArrivalAmount;
+    // specs/tourist-tax-on-solde.md — fraction of the ACCOMMODATION the acompte represents (tax excluded).
+    const depositPercent = encaissementAmount / accommodationPreArrival;
     const optionContribsByOptionId = new Map();
     const customContribsByCustomId = new Map();
     const resourceContribsByResourceId = new Map();
@@ -211,7 +217,8 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
     }
 
     const accommodationContrib = roundCents(accommodationTtc * depositPercent);
-    const taxContrib = taxRoutedToComplement ? 0 : roundCents(taxFullTtc * depositPercent);
+    // specs/tourist-tax-on-solde.md — the acompte never carries the tourist tax; it's 100 % on the solde.
+    const taxContrib = 0;
 
     // Conservation: sum of all non-NULL contribs must equal encaissementAmount.
     const sumContribs = sumNonNull([
