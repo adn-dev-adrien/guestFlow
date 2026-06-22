@@ -259,9 +259,12 @@ Très belles vacances, et à très bientôt !
 ## 8. Out of scope
 
 - **Auto-send** of the J-2 reminder (kept manual, per decision).
-- **Realigning J-7's `cautionNotBanked`** flag onto `cautionReceived`. The J-2 template uses the new,
-  precise `cautionNotReceived`; J-7 keeps its existing proxy to avoid changing its current behavior. A
-  later cleanup could converge them.
+
+> **Fix 2026-06-22 — a RECEIVED caution is never re-requested.** Both flags now suppress the « bring a
+> caution cheque » reminder once `cautionReceived = 1`: `cautionNotReceived` already did, and
+> `cautionNotBanked` (the J-7 proxy keyed on `depositPaid`) now ANDs `cautionReceived != 1` too. Before
+> this, a reservation whose caution was marked received still got a reminder from any arrival email built
+> on `cautionNotBanked`. (Supersedes the former "realigning J-7's `cautionNotBanked`" out-of-scope item.)
 - A generic `autoOptionType` selector in the OptionsPage editor (cleaning is tagged by boot seed, like
   bed-linen/breakfast/bathroom).
 - Surfacing these reminders in any email other than J-2.
