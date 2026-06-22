@@ -87,28 +87,29 @@ test("case-insensitive Direct enum: 'Direct' / 'DIRECT' keep the regular Acompte
   }
 });
 
-// specs/platform-commission-line.md (2026-06-22) — « Prix payé par le client » (clientGrossAmount) was
-// retired; the platform block now exposes only the operator-entered « Commission plateforme » field.
-test('platform reservation: « Commission plateforme » is shown, « Prix payé par le client » is gone', () => {
+// specs/platform-per-echeance-commission.md (2026-06-22) — commission is entered per échéance: a
+// « Commission solde (€) » field in the Solde block (= the former « Commission plateforme »). « Prix
+// payé par le client » stays retired.
+test('platform reservation: « Commission solde » is shown, « Prix payé par le client » is gone', () => {
   renderFinance({ form: { platform: 'Airbnb' } });
-  expect(screen.getByLabelText('Commission plateforme')).toBeInTheDocument();
+  expect(screen.getByLabelText('Commission solde (€)')).toBeInTheDocument();
   expect(screen.queryByLabelText('Prix payé par le client')).not.toBeInTheDocument();
 });
 
-test('direct reservation: no platform block (no commission field)', () => {
+test('direct reservation: no per-échéance commission fields', () => {
   renderFinance({ form: { platform: 'direct' } });
-  expect(screen.queryByLabelText('Commission plateforme')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Commission solde (€)')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Commission acompte (€)')).not.toBeInTheDocument();
 });
 
-// specs/platform-payment-entry.md — the « Paiement plateforme » block: type the brut + commission +
-// virement; « Prix ajusté » is hidden on platform (the brut is the single price lever); a ✓/✗ chip
-// reconciles the net perçu against the virement.
-test('platform: the 3 platform-payment fields render + « Prix ajusté » is hidden', () => {
+// specs/platform-payment-entry.md + platform-per-echeance-commission.md — the « Paiement plateforme »
+// block now holds the brut + virement (the commission moved to the per-échéance Acompte/Solde blocks);
+// « Prix ajusté » stays hidden on platform.
+test('platform: the brut + virement fields render (commission moved out) + « Prix ajusté » is hidden', () => {
   renderFinance({ form: { platform: 'Gîtes de France' } });
   expect(screen.getByLabelText('Montant total payé par le client')).toBeInTheDocument();
-  expect(screen.getByLabelText('Commission plateforme')).toBeInTheDocument();
   expect(screen.getByLabelText('Virement reçu (contrôle)')).toBeInTheDocument();
-  // The brut is the single price lever → « Prix ajusté » is gone on platform.
+  expect(screen.queryByLabelText('Commission plateforme')).not.toBeInTheDocument(); // moved to the Solde block
   expect(screen.queryByLabelText('Prix ajusté')).not.toBeInTheDocument();
 });
 

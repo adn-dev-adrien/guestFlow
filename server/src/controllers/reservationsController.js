@@ -281,6 +281,8 @@ function calculatePrice(req, res) {
     // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
     // returns the « total séjour − commission = net perçu » figures for the summary block.
     platformCommissionAmount: req.body.platformCommissionAmount,
+    // specs/platform-per-echeance-commission.md — the acompte commission (solde = platformCommissionAmount).
+    acompteCommissionAmount: req.body.acompteCommissionAmount,
     // specs/platform-payment-entry.md — the brut pins the total séjour (finalPrice = brut, accommodation
     // back-solved). Forwarded so the live preview reflects it.
     platformGrossAmount: req.body.platformGrossAmount,
@@ -299,6 +301,7 @@ function create(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
+    acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
     platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
     platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
@@ -446,6 +449,7 @@ function update(req, res) {
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
     cautionAmount: { value: req.body.cautionAmount, kind: 'money' },
     platformCommissionAmount: { value: req.body.platformCommissionAmount, kind: 'money' },
+    acompteCommissionAmount: { value: req.body.acompteCommissionAmount, kind: 'money' },
     platformGrossAmount: { value: req.body.platformGrossAmount, kind: 'money' },
     platformPayoutAmount: { value: req.body.platformPayoutAmount, kind: 'money' },
     discountPercent: { value: req.body.discountPercent, kind: 'percentage' },
