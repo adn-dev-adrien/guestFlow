@@ -118,6 +118,27 @@ describe('presence on the boundary days (check-in / check-out)', () => {
     expect(grid.length).toBe(1 + 3 + 3 + 1);
   });
 
+  test('buildInitialGrid never seeds an empty grid on a manual enable (breakfast vanish regression)', () => {
+    // Regression: a 1-night stay whose breakfast (09:00) lands after a 08:00 check-out. The arrival
+    // morning is pre-check-in (15:00) and the departure morning is post-check-out (08:00) → presence
+    // filter excludes BOTH days. An empty grid made the server drop the option and the toggle bounced
+    // back off. We fall back to the unfiltered grid so the option can be taken + adjusted.
+    const breakfast = { cardRepeat: 'once_per_day', priceType: 'per_person_per_night', planningCardTimes: ['09:00'] };
+    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-11', '15:00', '08:00');
+    expect(grid.length).toBeGreaterThan(0);
+    expect(grid.every((o) => o.checked)).toBe(true);
+    expect(grid.map((o) => o.date)).toEqual(['2026-07-10', '2026-07-11']);
+    expect(toWireOccurrences(grid).length).toBe(2);
+  });
+
+  test('buildInitialGrid keeps the presence filter when at least one slot survives', () => {
+    // The fallback only kicks in when EVERYTHING is filtered out: a normal stay still drops the
+    // pre-check-in arrival morning (09:00 < 15:00).
+    const breakfast = { cardRepeat: 'once_per_day', priceType: 'per_person_per_night', planningCardTimes: ['09:00'] };
+    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-12', '15:00', '10:00');
+    expect(grid.map((o) => o.date)).toEqual(['2026-07-11', '2026-07-12']); // arrival morning excluded
+  });
+
   test('reconcileGrid re-filters presence when a slot time crosses the check-out bound', () => {
     const meals = { cardRepeat: 'multiple_per_day', priceType: 'per_person', planningCardTimes: ['08:00', '12:30'] };
     const grid = buildInitialGrid(meals, '2026-07-10', '2026-07-11', ci, co); // 11 = departure
