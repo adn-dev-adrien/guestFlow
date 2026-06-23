@@ -32,6 +32,35 @@ function deriveCommissionAmount(row) {
   return Math.max(0, Math.round((gross - net) * 100) / 100);
 }
 
+// specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement from a
+// detailed reservation (the shape returned by getByIdWithDetails). Lines = the in-complement (non-offered)
+// options / resources / custom options + the tourist-tax-in-complement line + a remainder line so the
+// listed detail always sums to the authoritative `complementAmount`. Pure → unit-tested.
+function arrivalComplementDetailFromReservation(r) {
+  if (!r) return { amount: 0, paid: 0, detail: [] };
+  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const lines = [];
+  for (const o of (r.options || [])) {
+    if (Number(o.inComplement || 0) === 1 && Number(o.offered || 0) !== 1) {
+      const amt = round2(o.totalPrice != null ? o.totalPrice : o.originalTotalPrice);
+      if (amt > 0) lines.push({ label: String(o.title || o.description || 'Extra').trim(), amount: amt });
+    }
+  }
+  for (const res of (r.resources || [])) {
+    if (Number(res.inComplement || 0) === 1 && Number(res.offered || 0) !== 1) {
+      const amt = round2(res.totalPrice != null ? res.totalPrice : res.originalTotalPrice);
+      if (amt > 0) lines.push({ label: String(res.name || 'Ressource').trim(), amount: amt });
+    }
+  }
+  const tax = round2(r.touristTaxInComplementAmount || 0);
+  if (tax > 0) lines.push({ label: 'Taxe de séjour', amount: tax });
+  const amount = round2(r.complementAmount || 0);
+  const listed = round2(lines.reduce((s, l) => s + l.amount, 0));
+  const remainder = round2(amount - listed);
+  if (remainder > 0.01) lines.push({ label: "Complément d'arrivée", amount: remainder });
+  return { amount, paid: Number(r.complementPaid || 0) === 1 ? 1 : 0, detail: lines };
+}
+
 function createReservationsModel(database) {
   // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
   // write so the core INSERT/UPDATE SQL stays untouched; absent in minimal test schemas → no-op.
@@ -1007,10 +1036,19 @@ function createReservationsModel(database) {
     // sasArrivalOrigin=1. Re-openable SAS: a re-commit REPLACES the SAS-origin complement lines
     // instead of appending (complementAmount adjusted by new − previous SAS sum), so it never
     // double-charges (specs/reopen-completed-sas.md §4). A paid complement stays frozen.
+    // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
+    // the departure SAS can recall it line-by-line.
+    buildArrivalComplementDetail(reservationId) {
+      const r = model.getByIdWithDetails(reservationId);
+      if (!r) return { amount: 0, paid: 0, detail: [] };
+      return arrivalComplementDetailFromReservation(r);
+    },
+
     commitArrivalSas(reservationId, {
       cautionReceived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
+      complementSettled, complementPaidCash,
     } = {}) {
       // Clamp drink counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
@@ -1084,6 +1122,21 @@ function createReservationsModel(database) {
           const next = Math.max(0, Math.round((Number(compRow.complementAmount || 0) - priorSum + added) * 100) / 100);
           database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
         }
+
+        // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 2 — explicit « Complément encaissé »
+        // confirmation on the arrival recap. Tri-state (same contract as the caution): undefined leaves the
+        // marker untouched; true marks the arrival complement paid (first date kept via COALESCE); false
+        // clears it. A normally-collected complement is thus NOT recalled at departure; a forgotten one
+        // stays unpaid and IS recalled.
+        if (complementSettled !== undefined) {
+          if (complementSettled) {
+            database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = COALESCE(complementPaidDate, ?), complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
+              .run(today, complementPaidCash ? 1 : 0, reservationId);
+          } else {
+            database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
+              .run(reservationId);
+          }
+        }
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
       return tx();
@@ -1094,7 +1147,7 @@ function createReservationsModel(database) {
     // §3.2 — 2026-06-17): the client sends only `extinguisherCharges` = [{ repairKey, qty }]; the server
     // looks up the configured price, builds the lines, appends them to the end-of-stay detail, and the
     // stored amount is the authoritative sum of every line (no client-supplied total is trusted).
-    commitDepartureSas(reservationId, { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges } = {}) {
+    commitDepartureSas(reservationId, { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, complementsSettled, complementsPaidCash } = {}) {
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
@@ -1133,6 +1186,33 @@ function createReservationsModel(database) {
         const amount = Math.max(0, Math.round(detail.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 100) / 100);
         database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
           .run(amount, detail.length ? JSON.stringify(detail) : null, reservationId);
+
+        // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rules 4-5 — « Compléments encaissés »
+        // confirmation on the departure recap. Tri-state (same contract as the caution). When ON, mark
+        // paid WHATEVER has a positive amount, at the checkout moment:
+        //   - the end-of-stay complement (when amount > 0);
+        //   - the RECALLED arrival complement (when it's still unsettled: amount > 0 AND complementPaid = 0).
+        // The two amounts stay SEPARATE in the DB (the tourist tax keeps its 46710000 routing). When OFF,
+        // clear the end-of-stay marker (its own field). The arrival recall is mark-only here — an
+        // over-collected arrival complement is reverted on the fiche (it can't be told apart from a
+        // check-in collection without extra state).
+        if (complementsSettled !== undefined) {
+          const cash = complementsPaidCash ? 1 : 0;
+          if (complementsSettled) {
+            if (amount > 0) {
+              database.prepare("UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementPaidDate = COALESCE(endOfStayComplementPaidDate, ?), endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
+                .run(today, cash, reservationId);
+            }
+            const arr = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
+            if (arr && Number(arr.complementAmount || 0) > 0 && Number(arr.complementPaid || 0) === 0) {
+              database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = COALESCE(complementPaidDate, ?), complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
+                .run(today, cash, reservationId);
+            }
+          } else {
+            database.prepare("UPDATE reservations SET endOfStayComplementPaid = 0, endOfStayComplementPaidDate = NULL, endOfStayComplementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
+              .run(reservationId);
+          }
+        }
         // Extinguisher condition at departure (1 = bon état, 0 = pas bon état). The bill rides the detail.
         if (extinguisherSealOkAtDeparture !== undefined) {
           database.prepare("UPDATE reservations SET extinguisherSealOkAtDeparture = ?, updatedAt = datetime('now') WHERE id = ?")
@@ -1148,6 +1228,6 @@ function createReservationsModel(database) {
 
 const defaultModel = createReservationsModel(db);
 defaultModel.create = createReservationsModel;
-defaultModel.__test = { deriveCommissionAmount };
+defaultModel.__test = { deriveCommissionAmount, arrivalComplementDetailFromReservation };
 
 module.exports = defaultModel;

@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { create: createReservationsModel } = require('../models/reservationsModel');
+const { create: createReservationsModel, __test: { arrivalComplementDetailFromReservation } } = require('../models/reservationsModel');
 const { buildModel: buildLinenItems } = require('../models/linenItemsModel');
 
 function makeDb() {
@@ -17,8 +17,9 @@ function makeDb() {
       cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
+      complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
-      endOfStayComplementPaidDate TEXT, endOfStayComplementDetail TEXT,
+      endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
       extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER,
       breakfastTime TEXT,
@@ -321,4 +322,96 @@ test('commitDepartureSas: a 0-qty or 0-priced extinguisher tariff produces no li
   const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
   assert.equal(r.endOfStayComplementAmount, 0);
   assert.equal(r.endOfStayComplementDetail, null);
+});
+
+// ── specs/recall-unpaid-arrival-complement-at-checkout.md ──────────────────────────────────────────
+
+test('commitArrivalSas: complementSettled marks the arrival complement paid (+ date); false clears it', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { complementSettled: true, complementPaidCash: true });
+  let r = db.prepare('SELECT complementPaid, complementPaidDate, complementPaidCash FROM reservations WHERE id = 1').get();
+  assert.equal(r.complementPaid, 1, 'marked paid');
+  assert.ok(r.complementPaidDate, 'a paid date was set');
+  assert.equal(r.complementPaidCash, 1, 'caisse interne flag follows the choice');
+  // Reversible: re-commit with false clears the marker + date.
+  model.commitArrivalSas(1, { complementSettled: false });
+  r = db.prepare('SELECT complementPaid, complementPaidDate FROM reservations WHERE id = 1').get();
+  assert.equal(r.complementPaid, 0);
+  assert.equal(r.complementPaidDate, null);
+});
+
+test('commitArrivalSas: omitting complementSettled leaves the paid marker untouched', () => {
+  const db = makeDb();
+  db.prepare('UPDATE reservations SET complementPaid = 1, complementPaidDate = ? WHERE id = 1').run('2026-06-10');
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  const r = db.prepare('SELECT complementPaid, complementPaidDate FROM reservations WHERE id = 1').get();
+  assert.equal(r.complementPaid, 1);
+  assert.equal(r.complementPaidDate, '2026-06-10');
+});
+
+test('commitDepartureSas: an UNPAID arrival complement is recalled — BOTH complements marked paid, amounts kept separate', () => {
+  const db = makeDb();
+  // reservation 1 seeded with complementAmount = 30, complementPaid = 0 (the forgotten check-in).
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Ménage', amount: 40 }],
+    complementsSettled: true,
+  });
+  const r = db.prepare(`SELECT complementAmount, complementPaid, complementPaidDate,
+    endOfStayComplementAmount, endOfStayComplementPaid, endOfStayComplementPaidDate FROM reservations WHERE id = 1`).get();
+  // Both collected at checkout.
+  assert.equal(r.complementPaid, 1, 'recalled arrival complement marked paid');
+  assert.ok(r.complementPaidDate, 'arrival paid date set');
+  assert.equal(r.endOfStayComplementPaid, 1, 'end-of-stay complement marked paid');
+  assert.ok(r.endOfStayComplementPaidDate, 'end-of-stay paid date set');
+  // Amounts stay SEPARATE (never merged) — the tourist tax keeps its own accounting routing.
+  assert.equal(r.complementAmount, 30, 'arrival amount unchanged');
+  assert.equal(r.endOfStayComplementAmount, 40, 'end-of-stay amount unchanged (not summed into one)');
+});
+
+test('commitDepartureSas: an ALREADY-PAID arrival complement is NOT recalled (no re-collection)', () => {
+  const db = makeDb();
+  db.prepare('UPDATE reservations SET complementPaid = 1, complementPaidDate = ? WHERE id = 1').run('2026-06-10');
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Ménage', amount: 40 }],
+    complementsSettled: true,
+  });
+  const r = db.prepare('SELECT complementPaid, complementPaidDate, endOfStayComplementPaid FROM reservations WHERE id = 1').get();
+  assert.equal(r.complementPaid, 1);
+  assert.equal(r.complementPaidDate, '2026-06-10', 'the original arrival paid date is untouched');
+  assert.equal(r.endOfStayComplementPaid, 1, 'only the end-of-stay complement is freshly collected');
+});
+
+test('commitDepartureSas: complementsSettled=false clears the end-of-stay paid marker (reversible)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ label: 'Ménage', amount: 40 }], complementsSettled: true });
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ label: 'Ménage', amount: 40 }], complementsSettled: false });
+  const r = db.prepare('SELECT endOfStayComplementPaid, endOfStayComplementPaidDate FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementPaid, 0);
+  assert.equal(r.endOfStayComplementPaidDate, null);
+});
+
+test('arrivalComplementDetailFromReservation: itemises in-complement lines + tax + remainder, summing to complementAmount', () => {
+  const detail = arrivalComplementDetailFromReservation({
+    complementAmount: 64.8,
+    complementPaid: 0,
+    touristTaxInComplementAmount: 4.8,
+    options: [
+      { title: 'Lit bébé', totalPrice: 20, inComplement: 1, offered: 0 },
+      { title: 'Petit déj (offert)', totalPrice: 0, inComplement: 1, offered: 1 }, // offered → skipped
+      { title: 'Ménage (pré-arrivée)', totalPrice: 80, inComplement: 0, offered: 0 }, // not in complement → skipped
+    ],
+    resources: [{ name: 'Kit linge', totalPrice: 15, inComplement: 1, offered: 0 }],
+  });
+  assert.equal(detail.amount, 64.8);
+  assert.equal(detail.paid, 0);
+  const labels = detail.detail.map((l) => l.label);
+  assert.deepEqual(labels, ['Lit bébé', 'Kit linge', 'Taxe de séjour', "Complément d'arrivée"]);
+  // 20 + 15 + 4.8 = 39.8 listed; remainder = 64.8 − 39.8 = 25 (auto-gap) → the listed detail sums to the total.
+  assert.equal(detail.detail.find((l) => l.label === "Complément d'arrivée").amount, 25);
+  assert.equal(Math.round(detail.detail.reduce((s, l) => s + l.amount, 0) * 100) / 100, 64.8);
 });
