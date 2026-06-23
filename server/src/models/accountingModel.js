@@ -420,7 +420,7 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     // time it's "what's left of the tax after the two prior buckets took their share". The
     // tax is part of the encaissement TTC (the customer paid it) but credited to the
     // pass-through account 46710000 in the export, NOT to a 70xxx revenue line.
-    const taxTtc = computeTaxTtcForKind(row, kind);
+    const taxTtc = computeTaxTtcForKind(row, kind, taxRoutedToComplement);
 
     // Scale per-bucket TTCs by the gross ratio so the credited HT + VAT reflect the BRUT
     // the customer paid the platform (§3.5). For directs grossRatio === 1, so this is a
@@ -474,10 +474,15 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   let legacyTaxTtc;
   if (collectedOnArrival) {
     legacyTaxTtc = kind === 'complement' ? Math.min(touristTaxTotal, encaissementTtc) : 0;
+  } else if (kind === 'deposit') {
+    // specs/tourist-tax-on-solde.md — the tax never rides the acompte.
+    legacyTaxTtc = 0;
+  } else if (kind === 'balance') {
+    // Direct + case 1 (platform reverses to us): the WHOLE tax sits on the solde (clamped to the
+    // balance amount as a defensive guard — balance = accommodation remainder + tax ≥ tax).
+    legacyTaxTtc = round2(Math.min(touristTaxTotal, encaissementTtc));
   } else {
-    // Direct + case 1 (platform reverses to us): the tax sits in the balance, pro-rated against the
-    // total stay TTC like the rest of the encaissement.
-    legacyTaxTtc = round2(touristTaxTotal * fraction);
+    legacyTaxTtc = 0;
   }
 
   // §3.5 — legacy path: same gross-ratio scaling, applied through `fraction`. We scale the
@@ -486,9 +491,12 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   // The encaissement reported to the export = encaissement × grossRatio so the credits sum
   // to the gross. Commission gets booked separately on the debit side.
   const legacyEncaissementGross = round2(encaissementTtc * grossRatio);
-  const legacyFraction = collectedOnArrival && totalStayTtc > 0
+  // The revenue buckets must absorb exactly `encaissement − tax` (the tax is booked separately on
+  // 46710000). With the tax now riding entirely on the solde, the deposit's revenue = its full
+  // amount and the balance's revenue = its amount − the full tax — both bank-matched.
+  const legacyFraction = finalPriceTtc > 0
     ? ((encaissementTtc - legacyTaxTtc) / finalPriceTtc) * grossRatio
-    : fraction * grossRatio;
+    : 0;
   const legacyEncaissementNet = round2(legacyEncaissementGross - (commissionLine ? commissionLine.ttc : 0));
 
   return {
@@ -543,14 +551,25 @@ function buildEndOfStayEntry(row, vatRate) {
 // Tax TTC for a given encaissement kind, read from the per-bucket capture columns. Returns 0
 // when the tax was either routed to complement (and this kind isn't 'complement') or
 // already-captured-as-zero (e.g. collectedOnArrival path).
-function computeTaxTtcForKind(row, kind) {
-  if (kind === 'deposit') return round2(nz(row.touristTaxAcompteContribTtc));
-  if (kind === 'balance') return round2(nz(row.touristTaxSoldeContribTtc));
-  // complement → remainder: full tax minus what's already in deposit + balance.
-  const total = nz(row.touristTaxTotal);
-  const inDeposit = nz(row.touristTaxAcompteContribTtc);
-  const inBalance = nz(row.touristTaxSoldeContribTtc);
-  return round2(Math.max(0, total - inDeposit - inBalance));
+function computeTaxTtcForKind(row, kind, taxRoutedToComplement) {
+  const total = round2(nz(row.touristTaxTotal));
+  if (taxRoutedToComplement) {
+    // Collected on arrival / forced to complement: the tax is never on the acompte or the solde.
+    // The complement carries whatever is left after the (always-zero) deposit + balance shares.
+    if (kind !== 'complement') return 0;
+    const inDeposit = nz(row.touristTaxAcompteContribTtc);
+    const inBalance = nz(row.touristTaxSoldeContribTtc);
+    return round2(Math.max(0, total - inDeposit - inBalance));
+  }
+  // specs/tourist-tax-on-solde.md — when the tax rides the pre-arrival schedule it is booked
+  // ENTIRELY on the SOLDE, never the acompte. We force this regardless of the stored per-bucket
+  // contribs: legacy reservations whose acompte flip captured a proportional tax share (before
+  // this rule shipped) must still show 0 tax on the deposit and the full tax on the balance.
+  // The balance amount is always ≥ the tax (balance = accommodation remainder + tax), so the
+  // clamp is only a defensive guard.
+  if (kind === 'deposit') return 0;
+  if (kind === 'balance') return round2(Math.min(total, Number(row.balanceAmount) || total));
+  return 0;
 }
 
 // Aggregate the per-line/per-portion TTCs for a single entry kind. Tax is always excluded.
@@ -559,9 +578,18 @@ function computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComple
   const accommodationSolde   = nz(row.accommodationSoldeContribTtc);
   const accommodationTtcCurrent = perLineData.accommodationTtcCurrent;
 
+  // specs/tourist-tax-on-solde.md — the tax is booked 100 % on the solde. A legacy reservation
+  // whose acompte flip captured a proportional tax share (`touristTaxAcompteContribTtc > 0`)
+  // physically collected that tax with the deposit. To keep both entries bank-matched while the
+  // tax line rides entirely on the balance, we reclass that share out of the tax line and into the
+  // accommodation bucket of the deposit (it stays in the deposit's encaissement) and remove the
+  // same amount from the balance's accommodation (so balance = remainder + the FULL tax). For
+  // reservations booked under the new rule the share is 0, so this is a no-op.
+  const taxAcompteReclass = taxRoutedToComplement ? 0 : nz(row.touristTaxAcompteContribTtc);
+
   if (kind === 'deposit') {
     return {
-      accommodation: round2(accommodationAcompte),
+      accommodation: round2(accommodationAcompte + taxAcompteReclass),
       options:       round2(sumContribField(perLineData.optionLines, 'acompteContribTtc')
                           + sumContribField(perLineData.customOptionLines, 'acompteContribTtc')),
       resources:     round2(sumContribField(perLineData.resourceLines, 'acompteContribTtc')),
@@ -569,7 +597,7 @@ function computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComple
   }
   if (kind === 'balance') {
     return {
-      accommodation: round2(accommodationSolde),
+      accommodation: round2(Math.max(0, accommodationSolde - taxAcompteReclass)),
       options:       round2(sumContribField(perLineData.optionLines, 'soldeContribTtc')
                           + sumContribField(perLineData.customOptionLines, 'soldeContribTtc')),
       resources:     round2(sumContribField(perLineData.resourceLines, 'soldeContribTtc')),
