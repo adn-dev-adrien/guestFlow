@@ -51,6 +51,24 @@ test('solde-only commission → only the « Commission solde » line shows', () 
   expect(screen.getByText('210.00€')).toBeInTheDocument();
 });
 
+// specs/platform-per-echeance-commission.md — the Acompte / Solde lines show the NET amount (montant −
+// la commission de cette échéance).
+test('Acompte / Solde lines show the net amount (montant − commission de l\'échéance)', () => {
+  render(
+    <PricingSummary
+      quote={{ ...QUOTE, finalPrice: 200, totalStayPrice: 200, acompteCommissionAmount: 3.41, platformCommissionAmount: 2.61, totalPlatformCommission: 6.02, platformNetReceivedAmount: 193.98 }}
+      form={{ ...FORM, depositAmount: 60, balanceAmount: 140 }}
+      selectedProperty={{ name: 'Villa A' }}
+      offeredOptionIds={new Set()} propertyOptions={[]} availableResources={[]}
+      parsedTotalPrice={200} accommodationDiscountedPriceDisplay={'200.00'}
+    />
+  );
+  expect(screen.getByText('56.59€')).toBeInTheDocument();  // acompte 60 − 3.41
+  expect(screen.getByText('137.39€')).toBeInTheDocument(); // solde 140 − 2.61
+  expect(screen.getByText(/net de la commission acompte/i)).toBeInTheDocument();
+  expect(screen.getByText(/net de la commission solde/i)).toBeInTheDocument();
+});
+
 test('no commission → the plain « Total du séjour TTC » line (no deduction block)', () => {
   renderSummary({ ...QUOTE, platformCommissionAmount: 0, platformNetReceivedAmount: null });
   expect(screen.getByText('Total du séjour TTC')).toBeInTheDocument();

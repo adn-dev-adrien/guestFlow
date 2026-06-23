@@ -1,0 +1,1 @@
+- **Résumé fiche réservation — acompte/solde nets de commission.** Quand une commission est saisie sur l'acompte (ou le solde), le résumé affiche désormais le montant **net** de l'échéance (montant − commission), avec une petite légende « net de la commission … ». Acompte net + solde net = net perçu.
