@@ -60,6 +60,10 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    are present. On mobile (agenda list) closures render as grey rows « Fermé — {logement} ».
 8. **Today is framed**: today's day cell carries a 2 px primary border (in addition to the bold primary
    day number).
+8bis. **Past stays are greyed (visual only).** A reservation/closure whose last occupied day is before
+   today (`today > lastDay`) renders at `opacity: 0.5` — in BOTH the mobile agenda rows and the desktop
+   grid bars. Purely cosmetic (no data/interaction change); same language as the per-property calendar
+   (`CalendarDayCell` / week view), which already greys past days. Added 2026-06-23.
 9. **Same component on the Dashboard.** The dashboard overview renders the **exact same**
    `CumulativeMonthCalendar` (no duplication, identical behaviour), replacing its old per-logement
    mini-calendars. Only the navigation callbacks differ (origin `'/'`).
