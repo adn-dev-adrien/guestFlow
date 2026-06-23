@@ -13,8 +13,11 @@
 const webpush = require('web-push');
 const { loadLocalEnv, persistVar } = require('./localEnv');
 
-// Mailto contact required by the Web Push spec for the VAPID `sub` claim.
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:contact@guestflow.local';
+// Contact required by the Web Push spec for the VAPID `sub` claim. It MUST be a routable URL/mailto:
+// Apple's push gateway rejects the JWT with `403 BadJwtToken` when the subject is a non-routable domain
+// (e.g. a `.local` TLD), which silently kills every iOS push. Override per-deployment via VAPID_SUBJECT
+// in `.env.local` (git-ignored) if a specific contact address is preferred.
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:contact@domainesolio.com';
 
 let configured = false;
 

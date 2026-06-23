@@ -1,0 +1,1 @@
+- PWA push notifications now reach iOS devices: the VAPID contact subject is a routable address (`mailto:contact@domainesolio.com`, overridable via `VAPID_SUBJECT`) instead of the `.local` domain that Apple rejected with `403 BadJwtToken`, which had silently killed every iPhone notification.

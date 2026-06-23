@@ -217,6 +217,7 @@ const api = {
   unsubscribePush: (endpoint) => request('/push/subscribe', { method: 'DELETE', body: { endpoint } }),
   getPushPreferences: () => request('/push/preferences'),
   updatePushPreferences: (prefs) => request('/push/preferences', { method: 'PUT', body: prefs }),
+  sendPushTest: () => request('/push/test', { method: 'POST' }),
   // Online payments (specs/online-payments-qonto.md). Qonto connection state + configurable timings.
   getPaymentSettings: () => request('/payments/settings'),
   updatePaymentSettings: (payload) => request('/payments/settings', { method: 'PUT', body: payload }),
