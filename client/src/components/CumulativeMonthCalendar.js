@@ -213,6 +213,9 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                   display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1,
                   borderLeft: '5px solid', borderColor: color, bgcolor: 'background.paper', boxShadow: 1,
                   cursor: closure ? 'default' : 'pointer', minHeight: 48, '&:active': closure ? undefined : { bgcolor: 'action.selected' },
+                  // Past stays are greyed (purely visual) — same language as the per-property calendar
+                  // (CalendarDayCell). `lastDay` is the inclusive last occupied day; past once today is after it.
+                  opacity: todayStr > it.lastDay ? 0.5 : 1,
                 }}
               >
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -294,6 +297,8 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                       px: 0.75, display: 'flex', alignItems: 'center', overflow: 'hidden',
                       fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                       boxShadow: 1, ...(closure ? { border: '1px dashed rgba(0,0,0,0.25)' } : { '&:hover': { filter: 'brightness(0.92)' } }),
+                      // Past stays greyed (visual only), consistent with the mobile agenda + per-property grid.
+                      opacity: todayStr > item.lastDay ? 0.5 : 1,
                     }}
                   >
                     <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
