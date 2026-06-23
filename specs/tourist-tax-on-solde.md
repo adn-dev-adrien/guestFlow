@@ -47,6 +47,17 @@ Applies to direct **and** platform reservations with an acompte.
 5. **Contribs / accounting:** on the deposit flip the tourist-tax contrib is **0**; the full pre-arrival
    tax rides on the balance entry (46710000 credited on the solde, never the acompte). The accounting
    stays balanced (Σ debits = Σ credits) by construction.
+   - **The accounting export FORCES this rule regardless of the stored contribs.** A reservation whose
+     acompte was paid *before* this feature shipped captured a proportional tax share
+     (`touristTaxAcompteContribTtc > 0`), so the deposit entry used to credit 46710000. `accountingModel`
+     now books **0 tax on the deposit** and the **full tax on the balance** on both code paths
+     (contrib-driven and legacy). To stay bank-matched, the legacy acompte tax share is reclassed out of
+     the tax line and into the deposit's accommodation bucket (it was physically collected with the
+     deposit), and the same amount is removed from the balance's accommodation so the solde carries the
+     full tax. Over the deposit + balance entries this is a pure reclass: total revenue, VAT and tax are
+     unchanged. In a single month's export where only the acompte is present, the acompte's accommodation
+     is a few euros higher (absorbing the would-be tax) and shows 0 tax — self-correcting once the solde
+     is booked.
 6. **Taxe-de-séjour page:** a stay's tax is attributed to the month of `balancePaidDate` (the solde paid
    date). Stays whose solde isn't paid in/at the queried month don't appear. Tax-collected-on-arrival
    stays use `complementPaidDate`. (Replaces the last-night-date attribution.)
@@ -67,7 +78,8 @@ Applies to direct **and** platform reservations with an acompte.
 | `utils/pricing.js` | T | `accommodationPreArrival` base for the deposit; solde = remainder + `taxInPreArrival`; expose `accommodationPreArrival` in the quote for the contribs. |
 | `utils/forceItemContribsCapture.js` | T | Deposit flip: tax contrib = 0, deposit fraction computed on `accommodationPreArrival` (so options/resources/accommodation split correctly, tax 0). Balance flip already takes `taxFull − taxAcompte` = full. |
 | `models/financeModel.js` | T | `getTouristTaxExtraction`: filter/attribute by `balancePaidDate` (solde) — or `complementPaidDate` for on-arrival — instead of last-night date; only paid soldes appear. |
-| `tests/` | C | Engine (tax on solde, override clamp, no-acompte unchanged); contribs (tax acompte = 0, balance = full, conservation); finance (tax appears in the solde-paid month only). |
+| `models/accountingModel.js` | T | `computeTaxTtcForKind` / `computeBucketTtcsFromContribs` / legacy fallback: force tax 0 on the deposit + full on the balance regardless of stored contribs; reclass the legacy acompte tax share into the deposit's accommodation bucket so each entry stays bank-matched. |
+| `tests/` | C | Engine (tax on solde, override clamp, no-acompte unchanged); contribs (tax acompte = 0, balance = full, conservation); accounting (deposit tax 0 / balance full on both contrib + legacy paths, incl. a stale-acompte-share reservation, bank-matched); finance (tax appears in the solde-paid month only). |
 
 ### 4.2 Client
 | Layer | File | Responsibility |
@@ -85,7 +97,7 @@ reservations keep their stored split; re-saving an unpaid one moves its tax to t
 ## 6. Test plan
 - [x] Engine: acompte = `depositPercent × accommodation`; solde = remainder + full tax; no-acompte → unchanged; override clamp (`pricing-tourist-tax-on-arrival-schedule.unit.test.js`).
 - [x] Contribs: deposit flip → `touristTaxAcompteContribTtc = 0`; balance flip → full tax; conservation invariant holds (`payment-contrib-capture.unit.test.js`).
-- [x] Accounting: the 46710000 tax line lands on the balance entry, not the deposit; Σ debits = Σ credits (`tourist-tax-collection-coverage.unit.test.js`).
+- [x] Accounting: the 46710000 tax line lands on the balance entry, not the deposit (incl. a legacy reservation with a stale acompte tax share); each entry stays bank-matched (`accounting-model-tourist-tax.unit.test.js`).
 - [x] Finance: a stay whose solde is paid in month M shows its tax in M (not the last-night month); unpaid → absent (`tourist-tax-collection-coverage.unit.test.js`).
 - [x] Full server suite stays green — **1785 / 1785 pass**.
 

@@ -97,18 +97,55 @@ test('every entry exposes propertyName, on BOTH the contrib-driven path AND the 
   assert.equal(contribDriven.propertyName, 'La Maison du Lac');
 });
 
-test('direct booking — deposit + balance pro-rate against totalStayTtc (legacy unchanged)', () => {
-  const row = makeRow({ platform: 'direct', depositAmount: 61.44, balanceAmount: 143.36 });
+test('direct booking (legacy path) — the tourist tax rides 100% on the solde, 0 on the acompte', () => {
+  // specs/tourist-tax-on-solde.md — the acompte is the accommodation only (60), the solde carries the
+  // accommodation remainder (140) + the WHOLE tax (4.80) = 144.80. The accounting must mirror that even
+  // on the legacy fallback path: deposit taxTtc = 0, balance taxTtc = 4.80. Each entry stays bank-matched
+  // — revenue (fraction × finalPrice) + tax = the encaissement.
+  const row = makeRow({ platform: 'direct', depositAmount: 60, balanceAmount: 144.80 });
   const quote = makeQuote();
 
   const dep = buildEntry(row, quote, 'deposit');
   const bal = buildEntry(row, quote, 'balance');
 
-  // 61.44 / 204.80 = 0.30, 143.36 / 204.80 = 0.70. Σ fractions = 1.
-  assert.equal(round4(dep.fraction), 0.3);
-  assert.equal(round4(bal.fraction), 0.7);
+  assert.equal(dep.taxTtc, 0, 'no tourist tax on the acompte');
+  assert.equal(bal.taxTtc, 4.80, 'the whole tourist tax is on the solde');
+  // Revenue fraction is now against finalPrice (the tax is booked separately on 46710000).
+  assert.equal(round4(dep.fraction), 0.3);          // 60 / 200
+  assert.equal(round4(bal.fraction), 0.7);          // (144.80 − 4.80) / 200 = 140 / 200
+  assert.equal(dep.encaissementTtc, 60);
+  assert.equal(bal.encaissementTtc, 144.80);
+  // Bank-matched: revenue TTC + tax = encaissement, on each entry.
+  assert.equal(round4(dep.fraction * 200 + dep.taxTtc), 60);
+  assert.equal(round4(bal.fraction * 200 + bal.taxTtc), 144.80);
+});
+
+test('direct booking (contrib path) — a STALE acompte tax share is forced back onto the solde, bank-matched', () => {
+  // Regression for the prod bug (THOMAS VANDEN WILDENBERG / DAMIEN NICOLET, June 2026): their acompte
+  // flip happened BEFORE specs/tourist-tax-on-solde.md, so it captured a proportional tax share
+  // (touristTaxAcompteContribTtc = 1.44 on a 61.44 deposit). The accounting then surfaced that tax on
+  // the acompte entry. The export must now force the WHOLE tax onto the solde — 0 on the deposit — while
+  // staying bank-matched (the deposit physically collected that 1.44, so it is reclassed into the
+  // deposit's accommodation bucket; the balance carries the full 4.80).
+  const row = makeRow({
+    platform: 'direct',
+    depositAmount: 61.44, balanceAmount: 143.36,
+    accommodationAcompteContribTtc: 60.00, touristTaxAcompteContribTtc: 1.44,
+    accommodationSoldeContribTtc: 140.00, touristTaxSoldeContribTtc: 3.36,
+  });
+  const quote = makeQuote();
+  const perLineData = { hasContribs: true, optionLines: [], customOptionLines: [], resourceLines: [], accommodationTtcCurrent: 200 };
+
+  const dep = buildEntry(row, quote, 'deposit', perLineData);
+  const bal = buildEntry(row, quote, 'balance', perLineData);
+
+  assert.equal(dep.taxTtc, 0, 'no tourist tax on the acompte, despite the stale capture');
+  assert.equal(bal.taxTtc, 4.80, 'the WHOLE tax (not just the 3.36 captured) rides the solde');
+  // Bank-matched: each entry's encaissement still equals the physically-collected échéance.
   assert.equal(dep.encaissementTtc, 61.44);
   assert.equal(bal.encaissementTtc, 143.36);
+  // Σ tax across the two entries = the full stay tax, booked once, on the solde.
+  assert.equal(round4(dep.taxTtc + bal.taxTtc), 4.80);
 });
 
 test('platform-collect — tax = 0, schedule is identical to a no-tax stay', () => {
@@ -190,19 +227,22 @@ test('owner-collect non-direct — complement with tax + extras → emit BOTH re
   assert.equal(round4(c.fraction), 0.10);
 });
 
-test('direct complement (legacy options-added-late) — unchanged, pro-rates against totalStayTtc', () => {
+test('direct complement (legacy options-added-late) — pure revenue, no tax (tax stays on the solde)', () => {
+  // specs/tourist-tax-on-solde.md — the whole tourist tax is booked on the solde, so a direct
+  // complement (extras added after the balance was paid) carries NO tax and pro-rates against
+  // finalPrice: 50 / 200 = 0.25.
   const row = makeRow({
     platform: 'direct',
-    depositAmount: 61.44, balanceAmount: 143.36,
+    depositAmount: 60, balanceAmount: 144.80,
     complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-20',
   });
   const quote = makeQuote();
 
   const c = buildEntry(row, quote, 'complement');
   assert.ok(c);
-  // Direct: encaissementTtc preserved; denominator = totalStayTtc (= 204.80).
   assert.equal(c.encaissementTtc, 50);
-  assert.equal(round4(c.fraction), round4(50 / 204.80));
+  assert.equal(c.taxTtc, 0, 'the tax is on the solde, never the complement, for a direct booking');
+  assert.equal(round4(c.fraction), 0.25);          // 50 / 200
 });
 
 test('owner-collect non-direct + complement = pure tax — Σ emitted encaissements equals totalStayTtc', () => {
