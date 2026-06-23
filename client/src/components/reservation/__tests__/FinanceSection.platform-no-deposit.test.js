@@ -135,3 +135,17 @@ test('platform: ✗ écart chip when the net perçu differs from the virement', 
   });
   expect(screen.getByText(/écart : 26\.00€/i)).toBeInTheDocument();
 });
+
+test('owner-collect platform, no commission: the on-arrival tax is excluded → no écart (regression)', () => {
+  // specs/platform-payment-entry.md — for a platform that does NOT collect the tax (we charge it at
+  // check-in → complement), the platform only settles the pre-arrival. With no commission entered, the
+  // server returns platformNetReceivedAmount = null, so the client fallback must subtract the complement
+  // (the 4.80 tax) from the total. Operator received the 200 pre-arrival → écart 0, NOT 4.80.
+  renderFinance({
+    form: { platform: 'Gîtes de France', platformPayoutAmount: 200 },
+    pricingQuote: { totalStayPrice: 204.80, finalPrice: 200, complementAmount: 4.80, balanceAmount: 200, platformNetReceivedAmount: null },
+  });
+  expect(screen.getByText('200.00€')).toBeInTheDocument();           // net perçu = pre-arrival, tax excluded
+  expect(screen.getByText(/cohérent avec le virement/i)).toBeInTheDocument();
+  expect(screen.queryByText(/écart/i)).not.toBeInTheDocument();
+});
