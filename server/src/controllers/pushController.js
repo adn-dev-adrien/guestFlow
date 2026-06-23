@@ -5,6 +5,7 @@
 
 const model = require('../models/pushSubscriptionsModel');
 const vapid = require('../utils/vapid');
+const pushService = require('../utils/pushService');
 
 function getPublicKey(req, res) {
   res.json({ publicKey: vapid.getPublicKey(), configured: vapid.isConfigured() });
@@ -35,4 +36,18 @@ function updatePreferences(req, res) {
   return res.json(model.setPreferences(userId, req.body || {}));
 }
 
-module.exports = { getPublicKey, subscribe, unsubscribe, getPreferences, updatePreferences };
+// Send a test push to every device of the current user (ignores preferences). Returns the fan-out
+// result `{ sent, pruned, failed, skipped? }` so the UI can confirm delivery or surface a failure.
+async function sendTest(req, res) {
+  const userId = req.user && req.user.id;
+  if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
+  const result = await pushService.sendToUser(userId, {
+    title: 'GuestFlow',
+    body: 'Notification de test ✓ Tout fonctionne.',
+    url: '/settings',
+    tag: 'guestflow-test',
+  });
+  return res.json(result);
+}
+
+module.exports = { getPublicKey, subscribe, unsubscribe, getPreferences, updatePreferences, sendTest };

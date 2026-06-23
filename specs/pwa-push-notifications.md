@@ -51,6 +51,17 @@ reservation's **check-out time** is reached (departure) — only to the users (a
    non-404/410 failure, so a key mismatch is diagnosable from `pm2 logs`. *(Root cause of the 2026-06-16
    prod incident: both iPhones were bound to a previous VAPID key after a regeneration, so no notification
    fired on a new reservation.)*
+3.ter. **Valid VAPID `sub` subject (2026-06-23 fix).** The JWT `sub` claim (the VAPID contact) **must be a
+   routable URL/mailto**. The previous default `mailto:contact@guestflow.local` used the reserved `.local`
+   mDNS TLD, which Apple's push gateway rejects with **`403 BadJwtToken`** — distinct from the 3.bis
+   key-mismatch 403, and **not** fixable by re-subscribing (the public key matches; only the JWT subject is
+   bad). The default is now `mailto:contact@domainesolio.com` (a real, routable domain), overridable per
+   deployment via `VAPID_SUBJECT` in `.env.local`. *(Root cause of the 2026-06-23 incident: every push to
+   both iPhones failed silently with `403 BadJwtToken`.)*
+3.quater. **Self-test push.** From the push settings card, an operator with notifications enabled can send a
+   **test notification** to all of their own devices (ignoring preferences). This is the only way to verify
+   the full pipeline without waiting for a real business event; it surfaces the fan-out result
+   (`sent` / `no subscription` / `no VAPID` / send failure) to the UI.
 
 ### 3.2 Per-user preferences
 4. Each user has three independent push preferences — **newReservation**, **arrivals**, **departures** —
@@ -135,11 +146,11 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | deps | `server/package.json` | T | Add `web-push`. |
-| `utils/` | `vapid.js` | C | Load/generate the VAPID keypair from `.env.local` (`web-push.generateVAPIDKeys()` on first run); expose `{ publicKey, configured }` + configure `web-push`. |
-| `utils/` | `pushService.js` | C | `sendToPref(prefKey, payload, { db })`: gather subscriptions of users whose `prefKey` is ON, `web-push.sendNotification` each, prune 404/410. `sendToUser` helper. Injectable for tests. |
+| `utils/` | `vapid.js` | C | Load/generate the VAPID keypair from `.env.local` (`web-push.generateVAPIDKeys()` on first run); expose `{ publicKey, configured }` + configure `web-push`. The `sub` subject must be a routable URL/mailto (default `mailto:contact@domainesolio.com`; `VAPID_SUBJECT` overrides) — see rule 3.ter. |
+| `utils/` | `pushService.js` | C | `sendToPref(prefKey, payload)`: gather subscriptions of users whose `prefKey` is ON, `web-push.sendNotification` each, prune 404/410, count `failed`. `sendToUser(userId, payload)`: same fan-out to one user's own devices (test push). Both injectable for tests, never throw. |
 | `models/` | `pushSubscriptionsModel.js` | C | CRUD on `push_subscriptions` (add/list-by-user/list-for-pref/remove-by-endpoint/prune); per-user prefs read/write (`user_push_prefs`). |
 | `controllers/` | `pushController.js` | C | `getPublicKey`, `subscribe`, `unsubscribe`, `getPreferences`, `updatePreferences` (all scoped to `req.user`). |
-| `routes/` | `push.js` | C | `GET /push/public-key`, `POST/DELETE /push/subscribe`, `GET/PUT /push/preferences`. Mounted under `/api/push` (auth-required). |
+| `routes/` | `push.js` | C | `GET /push/public-key`, `POST/DELETE /push/subscribe`, `GET/PUT /push/preferences`, `POST /push/test`. Mounted under `/api/push` (auth-required). |
 | `utils/` | `notificationService.js` | T | After the email send in `notifyNewIcalReservation` / `notifyNewSiteDevis`, also `pushService.sendToPref('newReservation', …)`, in a contained try/catch so a push failure can't affect the email path or the caller. The new-reservation push body includes the **client / guest name + property name** (rule 11). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New per-minute job: detect today's arrivals (check-in reached) + departures (check-out reached) not yet notified → `sendToPref('arrivals'/'departures', …)` + stamp. First-run back-stamp guard (§3.4). |
 | `utils/` | `arrivalDeparturePushRunner.js` | T | Set the arrival/departure push `url` to the SAS deep-link `/planning?sas=arrival\|departure&reservationId=:id` (was `/reservations/:id`). |
@@ -171,6 +182,7 @@ installability + push, and avoids precache/build complexity (no offline requirem
 | DELETE | `/push/subscribe` | `{ endpoint }` | `{ ok }` |
 | GET | `/push/preferences` | — | `{ newReservation, arrivals, departures }` (the caller's) |
 | PUT | `/push/preferences` | `{ newReservation?, arrivals?, departures? }` | updated prefs |
+| POST | `/push/test` | — | `{ sent, pruned, failed, skipped? }` (test push to the caller's own devices) |
 
 ---
 
@@ -208,6 +220,9 @@ all-ON (read returns defaults).
   - Status line + **« Activer sur cet appareil »** / **« Désactiver »** button (reflects permission +
     subscription state; disabled with a hint when the browser doesn't support push).
   - Three switches: **Nouvelle réservation**, **Arrivées**, **Départs** (default ON). Saved per user.
+  - When enabled, a **« Envoyer une notification de test »** button pushes to all the account's devices
+    (rule 3.quater). A success alert reports the device count; a failure / no-subscription / no-VAPID case
+    shows an error alert (the user should background or lock the screen to actually see the notification).
   - Helper: « Les notifications s'affichent même quand GuestFlow est fermé, sur cet appareil. »
 - **Notification content** (native): title + body as in §3.3. Clicking a **new-reservation** push opens the
   reservation (`/reservations/:id`) / its devis; clicking an **arrival/departure** push opens the matching
@@ -222,7 +237,8 @@ all-ON (read returns defaults).
       `subscriptionsForPref` gates on the pref (default ON when no row); prefs default all-ON, partial update.
 - [x] `push-service.unit.test.js` — `sendToPref` sends to exactly the opted-in subscribers (injected
       web-push stub); prunes on 404/410; a transient error keeps the sub; **no VAPID → no model access**;
-      **never throws** even if the model throws (isolation).
+      **never throws** even if the model throws (isolation). `sendToUser` fans out to all the user's devices
+      ignoring prefs, skips `no_subscription` / `no_vapid`, and counts transient failures in `failed`.
 - [x] `arrival-departure-push.unit.test.js` — real `reservationsModel.dueArrivals/dueDepartures` (today +
       time reached + not stamped, excludes other days/stamped) → send + stamp once; **firstRun stamps
       without sending** (no restart flood). The arrival/departure push `url` is the **SAS deep-link**
