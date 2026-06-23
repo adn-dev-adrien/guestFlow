@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
   CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
-  LinearProgress, IconButton,
+  LinearProgress, IconButton, FormControlLabel,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
@@ -179,6 +179,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // they're never lost or duplicated.
   const [preservedArrival, setPreservedArrival] = useState([]);
   const [preservedDeparture, setPreservedDeparture] = useState([]);
+  // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « encaissé » confirmations on the
+  // recaps (+ caisse-interne flag). Arrival: settles the arrival complement. Departure: settles every
+  // positive complement (end-of-stay + recalled arrival).
+  const [complementSettled, setComplementSettled] = useState(false);
+  const [complementPaidCash, setComplementPaidCash] = useState(false);
+  const [complementsSettled, setComplementsSettled] = useState(false);
+  const [complementsPaidCash, setComplementsPaidCash] = useState(false);
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;
@@ -188,6 +195,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
+    setComplementSettled(false); setComplementPaidCash(false); setComplementsSettled(false); setComplementsPaidCash(false);
     api.getReservationSas(reservationId)
       .then((d) => {
         if (cancelled) return;
@@ -206,6 +214,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const sealToBool = (v) => (v == null ? true : Number(v) === 1);
         if (mode === 'arrival') {
           setCaution(res.cautionReceived ? 'fait' : null);
+          setComplementSettled(Number(res.complementPaid) === 1);
+          setComplementPaidCash(Number(res.complementPaidCash) === 1);
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
@@ -222,6 +232,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           if (res.bedLinenAlert) setLinenOk(Object.keys(nextBed).length === 0);
         } else {
           setCautionReturned(res.cautionReturned ? true : false);
+          setComplementsSettled(Number(res.endOfStayComplementPaid) === 1);
+          setComplementsPaidCash(Number(res.endOfStayComplementPaidCash) === 1);
           setExtinguisherOk(sealToBool(res.extinguisherSealOkAtDeparture));
           let detail = [];
           try { detail = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
@@ -370,6 +382,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const endOfStaySentLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines];
   const endOfStayLines = [...endOfStaySentLines, ...previewExtinguisherLines];
   const endOfStayTotal = endOfStayLines.reduce((s, l) => s + l.amount, 0);
+  // specs/recall-unpaid-arrival-complement-at-checkout.md — at departure, recall the arrival complement
+  // when it was never settled (amount > 0 AND not paid). The amount stays separate in the DB; here it's
+  // only the combined total to collect + the detail to show.
+  const arrivalRecall = (mode === 'departure'
+    && data?.arrivalComplement
+    && Number(data.arrivalComplement.amount) > 0
+    && Number(data.arrivalComplement.paid) !== 1)
+    ? data.arrivalComplement : null;
+  const recalledArrivalAmount = arrivalRecall ? Math.round(Number(arrivalRecall.amount) * 100) / 100 : 0;
+  const departureGrandTotal = Math.round((endOfStayTotal + recalledArrivalAmount) * 100) / 100;
 
   const commit = async () => {
     setCommitting(true); setError('');
@@ -381,6 +403,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           cautionReceived: activeKeys.includes('caution') ? (caution === 'fait') : undefined,
           complementItems: [...arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })), ...preservedArrival],
           departureHandoverNote: handoverNote,
+          // specs/recall-unpaid-arrival-complement-at-checkout.md — « Complément encaissé » confirmation.
+          complementSettled,
+          complementPaidCash,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
@@ -400,6 +425,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           extinguisherCharges: extinguisherBilled
             ? extinguisherTariffs.map((t) => ({ repairKey: t.repairKey, qty: Number(extinguisherQty[t.repairKey]) || 0 }))
             : [],
+          // specs/recall-unpaid-arrival-complement-at-checkout.md — « Compléments encaissés » → mark every
+          // positive complement paid (end-of-stay + recalled arrival).
+          complementsSettled,
+          complementsPaidCash,
         });
       }
       if (onCommitted) onCommitted();
@@ -668,6 +697,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
                 <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({euro(arrivalAdded)}) manuellement.</Typography>
               )}
+              {total > 0 && Number(r.complementPaid || 0) !== 1 && (
+                <>
+                  <FormControlLabel
+                    control={<Checkbox checked={complementSettled} onChange={(e) => setComplementSettled(e.target.checked)} />}
+                    label="Complément encaissé"
+                  />
+                  {complementSettled && (
+                    <FormControlLabel
+                      sx={{ ml: 2 }}
+                      control={<Checkbox size="small" checked={complementPaidCash} onChange={(e) => setComplementPaidCash(e.target.checked)} />}
+                      label="Caisse interne"
+                    />
+                  )}
+                </>
+              )}
               <Divider />
               <TextField
                 label="Note pour le départ (optionnel)"
@@ -685,9 +729,36 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return (
           <Stack spacing={1}>
             <Typography variant="h6">Récapitulatif fin de séjour</Typography>
-            {endOfStayLines.length === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
+            {endOfStayLines.length === 0 && recalledArrivalAmount === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
             {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{lineText(l)}</Typography>)}
-            {endOfStayTotal > 0 && (<><Divider /><Typography variant="h6">Total à percevoir : {euro(endOfStayTotal)}</Typography></>)}
+            {/* specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement was never
+                settled: recall it with its full detail, on top of the end-of-stay lines. */}
+            {arrivalRecall && (
+              <>
+                <Divider />
+                <Typography variant="subtitle2" color="warning.main">Compléments d'arrivée non perçus</Typography>
+                {(arrivalRecall.detail || []).map((l, i) => (
+                  <Typography key={`ar${i}`} variant="body2">{l.label} : {euro(l.amount)}</Typography>
+                ))}
+                <Typography variant="body2">Sous-total arrivée : <strong>{euro(recalledArrivalAmount)}</strong></Typography>
+              </>
+            )}
+            {departureGrandTotal > 0 && (<><Divider /><Typography variant="h6">Total à percevoir : {euro(departureGrandTotal)}</Typography></>)}
+            {departureGrandTotal > 0 && (
+              <>
+                <FormControlLabel
+                  control={<Checkbox checked={complementsSettled} onChange={(e) => setComplementsSettled(e.target.checked)} />}
+                  label="Compléments encaissés"
+                />
+                {complementsSettled && (
+                  <FormControlLabel
+                    sx={{ ml: 2 }}
+                    control={<Checkbox size="small" checked={complementsPaidCash} onChange={(e) => setComplementsPaidCash(e.target.checked)} />}
+                    label="Caisse interne"
+                  />
+                )}
+              </>
+            )}
             {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
             {keysReceived === false && <Typography variant="body2" color="warning.main">⚠ Clés non récupérées.</Typography>}
           </Stack>
