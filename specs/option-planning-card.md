@@ -52,13 +52,17 @@ label + the client + the property. Clicking the card opens the reservation fiche
    appear on the boundary days (§6.bis): e.g. arrivée 15:00 ⇒ the arrival day offers only the late créneaux
    (a 09:00 once-per-day option hides that day entirely); départ 10:00 ⇒ the departure day offers only the
    morning créneaux. All selected by default; the operator toggles each (jour × créneau) individually.
-   - **Empty-grid fallback (first enable):** if the presence filter excludes *every* candidate slot —
-     e.g. a 1-night stay whose breakfast (09:00) lands after a check-out before 09:00, so the arrival
-     morning is pre-check-in and the departure morning is post-check-out — the seed grid would be empty.
-     A 0-occurrence option is dropped by the engine, so the toggle would bounce straight back off. In
-     that degenerate case `buildInitialGrid` falls back to seeding **all stay days** (checked), so the
-     operator can always take the option and then adjust the days. The presence filter still applies
-     whenever at least one slot survives.
+   - **Breakfast departure-morning rule (`autoOptionType = 'breakfast'`):** breakfast is still served the
+     **departure morning** even when its time falls after check-out (e.g. breakfast 09:00, check-out
+     08:00). Instead of the presence filter dropping that occurrence (which left the seed grid empty on a
+     1-night stay → the engine returns no line → the toggle bounces back off), the departure-day occurrence
+     is **kept and retimed to 30 min before the scheduled departure** (08:00 → 07:30). Applied by
+     `seedTime` in both the first-enable seed and the date/heure reconcile. The arrival morning stays
+     excluded (no breakfast before check-in).
+   - **Empty-grid safety net (other daily options):** if the presence filter still excludes *every*
+     candidate slot (a non-breakfast daily option entirely outside the guest's window), `buildInitialGrid`
+     falls back to seeding **all stay days** (checked) so a manual enable never silently vanishes; the
+     operator then adjusts the days.
 6. The **selected occurrences** (checked day × slot) are the single source of truth: they drive both the
    planning cards (§3.3) and the option's billed quantity/price (§3.4). They are stored on
    `reservation_options.cardOccurrences` — a JSON array of `{ date, time, done }` (the checked ones; `done` =
