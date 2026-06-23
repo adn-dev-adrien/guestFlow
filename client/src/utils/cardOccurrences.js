@@ -60,6 +60,30 @@ export function isPresent(date, time, startDate, endDate, checkInTime, checkOutT
   return true;
 }
 
+// Subtract `mins` minutes from an `HH:MM` string, clamped at 00:00. Used for the breakfast
+// departure-morning rule below. Returns the input unchanged when it isn't a valid time.
+export function subtractMinutes(hhmm, mins) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  if (!m) return String(hhmm || '');
+  const total = Math.max(0, (Number(m[1]) * 60) + Number(m[2]) - Number(mins || 0));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// Seed time for a (date, slot-time) candidate when first enabling / reconciling a daily card-option.
+// Standard rule: keep it only if the guest is present (boundary days filtered by check-in/out).
+// EXCEPTION — breakfast (`autoOptionType === 'breakfast'`): it is still served the DEPARTURE morning
+// even when the option's time falls after check-out (e.g. breakfast 09:00, check-out 08:00). In that
+// case the occurrence is kept but retimed to 30 min before the scheduled departure, so a short stay
+// whose check-out precedes breakfast still bills it (specs/option-planning-card.md §3.2). Returns the
+// time string to seed, or null to exclude the candidate.
+export function seedTime(option, date, time, startDate, endDate, checkInTime, checkOutTime) {
+  const t = String(time || '');
+  if (option?.autoOptionType === 'breakfast' && date === endDate && checkOutTime && t && t > String(checkOutTime)) {
+    return subtractMinutes(checkOutTime, 30);
+  }
+  return isPresent(date, t, startDate, endDate, checkInTime, checkOutTime) ? t : null;
+}
+
 // 'once' single occurrence: the option default date (else stay start) + its first slot time.
 function onceEntry(option, startDate, checked) {
   const date = (option?.planningCardDate && ISO_DATE_RE.test(option.planningCardDate))
@@ -77,26 +101,25 @@ export function buildInitialGrid(option, startDate, endDate, checkInTime, checkO
   }
   const slots = dailySlots(option);
   const days = enumerateStayDates(startDate, endDate);
-  const build = (filterPresence) => {
-    const out = [];
+  const out = [];
+  for (const date of days) {
+    slots.forEach((time, slot) => {
+      const eff = seedTime(option, date, time, startDate, endDate, checkInTime, checkOutTime);
+      if (eff == null) return;
+      out.push({ date, time: eff, slot, checked: true, done: false });
+    });
+  }
+  // Safety net: a manual enable must NEVER yield an empty grid when the stay has days. The breakfast
+  // departure-morning rule (seedTime) already covers the common short-stay case; this catches any other
+  // daily option whose every slot falls outside the guest's presence window — otherwise the server
+  // returns no line for 0 occurrences and the next recompute drops it (the toggle bounces back off).
+  // Seed all days unfiltered so the operator can take the option and adjust the days.
+  if (out.length === 0 && days.length > 0) {
     for (const date of days) {
-      slots.forEach((time, slot) => {
-        if (filterPresence && !isPresent(date, time || '', startDate, endDate, checkInTime, checkOutTime)) return;
-        out.push({ date, time: time || '', slot, checked: true, done: false });
-      });
+      slots.forEach((time, slot) => out.push({ date, time: time || '', slot, checked: true, done: false }));
     }
-    return out;
-  };
-  const filtered = build(true);
-  // A manual enable must NEVER yield an empty grid when the stay has days. An option whose every
-  // candidate slot falls outside the guest's presence window — e.g. a 1-night stay with a breakfast
-  // served at 09:00 after a check-out before 09:00, so the arrival morning is pre-check-in and the
-  // departure morning is post-check-out — would otherwise seed 0 occurrences. The server then returns
-  // no line for the option (pricing.js: empty cardOccurrences → no charge), and the next recompute
-  // drops it: the toggle bounces straight back off. Fall back to the unfiltered grid so the operator
-  // can take the option and adjust the days. specs/option-planning-card.md §3.2.
-  if (filtered.length === 0 && days.length > 0) return build(false);
-  return filtered;
+  }
+  return out;
 }
 
 // Build the grid from a stored selection (edit-load): candidates CHECKED iff matched in `stored`
@@ -179,9 +202,10 @@ export function reconcileGrid(option, startDate, endDate, current, checkInTime, 
   for (const date of days) {
     for (const slot of slotsSorted) {
       const time = slotTime.get(slot) || '';
-      if (!isPresent(date, time, startDate, endDate, checkInTime, checkOutTime)) continue;
+      const eff = seedTime(option, date, time, startDate, endDate, checkInTime, checkOutTime);
+      if (eff == null) continue;
       const existing = byKey.get(occKey(date, slot));
-      next.push(existing || { date, time, slot, checked: dayHasAny(date) ? dayChecked(date) : true, done: false });
+      next.push(existing || { date, time: eff, slot, checked: dayHasAny(date) ? dayChecked(date) : true, done: false });
     }
   }
   if (next.length === cur.length
