@@ -76,14 +76,27 @@ export function buildInitialGrid(option, startDate, endDate, checkInTime, checkO
     return e.date ? [e] : [];
   }
   const slots = dailySlots(option);
-  const out = [];
-  for (const date of enumerateStayDates(startDate, endDate)) {
-    slots.forEach((time, slot) => {
-      if (!isPresent(date, time || '', startDate, endDate, checkInTime, checkOutTime)) return;
-      out.push({ date, time: time || '', slot, checked: true, done: false });
-    });
-  }
-  return out;
+  const days = enumerateStayDates(startDate, endDate);
+  const build = (filterPresence) => {
+    const out = [];
+    for (const date of days) {
+      slots.forEach((time, slot) => {
+        if (filterPresence && !isPresent(date, time || '', startDate, endDate, checkInTime, checkOutTime)) return;
+        out.push({ date, time: time || '', slot, checked: true, done: false });
+      });
+    }
+    return out;
+  };
+  const filtered = build(true);
+  // A manual enable must NEVER yield an empty grid when the stay has days. An option whose every
+  // candidate slot falls outside the guest's presence window — e.g. a 1-night stay with a breakfast
+  // served at 09:00 after a check-out before 09:00, so the arrival morning is pre-check-in and the
+  // departure morning is post-check-out — would otherwise seed 0 occurrences. The server then returns
+  // no line for the option (pricing.js: empty cardOccurrences → no charge), and the next recompute
+  // drops it: the toggle bounces straight back off. Fall back to the unfiltered grid so the operator
+  // can take the option and adjust the days. specs/option-planning-card.md §3.2.
+  if (filtered.length === 0 && days.length > 0) return build(false);
+  return filtered;
 }
 
 // Build the grid from a stored selection (edit-load): candidates CHECKED iff matched in `stored`
