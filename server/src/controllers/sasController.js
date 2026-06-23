@@ -40,6 +40,9 @@ function getSas(req, res) {
     portalCode: String(settings.portalCode || '').trim(),
     cleaning: { included: cleaningIncluded, price: cleaningPrice },
     linenItems: linenItemsModel.list(),
+    // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
+    // itemised detail) so the departure SAS can recall it when it was never settled.
+    arrivalComplement: reservationsModel.buildArrivalComplementDetail(reservation.id),
     // « Tarifs facturables » — repair prices (incl. the keyed extinguisher seal) for the SAS check.
     repairAmounts: repairAmountsModel.list(),
     // Breakfast page state (arrival SAS): applicable? + resolved person count + effective hour +
@@ -55,6 +58,7 @@ function commitArrival(req, res) {
     cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
+    complementSettled, complementPaidCash,
   } = req.body || {};
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
@@ -68,6 +72,9 @@ function commitArrival(req, res) {
     breakfastNote,
     departureHandoverNote,
     extinguisherSealOkAtArrival,
+    // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
+    complementSettled: complementSettled === undefined ? undefined : Boolean(complementSettled),
+    complementPaidCash: Boolean(complementPaidCash),
   });
   return res.json({ ok: true, complementAmount });
 }
@@ -75,7 +82,7 @@ function commitArrival(req, res) {
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-  const { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges } = req.body || {};
+  const { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, complementsSettled, complementsPaidCash } = req.body || {};
   reservationsModel.commitDepartureSas(Number(req.params.id), {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
     cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
@@ -84,6 +91,10 @@ function commitDeparture(req, res) {
     endOfStayComplementDetail,
     extinguisherSealOkAtDeparture,
     extinguisherCharges: Array.isArray(extinguisherCharges) ? extinguisherCharges : undefined,
+    // specs/recall-unpaid-arrival-complement-at-checkout.md — « Compléments encaissés » → mark paid every
+    // positive complement (end-of-stay + recalled arrival) at the checkout moment.
+    complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
+    complementsPaidCash: Boolean(complementsPaidCash),
   });
   return res.json({ ok: true });
 }
