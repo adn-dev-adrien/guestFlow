@@ -52,6 +52,13 @@ label + the client + the property. Clicking the card opens the reservation fiche
    appear on the boundary days (§6.bis): e.g. arrivée 15:00 ⇒ the arrival day offers only the late créneaux
    (a 09:00 once-per-day option hides that day entirely); départ 10:00 ⇒ the departure day offers only the
    morning créneaux. All selected by default; the operator toggles each (jour × créneau) individually.
+   - **Empty-grid fallback (first enable):** if the presence filter excludes *every* candidate slot —
+     e.g. a 1-night stay whose breakfast (09:00) lands after a check-out before 09:00, so the arrival
+     morning is pre-check-in and the departure morning is post-check-out — the seed grid would be empty.
+     A 0-occurrence option is dropped by the engine, so the toggle would bounce straight back off. In
+     that degenerate case `buildInitialGrid` falls back to seeding **all stay days** (checked), so the
+     operator can always take the option and then adjust the days. The presence filter still applies
+     whenever at least one slot survives.
 6. The **selected occurrences** (checked day × slot) are the single source of truth: they drive both the
    planning cards (§3.3) and the option's billed quantity/price (§3.4). They are stored on
    `reservation_options.cardOccurrences` — a JSON array of `{ date, time, done }` (the checked ones; `done` =
