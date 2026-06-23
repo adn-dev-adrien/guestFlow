@@ -67,7 +67,13 @@ The net perçu (= solde) and the accounting are unchanged downstream — only th
    commission` = solde (spec `platform-commission-line.md` §3 rule 5). Clamped ≥ 0.
 5. **Virement = reconciliation only.** `platformPayoutAmount` (the bank transfer the operator actually
    received) is stored for audit + drives a UI ✓/✗ vs the computed net. It **never** changes any
-   amount/accounting — purely a sanity check. ✓ when `|net − virement| < 0.01`.
+   amount/accounting — purely a sanity check. ✓ when `|net − virement| < 0.01`. The `net` here is the
+   **pre-arrival** the platform settles (`preArrivalAmount − commission`), **NOT** `totalStayPrice −
+   commission`: for an owner-collect platform the tourist tax (and any on-site extra) sits in the complement
+   and is collected by us at check-in, so it is never part of the platform's virement. (Fixed 2026-06-23:
+   the reconciliation previously used `totalStayPrice`, so an owner-collect reservation always showed an
+   écart equal to the tourist tax. Locked by `pricing-tourist-tax-on-arrival-schedule.unit.test.js` +
+   `FinanceSection.platform-no-deposit.test.js`.)
 6. **Accounting unchanged.** CA on the total séjour (split accommodation 70600000 + options 70600010),
    commission booked, net = solde (already validated by `platform-commission-line.md`). The brut just
    makes `finalPrice` land on the right number; the buckets/VAT/commission flow is identical.

@@ -1626,8 +1626,16 @@ function calculateReservationQuote({
   const platformCommissionAmount = clampCommission(platformCommissionAmountInput); // solde
   const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput);   // acompte
   const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
+  // Net perçu = what the platform actually settles to us = the PRE-ARRIVAL amount (acompte + solde) minus
+  // its commission. It must NOT be based on `totalStayPrice`: the complement (the on-arrival tourist tax
+  // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
+  // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
+  // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
+  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
+  // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
+  // unchanged (= totalStayPrice − commission).
   const platformNetReceivedAmount = totalPlatformCommission > 0
-    ? roundMoney(totalStayPrice - totalPlatformCommission)
+    ? roundMoney(preArrivalAmount - totalPlatformCommission)
     : null;
   if (platformIsNonDirect) {
     // specs/platform-per-echeance-commission.md — the acompte/solde split the GROSS pre-arrival (the

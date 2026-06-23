@@ -41,9 +41,15 @@ Both the commission and the net are **engine-authoritative** (`quote.platformCom
    (`reservations.platformCommissionAmount`) holds the amount the platform retains. Clamped **≥ 0**.
    **Non-direct platforms only** — direct bookings always have commission **0** (the field isn't shown,
    the value is forced NULL on save). This is the whole reason the display mode is platform-only.
-2. **Net = total séjour − commission.** The engine returns
-   `platformNetReceivedAmount = round(totalStayPrice − platformCommissionAmount)` when the commission
-   is > 0, else **null** (→ the summary collapses to the single « Total du séjour TTC » line).
+2. **Net = pre-arrival − commission.** The engine returns
+   `platformNetReceivedAmount = round(preArrivalAmount − platformCommissionAmount)` when the commission
+   is > 0, else **null** (→ the summary collapses to the single « Total du séjour TTC » line). It is the
+   **pre-arrival amount** (acompte + solde), NOT `totalStayPrice`: the complement — the on-arrival tourist
+   tax for owner-collect platforms (`touristTaxCollectedOnArrival`) plus any on-site extras — is collected
+   by us at check-in, never by the platform. For tax-collecting platforms the tax rides the balance and the
+   complement is 0, so `preArrivalAmount = totalStayPrice` and the value is unchanged. (Fixed 2026-06-23:
+   basing it on `totalStayPrice` made the « Paiement plateforme » reconciliation always show an écart equal
+   to the tourist tax — see specs/platform-payment-entry.md.)
 3. **Summary display.** When `platformCommissionAmount > 0`, the « Total du séjour » block becomes three
    lines: **Total du séjour TTC (brut)** = `totalStayPrice` (the full stay: nights + options + resources),
    **Commission plateforme** = `− commission`, **Net perçu TTC** = `platformNetReceivedAmount`. When it's

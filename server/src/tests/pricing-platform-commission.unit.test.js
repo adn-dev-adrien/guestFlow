@@ -114,7 +114,9 @@ test('platform reservation: a forced-complement extra stays in the complement; t
   assert.equal(q.balanceAmount, 200);                            // gross pre-arrival = 250 − 50 complement
   // The gross échéances sum to the total séjour; the commission is separate.
   assert.equal(q.balanceAmount + q.complementAmount, q.totalStayPrice);
-  assert.equal(q.platformNetReceivedAmount, 210);                // 250 − 40
+  // Net perçu = the PRE-ARRIVAL the platform settles (200) − commission (40); the 50 complement extra is
+  // collected by us on arrival, never by the platform (specs/platform-payment-entry.md — écart bug fix).
+  assert.equal(q.platformNetReceivedAmount, 160);                // 200 pre-arrival − 40
   db.close();
 });
 

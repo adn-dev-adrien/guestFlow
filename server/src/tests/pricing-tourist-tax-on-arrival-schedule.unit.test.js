@@ -174,3 +174,20 @@ test('non-direct owner-collect with complementPaid → complement frozen to stor
   assert.equal(q.complementAmount, 4.80);
   db.close();
 });
+
+test('owner-collect platform — net perçu EXCLUDES the on-arrival tourist tax (écart bug fix)', () => {
+  // specs/platform-payment-entry.md — for a platform that does NOT collect the tax (we charge it at
+  // check-in → it lives in the complement), the platform settles only the PRE-ARRIVAL amount. The
+  // « net perçu » must be `preArrival − commission`, NOT `totalStayPrice − commission`. Otherwise the
+  // « Paiement plateforme » reconciliation always shows an écart equal to the tourist tax.
+  const db = createDb({ collectsTouristTax: false });
+  const q = calculateReservationQuote({ ...BASE_INPUTS, db, platform: 'airbnb', platformCommissionAmount: 61 });
+
+  assert.equal(q.touristTaxCollectedOnArrival, true);
+  assert.equal(q.totalStayPrice, 204.80);          // 200 stay + 4.80 tax
+  assert.equal(q.complementAmount, 4.80);          // the tax is collected by us on arrival
+  assert.equal(q.balanceAmount, 200);              // pre-arrival = what the platform settles
+  // The platform never pays the 4.80 tax → net = 200 − 61 = 139 (NOT 204.80 − 61 = 143.80).
+  assert.equal(q.platformNetReceivedAmount, 139);
+  db.close();
+});

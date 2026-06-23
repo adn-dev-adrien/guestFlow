@@ -84,8 +84,9 @@ test('a complement option is ADDITIONAL to the brut (collected on arrival), not 
   assert.equal(q.baseAccommodationAdjustedPrice, 607, 'accommodation = brut − ménage (the complement extra is NOT subtracted)');
   assert.equal(q.finalPrice, 707, 'total séjour = brut 687 + complement 20');
   assert.equal(q.complementAmount, 20, 'the lit bébé lands in the complément (collected on arrival)');
-  // The platform settles the brut (minus commission); the complement is on top.
-  assert.equal(q.platformNetReceivedAmount, 646, 'net perçu = total 707 − commission 61');
+  // The platform settles the brut (minus commission); the complement (lit bébé, collected on arrival) is
+  // on top and NOT part of the platform's payout (specs/platform-payment-entry.md — écart bug fix).
+  assert.equal(q.platformNetReceivedAmount, 626, 'net perçu = brut 687 − commission 61');
   db.close();
 });
 

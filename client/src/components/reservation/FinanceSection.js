@@ -142,9 +142,15 @@ export default function FinanceSection() {
               const totalSejour = Number(pricingQuote?.totalStayPrice ?? pricingQuote?.finalPrice ?? 0);
               const commission = Number(pricingQuote?.totalPlatformCommission
                 ?? ((Number(form.platformCommissionAmount || 0)) + (Number(form.acompteCommissionAmount || 0))));
+              // The platform only settles the PRE-ARRIVAL amount: the complement (the on-arrival tourist
+              // tax for owner-collect platforms + on-site extras) is collected by us at check-in, never by
+              // the platform. Exclude it so the reconciliation no longer shows an écart equal to the tax
+              // (specs/platform-payment-entry.md). The server-provided `platformNetReceivedAmount` already
+              // accounts for this; this fallback (no commission entered) must mirror it.
+              const preArrival = Math.round((totalSejour - Number(pricingQuote?.complementAmount || 0)) * 100) / 100;
               const netPercu = pricingQuote?.platformNetReceivedAmount != null
                 ? Number(pricingQuote.platformNetReceivedAmount)
-                : Math.round((totalSejour - commission) * 100) / 100;
+                : Math.round((preArrival - commission) * 100) / 100;
               const virement = form.platformPayoutAmount === '' || form.platformPayoutAmount == null
                 ? null : Number(form.platformPayoutAmount);
               const ecart = virement == null ? null : Math.round((netPercu - virement) * 100) / 100;
