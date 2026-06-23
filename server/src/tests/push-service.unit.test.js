@@ -11,6 +11,7 @@ function stubModel(subs) {
   const pruned = [];
   return {
     subscriptionsForPref: () => subs,
+    listByUser: () => subs,
     removeByEndpoint: (e) => pruned.push(e),
     _pruned: pruned,
   };
@@ -68,4 +69,34 @@ test('sendToPref never rejects even if the model itself throws', async () => {
   const res = await svc.sendToPref('arrivals', { title: 'T' });
   assert.equal(res.error, true);
   assert.equal(res.sent, 0);
+});
+
+test('sendToUser pushes to all of the user devices, ignoring preferences', async () => {
+  const sent = [];
+  const webpush = { sendNotification: async (s, body) => { sent.push({ endpoint: s.endpoint, body }); } };
+  const svc = buildPushService({ webpush, model: stubModel(SUBS), vapid: stubVapid(), logger: { warn() {} } });
+  const res = await svc.sendToUser(7, { title: 'Test' });
+  assert.equal(res.sent, 2);
+  assert.equal(sent.length, 2);
+});
+
+test('sendToUser → skipped no_subscription when the user has no device', async () => {
+  const svc = buildPushService({ webpush: {}, model: stubModel([]), vapid: stubVapid(), logger: { warn() {} } });
+  const res = await svc.sendToUser(7, { title: 'Test' });
+  assert.equal(res.skipped, 'no_subscription');
+  assert.equal(res.sent, 0);
+});
+
+test('sendToUser → skipped no_vapid, never throws', async () => {
+  const svc = buildPushService({ webpush: {}, model: stubModel(SUBS), vapid: stubVapid(false), logger: { warn() {} } });
+  const res = await svc.sendToUser(7, { title: 'Test' });
+  assert.equal(res.skipped, 'no_vapid');
+});
+
+test('a transient send error is counted in `failed`', async () => {
+  const webpush = { sendNotification: async () => { const e = new Error('403'); e.statusCode = 403; e.body = '{"reason":"BadJwtToken"}'; throw e; } };
+  const svc = buildPushService({ webpush, model: stubModel(SUBS), vapid: stubVapid(), logger: { warn() {} } });
+  const res = await svc.sendToUser(7, { title: 'Test' });
+  assert.equal(res.sent, 0);
+  assert.equal(res.failed, 2);
 });

@@ -12,5 +12,6 @@ router.post('/subscribe', controller.subscribe);
 router.delete('/subscribe', controller.unsubscribe);
 router.get('/preferences', controller.getPreferences);
 router.put('/preferences', controller.updatePreferences);
+router.post('/test', controller.sendTest);
 
 module.exports = router;

@@ -11,6 +11,7 @@ import {
   Card, CardContent, Stack, Typography, FormControlLabel, Switch, Box, Button, Alert, CircularProgress,
 } from '@mui/material';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 import { pushSupported, getPushState, enablePush, disablePush } from '../push/registerPush';
 
@@ -26,7 +27,9 @@ export default function SettingsPushNotificationsSection() {
   const [prefs, setPrefs] = useState({ newReservation: true, arrivals: true, departures: true });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -56,6 +59,21 @@ export default function SettingsPushNotificationsSection() {
     finally { setBusy(false); }
   };
 
+  const onTest = async () => {
+    setTesting(true); setError(''); setNotice('');
+    try {
+      const r = await api.sendPushTest();
+      if (r?.skipped === 'no_vapid') setError('Push non configuré côté serveur (VAPID manquant).');
+      else if (r?.skipped === 'no_subscription') setError("Aucun appareil abonné. Activez d'abord les notifications.");
+      else if ((r?.sent || 0) === 0) setError("Échec de l'envoi (voir les logs serveur).");
+      else setNotice(`Notification envoyée à ${r.sent} appareil(s) du compte. Verrouillez l'écran ou passez en arrière-plan pour la voir.`);
+    } catch (err) {
+      setError(err?.message || "Échec de l'envoi du test.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const onTogglePref = async (key, value) => {
     const next = { ...prefs, [key]: value };
     setPrefs(next); // optimistic
@@ -79,6 +97,7 @@ export default function SettingsPushNotificationsSection() {
           </Box>
 
           {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
+          {notice && <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert>}
 
           {!supported ? (
             <Alert severity="info">Ce navigateur ne supporte pas les notifications push.</Alert>
@@ -90,6 +109,14 @@ export default function SettingsPushNotificationsSection() {
                 {state.enabled ? (
                   <>
                     <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>Activées sur cet appareil</Typography>
+                    <Button
+                      variant="outlined"
+                      onClick={onTest}
+                      disabled={testing}
+                      startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                    >
+                      Envoyer une notification de test
+                    </Button>
                     <Button variant="outlined" color="inherit" onClick={onDisable} disabled={busy}>Désactiver</Button>
                   </>
                 ) : (
