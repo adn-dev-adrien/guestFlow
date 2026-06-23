@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   enumerateStayDates, dailySlots, buildInitialGrid, buildGridFromStored,
-  reconcileGrid, toWireOccurrences, selectedCount, isPresent,
+  reconcileGrid, toWireOccurrences, selectedCount, isPresent, subtractMinutes,
 } from '../cardOccurrences';
 
 // specs/option-planning-card.md §3.2 + §3.4 — occurrence grid helpers for the fiche checklist.
@@ -118,27 +118,6 @@ describe('presence on the boundary days (check-in / check-out)', () => {
     expect(grid.length).toBe(1 + 3 + 3 + 1);
   });
 
-  test('buildInitialGrid never seeds an empty grid on a manual enable (breakfast vanish regression)', () => {
-    // Regression: a 1-night stay whose breakfast (09:00) lands after a 08:00 check-out. The arrival
-    // morning is pre-check-in (15:00) and the departure morning is post-check-out (08:00) → presence
-    // filter excludes BOTH days. An empty grid made the server drop the option and the toggle bounced
-    // back off. We fall back to the unfiltered grid so the option can be taken + adjusted.
-    const breakfast = { cardRepeat: 'once_per_day', priceType: 'per_person_per_night', planningCardTimes: ['09:00'] };
-    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-11', '15:00', '08:00');
-    expect(grid.length).toBeGreaterThan(0);
-    expect(grid.every((o) => o.checked)).toBe(true);
-    expect(grid.map((o) => o.date)).toEqual(['2026-07-10', '2026-07-11']);
-    expect(toWireOccurrences(grid).length).toBe(2);
-  });
-
-  test('buildInitialGrid keeps the presence filter when at least one slot survives', () => {
-    // The fallback only kicks in when EVERYTHING is filtered out: a normal stay still drops the
-    // pre-check-in arrival morning (09:00 < 15:00).
-    const breakfast = { cardRepeat: 'once_per_day', priceType: 'per_person_per_night', planningCardTimes: ['09:00'] };
-    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-12', '15:00', '10:00');
-    expect(grid.map((o) => o.date)).toEqual(['2026-07-11', '2026-07-12']); // arrival morning excluded
-  });
-
   test('reconcileGrid re-filters presence when a slot time crosses the check-out bound', () => {
     const meals = { cardRepeat: 'multiple_per_day', priceType: 'per_person', planningCardTimes: ['08:00', '12:30'] };
     const grid = buildInitialGrid(meals, '2026-07-10', '2026-07-11', ci, co); // 11 = departure
@@ -146,6 +125,48 @@ describe('presence on the boundary days (check-in / check-out)', () => {
     const retimed = grid.map((o) => (o.slot === 0 ? { ...o, time: '16:00' } : o));
     const next = reconcileGrid(meals, '2026-07-10', '2026-07-11', retimed, ci, co);
     expect(next.some((o) => o.date === '2026-07-11' && o.slot === 0)).toBe(false); // dropped
+  });
+});
+
+describe('breakfast departure-morning rule (check-out before the breakfast time)', () => {
+  // specs/option-planning-card.md §3.2 — the user must be able to activate « Petit déjeuner » even on a
+  // short stay whose check-out precedes the breakfast time; the departure-morning occurrence is kept and
+  // retimed to 30 min before the scheduled departure (regression for the « toggle bounces back off » bug).
+  const breakfast = { autoOptionType: 'breakfast', cardRepeat: 'once_per_day', priceType: 'per_person_per_night', planningCardTimes: ['09:00'] };
+
+  test('subtractMinutes: 30 min before departure, clamped at 00:00', () => {
+    expect(subtractMinutes('08:00', 30)).toBe('07:30');
+    expect(subtractMinutes('10:00', 30)).toBe('09:30');
+    expect(subtractMinutes('00:10', 30)).toBe('00:00');
+    expect(subtractMinutes('', 30)).toBe('');
+  });
+
+  test('1-night stay, check-out 08:00 < breakfast 09:00 → departure morning kept at 07:30', () => {
+    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-11', '15:00', '08:00');
+    expect(grid).toEqual([{ date: '2026-07-11', time: '07:30', slot: 0, checked: true, done: false }]);
+    expect(toWireOccurrences(grid)).toEqual([{ date: '2026-07-11', time: '07:30', done: false }]);
+  });
+
+  test('2-night stay, check-out 08:00 → middle morning at 09:00, departure morning retimed to 07:30', () => {
+    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-12', '15:00', '08:00');
+    const byDate = (d) => grid.filter((o) => o.date === d).map((o) => o.time);
+    expect(byDate('2026-07-10')).toEqual([]);        // arrival morning: guest not yet checked in
+    expect(byDate('2026-07-11')).toEqual(['09:00']); // middle day: normal time
+    expect(byDate('2026-07-12')).toEqual(['07:30']); // departure day: retimed before check-out
+  });
+
+  test('check-out 10:00 ≥ breakfast 09:00 → no retiming, served at 09:00', () => {
+    const grid = buildInitialGrid(breakfast, '2026-07-10', '2026-07-11', '15:00', '10:00');
+    expect(grid).toEqual([{ date: '2026-07-11', time: '09:00', slot: 0, checked: true, done: false }]);
+  });
+
+  test('a NON-breakfast daily option fully outside presence still falls back to all days (no retiming)', () => {
+    // The retiming is breakfast-specific; an evening once_per_day option whose only present day is filtered
+    // out keeps the generic empty-grid safety net (all days seeded unfiltered, original time).
+    const apero = { cardRepeat: 'once_per_day', priceType: 'per_stay', planningCardTimes: ['18:00'] };
+    const grid = buildInitialGrid(apero, '2026-07-10', '2026-07-11', '19:00', '10:00'); // arrival after 18:00, departure before 18:00
+    expect(grid.length).toBe(2);
+    expect(grid.every((o) => o.time === '18:00')).toBe(true);
   });
 });
 
