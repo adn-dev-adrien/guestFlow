@@ -50,6 +50,12 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    scrolling near the bottom appends the next month, near the top prepends the previous one (scroll
    position maintained). Each month carries a **sticky label**. An « Aujourd'hui » button refocuses the
    current month; today's day cell is highlighted. No previous/next buttons.
+7. **Opens on the current month.** On load the calendar scrolls so the **current month** sits at the top
+   of the container. Because the focus scroll runs before the reservations finish loading and the mobile
+   agenda blocks are variable-height, the current month is re-focused once after the first batch of items
+   settles the heights. The scroll offset is computed **rect-relative** (`getBoundingClientRect`), not via
+   `offsetTop` — the month anchors have no positioned ancestor, so `offsetTop` measured from the page top
+   and clamped the scroll to the last month (the « date bizarre » bug, fixed 2026-06-23).
 7. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
    are present. On mobile (agenda list) closures render as grey rows « Fermé — {logement} ».
 8. **Today is framed**: today's day cell carries a 2 px primary border (in addition to the bold primary

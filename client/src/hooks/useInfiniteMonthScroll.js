@@ -65,7 +65,11 @@ export default function useInfiniteMonthScroll(selectedProp) {
     const anchor = container.querySelector(`[data-month-anchor="${key}"]`);
     if (!anchor) return;
 
-    const anchorTop = anchor.offsetTop;
+    // Use rect-relative math, NOT `anchor.offsetTop`: the month anchors have no positioned ancestor,
+    // so offsetTop measures from the page top (the calendar sits far down the page). Feeding that into
+    // scrollTop clamps to the max scroll and the calendar jumps to the LAST month. The rect delta is the
+    // true distance from the scroller's top.
+    const anchorTop = anchor.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
     const topPadding = 12;
     container.scrollTop = Math.max(0, anchorTop - topPadding);
     pendingFocusScrollRef.current = false;

@@ -350,6 +350,7 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
     }).finally(() => { if (mountedRef.current) setLoading(false); });
   }, [months]);
 
+  // Open on the current month.
   useEffect(() => {
     const n = new Date();
     focusOnMonth(n.getFullYear(), n.getMonth());
@@ -359,6 +360,20 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
     () => normalizeItems(Object.values(reservationsById), Object.values(closuresById)),
     [reservationsById, closuresById],
   );
+
+  // The mount focus above runs before the reservations finish loading. On mobile the month blocks are
+  // variable-height agenda lists, so once the data lands the block heights change and the first scroll
+  // ends up on a stale month. Re-focus the current month ONCE, after the first batch of items settles
+  // the heights. (Desktop grids are fixed-height → effectively a no-op there.) An empty calendar keeps
+  // uniform heights → no need.
+  const didSettleFocusRef = useRef(false);
+  useEffect(() => {
+    if (didSettleFocusRef.current || items.length === 0) return;
+    didSettleFocusRef.current = true;
+    const n = new Date();
+    focusOnMonth(n.getFullYear(), n.getMonth());
+  }, [items, focusOnMonth]);
+
   const goToday = useCallback(() => { const n = new Date(); focusOnMonth(n.getFullYear(), n.getMonth(), { resetNavLocks: true }); }, [focusOnMonth]);
 
   const platformsInView = useMemo(() => {
