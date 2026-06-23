@@ -1,0 +1,2 @@
+- **Taxe de séjour sur le solde uniquement.** Quand une réservation a un acompte, l'acompte ne porte plus que sur l'hébergement (pourcentage calculé hors taxe de séjour) ; toute la taxe de séjour est désormais sur le solde. Sans acompte, rien ne change.
+- **Suivi financier › Taxe de séjour** : une nuitée apparaît dans le mois où son **solde est encaissé** (`balancePaidDate`), et non plus au mois de la dernière nuit. Les soldes non payés disparaissent de la déclaration jusqu'à leur encaissement (taxe perçue à l'arrivée → mois du complément).

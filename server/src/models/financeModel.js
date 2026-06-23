@@ -11,6 +11,25 @@ const {
 
 const UPCOMING_PER_PROPERTY = 5;
 
+// specs/tourist-tax-on-solde.md — SQL predicate: is a reservation's tourist tax COLLECTED ON ARRIVAL
+// (→ it rides on the complement, paid at check-in) rather than on the solde? True when the operator
+// forced it to the complement (`touristTaxInComplement = 1`) OR the GLOBAL platform mode is « we collect
+// at arrival » (`collectsTouristTax = 0` on a non-direct platform — matches the engine's
+// `isTouristTaxCollectedOnArrival = !collectsFromGuest && platform != 'direct'`). Else the tax is on the
+// solde. Referenced inside the getTouristTaxExtraction query (aliased `r` for the reservations table).
+const TAX_ON_ARRIVAL_SQL = `(
+  r.touristTaxInComplement = 1
+  OR EXISTS (
+    SELECT 1 FROM platforms pl
+    WHERE lower(pl.name) = lower(r.platform) AND pl.collectsTouristTax = 0
+  )
+  OR EXISTS (
+    SELECT 1 FROM ical_sources s JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
+    WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
+      AND pl.collectsTouristTax = 0
+  )
+)`;
+
 function todayIso() {
   return new Date().toISOString().split('T')[0];
 }
@@ -480,8 +499,16 @@ function createFinanceModel(database) {
         JOIN properties p ON p.id = r.propertyId
         JOIN clients c ON c.id = r.clientId
         WHERE r.kind = 'reservation'
-          AND DATE(r.endDate, '-1 day') >= ?
-          AND DATE(r.endDate, '-1 day') < ?
+          -- specs/tourist-tax-on-solde.md — the tax is declared the MONTH IT'S COLLECTED, i.e. when the
+          -- échéance that carries it is PAID. Normally the tax rides on the SOLDE → balancePaidDate. When
+          -- it's collected on arrival (forced to complement, or a platform mode where WE collect at
+          -- arrival) → complementPaidDate. A stay whose tax-carrying échéance isn't paid in/at the queried
+          -- month does NOT appear (operator's « déclarer quand encaissé » choice).
+          AND (
+            ( NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1 AND r.balancePaidDate >= ? AND r.balancePaidDate < ? )
+            OR
+            ( ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ? )
+          )
           AND (
             -- specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every
             -- stay WE must remit to the commune: direct, the new "platform collects then reverses it
@@ -505,7 +532,7 @@ function createFinanceModel(database) {
             )
           )
         ORDER BY p.name, r.startDate, c.lastName, c.firstName
-      `).all(bounds.start, bounds.endExclusive);
+      `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
 
       const reservations = rows
         .map((row) => {
