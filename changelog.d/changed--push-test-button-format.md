@@ -1,0 +1,1 @@
+- Paramètres → Générale → Notifications push : le bouton « Envoyer une notification de test » adopte le même format que « Envoyer un mail de test » (bouton + légende explicative) et reste toujours visible dans la section, désactivé tant que les notifications ne sont pas activées sur l'appareil.
