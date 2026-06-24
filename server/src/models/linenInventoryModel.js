@@ -25,6 +25,18 @@ function buildModel(database, deps = {}) {
   const laundryManualAdditionsModel = deps.laundryManualAdditionsModel
     || require('./laundryManualAdditionsModel').create(database);
 
+  // Bath mat (specs/laundry-bath-mat.md) is a brand-new column/table; guard so minimal test
+  // schemas (and partially-migrated DBs) degrade to "no bath mats" instead of throwing at build.
+  const HAS_BATH_MAT_COL = (() => {
+    try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'countsAsBathMat'); }
+    catch { return false; }
+  })();
+  const HAS_BATH_MAT_TABLE = (() => {
+    try { database.prepare('SELECT 1 FROM property_option_bath_mats LIMIT 1').get(); return true; }
+    catch { return false; }
+  })();
+  const BATH_MAT_OR = HAS_BATH_MAT_COL ? 'OR o.countsAsBathMat = 1 ' : '';
+
   const fetchReservationsStmt = database.prepare(`
     SELECT id, kind, propertyId, startDate, endDate,
            singleBeds, doubleBeds, babyBeds,
@@ -34,24 +46,32 @@ function buildModel(database, deps = {}) {
        AND endDate >= ?
   `);
   const fetchOptionsStmt = database.prepare(`
-    SELECT id, countsAsBedLinen, countsAsBathroomLinen,
+    SELECT id, countsAsBedLinen, countsAsBathroomLinen, ${HAS_BATH_MAT_COL ? 'countsAsBathMat' : '0 AS countsAsBathMat'},
            linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
            towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson
       FROM options
-     WHERE countsAsBedLinen = 1 OR countsAsBathroomLinen = 1
+     WHERE countsAsBedLinen = 1 OR countsAsBathroomLinen = 1 ${HAS_BATH_MAT_COL ? 'OR countsAsBathMat = 1' : ''}
   `);
   const fetchReservationOptionsStmt = database.prepare(`
     SELECT ro.reservationId, ro.optionId, ro.quantity
       FROM reservation_options ro
       JOIN options o ON o.id = ro.optionId
-     WHERE o.countsAsBedLinen = 1 OR o.countsAsBathroomLinen = 1
+     WHERE o.countsAsBedLinen = 1 OR o.countsAsBathroomLinen = 1 ${BATH_MAT_OR}
   `);
   const fetchPropertyDefaultsStmt = database.prepare(`
     SELECT pod.propertyId, pod.optionId
       FROM property_option_defaults pod
       JOIN options o ON o.id = pod.optionId
-     WHERE o.countsAsBedLinen = 1 OR o.countsAsBathroomLinen = 1
+     WHERE o.countsAsBedLinen = 1 OR o.countsAsBathroomLinen = 1 ${BATH_MAT_OR}
   `);
+  // Per-property bath-mat quantity for the "Tapis de bain" option(s). Built only when the table
+  // exists; an absent property → quantity 0 (handled by the engine via the default 0).
+  const fetchBathMatQtyStmt = HAS_BATH_MAT_TABLE ? database.prepare(`
+    SELECT pobm.propertyId, pobm.quantity
+      FROM property_option_bath_mats pobm
+      JOIN options o ON o.id = pobm.optionId
+     WHERE o.countsAsBathMat = 1
+  `) : null;
 
   /**
    * Run the simulation from `today` to the last known reservation's endDate.
@@ -68,6 +88,7 @@ function buildModel(database, deps = {}) {
       large:  Number(settingsRow.towelStockLarge     || 0),
       medium: Number(settingsRow.towelStockMedium    || 0),
       small:  Number(settingsRow.towelStockSmall     || 0),
+      bathMat: Number(settingsRow.towelStockBathMat  || 0),
     };
     const laundryWeekday = Number(settingsRow.laundryWeekday == null ? 2 : settingsRow.laundryWeekday);
 
@@ -85,6 +106,12 @@ function buildModel(database, deps = {}) {
     const options = fetchOptionsStmt.all();
     const reservationOptions = fetchReservationOptionsStmt.all();
     const propertyDefaults = fetchPropertyDefaultsStmt.all();
+    const bathMatByProperty = new Map();
+    if (fetchBathMatQtyStmt) {
+      for (const row of fetchBathMatQtyStmt.all()) {
+        bathMatByProperty.set(Number(row.propertyId), Number(row.quantity || 0));
+      }
+    }
     const skippedDates = new Set(laundryTripSkipsModel.listAll());
 
     // Map the per-trip manual additions (stored with singleBeds/…/smallTowels keys) onto the engine's
@@ -100,6 +127,7 @@ function buildModel(database, deps = {}) {
     const result = simulateInventory({
       stock, reservations, options, reservationOptions, propertyDefaults,
       laundryWeekday, from: today, to: horizon, skippedDates, manualAdditionsByDate,
+      bathMatByProperty,
     });
 
     return { horizon, ...result };

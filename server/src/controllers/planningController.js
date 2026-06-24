@@ -30,6 +30,7 @@ function isIsoDate(value) {
 const EMPTY_LAUNDRY_BLOCK = Object.freeze({
   singleBeds: 0, doubleBeds: 0, babyBeds: 0,
   largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+  bathMats: 0,
 });
 
 function buildController({
@@ -116,6 +117,7 @@ function buildController({
         const block = {
           ...injectedLaundryModel.dropOffForWindow(startExclusive, endInclusive),
           ...injectedLaundryModel.dropOffBathroomForWindow(startExclusive, endInclusive),
+          ...injectedLaundryModel.dropOffBathMatForWindow(startExclusive, endInclusive),
         };
         const manual = injectedLaundryManualAdditionsModel.sumForWindow(startExclusive, endInclusive);
         for (const k of Object.keys(manual)) block[k] = (Number(block[k]) || 0) + Number(manual[k] || 0);
@@ -159,11 +161,27 @@ function buildController({
       if (!result) return res.json({ horizon: null, byLaundryDay: {} });
       const row = injectedSettingsModel.read();
       const laundryWeekday = Number(row.laundryWeekday == null ? 2 : row.laundryWeekday);
+      // Emit only the TRACKED types (stock > 0) in the « Disponible après ce dépôt » snapshot —
+      // a type with stock 0 is "not tracked" (no availability figure, no shortage) per
+      // specs/linen-inventory-shortage-tracking.md §3.1 + specs/laundry-bath-mat.md §3 rule 7.
+      // Without this, an untracked type with demand (e.g. bath mats at stock 0) would surface a
+      // misleading negative figure on the card.
+      const trackedTypes = {
+        single: row.bedLinenStockSingle, double: row.bedLinenStockDouble, baby: row.bedLinenStockBaby,
+        large: row.towelStockLarge, medium: row.towelStockMedium, small: row.towelStockSmall,
+        bathMat: row.towelStockBathMat,
+      };
+      const tracked = Object.keys(trackedTypes).filter((t) => Number(trackedTypes[t] || 0) > 0);
+      const projectClean = (clean) => {
+        const out = {};
+        for (const t of tracked) out[t] = clean[t];
+        return out;
+      };
       const byLaundryDay = {};
       for (const day of result.days) {
         const isLaundryDay = (new Date(`${day.date}T00:00:00Z`).getUTCDay()) === laundryWeekday;
         if (isLaundryDay) {
-          byLaundryDay[day.date] = day.clean;
+          byLaundryDay[day.date] = projectClean(day.clean);
         }
       }
       return res.json({ horizon: result.horizon, byLaundryDay });

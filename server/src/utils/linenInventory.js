@@ -19,11 +19,13 @@
  */
 
 const BED_TYPES = Object.freeze(['single', 'double', 'baby']);
-const TOWEL_TYPES = Object.freeze(['large', 'medium', 'small']);
+// `bathMat` (specs/laundry-bath-mat.md) is a towel-family type: flat per-stay quantity from the
+// reservation's property, contributed when the "Tapis de bain" option is active.
+const TOWEL_TYPES = Object.freeze(['large', 'medium', 'small', 'bathMat']);
 const ALL_TYPES = Object.freeze([...BED_TYPES, ...TOWEL_TYPES]);
 
 function zeroByType() {
-  return { single: 0, double: 0, baby: 0, large: 0, medium: 0, small: 0 };
+  return { single: 0, double: 0, baby: 0, large: 0, medium: 0, small: 0, bathMat: 0 };
 }
 
 function addInto(target, addend) {
@@ -69,7 +71,7 @@ function weekdayOf(iso) { return parseIso(iso).getUTCDay(); }
  *                       explicitOptionIds: Set<number>, propertyDefaultOption: { ... } | null }
  *   bathroomContext — same shape with towel<Size>PerPerson + explicit qtySum
  */
-function computeReservationContract({ reservation, bedLinenContext, bathroomContext }) {
+function computeReservationContract({ reservation, bedLinenContext, bathroomContext, bathMatContext }) {
   const out = zeroByType();
 
   // --- bed-linen contract ---
@@ -100,6 +102,13 @@ function computeReservationContract({ reservation, bedLinenContext, bathroomCont
     out.medium = Math.max(0, Math.round(persons * qtySum * Number(bathOption.towelMediumPerPerson || 0)));
     out.small  = Math.max(0, Math.round(persons * qtySum * Number(bathOption.towelSmallPerPerson  || 0)));
   }
+
+  // --- bath-mat contract (specs/laundry-bath-mat.md §3 rules 5-6) ---
+  // Flat per-stay quantity (the reservation's property quantity), contributed iff the bath-mat
+  // option is active on the reservation (explicit row OR property default). Independent of guests.
+  if (bathMatContext && bathMatContext.active) {
+    out.bathMat = Math.max(0, Math.floor(Number(bathMatContext.quantity || 0)));
+  }
   return out;
 }
 
@@ -116,7 +125,7 @@ function computeReservationContract({ reservation, bedLinenContext, bathroomCont
  *   reservationOptions — array of { reservationId, optionId, quantity }
  *   propertyDefaults — array of { propertyId, optionId }  (the offered flag is irrelevant here)
  */
-function buildContractsByReservationId({ reservations, options, reservationOptions, propertyDefaults }) {
+function buildContractsByReservationId({ reservations, options, reservationOptions, propertyDefaults, bathMatByProperty = new Map() }) {
   const optionsById = new Map(options.map((o) => [Number(o.id), o]));
 
   // Index reservation_options per reservation for fast lookup.
@@ -153,6 +162,10 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
     });
     const explicitBathQtySum = explicitBathRows.reduce((s, ro) => s + Number(ro.quantity || 0), 0);
 
+    const explicitBathMatOption = explicitRows
+      .map((ro) => optionsById.get(Number(ro.optionId)))
+      .find((o) => o && Number(o.countsAsBathMat) === 1);
+
     const propertyDefaultOptionIds = defaultsByProperty.get(Number(r.propertyId)) || [];
     const propertyDefaultBedOption = propertyDefaultOptionIds
       .map((oid) => optionsById.get(Number(oid)))
@@ -160,6 +173,11 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
     const propertyDefaultBathOption = propertyDefaultOptionIds
       .map((oid) => optionsById.get(Number(oid)))
       .find((o) => o && Number(o.countsAsBathroomLinen) === 1) || null;
+    const propertyDefaultBathMatOption = propertyDefaultOptionIds
+      .map((oid) => optionsById.get(Number(oid)))
+      .find((o) => o && Number(o.countsAsBathMat) === 1) || null;
+
+    const bathMatActive = Boolean(explicitBathMatOption || propertyDefaultBathMatOption);
 
     const contract = computeReservationContract({
       reservation: r,
@@ -171,6 +189,10 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
         explicitOption: explicitBathOption || null,
         explicitQtySum: explicitBathQtySum,
         propertyDefaultOption: propertyDefaultBathOption,
+      },
+      bathMatContext: {
+        active: bathMatActive,
+        quantity: bathMatActive ? Number(bathMatByProperty.get(Number(r.propertyId)) || 0) : 0,
       },
     });
 
@@ -230,6 +252,9 @@ function previousOrSameNonSkippedLaundryDay(iso, weekday, skippedDates, maxLookb
 function simulateInventory({
   stock, reservations, options, reservationOptions, propertyDefaults,
   laundryWeekday, from, to,
+  // specs/laundry-bath-mat.md §4 — Map<propertyId, quantity> of bath mats per stay for the
+  // "Tapis de bain" option. Default empty Map keeps every pre-feature caller behaviour-identical.
+  bathMatByProperty = new Map(),
   // specs/skip-laundry-trip.md §3.2 — a Set<string> of laundry dates the operator marked as
   // not-made. On a skipped date the engine performs NEITHER the pick-up NOR the drop-off,
   // both backlogs flow forward to the next non-skipped trip. Default `new Set()` keeps every
@@ -242,7 +267,7 @@ function simulateInventory({
 }) {
   // --- Pre-compute per-reservation contracts (skips devis + zero contracts) ---
   const contractsByReservationId = buildContractsByReservationId({
-    reservations, options, reservationOptions, propertyDefaults,
+    reservations, options, reservationOptions, propertyDefaults, bathMatByProperty,
   });
 
   // Per-day index: reservations whose startDate === D and whose endDate === D.
@@ -298,8 +323,9 @@ function simulateInventory({
     }
   }
   // clean = stock - inCirculation - dirty - atLaundry  (may go negative on day 0 — that's a
-  // real shortage and we surface it as such).
-  let clean = cloneByType(stock);
+  // real shortage and we surface it as such). Start from a zero-filled record so a partial
+  // `stock` (e.g. a caller that omits a type) yields 0, not NaN, for the missing key.
+  let clean = addInto(zeroByType(), stock);
   subtractInto(clean, inCirculation);
   subtractInto(clean, dirty);
   subtractInto(clean, atLaundry);

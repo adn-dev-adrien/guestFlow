@@ -21,7 +21,7 @@ import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import ConfirmDialog from '../components/ConfirmDialog';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
-const EMPTY = { bedSingle: 0, bedDouble: 0, bedBaby: 0, towelLarge: 0, towelMedium: 0, towelSmall: 0 };
+const EMPTY = { bedSingle: 0, bedDouble: 0, bedBaby: 0, towelLarge: 0, towelMedium: 0, towelSmall: 0, towelBathMat: 0 };
 
 function clampInt(value) {
   const n = Math.floor(Number(value) || 0);
@@ -217,6 +217,18 @@ export default function LinenStockPage() {
                   size="small"
                   value={draft.towelSmall}
                   onChange={update('towelSmall')}
+                  disabled={loading || saving}
+                  fullWidth
+                  slotProps={{
+                    htmlInput: { min: 0, max: 999, step: 1 }
+                  }}
+                />
+                <TextField
+                  label="Tapis de bain"
+                  type="number"
+                  size="small"
+                  value={draft.towelBathMat}
+                  onChange={update('towelBathMat')}
                   disabled={loading || saving}
                   fullWidth
                   slotProps={{

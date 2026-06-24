@@ -11,6 +11,7 @@
 
 const { formatDateLong, formatTimeShort } = require('./dateFr');
 const { formatCurrency } = require('./devisHelpers');
+const { isClientVisibleOption } = require('./optionVisibility');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -96,6 +97,9 @@ function normaliseLang(v) {
  * @returns {{ vars: object, flags: object }}
  */
 function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr' }) {
+  // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
+  // drop them up-front so every option-derived list/flag/complement line below ignores them.
+  options = (options || []).filter(isClientVisibleOption);
   const r = reservation || {};
   const c = client || {};
   const p = property || {};

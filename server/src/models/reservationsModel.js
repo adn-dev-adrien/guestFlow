@@ -125,6 +125,14 @@ function createReservationsModel(database) {
     try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions'); }
     catch { return false; }
   })();
+  // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11). Guarded
+  // so minimal test schemas without the column degrade to "visible" (the SELECT emits 1).
+  const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
+    try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'displayToClient'); }
+    catch { return false; }
+  })();
+  const OPTION_DISPLAY_TO_CLIENT_SELECT = HAS_OPTION_DISPLAY_TO_CLIENT
+    ? 'o.displayToClient as displayToClient' : '1 as displayToClient';
   const serializeCardOccurrences = (opt) => (
     Array.isArray(opt.cardOccurrences) && opt.cardOccurrences.length > 0
       ? JSON.stringify(opt.cardOccurrences)
@@ -293,7 +301,7 @@ function createReservationsModel(database) {
       // (auto-options use a separate `autoOptionsInComplement` channel — spec §3.1).
       reservation.options = database.prepare(`
         SELECT ro.*, o.title, o.description, o.priceType as currentPriceType, o.price as currentUnitPrice,
-          o.autoOptionType as autoOptionType,
+          o.autoOptionType as autoOptionType, ${OPTION_DISPLAY_TO_CLIENT_SELECT},
           COALESCE(
             NULLIF(ro.totalPrice, 0),
             NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
@@ -935,7 +943,22 @@ function createReservationsModel(database) {
         + (HAS_RO_CARD_OCCURRENCES ? ', cardOccurrences' : '');
       const placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' + (HAS_RO_CARD_OCCURRENCES ? ', ?' : '');
       const insertOpt = database.prepare(`INSERT INTO reservation_options (${cols}) VALUES (${placeholders})`);
-      for (const opt of (optionLines || []).filter((line) => !line.isCustom)) {
+      // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
+      // NEVER persisted as a reservation line — they're counted via the laundry/stock property-default
+      // fallback and never billed/shown. Scoped to linen ON PURPOSE: a non-linen internal option
+      // (e.g. an internal breakfast) MUST still be materialised so it keeps producing its planning
+      // card; only its client display is suppressed elsewhere. Guarded → minimal schemas no-op.
+      const internalLinenIds = (() => {
+        if (!HAS_OPTION_DISPLAY_TO_CLIENT) return new Set();
+        try {
+          return new Set(database.prepare(`
+            SELECT id FROM options
+             WHERE displayToClient = 0
+               AND (COALESCE(countsAsBedLinen, 0) = 1 OR COALESCE(countsAsBathroomLinen, 0) = 1 OR COALESCE(countsAsBathMat, 0) = 1)
+          `).all().map((r) => Number(r.id)));
+        } catch { return new Set(); }
+      })();
+      for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalLinenIds.has(Number(line.optionId)))) {
         const forced = opt.inComplement ? 1 : 0;
         const args = [reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
           Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,

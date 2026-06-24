@@ -57,6 +57,17 @@ function createOptionsModel(database) {
     const t = formatTimeShort(payload.breakfastTime) || '09:00';
     database.prepare('UPDATE options SET breakfastTime = ? WHERE id = ?').run(t, optionId);
   }
+  // Client-visibility flag (specs/laundry-bath-mat.md §3 rule 11). Generic per-option switch,
+  // persisted via a guarded write so the big INSERT/UPDATE (and minimal test schemas) stay
+  // untouched. `undefined` payload → leave as-is (back-compat); the column defaults to 1 = visible.
+  const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'displayToClient'); }
+    catch { return false; }
+  })();
+  function persistDisplayToClient(optionId, payload) {
+    if (!HAS_OPTION_DISPLAY_TO_CLIENT || payload.displayToClient === undefined) return;
+    database.prepare('UPDATE options SET displayToClient = ? WHERE id = ?').run(payload.displayToClient ? 1 : 0, optionId);
+  }
   // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
   // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_PLANNING_CARD = (() => {
@@ -141,6 +152,35 @@ function createOptionsModel(database) {
     }
   }
 
+  // Per-property bath-mat quantity (specs/laundry-bath-mat.md §4). Returns { [propertyId]: qty }
+  // for the rows that exist; an absent property means 0. Strict mirror of propertyPricesFor.
+  // Guarded so a minimal test schema without the table degrades to "no quantities".
+  const HAS_OPTION_PROPERTY_BATH_MATS = (() => {
+    try { database.prepare('SELECT 1 FROM property_option_bath_mats LIMIT 1').get(); return true; }
+    catch { return false; }
+  })();
+  const propertyBathMatsFor = (optionId) => {
+    if (!HAS_OPTION_PROPERTY_BATH_MATS) return {};
+    return database
+      .prepare('SELECT propertyId, quantity FROM property_option_bath_mats WHERE optionId = ? ORDER BY propertyId')
+      .all(optionId)
+      .reduce((acc, row) => { acc[String(row.propertyId)] = Number(row.quantity || 0); return acc; }, {});
+  };
+  // Replace the per-property bath-mat quantity rows. A blank/empty value or 0 means "no bath mat
+  // for that property" (no row). `undefined` payload → leave untouched. Mirror of persistPropertyPrices.
+  function persistPropertyBathMats(optionId, payload) {
+    if (!HAS_OPTION_PROPERTY_BATH_MATS || payload.propertyBathMats === undefined) return;
+    database.prepare('DELETE FROM property_option_bath_mats WHERE optionId = ?').run(optionId);
+    const insert = database.prepare('INSERT INTO property_option_bath_mats (propertyId, optionId, quantity) VALUES (?, ?, ?)');
+    for (const [pid, raw] of Object.entries(payload.propertyBathMats || {})) {
+      if (raw === null || raw === undefined || raw === '') continue;
+      const quantity = Math.floor(Number(raw));
+      const propertyId = Number(pid);
+      if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(propertyId) || propertyId <= 0) continue;
+      insert.run(propertyId, optionId, quantity);
+    }
+  }
+
   // Replace the override rows for an option. A blank/empty value means "inherit the base price" (no
   // row); an explicit number (incl. 0 = free) is persisted. `undefined` payload → leave untouched.
   function persistPropertyPrices(optionId, payload) {
@@ -163,6 +203,7 @@ function createOptionsModel(database) {
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
         propertyDefaults: propertyDefaultsFor(o.id),
+        propertyBathMats: propertyBathMatsFor(o.id),
         optionProgressiveTiers: normalizeProgressiveOptionTiers(o.optionProgressiveTiers),
       }));
     },
@@ -173,6 +214,7 @@ function createOptionsModel(database) {
       option.propertyIds = propertyIdsFor(id);
       option.propertyPrices = propertyPricesFor(id);
       option.propertyDefaults = propertyDefaultsFor(id);
+      option.propertyBathMats = propertyBathMatsFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
       return decoratePlanningCard(option);
     },
@@ -267,6 +309,8 @@ function createOptionsModel(database) {
         persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
+        persistPropertyBathMats(id, payload);
+        persistDisplayToClient(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -324,6 +368,8 @@ function createOptionsModel(database) {
         persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
+        persistPropertyBathMats(id, payload);
+        persistDisplayToClient(id, payload);
       })();
       return { ok: true };
     },

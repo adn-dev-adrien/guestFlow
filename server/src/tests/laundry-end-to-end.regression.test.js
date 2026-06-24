@@ -164,12 +164,12 @@ test('END-TO-END: Adrien\'s prod scenario produces the exact expected dropOff fo
     // Towels: 12×1 + 3×0.6667 + 8×0.625 = 12 + 2 + 5 = 19 ; medium=0 (default), small mirrors large.
     dropOff: {
       singleBeds: 9, doubleBeds: 8, babyBeds: 1,
-      largeTowels: 19, mediumTowels: 0, smallTowels: 19,
+      largeTowels: 19, mediumTowels: 0, smallTowels: 19, bathMats: 0,
     },
     // No prior week of data → pickUp is all zero.
     pickUp: {
       singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-      largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+      largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
     },
   });
 });
@@ -192,7 +192,7 @@ test('END-TO-END: linenIncludesBaby = 0 on the option hides baby beds in the pay
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // 5 baby beds NOT counted
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
 });
 
@@ -210,7 +210,7 @@ test('END-TO-END: towelMediumPerPerson = 2 ADDS a medium counter all the way to 
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-    largeTowels: 4, mediumTowels: 8, smallTowels: 4,
+    largeTowels: 4, mediumTowels: 8, smallTowels: 4, bathMats: 0,
   });
 });
 
@@ -260,7 +260,7 @@ test('END-TO-END: kind=devis reservations are excluded from both bed and bathroo
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
 });
 
@@ -310,7 +310,7 @@ test('END-TO-END: property default ⇒ a reservation WITHOUT the linen option ST
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 4, doubleBeds: 4, babyBeds: 1,
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
 });
 
@@ -344,7 +344,7 @@ test('END-TO-END: explicit reservation_options row STILL wins over the property 
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // baby suppressed by the explicit row
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
 });
 
@@ -387,10 +387,10 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
 
   // The skipped card emits zeros — the client masks it with the "Voyage non réalisé" caption.
   assert.deepEqual(byDate['2026-06-02'].dropOff, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
   assert.deepEqual(byDate['2026-06-02'].pickUp, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
 
   // The next non-skipped card (2026-06-09) ABSORBS rA + rB into À apporter — this is the
@@ -404,5 +404,6 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
     largeTowels: 3 + 2,
     mediumTowels: 0,
     smallTowels: 3 + 2,
+    bathMats: 0,
   });
 });
