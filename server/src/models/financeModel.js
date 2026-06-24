@@ -63,6 +63,19 @@ function isSettled(r) {
   return depOk && balOk && compOk && eosOk;
 }
 
+// « Reste à payer » = the real outstanding amount (specs/finance-operational-remaining-to-pay.md §3):
+// the SUM of the still-owed buckets only — a bucket already paid (incl. a caisse-interne complement)
+// or a disabled deposit is NOT counted. Equals 0 exactly when isSettled(r) is true. This is the
+// counterpart of comptaCollected and is what the « Suivi opérationnel » must show (the shared
+// computePaymentStatus.remainingDue only nets deposit + balance and ignores the complements).
+function remainingToPay(r) {
+  const deposit = (!r.depositDisabled && !r.depositPaid) ? Number(r.depositAmount || 0) : 0;
+  const balance = !r.balancePaid ? Number(r.balanceAmount || 0) : 0;
+  const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
+  const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
+  return round2(deposit + balance + complement + endOfStay);
+}
+
 // « Encaissé » = the accounting total (specs/finance-overview-rework.md §3.2): every component marked paid
 // EXCLUDING caisse interne, so it equals what the compta export sums. (Deposit/balance carry no cash flag.)
 function comptaCollected(r) {
@@ -360,6 +373,9 @@ function createFinanceModel(database) {
         ...r,
         ...computePaymentStatus(r, today),
         totalSejour: totalSejour(r),
+        // Real outstanding amount = Σ still-owed buckets (deposit + balance + both complements),
+        // each counted only when not yet settled (specs/finance-operational-remaining-to-pay.md §3).
+        remainingToPay: remainingToPay(r),
         settled: isSettled(r),
         nights: nightsBetween(r.startDate, r.endDate),
       });
@@ -412,6 +428,10 @@ function createFinanceModel(database) {
           totals: {
             depositAmount: sumBy(pending, 'depositAmount', notDisabledDeposit),
             balanceAmount: sumBy(pending, 'balanceAmount'),
+            complementAmount: sumBy(pending, 'complementAmount'),
+            endOfStayComplementAmount: sumBy(pending, 'endOfStayComplementAmount'),
+            // Real outstanding (§3 rule 4) — Σ remainingToPay; replaces the deposit+balance-only remainingDue.
+            remainingToPay: sumBy(pending, 'remainingToPay'),
             remainingDue: sumBy(pending, 'remainingDue'),
             totalSejour: sumBy(pending, 'totalSejour'),
           },
