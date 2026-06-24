@@ -77,13 +77,17 @@ added on the Blanchisserie page.
     and in « Disponible après ce dépôt », only when non-zero (silent-when-zero, like other sizes).
 11. **Client visibility toggle (generic).** Every option gains a `displayToClient` flag (default
     **on** — no behaviour change for existing options). A generic switch « Afficher côté client
-    (fiches & emails) » in the option editor controls it. When **off**, the option is **internal
-    only**: it is hidden from every client/operator-facing per-reservation surface — the
-    reservation fiche extras, client emails (J-7 / J-2 / complément), the devis PDF, the public
-    booking catalog + quote, and the planning/dashboard option chips — and is **not materialised**
-    into `reservation_options` when applied as a property default. It is still counted in the
-    laundry cards and the stock projection (those use the `countsAsBathMat` + property-default
-    fallback, independent of `reservation_options`).
+    (fiches & emails) » in the option editor controls it. When **off**, the option is hidden from
+    the **client-facing** surfaces — the reservation fiche extras, client emails (J-7 / J-2 /
+    complément), the devis PDF, and the public booking catalog. What it keeps doing **internally**
+    depends on the option's type (the switch's helper text adapts accordingly):
+    - **Linen options** (`countsAsBedLinen` / `countsAsBathroomLinen` / `countsAsBathMat`): counted
+      in the laundry cards + stock projection only. They are **not materialised** into
+      `reservation_options` (the laundry/stock property-default fallback counts them), so they also
+      stay off the planning/dashboard prep chips and the totals.
+    - **Other options** (breakfast, « repas », …): still materialised, so they keep their
+      **planning preparation card** and the operator prep chips — only the client display is
+      suppressed. The laundry/stock framing does **not** apply to them.
 12. **Bath mat defaults to internal.** The seeded « Tapis de bain » option ships with
     `displayToClient = 0` — bath mats are a logistics item, surfaced only on the laundry cards and
     the stock page by default. The operator can flip the switch on to expose it as a normal
@@ -126,8 +130,8 @@ added on the Blanchisserie page.
 | `utils/` | `bathMatSeed.js` | T | Insert the seed with `displayToClient = 0`. |
 | `utils/` | `optionVisibility.js` | C | Tiny shared `isClientVisibleOption(o)` helper, reused by every filter site. |
 | `models/` | `optionsModel.js` | T | Round-trip `displayToClient`; expose it in list/get. |
-| `models/` | `propertyIcalModel.js` | T | Skip `displayToClient = 0` options when materialising property defaults onto an iCal reservation. |
-| `models/` | `reservationsModel.js` | T | Carry `displayToClient` on each `reservation.options` row (guarded SELECT) for the fiche; and **never persist** internal options to `reservation_options` in `insertOptions` — so they stay out of every per-reservation surface (dashboard/planning chips included) while the laundry/stock fallback still counts them. |
+| `models/` | `propertyIcalModel.js` | T | When materialising property defaults onto an iCal reservation, skip internal **linen** options only (non-linen internal options still materialise → keep their planning card). |
+| `models/` | `reservationsModel.js` | T | Carry `displayToClient` on each `reservation.options` row (guarded SELECT) for the fiche; and never persist internal **linen** options to `reservation_options` in `insertOptions` (laundry/stock fallback counts them; keeps them off chips/totals). Non-linen internal options are still persisted so their planning card survives. |
 | `utils/` | `emailContextBuilder.js` | T | Drop internal options from `optionsList` / `reservedOptionsList` / complement breakdown. |
 | `utils/` | `devisPdf.js` | T | Skip internal options in the PDF line-item loop. |
 | `controllers/` `utils/` | `publicCatalogController.js` / `publicProjections.js` | T | Exclude internal options from the public options catalog + quote lines. |

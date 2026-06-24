@@ -943,15 +943,22 @@ function createReservationsModel(database) {
         + (HAS_RO_CARD_OCCURRENCES ? ', cardOccurrences' : '');
       const placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' + (HAS_RO_CARD_OCCURRENCES ? ', ?' : '');
       const insertOpt = database.prepare(`INSERT INTO reservation_options (${cols}) VALUES (${placeholders})`);
-      // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) are NEVER persisted as a
-      // reservation line — they're counted via the laundry/stock property-default fallback and stay
-      // out of every client surface. Guarded so minimal schemas (no column) keep prior behaviour.
-      const internalOnlyIds = (() => {
+      // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
+      // NEVER persisted as a reservation line — they're counted via the laundry/stock property-default
+      // fallback and never billed/shown. Scoped to linen ON PURPOSE: a non-linen internal option
+      // (e.g. an internal breakfast) MUST still be materialised so it keeps producing its planning
+      // card; only its client display is suppressed elsewhere. Guarded → minimal schemas no-op.
+      const internalLinenIds = (() => {
         if (!HAS_OPTION_DISPLAY_TO_CLIENT) return new Set();
-        try { return new Set(database.prepare('SELECT id FROM options WHERE displayToClient = 0').all().map((r) => Number(r.id))); }
-        catch { return new Set(); }
+        try {
+          return new Set(database.prepare(`
+            SELECT id FROM options
+             WHERE displayToClient = 0
+               AND (COALESCE(countsAsBedLinen, 0) = 1 OR COALESCE(countsAsBathroomLinen, 0) = 1 OR COALESCE(countsAsBathMat, 0) = 1)
+          `).all().map((r) => Number(r.id)));
+        } catch { return new Set(); }
       })();
-      for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalOnlyIds.has(Number(line.optionId)))) {
+      for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalLinenIds.has(Number(line.optionId)))) {
         const forced = opt.inComplement ? 1 : 0;
         const args = [reservationId, opt.optionId, opt.quantity || 1, Number(opt.unitPrice || 0),
           Number(opt.billedUnits || 0), opt.priceType || 'per_stay', opt.totalPrice || 0, opt.offered ? 1 : 0,

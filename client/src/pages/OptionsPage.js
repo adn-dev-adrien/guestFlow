@@ -657,8 +657,8 @@ export default function OptionsPage() {
             <BathMatPerPropertyField form={form} setForm={setForm} properties={properties} />
           )}
           {/* Client-visibility toggle (specs/laundry-bath-mat.md §3 rule 11) — generic to every
-              option. OFF = internal-only (compté en blanchisserie + stock, masqué des fiches /
-              emails / devis / réservation en ligne). */}
+              option. OFF = hidden from the client surfaces; what the option keeps doing internally
+              depends on its type (laundry card for linen, planning card for the others). */}
           <Box sx={{ mt: 1, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
             <FormControlLabel
               control={(
@@ -670,9 +670,16 @@ export default function OptionsPage() {
               label="Afficher côté client (fiches & emails)"
             />
             <FormHelperText sx={{ mt: 0 }}>
-              Désactivé : usage interne uniquement — l'option est comptée dans les cartes
-              blanchisserie et le stock, mais masquée des fiches de réservation, des emails clients,
-              du devis et de la réservation en ligne.
+              {(() => {
+                const masque = 'masquée des fiches de réservation, des emails clients, du devis et de la réservation en ligne';
+                if (form.countsAsBedLinen || form.countsAsBathroomLinen || form.countsAsBathMat) {
+                  return `Désactivé : usage interne — l'option reste comptée dans les cartes blanchisserie et le stock, mais ${masque}.`;
+                }
+                if (form.showsPlanningCard || form.autoOptionType === 'breakfast') {
+                  return `Désactivé : usage interne — l'option reste affichée comme carte de préparation dans le planning, mais ${masque}.`;
+                }
+                return `Désactivé : usage interne — l'option est ${masque}.`;
+              })()}
             </FormHelperText>
           </Box>
           {/* §3.7 read-only mirror — list of properties that use this option as a default. */}
