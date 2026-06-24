@@ -25,7 +25,8 @@ function makeDb() {
       autoFullNightThreshold TEXT,
       countsAsBedLinen INTEGER NOT NULL DEFAULT 0,
       countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0,
-      countsAsBathMat INTEGER NOT NULL DEFAULT 0
+      countsAsBathMat INTEGER NOT NULL DEFAULT 0,
+      displayToClient INTEGER NOT NULL DEFAULT 1
     );
   `);
   return db;
@@ -47,6 +48,8 @@ test('seed on a fresh DB: inserts one bath_mat option with the expected shape', 
   assert.equal(Number(row.autoEnabled), 0);
   assert.equal(row.priceType, 'per_stay');
   assert.equal(Number(row.price), 0);
+  // specs/laundry-bath-mat.md §3 rule 12 — bath mats ship internal-only.
+  assert.equal(Number(row.displayToClient), 0, 'seeded bath mat is internal by default');
 });
 
 test('seed is idempotent: second call inserts nothing', () => {

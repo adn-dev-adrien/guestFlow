@@ -16,6 +16,7 @@ const {
   toPublicProperty, toPublicPropertyDetail, toPublicOption, toPublicResource, toPublicAvailability,
 } = require('../../utils/publicProjections');
 const { ok, fail } = require('./publicHttp');
+const { isClientVisibleOption } = require('../../utils/optionVisibility');
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -88,6 +89,8 @@ function listOptions(req, res) {
   const excluded = offeredDefaultOptionIds(propertyId);
   return ok(res, optionsModel.listForProperty(propertyId)
     .filter((opt) => !excluded.has(Number(opt.id)))
+    // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never reach the public catalog.
+    .filter(isClientVisibleOption)
     .map(toPublicOption).sort(byPriceAsc));
 }
 

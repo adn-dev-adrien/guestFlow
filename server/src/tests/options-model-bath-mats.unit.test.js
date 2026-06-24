@@ -20,7 +20,8 @@ function freshDb() {
       autoFullNightThreshold TEXT,
       countsAsBedLinen INTEGER DEFAULT 0, countsAsBathroomLinen INTEGER DEFAULT 0,
       linenIncludesSingle INTEGER DEFAULT 1, linenIncludesDouble INTEGER DEFAULT 1, linenIncludesBaby INTEGER DEFAULT 1,
-      towelLargePerPerson INTEGER DEFAULT 1, towelMediumPerPerson INTEGER DEFAULT 0, towelSmallPerPerson INTEGER DEFAULT 1
+      towelLargePerPerson INTEGER DEFAULT 1, towelMediumPerPerson INTEGER DEFAULT 0, towelSmallPerPerson INTEGER DEFAULT 1,
+      displayToClient INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
@@ -77,4 +78,16 @@ test('list exposes propertyBathMats per option', () => {
   model.create({ title: 'Tapis de bain', priceType: 'per_stay', price: 0, propertyIds: [10], propertyBathMats: { 10: 4 } });
   const opt = model.list().find((o) => o.title === 'Tapis de bain');
   assert.deepEqual(opt.propertyBathMats, { 10: 4 });
+});
+
+// specs/laundry-bath-mat.md §3 rule 11 — generic client-visibility flag round-trips.
+test('displayToClient round-trips (default 1; explicit 0 persisted)', () => {
+  const model = freshDb();
+  const visible = model.create({ title: 'Ménage', priceType: 'per_stay', price: 40, displayToClient: true });
+  assert.equal(Number(model.get(visible.id).displayToClient), 1);
+  const internal = model.create({ title: 'Tapis de bain', priceType: 'per_stay', price: 0, displayToClient: false });
+  assert.equal(Number(model.get(internal.id).displayToClient), 0);
+  // Flip it back on via update.
+  model.update(internal.id, { title: 'Tapis de bain', priceType: 'per_stay', price: 0, displayToClient: true });
+  assert.equal(Number(model.get(internal.id).displayToClient), 1);
 });

@@ -55,6 +55,9 @@ const emptyOption = {
   // `propertyBathMats` = { [propertyId]: quantity } — flat number of bath mats per stay for that property.
   countsAsBathMat: false,
   propertyBathMats: {},
+  // Client-visibility toggle (specs/laundry-bath-mat.md §3 rule 11). ON = shown on fiches + emails
+  // + devis + public (default). OFF = internal-only (laundry cards + stock only). Bath mat ships OFF.
+  displayToClient: true,
   // Breakfast default time (specs/breakfast-time.md). Only meaningful for the breakfast-typed
   // option; editable there. Pre-fills the desired time on each reservation that enables breakfast.
   breakfastTime: '09:00',
@@ -508,6 +511,8 @@ export default function OptionsPage() {
         // Bath-mat option (specs/laundry-bath-mat.md) — hidden flag + per-property quantity map.
         countsAsBathMat: Boolean(item.countsAsBathMat),
         propertyBathMats: (item.propertyBathMats && typeof item.propertyBathMats === 'object') ? item.propertyBathMats : {},
+        // Client-visibility (default true when the column/flag is absent — back-compat).
+        displayToClient: item.displayToClient == null ? true : Boolean(item.displayToClient),
         // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — title only.
         titleEn: item.titleEn || '',
         // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
@@ -577,6 +582,8 @@ export default function OptionsPage() {
           });
           return out;
         })(),
+        // Client-visibility toggle (specs/laundry-bath-mat.md §3 rule 11).
+        displayToClient: Boolean(form.displayToClient),
         // Breakfast default time (specs/breakfast-time.md). Persisted only for the breakfast
         // option server-side; harmless for the others.
         breakfastTime: form.breakfastTime || '09:00',
@@ -649,6 +656,25 @@ export default function OptionsPage() {
           {form.countsAsBathMat && (
             <BathMatPerPropertyField form={form} setForm={setForm} properties={properties} />
           )}
+          {/* Client-visibility toggle (specs/laundry-bath-mat.md §3 rule 11) — generic to every
+              option. OFF = internal-only (compté en blanchisserie + stock, masqué des fiches /
+              emails / devis / réservation en ligne). */}
+          <Box sx={{ mt: 1, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={Boolean(form.displayToClient)}
+                  onChange={(e) => setForm({ ...form, displayToClient: e.target.checked })}
+                />
+              )}
+              label="Afficher côté client (fiches & emails)"
+            />
+            <FormHelperText sx={{ mt: 0 }}>
+              Désactivé : usage interne uniquement — l'option est comptée dans les cartes
+              blanchisserie et le stock, mais masquée des fiches de réservation, des emails clients,
+              du devis et de la réservation en ligne.
+            </FormHelperText>
+          </Box>
           {/* §3.7 read-only mirror — list of properties that use this option as a default. */}
           <OptionPropertyDefaultsMirror optionId={form.id} form={form} />
         </Box>

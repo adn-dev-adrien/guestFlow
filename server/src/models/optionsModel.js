@@ -57,6 +57,17 @@ function createOptionsModel(database) {
     const t = formatTimeShort(payload.breakfastTime) || '09:00';
     database.prepare('UPDATE options SET breakfastTime = ? WHERE id = ?').run(t, optionId);
   }
+  // Client-visibility flag (specs/laundry-bath-mat.md §3 rule 11). Generic per-option switch,
+  // persisted via a guarded write so the big INSERT/UPDATE (and minimal test schemas) stay
+  // untouched. `undefined` payload → leave as-is (back-compat); the column defaults to 1 = visible.
+  const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'displayToClient'); }
+    catch { return false; }
+  })();
+  function persistDisplayToClient(optionId, payload) {
+    if (!HAS_OPTION_DISPLAY_TO_CLIENT || payload.displayToClient === undefined) return;
+    database.prepare('UPDATE options SET displayToClient = ? WHERE id = ?').run(payload.displayToClient ? 1 : 0, optionId);
+  }
   // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
   // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_PLANNING_CARD = (() => {
@@ -299,6 +310,7 @@ function createOptionsModel(database) {
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
         persistPropertyBathMats(id, payload);
+        persistDisplayToClient(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -357,6 +369,7 @@ function createOptionsModel(database) {
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
         persistPropertyBathMats(id, payload);
+        persistDisplayToClient(id, payload);
       })();
       return { ok: true };
     },

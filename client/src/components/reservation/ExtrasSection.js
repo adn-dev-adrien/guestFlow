@@ -305,6 +305,11 @@ export default function ExtrasSection() {
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it.
   const complementChecked = (value) => (value == null ? isPlatformReservation : Boolean(value));
+  // Internal-only options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
+  // never shown as selectable extras on the fiche — they're managed globally and counted in the
+  // laundry/stock only. `displayToClient` absent → visible (back-compat).
+  const visiblePropertyOptions = (propertyOptions || [])
+    .filter((o) => Number(o.displayToClient == null ? 1 : o.displayToClient) !== 0);
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
@@ -316,11 +321,11 @@ export default function ExtrasSection() {
           </Typography>
         )}
         <Stack spacing={2}>
-          {propertyOptions.length > 0 && (
+          {visiblePropertyOptions.length > 0 && (
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Options</Typography>
               <Stack spacing={1.25}>
-                {propertyOptions.map((opt) => {
+                {visiblePropertyOptions.map((opt) => {
                   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
                   const explicitlyEnabled = Boolean(selected && Number(selected.quantity) > 0);
                   // specs/bed-config-in-linen-card.md §3 rule 4.bis — a bed-linen-flagged
@@ -505,7 +510,7 @@ export default function ExtrasSection() {
           )}
 
           <>
-            {propertyOptions.length > 0 && <Divider />}
+            {visiblePropertyOptions.length > 0 && <Divider />}
             <Box>
               <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="subtitle2">Options personnalisées</Typography>
@@ -575,7 +580,7 @@ export default function ExtrasSection() {
 
           {displayableResources.length > 0 && (
             <>
-              {propertyOptions.length > 0 && <Divider />}
+              {visiblePropertyOptions.length > 0 && <Divider />}
               <Box>
                 <Typography variant="subtitle2" gutterBottom>Ressources</Typography>
                 <Stack spacing={1.25}>

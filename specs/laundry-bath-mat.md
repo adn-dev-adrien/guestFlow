@@ -75,6 +75,19 @@ added on the Blanchisserie page.
    cycle, with the conservation invariant holding for `bathMat`.
 10. **Rendering.** Bath mats appear in the « Serviettes » line of « À apporter » / « À récupérer »
     and in « Disponible après ce dépôt », only when non-zero (silent-when-zero, like other sizes).
+11. **Client visibility toggle (generic).** Every option gains a `displayToClient` flag (default
+    **on** — no behaviour change for existing options). A generic switch « Afficher côté client
+    (fiches & emails) » in the option editor controls it. When **off**, the option is **internal
+    only**: it is hidden from every client/operator-facing per-reservation surface — the
+    reservation fiche extras, client emails (J-7 / J-2 / complément), the devis PDF, the public
+    booking catalog + quote, and the planning/dashboard option chips — and is **not materialised**
+    into `reservation_options` when applied as a property default. It is still counted in the
+    laundry cards and the stock projection (those use the `countsAsBathMat` + property-default
+    fallback, independent of `reservation_options`).
+12. **Bath mat defaults to internal.** The seeded « Tapis de bain » option ships with
+    `displayToClient = 0` — bath mats are a logistics item, surfaced only on the laundry cards and
+    the stock page by default. The operator can flip the switch on to expose it as a normal
+    client-facing option.
 
 **Edge cases:**
 - Property quantity 0, or option not active → 0 bath mats for that reservation.
@@ -104,6 +117,22 @@ added on the Blanchisserie page.
 | `models/` | `linenInventoryModel.js` | T | Read `towelStockBathMat` into `stock.bathMat`; widen option/reservation-option/property-default fetches to include `countsAsBathMat = 1`; load `property_option_bath_mats` into a `bathMatQtyByProperty` map; pass through. Widen the reservations query so stays whose only linen is bath mats are simulated. |
 | `models/` | `laundryModel.js` | T | New `dropOffBathMatForWindow(start, end)` → `{ bathMats }`: sum the active reservation's property bath-mat quantity for check-outs in `(start, end]`, gated by the active-option resolution (same UNION ALL / `NOT EXISTS` pattern as the bathroom query, joining `property_option_bath_mats`). |
 | `controllers/` | `planningController.js` | T | `EMPTY_LAUNDRY_BLOCK.bathMats = 0`; `buildBlock` merges `dropOffBathMatForWindow`. `linenInventory` now projects the per-day `clean` snapshot to only the **tracked** types (stock > 0), realising the LaundryDayCard contract — a stock-0 type (incl. bath mats when untracked) no longer surfaces a misleading figure/shortage in « Disponible après ce dépôt » (§3 rule 7). |
+
+**Client-visibility flag (§3 rules 11-12) — touched files:**
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| `database.js` | `database.js` | T | Migration `options.displayToClient` (INT, def 1); bath mat seed sets 0. |
+| `utils/` | `bathMatSeed.js` | T | Insert the seed with `displayToClient = 0`. |
+| `utils/` | `optionVisibility.js` | C | Tiny shared `isClientVisibleOption(o)` helper, reused by every filter site. |
+| `models/` | `optionsModel.js` | T | Round-trip `displayToClient`; expose it in list/get. |
+| `models/` | `propertyIcalModel.js` | T | Skip `displayToClient = 0` options when materialising property defaults onto an iCal reservation. |
+| `models/` | `reservationsModel.js` | T | Carry `displayToClient` on each `reservation.options` row (guarded SELECT) for the fiche; and **never persist** internal options to `reservation_options` in `insertOptions` — so they stay out of every per-reservation surface (dashboard/planning chips included) while the laundry/stock fallback still counts them. |
+| `utils/` | `emailContextBuilder.js` | T | Drop internal options from `optionsList` / `reservedOptionsList` / complement breakdown. |
+| `utils/` | `devisPdf.js` | T | Skip internal options in the PDF line-item loop. |
+| `controllers/` `utils/` | `publicCatalogController.js` / `publicProjections.js` | T | Exclude internal options from the public options catalog + quote lines. |
+| `components/` | `ExtrasSection.js` | T | Hide internal options from the fiche's selectable extras list (`visiblePropertyOptions`). The dashboard/planning chips need no change — internal options are never in `reservation_options` (see `reservationsModel.insertOptions`). |
+| `pages/` | `OptionsPage.js` | T | Generic « Afficher côté client (fiches & emails) » switch on every option (default on; bath mat ships off). |
 
 **Notes:** the engine stays pure (quantities + active flags passed in). `optionsModel` is the only
 place that writes the per-property quantity, through the same code path as per-property prices —

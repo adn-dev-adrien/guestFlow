@@ -505,6 +505,9 @@ function migrateOptionsColumns() {
     // Bath-mat linen option flag (specs/laundry-bath-mat.md §5) — drives the LaundryDayCard like
     // countsAsBedLinen / countsAsBathroomLinen. Brand-new column, absent on pre-feature prod DBs.
     ['countsAsBathMat',         'INTEGER NOT NULL DEFAULT 0'],
+    // Client-visibility flag (specs/laundry-bath-mat.md §3 rule 11). Default 1 = shown on every
+    // client/operator surface (no behaviour change). 0 = internal-only (laundry + stock only).
+    ['displayToClient',         'INTEGER NOT NULL DEFAULT 1'],
   ];
   const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
   const added = [];

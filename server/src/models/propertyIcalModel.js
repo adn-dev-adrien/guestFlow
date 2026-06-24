@@ -306,8 +306,13 @@ function createPropertyIcalModel(database) {
         // which case this is a no-op (prod/dev DBs always have them).
         let applyPropertyOptionDefaults = () => {};
         try {
+          // Internal-only options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option)
+          // are NOT materialised onto the booking — they're counted via the laundry/stock
+          // property-default fallback and never shown client-side. Guarded so a schema without the
+          // column degrades to "materialise everything" (prior behaviour).
+          const hasDisplayToClient = database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'displayToClient');
           const listPropertyOptionDefaults = database.prepare(`
-            SELECT d.optionId, d.offered, o.priceType
+            SELECT d.optionId, d.offered, o.priceType${hasDisplayToClient ? ', o.displayToClient' : ''}
             FROM property_option_defaults d
             JOIN options o ON o.id = d.optionId
             WHERE d.propertyId = ?
@@ -318,6 +323,7 @@ function createPropertyIcalModel(database) {
           `);
           applyPropertyOptionDefaults = (reservationId, propertyId) => {
             for (const d of listPropertyOptionDefaults.all(propertyId)) {
+              if (hasDisplayToClient && Number(d.displayToClient) === 0) continue; // internal-only → fallback handles it
               insertReservationOption.run(reservationId, d.optionId, d.priceType || 'per_stay', d.offered ? 1 : 0);
             }
           };

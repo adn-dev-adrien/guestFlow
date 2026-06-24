@@ -66,13 +66,19 @@ function ensureDefaultBathMatOption(database, { logger = console } = {}) {
         ? { action: 'promoted-adopted', count: promotion.changes }
         : { action: 'skipped-already-seeded' };
     }
+    // `displayToClient = 0` → bath mats are internal-only by default (specs/laundry-bath-mat.md §3
+    // rule 12): counted in the laundry cards + stock, hidden from every client-facing surface until
+    // the operator flips the switch. Guarded: only set when the column exists (else the legacy
+    // INSERT shape is used and the row defaults to visible — harmless on minimal schemas).
+    const hasDisplayToClient = cols.includes('displayToClient');
     if (cols.includes('titleEn')) {
       database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
           countsAsBedLinen, countsAsBathroomLinen, countsAsBathMat, titleEn
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ${hasDisplayToClient ? ', displayToClient' : ''}
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${hasDisplayToClient ? ', 0' : ''})
       `).run(
         SEED_DEFINITION.title, SEED_DEFINITION.description,
         'per_stay', 0, '[]',
@@ -86,7 +92,8 @@ function ensureDefaultBathMatOption(database, { logger = console } = {}) {
           title, description, priceType, price, optionProgressiveTiers,
           autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold,
           countsAsBedLinen, countsAsBathroomLinen, countsAsBathMat
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ${hasDisplayToClient ? ', displayToClient' : ''}
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${hasDisplayToClient ? ', 0' : ''})
       `).run(
         SEED_DEFINITION.title, SEED_DEFINITION.description,
         'per_stay', 0, '[]',

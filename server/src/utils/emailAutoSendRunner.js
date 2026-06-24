@@ -49,7 +49,7 @@ async function performAutoEmailPass(deps) {
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');
   const findProperty = database.prepare('SELECT * FROM properties WHERE id = ?');
   const findOptions  = database.prepare(`
-    SELECT ro.*, o.title, o.titleEn, o.autoOptionType
+    SELECT ro.*, o.title, o.titleEn, o.autoOptionType, o.displayToClient
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?

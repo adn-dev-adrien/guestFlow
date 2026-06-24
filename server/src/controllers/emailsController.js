@@ -36,7 +36,7 @@ function loadReservationGraph(database, reservationId) {
     : null;
   // Joined options — surface `title` (+ `titleEn` for English emails) + `autoOptionType`.
   const options = database.prepare(`
-    SELECT ro.*, o.title, o.titleEn, o.autoOptionType
+    SELECT ro.*, o.title, o.titleEn, o.autoOptionType, o.displayToClient
     FROM reservation_options ro
     JOIN options o ON o.id = ro.optionId
     WHERE ro.reservationId = ?
