@@ -109,6 +109,12 @@ function createModel(database) {
     try { return database.prepare("PRAGMA table_info(resources)").all().some((c) => c.name === 'nameEn'); }
     catch { return false; }
   })();
+  // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) are excluded from the devis (a
+  // client document). Guarded so minimal schemas without the column keep every option.
+  const HAS_OPTION_DISPLAY_TO_CLIENT = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'displayToClient'); }
+    catch { return false; }
+  })();
 
   // ---- settings access ----
   // Read `quoteValidityDays` from the SAME database handle the model was given so tests can
@@ -144,7 +150,8 @@ function createModel(database) {
         COALESCE(NULLIF(ro.totalPrice, 0), NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
           round(COALESCE(o.price, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2)) as originalTotalPrice,
         ro.offered as offered
-      FROM reservation_options ro JOIN options o ON ro.optionId = o.id WHERE ro.reservationId = ?
+      FROM reservation_options ro JOIN options o ON ro.optionId = o.id
+      WHERE ro.reservationId = ?${HAS_OPTION_DISPLAY_TO_CLIENT ? ' AND COALESCE(o.displayToClient, 1) != 0' : ''}
     `).all(row.id);
     const customOptions = database.prepare(`
       SELECT rco.id as customOptionId, rco.description as title, rco.description, 1 as quantity,

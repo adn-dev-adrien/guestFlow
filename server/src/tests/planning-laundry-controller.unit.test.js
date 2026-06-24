@@ -10,6 +10,7 @@ function makeFake({
   laundryWeekday = 2,
   windowFn = () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0 }),
   bathroomFn = () => ({ largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
+  bathMatFn = () => ({ bathMats: 0 }),
   skippedDates = [],
   inventoryHorizon = null,
 } = {}) {
@@ -23,6 +24,10 @@ function makeFake({
     dropOffBathroomForWindow(start, end) {
       calls.push({ fn: 'bathroom', start, end });
       return bathroomFn(start, end);
+    },
+    dropOffBathMatForWindow(start, end) {
+      calls.push({ fn: 'bathMat', start, end });
+      return bathMatFn(start, end);
     },
   };
   // Default to no skips so the legacy tests stay byte-identical in payload shape.
@@ -119,8 +124,8 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
   // sub-lines under the same "À apporter / À récupérer" header.
   assert.deepEqual(res.body.laundryDays, [{
     date: '2026-06-02',
-    dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7 },
-    pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9 },
+    dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7, bathMats: 0 },
+    pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9, bathMats: 0 },
   }]);
 });
 
@@ -167,14 +172,14 @@ test('laundrySummary: zero-everywhere laundry day is STILL emitted (server contr
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
   assert.equal(res.body.laundryDays.length, 1);
-  // Bed AND bathroom blocks merged into one zero block per side (5 keys total).
+  // Bed AND bathroom AND bath-mat blocks merged into one zero block per side (7 keys total).
   assert.deepEqual(
     res.body.laundryDays[0].dropOff,
-    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 }
   );
   assert.deepEqual(
     res.body.laundryDays[0].pickUp,
-    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 }
   );
 });
 
@@ -202,10 +207,10 @@ test('laundrySummary: skipped laundry day returns zero blocks (client renders "V
   assert.equal(res.body.laundryDays.length, 1);
   assert.equal(res.body.laundryDays[0].date, '2026-06-02');
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
   assert.deepEqual(res.body.laundryDays[0].pickUp, {
-    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0,
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
   });
   // No window query was issued for the skipped day — proves we shortcut before hitting the model.
   assert.equal(calls.length, 0);

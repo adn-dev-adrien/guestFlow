@@ -45,7 +45,8 @@ function totalSheets(side) {
 
 function totalTowels(side) {
   if (!side) return 0;
-  return Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0);
+  return Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0)
+    + Number(side.bathMats || 0);
 }
 
 function formatSheets(side) {
@@ -71,11 +72,14 @@ function formatTowels(side) {
   const lg = Number(side.largeTowels  || 0);
   const md = Number(side.mediumTowels || 0);
   const sm = Number(side.smallTowels  || 0);
-  if (lg === 0 && md === 0 && sm === 0) return null;
+  const bm = Number(side.bathMats     || 0);
+  if (lg === 0 && md === 0 && sm === 0 && bm === 0) return null;
   const parts = [];
   if (lg > 0) parts.push(`${lg} grande${lg > 1 ? 's' : ''}`);
   if (md > 0) parts.push(`${md} moyenne${md > 1 ? 's' : ''}`);
   if (sm > 0) parts.push(`${sm} petite${sm > 1 ? 's' : ''}`);
+  // "tapis" is invariable (specs/laundry-bath-mat.md §6).
+  if (bm > 0) parts.push(`${bm} tapis`);
   return parts.join(' · ');
 }
 
@@ -139,6 +143,7 @@ const TOWEL_LABELS = {
   large: (n) => (n > 1 ? 'grandes' : 'grande'),
   medium: (n) => (n > 1 ? 'moyennes' : 'moyenne'),
   small: (n) => (n > 1 ? 'petites' : 'petite'),
+  bathMat: () => 'tapis',
 };
 
 function InventoryLine({ label, parts }) {
@@ -179,7 +184,7 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
   // §3.5 — third block: post-drop available stock. Hidden when no inventory data is provided
   // (e.g. stock untracked = nothing to display).
   const bedParts = formatInventoryParts(inventoryAfter, ['double', 'single', 'baby'], BED_LABELS);
-  const towelParts = formatInventoryParts(inventoryAfter, ['large', 'medium', 'small'], TOWEL_LABELS);
+  const towelParts = formatInventoryParts(inventoryAfter, ['large', 'medium', 'small', 'bathMat'], TOWEL_LABELS);
   const hasInventoryLine = bedParts.length + towelParts.length > 0;
 
   // specs/skip-laundry-trip.md §3.3 — the IconButton flips the skip state via the parent's

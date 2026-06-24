@@ -101,6 +101,7 @@ const LINEN_STOCK_FIELDS = [
   { input: 'towelLarge',  column: 'towelStockLarge',     validator: validation.validateLinenStockCount },
   { input: 'towelMedium', column: 'towelStockMedium',    validator: validation.validateLinenStockCount },
   { input: 'towelSmall',  column: 'towelStockSmall',     validator: validation.validateLinenStockCount },
+  { input: 'towelBathMat', column: 'towelStockBathMat',  validator: validation.validateLinenStockCount },
 ];
 
 // Boolean-shaped columns stored as INTEGER 0/1 in SQLite. Listed once so applyGroup can
@@ -112,7 +113,7 @@ const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'allowEditPastReservations', 
 // values; the coercion here protects against malformed-but-in-range inputs.
 const INTEGER_COUNT_COLUMNS = new Set([
   'bedLinenStockSingle', 'bedLinenStockDouble', 'bedLinenStockBaby',
-  'towelStockLarge', 'towelStockMedium', 'towelStockSmall',
+  'towelStockLarge', 'towelStockMedium', 'towelStockSmall', 'towelStockBathMat',
 ]);
 
 function pickGroup(body, group) {

@@ -154,6 +154,59 @@ function buildModel(database) {
       AND r.endDate <= ?
   `);
 
+  // 2026-06-24 — bath-mat variant (specs/laundry-bath-mat.md §3 rule 8). A reservation contributes
+  // its PROPERTY's bath-mat quantity (flat per stay, not per person) iff the "Tapis de bain" option
+  // is active on it — explicit reservation_options row OR property-default fallback. Same UNION ALL /
+  // NOT EXISTS pattern as the bathroom path; the per-reservation value is the property quantity from
+  // `property_option_bath_mats` (LEFT JOIN → 0 when the property has no quantity). MAX(quantity) per
+  // reservation collapses the (theoretical) multi-option case before summing across reservations.
+  // Guarded: a schema without the column/table degrades to a zero result instead of throwing.
+  const HAS_BATH_MAT_COL = (() => {
+    try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'countsAsBathMat'); }
+    catch { return false; }
+  })();
+  const HAS_BATH_MAT_TABLE = (() => {
+    try { database.prepare('SELECT 1 FROM property_option_bath_mats LIMIT 1').get(); return true; }
+    catch { return false; }
+  })();
+  const sumBathMatStmt = (HAS_BATH_MAT_COL && HAS_BATH_MAT_TABLE) ? database.prepare(`
+    SELECT COALESCE(SUM(sub.quantity), 0) AS bathMats
+    FROM reservations r
+    JOIN (
+      SELECT reservationId, MAX(quantity) AS quantity
+      FROM (
+        SELECT ro.reservationId AS reservationId,
+          COALESCE(pobm.quantity, 0) AS quantity
+        FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        JOIN reservations res ON res.id = ro.reservationId
+        LEFT JOIN property_option_bath_mats pobm
+          ON pobm.optionId = o.id AND pobm.propertyId = res.propertyId
+        WHERE o.countsAsBathMat = 1
+
+        UNION ALL
+
+        SELECT res.id AS reservationId,
+          COALESCE(pobm.quantity, 0) AS quantity
+        FROM reservations res
+        JOIN property_option_defaults pod ON pod.propertyId = res.propertyId
+        JOIN options o ON o.id = pod.optionId
+        LEFT JOIN property_option_bath_mats pobm
+          ON pobm.optionId = o.id AND pobm.propertyId = res.propertyId
+        WHERE o.countsAsBathMat = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM reservation_options ro2
+            JOIN options o2 ON o2.id = ro2.optionId
+            WHERE ro2.reservationId = res.id AND o2.countsAsBathMat = 1
+          )
+      ) sources
+      GROUP BY reservationId
+    ) sub ON sub.reservationId = r.id
+    WHERE r.kind = 'reservation'
+      AND r.endDate > ?
+      AND r.endDate <= ?
+  `) : null;
+
   return {
     /**
      * Sum bed counts for reservations whose endDate is in `(startExclusiveIso, endInclusiveIso]`
@@ -188,6 +241,19 @@ function buildModel(database) {
         mediumTowels: Number(row.mediumTowels) || 0,
         smallTowels:  Number(row.smallTowels)  || 0,
       };
+    },
+
+    /**
+     * Sum the bath-mat demand for reservations whose endDate is in
+     * `(startExclusiveIso, endInclusiveIso]` and that have an active "Tapis de bain" option
+     * (explicit selection OR property default). Per-reservation contribution = the reservation's
+     * property bath-mat quantity (flat per stay). Returns `{ bathMats }`, zero when the feature's
+     * column/table is absent (minimal schemas) — see `sumBathMatStmt`.
+     */
+    dropOffBathMatForWindow(startExclusiveIso, endInclusiveIso) {
+      if (!sumBathMatStmt) return { bathMats: 0 };
+      const row = sumBathMatStmt.get(String(startExclusiveIso), String(endInclusiveIso));
+      return { bathMats: Number(row.bathMats) || 0 };
     },
   };
 }
