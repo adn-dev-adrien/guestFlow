@@ -18,6 +18,20 @@ import api from '../api';
 
 const eur = (n) => `${Number(n || 0).toLocaleString('fr-FR')} €`;
 
+// Operational "Paiements en attente" bucket cell (specs/finance-operational-remaining-to-pay.md §3):
+// green amount when settled (paid / caisse-interne), red when still owed, muted « — » when nothing
+// to collect (amount 0). Display-only — the complements are marked paid from the fiche / « Tout solder ».
+function PaymentBucketAmount({ amount, settled, cash }) {
+  const n = Number(amount || 0);
+  if (n <= 0) return <Typography variant="body2" sx={{ color: 'text.disabled' }}>—</Typography>;
+  return (
+    <Box>
+      <Typography variant="body2" sx={{ color: settled ? 'success.main' : 'error.main', fontWeight: 600 }}>{n}€</Typography>
+      {cash && <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>caisse</Typography>}
+    </Box>
+  );
+}
+
 const RADIAN = Math.PI / 180;
 // specs/finance-overview-rework.md §3.4 — the amounts sit INSIDE the camembert (white text at each slice
 // centroid) rather than as outer labels.
@@ -403,12 +417,12 @@ export default function FinancePage() {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                 <Chip
                   size="small"
-                  label={`En attente de paiement : ${eur(pendingTotals.remainingDue)}`}
+                  label={`En attente de paiement : ${eur(pendingTotals.remainingToPay)}`}
                   sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
                 />
               </Box>
               <TableContainer>
-                <Table size="small" sx={{ minWidth: 980 }}>
+                <Table size="small" sx={{ minWidth: 1180 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
@@ -417,6 +431,8 @@ export default function FinancePage() {
                       <TableCell sx={{ fontWeight: 600 }}>Plateforme</TableCell>
                       <TableCell sx={{ fontWeight: 600 }} align="center">Acompte</TableCell>
                       <TableCell sx={{ fontWeight: 600 }} align="center">Solde</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Complément</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="center">Compl. fin de séjour</TableCell>
                       <TableCell sx={{ fontWeight: 600 }} align="center">Reste à payer</TableCell>
                       <TableCell sx={{ fontWeight: 600 }} align="right">Total de séjour</TableCell>
                       <TableCell sx={{ fontWeight: 600 }} align="center">Solder</TableCell>
@@ -424,8 +440,11 @@ export default function FinancePage() {
                   </TableHead>
                   <TableBody>
                     {pendingPayments.map((r) => {
-                      const { depositOverdue, balanceOverdue, remainingDue } = r;
+                      const { depositOverdue, balanceOverdue, remainingToPay } = r;
                       const stop = (e) => e.stopPropagation();
+                      // A bucket is settled (green) when paid / caisse-interne; still owed → red.
+                      const complementSettled = !!r.complementPaid || !!r.complementPaidCash;
+                      const endOfStaySettled = !!r.endOfStayComplementPaid || !!r.endOfStayComplementPaidCash;
                       return (
                         <TableRow key={r.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/reservations/${r.id}`)}>
                           <TableCell>{r.firstName} {r.lastName}</TableCell>
@@ -439,8 +458,8 @@ export default function FinancePage() {
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                                 <Checkbox checked={!!r.depositPaid} onChange={() => handleTogglePayment(r, 'depositPaid')} size="small" />
                                 <Box>
-                                  <Typography variant="body2" sx={{ color: depositOverdue ? 'error.main' : 'inherit', fontWeight: depositOverdue ? 700 : 400 }}>{r.depositAmount}€</Typography>
-                                  {r.depositDueDate && <Typography variant="caption" sx={{ color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
+                                  <Typography variant="body2" sx={{ color: r.depositPaid ? 'success.main' : 'error.main', fontWeight: depositOverdue ? 700 : 600 }}>{r.depositAmount}€</Typography>
+                                  {r.depositDueDate && <Typography variant="caption" sx={{ display: 'block', color: depositOverdue ? 'error.main' : 'text.secondary', fontWeight: depositOverdue ? 700 : 400 }}>{displayDate(r.depositDueDate)}</Typography>}
                                 </Box>
                               </Box>
                             )}
@@ -449,13 +468,19 @@ export default function FinancePage() {
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                               <Checkbox checked={!!r.balancePaid} onChange={() => handleTogglePayment(r, 'balancePaid')} size="small" />
                               <Box>
-                                <Typography variant="body2" sx={{ color: balanceOverdue ? 'error.main' : 'inherit', fontWeight: balanceOverdue ? 700 : 400 }}>{r.balanceAmount}€</Typography>
-                                {r.balanceDueDate && <Typography variant="caption" sx={{ color: balanceOverdue ? 'error.main' : 'text.secondary', fontWeight: balanceOverdue ? 700 : 400 }}>{displayDate(r.balanceDueDate)}</Typography>}
+                                <Typography variant="body2" sx={{ color: r.balancePaid ? 'success.main' : 'error.main', fontWeight: balanceOverdue ? 700 : 600 }}>{r.balanceAmount}€</Typography>
+                                {r.balanceDueDate && <Typography variant="caption" sx={{ display: 'block', color: balanceOverdue ? 'error.main' : 'text.secondary', fontWeight: balanceOverdue ? 700 : 400 }}>{displayDate(r.balanceDueDate)}</Typography>}
                               </Box>
                             </Box>
                           </TableCell>
-                          <TableCell align="center" sx={{ color: remainingDue > 0 ? 'error.main' : 'success.main', fontWeight: 700 }}>
-                            {Math.round(remainingDue * 100) / 100}€
+                          <TableCell align="center">
+                            <PaymentBucketAmount amount={r.complementAmount} settled={complementSettled} cash={!!r.complementPaidCash} />
+                          </TableCell>
+                          <TableCell align="center">
+                            <PaymentBucketAmount amount={r.endOfStayComplementAmount} settled={endOfStaySettled} cash={!!r.endOfStayComplementPaidCash} />
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: remainingToPay > 0 ? 'error.main' : 'success.main', fontWeight: 700 }}>
+                            {Math.round(remainingToPay * 100) / 100}€
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(r.totalSejour)}</TableCell>
                           <TableCell align="center" onClick={stop}>
@@ -474,7 +499,9 @@ export default function FinancePage() {
                       <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
                       <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.depositAmount)}</TableCell>
                       <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.balanceAmount)}</TableCell>
-                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.remainingDue)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.complementAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.endOfStayComplementAmount)}</TableCell>
+                      <TableCell align="center" sx={footerCellSx}>{eur(pendingTotals.remainingToPay)}</TableCell>
                       <TableCell align="right" sx={footerCellSx}>{eur(pendingTotals.totalSejour)}</TableCell>
                       <TableCell sx={footerCellSx} />
                     </TableRow>
