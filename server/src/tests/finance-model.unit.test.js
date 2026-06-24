@@ -191,6 +191,53 @@ test('getOperational: pending totals sum the columns; a disabled deposit is excl
   assert.equal(op.pending.totals.remainingDue, 500);
 });
 
+// specs/finance-operational-remaining-to-pay.md §3 — « reste à payer » = Σ still-owed buckets only.
+test('getOperational: remainingToPay sums only the UNPAID buckets, incl. both complements', () => {
+  const { db, model } = freshModel();
+  // Deposit + balance PAID, but an arrival complement (60) + end-of-stay (40) still owed → 100 left.
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(-6), endDate: iso(-2), finalPrice: 300,
+    depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 1,
+    complementAmount: 60, complementPaid: 0, endOfStayComplementAmount: 40, endOfStayComplementPaid: 0,
+  });
+  const r = model.getOperational().pending.reservations.find((x) => x.id === 1);
+  assert.equal(r.remainingToPay, 100, 'only the two unpaid complements remain');
+  // The legacy deposit+balance-only field would wrongly say 0 here.
+  assert.equal(r.remainingDue, 0);
+});
+
+test('getOperational: caisse-interne complement + disabled deposit are NOT counted in remainingToPay', () => {
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(-6), endDate: iso(-2), finalPrice: 200,
+    depositAmount: 50, depositDisabled: 1,                       // disabled → not owed
+    balanceAmount: 150, balancePaid: 0,                          // owed
+    complementAmount: 80, complementPaid: 1, complementPaidCash: 1, // caisse interne → settled
+  });
+  const r = model.getOperational().pending.reservations.find((x) => x.id === 1);
+  assert.equal(r.remainingToPay, 150, 'only the unpaid balance; disabled deposit + cash complement excluded');
+});
+
+test('getOperational: remainingToPay is 0 exactly when the reservation is settled (drops from pending)', () => {
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(-6), endDate: iso(-2),
+    depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 1,
+    complementAmount: 50, complementPaid: 1, endOfStayComplementAmount: 30, endOfStayComplementPaid: 1,
+  });
+  const op = model.getOperational();
+  assert.equal(op.pending.reservations.length, 0, 'fully settled → not pending');
+});
+
+test('getOperational: pending totals expose remainingToPay + complement columns', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-6), endDate: iso(-2), depositAmount: 100, balanceAmount: 200, complementAmount: 60, endOfStayComplementAmount: 40 });
+  const t = model.getOperational().pending.totals;
+  assert.equal(t.complementAmount, 60);
+  assert.equal(t.endOfStayComplementAmount, 40);
+  assert.equal(t.remainingToPay, 400); // 100 + 200 + 60 + 40, nothing paid
+});
+
 test('getOperational: upcoming totals sum every component column + total de séjour', () => {
   const { db, model } = freshModel();
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(3), depositAmount: 100, balanceAmount: 200, complementAmount: 30, endOfStayComplementAmount: 20 }); // totalSejour 350
