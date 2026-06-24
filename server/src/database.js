@@ -102,6 +102,20 @@ db.exec(`
   )
 `);
 
+// specs/laundry-bath-mat.md §5 — per-property bath-mat quantity for the "Tapis de bain" option.
+// Mirror of property_option_prices: an absent row means quantity 0 for that property. Additive,
+// starts empty, no data migration.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS property_option_bath_mats (
+    propertyId INTEGER NOT NULL,
+    optionId   INTEGER NOT NULL,
+    quantity   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (propertyId, optionId),
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE,
+    FOREIGN KEY (optionId)   REFERENCES options(id)    ON DELETE CASCADE
+  )
+`);
+
 // specs/manual-laundry-additions.md §5 — global per-trip manual linen additions. One row per
 // laundry date holds six non-negative per-type counts; they fold into À apporter / À récupérer and
 // the inventory simulation like reservation linen. Additive table, starts empty, no migration.
@@ -301,6 +315,9 @@ tryAddAppSettingsCol('bedLinenStockBaby',   "ALTER TABLE app_settings ADD COLUMN
 tryAddAppSettingsCol('towelStockLarge',     "ALTER TABLE app_settings ADD COLUMN towelStockLarge     INTEGER NOT NULL DEFAULT 0");
 tryAddAppSettingsCol('towelStockMedium',    "ALTER TABLE app_settings ADD COLUMN towelStockMedium    INTEGER NOT NULL DEFAULT 0");
 tryAddAppSettingsCol('towelStockSmall',     "ALTER TABLE app_settings ADD COLUMN towelStockSmall     INTEGER NOT NULL DEFAULT 0");
+// Bath mat as a 7th linen type (specs/laundry-bath-mat.md §5). Stock shared across properties,
+// 0 = "type not tracked", same convention as the other six.
+tryAddAppSettingsCol('towelStockBathMat',   "ALTER TABLE app_settings ADD COLUMN towelStockBathMat   INTEGER NOT NULL DEFAULT 0");
 // Online payments — all reminder/deadline durations are operator-configurable (no hard-coded delay).
 // Offsets are stored as a JSON array of day-deltas relative to the relevant due date (negative = before,
 // 0 = the due day, positive = after). See specs/online-payments-qonto.md §3.1 + §5.
@@ -485,6 +502,9 @@ function migrateOptionsColumns() {
     ['autoPricingMode',         "TEXT NOT NULL DEFAULT 'fixed'"],
     ['autoFullNightThreshold',  'TEXT'],
     ['optionProgressiveTiers',  "TEXT NOT NULL DEFAULT '[]'"],
+    // Bath-mat linen option flag (specs/laundry-bath-mat.md §5) — drives the LaundryDayCard like
+    // countsAsBedLinen / countsAsBathroomLinen. Brand-new column, absent on pre-feature prod DBs.
+    ['countsAsBathMat',         'INTEGER NOT NULL DEFAULT 0'],
   ];
   const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
   const added = [];
@@ -1149,6 +1169,10 @@ db.ensureDefaultBedLinenOption = ensureDefaultBedLinenOption;
 const { ensureDefaultBathroomLinenOption } = require('./utils/bathroomLinenSeed');
 ensureDefaultBathroomLinenOption(db);
 db.ensureDefaultBathroomLinenOption = ensureDefaultBathroomLinenOption;
+
+const { ensureDefaultBathMatOption } = require('./utils/bathMatSeed');
+ensureDefaultBathMatOption(db);
+db.ensureDefaultBathMatOption = ensureDefaultBathMatOption;
 
 // specs/breakfast-option-and-planning-card.md §3 rule 1. Same idempotent typed-default
 // pattern as the two linen seeds above: ensures the catalog carries exactly one

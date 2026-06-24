@@ -50,6 +50,11 @@ const emptyOption = {
   towelLargePerPerson: 1,
   towelMediumPerPerson: 0,
   towelSmallPerPerson: 1,
+  // Bath-mat option (specs/laundry-bath-mat.md). Like the linen flags, `countsAsBathMat` stays
+  // hidden (seed-managed, round-tripped). When set, the per-property quantity editor below shows.
+  // `propertyBathMats` = { [propertyId]: quantity } — flat number of bath mats per stay for that property.
+  countsAsBathMat: false,
+  propertyBathMats: {},
   // Breakfast default time (specs/breakfast-time.md). Only meaningful for the breakfast-typed
   // option; editable there. Pre-fills the desired time on each reservation that enables breakfast.
   breakfastTime: '09:00',
@@ -500,6 +505,9 @@ export default function OptionsPage() {
         towelLargePerPerson:  item.towelLargePerPerson  == null ? 1 : Number(item.towelLargePerPerson),
         towelMediumPerPerson: item.towelMediumPerPerson == null ? 0 : Number(item.towelMediumPerPerson),
         towelSmallPerPerson:  item.towelSmallPerPerson  == null ? 1 : Number(item.towelSmallPerPerson),
+        // Bath-mat option (specs/laundry-bath-mat.md) — hidden flag + per-property quantity map.
+        countsAsBathMat: Boolean(item.countsAsBathMat),
+        propertyBathMats: (item.propertyBathMats && typeof item.propertyBathMats === 'object') ? item.propertyBathMats : {},
         // Bilingual devis PDF (specs/devis-english-language.md §3 rule 6) — title only.
         titleEn: item.titleEn || '',
         // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
@@ -552,6 +560,23 @@ export default function OptionsPage() {
         towelLargePerPerson:  Math.max(0, Math.floor(Number(form.towelLargePerPerson)  || 0)),
         towelMediumPerPerson: Math.max(0, Math.floor(Number(form.towelMediumPerPerson) || 0)),
         towelSmallPerPerson:  Math.max(0, Math.floor(Number(form.towelSmallPerPerson)  || 0)),
+        // Bath-mat option (specs/laundry-bath-mat.md): hidden flag + per-property quantity map.
+        // Drop quantities for properties the option no longer applies to (mirror of propertyPrices).
+        countsAsBathMat: Boolean(form.countsAsBathMat),
+        propertyBathMats: (() => {
+          const src = form.propertyBathMats || {};
+          const restricted = form.propertyIds && form.propertyIds.length > 0
+            ? new Set(form.propertyIds.map(Number))
+            : null;
+          const out = {};
+          Object.entries(src).forEach(([pid, val]) => {
+            if (val === '' || val === null || val === undefined) return;
+            if (restricted && !restricted.has(Number(pid))) return;
+            const n = Math.max(0, Math.floor(Number(val) || 0));
+            if (n > 0) out[pid] = n;
+          });
+          return out;
+        })(),
         // Breakfast default time (specs/breakfast-time.md). Persisted only for the breakfast
         // option server-side; harmless for the others.
         breakfastTime: form.breakfastTime || '09:00',
@@ -620,6 +645,9 @@ export default function OptionsPage() {
           )}
           {form.countsAsBathroomLinen && (
             <BathroomTowelCountsFields form={form} setForm={setForm} />
+          )}
+          {form.countsAsBathMat && (
+            <BathMatPerPropertyField form={form} setForm={setForm} properties={properties} />
           )}
           {/* §3.7 read-only mirror — list of properties that use this option as a default. */}
           <OptionPropertyDefaultsMirror optionId={form.id} form={form} />
@@ -716,9 +744,55 @@ function BathroomTowelCountsFields({ form, setForm }) {
   );
 }
 
+// Bath-mat per-property quantity (specs/laundry-bath-mat.md §6). One integer field per applicable
+// property: how many bath mats one stay of that property sends to the laundry. Flat per stay (not
+// per person), counted when the "Tapis de bain" option is active on the reservation. Rendered only
+// when editing the option that carries `countsAsBathMat = 1` (the typed seed). Mirrors the
+// per-property price section's layout.
+function BathMatPerPropertyField({ form, setForm, properties }) {
+  const applicable = (properties || []).filter((p) => (form.propertyIds || []).includes(p.id));
+  const quantities = form.propertyBathMats || {};
+  const setQty = (pid) => (e) => {
+    const next = { ...quantities };
+    if (e.target.value === '') delete next[pid];
+    else next[pid] = e.target.value;
+    setForm({ ...form, propertyBathMats: next });
+  };
+  return (
+    <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+        Nombre de tapis de bain par logement
+      </Typography>
+      <FormHelperText sx={{ mb: 1, mt: 0 }}>
+        Nombre de tapis emmenés à la blanchisserie pour une location. Indiquez 0 si ce logement ne fournit pas de tapis de bain.
+      </FormHelperText>
+      {applicable.length === 0 ? (
+        <FormHelperText sx={{ m: 0 }}>Sélectionnez au moins un logement pour définir une quantité.</FormHelperText>
+      ) : (
+        <Stack spacing={1.5}>
+          {applicable.map((p) => (
+            <TextField
+              key={p.id}
+              label={p.name}
+              type="number"
+              size="small"
+              value={quantities[p.id] ?? ''}
+              onChange={setQty(p.id)}
+              placeholder="0"
+              sx={{ maxWidth: { xs: '100%', sm: 260 } }}
+              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+            />
+          ))}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
 // 2026-06-02 follow-up — the `countsAsBedLinen` / `countsAsBathroomLinen` flags themselves stay
 // HIDDEN in this form (no checkbox to toggle them): they're set by the server-side seeds + the
 // title-alias promotion, and are silently round-tripped via fromItem / toPayload. What IS
 // visible (rendered conditionally on the flag being set) is the per-type configuration block
 // for that linen kind — §3.5.ter `BedLinenIncludesFields` for bed (3 type checkboxes) and
-// `BathroomTowelCountsFields` for bathroom (3 per-person integer counts).
+// `BathroomTowelCountsFields` for bathroom (3 per-person integer counts). The bath-mat option
+// (specs/laundry-bath-mat.md) follows the same pattern with `BathMatPerPropertyField`.

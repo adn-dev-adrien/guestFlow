@@ -24,6 +24,7 @@ function makeFake({
   const laundryModel = {
     dropOffForWindow: () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0 }),
     dropOffBathroomForWindow: () => ({ largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
+    dropOffBathMatForWindow: () => ({ bathMats: 0 }),
   };
   const laundryTripSkipsModel = { listAll: () => [] };
   const linenInventoryModel = { simulate: () => null };

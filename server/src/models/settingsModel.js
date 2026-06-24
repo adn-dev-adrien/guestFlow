@@ -111,6 +111,8 @@ const COLUMNS = [
   'towelStockLarge',
   'towelStockMedium',
   'towelStockSmall',
+  // Bath mat as a 7th linen type (specs/laundry-bath-mat.md §3 rule 7). Stock shared across properties.
+  'towelStockBathMat',
   // Online payments — operator-configurable reminder/deadline durations (specs/online-payments-qonto.md
   // §3.1 + §5). The two *Offsets are JSON arrays of day-deltas; the rest are integer day-counts. Read
   // through `paymentTimings()` which parses + applies defaults so no caller hard-codes a duration.
@@ -146,6 +148,7 @@ const NUMERIC_DEFAULTS = {
   towelStockLarge: 0,
   towelStockMedium: 0,
   towelStockSmall: 0,
+  towelStockBathMat: 0,
   paymentDepositAbandonOffset: 1,
   paymentDepositLinkExpiryDays: 1,
   paymentBalanceAbandonOffset: 1,

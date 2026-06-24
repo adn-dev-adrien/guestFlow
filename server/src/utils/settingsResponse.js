@@ -144,6 +144,7 @@ function shapeResponse(row) {
       towelLarge:  Number(row.towelStockLarge     || 0),
       towelMedium: Number(row.towelStockMedium    || 0),
       towelSmall:  Number(row.towelStockSmall     || 0),
+      towelBathMat: Number(row.towelStockBathMat  || 0),
     },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),

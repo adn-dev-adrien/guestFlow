@@ -88,7 +88,7 @@ test('one reservation with explicit bed-linen option: clean drops on check-in, r
 
   // 06-01 (Mon): nothing yet.
   const d0601 = r.days.find((d) => d.date === '2026-06-01');
-  assert.deepEqual(d0601.clean, { single: 10, double: 10, baby: 10, large: 0, medium: 0, small: 0 });
+  assert.deepEqual(d0601.clean, { single: 10, double: 10, baby: 10, large: 0, medium: 0, small: 0, bathMat: 0 });
 
   // 06-03 (Wed): check-in → in-circulation gets 2 single + 1 double, clean drops accordingly.
   const d0603 = r.days.find((d) => d.date === '2026-06-03');
