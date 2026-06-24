@@ -56,7 +56,9 @@ const SUMMARY = {
 const PENDING_ROW = {
   id: 42, firstName: 'Marie', lastName: 'Martin', propertyName: 'Tente', platform: 'direct',
   startDate: '2026-05-01', endDate: '2026-05-04', totalSejour: 300, settled: false,
-  remainingDue: 300, depositAmount: 100, depositPaid: 0, depositDisabled: 0,
+  // remainingToPay = Σ still-owed buckets (specs/finance-operational-remaining-to-pay.md §3);
+  // remainingDue kept for back-compat callers but no longer drives the pending view.
+  remainingToPay: 300, remainingDue: 300, depositAmount: 100, depositPaid: 0, depositDisabled: 0,
   balanceAmount: 200, balancePaid: 0, complementAmount: 0, endOfStayComplementAmount: 0,
 };
 
@@ -64,7 +66,7 @@ const OPERATIONAL = {
   overdue: { reservations: [], count: 0, totalAmount: 0, totals: { overdueAmount: 0 } },
   pending: {
     reservations: [PENDING_ROW],
-    totals: { depositAmount: 100, balanceAmount: 200, remainingDue: 300, totalSejour: 300 },
+    totals: { depositAmount: 100, balanceAmount: 200, complementAmount: 0, endOfStayComplementAmount: 0, remainingToPay: 300, remainingDue: 300, totalSejour: 300 },
   },
   upcoming: {
     reservations: [],
