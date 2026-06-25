@@ -134,6 +134,43 @@ test('listPending: a sendDate 8 days in the past with lookbackDays=7 is excluded
   assert.equal(rows.length, 0);
 });
 
+test('listPending: a before-arrival reminder is NOT re-proposed once the guest has arrived (startDate in the past)', () => {
+  // Regression (specs/email-automation.md §3 rule 8): the 7-day lookback used to keep re-proposing a
+  // J-2 reminder for up to 5 days AFTER arrival (its sendDate stays in the window). Once startDate is
+  // past, a before-or-on-arrival reminder must drop out.
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Nicolas', 'Vigier', 'nico@v.fr')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (20, 'arrival_reminder_1d', 'J-2', 'S', 'B', -2, 'manual', 1)").run();
+
+  const today = '2026-06-15';
+  // Arrived 3 days ago → J-2 sendDate = 2026-06-10, still inside the [2026-06-08, 2026-06-15] lookback.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (110, 'reservation', 1, 1, '2026-06-12', '2026-06-14')").run();
+  // Control: arrives tomorrow → J-2 sendDate = 2026-06-14, in window, startDate still future → kept.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (111, 'reservation', 1, 1, '2026-06-16', '2026-06-18')").run();
+
+  const rows = model.listPending({ today, lookbackDays: 7 });
+  const reservationIds = rows.map((r) => r.reservationId);
+  assert.ok(!reservationIds.includes(110), 'the past-arrival J-2 reminder is dropped');
+  assert.ok(reservationIds.includes(111), 'the upcoming-arrival J-2 reminder is still listed');
+});
+
+test('listPending: a post-stay email (positive dayOffset) is kept even after arrival', () => {
+  // Future-proofing rule 8: emails meant to fire AFTER arrival (e.g. a J+1 review request) must keep
+  // surfacing for a past-startDate stay — the past-arrival guard only drops before/on-arrival reminders.
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Nicolas', 'Vigier', 'nico@v.fr')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (21, NULL, 'J+1', 'S', 'B', 1, 'manual', 1)").run();
+
+  const today = '2026-06-15';
+  // Arrived 3 days ago → J+1 sendDate = 2026-06-13, inside the [2026-06-08, 2026-06-15] lookback.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (120, 'reservation', 1, 1, '2026-06-12', '2026-06-14')").run();
+
+  const rows = model.listPending({ today, lookbackDays: 7 });
+  assert.ok(rows.some((r) => r.reservationId === 120), 'the post-stay email survives a past startDate');
+});
+
 // ---- history ----
 
 test('history: paginated, joined with template + client + property + reservation dates', () => {
