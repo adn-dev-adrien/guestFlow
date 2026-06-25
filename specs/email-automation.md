@@ -128,6 +128,15 @@ The operator can:
    forgotten send from 3 days ago still surfaces), minus any pair already in `email_log`
    with `status IN ('sent', 'acknowledged-skip')`. Sorted by `startDate ASC` so the most
    imminent stay floats to the top.
+   - **Past-arrival guard.** A before-or-on-arrival reminder (`dayOffset <= 0`, e.g. J-7 / J-2)
+     is dropped as soon as the reservation's `startDate` is in the **past** (`date(startDate) <
+     today`). Without this, the 7-day lookback re-proposes a reminder for up to 5 days *after*
+     the guest arrived (a J-2's send date stays inside the window until `startDate + 5 days`),
+     which is pointless — the stay has already begun. Post-stay emails (`dayOffset > 0`, e.g. a
+     J+1 review request) are meant to fire after arrival and are **kept** regardless of how far
+     `startDate` is in the past (still bounded by the lookback window). The auto-send cron is
+     inherently immune: its exact-match `date(startDate, dayOffset) = today` makes `startDate`
+     necessarily *future* for any `dayOffset < 0`.
 9. **Acknowledge.** A pending entry can be:
    - **Sent** → POST `/api/emails/send` → logs `status='sent'`. Drops out of the pending
      list.
@@ -681,8 +690,10 @@ inline property form just above the capacity fields. The value is stored on
       `enabled=1` only.
 - [ ] `tests/email-templates-controller.unit.test.js` — `400` on bad sendMode / out-of-range
       dayOffset / missing subject / missing body; `404` on missing id; happy paths.
-- [ ] `tests/email-log-model.unit.test.js` — insert; `existsFor` matches by status set;
-      pagination; history filters.
+- [x] `tests/email-log-model.unit.test.js` — insert; `existsFor` matches by status set;
+      pagination; history filters; **past-arrival guard (§3 rule 8):** a before-arrival J-2
+      reminder is dropped once `startDate` is past while an upcoming one is kept; a post-stay
+      (`dayOffset > 0`) email survives a past `startDate`.
 - [x] `tests/emails-controller.unit.test.js` — preview shapes; send happy path (mocked
       `emailService.send`); send returns `409 EMAIL_NOT_CONFIGURED`; send returns `404
       CLIENT_NO_EMAIL`; acknowledge logs an `acknowledged-skip` row; pending join
