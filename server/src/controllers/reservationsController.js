@@ -589,24 +589,49 @@ function update(req, res) {
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
 
   if (!pastReservationLocked) {
+    // specs/edit-reservation-blocked-by-overlap.md — on an EXISTING reservation, only run a guard
+    // when the edit actually touched what that guard protects. A finance-only edit (e.g. entering the
+    // platform payment) on a reservation that already overlaps another or already exceeds capacity
+    // (common on iCal imports) must NOT be rejected — the conflict pre-exists and isn't introduced by
+    // this save. Moving the reservation INTO a conflict (changing dates/place/occupancy) still validates.
+    const prev = existingReservation || {};
+    const sameNum = (a, b) => Number(a || 0) === Number(b || 0);
+    const sameStr = (a, b) => String(a == null ? '' : a) === String(b == null ? '' : b);
+    // Compare on the fields that genuinely define "did the reservation move / who occupies it" AND that
+    // are always stored as real values — property + dates, and the guest counts. We deliberately do NOT
+    // compare check-in/out TIMES or bed counts here: iCal imports store those as NULL and the fiche fills
+    // them from the property defaults on load, so a naive equality would see a phantom "change" on every
+    // edit of an imported reservation — exactly the case we must unblock (specs/edit-reservation-blocked-by-overlap.md).
+    const placementUnchanged = existingReservation
+      && sameNum(prev.propertyId, propertyId)
+      && sameStr(prev.startDate, startDate) && sameStr(prev.endDate, endDate);
+    const occupancyUnchanged = existingReservation
+      && sameNum(prev.propertyId, propertyId)
+      && sameNum(prev.adults, adults) && sameNum(prev.children, children)
+      && sameNum(prev.teens, teens) && sameNum(prev.babies, babies);
+
     // Same logic as the `create` flow: lift the model-level "no past startDate" guard when
     // the admin escape hatch is ON, so the user can keep a past startDate while editing
     // unrelated fields. See specs/admin-unlock-past-reservations.md.
-    const validationError = model.validateAvailability(
-      propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks,
-      { allowPastDates: settingsModel.allowEditPastReservations() },
-    );
-    if (validationError) return res.status(409).json(validationError);
+    if (!placementUnchanged) {
+      const validationError = model.validateAvailability(
+        propertyId, startDate, endDate, checkInTime, checkOutTime, id, nightBlocks,
+        { allowPastDates: settingsModel.allowEditPastReservations() },
+      );
+      if (validationError) return res.status(409).json(validationError);
+    }
 
-    const capacityError = checkCapacity({
-      propertyId, adults, children, teens, babies,
-      babyBeds: effectiveBabyBeds, singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
-      forceCapacity,
-    });
-    if (capacityError) return res.status(400).json({ error: capacityError });
+    if (!occupancyUnchanged) {
+      const capacityError = checkCapacity({
+        propertyId, adults, children, teens, babies,
+        babyBeds: effectiveBabyBeds, singleBeds: effectiveSingleBeds, doubleBeds: effectiveDoubleBeds,
+        forceCapacity,
+      });
+      if (capacityError) return res.status(400).json({ error: capacityError });
 
-    const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: id });
-    if (babyError) return res.status(400).json({ error: babyError });
+      const babyError = checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyBeds: effectiveBabyBeds, excludeId: id });
+      if (babyError) return res.status(400).json({ error: babyError });
+    }
   }
 
   const nextIcalSyncLocked = computeNextIcalSyncLocked(existingReservation);

@@ -1817,19 +1817,37 @@ export default function ReservationPage() {
       return false;
     }
 
-    const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
-    if (dateRangeConflictInfo) {
-      await alert({ title: 'Conflit de réservation', message: dateRangeConflictInfo.message });
-      return false;
+    // specs/edit-reservation-blocked-by-overlap.md — on an EXISTING reservation, don't re-block on a
+    // pre-existing overlap / capacity conflict the edit didn't introduce (mirrors the server guard).
+    // Compare the current form against the loaded snapshot (initialSnapshot = JSON of { selectedProp, form }).
+    let loadedSnapshot = null;
+    try { loadedSnapshot = initialSnapshot ? JSON.parse(initialSnapshot) : null; } catch { loadedSnapshot = null; }
+    const loadedForm = loadedSnapshot && loadedSnapshot.form;
+    const placementUnchanged = Boolean(reservationId && loadedForm
+      && Number(loadedSnapshot.selectedProp) === Number(selectedProp)
+      && loadedForm.startDate === form.startDate && loadedForm.endDate === form.endDate);
+    const occupancyUnchanged = Boolean(reservationId && loadedForm
+      && Number(loadedSnapshot.selectedProp) === Number(selectedProp)
+      && Number(loadedForm.adults || 0) === Number(form.adults || 0)
+      && Number(loadedForm.children || 0) === Number(form.children || 0)
+      && Number(loadedForm.teens || 0) === Number(form.teens || 0)
+      && Number(loadedForm.babies || 0) === Number(form.babies || 0));
+
+    if (!placementUnchanged) {
+      const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
+      if (dateRangeConflictInfo) {
+        await alert({ title: 'Conflit de réservation', message: dateRangeConflictInfo.message });
+        return false;
+      }
+
+      const timeConflictState = getTimeConflictState(form);
+      if (timeConflictState.message) {
+        await alert({ title: 'Conflit de réservation', message: timeConflictState.message });
+        return false;
+      }
     }
 
-    const timeConflictState = getTimeConflictState(form);
-    if (timeConflictState.message) {
-      await alert({ title: 'Conflit de réservation', message: timeConflictState.message });
-      return false;
-    }
-
-    if (exceedsGuestCapacity && !forceCapacity) {
+    if (exceedsGuestCapacity && !forceCapacity && !occupancyUnchanged) {
       const capacityParts = [];
       if (exceedsAdultsCapacity) capacityParts.push(`adultes: ${adultsCount}/${maxAdultsAllowed}`);
       if (exceedsChildrenCapacity) capacityParts.push(`enfants+ados (hors lit bébé): ${childrenTeensCountForCapacity}/${maxChildrenAllowed}`);

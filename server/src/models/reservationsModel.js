@@ -538,7 +538,16 @@ function createReservationsModel(database) {
     },
 
     getForUpdate(reservationId) {
-      return database.prepare('SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice FROM reservations WHERE id = ?').get(reservationId);
+      // Also returns the date/time + occupancy columns so the controller can tell whether an edit
+      // actually changed anything the availability / capacity guards protect — see
+      // specs/edit-reservation-blocked-by-overlap.md (don't re-block a finance-only edit on a
+      // pre-existing overlap/capacity issue).
+      return database.prepare(`
+        SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice,
+               startDate, endDate, checkInTime, checkOutTime,
+               adults, children, teens, babies, singleBeds, doubleBeds, babyBeds
+          FROM reservations WHERE id = ?
+      `).get(reservationId);
     },
 
     getForArchiveCheck(reservationId) {
