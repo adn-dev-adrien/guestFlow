@@ -443,6 +443,9 @@ function createFinanceModel(database) {
             balanceAmount: sumBy(upcoming, 'balanceAmount'),
             complementAmount: sumBy(upcoming, 'complementAmount'),
             endOfStayComplementAmount: sumBy(upcoming, 'endOfStayComplementAmount'),
+            // Σ still-owed buckets — drives the « En attente de paiement » chip of the upcoming
+            // payments table (specs/finance-upcoming-payments-table.md §3 rule 6).
+            remainingToPay: sumBy(upcoming, 'remainingToPay'),
             totalSejour: sumBy(upcoming, 'totalSejour'),
           },
         },

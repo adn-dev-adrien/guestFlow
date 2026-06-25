@@ -127,28 +127,47 @@ describe('FinancePage — total-de-séjour overview', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
-  test('upcoming tab renders Planning ReservationCards (fetched per reservation) + the total box', async () => {
+  test('upcoming tab renders the read-only payments table + the « En attente de paiement » box', async () => {
+    // specs/finance-upcoming-payments-table.md — same payments table as Paiements en attente, read-only,
+    // without the « Compl. fin de séjour » column. No per-reservation fetch any more.
     api.getFinanceOperational.mockResolvedValue({
       overdue: { reservations: [], count: 0, totalAmount: 0 },
-      pending: { reservations: [] },
-      upcoming: { reservations: [{ id: 9 }], totals: { totalSejour: 620 } },
-    });
-    // The cards pull the full reservation detail, exactly like the Planning.
-    api.getReservation.mockResolvedValue({
-      id: 9, firstName: 'Léa', lastName: 'Roux', clientId: 3, propertyName: 'Gîte', platform: 'direct',
-      checkInTime: '15:00', checkInReady: false, adults: 2, children: 0, teens: 0, babies: 0,
-      doubleBeds: 1, singleBeds: 0, babyBeds: 0, options: [], resources: [], notes: '',
-      complementAmount: 0, cautionAmount: 0,
+      pending: { reservations: [], totals: {} },
+      upcoming: {
+        reservations: [{
+          id: 9, firstName: 'Léa', lastName: 'Roux', propertyName: 'Gîte', platform: 'direct',
+          startDate: '2026-07-01', endDate: '2026-07-04', depositAmount: 200, depositPaid: 0,
+          balanceAmount: 420, balancePaid: 0, complementAmount: 0, endOfStayComplementAmount: 0,
+          remainingToPay: 620, totalSejour: 620,
+        }],
+        totals: { depositAmount: 200, balanceAmount: 420, complementAmount: 0, remainingToPay: 620, totalSejour: 620 },
+      },
     });
     renderPage();
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Réservations à venir' }));
-    // discreet « Total de séjour à venir » box (Σ total de séjour of upcoming)
-    expect(await screen.findByText(/Total de séjour à venir : 620\s*€/)).toBeInTheDocument();
-    // the Planning arrival card for the upcoming reservation (rendered by ReservationCard)
+    // green « En attente de paiement » box (Σ reste à payer of upcoming)
+    expect(await screen.findByText(/En attente de paiement : 620\s*€/)).toBeInTheDocument();
+    // the reservation row + no end-of-stay column header + no « Tout solder » action (read-only)
     expect(await screen.findByText('Léa Roux')).toBeInTheDocument();
     expect(screen.getByText('Gîte')).toBeInTheDocument();
-    expect(api.getReservation).toHaveBeenCalledWith(9);
+    expect(screen.queryByText('Compl. fin de séjour')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tout solder')).not.toBeInTheDocument();
+    // a row click navigates to the fiche
+    fireEvent.click(screen.getByText('Gîte'));
+    expect(navigateSpy).toHaveBeenCalledWith('/reservations/9');
+    // the table is fed by the operational payload alone (no per-reservation detail fetch)
+    expect(api.getReservation).not.toHaveBeenCalled();
+  });
+
+  test('period tab shows a « Période du … au … » chip above the table', async () => {
+    renderPage();
+    await screen.findByText('Revenus');
+    // The « Revenus par logement » chart caption already carries one « Période du … au … »; switching
+    // to the period tab adds the chip, so a second occurrence appears.
+    const before = screen.getAllByText(/Période du .+ au .+/).length;
+    fireEvent.click(screen.getByRole('tab', { name: 'Réservations période' }));
+    await waitFor(() => expect(screen.getAllByText(/Période du .+ au .+/).length).toBe(before + 1));
   });
 
   test('each card shows its element-by-element HT in smaller text', async () => {

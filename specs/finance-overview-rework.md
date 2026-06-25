@@ -72,17 +72,17 @@ acompte (or disabled), solde, complément d'arrivée, complément fin de séjour
   on totalSejour of the reservations (by `endDate`) up to that date. The section is **placed at the very end
   of the page** (below « Suivi opérationnel ») and is a **collapsible accordion, folded by default**.
 
-### 3.5 Upcoming list — Planning-style cards (updated 2026-06-16)
+### 3.5 Upcoming list — payments table (superseded 2026-06-25)
+> **Superseded by [finance-upcoming-payments-table.md](finance-upcoming-payments-table.md) (2026-06-25).**
+> The « Réservations à venir » tab is now the **same payments table as « Paiements en attente »**,
+> read-only and **without** the « Compl. fin de séjour » column, with a green
+> « En attente de paiement : Σ reste à payer » chip top-right. The Planning arrival cards
+> (`ReservationCard` / `ReservationSasDialog`) were removed from FinancePage (still used by the
+> Planning page); the page no longer fetches each reservation's detail.
+
 - Shows **only upcoming reservations** (`endDate >= today`), same set as before (top-N per property).
-- Rendered as **the exact Planning arrival cards** (`components/ReservationCard`), one after another —
-  not a table. The operational payload gives the set; the page fetches each reservation's full detail
-  (`api.getReservation(id)`) exactly as PlanningPage does, so the cards show beds / famille / options /
-  ressources / complément / caution / bed-linen alert. Card actions wired: open the fiche, run the arrival
-  SAS (`ReservationSasDialog`), open the client, toggle « prêt » (`checkInReady`).
-- A **discreet box, top-right**, shows the **Σ total de séjour** of the upcoming reservations
-  (sibling of the « en attente de paiement » box of §3.6).
-- *(History: this was a column table — Acompte · Solde · Complément · Compl. fin · Total de séjour pinned
-  right + paid indicator — until 2026-06-16, when Adrien asked for the Planning cards instead.)*
+- *(History: column table until 2026-06-16 → Planning arrival cards 2026-06-16 → back to a (read-only)
+  payments table 2026-06-25.)*
 
 ### 3.6 « Suivi opérationnel »
 - **Paiement en retard** — only **direct** reservations (`platform = 'direct'`) that are overdue. Platform
