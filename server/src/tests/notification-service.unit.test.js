@@ -181,6 +181,8 @@ test('notifyNewIcalReservation fires a « newReservation » push (independent of
   assert.equal(push.calls[0].pref, 'newReservation');
   assert.match(push.calls[0].payload.title, /Nouvelle réservation/);
   assert.match(push.calls[0].payload.body, /Jean \(Airbnb\) · Le Gîte du Domaine/);
+  // The body now carries the stay dates + the number of nights (2026-10-01 → 2026-10-05 = 4 nights).
+  assert.match(push.calls[0].payload.body, /du 01\/10\/2026 au 05\/10\/2026 · 4 nuits/);
   assert.equal(push.calls[0].payload.url, '/reservations/200');
 });
 
