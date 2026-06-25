@@ -119,6 +119,31 @@ test('create: a new iCal event becomes an ical reservation', async () => {
   assert.deepEqual(result.createdReservationIds.map(Number), [Number(row.id)]);
 });
 
+test('create: the iCal import leaves `notes` empty and keeps the summary only in icalOriginalSummary', async () => {
+  // Regression: the import used to dump "Import iCal (...)\nUID: ...\nRésumé: ..." into the
+  // operator-facing note field — noise. The summary now lives only in its own column.
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  const row = db.prepare('SELECT notes, icalOriginalSummary FROM reservations').get();
+  assert.equal(row.notes, '', 'notes stays empty on import');
+  assert.equal(row.icalOriginalSummary, 'Jean Dupont', 'the summary is preserved in its own column');
+});
+
+test('update: a re-sync never clobbers the operator note', async () => {
+  const { db, model, source } = freshModel();
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(source);
+  db.prepare("UPDATE reservations SET notes = 'Caution rendue en main propre' WHERE sourceIcalEventUid = 'E1'").run();
+
+  // The source pushes a date change → full update path runs, but `notes` must be left alone.
+  stubFetch([{ uid: 'E1', start: '20260710', end: '20260715', summary: 'Jean Dupont' }]);
+  const result = await model.syncSource(source);
+  assert.equal(result.updatedCount, 1);
+  assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-07-15');
+  assert.equal(db.prepare('SELECT notes FROM reservations').get().notes, 'Caution rendue en main propre');
+});
+
 test('update: a changed event updates the same reservation (hash differs)', async () => {
   const { db, model, source } = freshModel();
   stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
