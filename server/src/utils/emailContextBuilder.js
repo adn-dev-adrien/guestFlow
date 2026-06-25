@@ -96,7 +96,7 @@ function normaliseLang(v) {
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr' }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null }) {
   // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never appear in client emails —
   // drop them up-front so every option-derived list/flag/complement line below ignores them.
   options = (options || []).filter(isClientVisibleOption);
@@ -232,18 +232,32 @@ function buildContext({ reservation, client, property, options = [], resources =
   if (Number(r.touristTaxInComplement || 0) === 1 && Number(r.touristTaxTotal || 0) > 0) {
     inComplementItems.push({ label: isEn ? 'Tourist tax' : 'Taxe de séjour', amount: Number(r.touristTaxTotal || 0) });
   }
-  const complementBreakdown = inComplementItems
-    .filter((it) => it.label && it.amount > 0)
-    .map((it) => `${it.label} (${formatCurrency(it.amount)})`)
-    .join(', ');
+  // specs/j2-email-arrival-complement-line.md — when the caller passes the arrival-SAS breakdown
+  // (`arrivalComplementDetail` = the SAME source of truth as the SAS recap:
+  // reservationsModel.buildArrivalComplementDetail), use it: it's COMPLETE (options + resources +
+  // the 3-way tourist-tax-in-complement amount + a « Complément d'arrivée » remainder) and sums to
+  // the full complement — so the line always describes what the complement is for. The inline list
+  // above is kept as the fallback for callers that don't provide the detail (back-compat).
+  const sasDetailLines = Array.isArray(arrivalComplementDetail?.detail) ? arrivalComplementDetail.detail : null;
+  const usingSasDetail = sasDetailLines && sasDetailLines.length > 0;
+  const complementBreakdown = usingSasDetail
+    ? sasDetailLines
+      .filter((it) => safeStr(it.label).trim() && Number(it.amount) > 0)
+      .map((it) => `${safeStr(it.label).trim()} (${formatCurrency(Number(it.amount))})`)
+      .join(', ')
+    : inComplementItems
+      .filter((it) => it.label && it.amount > 0)
+      .map((it) => `${it.label} (${formatCurrency(it.amount)})`)
+      .join(', ');
   let complementNotice = '';
   if (complementToCollect) {
     if (isEn) {
       complementNotice = `A balance of ${formatCurrency(complementAmountNum)} will be payable directly on site on arrival.`;
-      if (complementBreakdown) complementNotice += ` It notably includes: ${complementBreakdown}.`;
+      // « includes » (complete, from the SAS detail) vs « notably includes » (partial inline list).
+      if (complementBreakdown) complementNotice += `${usingSasDetail ? ' It includes' : ' It notably includes'}: ${complementBreakdown}.`;
     } else {
       complementNotice = `Un complément de ${formatCurrency(complementAmountNum)} sera à régler directement sur place à votre arrivée.`;
-      if (complementBreakdown) complementNotice += ` Il comprend notamment : ${complementBreakdown}.`;
+      if (complementBreakdown) complementNotice += `${usingSasDetail ? ' Il comprend' : ' Il comprend notamment'} : ${complementBreakdown}.`;
     }
   }
 

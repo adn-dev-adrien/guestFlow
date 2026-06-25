@@ -14,6 +14,7 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+const reservationsModel = require('../models/reservationsModel');
 
 function isoToday(now = new Date()) {
   // Use the server's local date — same locale the cron fires at 08:00 of.
@@ -107,7 +108,12 @@ async function performAutoEmailPass(deps) {
       // specs/email-client-language-and-fiche-polish.md §3 rule 2: render in the CLIENT's language (then the
       // reservation as a transitional fallback, then FR). EN body if filled, else FR.
       const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
-      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
+      // specs/j2-email-arrival-complement-line.md — same arrival-complement breakdown as the SAS recap.
+      // Guarded: getByIdWithDetails needs the full schema (minimal test schemas → null → inline fallback).
+      let arrivalComplementDetail = null;
+      try { arrivalComplementDetail = reservationsModel.create(database).buildArrivalComplementDetail(reservation.id); }
+      catch { arrivalComplementDetail = null; }
+      const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail });
       const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(
         { subject: side.subject, body: side.body },

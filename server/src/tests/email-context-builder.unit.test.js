@@ -31,6 +31,7 @@ function baseInput(over = {}) {
     customOptions: over.customOptions || [],
     bedLinenProvidedByDefault: over.bedLinenProvidedByDefault || false,
     settings: { ...SAMPLE_SETTINGS, ...(over.settings || {}) },
+    ...(over.arrivalComplementDetail !== undefined ? { arrivalComplementDetail: over.arrivalComplementDetail } : {}),
   };
 }
 
@@ -168,6 +169,53 @@ test('propertyWithArticle is empty when the property has no name', () => {
 test('senderName uses the SMTP "Nom expéditeur" (smtpFromName)', () => {
   const { vars } = buildContext(baseInput({ settings: { smtpFromName: 'Les Gîtes du Sud', companyName: 'SARL Soleil' } }));
   assert.equal(vars.senderName, 'Les Gîtes du Sud');
+});
+
+// ---- arrival complement line (specs/j2-email-arrival-complement-line.md) ----
+
+test('complementNotice uses the arrival-SAS detail (complete breakdown) when provided', () => {
+  const { vars, flags } = buildContext(baseInput({
+    reservation: { complementAmount: 70, complementPaid: 0 },
+    arrivalComplementDetail: { amount: 70, paid: 0, detail: [
+      { label: 'Ménage', amount: 50 },
+      { label: 'Taxe de séjour', amount: 12 },
+      { label: "Complément d'arrivée", amount: 8 },
+    ] },
+  }));
+  assert.equal(flags.complementToCollect, true);
+  // Complete breakdown → « Il comprend : » (not « notamment ») and lists every SAS line.
+  assert.match(vars.complementNotice, /Il comprend :/);
+  assert.doesNotMatch(vars.complementNotice, /notamment/);
+  assert.match(vars.complementNotice, /Ménage/);
+  assert.match(vars.complementNotice, /Taxe de séjour/);
+  assert.match(vars.complementNotice, /Complément d'arrivée/);
+});
+
+test('owner-collect tourist-tax-only complement: the SAS detail surfaces the « Taxe de séjour » line', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 24, complementPaid: 0, touristTaxInComplement: 0 },
+    // The SAS detail carries the 3-way computed tax even though the forced flag is 0.
+    arrivalComplementDetail: { amount: 24, paid: 0, detail: [{ label: 'Taxe de séjour', amount: 24 }] },
+  }));
+  assert.match(vars.complementNotice, /Il comprend : Taxe de séjour/);
+});
+
+test('without the SAS detail, complementNotice falls back to the inline « notamment » list', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 50, complementPaid: 0 },
+    options: [{ title: 'Ménage', inComplement: 1, offered: 0, totalPrice: 50 }],
+    // no arrivalComplementDetail
+  }));
+  assert.match(vars.complementNotice, /Il comprend notamment : Ménage/);
+});
+
+test('no complement to collect → complementNotice stays empty even if a detail is passed', () => {
+  const { vars, flags } = buildContext(baseInput({
+    reservation: { complementAmount: 0, complementPaid: 0 },
+    arrivalComplementDetail: { amount: 0, paid: 0, detail: [{ label: 'Ménage', amount: 50 }] },
+  }));
+  assert.equal(flags.complementToCollect, false);
+  assert.equal(vars.complementNotice, '');
 });
 
 test('senderName falls back to companyName when smtpFromName is blank', () => {
