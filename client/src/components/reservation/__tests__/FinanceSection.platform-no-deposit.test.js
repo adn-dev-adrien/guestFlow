@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
@@ -134,6 +134,28 @@ test('platform: ✗ écart chip when the net perçu differs from the virement', 
     pricingQuote: { totalStayPrice: 687, finalPrice: 687, platformNetReceivedAmount: 626 },
   });
   expect(screen.getByText(/écart : 26\.00€/i)).toBeInTheDocument();
+});
+
+// specs/platform-payment-calculer-button.md — « Calculer la commission » deduces the solde commission
+// from the entered amounts (montant client − virement − commission acompte). On-demand only; editable.
+test('« Calculer la commission »: disabled until both montant client + virement are filled', () => {
+  renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 600 } }); // virement missing
+  expect(screen.getByRole('button', { name: /Calculer la commission/i })).toBeDisabled();
+});
+
+test('« Calculer la commission »: fills Commission solde = montant client − virement (no acompte)', () => {
+  const ctx = renderFinance({ form: { platform: 'Gîtes de France', platformGrossAmount: 600, platformPayoutAmount: 520 } });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 });
+});
+
+test('« Calculer la commission »: subtracts an already-entered acompte commission', () => {
+  const ctx = renderFinance({ form: {
+    platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520, acompteCommissionAmount: 10,
+  } });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  // 600 − 520 − 10 = 70 ; the acompte commission itself is left untouched.
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 70 });
 });
 
 test('owner-collect platform, no commission: the on-arrival tax is excluded → no écart (regression)', () => {
