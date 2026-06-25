@@ -1,0 +1,1 @@
+- Emails : un rappel d'avant-arrivée (J-7, J-2…) n'est plus reproposé dans « Emails à envoyer » une fois que le client est arrivé (date de début passée). Avant, la fenêtre de rattrapage de 7 jours continuait de le proposer jusqu'à 5 jours après l'arrivée. Les éventuels mails post-séjour (J+1, etc.) restent proposés normalement.

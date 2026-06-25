@@ -61,6 +61,13 @@ function buildModel(database) {
   // (§3 rule 8). Joins email_templates × reservations × clients × properties; filters
   // out devis, expired stays > 7 days in the past, already-sent and already-acknowledged
   // pairs. Returns the rows the dashboard renders verbatim.
+  //
+  // Past-arrival guard (specs/email-automation.md §3 rule 8): a before-or-on-arrival reminder
+  // (`dayOffset <= 0`, e.g. J-7 / J-2) is pointless once the guest has arrived, but the 7-day
+  // lookback window would otherwise keep re-proposing it for up to a week after `startDate`
+  // (a J-2's send date stays in the window until startDate + 5 days). So such pairs are dropped
+  // as soon as `startDate` is in the past. Post-stay emails (`dayOffset > 0`) are meant to fire
+  // after arrival and are kept regardless.
   function listPending({ today, lookbackDays = 7 }) {
     return database.prepare(`
       SELECT
@@ -78,6 +85,7 @@ function buildModel(database) {
       JOIN reservations r
         ON COALESCE(r.kind, 'reservation') = 'reservation'
        AND date(r.startDate, t.dayOffset || ' days') BETWEEN date(?, '-' || ? || ' days') AND date(?)
+       AND (t.dayOffset > 0 OR date(r.startDate) >= date(?))
       LEFT JOIN clients    c ON c.id = r.clientId
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
@@ -89,7 +97,7 @@ function buildModel(database) {
             AND l.status IN ('sent', 'acknowledged-skip')
         )
       ORDER BY r.startDate ASC, t.dayOffset ASC
-    `).all(String(today), Number(lookbackDays), String(today));
+    `).all(String(today), Number(lookbackDays), String(today), String(today));
   }
 
   // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation
