@@ -13,6 +13,7 @@ vi.mock('../../api', () => ({
   default: {
     getPushPreferences: vi.fn().mockResolvedValue({ newReservation: true, arrivals: true, departures: true }),
     updatePushPreferences: vi.fn().mockResolvedValue({}),
+    sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),
   },
 }));
 
@@ -41,6 +42,24 @@ test('supported + not enabled → « Activer » button calls enablePush', async 
   const btn = await screen.findByRole('button', { name: /Activer les notifications sur cet appareil/i });
   fireEvent.click(btn);
   await waitFor(() => expect(push.enablePush).toHaveBeenCalledTimes(1));
+});
+
+test('test button is always present, disabled until push is enabled, and matches the mail-test format', async () => {
+  push.pushSupported.mockReturnValue(true);
+  render(<SettingsPushNotificationsSection />);
+  // Present even when not enabled (mirrors « Envoyer un mail de test », which is shown-but-disabled).
+  const testBtn = await screen.findByRole('button', { name: /Envoyer une notification de test/i });
+  expect(testBtn).toBeDisabled();
+});
+
+test('test button is enabled when push is on and triggers the push test', async () => {
+  push.pushSupported.mockReturnValue(true);
+  push.getPushState.mockResolvedValue({ enabled: true, permission: 'granted' });
+  render(<SettingsPushNotificationsSection />);
+  const testBtn = await screen.findByRole('button', { name: /Envoyer une notification de test/i });
+  expect(testBtn).toBeEnabled();
+  fireEvent.click(testBtn);
+  await waitFor(() => expect(api.sendPushTest).toHaveBeenCalledTimes(1));
 });
 
 test('supported + enabled → shows « Désactiver » + the 3 preference switches; toggling persists', async () => {

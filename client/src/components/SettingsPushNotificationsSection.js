@@ -109,14 +109,6 @@ export default function SettingsPushNotificationsSection() {
                 {state.enabled ? (
                   <>
                     <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>Activées sur cet appareil</Typography>
-                    <Button
-                      variant="outlined"
-                      onClick={onTest}
-                      disabled={testing}
-                      startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
-                    >
-                      Envoyer une notification de test
-                    </Button>
                     <Button variant="outlined" color="inherit" onClick={onDisable} disabled={busy}>Désactiver</Button>
                   </>
                 ) : (
@@ -124,6 +116,25 @@ export default function SettingsPushNotificationsSection() {
                     Activer les notifications sur cet appareil
                   </Button>
                 )}
+              </Box>
+
+              {/* Test button — same format as « Envoyer un mail de test » (SettingsSmtpSection):
+                  outlined primary button + SendIcon + an explanatory caption, laid out in a column.
+                  Always present in the section; disabled until push is enabled on this device. */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                  onClick={onTest}
+                  disabled={testing || !state.enabled}
+                  sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
+                >
+                  Envoyer une notification de test
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  Envoie une notification de test à vos appareils abonnés pour valider la configuration.
+                </Typography>
               </Box>
 
               <Stack spacing={0.5}>
