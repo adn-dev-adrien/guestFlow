@@ -1457,8 +1457,68 @@ function calculateReservationQuote({
     + resourceLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0),
   );
   const preArrivalOptionsResources = roundMoney(optionsTotal + resourcesTotal - complementOptionsResourcesTotal);
-  const pinnedAccommodation = platformGrossPin != null
+  // Accommodation implied by the brut BEFORE removing any reversed tax. This is the base the tourist
+  // tax has always been computed on, so resolving the tax here (rather than further down) keeps every
+  // existing tax AMOUNT byte-identical.
+  const pinnedAccommodationInclTax = platformGrossPin != null
     ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources))
+    : null;
+  const taxBaseAccommodation = roundMoney(
+    pinnedAccommodationInclTax != null
+      ? pinnedAccommodationInclTax
+      : (Number.isFinite(customFinalPrice)
+        ? customFinalPrice
+        : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100))
+  );
+
+  // Tourist-tax routing resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-three-way.md).
+  // Resolved HERE (before the brut back-solve) so the reversed tax can be treated as part of the brut.
+  //   collectsFromGuest               = the platform charges the tax to the guest.
+  //   isTouristTaxRemittedByOwnerFlag = WE remit it to the commune (→ « Taxe de séjour » page + 46710000).
+  //   platform          (1,1) → OFFERED (zeroed, absent from our books).
+  //   platform_reversed (1,0) → CHARGED in the BALANCE; the platform reverses it to us at settlement.
+  //   owner             (0,0) → CHARGED at arrival in the COMPLÉMENT.
+  //   direct                  → charged in the balance (unchanged).
+  const normalizedPlatform = String(platform || 'direct').toLowerCase();
+  const collectsFromGuest = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
+  const isTouristTaxRemittedByOwnerFlag = isTouristTaxRemittedByOwner(db, propertyId, normalizedPlatform);
+  // OFFERED (struck-through, zeroed) ONLY when the platform both collects it AND remits it itself
+  // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered.
+  const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
+
+  const touristTaxBreakdown = computeTouristTaxBreakdown({
+    touristTaxMode: property.touristTaxMode,
+    touristTaxPerDayPerPerson: property.touristTaxPerDayPerPerson,
+    touristTaxPercentage: property.touristTaxPercentage,
+    touristTaxDepartmentPercentage: property.touristTaxDepartmentPercentage,
+    touristTaxFixedAmount: property.touristTaxFixedAmount,
+    nights,
+    adults: Number(adults || 0),
+    occupants: Number(adults || 0) + Number(children || 0) + Number(teens || 0) + Number(babies || 0),
+    accommodationAmountTtc: taxBaseAccommodation,
+    accommodationVatRate: vatRate,
+  });
+  // specs/tourist-tax-freeze-past-with-refresh.md — for a PAST reservation, freeze the tax AMOUNT to
+  // the reservation's stored values (passed in) instead of the recompute. Platform-mode routing below
+  // still applies to this frozen amount; only the magnitude is pinned.
+  if (freezeTouristTax) {
+    touristTaxBreakdown.touristTaxTotal = roundMoney(Number(frozenTouristTaxTotal || 0));
+    touristTaxBreakdown.touristTaxRate = Number(frozenTouristTaxRate || 0);
+    touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
+  }
+  let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
+  if (isTouristTaxOfferedByPlatform) {
+    touristTaxTotal = 0;
+  }
+  // Case 1 (platform_reversed): the platform charged the guest the tax then reverses it to us, so the
+  // brut ALREADY includes it. Count it as a brut line (like a pre-arrival option) and subtract it from
+  // the accommodation back-solve — otherwise the tax is BOTH baked into the accommodation AND added
+  // again as `totalStayPrice`, over-stating the total/balance and producing a « Paiement plateforme »
+  // écart equal to the tax (specs/platform-payment-tourist-tax-as-option.md).
+  const touristTaxReversedByPlatform = collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0;
+  const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform) ? touristTaxTotal : 0;
+  const pinnedAccommodation = platformGrossPin != null
+    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources - reversedTouristTaxInBrut))
     : null;
   const accommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null
@@ -1517,57 +1577,9 @@ function calculateReservationQuote({
     : addDaysToIsoDate(startDate, -Number(property.depositDaysBefore || 0));
   const balanceDueDate = addDaysToIsoDate(startDate, -Number(property.balanceDaysBefore || 0));
 
-  const touristTaxBreakdown = computeTouristTaxBreakdown({
-    touristTaxMode: property.touristTaxMode,
-    touristTaxPerDayPerPerson: property.touristTaxPerDayPerPerson,
-    touristTaxPercentage: property.touristTaxPercentage,
-    touristTaxDepartmentPercentage: property.touristTaxDepartmentPercentage,
-    touristTaxFixedAmount: property.touristTaxFixedAmount,
-    nights,
-    adults: Number(adults || 0),
-    occupants: Number(adults || 0) + Number(children || 0) + Number(teens || 0) + Number(babies || 0),
-    accommodationAmountTtc: baseAccommodationAdjustedPrice,
-    accommodationVatRate: vatPercentageAccommodation,
-  });
-  // specs/tourist-tax-freeze-past-with-refresh.md — for a PAST reservation, freeze the tax AMOUNT to
-  // the reservation's stored values (passed in) instead of the recompute, so a later commune-rate or
-  // nightly-price change never rewrites an already-declared tax. The platform-mode routing below still
-  // applies to this frozen amount; only the magnitude is pinned.
-  if (freezeTouristTax) {
-    touristTaxBreakdown.touristTaxTotal = roundMoney(Number(frozenTouristTaxTotal || 0));
-    touristTaxBreakdown.touristTaxRate = Number(frozenTouristTaxRate || 0);
-    touristTaxBreakdown.touristTaxUnitAmount = Number(frozenTouristTaxRate || 0);
-  }
-  // Tourist tax — the platform may or may not collect it on the owner's behalf, configurable per
-  // iCal source on the property (column `ical_sources.collectsTouristTax`, default 1 = collects).
-  //   - direct       → owner always collects (never offered).
-  //   - non-direct   → look up the property's iCal source matching this platformKey; if found,
-  //                     follow its `collectsTouristTax` flag; if absent, default to "collects"
-  //                     (backwards-compatible with the legacy hardcoded rule).
-  // Tourist-tax handling resolved from the platform's GLOBAL mode (specs/per-platform-tourist-tax-
-  // three-way.md). Two orthogonal facts:
-  //   collectsFromGuest      = the platform charges the tax to the guest (so we don't bill it).
-  //   isTouristTaxRemittedByOwnerFlag = WE remit it to the commune (→ « Taxe de séjour » page + 46710000).
-  // The three cases:
-  //   platform          (collects=1, remitted-by-platform)  → OFFERED: not billed by us, absent from
-  //                                                            our books (the platform handles it end-to-end).
-  //   platform_reversed (collects=1, remitted-by-us)         → CHARGED in the BALANCE: the platform pays
-  //                                                            it to us with the settlement; it shows on the
-  //                                                            fiche, in the page, and on 46710000.
-  //   owner             (collects=0, remitted-by-us)         → CHARGED at arrival in the COMPLÉMENT.
-  //   direct                                                 → charged in the balance (unchanged).
-  const normalizedPlatform = String(platform || 'direct').toLowerCase();
-  const collectsFromGuest = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
-  const isTouristTaxRemittedByOwnerFlag = isTouristTaxRemittedByOwner(db, propertyId, normalizedPlatform);
-  // OFFERED (struck-through, zeroed) ONLY when the platform both collects it AND remits it itself
-  // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered — it's a
-  // real charge we must surface and declare.
-  const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
-  let touristTaxTotal = touristTaxBreakdown.touristTaxTotal;
-  if (isTouristTaxOfferedByPlatform) {
-    touristTaxTotal = 0;
-  }
-
+  // The tourist-tax breakdown + platform-mode routing (collectsFromGuest / remitted-by-owner / offered)
+  // and the reversed-tax-as-brut handling are resolved earlier, alongside the brut back-solve
+  // (specs/platform-payment-tourist-tax-as-option.md). `touristTaxTotal` is final here.
   const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
 
   // Tax collected at check-in (→ "Complément à percevoir") ONLY when WE charge the guest directly,
@@ -1757,7 +1769,7 @@ function calculateReservationQuote({
     // Case 1: the platform collects the tax from the guest then reverses it to us at settlement → it's
     // charged in the BALANCE (not offered, not collected at arrival) and WE declare/remit it. Drives
     // the dedicated PricingSummary caption.
-    touristTaxReversedByPlatform: collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0,
+    touristTaxReversedByPlatform,
     touristTaxInComplement: isTouristTaxForcedToComplement,
     forcedItemsTotal,
     preArrivalAmount,
