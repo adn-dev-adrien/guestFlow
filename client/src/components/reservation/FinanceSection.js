@@ -155,6 +155,22 @@ export default function FinanceSection() {
                 ? null : Number(form.platformPayoutAmount);
               const ecart = virement == null ? null : Math.round((netPercu - virement) * 100) / 100;
               const reconcileOk = ecart != null && Math.abs(ecart) < 0.01;
+              // « Calculer » (specs/platform-payment-calculer-button.md): one-shot, on-demand fill of
+              // the SOLDE commission from the entered amounts — commission = montant client − virement,
+              // minus an already-entered acompte commission (so the books reconcile: net perçu = virement).
+              // Nothing is automatic; the computed value stays freely editable. Enabled only once both the
+              // montant client (brut) and the virement reçu are filled.
+              const platformGrossFilled = form.platformGrossAmount !== '' && form.platformGrossAmount != null;
+              const platformPayoutFilled = form.platformPayoutAmount !== '' && form.platformPayoutAmount != null;
+              const canComputeCommission = platformGrossFilled && platformPayoutFilled && !isReservationLocked;
+              const computeCommissionFromPayout = () => {
+                const grossNum = Number(form.platformGrossAmount);
+                const payoutNum = Number(form.platformPayoutAmount);
+                if (!Number.isFinite(grossNum) || !Number.isFinite(payoutNum)) return;
+                const acompteComm = Number(form.acompteCommissionAmount) || 0;
+                const soldeComm = Math.max(0, Math.round((grossNum - payoutNum - acompteComm) * 100) / 100);
+                updateForm({ platformCommissionAmount: soldeComm });
+              };
               return (
                 <>
                   <Divider />
@@ -183,6 +199,13 @@ export default function FinanceSection() {
                       </Grid>
                     </Grid>
                     <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Tooltip title={canComputeCommission ? 'Commission solde = montant client − virement (− commission acompte éventuelle)' : 'Renseignez le montant client et le virement reçu'}>
+                        <span>
+                          <Button size="small" variant="outlined" onClick={computeCommissionFromPayout} disabled={!canComputeCommission}>
+                            Calculer la commission
+                          </Button>
+                        </span>
+                      </Tooltip>
                       <Typography variant="body2">
                         Net perçu : <strong>{netPercu.toFixed(2)}€</strong>
                       </Typography>
