@@ -480,6 +480,99 @@ test('calculateReservationQuote auto-adds proportional early check-in option wit
   db.close();
 });
 
+test('calculateReservationQuote reprices a proportional early check-in when the time changes on a LOCKED reservation', () => {
+  // Regression (specs/timed-options-proportional-pricing.md §3 rule 6): on an already-saved
+  // reservation the option carries a locked snapshot. Changing the arrival time MUST reprice the
+  // auto-timed option — it used to stay frozen at the locked amount (the bug Adrien reported:
+  // arrival moved 10:00 → 11:30 but the early-check-in price never changed).
+  const db = createPricingTestDb();
+  db.prepare(`
+    INSERT INTO options (id, title, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES (10, 'Arrivee anticipee', 'per_stay', 0, 'early_check_in', 1, 'proportional', '10:00')
+  `).run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10)').run();
+
+  const base = {
+    db, propertyId: 1, startDate: '2026-07-10', endDate: '2026-07-12', checkOutTime: '10:00',
+    adults: 2, children: 0, teens: 0, discountPercent: 0, customPrice: '',
+    selectedOptions: [], selectedResources: [], depositPaid: false, balancePaid: false,
+  };
+
+  // 1) The reservation was saved with an early arrival at 13:00 → this is the locked price.
+  const atSave = calculateReservationQuote({ ...base, checkInTime: '13:00' });
+  const savedLine = atSave.optionLines.find((l) => l.optionId === 10);
+  assert.ok(savedLine, 'early check-in line present at save time');
+
+  // 2) Reference: what the engine SHOULD compute for a 11:30 arrival (no lock).
+  const freshAt1130 = calculateReservationQuote({ ...base, checkInTime: '11:30' });
+  const expectedLine = freshAt1130.optionLines.find((l) => l.optionId === 10);
+  assert.ok(expectedLine.totalPrice > savedLine.totalPrice, 'an earlier arrival costs more (sanity)');
+
+  // 3) Re-quote at 11:30 WITH the locked snapshot from the 13:00 save.
+  const reQuoted = calculateReservationQuote({
+    ...base,
+    checkInTime: '11:30',
+    lockedOptionLines: [{
+      optionId: 10,
+      billedUnits: savedLine.billedUnits,
+      unitPrice: savedLine.unitPrice,
+      totalPrice: savedLine.totalPrice,
+    }],
+  });
+  const lockedThenReQuoted = reQuoted.optionLines.find((l) => l.optionId === 10);
+  assert.equal(lockedThenReQuoted.totalPrice, expectedLine.totalPrice,
+    'the locked option reprices to the new arrival time (not frozen at the saved amount)');
+  assert.notEqual(lockedThenReQuoted.totalPrice, savedLine.totalPrice,
+    'the price actually moved away from the locked snapshot value');
+
+  db.close();
+});
+
+test('calculateReservationQuote reprices an OFFERED early check-in (originalTotalPrice) when the time changes on a LOCKED reservation', () => {
+  // Adrien's exact case: the early arrival was OFFERED (one full night offered). Changing the time
+  // must update the underlying real price (originalTotalPrice) even though the billed total stays 0.
+  const db = createPricingTestDb();
+  db.prepare(`
+    INSERT INTO options (id, title, priceType, price, autoOptionType, autoEnabled, autoPricingMode, autoFullNightThreshold)
+    VALUES (10, 'Arrivee anticipee', 'per_stay', 0, 'early_check_in', 1, 'proportional', '10:00')
+  `).run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 10)').run();
+
+  const base = {
+    db, propertyId: 1, startDate: '2026-07-10', endDate: '2026-07-12', checkOutTime: '10:00',
+    adults: 2, children: 0, teens: 0, discountPercent: 0, customPrice: '',
+    selectedOptions: [], selectedResources: [], offeredOptionIds: [10],
+    depositPaid: false, balancePaid: false,
+  };
+
+  const atSave = calculateReservationQuote({ ...base, checkInTime: '13:00' });
+  const savedLine = atSave.optionLines.find((l) => l.optionId === 10);
+  assert.equal(savedLine.totalPrice, 0, 'offered → billed total 0');
+  assert.ok(savedLine.originalTotalPrice > 0, 'offered keeps the real price in originalTotalPrice');
+
+  const freshAt1130 = calculateReservationQuote({ ...base, checkInTime: '11:30' });
+  const expectedLine = freshAt1130.optionLines.find((l) => l.optionId === 10);
+
+  const reQuoted = calculateReservationQuote({
+    ...base,
+    checkInTime: '11:30',
+    lockedOptionLines: [{
+      optionId: 10,
+      billedUnits: savedLine.billedUnits,
+      unitPrice: savedLine.unitPrice,
+      totalPrice: savedLine.originalTotalPrice,
+    }],
+  });
+  const reLine = reQuoted.optionLines.find((l) => l.optionId === 10);
+  assert.equal(reLine.totalPrice, 0, 'still offered → billed total stays 0');
+  assert.equal(reLine.originalTotalPrice, expectedLine.originalTotalPrice,
+    'the offered option real value reprices to the new arrival time');
+  assert.notEqual(reLine.originalTotalPrice, savedLine.originalTotalPrice,
+    'the underlying real price actually moved');
+
+  db.close();
+});
+
 test('calculateReservationQuote does not add timed options when reservation uses default hours', () => {
   const db = createPricingTestDb();
   db.prepare(`
