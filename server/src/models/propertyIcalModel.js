@@ -339,7 +339,7 @@ function createPropertyIcalModel(database) {
         } catch { /* minimal test schema without these tables — skip defaults */ }
         const updateReservation = database.prepare(`
           UPDATE reservations
-          SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?, notes = ?, updatedAt = datetime('now')
+          SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?, updatedAt = datetime('now')
           WHERE id = ?
         `);
 
@@ -442,7 +442,11 @@ function createPropertyIcalModel(database) {
               }
             }
 
-            const notes = `Import iCal (${source.name})\nUID: ${event.uid}${event.summary ? `\nRésumé: ${event.summary}` : ''}`;
+            // iCal imports leave `notes` empty: the import metadata (source, UID, summary) is noise in
+            // the operator-facing note field. The original summary is still kept in its own column
+            // (`icalOriginalSummary`, used for cross-UID dedup) and the platform/sourceType identify the
+            // booking as an import. The note is reserved for the operator's own free text.
+            const notes = '';
 
             if (!mapping) {
               // Resolve the iCal client only where it is actually persisted (insert branches);
@@ -536,6 +540,8 @@ function createPropertyIcalModel(database) {
               continue;
             }
 
+            // Resync never touches `notes` — the operator may have written their own note on the
+            // booking and a re-sync must not clobber it.
             updateReservation.run(
               event.startDate,
               event.endDate,
@@ -544,7 +550,6 @@ function createPropertyIcalModel(database) {
               property.defaultCheckOut || '10:00',
               source.platformKey,
               event.uid,
-              notes,
               mapping.reservationId,
             );
             upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
