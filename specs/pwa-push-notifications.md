@@ -220,9 +220,13 @@ all-ON (read returns defaults).
   - Status line + **« Activer sur cet appareil »** / **« Désactiver »** button (reflects permission +
     subscription state; disabled with a hint when the browser doesn't support push).
   - Three switches: **Nouvelle réservation**, **Arrivées**, **Départs** (default ON). Saved per user.
-  - When enabled, a **« Envoyer une notification de test »** button pushes to all the account's devices
-    (rule 3.quater). A success alert reports the device count; a failure / no-subscription / no-VAPID case
-    shows an error alert (the user should background or lock the screen to actually see the notification).
+  - A **« Envoyer une notification de test »** button pushes to all the account's devices (rule 3.quater),
+    laid out in the **same format as « Envoyer un mail de test »** (SettingsSmtpSection): an outlined
+    primary button with a Send icon + an explanatory caption beneath, in a column. It is **always shown**
+    in the card and **disabled until push is enabled** on this device (mirrors the mail-test button, which
+    is shown-but-disabled until SMTP is configured). A success alert reports the device count; a failure /
+    no-subscription / no-VAPID case shows an error alert (the user should background or lock the screen to
+    actually see the notification).
   - Helper: « Les notifications s'affichent même quand GuestFlow est fermé, sur cet appareil. »
 - **Notification content** (native): title + body as in §3.3. Clicking a **new-reservation** push opens the
   reservation (`/reservations/:id`) / its devis; clicking an **arrival/departure** push opens the matching
