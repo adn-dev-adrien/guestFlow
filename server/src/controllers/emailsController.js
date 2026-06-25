@@ -15,6 +15,19 @@
 const { renderTemplate } = require('../utils/emailTemplateRenderer');
 const { buildContext }   = require('../utils/emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('../utils/emailTemplateLanguage');
+const reservationsModel = require('../models/reservationsModel');
+
+// specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows
+// (options + resources + 3-way tourist-tax-in-complement + remainder, summing to the full amount).
+// Guarded: `getByIdWithDetails` needs the full schema, so on a minimal/legacy DB this returns null
+// and the context builder falls back to its inline partial list.
+function loadArrivalComplementDetail(database, reservationId) {
+  try {
+    return reservationsModel.create(database).buildArrivalComplementDetail(Number(reservationId));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Pull the enriched reservation graph the context builder consumes.
@@ -63,7 +76,8 @@ function loadReservationGraph(database, reservationId) {
         LIMIT 1
       `).get(reservation.propertyId))
     : false;
-  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault };
+  const arrivalComplementDetail = loadArrivalComplementDetail(database, id);
+  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail };
 }
 
 function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel }) {
@@ -101,6 +115,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       options:     graph.options,
       resources:   graph.resources,
       customOptions: graph.customOptions,
+      arrivalComplementDetail: graph.arrivalComplementDetail,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        useLang,
@@ -273,6 +288,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       options:     graph.options,
       resources:   graph.resources,
       customOptions: graph.customOptions,
+      arrivalComplementDetail: graph.arrivalComplementDetail,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       settings:    readSettings(),
       lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
@@ -321,6 +337,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       options:     graph.options,
       resources:   graph.resources,
       customOptions: graph.customOptions,
+      arrivalComplementDetail: graph.arrivalComplementDetail,
       settings:    readSettings(),
     });
     const { subject, body } = renderTemplate(
