@@ -1270,21 +1270,21 @@ function calculateReservationQuote({
     .map((line) => {
       const optionId = Number(line.optionId);
       const locked = lockedOptionsById.get(optionId);
-      const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(locked, line.unitPrice),
-        targetBilledUnits: 1,
-        currentUnitPrice: line.unitPrice,
-      });
-      // Auto-options can be flipped to Complément too (early check-in / late check-out are a
-      // common case: Adrien sometimes wants the surcharge to land in the post-arrival bucket
-      // because it's collected on site). The override list wins; falls back to the locked
-      // snapshot for already-saved reservations.
+      // Auto-timed options (early check-in / late check-out) are priced from the ACTUAL
+      // check-in/out time against the property's reference night. The reference night price is
+      // already frozen upstream via the locked nightly breakdown, so the option is ALWAYS
+      // recomputed from the current time — changing the arrival/departure time must reprice it,
+      // even on an already-saved reservation. (Freezing it through the locked option snapshot was
+      // the bug: the amount never moved when the operator changed the time; cf.
+      // specs/timed-options-proportional-pricing.md §3 rule 6.) Only the routing flags fall back
+      // to the locked snapshot.
+      // Auto-options can be flipped to Complément too (a common case: Adrien sometimes wants the
+      // surcharge to land in the post-arrival bucket because it's collected on site). The override
+      // list wins; falls back to the locked snapshot for already-saved reservations.
       const forced = forceExtrasToComplement || autoInComplementSet.has(optionId) || Boolean(locked?.inComplement);
       return {
         ...line,
-        unitPrice: merged.unitPrice,
-        billedUnits: merged.billedUnits,
-        ...applyOfferedToLine(merged.totalPrice, offeredOptionIdSet.has(optionId)),
+        ...applyOfferedToLine(line.totalPrice, offeredOptionIdSet.has(optionId)),
         inComplement: forced ? 1 : 0,
         acompteContribTtc: forced ? null : (locked?.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null),
         soldeContribTtc: forced ? null : (locked?.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null),
