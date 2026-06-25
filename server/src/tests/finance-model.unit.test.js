@@ -248,6 +248,8 @@ test('getOperational: upcoming totals sum every component column + total de séj
   assert.equal(op.upcoming.totals.complementAmount, 30);
   assert.equal(op.upcoming.totals.endOfStayComplementAmount, 20);
   assert.equal(op.upcoming.totals.totalSejour, 550);
+  // Nothing paid → reste à payer = Σ of all owed buckets = totalSejour (specs/finance-upcoming-payments-table.md §3 rule 6).
+  assert.equal(op.upcoming.totals.remainingToPay, 550);
 });
 
 // ── projection ────────────────────────────────────────────────────────────────────────
