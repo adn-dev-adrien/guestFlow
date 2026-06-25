@@ -74,8 +74,10 @@ reservation's **check-out time** is reached (departure) — only to the users (a
 6. **New reservation** — when the iCal sync imports a genuinely new reservation
    (`propertyIcalModel` `createdReservationIds`, the existing notify point) **or** a new **site devis** is
    created (`notifyNewSiteDevis` point): push « Nouvelle réservation {plateforme} » / « Nouvelle demande de
-   devis » (title) with body « {client} · {logement} » (+ « — dès le {date} » for an iCal reservation) to
-   every user with `newReservation` ON. Fired post-commit
+   devis » (title) with body « {client} · {logement} » (+ « — du {JJ/MM/AAAA} au {JJ/MM/AAAA} · {N} nuit(s) »
+   for an iCal reservation — the stay dates + the number of nights, request 2026-06-25) to
+   every user with `newReservation` ON. The matching iCal email also appends the nights to its
+   « Séjour : du … au … (N nuit(s)) » line. Fired post-commit
    alongside the existing email, in a contained try/catch (§3.4) so it never affects the sync / booking
    response. Each new-reservation push **deep-links to the created item** — a reservation →
    `/reservations/:id`, a site devis → `/reservations/new?mode=devis&devisId=:id` — and is sent **once per
@@ -104,7 +106,8 @@ reservation's **check-out time** is reached (departure) — only to the users (a
     reservation) just shows the dialog's not-found state. New-reservation pushes keep their
     `/reservations/:id` (resp. devis) target.
 11. **Content (this iteration).** Every push shows both the **client name** and the **property name** in its
-    body — format « {client} · {logement} » (with « — dès le {date} » on the new-reservation push, and the
+    body — format « {client} · {logement} » (with « — du {JJ/MM/AAAA} au {JJ/MM/AAAA} · {N} nuit(s) » on the
+    iCal new-reservation push — stay dates + nights, 2026-06-25 — and the
     time in the arrival / departure title). The iCal new-reservation push gains the guest name
     (`icalOriginalSummary`, else the linked client's first / last name); the site-devis, arrival and
     departure pushes already carry both.

@@ -24,6 +24,23 @@ function euro(n) {
   return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
 }
 
+// ISO (YYYY-MM-DD) → DD/MM/YYYY for human-facing notification copy; pass through anything else.
+function frDate(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+}
+
+// Whole nights between two ISO dates (UTC midnight diff); 0 when either is missing/invalid.
+function nightsBetween(startDate, endDate) {
+  const ms = new Date(`${endDate}T00:00:00Z`) - new Date(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(ms)) return 0;
+  return Math.max(0, Math.round(ms / 86400000));
+}
+
+function nightsLabel(n) {
+  return `${n} nuit${n > 1 ? 's' : ''}`;
+}
+
 function joinUrl(base, path) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (!b) return '';
@@ -138,13 +155,14 @@ function buildNotificationService({
       || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
     const platform = String(resa.sourceName || '').trim() || String(resa.platform || resa.sourcePlatformKey || '').trim();
     const subject = `Nouvelle réservation ${platform} — ${resa.propertyName || ''}`.trim();
+    const nights = nightsBetween(resa.startDate, resa.endDate);
     const lines = [
       'Nouvelle réservation importée via iCal.',
       '',
       `Plateforme : ${platform || '—'}`,
       `Logement : ${resa.propertyName || ''}`,
       `Client : ${guest || '—'}`,
-      `Séjour : du ${resa.startDate} au ${resa.endDate}`,
+      `Séjour : du ${resa.startDate} au ${resa.endDate}${nights ? ` (${nightsLabel(nights)})` : ''}`,
     ];
     const link = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
     if (link) lines.push('', `Ouvrir la réservation : ${link}`);
@@ -184,9 +202,14 @@ function buildNotificationService({
       const guest = String(resa.icalOriginalSummary || '').trim()
         || `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
       const guestProperty = [guest, resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · ');
+      // Body shows the guest + property + the stay dates + the number of nights (request 2026-06-25).
+      const nights = nightsBetween(resa.startDate, resa.endDate);
+      const stay = resa.startDate
+        ? ` — du ${frDate(resa.startDate)} au ${frDate(resa.endDate)}${nights ? ` · ${nightsLabel(nights)}` : ''}`
+        : '';
       await pushNewReservation({
         title: `Nouvelle réservation${platform ? ` ${platform}` : ''}`,
-        body: `${guestProperty}${resa.startDate ? ` — dès le ${resa.startDate}` : ''}`.trim(),
+        body: `${guestProperty}${stay}`.trim(),
         url: `/reservations/${Number(resa.id)}`,
       });
       // Email — per-channel switch (spec site-booking-notifications §3 rule 9b) + master gating.
