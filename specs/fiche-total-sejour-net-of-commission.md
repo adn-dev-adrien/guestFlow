@@ -64,18 +64,19 @@ Plateforme ». Accounting and HT/TVA figures are untouched.
 7. Rename **« Net perçu TTC » → « Versement Plateforme »** (value unchanged = `platformNetReceivedAmount`).
 8. HT / TVA lines unchanged (the complement extras are already included; guard with a test).
 
-> **Sequencing (decided 2026-06-26): PR 1 = engine + fiche only (this PR). PR 2 = the finance
-> propagation below (§9–§10) — deferred so we review the finance test impact together.** In PR 1 the
-> engine `sejourNetTotal` does NOT carve out caisse-interne complements (the engine has no cash flag);
-> that carve-out lands in the finance layer in PR 2, where the row flags live.
-
-### Finance displays (everywhere the stay total is shown) — **PR 2, deferred**
-9. Every place that currently shows the **stay total** uses `sejourNetTotal` (net of commission), so
-   the displays agree with the fiche: finance dashboards (revenu par logement / camembert / cards),
-   the « Suivi opérationnel » tables (`financeModel.getOperational` → pending / upcoming / period),
-   the projection, and the breakdown dialogs. **Accounting export is NOT in this list.**
-10. Anywhere that previously added the complement on top of a gross total must NOT double-count it
-    (the new total already includes the non-cash complement). Audit each consumer.
+### Finance displays (everywhere the stay total is shown) — **implemented 2026-06-26**
+9. The Suivi financier « total de séjour » figures now show the **« total perçu »** (net of the platform
+   commission), with caisse-interne complements excluded — done at the **finance layer** in
+   `financeModel.js`: `totalSejour(r)` subtracts `platformCommission(r)` (acompte + solde commission;
+   0 on direct), and `comptaCollected(r)` (« Encaissé ») subtracts the commission of each **paid**
+   échéance. This propagates to every consumer: the summary cards (revenu total / encaissé / en attente,
+   year cards), `revenueByProperty`, the projection, the breakdown dialogs, and the « Suivi
+   opérationnel » tables (`getOperational` → pending / upcoming / period). **Accounting export
+   unchanged** (CA stays gross with the commission as a separate expense). `remainingToPay` (reste à
+   payer) stays the **gross** still-owed amount (it's what's unpaid, not what we net).
+10. The caisse-interne carve-out lives at this finance layer (the engine `sejourNetTotal` doesn't have
+    the cash flags). No double-count: `totalSejour` sums the stored deposit/balance (gross of
+    commission) + non-cash complements, then subtracts the commission once.
 
 ## 4. Architecture
 

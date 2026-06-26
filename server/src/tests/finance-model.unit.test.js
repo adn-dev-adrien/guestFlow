@@ -20,7 +20,8 @@ const DDL = `
     balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT,
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
-    endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0
+    endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
+    platformCommissionAmount REAL, acompteCommissionAmount REAL
   );
 `;
 
@@ -46,6 +47,7 @@ const COLS = [
   'balanceAmount', 'balancePaid', 'balanceDueDate',
   'complementAmount', 'complementPaid', 'complementPaidCash',
   'endOfStayComplementAmount', 'endOfStayComplementPaid', 'endOfStayComplementPaidCash',
+  'platformCommissionAmount', 'acompteCommissionAmount',
 ];
 const insertRes = (db, r) => db.prepare(
   `INSERT INTO reservations (${COLS.join(', ')}) VALUES (${COLS.map((c) => `@${c}`).join(', ')})`,
@@ -55,6 +57,7 @@ const insertRes = (db, r) => db.prepare(
   balanceAmount: 0, balancePaid: 0, balanceDueDate: null,
   complementAmount: 0, complementPaid: 0, complementPaidCash: 0,
   endOfStayComplementAmount: 0, endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0,
+  platformCommissionAmount: null, acompteCommissionAmount: null,
   ...r,
 });
 
@@ -65,6 +68,32 @@ test('getSummary: revenueTotal = Σ total-de-séjour (acompte+solde+complément+
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), depositAmount: 150, balanceAmount: 350, complementAmount: 20, endOfStayComplementAmount: 30 });
   const summary = model.getSummary({ from: iso(0), to: iso(10) });
   assert.equal(summary.revenueTotal, 550); // 150 + 350 + 20 + 30
+});
+
+test('getSummary: the total de séjour is NET of the platform commission (« total perçu »)', () => {
+  // specs/fiche-total-sejour-net-of-commission.md — a platform reservation: acompte 100 + solde 300 +
+  // commission (acompte 10 + solde 30 = 40) → total perçu = 400 − 40 = 360. Caisse-interne exclusion kept.
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), platform: 'airbnb',
+    depositAmount: 100, balanceAmount: 300, platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  // A direct reservation (no commission) is unchanged.
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(5), platform: 'direct', depositAmount: 0, balanceAmount: 200 });
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.revenueTotal, 560); // platform 360 (net of 40) + direct 200
+});
+
+test('getSummary: « Encaissé » (totalCollected) is NET of the commission of each paid échéance', () => {
+  const { db, model } = freshModel();
+  // Acompte 100 paid (− acompte commission 10 = 90) ; solde 300 NOT paid → not collected.
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), platform: 'airbnb',
+    depositAmount: 100, depositPaid: 1, balanceAmount: 300, balancePaid: 0,
+    platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.totalCollected, 90); // 100 acompte − 10 acompte commission
 });
 
 test('getSummary: caisse-interne complements are EXCLUDED from the total de séjour', () => {

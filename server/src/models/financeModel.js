@@ -40,15 +40,22 @@ function nightsBetween(startDate, endDate) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-// specs/finance-overview-rework.md §3.1 — the « total de séjour » = the headline stay value used as the
-// single revenue unit: acompte + solde + complément d'arrivée + complément de fin de séjour, with BOTH
-// complements EXCLUDED when settled via caisse interne (off-books, decision 2026-06-16).
+// Operator-entered platform commission (acompte + solde), ≥ 0. 0 on direct bookings (NULL columns).
+function platformCommission(r) {
+  return round2(Number(r.acompteCommissionAmount || 0) + Number(r.platformCommissionAmount || 0));
+}
+
+// specs/finance-overview-rework.md §3.1 + specs/fiche-total-sejour-net-of-commission.md — the « total de
+// séjour » shown in the Suivi financier is the « total perçu sur le séjour » = what the operator actually
+// earns = acompte + solde + complément d'arrivée + complément de fin de séjour, NET of the platform
+// commission, with BOTH complements EXCLUDED when settled via caisse interne (off-books). Direct →
+// commission 0 → unchanged.
 function totalSejour(r) {
   const deposit = Number(r.depositAmount || 0);
   const balance = Number(r.balanceAmount || 0);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
-  return round2(deposit + balance + complement + endOfStay);
+  return round2(deposit + balance + complement + endOfStay - platformCommission(r));
 }
 
 // specs/finance-overview-rework.md §3.3 — a reservation is « soldé » when every applicable component is
@@ -76,12 +83,15 @@ function remainingToPay(r) {
   return round2(deposit + balance + complement + endOfStay);
 }
 
-// « Encaissé » = the accounting total (specs/finance-overview-rework.md §3.2): every component marked paid
-// EXCLUDING caisse interne, so it equals what the compta export sums. (Deposit/balance carry no cash flag.)
+// « Encaissé » = what the operator has actually RECEIVED so far = every component marked paid, EXCLUDING
+// caisse interne, NET of the platform commission of each paid échéance (acompte commission on the deposit,
+// solde commission on the balance; the complements carry none). Direct → commission 0 → the plain paid sum.
 function comptaCollected(r) {
+  const acompteComm = Number(r.acompteCommissionAmount || 0);
+  const soldeComm = Number(r.platformCommissionAmount || 0);
   return round2(
-    (r.depositPaid ? Number(r.depositAmount || 0) : 0)
-    + (r.balancePaid ? Number(r.balanceAmount || 0) : 0)
+    (r.depositPaid ? Number(r.depositAmount || 0) - acompteComm : 0)
+    + (r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0)
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
     + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0),
   );
@@ -196,7 +206,7 @@ function createFinanceModel(database) {
       const yearRows = database.prepare(`
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
                endOfStayComplementAmount, endOfStayComplementPaidCash, endDate,
-               finalPrice, touristTaxTotal
+               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount
         FROM reservations WHERE kind = 'reservation' AND endDate >= ? AND endDate <= ?
       `).all(yearStart, yearEnd);
       let yearToDate = 0;
