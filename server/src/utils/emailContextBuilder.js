@@ -265,8 +265,12 @@ function buildContext({ reservation, client, property, options = [], resources =
   // until a dedicated cautionMethod column lands. Also suppressed once the caution has been
   // RECEIVED (`cautionReceived = 1`): if the operator already has the caution in hand, no arrival
   // email should ask the guest to bring it (2026-06-22 fix — was reminding on a received caution).
-  const cautionAmountNum = Number(r.cautionAmount || 0);
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
+  // specs/caution-live-from-property.md §3 — caution is live from the property's current
+  // defaultCautionAmount until received, then frozen to the collected amount on the reservation.
+  const cautionAmountNum = cautionReceivedFlag
+    ? Number(r.cautionAmount || 0)
+    : Number(p.defaultCautionAmount || 0);
   const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1 && !cautionReceivedFlag;
   // Precise caution signal for the J-1 reminder (specs/j1-arrival-reminder-email.md §3 rule 5):
   // the caution cheque is still owed when an amount is due AND it has not been received yet.

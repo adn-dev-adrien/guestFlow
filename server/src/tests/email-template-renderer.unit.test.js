@@ -165,7 +165,7 @@ test('J-7 body: no babies → no baby-bed notice at all', () => {
 
 const { ARRIVAL_REMINDER_1D_BODY } = require('../utils/defaultEmailTemplatesRegistry');
 
-function j1Input({ reservation = {}, options = [], resources = [], customOptions = [], bedLinenProvidedByDefault = false } = {}) {
+function j1Input({ reservation = {}, property = {}, options = [], resources = [], customOptions = [], bedLinenProvidedByDefault = false } = {}) {
   return buildContext({
     reservation: {
       startDate: '2026-07-10', endDate: '2026-07-13', checkInTime: '16:00', checkOutTime: '10:00',
@@ -173,7 +173,8 @@ function j1Input({ reservation = {}, options = [], resources = [], customOptions
       cautionAmount: 500, cautionReceived: 0, ...reservation,
     },
     client: { firstName: 'Jean', lastName: 'Dupont' },
-    property: { name: 'Gite', nameArticle: 'au' },
+    // specs/caution-live-from-property.md §3 — caution is live from the property until received.
+    property: { name: 'Gite', nameArticle: 'au', defaultCautionAmount: 500, ...property },
     options,
     resources,
     customOptions,
@@ -264,7 +265,7 @@ test('J-2 body: nordic bath booked → gear reminder renders; absent → it does
 
 test('J-2 body: operator "Ménage" option without a tag is detected by name → no "at your charge" line', () => {
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { cautionAmount: 0 },
+    property: { defaultCautionAmount: 0 },
     options: [{ title: 'Ménage de fin de séjour' }], // no autoOptionType — the bug case
   }));
   assert.doesNotMatch(out.body, /à votre charge/);
@@ -274,7 +275,7 @@ test('J-2 body: operator "Ménage" option without a tag is detected by name → 
 
 test('J-1 body: unpaid complement renders the notice with the matched items', () => {
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { cautionAmount: 0, complementAmount: 55, complementPaid: 0 },
+    reservation: { complementAmount: 55, complementPaid: 0 }, property: { defaultCautionAmount: 0 },
     options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 }],
     resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
   }));
@@ -285,14 +286,14 @@ test('J-1 body: unpaid complement renders the notice with the matched items', ()
 
 test('J-1 body: a paid complement renders no complement notice', () => {
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { cautionAmount: 0, complementAmount: 55, complementPaid: 1 },
+    reservation: { complementAmount: 55, complementPaid: 1 }, property: { defaultCautionAmount: 0 },
   }));
   assert.doesNotMatch(out.body, /Un complément de/);
 });
 
 test('J-1 body: complement with no itemised lines shows the amount only', () => {
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
-    reservation: { cautionAmount: 0, complementAmount: 30, complementPaid: 0 },
+    reservation: { complementAmount: 30, complementPaid: 0 }, property: { defaultCautionAmount: 0 },
   }));
   assert.match(out.body, /Un complément de 30,00 € sera à régler/);
   assert.doesNotMatch(out.body, /Il comprend/);
