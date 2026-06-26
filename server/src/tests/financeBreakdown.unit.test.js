@@ -46,6 +46,7 @@ const COLS = [
   'balanceAmount', 'balancePaid', 'balanceDueDate',
   'complementAmount', 'complementPaid', 'complementPaidCash',
   'endOfStayComplementAmount', 'endOfStayComplementPaid', 'endOfStayComplementPaidCash',
+  'platformCommissionAmount', 'acompteCommissionAmount',
 ];
 const insertRes = (db, r) => db.prepare(
   `INSERT INTO reservations (${COLS.join(', ')}) VALUES (${COLS.map((c) => `@${c}`).join(', ')})`,
@@ -55,6 +56,7 @@ const insertRes = (db, r) => db.prepare(
   balanceAmount: 0, balancePaid: 0, balanceDueDate: null,
   complementAmount: 0, complementPaid: 0, complementPaidCash: 0,
   endOfStayComplementAmount: 0, endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0,
+  platformCommissionAmount: null, acompteCommissionAmount: null,
   ...r,
 });
 
@@ -74,6 +76,20 @@ test('getBreakdown(revenueTotal): rows = all period stays; Σ amount === total =
   assert.equal(bd.data.total, summary.revenueTotal);
   assert.equal(bd.data.column, 'Total de séjour');
   assert.equal(bd.data.window.kind, 'period');
+});
+
+test('getBreakdown(revenueTotal): per-row amount + total are NET of the platform commission', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), platform: 'airbnb', depositAmount: 0, balanceAmount: 300, platformCommissionAmount: 50 }); // 300 − 50 = 250
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(5), platform: 'direct', depositAmount: 60, balanceAmount: 140 }); // 200 (direct)
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  const bd = model.getBreakdown({ metric: 'revenueTotal', from: iso(0), to: iso(10) });
+  const byId = Object.fromEntries(bd.data.rows.map((r) => [r.id, r.amount]));
+  assert.equal(byId[1], 250); // platform, net of commission
+  assert.equal(byId[2], 200); // direct, unchanged
+  assert.equal(sumAmounts(bd.data.rows), bd.data.total);
+  assert.equal(bd.data.total, summary.revenueTotal); // breakdown reconciles with the card
+  assert.equal(bd.data.total, 450);
 });
 
 test('getBreakdown(totalCollected): omits rows with no collected amount; total === summary.totalCollected', () => {

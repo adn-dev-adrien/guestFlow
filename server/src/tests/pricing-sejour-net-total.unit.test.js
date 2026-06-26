@@ -72,6 +72,30 @@ test('platform with commission → sejourNetTotal === totalStayPrice − commiss
   db.close();
 });
 
+test('platform_reversed tax (case 1) + commission → sejourNetTotal === totalStayPrice − commission', () => {
+  // The platform collects the tax then reverses it to us → tax is a real charge in the balance
+  // (totalStayPrice includes it). No brut here, so no double-count. sejourNetTotal = total − commission.
+  const db = createDb([{ k: 'expedia', c: 1, r: 0 }]); // reversed
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'expedia', platformCommissionAmount: 30 });
+  assert.equal(q.touristTaxTotal, 4.80);                 // charged in our books
+  assert.equal(q.totalStayPrice, 204.80);                // 200 accom + 4.80 tax
+  assert.equal(q.platformNetReceivedAmount, 174.80);     // 204.80 − 30
+  assert.equal(q.complementAmount, 0);
+  assert.equal(q.sejourNetTotal, 174.80);                // = totalStayPrice − commission
+  db.close();
+});
+
+test('offered tax, no commission → sejourNetTotal === totalStayPrice (= accommodation, tax out of books)', () => {
+  const db = createDb([{ k: 'airbnb', c: 1, r: 1 }]); // offered
+  const q = calculateReservationQuote({ ...BASE, db, platform: 'airbnb' }); // no commission, no brut
+  assert.equal(q.touristTaxTotal, 0);                    // offered → 0 in the books
+  assert.equal(q.finalPrice, 200);
+  assert.equal(q.totalStayPrice, 200);
+  assert.equal(q.platformNetReceivedAmount, null);       // no commission
+  assert.equal(q.sejourNetTotal, 200);                   // = preArrival (no commission to deduct)
+  db.close();
+});
+
 test('owner-collect tax → net perçu + complement reassembles the gross total (no commission)', () => {
   const db = createDb([{ k: 'booking', c: 0, r: 0 }]); // owner collects → tax in complement
   const q = calculateReservationQuote({ ...BASE, db, platform: 'booking' });
