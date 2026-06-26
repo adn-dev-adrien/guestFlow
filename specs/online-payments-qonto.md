@@ -331,11 +331,57 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
   ("solde") setting (§3.7). The two columns `paymentLastMinuteDays` / `paymentFullPaymentDueDaysBefore`
   were dropped from the model/page/validator.
 
+**Resolved 2026-06-26 (Adrien):**
+- **Q4 — Qonto auth → API KEY (not OAuth).** GuestFlow automates the operator's **own** Qonto account, and
+  Qonto explicitly recommends the **API key** for that (simpler than OAuth, and — decisive — OAuth with the
+  payment-links scope needs **Qonto validation in production**, the API key does not). Auth header:
+  `Authorization: {login}:{secret-key}` (literal, no `Bearer`, no Base64); sandbox calls also send
+  `X-Qonto-Staging-Token`. `qontoClient` now picks **api_key** mode when `QONTO_API_LOGIN` +
+  `QONTO_API_SECRET_KEY` are set, else falls back to the (kept) OAuth code. The interactive "Connecter
+  Qonto" OAuth button is hidden in api-key mode; the payment-links **provider connection** (Mollie KYC) is
+  unchanged and still required. Setup in §10.
+
 **Still open (for setup / implementation):**
-- **Q4 — Qonto auth:** confirm the OAuth2 authorization-code flow (vs a simpler API key) and whether
-  the one-time payment-links provider connection needs KYC; both go in the setup procedure (deliverable 4).
 - **Q6 — complement:** model the `payment_links` `complement` type now (table + endpoint), expose the
   button later with the Tap-to-Pay project. Confirm that's fine.
 - **Q8 — last-minute deposit scope:** the engine auto-drops the deposit for last-minute stays; the host
   can still re-enable it per-reservation via the existing `depositDisabled` toggle (auto-default, not
   forced). Confirm that's the intended behavior.
+
+## 10. Setup procedure — sandbox connection via API key (deliverable 4)
+
+Goal: connect a running GuestFlow to the **Qonto sandbox** with the **API key** and verify the
+connection half (auth + payment-links provider) before Phase 2. **No OAuth app / redirect URI is
+needed** (Q4).
+
+**A. Get the sandbox API credentials**
+1. In the Qonto **sandbox** (the test org reached via the Developer Portal), open
+   **Intégrations et partenariats → Clé API** (Integrations and Partnerships → API key) and copy the
+   **login** + click **Generate** for the **secret key**. *(In production these live in the same place in
+   the Qonto web app; the sandbox uses the test org's key.)*
+2. Keep the existing **staging token** (`QONTO_STAGING_TOKEN`) — it gates the sandbox environment and is
+   sent on every sandbox call in addition to the API key.
+
+**B. Configure GuestFlow (`server/.env.local`)**
+```
+QONTO_ENV=sandbox                    # default; targets *-sandbox.staging.qonto.co
+QONTO_API_LOGIN=…                    # the API login from step A.1
+QONTO_API_SECRET_KEY=…               # the generated secret key
+QONTO_STAGING_TOKEN=…                # sandbox gate (already set)
+# QONTO_CLIENT_ID / QONTO_CLIENT_SECRET (OAuth) are no longer used in api-key mode
+```
+When `QONTO_API_LOGIN` + `QONTO_API_SECRET_KEY` are present, `qontoClient.authMode` is **api_key** and
+every API call signs with `Authorization: {login}:{secret-key}`.
+
+**C. Verify the connection (manual)**
+1. `npm run dev`, log in, open **Paramètres → Paiements**. The status card shows **Authentification: Clé
+   API**, **Identifiants: Configurés**, **Mode: Sandbox** — and **Connecté** (api-key configured ⇒ ready;
+   there is no OAuth button). `GET /api/payments/qonto/status` returns `connected: true, authMode: "api_key"`.
+2. Fill the **provider-connection** form (bank-account picker + phone + website + description ≥ 80 char) →
+   **Connecter le provider**. If `pending`, follow `connectionLocation` (Mollie KYC), complete it, return
+   on `?provider=callback`; the page polls until the provider status is `enabled`. Any sandbox
+   verification screen → **`123456`**.
+3. **Success =** `qonto/status` shows `connected: true` AND the provider status is `enabled`.
+
+Once C passes, proceed to **Phase 2** (deposit happy-path: create link → pay with a Qonto **test card** →
+polling marks it paid → devis→reservation + confirmation email).

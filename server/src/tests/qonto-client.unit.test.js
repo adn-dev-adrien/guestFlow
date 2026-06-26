@@ -139,6 +139,40 @@ test('getConnection re-checks the current provider status', async () => {
   assert.equal(calls[0].url, 'https://thirdparty-sandbox.staging.qonto.co/v2/payment_links/connections');
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// API-key auth mode (specs/online-payments-qonto.md §4.1, decision 2026-06-26)
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const API_KEY_CFG = {
+  sandbox: true,
+  apiLogin: 'maison-adri-1234',
+  apiSecretKey: 'sk_test_abcdef',
+  stagingToken: 'stg_token_xyz',
+};
+
+test('API-key mode: authMode + isConfigured key off the login/secret', () => {
+  const apiKey = buildQontoClient({ ...API_KEY_CFG, fetchImpl: stubFetch().fetchImpl });
+  assert.equal(apiKey.authMode, 'api_key');
+  assert.equal(apiKey.isConfigured(), true);
+
+  // No api-key creds → falls back to OAuth mode (configured from client id/secret).
+  const oauth = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: stubFetch().fetchImpl });
+  assert.equal(oauth.authMode, 'oauth');
+  assert.equal(oauth.isConfigured(), true);
+
+  const neither = buildQontoClient({ sandbox: true, fetchImpl: stubFetch().fetchImpl });
+  assert.equal(neither.authMode, 'oauth');
+  assert.equal(neither.isConfigured(), false);
+});
+
+test('API-key mode: API calls send `Authorization: {login}:{secret}` (no Bearer, no Base64) + staging header', async () => {
+  const { fetchImpl, calls } = stubFetch({ payment_link: { id: 'pl_1', url: 'u', status: 'open' } });
+  const client = buildQontoClient({ ...API_KEY_CFG, fetchImpl });
+  await client.createPaymentLink({ title: 'Acompte', amountCents: 9000 }); // no accessToken needed
+  assert.equal(calls[0].opts.headers.Authorization, 'maison-adri-1234:sk_test_abcdef');
+  assert.equal(calls[0].opts.headers['X-Qonto-Staging-Token'], 'stg_token_xyz');
+});
+
 test('mapQontoStatus normalises every Qonto status', () => {
   assert.equal(mapQontoStatus('paid'), 'paid');
   assert.equal(mapQontoStatus('processing'), 'open');
