@@ -139,7 +139,8 @@ export default function PricingSummary({
 
   // The engine resolves who collects the tax (per-platform flag on `ical_sources`, see
   // `pricing.js#isPlatformCollectingTouristTax`). The summary mirrors that decision:
-  //   - offered by platform → strike-through display + "Offert" / "Collectée par la plateforme".
+  //   - collected + remitted by the platform → amount shown normally with a « Plateforme » tag (NOT
+  //     « offert »: it isn't free, just handled platform-side) + the "Collectée par la plateforme" caption.
   //   - owner-collected non-direct → not crossed out, shown as "À collecter à l'arrivée" and
   //     scheduled in the complement (engine wires this through `touristTaxCollectedOnArrival`).
   //   - direct → not crossed out, kept in the balance (legacy behaviour).
@@ -555,6 +556,16 @@ export default function PricingSummary({
                         />
                       )
                     )}
+                    {/* Case 2 — the platform collects + remits the tax to the commune. NOT « offert »
+                        (it isn't free) : a short « Plateforme » tag says it's handled platform-side. */}
+                    {isTouristTaxOffered && (
+                      <Chip
+                        size="small"
+                        label="Plateforme"
+                        sx={{ ml: 0.5, height: 18, fontSize: 10, fontWeight: 600, color: 'info.main', borderColor: 'info.main', bgcolor: 'transparent', '& .MuiChip-label': { px: 0.75 } }}
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Button
@@ -568,10 +579,10 @@ export default function PricingSummary({
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {/* Case 2 (platform collects AND remits to the commune): the amount is struck through
-                      to signal it doesn't land in our books — but NOT labelled "Offert" (it isn't a
-                      geste commercial). The short caption below explains who handles it. */}
-                  <Typography variant="body2" sx={{ fontWeight: 600, textDecoration: isTouristTaxOffered ? 'line-through' : 'none', opacity: isTouristTaxOffered ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                  {/* Case 2 (platform collects AND remits to the commune): the amount is shown normally
+                      with the « Plateforme » tag above — NOT struck-through (it isn't « offert »). The
+                      caption below explains who handles it. */}
+                  <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {touristTaxDisplayedAmount.toFixed(2)}€
                   </Typography>
                 </Box>
@@ -625,45 +636,70 @@ export default function PricingSummary({
             </Box>
           </Box>
 
-          {/* Total du séjour — specs/platform-per-echeance-commission.md: the amounts are gross; the
-              platform commission is entered per échéance (acompte + solde) and shown here as separate
-              lines, then « Net perçu = total − Σ commission ». No commission → single « Total » line. */}
+          {/* Total du séjour — running-subtotal cascade (specs/platform-offered-tax-passthrough-and-
+              cascade.md). « Total du séjour » = the gross (hébergement + toutes options/ressources +
+              taxe). Then for a platform we deduct what we don't keep (taxe gérée plateforme + extras
+              perçus sur place) to land on « Montant soumis à commission », minus the commission =
+              « Versement plateforme », plus the on-site compléments = « Total perçu sur le séjour ». */}
           <Divider />
           {(() => {
             const acompteComm = Number(quote?.acompteCommissionAmount || 0);
             const soldeComm = Number(quote?.platformCommissionAmount || 0);
             const totalComm = Number(quote?.totalPlatformCommission ?? (acompteComm + soldeComm));
             const netReceived = quote?.platformNetReceivedAmount;
-            if (totalComm <= 0 || netReceived == null) {
-              return (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC</Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{totalSejour.toFixed(2)}€</Typography>
-                </Box>
-              );
-            }
+            const hasCommission = totalComm > 0;
+            // « Total du séjour » = the GROSS the client pays: finalPrice (accommodation + all
+            // options/resources) + the REAL tourist tax (original, even when offered — the guest paid it).
+            const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour) + touristTaxOriginalTotal;
+            // Deductions to the commission base: the tax the platform collects + remits to the commune
+            // itself (offered), and the extras collected on-site (the complément). What's left is the
+            // pre-arrival amount the platform commissions on.
+            const offeredTax = isTouristTaxOffered ? touristTaxOriginalTotal : 0;
+            const complement = Number(quote?.complementAmount || 0);
+            const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - complement));
+            const versement = netReceived != null ? Number(netReceived) : montantSoumis;
+            const totalPercu = Number(quote?.sejourNetTotal ?? (versement + complement));
+            // The cascade flow (deductions → versement → +complément) only makes sense for a platform
+            // reservation. Direct keeps a single « Total du séjour » + a complément line if any.
+            const row = (label, value, opts = {}) => (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, ...(opts.pt ? { pt: 0.5 } : {}) }}>
+                <Typography variant={opts.strong ? 'subtitle2' : 'body2'} color={opts.strong ? 'text.primary' : 'text.secondary'} sx={opts.strong ? { fontWeight: 700 } : undefined}>{label}</Typography>
+                {/* sign + amount kept on a single line for readability (no wrap in the narrow column). */}
+                <Typography variant={opts.strong ? 'subtitle2' : 'body2'} sx={{ fontWeight: opts.strong ? 700 : 600, color: opts.color || 'inherit', whiteSpace: 'nowrap' }}>{opts.sign || ''}{Math.abs(value).toFixed(2)}€</Typography>
+              </Box>
+            );
             return (
               <>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total du séjour TTC (brut)</Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{totalSejour.toFixed(2)}€</Typography>
-                </Box>
-                {acompteComm > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">Commission acompte</Typography>
-                    <Typography variant="body2" sx={{ color: 'warning.main' }}>− {acompteComm.toFixed(2)}€</Typography>
-                  </Box>
+                {row('Total du séjour', grossTotal, { strong: true, color: 'primary.main', pt: true })}
+                {isPlatformReservation ? (
+                  <>
+                    {offeredTax > 0 && row('Taxe de séjour (plateforme)', offeredTax, { sign: '− ', color: 'warning.main' })}
+                    {complement > 0 && row('Compléments (perçus sur place)', complement, { sign: '− ', color: 'warning.main' })}
+                    {(offeredTax > 0 || complement > 0) && row('Montant soumis à commission', montantSoumis, { strong: true })}
+                    {hasCommission && acompteComm > 0 && row('Commission acompte', acompteComm, { sign: '− ', color: 'warning.main' })}
+                    {hasCommission && soldeComm > 0 && row('Commission solde', soldeComm, { sign: '− ', color: 'warning.main' })}
+                    {(hasCommission || complement > 0) && row('Versement plateforme', versement, { strong: true })}
+                    {complement > 0 && row('Compléments (perçus sur place)', complement, { sign: '+ ', color: 'success.main' })}
+                    {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
+                    {form.complementPaid && complement > 0 && (
+                      <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                    )}
+                  </>
+                ) : (
+                  complement > 0 && (
+                    <>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
+                          dont complément à percevoir sur place
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{complement.toFixed(2)}€</Typography>
+                      </Box>
+                      {form.complementPaid && (
+                        <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                      )}
+                    </>
+                  )
                 )}
-                {soldeComm > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">Commission solde</Typography>
-                    <Typography variant="body2" sx={{ color: 'warning.main' }}>− {soldeComm.toFixed(2)}€</Typography>
-                  </Box>
-                )}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Net perçu TTC</Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{Number(netReceived).toFixed(2)}€</Typography>
-                </Box>
               </>
             );
           })()}
@@ -730,24 +766,6 @@ export default function PricingSummary({
           )}
           {form.balancePaid && (
             <Chip size="small" label="Solde payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
-          )}
-
-          {/* Complément à percevoir — only when the total has grown after deposit + balance were paid. */}
-          {Number(quote?.complementAmount || 0) > 0 && (
-            <>
-              <Divider />
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
-                  Complément à percevoir
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {Number(quote.complementAmount).toFixed(2)}€
-                </Typography>
-              </Box>
-              {form.complementPaid && (
-                <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
-              )}
-            </>
           )}
 
           {/* Caution */}

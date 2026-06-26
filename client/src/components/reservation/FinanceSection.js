@@ -160,6 +160,14 @@ export default function FinanceSection() {
               // minus an already-entered acompte commission (so the books reconcile: net perçu = virement).
               // Nothing is automatic; the computed value stays freely editable. Enabled only once both the
               // montant client (brut) and the virement reçu are filled.
+              // When the platform COLLECTS the tourist tax AND remits it to the commune itself
+              // (`touristTaxOfferedByPlatform`, case « platform »), the brut the guest paid includes that
+              // tax and the platform withholds it from the virement on top of its commission. Subtract it
+              // here, otherwise the computed commission is over-stated by the tourist tax — and so is the
+              // commission booked in compta (specs/platform-commission-minus-offered-tax.md).
+              const offeredTouristTax = Boolean(pricingQuote?.touristTaxOfferedByPlatform)
+                ? Number(pricingQuote?.touristTaxOriginalTotal || 0)
+                : 0;
               const platformGrossFilled = form.platformGrossAmount !== '' && form.platformGrossAmount != null;
               const platformPayoutFilled = form.platformPayoutAmount !== '' && form.platformPayoutAmount != null;
               const canComputeCommission = platformGrossFilled && platformPayoutFilled && !isReservationLocked;
@@ -168,7 +176,7 @@ export default function FinanceSection() {
                 const payoutNum = Number(form.platformPayoutAmount);
                 if (!Number.isFinite(grossNum) || !Number.isFinite(payoutNum)) return;
                 const acompteComm = Number(form.acompteCommissionAmount) || 0;
-                const soldeComm = Math.max(0, Math.round((grossNum - payoutNum - acompteComm) * 100) / 100);
+                const soldeComm = Math.max(0, Math.round((grossNum - payoutNum - acompteComm - offeredTouristTax) * 100) / 100);
                 updateForm({ platformCommissionAmount: soldeComm });
               };
               return (

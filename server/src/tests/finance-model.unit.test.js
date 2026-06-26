@@ -20,7 +20,8 @@ const DDL = `
     balanceAmount REAL DEFAULT 0, balancePaid INTEGER DEFAULT 0, balanceDueDate TEXT,
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
-    endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0
+    endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
+    platformCommissionAmount REAL, acompteCommissionAmount REAL
   );
 `;
 
@@ -46,6 +47,7 @@ const COLS = [
   'balanceAmount', 'balancePaid', 'balanceDueDate',
   'complementAmount', 'complementPaid', 'complementPaidCash',
   'endOfStayComplementAmount', 'endOfStayComplementPaid', 'endOfStayComplementPaidCash',
+  'platformCommissionAmount', 'acompteCommissionAmount',
 ];
 const insertRes = (db, r) => db.prepare(
   `INSERT INTO reservations (${COLS.join(', ')}) VALUES (${COLS.map((c) => `@${c}`).join(', ')})`,
@@ -55,6 +57,7 @@ const insertRes = (db, r) => db.prepare(
   balanceAmount: 0, balancePaid: 0, balanceDueDate: null,
   complementAmount: 0, complementPaid: 0, complementPaidCash: 0,
   endOfStayComplementAmount: 0, endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0,
+  platformCommissionAmount: null, acompteCommissionAmount: null,
   ...r,
 });
 
@@ -65,6 +68,114 @@ test('getSummary: revenueTotal = Σ total-de-séjour (acompte+solde+complément+
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), depositAmount: 150, balanceAmount: 350, complementAmount: 20, endOfStayComplementAmount: 30 });
   const summary = model.getSummary({ from: iso(0), to: iso(10) });
   assert.equal(summary.revenueTotal, 550); // 150 + 350 + 20 + 30
+});
+
+test('getSummary: the total de séjour is NET of the platform commission (« total perçu »)', () => {
+  // specs/fiche-total-sejour-net-of-commission.md — a platform reservation: acompte 100 + solde 300 +
+  // commission (acompte 10 + solde 30 = 40) → total perçu = 400 − 40 = 360. Caisse-interne exclusion kept.
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), platform: 'airbnb',
+    depositAmount: 100, balanceAmount: 300, platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  // A direct reservation (no commission) is unchanged.
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(5), platform: 'direct', depositAmount: 0, balanceAmount: 200 });
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.revenueTotal, 560); // platform 360 (net of 40) + direct 200
+});
+
+test('getSummary: « Encaissé » (totalCollected) is NET of the commission of each paid échéance', () => {
+  const { db, model } = freshModel();
+  // Acompte 100 paid (− acompte commission 10 = 90) ; solde 300 NOT paid → not collected.
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(4), platform: 'airbnb',
+    depositAmount: 100, depositPaid: 1, balanceAmount: 300, balancePaid: 0,
+    platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.equal(summary.totalCollected, 90); // 100 acompte − 10 acompte commission
+});
+
+// ── COMPREHENSIVE MATRIX: direct vs platform × tax-routing × complements × caisse interne ───────────
+// The finance layer reads STORED amounts, so the tax-routing mode is captured by WHERE the tax sits:
+//   - direct / reversed → tax baked in the balance (just a bigger balanceAmount);
+//   - owner-collect      → tax sits in the arrival complementAmount;
+//   - offered            → tax = 0 in the books (not stored at all).
+// For each case we assert the three derived figures via getSummary (revenueTotal = Σ totalSejour,
+// totalCollected = Σ comptaCollected) and the invariant collected + reste = total via getOperational.
+const matrixCase = (label, row, expect) => test(`matrix — ${label}`, () => {
+  const { db, model } = freshModel();
+  // endDate in the PAST so the row is eligible for the pending list when unsettled.
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), ...row });
+  const summary = model.getSummary({ from: iso(-10), to: iso(10) });
+  assert.equal(summary.revenueTotal, expect.total, 'total de séjour (net, caisse interne exclue)');
+  assert.equal(summary.totalCollected, expect.collected, 'encaissé (net de commission, caisse interne exclue)');
+  const op = model.getOperational();
+  const pending = op.pending.reservations.find((x) => x.id === 1);
+  if (expect.reste === 0) {
+    assert.ok(!pending, 'settled → absent de la liste « en attente »');
+  } else {
+    assert.equal(pending.totalSejour, expect.total);
+    assert.equal(pending.remainingToPay, expect.reste, 'reste à payer (net, caisse interne exclu)');
+    assert.equal(round2(expect.collected + expect.reste), expect.total, 'invariant collected + reste = total');
+  }
+});
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// Direct (commission 0) — unchanged behaviour.
+matrixCase('direct, acompte payé + solde dû, sans complément', {
+  platform: 'direct', depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 0,
+}, { total: 300, collected: 100, reste: 200 });
+
+matrixCase('direct + complément d arrivée dû (owner-style tax-in-complement), tout payé sauf complément', {
+  platform: 'direct', balanceAmount: 200, balancePaid: 1, complementAmount: 50, complementPaid: 0,
+}, { total: 250, collected: 200, reste: 50 });
+
+matrixCase('direct + complément CAISSE INTERNE → exclu partout (settled)', {
+  platform: 'direct', balanceAmount: 200, balancePaid: 1, complementAmount: 50, complementPaid: 1, complementPaidCash: 1,
+}, { total: 200, collected: 200, reste: 0 });
+
+// Platform with commission (acompte 10 + solde 30).
+matrixCase('plateforme + commission, acompte payé + solde dû', {
+  platform: 'airbnb', depositAmount: 100, depositPaid: 1, balanceAmount: 300, balancePaid: 0,
+  platformCommissionAmount: 30, acompteCommissionAmount: 10,
+}, { total: 360, collected: 90, reste: 270 });
+
+matrixCase('plateforme + commission + complément d arrivée dû', {
+  platform: 'airbnb', balanceAmount: 300, balancePaid: 1, complementAmount: 50, complementPaid: 0,
+  platformCommissionAmount: 30,
+}, { total: 320, collected: 270, reste: 50 }); // 300+50−30 ; encaissé 300−30 ; reste 50
+
+matrixCase('plateforme + commission + complément d arrivée CAISSE INTERNE → exclu (settled)', {
+  platform: 'airbnb', balanceAmount: 300, balancePaid: 1, complementAmount: 50, complementPaid: 1, complementPaidCash: 1,
+  platformCommissionAmount: 30,
+}, { total: 270, collected: 270, reste: 0 }); // compl cash exclu ; 300−30
+
+matrixCase('plateforme + commission + complément FIN DE SÉJOUR caisse interne → exclu (settled)', {
+  platform: 'airbnb', balanceAmount: 200, balancePaid: 1, endOfStayComplementAmount: 40, endOfStayComplementPaid: 1, endOfStayComplementPaidCash: 1,
+  platformCommissionAmount: 20,
+}, { total: 180, collected: 180, reste: 0 }); // eos cash exclu ; 200−20
+
+matrixCase('plateforme + commission + complément FIN DE SÉJOUR normal (payé, hors caisse)', {
+  platform: 'airbnb', balanceAmount: 200, balancePaid: 1, endOfStayComplementAmount: 40, endOfStayComplementPaid: 1,
+  platformCommissionAmount: 20,
+}, { total: 220, collected: 220, reste: 0 }); // eos compté ; 200−20+40
+
+test('getOperational: « reste à payer » is NET of the commission of unpaid échéances; collected + reste = total', () => {
+  // specs/fiche-total-sejour-net-of-commission.md — platform reservation, acompte 100 paid (− 10 = 90),
+  // solde 300 unpaid (− 30 = 270). total perçu = 360 ; encaissé = 90 ; reste à payer = 270 ; 90+270=360.
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), platform: 'airbnb',
+    depositAmount: 100, depositPaid: 1, balanceAmount: 300, balancePaid: 0,
+    platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  const op = model.getOperational();
+  const row = op.pending.reservations.find((x) => x.id === 1);
+  assert.equal(row.totalSejour, 360);
+  assert.equal(row.remainingToPay, 270); // (300 − 30) ; the paid acompte is not owed
+  // Invariant: what's collected (net) + what's still owed (net) = the total perçu.
+  assert.equal(90 + row.remainingToPay, row.totalSejour); // 90 + 270 = 360
 });
 
 test('getSummary: caisse-interne complements are EXCLUDED from the total de séjour', () => {
@@ -109,6 +220,15 @@ test('getSummary: revenueByProperty sums total-de-séjour per property, sorted d
   const summary = model.getSummary({ from: iso(0), to: iso(10) });
   assert.deepEqual(summary.revenueByProperty.map((p) => [p.propertyName, p.revenue]), [['Gite', 500], ['Tente', 200]]);
   assert.equal(summary.revenueByProperty[0].collected, undefined); // single value now, no collected/pending split
+});
+
+test('getSummary: revenueByProperty is NET of the platform commission', () => {
+  const { db, model } = freshModel();
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(1), endDate: iso(3), platform: 'airbnb', depositAmount: 0, balanceAmount: 300, platformCommissionAmount: 50 }); // Gite 300 − 50 = 250
+  insertRes(db, { id: 2, clientId: 2, propertyId: 2, startDate: iso(2), endDate: iso(4), platform: 'direct', depositAmount: 0, balanceAmount: 200 }); // Tente 200 (direct, unchanged)
+  const summary = model.getSummary({ from: iso(0), to: iso(10) });
+  assert.deepEqual(summary.revenueByProperty.map((p) => [p.propertyName, p.revenue]), [['Gite', 250], ['Tente', 200]]);
+  assert.equal(summary.revenueTotal, 450); // 250 + 200
 });
 
 test('getSummary: yearToDate (Jan 1 → today) + yearTotal (full year), by endDate', () => {
@@ -262,6 +382,21 @@ test('getProjection: Σ total-de-séjour of reservations whose endDate ≤ targe
   assert.equal(proj.total, 300);      // only res1's stay total (endDate ≤ target)
   assert.equal(proj.collected, 100);  // deposit paid
   assert.equal(proj.pending, 200);
+});
+
+test('getProjection: total + per-row total-de-séjour + collected are NET of the platform commission', () => {
+  const { db, model } = freshModel();
+  // Platform reservation: acompte 100 paid (− 10 = 90 collected), solde 300 unpaid (− 30). Net total 360.
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(-3), endDate: iso(-1), platform: 'airbnb',
+    depositAmount: 100, depositPaid: 1, balanceAmount: 300, balancePaid: 0,
+    platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  const proj = model.getProjection({ date: iso(10) });
+  assert.equal(proj.total, 360);                 // 400 − 40 commission
+  assert.equal(proj.details[0].totalSejour, 360);
+  assert.equal(proj.collected, 90);              // acompte 100 − 10
+  assert.equal(proj.pending, 270);               // solde 300 − 30
 });
 
 // ── tourist-tax extraction (unchanged) ──────────────────────────────────────────────────

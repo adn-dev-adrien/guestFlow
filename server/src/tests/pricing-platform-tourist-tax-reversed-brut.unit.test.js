@@ -107,18 +107,23 @@ test('guard — the SAME platform_reversed booking WITHOUT a brut is unchanged (
   db.close();
 });
 
-test('guard — platform-offered tax (case 2) with a brut: no tax, no subtraction, unchanged', () => {
+test('offered tax (case 2) with a brut: the offered tax is taken OUT of the brut (CA not over-stated)', () => {
+  // specs/platform-offered-tax-passthrough-and-cascade.md — the platform collects the tax AND remits it
+  // to the commune; the brut the guest paid includes it, so the engine subtracts the original tax
+  // (4.80 = 2 nights × 2 adults × 1.20) from the back-solved accommodation. finalPrice/CA = 200 − 4.80.
   const db = createDb([{ platformKey: 'airbnb', collects: 1, remitted: 1 }]); // platform (offered)
   const BRUT = 200;
+  const TAX = 4.80;
   const q = calculateReservationQuote({
     ...BASE_INPUTS, db, platform: 'airbnb',
     platformGrossAmount: BRUT, platformCommissionAmount: 20,
   });
-  assert.equal(q.touristTaxTotal, 0); // offered → zeroed
+  assert.equal(q.touristTaxTotal, 0);                    // offered → zeroed in our books
+  assert.equal(q.touristTaxOriginalTotal, TAX);          // the real tax is kept (for the cascade + compta)
   assert.equal(q.touristTaxReversedByPlatform, false);
-  assert.equal(q.finalPrice, BRUT); // accommodation = brut (no tax to remove)
-  assert.equal(q.totalStayPrice, BRUT);
-  assert.equal(q.platformNetReceivedAmount, BRUT - 20);
+  assert.equal(q.finalPrice, BRUT - TAX);                // 195.20 — tax taken out, CA not over-stated
+  assert.equal(q.totalStayPrice, BRUT - TAX);            // 195.20
+  assert.equal(q.platformNetReceivedAmount, BRUT - TAX - 20); // 175.20 = accom − commission
   db.close();
 });
 
