@@ -8,6 +8,7 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm start",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "stop": "node scripts/stop-dev.mjs",
     "build": "cd client && npm run build",
     "reset-admin": "cd server && npm run reset-admin",
     "test": "npm run test:server && npm run test:client",
