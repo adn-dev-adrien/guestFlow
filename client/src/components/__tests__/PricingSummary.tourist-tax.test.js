@@ -167,12 +167,14 @@ describe('PricingSummary — tourist tax case 2 (platform collects + remits to t
     resourceLines: [],
   };
 
-  test('shows the gross amount + the short explanation, never "Offert"', () => {
+  test('shows the gross amount + a « Plateforme » tag, never "Offert"', () => {
     renderSummary({ quote: QUOTE_OFFERED_BY_PLATFORM });
-    // The original gross is surfaced (rendered struck-through via sx), not the netted 0.
+    // The original gross is surfaced (shown normally, no longer struck-through), not the netted 0.
     expect(screen.getByText('16.80€')).toBeInTheDocument();
     // No "Offert" badge — this is not a geste commercial.
     expect(screen.queryByText(/Offert/i)).toBeNull();
+    // A short « Plateforme » tag says the tax is handled platform-side (clearer than the struck amount).
+    expect(screen.getByText('Plateforme')).toBeInTheDocument();
     // A short neutral caption explains the routing.
     expect(screen.getByText('Collectée et reversée à la commune par la plateforme')).toBeInTheDocument();
   });

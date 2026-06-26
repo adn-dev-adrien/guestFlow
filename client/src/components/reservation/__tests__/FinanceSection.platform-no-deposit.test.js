@@ -158,6 +158,30 @@ test('« Calculer la commission »: subtracts an already-entered acompte commiss
   expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 70 });
 });
 
+// specs/platform-commission-minus-offered-tax.md — when the platform COLLECTS the tourist tax AND
+// remits it to the commune itself (« platform » case, touristTaxOfferedByPlatform), the brut includes
+// that tax and the platform withholds it from the virement on top of its commission. The commission
+// = montant client − virement − commission acompte − taxe ; otherwise the commission (and the figure
+// booked in compta) is over-stated by the tourist tax.
+test('« Calculer la commission »: subtracts the tourist tax when the platform collects + remits it to the commune', () => {
+  const ctx = renderFinance({
+    form: { platform: 'Airbnb', platformGrossAmount: 600, platformPayoutAmount: 520 },
+    pricingQuote: { touristTaxOfferedByPlatform: true, touristTaxOriginalTotal: 12 },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  // 600 − 520 − 0 − 12 (tax → commune) = 68
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 68 });
+});
+
+test('« Calculer la commission »: does NOT subtract the tax when it is not offered (reversed / owner / direct)', () => {
+  const ctx = renderFinance({
+    form: { platform: 'Lodgify', platformGrossAmount: 600, platformPayoutAmount: 520 },
+    pricingQuote: { touristTaxOfferedByPlatform: false, touristTaxOriginalTotal: 12 },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /Calculer la commission/i }));
+  expect(ctx.updateForm).toHaveBeenCalledWith({ platformCommissionAmount: 80 }); // 600 − 520, tax not subtracted
+});
+
 test('owner-collect platform, no commission: the on-arrival tax is excluded → no écart (regression)', () => {
   // specs/platform-payment-entry.md — for a platform that does NOT collect the tax (we charge it at
   // check-in → complement), the platform only settles the pre-arrival. With no commission entered, the
