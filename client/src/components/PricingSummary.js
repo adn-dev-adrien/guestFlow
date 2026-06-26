@@ -662,9 +662,10 @@ export default function PricingSummary({
             // The cascade flow (deductions → versement → +complément) only makes sense for a platform
             // reservation. Direct keeps a single « Total du séjour » + a complément line if any.
             const row = (label, value, opts = {}) => (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...(opts.pt ? { pt: 0.5 } : {}) }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, ...(opts.pt ? { pt: 0.5 } : {}) }}>
                 <Typography variant={opts.strong ? 'subtitle2' : 'body2'} color={opts.strong ? 'text.primary' : 'text.secondary'} sx={opts.strong ? { fontWeight: 700 } : undefined}>{label}</Typography>
-                <Typography variant={opts.strong ? 'subtitle2' : 'body2'} sx={{ fontWeight: opts.strong ? 700 : 600, color: opts.color || 'inherit' }}>{opts.sign || ''}{Math.abs(value).toFixed(2)}€</Typography>
+                {/* sign + amount kept on a single line for readability (no wrap in the narrow column). */}
+                <Typography variant={opts.strong ? 'subtitle2' : 'body2'} sx={{ fontWeight: opts.strong ? 700 : 600, color: opts.color || 'inherit', whiteSpace: 'nowrap' }}>{opts.sign || ''}{Math.abs(value).toFixed(2)}€</Typography>
               </Box>
             );
             return (
