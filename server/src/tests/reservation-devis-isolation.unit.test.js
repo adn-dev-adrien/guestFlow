@@ -8,7 +8,7 @@ const reservationsModel = require('../models/reservationsModel');
 // be seen by the reservation-side reads — list, occupancy, resource-reserved, baby-bed availability —
 // otherwise a tentative quote would block real bookings.
 const DDL = `
-  CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
+  CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, defaultCautionAmount REAL DEFAULT 0);
   CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',

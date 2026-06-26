@@ -22,6 +22,16 @@ const establishmentClosuresModel = require('./establishmentClosuresModel');
 // Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
 // The owner's net stays in `finalPrice`. Commission = gross − net (clipped to 0). Null on direct bookings
 // and on platform bookings without a recorded gross.
+// specs/caution-live-from-property.md §3 — the caution amount a reservation displays is LIVE from the
+// property's current `defaultCautionAmount` until the caution is received, then FROZEN to the amount
+// actually collected (stored in `reservations.cautionAmount`, frozen at receipt). Expects a row carrying
+// `cautionReceived`, `cautionAmount` and `propertyDefaultCautionAmount`.
+function resolveEffectiveCaution(row) {
+  if (!row) return 0;
+  if (Number(row.cautionReceived || 0) === 1) return Number(row.cautionAmount || 0);
+  return Number(row.propertyDefaultCautionAmount || 0);
+}
+
 function deriveCommissionAmount(row) {
   if (!row) return null;
   if (String(row.platform || '').toLowerCase() === 'direct') return null;
@@ -144,6 +154,7 @@ function createReservationsModel(database) {
     list({ propertyId, clientId, from, to } = {}) {
       let sql = `
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
+          p.defaultCautionAmount as propertyDefaultCautionAmount,
           COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0)
           + COALESCE((SELECT SUM(CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END) FROM reservation_custom_options rco WHERE rco.reservationId = r.id), 0) as optionsTotal,
           COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal
@@ -172,10 +183,12 @@ function createReservationsModel(database) {
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).
-        const { optionsTotal: _o, resourcesTotal: _r, ...reservation } = row;
+        const { optionsTotal: _o, resourcesTotal: _r, propertyDefaultCautionAmount: _c, ...reservation } = row;
         const payment = computePaymentStatus(row, today);
         return {
           ...reservation,
+          // specs/caution-live-from-property.md §3 — live from property until received, then frozen.
+          cautionAmount: resolveEffectiveCaution(row),
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
           clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
           commissionAmount: deriveCommissionAmount(row),
@@ -287,13 +300,17 @@ function createReservationsModel(database) {
 
     getByIdWithDetails(id) {
       const reservation = database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName, p.photo as propertyPhoto
+        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName, p.photo as propertyPhoto,
+          p.defaultCautionAmount as propertyDefaultCautionAmount
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
         WHERE r.id = ? AND r.kind = 'reservation'
       `).get(id);
       if (!reservation) return null;
+      // specs/caution-live-from-property.md §3: the caution amount is live from the property
+      // (defaultCautionAmount) until it is received, then frozen to the collected amount.
+      reservation.cautionAmount = resolveEffectiveCaution(reservation);
 
       // `ro.*` already brings the new force-item-to-complement fields
       // (inComplement, acompteContribTtc, soldeContribTtc) — no need to enumerate.
@@ -1124,7 +1141,9 @@ function createReservationsModel(database) {
         // the first date via COALESCE); false clears the marker AND its date.
         if (cautionReceived !== undefined) {
           if (cautionReceived) {
-            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), updatedAt = datetime('now') WHERE id = ?")
+            // specs/caution-live-from-property.md §3 rule 2 — freeze the live property caution into the
+            // reservation at the moment of receipt, so the collected amount never moves afterwards.
+            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime('now') WHERE id = ?")
               .run(today, reservationId);
           } else {
             database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
@@ -1260,6 +1279,6 @@ function createReservationsModel(database) {
 
 const defaultModel = createReservationsModel(db);
 defaultModel.create = createReservationsModel;
-defaultModel.__test = { deriveCommissionAmount, arrivalComplementDetailFromReservation };
+defaultModel.__test = { deriveCommissionAmount, arrivalComplementDetailFromReservation, resolveEffectiveCaution };
 
 module.exports = defaultModel;

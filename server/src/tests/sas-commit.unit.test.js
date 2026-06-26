@@ -37,7 +37,10 @@ function makeDb() {
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE linen_priced_items (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, category TEXT NOT NULL DEFAULT 'bed', sortOrder INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE repair_amounts (id INTEGER PRIMARY KEY AUTOINCREMENT, repairKey TEXT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
   `);
+  // specs/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
+  db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
   db.prepare("INSERT INTO reservations (id, propertyId, complementAmount, complementPaid, cautionAmount) VALUES (1, 7, 30, 0, 300)").run();
   return db;
 }
@@ -86,9 +89,12 @@ test('commitArrivalSas: caution marked received + items added inComplement + com
     complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }, { label: 'Ménage', amount: 40 }],
   });
   assert.equal(newComplement, 75); // 30 + 5 + 40
-  const r = db.prepare('SELECT cautionReceived, cautionReceivedDate, complementAmount, arrivalSasDoneAt FROM reservations WHERE id = 1').get();
+  const r = db.prepare('SELECT cautionReceived, cautionReceivedDate, cautionAmount, complementAmount, arrivalSasDoneAt FROM reservations WHERE id = 1').get();
   assert.equal(r.cautionReceived, 1);
   assert.ok(r.cautionReceivedDate);
+  // specs/caution-live-from-property.md §3 rule 2 — the live property caution (500) is frozen on receipt,
+  // overwriting the stale stored 300.
+  assert.equal(r.cautionAmount, 500);
   assert.equal(r.complementAmount, 75);
   assert.ok(r.arrivalSasDoneAt, 'arrival SAS marked done');
   const customs = db.prepare("SELECT description, amount, inComplement, offered FROM reservation_custom_options WHERE reservationId = 1 ORDER BY sortOrder").all();
