@@ -504,6 +504,6 @@ Use markdown links so they're clickable in VSCode:
 | Server tests | `cd server && npm test` |
 | Build client | `cd client && npm run build` |
 | Reset DB | `rm server/guestflow.db` |
-| Kill stale procs | `./reset-dev-processes.sh` |
+| Stop dev servers (free ports 3000/4000) | `npm run stop` |
 | Prod logs | `pm2 logs guestflow` |
 | Prod status | `pm2 status` / `pm2 describe guestflow` |
