@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented (compta: no change needed) |
 | **Branch** | `feature/fiche-total-sejour-net-of-commission` (stacked on PR #302) |
 | **Created** | 2026-06-26 |
 | **Author** | Adrien |
@@ -50,13 +50,17 @@ ending on what the operator actually earns.
 3. **No change** to direct, reversed (case 1, already handled), owner (case 3), or any booking without
    a brut. The offered tax **amount** is unchanged (still 0 in `touristTaxTotal`, original kept).
 
-### Compta (`accountingModel.js`)
-4. For an offered-tax platform booking, book the **original** tourist tax (`quote.touristTaxOriginalTotal`)
-   on the 46710000 pass-through account, carved out of the gross encaissement — never on a 70xxx
-   revenue line. The balance entry carries it (the platform settles it with the booking).
-5. Caisse-interne amounts must still never appear in compta (unchanged).
-6. Invariant: Σ debits = Σ credits per entry; CA excludes the tax; the CCLIENT/bank debit = net = the
-   virement (gross − commission − tax-to-commune).
+### Compta (`accountingModel.js`) — **no change needed (resolved 2026-06-26)**
+4. The compta CA is built from **`finalPrice`** (hébergement + options + ressources), which already
+   **excludes** the tourist tax — the gross « Total du séjour » of the cascade is a display figure, not
+   the CA basis. The tax is handled separately: 46710000 for the cases we collect it (direct / reversed
+   / owner), and **0 in the books for the offered case** (the platform collects + remits it to the
+   commune — it isn't the operator's liability). So the offered tax is correctly **never in the CA**.
+5. With the §3.1 engine fix, the offered-case `finalPrice` = the real accommodation (tax taken out of
+   the brut), so the CA is right for new/re-saved bookings. The existing test
+   `accounting-model-tourist-tax` (« offered → no tax in the books ») stays green — **unchanged**.
+6. (Earlier idea of a 46710000 pass-through for the offered tax was dropped: it rested on the false
+   premise that the CA included the tax. Caisse-interne amounts still never appear in compta.)
 
 ### Fiche cascade (`PricingSummary.js`) — **implemented 2026-06-26** (validated layout)
 7. The bottom block is a running-subtotal cascade. **« Total du séjour » reverts to the GROSS**
@@ -97,10 +101,10 @@ Cascade as in §3.7 (validated mockup). Responsive: same Stack, no layout-width 
 > **Sensitive (pricing + compta). If an existing test breaks or a behaviour changes, STOP and decide
 > together before adjusting it.**
 
-- [ ] `pricing` — offered tax + brut → finalPrice = accommodation (tax out), net = accom − commission.
-- [ ] `accountingModel` — offered tax → 4.80 on 46710000, CA = 200, net debit = virement, entry balances.
-- [ ] `accountingModel` guard — reversed/owner/direct unchanged.
-- [ ] `PricingSummary` — cascade subtotals + labels for offered/commission/complement and direct cases.
+- [x] `pricing` — offered tax + brut → finalPrice = accommodation (tax out), net = accom − commission.
+- [x] `accountingModel` — **no change**: the existing « offered → no tax in the books » test stays green
+  (CA already excludes the tax — §3.4).
+- [x] `PricingSummary` — cascade subtotals + labels for offered/commission/complement and direct cases.
 
 ## 8. Out of scope
 
