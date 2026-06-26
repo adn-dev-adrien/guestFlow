@@ -76,8 +76,12 @@ function isSettled(r) {
 // counterpart of comptaCollected and is what the « Suivi opérationnel » must show (the shared
 // computePaymentStatus.remainingDue only nets deposit + balance and ignores the complements).
 function remainingToPay(r) {
-  const deposit = (!r.depositDisabled && !r.depositPaid) ? Number(r.depositAmount || 0) : 0;
-  const balance = !r.balancePaid ? Number(r.balanceAmount || 0) : 0;
+  // Net of the platform commission of each STILL-UNPAID échéance, so it stays consistent with the
+  // « total perçu » : comptaCollected(r) + remainingToPay(r) === totalSejour(r). Direct → commission 0.
+  const acompteComm = Number(r.acompteCommissionAmount || 0);
+  const soldeComm = Number(r.platformCommissionAmount || 0);
+  const deposit = (!r.depositDisabled && !r.depositPaid) ? Number(r.depositAmount || 0) - acompteComm : 0;
+  const balance = !r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
   return round2(deposit + balance + complement + endOfStay);

@@ -96,6 +96,23 @@ test('getSummary: « Encaissé » (totalCollected) is NET of the commission of e
   assert.equal(summary.totalCollected, 90); // 100 acompte − 10 acompte commission
 });
 
+test('getOperational: « reste à payer » is NET of the commission of unpaid échéances; collected + reste = total', () => {
+  // specs/fiche-total-sejour-net-of-commission.md — platform reservation, acompte 100 paid (− 10 = 90),
+  // solde 300 unpaid (− 30 = 270). total perçu = 360 ; encaissé = 90 ; reste à payer = 270 ; 90+270=360.
+  const { db, model } = freshModel();
+  insertRes(db, {
+    id: 1, clientId: 1, propertyId: 1, startDate: iso(-5), endDate: iso(-2), platform: 'airbnb',
+    depositAmount: 100, depositPaid: 1, balanceAmount: 300, balancePaid: 0,
+    platformCommissionAmount: 30, acompteCommissionAmount: 10,
+  });
+  const op = model.getOperational();
+  const row = op.pending.reservations.find((x) => x.id === 1);
+  assert.equal(row.totalSejour, 360);
+  assert.equal(row.remainingToPay, 270); // (300 − 30) ; the paid acompte is not owed
+  // Invariant: what's collected (net) + what's still owed (net) = the total perçu.
+  assert.equal(90 + row.remainingToPay, row.totalSejour); // 90 + 270 = 360
+});
+
 test('getSummary: caisse-interne complements are EXCLUDED from the total de séjour', () => {
   const { db, model } = freshModel();
   // Arrival complement 50 + end-of-stay 30, both caisse interne → excluded; only 150+350 count.

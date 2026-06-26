@@ -73,7 +73,8 @@ Plateforme ». Accounting and HT/TVA figures are untouched.
    year cards), `revenueByProperty`, the projection, the breakdown dialogs, and the « Suivi
    opérationnel » tables (`getOperational` → pending / upcoming / period). **Accounting export
    unchanged** (CA stays gross with the commission as a separate expense). `remainingToPay` (reste à
-   payer) stays the **gross** still-owed amount (it's what's unpaid, not what we net).
+   payer) is **also net** — the commission of each still-unpaid échéance is subtracted — so the
+   invariant `comptaCollected(r) + remainingToPay(r) === totalSejour(r)` holds.
 10. The caisse-interne carve-out lives at this finance layer (the engine `sejourNetTotal` doesn't have
     the cash flags). No double-count: `totalSejour` sums the stored deposit/balance (gross of
     commission) + non-cash complements, then subtracts the commission once.
