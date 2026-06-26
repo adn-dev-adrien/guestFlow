@@ -1517,8 +1517,16 @@ function calculateReservationQuote({
   // écart equal to the tax (specs/platform-payment-tourist-tax-as-option.md).
   const touristTaxReversedByPlatform = collectsFromGuest && isTouristTaxRemittedByOwnerFlag && touristTaxTotal > 0;
   const reversedTouristTaxInBrut = (platformGrossPin != null && touristTaxReversedByPlatform) ? touristTaxTotal : 0;
+  // « Offered » case (platform collects the tax AND remits it to the commune itself): the brut the
+  // guest paid includes that tax too, but it's `touristTaxTotal = 0` in our books. Take the ORIGINAL
+  // tax (`touristTaxBreakdown.touristTaxTotal`, kept un-zeroed) out of the brut so the accommodation /
+  // CA isn't over-stated — symmetric with the reversed case. The compta then books it as a 46710000
+  // pass-through (specs/platform-offered-tax-passthrough-and-cascade.md).
+  const offeredTouristTaxInBrut = (platformGrossPin != null && isTouristTaxOfferedByPlatform)
+    ? roundMoney(Number(touristTaxBreakdown.touristTaxTotal || 0))
+    : 0;
   const pinnedAccommodation = platformGrossPin != null
-    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources - reversedTouristTaxInBrut))
+    ? roundMoney(Math.max(0, platformGrossPin - extraGuestSurcharge - preArrivalOptionsResources - reversedTouristTaxInBrut - offeredTouristTaxInBrut))
     : null;
   const accommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null
