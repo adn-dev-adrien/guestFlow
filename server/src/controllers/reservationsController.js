@@ -761,7 +761,12 @@ function updatePayment(req, res) {
   }
   if (cautionReceived !== undefined) {
     const date = cautionReceivedDate || (cautionReceived ? new Date().toISOString().split('T')[0] : null);
-    model.updatePaymentField('UPDATE reservations SET cautionReceived = ?, cautionReceivedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?', cautionReceived ? 1 : 0, date, id);
+    if (cautionReceived) {
+      // specs/caution-live-from-property.md §3 rule 2 — freeze the live property caution on receipt.
+      model.updatePaymentField('UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = ?, cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime(\'now\') WHERE id = ?', date, id);
+    } else {
+      model.updatePaymentField('UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = ?, updatedAt = datetime(\'now\') WHERE id = ?', date, id);
+    }
   }
   if (cautionReturned !== undefined) {
     const date = cautionReturnedDate || (cautionReturned ? new Date().toISOString().split('T')[0] : null);

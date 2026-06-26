@@ -25,7 +25,10 @@ function baseInput(over = {}) {
       streetNumber: '12', street: 'rue des Fleurs', postalCode: '75001', city: 'Paris',
       ...(over.client || {}),
     },
-    property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00', ...(over.property || {}) },
+    // specs/caution-live-from-property.md §3 — the caution amount is read live from the property
+    // (defaultCautionAmount) while not yet received; the reservation.cautionAmount above is only used
+    // once the caution is marked received (frozen amount).
+    property: { name: 'Villa A', defaultCheckIn: '15:00', defaultCheckOut: '10:00', defaultCautionAmount: 500, ...(over.property || {}) },
     options: over.options || [],
     resources: over.resources || [],
     customOptions: over.customOptions || [],
@@ -110,7 +113,7 @@ test('flag cautionNotBanked: cautionAmount > 0 AND depositPaid != 1 AND caution 
   const paid = buildContext(baseInput({ reservation: { cautionAmount: 500, depositPaid: 1 } }));
   assert.equal(paid.flags.cautionNotBanked, false);
 
-  const noCaution = buildContext(baseInput({ reservation: { cautionAmount: 0, depositPaid: 0 } }));
+  const noCaution = buildContext(baseInput({ reservation: { depositPaid: 0 }, property: { defaultCautionAmount: 0 } }));
   assert.equal(noCaution.flags.cautionNotBanked, false);
 
   // 2026-06-22 fix: once the caution is RECEIVED, no arrival email asks the guest to bring it —
@@ -270,7 +273,7 @@ test('cautionNotReceived is true only when caution due AND not received', () => 
   assert.equal(due.flags.cautionNotReceived, true);
   const received = buildContext(baseInput({ reservation: { cautionAmount: 500, cautionReceived: 1 } }));
   assert.equal(received.flags.cautionNotReceived, false);
-  const noCaution = buildContext(baseInput({ reservation: { cautionAmount: 0, cautionReceived: 0 } }));
+  const noCaution = buildContext(baseInput({ reservation: { cautionReceived: 0 }, property: { defaultCautionAmount: 0 } }));
   assert.equal(noCaution.flags.cautionNotReceived, false);
 });
 
