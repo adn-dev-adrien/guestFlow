@@ -23,6 +23,17 @@ import StatusCard from '../components/StatusCard';
 import api from '../api';
 
 const offsetsToText = (arr) => (Array.isArray(arr) ? arr.join(', ') : '');
+// Normalise a phone to E.164, tolerating the French national form (e.g. "06 28 05 60 66" → "+33628056066").
+// Mirrors the server's paymentProviderValidation.normalizePhone so the button-enable check matches the
+// authoritative validation. Anything not recognised is returned as-is (the E.164 regex then rejects it).
+const normalizeFrPhone = (raw) => {
+  const p = String(raw || '').replace(/[\s().-]/g, '');
+  if (!p) return '';
+  if (p.startsWith('+')) return p;
+  if (p.startsWith('00')) return `+${p.slice(2)}`;
+  if (/^0\d{9}$/.test(p)) return `+33${p.slice(1)}`;
+  return p;
+};
 const textToOffsets = (txt) => String(txt || '')
   .split(',').map((s) => s.trim()).filter((s) => s !== '')
   .map(Number).filter((n) => Number.isInteger(n));
@@ -125,7 +136,7 @@ export default function PaymentsSettingsPage() {
   const handleConnectProvider = async () => {
     setConnecting(true); setError('');
     try {
-      const r = await api.connectQontoProvider(providerForm);
+      const r = await api.connectQontoProvider({ ...providerForm, phone: normalizeFrPhone(providerForm.phone) });
       if (r.connectionLocation) {
         // pending → send the operator to the Qonto/Mollie onboarding (KYC); they return to ?provider=callback.
         window.location.href = r.connectionLocation;
@@ -155,7 +166,7 @@ export default function PaymentsSettingsPage() {
   const providerEnabled = qonto.connectionStatus === 'enabled';
   const descLen = providerForm.businessDescription.trim().length;
   const providerFormValid = providerForm.bankAccountId
-    && /^\+[1-9]\d{6,14}$/.test(providerForm.phone.replace(/[\s().-]/g, ''))
+    && /^\+[1-9]\d{6,14}$/.test(normalizeFrPhone(providerForm.phone))
     && /^https?:\/\/[^\s]+\.[^\s]+/i.test(providerForm.websiteUrl)
     && descLen >= 80;
 
