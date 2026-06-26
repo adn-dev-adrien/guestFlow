@@ -1730,6 +1730,16 @@ function calculateReservationQuote({
     resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
 
+  // specs/fiche-total-sejour-net-of-commission.md — the displayed « total du séjour » = what the
+  // operator actually realises = net perçu + compléments. Net perçu = the platform's settlement
+  // (pre-arrival − commission) when a commission applies, else the full pre-arrival amount (no
+  // commission to deduct). Adding the complement back gives, for direct / no-commission bookings,
+  // exactly today's `totalStayPrice`; for a platform with a commission it is `totalStayPrice −
+  // commission`. `totalStayPrice` (gross) is kept for the brut « Montant soumis à commission » line.
+  // (Caisse-interne complements are carved out at the finance layer, not here.)
+  const netReceivedForTotal = platformNetReceivedAmount != null ? platformNetReceivedAmount : preArrivalAmount;
+  const sejourNetTotal = roundMoney(netReceivedForTotal + resolvedComplementAmount);
+
   return {
     property,
     nights,
@@ -1777,6 +1787,9 @@ function calculateReservationQuote({
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
     accommodationPreArrival,
     totalStayPrice,
+    // specs/fiche-total-sejour-net-of-commission.md — the « total du séjour » shown on the fiche
+    // (and, later, in the finance displays) = net perçu + compléments. Net of the platform commission.
+    sejourNetTotal,
     // specs/platform-commission-line.md — operator-entered platform commission + the resulting net
     // for the « total séjour − commission = net perçu » summary block. Commission 0 (direct / none) →
     // platformNetReceivedAmount null, the summary shows the single « Total du séjour TTC » line.
