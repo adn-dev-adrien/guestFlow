@@ -58,13 +58,21 @@ ending on what the operator actually earns.
 6. Invariant: Σ debits = Σ credits per entry; CA excludes the tax; the CCLIENT/bank debit = net = the
    virement (gross − commission − tax-to-commune).
 
-### Fiche cascade (`PricingSummary.js`)
-7. Replace the bottom block with a running-subtotal cascade (validated layout):
-   - composition (hébergement, options, ressources, taxe de séjour) → **Total payé par le client** (brut);
-   - − Taxe reversée à la commune (offered case) − Commission plateforme → **= Versement plateforme**;
-   - + Complément (perçu sur place) → **= Total perçu sur le séjour** (= `sejourNetTotal`).
-   Each deduction starts from the previous subtotal; lines that don't apply are hidden (direct → just
-   « Total du séjour » = « Total perçu »).
+### Fiche cascade (`PricingSummary.js`) — **implemented 2026-06-26** (validated layout)
+7. The bottom block is a running-subtotal cascade. **« Total du séjour » reverts to the GROSS**
+   (hébergement + toutes options/ressources + taxe — `finalPrice + touristTaxOriginalTotal`),
+   superseding the #302 « Total du séjour = net ». For a platform reservation:
+   - **Total du séjour** (gross)
+   - − **Taxe de séjour (plateforme)** (offered case = `touristTaxOriginalTotal`)
+   - − **Compléments (perçus sur place)** (`complementAmount`)
+   - = **Montant soumis à commission** (`preArrivalAmount` = total − offered tax − compléments)
+   - − **Commission acompte / solde**
+   - = **Versement plateforme** (`platformNetReceivedAmount`, else `preArrivalAmount`)
+   - + **Compléments (perçus sur place)**
+   - = **Total perçu sur le séjour** (`sejourNetTotal` = versement + compléments — « ce que vous gagnez »)
+   Intermediate subtotals are hidden when no deduction applies. **Direct** → a single « Total du
+   séjour » (+ a « dont complément à percevoir sur place » line when there's an on-arrival amount).
+   The offered tourist tax shows a « Plateforme » tag (not struck-through / « offert »).
 
 ## 4. Architecture
 
