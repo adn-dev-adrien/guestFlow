@@ -144,7 +144,8 @@ export default function PricingSummary({
 
   // The engine resolves who collects the tax (per-platform flag on `ical_sources`, see
   // `pricing.js#isPlatformCollectingTouristTax`). The summary mirrors that decision:
-  //   - offered by platform → strike-through display + "Offert" / "Collectée par la plateforme".
+  //   - collected + remitted by the platform → amount shown normally with a « Plateforme » tag (NOT
+  //     « offert »: it isn't free, just handled platform-side) + the "Collectée par la plateforme" caption.
   //   - owner-collected non-direct → not crossed out, shown as "À collecter à l'arrivée" and
   //     scheduled in the complement (engine wires this through `touristTaxCollectedOnArrival`).
   //   - direct → not crossed out, kept in the balance (legacy behaviour).
@@ -560,6 +561,16 @@ export default function PricingSummary({
                         />
                       )
                     )}
+                    {/* Case 2 — the platform collects + remits the tax to the commune. NOT « offert »
+                        (it isn't free) : a short « Plateforme » tag says it's handled platform-side. */}
+                    {isTouristTaxOffered && (
+                      <Chip
+                        size="small"
+                        label="Plateforme"
+                        sx={{ ml: 0.5, height: 18, fontSize: 10, fontWeight: 600, color: 'info.main', borderColor: 'info.main', bgcolor: 'transparent', '& .MuiChip-label': { px: 0.75 } }}
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Button
@@ -573,10 +584,10 @@ export default function PricingSummary({
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {/* Case 2 (platform collects AND remits to the commune): the amount is struck through
-                      to signal it doesn't land in our books — but NOT labelled "Offert" (it isn't a
-                      geste commercial). The short caption below explains who handles it. */}
-                  <Typography variant="body2" sx={{ fontWeight: 600, textDecoration: isTouristTaxOffered ? 'line-through' : 'none', opacity: isTouristTaxOffered ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                  {/* Case 2 (platform collects AND remits to the commune): the amount is shown normally
+                      with the « Plateforme » tag above — NOT struck-through (it isn't « offert »). The
+                      caption below explains who handles it. */}
+                  <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {touristTaxDisplayedAmount.toFixed(2)}€
                   </Typography>
                 </Box>
