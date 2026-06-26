@@ -151,6 +151,7 @@ export default function PaymentsSettingsPage() {
   }
 
   const connected = Boolean(qonto.connected);
+  const isApiKey = qonto.authMode === 'api_key';
   const providerEnabled = qonto.connectionStatus === 'enabled';
   const descLen = providerForm.businessDescription.trim().length;
   const providerFormValid = providerForm.bankAccountId
@@ -170,10 +171,15 @@ export default function PaymentsSettingsPage() {
           badge={connected ? { status: 'success', label: 'Connecté' } : { status: 'warning', label: 'Non connecté' }}
           items={[
             { label: 'Mode', value: qonto.sandbox ? 'Sandbox (test)' : 'Production' },
+            { label: 'Authentification', value: isApiKey ? 'Clé API' : 'OAuth' },
             { label: 'Identifiants', value: qonto.configured ? 'Configurés' : 'Manquants (.env.local)' },
             { label: 'Provider de liens', value: providerEnabled ? 'Activé' : (qonto.connectionStatus || 'non connecté') },
           ]}
-          actions={(
+          actions={isApiKey ? (
+            <Typography variant="caption" color="text.secondary">
+              Authentification par clé API — renseigne <code>QONTO_API_LOGIN</code> + <code>QONTO_API_SECRET_KEY</code> dans <code>server/.env.local</code>.
+            </Typography>
+          ) : (
             <Button
               variant={connected ? 'outlined' : 'contained'}
               disabled={!qonto.configured}

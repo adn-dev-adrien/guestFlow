@@ -44,6 +44,13 @@ function buildQontoClient(config = {}) {
   const clientId = config.clientId || env.QONTO_CLIENT_ID || '';
   const clientSecret = config.clientSecret || env.QONTO_CLIENT_SECRET || '';
   const stagingToken = config.stagingToken || env.QONTO_STAGING_TOKEN || '';
+  // API-key auth (specs/online-payments-qonto.md §4.1, decision 2026-06-26): for automating one's OWN
+  // Qonto account, Qonto recommends the API key over OAuth (simpler + no Qonto validation for the
+  // payment-links scope in production). Header form: `Authorization: {login}:{secret-key}` (NOT Base64,
+  // NOT "Bearer"). When both are set we use API-key mode; otherwise we fall back to the OAuth Bearer.
+  const apiLogin = config.apiLogin || env.QONTO_API_LOGIN || '';
+  const apiSecretKey = config.apiSecretKey || env.QONTO_API_SECRET_KEY || '';
+  const authMode = apiLogin && apiSecretKey ? 'api_key' : 'oauth';
   const fetchImpl = config.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') {
     throw new Error('qontoClient: no fetch implementation (Node 18+ global fetch or inject config.fetchImpl)');
@@ -51,8 +58,10 @@ function buildQontoClient(config = {}) {
 
   const stagingHeader = () => (sandbox && stagingToken ? { 'X-Qonto-Staging-Token': stagingToken } : {});
 
+  // API-key mode ignores `accessToken` and authenticates with the static `{login}:{secret}` header.
   function apiHeaders(accessToken) {
-    return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...stagingHeader() };
+    const auth = authMode === 'api_key' ? `${apiLogin}:${apiSecretKey}` : `Bearer ${accessToken}`;
+    return { Authorization: auth, 'Content-Type': 'application/json', ...stagingHeader() };
   }
 
   async function readBody(res, context) {
@@ -83,7 +92,11 @@ function buildQontoClient(config = {}) {
 
   return {
     sandbox,
-    isConfigured() { return Boolean(clientId && clientSecret); },
+    authMode,
+    // Ready to call the API: API-key mode needs the login + secret; OAuth mode needs the app id/secret.
+    isConfigured() {
+      return authMode === 'api_key' ? Boolean(apiLogin && apiSecretKey) : Boolean(clientId && clientSecret);
+    },
 
     // Step 1 — the URL we redirect the operator's browser to so they consent (run once at setup).
     getAuthorizeUrl({ redirectUri, state, scopes = DEFAULT_SCOPES }) {

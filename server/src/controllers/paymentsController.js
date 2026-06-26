@@ -66,13 +66,17 @@ async function qontoCallback(req, res) {
   }
 }
 
-function qontoStatus(req, res) {
+// The Qonto connection state for the page. In API-key mode there is no OAuth token, so "connected"
+// means "the API key is configured"; in OAuth mode it stays "a refresh token is stored".
+function qontoStatusPayload() {
   const client = buildQontoClient();
-  return res.json({
-    ...settingsModel.qontoConnectionInfo(),
-    configured: client.isConfigured(),
-    sandbox: client.sandbox,
-  });
+  const base = settingsModel.qontoConnectionInfo();
+  const connected = client.authMode === 'api_key' ? client.isConfigured() : base.connected;
+  return { ...base, connected, configured: client.isConfigured(), sandbox: client.sandbox, authMode: client.authMode };
+}
+
+function qontoStatus(req, res) {
+  return res.json(qontoStatusPayload());
 }
 
 // ----- Paiements settings page (specs/online-payments-qonto.md §3.1) -----
@@ -84,14 +88,9 @@ function timingColumn(key) {
 
 // Everything the Paiements page renders: the parsed timings + the Qonto connection state.
 function getSettings(req, res) {
-  const client = buildQontoClient();
   return res.json({
     timings: settingsModel.paymentTimings(),
-    qonto: {
-      ...settingsModel.qontoConnectionInfo(),
-      configured: client.isConfigured(),
-      sandbox: client.sandbox,
-    },
+    qonto: qontoStatusPayload(),
   });
 }
 
@@ -117,8 +116,11 @@ function qontoError(res, err) {
   return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto — réessaie ou consulte les logs." });
 }
 
-// Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`.
+// Run `fn(client, accessToken)` with a usable auth. API-key mode needs no token (the client signs
+// every request with `{login}:{secret}`); OAuth mode resolves/refreshes the stored access token.
 async function withAccessToken(fn) {
+  const client = buildQontoClient();
+  if (client.authMode === 'api_key') return fn(client, null);
   const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
   return fn(buildQontoClient(), accessToken);
 }
