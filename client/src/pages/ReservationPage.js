@@ -2344,19 +2344,19 @@ export default function ReservationPage() {
       // (the server recomputes from the SAVED devis).
       const saved = await handleSaveReservation(() => {});
       if (!saved) return;
-      const r = await api.createReservationPaymentLink(editingDevisId, 'deposit');
-      if (r.url) window.open(r.url, '_blank', 'noopener');
+      // The server creates/reuses the Qonto deposit link AND emails it to the client in one action.
+      const r = await api.sendDepositRequestEmail(editingDevisId);
       const euros = (Number(r.amountCents || 0) / 100).toFixed(2).replace('.', ',');
       const check = await confirm({
-        title: 'Demande d’acompte',
-        message: `Lien de paiement de l’acompte (${euros} €) ouvert dans un nouvel onglet. Paie-le (carte de test en sandbox), puis clique « Vérifier le paiement ».\n\nLien : ${r.url}`,
+        title: 'Demande d’acompte envoyée ✓',
+        message: `Un email avec le lien de paiement de l’acompte (${euros} €) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé, clique « Vérifier le paiement ».`,
         confirmLabel: 'Vérifier le paiement',
         cancelLabel: 'Fermer',
         confirmColor: 'primary',
       });
       if (check) await handleCheckDepositPayment();
     } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible de créer le lien (Qonto connecté ?).' });
+      await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande d’acompte (Qonto connecté ? email client renseigné ?).' });
     }
   };
 
