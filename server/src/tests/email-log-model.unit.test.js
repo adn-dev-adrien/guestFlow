@@ -171,6 +171,23 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
   assert.ok(rows.some((r) => r.reservationId === 120), 'the post-stay email survives a past startDate');
 });
 
+test('listPending: event/action-triggered templates (deposit_request, reservation_confirmation) never surface', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Léa', 'Roy', 'lea@r.fr')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  // Both are manual + dayOffset 0 → would match the lookback window, but they're sent programmatically.
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (30, 'deposit_request', 'Acompte', 'S', 'B', 0, 'manual', 1)").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (31, 'reservation_confirmation', 'Confirm', 'S', 'B', 0, 'manual', 1)").run();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (32, 'arrival_reminder_7d', 'J-7', 'S', 'B', -7, 'manual', 1)").run();
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (300, 'reservation', 1, 1, '2026-06-17', '2026-06-20')").run();
+
+  const rows = model.listPending({ today: '2026-06-17', lookbackDays: 7 });
+  const keys = rows.map((r) => r.templateName);
+  assert.ok(!keys.includes('Acompte'), 'deposit_request excluded');
+  assert.ok(!keys.includes('Confirm'), 'reservation_confirmation excluded');
+  assert.ok(keys.includes('J-7'), 'a normal manual reminder still surfaces');
+});
+
 // ---- history ----
 
 test('history: paginated, joined with template + client + property + reservation dates', () => {

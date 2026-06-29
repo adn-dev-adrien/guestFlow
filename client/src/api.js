@@ -228,6 +228,7 @@ const api = {
   // Payment links on a reservation/devis + manual poll (specs/online-payments-qonto.md §3.4/§7).
   createReservationPaymentLink: (id, type = 'deposit') => request(`/payments/reservations/${id}/payment-links`, { method: 'POST', body: { type } }),
   getReservationPaymentLinks: (id) => request(`/payments/reservations/${id}/payment-links`),
+  sendDepositRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'deposit' } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
