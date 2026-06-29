@@ -11,6 +11,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, stableKey TEXT UNIQUE, name TEXT NOT NULL,
     subject TEXT NOT NULL, body TEXT NOT NULL, dayOffset INTEGER NOT NULL,
     sendMode TEXT NOT NULL DEFAULT 'manual', enabled INTEGER NOT NULL DEFAULT 1,
+    anchor TEXT NOT NULL DEFAULT 'start',
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -23,7 +24,8 @@ const DDL = `
   );
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
-    clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT
+    clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
+    validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER, depositPaid INTEGER DEFAULT 0
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
@@ -169,6 +171,28 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
 
   const rows = model.listPending({ today, lookbackDays: 7 });
   assert.ok(rows.some((r) => r.reservationId === 120), 'the post-stay email survives a past startDate');
+});
+
+test('listPending: a validUntil-anchored reminder surfaces for an open, deposit-unpaid devis; converted/paid excluded', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Tom', 'Baz', 'tom@b.fr')").run();
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
+  // deposit_reminder anchored on validUntil, dayOffset -3.
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (40, 'deposit_reminder', 'Relance', 'S', 'B', -3, 'manual', 1, 'validUntil')").run();
+  // A normal startDate-anchored reminder must NOT match devis (kind filter on the start branch).
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (41, 'arrival_reminder_7d', 'J-7', 'S', 'B', -7, 'manual', 1, 'start')").run();
+
+  const today = '2026-07-01';
+  // validUntil = today + 3 → sendDate = validUntil - 3 = 2026-07-01, inside [today-7, today].
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus, depositPaid) VALUES (400, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent', 0)").run();
+  // Converted devis → excluded.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus, convertedReservationId, depositPaid) VALUES (401, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'converted', 999, 0)").run();
+  // Deposit already paid → excluded.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus, depositPaid) VALUES (402, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent', 1)").run();
+
+  const rows = model.listPending({ today, lookbackDays: 7 });
+  const reminderRows = rows.filter((r) => r.templateName === 'Relance');
+  assert.deepEqual(reminderRows.map((r) => r.reservationId), [400], 'only the open unpaid devis surfaces');
 });
 
 test('listPending: event/action-triggered templates (deposit_request, reservation_confirmation) never surface', () => {

@@ -258,6 +258,55 @@ const DEPOSIT_REQUEST_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// Deposit reminder — MANUAL, anchored on the devis validity date (validUntil). Surfaces in the manual
+// pending queue for an open, deposit-unpaid devis; the host sends it by hand. Re-offers the existing
+// open deposit link, injected at send time as {{paymentLink}} (emailsController.buildPreview).
+const DEPOSIT_REMINDER_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Votre devis pour le séjour {{propertyWithArticle}} arrive à expiration le {{validUntil}}. Pour confirmer votre réservation et bloquer vos dates, il vous suffit de régler l\'acompte.',
+  '',
+  'Récapitulatif de votre séjour :',
+  '- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+  '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+  '- Montant total du séjour : {{finalPrice}}',
+  '',
+  'Acompte à régler : {{depositAmount}}',
+  '',
+  '{{#if hasPaymentLink}}Payer l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  '',
+  'Passé le {{validUntil}}, le devis ne sera plus valable et vos dates pourront être proposées à d\'autres clients.',
+  '',
+  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const DEPOSIT_REMINDER_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'Your quote for the stay at {{propertyWithArticle}} expires on {{validUntil}}. To confirm your reservation and secure your dates, simply pay the deposit.',
+  '',
+  'Summary of your stay:',
+  '- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}} from {{checkInTime}}',
+  '- Departure: {{endDate}} before {{checkOutTime}}',
+  '- Total stay amount: {{finalPrice}}',
+  '',
+  'Deposit to pay: {{depositAmount}}',
+  '',
+  '{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
+  '',
+  'After {{validUntil}}, the quote will no longer be valid and your dates may be offered to other guests.',
+  '',
+  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 const DEFAULT_TEMPLATES = Object.freeze([
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
@@ -301,6 +350,18 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    DEPOSIT_REQUEST_BODY_EN,
     dayOffset: 0,          // sentinel — action-triggered (host « Envoyer la demande d'acompte »)
     sendMode:  'manual',   // sent by the host action, excluded from queue/cron (EVENT_TRIGGERED_STABLE_KEYS)
+    enabled:   true,
+  }),
+  Object.freeze({
+    stableKey: 'deposit_reminder',
+    name:      'Relance acompte (avant expiration du devis)',
+    subject:   'Votre devis {{propertyWithArticle}} expire bientôt',
+    body:      DEPOSIT_REMINDER_BODY,
+    subjectEn: 'Your quote for {{propertyWithArticle}} is about to expire',
+    bodyEn:    DEPOSIT_REMINDER_BODY_EN,
+    anchor:    'validUntil', // scheduled off the devis validity date, not arrival (see emailLogModel.listPending)
+    dayOffset: -3,           // surfaces in the manual queue 3 days before the devis expires (editable)
+    sendMode:  'manual',     // MANUAL on purpose — the host sends it by hand from the pending queue
     enabled:   true,
   }),
   // ───────────────────────────────────────────────────────────────────────────────

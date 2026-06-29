@@ -126,9 +126,17 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
      and never breaks the payment flow. A **balance** payment is a later top-up and does **not** retrigger
      this confirmation. The template is editable like any other on the Emails page.
 10. Conversion reuses `devisModel.convertToReservation`; the deposit-paid date is the conversion day.
-11. **Deposit reminders (same system as the balance, configurable).** While the deposit is unpaid, the
-    guest gets reminder emails at the configured offsets before the deposit due date (default **J-5**
-    and **J-day**) — dunning, with the payment link.
+11. **Deposit reminder — manual, anchored on the devis validity date (implemented 2026-06-29).** While
+    a devis is still open (not converted) and its deposit is unpaid, a **`deposit_reminder`** email
+    surfaces in the **manual pending queue** (the existing dashboard/EmailPendingDialog flow) — the host
+    sends it **by hand**, it is **not** auto-sent. Its scheduling **anchor is the devis `validUntil`
+    date** (not the arrival date): it appears `dayOffset` days around `validUntil` (default **J-3**,
+    editable on the Emails page). The email reminds the guest the quote expires on `{{validUntil}}`,
+    recaps the stay + `{{depositAmount}}`, and re-offers the **existing open deposit payment link**
+    (`{{paymentLink}}`, injected read-only at send time; if no open link exists the body falls back to a
+    "contactez-nous" line). _Decision (2026-06-29):_ kept manual on the user's explicit request — only
+    the template + the validity-date trigger were built; no auto-send cron, no abandonment yet (rule 12
+    still deferred).
 12. **Deposit overdue → devis abandoned + client email.** At the configured offset after the deposit
     due date (default **J+1**) with the deposit still unpaid, the **devis is switched to "abandoned"**
     (it never became a reservation; no dates were blocked), a **dashboard message** + **host email**
@@ -177,8 +185,11 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 
 20. Deposit/confirmation emails after a payment are **event-driven**. Scheduled reminders are relative
     to a payment **due date**, not the arrival date — so payment templates carry a scheduling
-    **anchor** (`depositDueDate` | `balanceDueDate`) in addition to the existing `startDate` anchor.
-    The configurable offsets (§3.1) drive *when*; the templates drive *what*.
+    **anchor** in addition to the existing `startDate` anchor. **Implemented:** `email_templates.anchor`
+    (`'start'` default | `'validUntil'`); a `'validUntil'`-anchored template is surfaced by
+    `emailLogModel.listPending` against **open, deposit-unpaid devis** (computed `sendDate =
+    validUntil + dayOffset`), so the existing manual queue drives *when to propose it* and the host
+    decides *when to send*. Future `depositDueDate` / `balanceDueDate` anchors slot into the same column.
 
 **Edge cases:**
 - Deposit/balance paid twice / link reused → idempotent (single-use links; a `paid` link is never re-processed).
@@ -210,15 +221,16 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 | `utils/` | `paymentTimingsValidation.js` | C | **Done.** Pure validator for the editable timings (offset arrays + day fields, ranges); used by `updateSettings`. |
 | `controllers/` | `dashboardController.js` | T | Surface payment dashboard messages (paid, overdue) + the cancel action. |
 | `routes/` | `payments.js` | C | `POST /reservations/:id/payment-links`, `GET …/status`, `POST …/cancel-unpaid`, payment-settings + Qonto OAuth routes. |
-| `utils/` | `emailContextBuilder.js` | T | Add the stay-recap + payment context (amounts, link URL, due date, signature/logo) for the new templates. |
+| `utils/` | `emailContextBuilder.js` | C | Stay-recap + payment context. **Done:** default `paymentLink`/`hasPaymentLink`; **`validUntil`** (devis validity date, formatted) for the deposit reminder. |
+| `controllers/` | `emailsController.js` (link injection) | C | **Done.** `buildPreview` injects the existing **open deposit link** (`paymentLinksModel.findOpenForReservation`, read-only) as `paymentLink`/`hasPaymentLink` for the `deposit_reminder` template, so the manual send carries the link without a Qonto write. `loadReservationGraph` is now **kind-agnostic** (loads devis too) so a devis-targeted reminder can be previewed/sent. |
 | `utils/` | `reservationEmailSender.js` | C | **Done.** Event-/action-triggered send of a template by `stableKey` for a reservation (load graph → `buildContext` → merge optional `extraContext` (e.g. `{ paymentLink }`) → `pickTemplateSide` → `renderTemplate` → send → `email_log`). Never throws; `buildConfirmationSender()` currys deps into the `sendConfirmation(reservationId)` passed to `runPaymentPoll`. |
 | `utils/` | `paymentPollRunner.js` | C | **Done.** On a paid **deposit**/**full** link that confirms a stay, calls the injected `sendConfirmation` (best-effort) after applying the paid effect; a **balance** payment does not. |
-| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | C | **`reservation_confirmation` + `deposit_request` done** (FR + EN, `dayOffset 0` sentinel, `sendMode 'manual'` but excluded from queue/cron — sent programmatically/by host action; shared `EVENT_TRIGGERED_STABLE_KEYS` constant drives the exclusion). To come: deposit reminder, deposit-abandoned (client), full-payment request (last-minute), balance request/reminder/confirmed, balance-abandoned (client), overdue-internal (host). |
-| `models/` | `emailLogModel.js` | C | **Done.** `listPending` excludes the `EVENT_TRIGGERED_STABLE_KEYS` (`reservation_confirmation`, `deposit_request`; `COALESCE(stableKey,'')` NULL-safe) so action/event-triggered emails never surface in the manual pending queue. |
+| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | C | **`reservation_confirmation` + `deposit_request` + `deposit_reminder` done** (FR + EN). The first two are `dayOffset 0` sentinels excluded from queue/cron (shared `EVENT_TRIGGERED_STABLE_KEYS`). **`deposit_reminder`** carries `anchor:'validUntil'` + `dayOffset -3`, `sendMode 'manual'` — it *does* surface in the manual queue (the host sends it). Seed inserts `anchor` defensively (defaults `'start'`). To come: deposit-abandoned (client), full-payment request, balance request/reminder/confirmed, balance-abandoned (client), overdue-internal (host). |
+| `models/` | `emailLogModel.js` | C | **Done.** `listPending` is a `UNION ALL`: the **`start`** branch (unchanged — reservations, `startDate + dayOffset`, past-arrival guard) + the **`validUntil`** branch (open deposit-unpaid **devis**, `validUntil + dayOffset`). Both exclude the `EVENT_TRIGGERED_STABLE_KEYS` (NULL-safe) and already-sent/acknowledged pairs. |
 | `controllers/` | `paymentsController.js` (deposit email) | C | **Done.** `sendPaymentRequestEmail` — resolve type → create/reuse the link → render+send the `<type>_request` template via `reservationEmailSender` with `extraContext:{ paymentLink, hasPaymentLink:true }` → return `{ sent, url, amountCents, emailLogId, recipientEmail }` (400 when no client email). |
 | `utils/` | `emailAutoSendRunner.js` | T | Support the **`depositDueDate` / `balanceDueDate` anchors** + the configurable offsets (alongside the existing `startDate` anchor). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New **payment polling pass** (twice/day; detect paid links → trigger flows) + drive the deposit/balance reminder + abandonment passes off the configured offsets. |
-| `database.js` | `database.js` | T | Migrations: create `payment_links`; add Qonto + payment-timing settings columns; add `reservations.cancelledUnpaidAt`; add template `anchor` column. |
+| `database.js` | `database.js` | C | Migrations: create `payment_links`; Qonto + payment-timing settings columns (**done**); **`email_templates.anchor TEXT NOT NULL DEFAULT 'start'` (done)**. To come: `reservations.cancelledUnpaidAt`. |
 
 **Notes:** routes thin; Qonto calls isolated in `qontoClient` (mockable). Secrets via `encryption.js`.
 Polling + reminder passes reuse the scheduler's in-progress-guard pattern (like `emailAutoSendInProgress`).
@@ -263,6 +275,12 @@ list). Email rendering stays server-side.
 `id, reservationId, type ('deposit'|'balance'|'complement'), qontoPaymentLinkId, url, amountCents,
 currency DEFAULT 'EUR', status ('open'|'paid'|'expired'|'cancelled'), qontoPaymentId, createdAt,
 paidAt, expiresAt`. Index on `(status)` and `(reservationId)`.
+
+**`email_templates` new column:** `anchor TEXT NOT NULL DEFAULT 'start'` (`'start'` | `'validUntil'`) —
+the scheduling anchor `listPending` uses to compute a template's send date. `'start'` (default for every
+existing row) keeps the historical `startDate + dayOffset` behaviour; `'validUntil'` anchors on the
+devis validity date and targets open deposit-unpaid devis (the `deposit_reminder`). Idempotent migration
+in `database.js`.
 
 **`app_settings` new columns:**
 - Encrypted Qonto: `qontoClientIdEncrypted`, `qontoClientSecretEncrypted`, `qontoAccessTokenEncrypted`,
@@ -322,6 +340,11 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
       rendered `deposit_request` body contains the link + the deposit amount; `EVENT_TRIGGERED_STABLE_KEYS`
       keeps both `deposit_request` and `reservation_confirmation` out of `listPending`.
       _(reservation-email-sender + email-log-model unit tests)_
+- [x] **Deposit reminder (manual, `validUntil` anchor)** — a `validUntil`-anchored `deposit_reminder`
+      surfaces in `listPending` for an open, deposit-unpaid devis at `validUntil + dayOffset`; a
+      **converted** devis and a **deposit-paid** one are excluded; the `start` branch behaviour is
+      unchanged. `emailsController.buildPreview` injects the open deposit link as `{{paymentLink}}`
+      (and `hasPaymentLink`), empty when there is no open link. _(email-log-model + emails-controller unit tests)_
 - [ ] Reminder/abandonment scheduling — deposit (J-5/J-day, abandon J+1) off `depositDueDate` and
       balance (J-10/J-5/J-day, abandon J+1) off `balanceDueDate`, all from the **configured offsets**;
       paid → later reminders suppressed.

@@ -15,6 +15,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, stableKey TEXT UNIQUE, name TEXT NOT NULL,
     subject TEXT NOT NULL, body TEXT NOT NULL, dayOffset INTEGER NOT NULL,
     sendMode TEXT NOT NULL DEFAULT 'manual', enabled INTEGER NOT NULL DEFAULT 1,
+    anchor TEXT NOT NULL DEFAULT 'start',
     createdAt TEXT NOT NULL DEFAULT (datetime('now')), updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE TABLE email_log (
@@ -31,7 +32,8 @@ const DDL = `
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
-    checkInTime TEXT, checkOutTime TEXT, cautionAmount REAL, cautionReceived INTEGER, depositPaid INTEGER
+    checkInTime TEXT, checkOutTime TEXT, cautionAmount REAL, cautionReceived INTEGER, depositPaid INTEGER,
+    validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT, updatedAt TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT, defaultCheckOut TEXT);
