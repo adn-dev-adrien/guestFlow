@@ -1284,6 +1284,9 @@ db.exec(`
   const etCols = db.prepare('PRAGMA table_info(email_templates)').all().map((c) => c.name);
   if (!etCols.includes('subjectEn')) db.exec('ALTER TABLE email_templates ADD COLUMN subjectEn TEXT');
   if (!etCols.includes('bodyEn'))    db.exec('ALTER TABLE email_templates ADD COLUMN bodyEn TEXT');
+  // Scheduling anchor for listPending (specs/online-payments-qonto.md §3.8): 'start' = legacy
+  // startDate+dayOffset; 'validUntil' = devis validity date (deposit reminder). Existing rows → 'start'.
+  if (!etCols.includes('anchor'))    db.exec("ALTER TABLE email_templates ADD COLUMN anchor TEXT NOT NULL DEFAULT 'start'");
 }
 
 const { ensureDefaultEmailTemplates } = require('./utils/defaultEmailTemplatesSeed');

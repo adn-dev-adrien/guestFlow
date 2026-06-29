@@ -6,6 +6,7 @@ const templatesModel = require('../models/emailTemplatesModel');
 const logModel       = require('../models/emailLogModel');
 const manualQueueModel = require('../models/emailManualQueueModel');
 const settingsModel  = require('../models/settingsModel');
+const paymentLinksModel = require('../models/paymentLinksModel');
 const { createEmailService } = require('../utils/emailService');
 
 const controller = buildController({
@@ -14,6 +15,7 @@ const controller = buildController({
   logModel,
   manualQueueModel,
   settingsModel,
+  paymentLinksModel,
   emailServiceFactory: createEmailService,
 });
 

@@ -34,11 +34,13 @@ function loadArrivalComplementDetail(database, reservationId) {
  * The cron + the controller share this loader so a regression on either path stays in
  * sync (no rendering drift between scheduled + manual sends).
  */
+// Loads a reservation OR a devis (the deposit_reminder targets devis) plus its client/property/options
+// graph, for rendering an email. Kind-agnostic on purpose — buildContext renders either.
 function loadReservationGraph(database, reservationId) {
   const id = Number(reservationId);
   const reservation = database.prepare(`
     SELECT * FROM reservations
-    WHERE id = ? AND COALESCE(kind, 'reservation') = 'reservation'
+    WHERE id = ?
   `).get(id);
   if (!reservation) return null;
   const client = reservation.clientId
@@ -80,7 +82,10 @@ function loadReservationGraph(database, reservationId) {
   return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail };
 }
 
-function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel }) {
+// Templates that re-offer an existing payment link (injected read-only at preview/send time).
+const PAYMENT_LINK_TEMPLATES = { deposit_reminder: 'deposit' };
+
+function buildController({ database, templatesModel, logModel, settingsModel, emailServiceFactory, manualQueueModel, paymentLinksModel }) {
   function readSettings() {
     return settingsModel.read();
   }
@@ -120,6 +125,16 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       settings:    readSettings(),
       lang:        useLang,
     });
+
+    // Payment-link templates (e.g. deposit_reminder) re-offer the existing OPEN link for the devis —
+    // read-only, no Qonto write. Empty when there is none → the body falls back via {{#if hasPaymentLink}}.
+    const linkType = PAYMENT_LINK_TEMPLATES[template.stableKey];
+    if (linkType && paymentLinksModel && typeof paymentLinksModel.findOpenForReservation === 'function') {
+      const openLink = paymentLinksModel.findOpenForReservation(Number(reservationId), linkType);
+      const url = openLink && openLink.url ? openLink.url : '';
+      context.vars.paymentLink = url;
+      context.flags.hasPaymentLink = Boolean(url);
+    }
 
     // Template side for the language (EN if filled, else FR fallback). Operator overrides still win.
     const side = pickTemplateSide(template, useLang);
