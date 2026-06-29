@@ -2340,6 +2340,10 @@ export default function ReservationPage() {
       return;
     }
     try {
+      // Persist current edits first so the link amount matches the acompte shown on the fiche
+      // (the server recomputes from the SAVED devis).
+      const saved = await handleSaveReservation(() => {});
+      if (!saved) return;
       const r = await api.createReservationPaymentLink(editingDevisId, 'deposit');
       if (r.url) window.open(r.url, '_blank', 'noopener');
       const euros = (Number(r.amountCents || 0) / 100).toFixed(2).replace('.', ',');
