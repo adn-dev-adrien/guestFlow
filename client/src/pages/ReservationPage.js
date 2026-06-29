@@ -12,6 +12,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import PageActionBar from '../components/PageActionBar';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
@@ -2331,6 +2332,47 @@ export default function ReservationPage() {
     updateForm({ status: nextStatus });
   };
 
+  // Online payments (specs/online-payments-qonto.md §3.4): create + open the deposit payment link for
+  // this devis, then offer to poll for the payment (which converts the devis on success).
+  const handleSendDepositRequest = async () => {
+    if (!editingDevisId) {
+      await alert({ title: 'Enregistre d’abord', message: 'Enregistre le devis avant de générer une demande d’acompte.' });
+      return;
+    }
+    try {
+      const r = await api.createReservationPaymentLink(editingDevisId, 'deposit');
+      if (r.url) window.open(r.url, '_blank', 'noopener');
+      const euros = (Number(r.amountCents || 0) / 100).toFixed(2).replace('.', ',');
+      const check = await confirm({
+        title: 'Demande d’acompte',
+        message: `Lien de paiement de l’acompte (${euros} €) ouvert dans un nouvel onglet. Paie-le (carte de test en sandbox), puis clique « Vérifier le paiement ».\n\nLien : ${r.url}`,
+        confirmLabel: 'Vérifier le paiement',
+        cancelLabel: 'Fermer',
+        confirmColor: 'primary',
+      });
+      if (check) await handleCheckDepositPayment();
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible de créer le lien (Qonto connecté ?).' });
+    }
+  };
+
+  const handleCheckDepositPayment = async () => {
+    try {
+      const summary = await api.pollPayments();
+      const conv = (summary.results || []).find((x) => Number(x.reservationId) === Number(editingDevisId) && x.status === 'paid');
+      if (conv && (conv.effect === 'converted' || conv.effect === 'already-converted')) {
+        await alert({ title: 'Acompte reçu ✓', message: 'Le devis a été converti en réservation (dates bloquées).' });
+        navigate(`/reservations/${conv.reservationId}?from=${encodeURIComponent('/calendar')}`);
+      } else if (conv) {
+        await alert({ title: 'Acompte reçu ✓', message: 'Le paiement de l’acompte est enregistré.' });
+      } else {
+        await alert({ title: 'Pas encore payé', message: 'Aucun paiement détecté pour ce devis. Réessaie après avoir réglé le lien.' });
+      }
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Vérification impossible.' });
+    }
+  };
+
   const handleDeleteDevis = async () => {
     if (!editingDevisId) return;
     const ok = await confirm({
@@ -2467,6 +2509,9 @@ export default function ReservationPage() {
     }] : []),
     ...(isDevisMode
       ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
+    // specs/online-payments-qonto.md §3.4 — generate + send the Qonto deposit payment link for this devis.
+    ...(isDevisMode && editingDevisId
+      ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande d\'acompte', onClick: handleSendDepositRequest, color: 'success' }] : []),
   ];
 
   const actionBarAfter = [

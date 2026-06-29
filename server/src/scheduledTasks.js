@@ -19,6 +19,13 @@ const reservationsModel = require('./models/reservationsModel');
 const pushService = require('./utils/pushService');
 const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner');
 
+// Online-payment polling (specs/online-payments-qonto.md §3.3): detect paid Qonto links → convert.
+const paymentLinksModel = require('./models/paymentLinksModel');
+const devisModel = require('./models/devisModel');
+const { buildQontoClient } = require('./utils/qontoClient');
+const { getValidQontoAccessToken } = require('./utils/qontoAuth');
+const { runPaymentPoll } = require('./utils/paymentPollRunner');
+
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
 let emailAutoSendInProgress = false;
@@ -187,6 +194,29 @@ async function runArrivalDeparturePushPass(reason = 'tick') {
   }
 }
 
+// Online payments: poll open Qonto links → mark paid → convert devis / flag deposit. Skips silently
+// when Qonto isn't connected (no token) so it's a no-op until the operator connects.
+let paymentPollInProgress = false;
+async function runPaymentPollPass(reason = 'cron') {
+  if (paymentPollInProgress) return;
+  if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
+  paymentPollInProgress = true;
+  try {
+    const summary = await runPaymentPoll({
+      database: db,
+      paymentLinksModel,
+      devisModel,
+      qontoClient: buildQontoClient(),
+      getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
+    });
+    if (summary.paid > 0) console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
+  } catch (err) {
+    console.error('[payments] poll pass error:', err && err.message ? err.message : err);
+  } finally {
+    paymentPollInProgress = false;
+  }
+}
+
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -223,6 +253,11 @@ function startScheduledTasks() {
   const ARRIVAL_DEPARTURE_PUSH_TICK = 60 * 1000;
   setInterval(() => runArrivalDeparturePushPass('tick').catch((err) => console.error('[push] unhandled:', err)), ARRIVAL_DEPARTURE_PUSH_TICK);
   setTimeout(() => runArrivalDeparturePushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 95 * 1000);
+
+  // Online-payment polling: every 15 min (cheap; the manual "poll now" button covers on-demand checks).
+  const PAYMENT_POLL_TICK = 15 * 60 * 1000;
+  setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
+  setTimeout(() => runPaymentPollPass('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
 }
 
 module.exports = {

@@ -12,9 +12,13 @@
  */
 
 const crypto = require('crypto');
+const database = require('../database');
 const settingsModel = require('../models/settingsModel');
+const paymentLinksModel = require('../models/paymentLinksModel');
+const devisModel = require('../models/devisModel');
 const { buildQontoClient } = require('../utils/qontoClient');
 const { getValidQontoAccessToken } = require('../utils/qontoAuth');
+const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimingsValidation');
 const { validateProviderConnection } = require('../utils/paymentProviderValidation');
 
@@ -168,7 +172,61 @@ async function qontoRefreshConnection(req, res) {
   } catch (err) { return qontoError(res, err); }
 }
 
+// ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
+
+const LINK_TYPES = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
+const LINK_TITLES = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour' };
+
+// Create a Qonto payment link for a reservation/devis (deposit by default). The amount comes from the
+// engine-computed reservation fields (depositAmount / balanceAmount / finalPrice), never the client.
+async function createReservationPaymentLink(req, res) {
+  const id = Number(req.params.id);
+  const type = String((req.body && req.body.type) || 'deposit');
+  if (!LINK_TYPES[type]) return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' });
+
+  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice FROM reservations WHERE id = ?').get(id);
+  if (!r) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const amountCents = Math.round(Number(r[LINK_TYPES[type]] || 0) * 100);
+  if (amountCents <= 0) return res.status(400).json({ error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type — vérifie le devis/réservation.' });
+
+  // Reuse the current open link of that type if there is one (avoid duplicates on a double-click).
+  const existing = paymentLinksModel.findOpenForReservation(id, type);
+  if (existing && existing.url) {
+    return res.json({ id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true });
+  }
+
+  try {
+    const link = await withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title: LINK_TITLES[type], amountCents }));
+    const row = paymentLinksModel.create({
+      reservationId: id, type, amountCents,
+      qontoPaymentLinkId: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null,
+    });
+    return res.json({ id: row.id, type, amountCents, url: link.url, status: link.mappedStatus, qontoPaymentLinkId: link.id });
+  } catch (err) { return qontoError(res, err); }
+}
+
+// Every payment link of a reservation/devis (newest first) — the status the UI renders.
+function listReservationPaymentLinks(req, res) {
+  return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
+}
+
+// Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
+// cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
+async function pollPaymentsNow(req, res) {
+  try {
+    const summary = await runPaymentPoll({
+      database,
+      paymentLinksModel,
+      devisModel,
+      qontoClient: buildQontoClient(),
+      getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
+    });
+    return res.json(summary);
+  } catch (err) { return qontoError(res, err); }
+}
+
 module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
+  createReservationPaymentLink, listReservationPaymentLinks, pollPaymentsNow,
 };
