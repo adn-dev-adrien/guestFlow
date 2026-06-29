@@ -81,6 +81,43 @@ test('idempotent: a second pass does nothing (the paid link is no longer open)',
   assert.equal(convertedCount2, convertedCount1, 'no second conversion');
 });
 
+test('a paid deposit link → calls sendConfirmation with the converted reservation id', async () => {
+  const { db, devisId } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_1', url: 'u', status: 'open' });
+
+  const calls = [];
+  await runPaymentPoll({ ...deps(db, 'paid'), sendConfirmation: async (id) => { calls.push(id); } });
+
+  const convertedId = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(devisId).convertedReservationId;
+  assert.deepEqual(calls, [convertedId], 'confirmation sent once, for the real reservation');
+});
+
+test('a paid balance link → does NOT send a confirmation (it is a later top-up, not the initial confirmation)', async () => {
+  const { db, devisId } = seed();
+  // Convert the devis to a reservation first so a balance link targets a real stay.
+  const conv = devisModel.buildModel(db).convertToReservation(devisId);
+  const resaId = conv.data.reservationId;
+  const links = paymentLinksModel.buildModel(db);
+  links.create({ reservationId: resaId, type: 'balance', amountCents: 21000, qontoPaymentLinkId: 'ql_bal', url: 'u', status: 'open' });
+
+  const calls = [];
+  await runPaymentPoll({ ...deps(db, 'paid'), sendConfirmation: async (id) => { calls.push(id); } });
+
+  assert.equal(db.prepare('SELECT balancePaid FROM reservations WHERE id = ?').get(resaId).balancePaid, 1);
+  assert.deepEqual(calls, [], 'no confirmation for a balance payment');
+});
+
+test('a confirmation that throws never breaks the poll (best-effort)', async () => {
+  const { db, devisId } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  const link = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_1', url: 'u', status: 'open' });
+
+  const summary = await runPaymentPoll({ ...deps(db, 'paid'), sendConfirmation: async () => { throw new Error('SMTP down'); } });
+  assert.equal(summary.paid, 1, 'the link is still marked paid despite the email error');
+  assert.equal(db.prepare('SELECT status FROM payment_links WHERE id = ?').get(link.id).status, 'paid');
+});
+
 test('an open link stays open; an expired link is recorded', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);

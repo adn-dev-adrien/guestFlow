@@ -51,7 +51,12 @@ function applyPaidEffect({ database, devisModel, link }) {
   return { effect: 'noop' };
 }
 
-async function runPaymentPoll({ database, paymentLinksModel, qontoClient, getAccessToken, devisModel }) {
+// A paid link confirms the stay (→ send the confirmation email) for the deposit (use case 1) and the
+// full-payment (use case 2) flows; a balance payment is a later top-up, not the initial confirmation.
+const CONFIRMING_TYPES = new Set(['deposit', 'full']);
+const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-marked', 'balance-marked']);
+
+async function runPaymentPoll({ database, paymentLinksModel, qontoClient, getAccessToken, devisModel, sendConfirmation }) {
   const open = paymentLinksModel.listOpen();
   const results = [];
   let accessToken = null;
@@ -67,6 +72,11 @@ async function runPaymentPoll({ database, paymentLinksModel, qontoClient, getAcc
         const p = pay.paidPayment || {};
         paymentLinksModel.markPaid(link.id, { qontoPaymentId: p.id || null, paidAt: p.paid_at || new Date().toISOString() });
         const effect = applyPaidEffect({ database, devisModel, link });
+        // Best-effort confirmation email — never let an email failure break the payment poll.
+        if (sendConfirmation && CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
+          const confirmedId = effect.reservationId || link.reservationId;
+          try { await sendConfirmation(confirmedId); } catch (e) { /* logged inside the sender */ }
+        }
         results.push({ id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect });
         continue;
       }

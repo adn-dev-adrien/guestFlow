@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Phase 2 (deposit happy-path) Implemented — validated on sandbox; balance/reminders/abandonment deferred |
+| **Status** | Phase 2 (deposit happy-path + confirmation email) Implemented — validated on sandbox; balance/reminders/abandonment deferred |
 | **Branch** | `feature/qonto-online-payments-phase2` _(user-managed)_ |
 | **Created** | 2026-06-11 |
 | **Author** | Adrien |
@@ -109,6 +109,15 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
      séjour confirmé") with the stay recap.
    - **Manual:** the host converts the devis → on conversion, the guest gets the same confirmation
      email.
+   - **Confirmation email — implemented.** The guest confirmation is the default template
+     `reservation_confirmation` (FR + EN; subject "Confirmation de votre réservation …"; body recaps
+     the **stay total** `{{finalPrice}}`, **dates + times**, **options** and **resources**). It is
+     **event-triggered** (sent by `utils/reservationEmailSender` from the payment poll the instant a
+     paid link confirms the stay — deposit, use case 1; or full payment, use case 2), never
+     date-scheduled: it is excluded from the manual pending queue (`emailLogModel.listPending`) and from
+     the `auto` cron. The send is **best-effort** — an SMTP error is logged in `email_log` as `failed`
+     and never breaks the payment flow. A **balance** payment is a later top-up and does **not** retrigger
+     this confirmation. The template is editable like any other on the Emails page.
 10. Conversion reuses `devisModel.convertToReservation`; the deposit-paid date is the conversion day.
 11. **Deposit reminders (same system as the balance, configurable).** While the deposit is unpaid, the
     guest gets reminder emails at the configured offsets before the deposit due date (default **J-5**
@@ -195,7 +204,10 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 | `controllers/` | `dashboardController.js` | T | Surface payment dashboard messages (paid, overdue) + the cancel action. |
 | `routes/` | `payments.js` | C | `POST /reservations/:id/payment-links`, `GET …/status`, `POST …/cancel-unpaid`, payment-settings + Qonto OAuth routes. |
 | `utils/` | `emailContextBuilder.js` | T | Add the stay-recap + payment context (amounts, link URL, due date, signature/logo) for the new templates. |
-| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | T | Seed the new templates: deposit request, deposit reminder, deposit confirmed, **deposit-abandoned (client)**, full-payment request (last-minute), balance request, balance reminder, balance confirmed, **balance-abandoned (client)**, overdue-internal (host). |
+| `utils/` | `reservationEmailSender.js` | C | **Done.** Event-triggered send of a template by `stableKey` for a reservation (load graph → `buildContext` → `pickTemplateSide` → `renderTemplate` → send → `email_log`). Never throws; `buildConfirmationSender()` currys deps into the `sendConfirmation(reservationId)` passed to `runPaymentPoll`. |
+| `utils/` | `paymentPollRunner.js` | C | **Done.** On a paid **deposit**/**full** link that confirms a stay, calls the injected `sendConfirmation` (best-effort) after applying the paid effect; a **balance** payment does not. |
+| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | C | **`reservation_confirmation` done** (FR + EN, `dayOffset 0` sentinel, `sendMode 'manual'` but excluded from queue/cron — sent programmatically). To come: deposit request, deposit reminder, deposit-abandoned (client), full-payment request (last-minute), balance request/reminder/confirmed, balance-abandoned (client), overdue-internal (host). |
+| `models/` | `emailLogModel.js` | C | **Done.** `listPending` excludes `reservation_confirmation` (`COALESCE(stableKey,'')` NULL-safe) so the event-triggered confirmation never surfaces in the manual pending queue. |
 | `utils/` | `emailAutoSendRunner.js` | T | Support the **`depositDueDate` / `balanceDueDate` anchors** + the configurable offsets (alongside the existing `startDate` anchor). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New **payment polling pass** (twice/day; detect paid links → trigger flows) + drive the deposit/balance reminder + abandonment passes off the configured offsets. |
 | `database.js` | `database.js` | T | Migrations: create `payment_links`; add Qonto + payment-timing settings columns; add `reservations.cancelledUnpaidAt`; add template `anchor` column. |
@@ -288,8 +300,13 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 - [ ] **Last-minute engine rule (`pricing.js`)** — a stay starting within the window → deposit = 0,
       full total due (depositDisabled), like iCal; outside the window → normal deposit/balance split;
       threshold is the configurable window.
-- [ ] Polling pass — open link paid → marks paid + converts devis + posts dashboard msg + queues
-      emails; already-paid link skipped; API error doesn't throw.
+- [x] Polling pass — open link paid → marks paid + converts devis + posts dashboard msg + queues
+      emails; already-paid link skipped; API error doesn't throw. _(payment-poll-runner unit tests)_
+- [x] **Confirmation email** — a paid **deposit**/**full** link triggers `sendConfirmation` with the
+      confirmed reservation id; a **balance** payment does not; a throwing sender never breaks the poll.
+      `reservationEmailSender` renders + sends the `reservation_confirmation` template and logs `sent`,
+      logs `failed` on SMTP error, and skips when the client has no email.
+      _(payment-poll-runner + reservation-email-sender unit tests)_
 - [ ] Reminder/abandonment scheduling — deposit (J-5/J-day, abandon J+1) off `depositDueDate` and
       balance (J-10/J-5/J-day, abandon J+1) off `balanceDueDate`, all from the **configured offsets**;
       paid → later reminders suppressed.
@@ -298,7 +315,8 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 - [ ] Email context — deposit/balance/full recap + amounts + link + signature/logo present.
 
 ### Manual verification
-- [ ] End-to-end on a Qonto **test/sandbox**: deposit link → pay → polling converts devis + emails.
+- [x] End-to-end on a Qonto **test/sandbox**: deposit link → pay → polling converts devis. _(confirmation
+      email send requires SMTP configured; the conversion + send wiring is unit-tested.)_
 - [ ] Last-minute devis (≤ 30 j) → no deposit on the fiche, single full-payment email + link.
 - [ ] Deposit unpaid past deadline → devis abandoned + client email + unpaid page.
 - [ ] Balance J-10 email + link; pay → confirmation; overdue J+1 → client email + dashboard cancel → unpaid page.
