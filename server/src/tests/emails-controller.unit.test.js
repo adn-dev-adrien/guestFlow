@@ -15,6 +15,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, stableKey TEXT UNIQUE, name TEXT NOT NULL,
     subject TEXT NOT NULL, body TEXT NOT NULL, dayOffset INTEGER NOT NULL,
     sendMode TEXT NOT NULL DEFAULT 'manual', enabled INTEGER NOT NULL DEFAULT 1,
+    anchor TEXT NOT NULL DEFAULT 'start',
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -31,7 +32,8 @@ const DDL = `
     adults INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, children INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
     singleBeds INTEGER, doubleBeds INTEGER, babyBeds INTEGER,
     finalPrice REAL, depositAmount REAL, depositDueDate TEXT,
-    balanceAmount REAL, balanceDueDate TEXT, cautionAmount REAL, depositPaid INTEGER
+    balanceAmount REAL, balanceDueDate TEXT, cautionAmount REAL, depositPaid INTEGER,
+    validUntil TEXT, devisStatus TEXT, convertedReservationId INTEGER
   );
   CREATE TABLE clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT, phone TEXT,
@@ -99,6 +101,30 @@ test('preview: returns recipient + rendered subject + body + missingVariables', 
   assert.equal(r.body.subject, 'Sujet Jean');
   assert.equal(r.body.body, 'Hello Jean');
   assert.deepEqual(r.body.missingVariables, []);
+});
+
+test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}', () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
+  const paymentLinksModel = { findOpenForReservation: (id, type) => (id === 300 && type === 'deposit' ? { url: 'https://pay.qonto/pl_X' } : null) };
+
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
+  const r = res();
+  ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
+  assert.equal(r.body.body, 'Lien : https://pay.qonto/pl_X');
+});
+
+test('preview: deposit_reminder with no open link falls back to the no-link branch', () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
+  const paymentLinksModel = { findOpenForReservation: () => null };
+
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
+  const r = res();
+  ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
+  assert.equal(r.body.body, 'Aucun lien');
 });
 
 test('preview: 404 on unknown template', () => {

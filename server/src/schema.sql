@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS email_templates (
     dayOffset INTEGER NOT NULL,
     sendMode TEXT NOT NULL DEFAULT 'manual',
     enabled INTEGER NOT NULL DEFAULT 1,
+    anchor TEXT NOT NULL DEFAULT 'start',
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now')),
     CHECK (sendMode IN ('auto', 'manual'))

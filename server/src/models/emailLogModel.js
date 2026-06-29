@@ -71,6 +71,12 @@ function buildModel(database) {
   // as soon as `startDate` is in the past. Post-stay emails (`dayOffset > 0`) are meant to fire
   // after arrival and are kept regardless.
   function listPending({ today, lookbackDays = 7 }) {
+    // Event-/action-triggered templates (confirmation on payment, deposit request on host action — see
+    // utils/reservationEmailSender) are sent programmatically, never from this date-driven queue.
+    const notEvent = EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ');
+    // Two scheduling anchors (specs/online-payments-qonto.md §3.8), UNION-ed so each stays readable:
+    //   • 'start'      → reservations, sendDate = startDate + dayOffset (legacy; past-arrival guard).
+    //   • 'validUntil' → open, deposit-unpaid devis, sendDate = validUntil + dayOffset (deposit reminder).
     return database.prepare(`
       SELECT
         t.id   AS templateId,
@@ -92,17 +98,52 @@ function buildModel(database) {
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
         AND t.sendMode = 'manual'
-        -- Event-/action-triggered templates (confirmation on payment, deposit request on host action —
-        -- see utils/reservationEmailSender) are sent programmatically, never from this date-driven queue.
-        AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
+        AND COALESCE(t.anchor, 'start') = 'start'
+        AND COALESCE(t.stableKey, '') NOT IN (${notEvent})
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
-          WHERE l.templateId = t.id
-            AND l.reservationId = r.id
+          WHERE l.templateId = t.id AND l.reservationId = r.id
             AND l.status IN ('sent', 'acknowledged-skip')
         )
-      ORDER BY r.startDate ASC, t.dayOffset ASC
-    `).all(String(today), Number(lookbackDays), String(today), String(today), ...EVENT_TRIGGERED_STABLE_KEYS);
+
+      UNION ALL
+
+      SELECT
+        t.id   AS templateId,
+        t.name AS templateName,
+        t.dayOffset AS dayOffset,
+        r.id   AS reservationId,
+        r.startDate AS startDate,
+        date(r.validUntil, t.dayOffset || ' days') AS sendDate,
+        c.id AS clientId,
+        TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
+        COALESCE(c.email, '') AS clientEmail,
+        COALESCE(p.name, '')  AS propertyName
+      FROM email_templates t
+      JOIN reservations r
+        ON COALESCE(r.kind, '') = 'devis'
+       AND r.validUntil IS NOT NULL
+       AND COALESCE(r.devisStatus, '') NOT IN ('converted', 'abandoned')
+       AND COALESCE(r.convertedReservationId, 0) = 0
+       AND COALESCE(r.depositPaid, 0) != 1
+       AND date(r.validUntil, t.dayOffset || ' days') BETWEEN date(?, '-' || ? || ' days') AND date(?)
+      LEFT JOIN clients    c ON c.id = r.clientId
+      LEFT JOIN properties p ON p.id = r.propertyId
+      WHERE t.enabled = 1
+        AND t.sendMode = 'manual'
+        AND COALESCE(t.anchor, 'start') = 'validUntil'
+        AND COALESCE(t.stableKey, '') NOT IN (${notEvent})
+        AND NOT EXISTS (
+          SELECT 1 FROM email_log l
+          WHERE l.templateId = t.id AND l.reservationId = r.id
+            AND l.status IN ('sent', 'acknowledged-skip')
+        )
+
+      ORDER BY startDate ASC, dayOffset ASC
+    `).all(
+      String(today), Number(lookbackDays), String(today), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+      String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
+    );
   }
 
   // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation

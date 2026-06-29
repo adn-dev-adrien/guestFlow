@@ -331,6 +331,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       finalPrice:      formatCurrency(Number(r.finalPrice || 0)),
       depositAmount:   formatCurrency(Number(r.depositAmount || 0)),
       depositDueDate:  formatDateLong(r.depositDueDate, L),
+      validUntil:      formatDateLong(r.validUntil, L), // devis validity date — used by the deposit reminder
+
       balanceAmount:   formatCurrency(Number(r.balanceAmount || 0)),
       balanceDueDate:  formatDateLong(r.balanceDueDate, L),
       cautionAmount:   formatCurrency(cautionAmountNum),
