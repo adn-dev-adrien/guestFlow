@@ -92,16 +92,23 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 
 ### 3.4 Deposit → confirm the stay
 
-8. **Deposit email (manual trigger from a devis).** Built from a template; contains, in this order:
+8. **Deposit email (manual trigger from a devis) — implemented.** From a saved devis, the host clicks
+   **« Envoyer la demande d'acompte »**: GuestFlow **creates (or reuses) the Qonto deposit link** and
+   **emails it to the guest** in one action (no copy-paste, no tab to open). Built from the editable
+   `deposit_request` template (FR + EN); contains, in this order:
    - Stay recap: **arrival/departure date + time**, **options** chosen, **resources** booked.
-   - Totals: **accommodation + options + resources**, then **tourist tax**.
-   - What to pay now: the **deposit amount**, plus the **full stay total** and the **balance amount +
-     balance due date**.
+   - The **deposit amount to pay now** (`{{depositAmount}}`) and the **full stay total** (`{{finalPrice}}`).
    - A clear notice: **paying the deposit blocks the dates; until then the dates may be taken by
      another guest.**
-   - The **Qonto payment link** for the deposit.
-   - A branded **signature** with the **company name** (SMTP `fromName`/`companyName`) and the
-     **logo** (`companyLogoPath`).
+   - The **Qonto payment link** for the deposit, injected per-send as `{{paymentLink}}` (the link is
+     created on demand, not a reservation column).
+   - A **signature** with the **company name** (SMTP `fromName`/`companyName`).
+   - Sent to the guest's email; if the client has no email, the action fails with a clear message.
+     Like `reservation_confirmation`, `deposit_request` is **action-triggered** — excluded from the
+     manual pending queue and the `auto` cron (sent only by the host's explicit action).
+   - _Deferred (phase 2 of use case 1):_ automated **deposit reminders** (rule 11) and **abandonment**
+     (rule 12); **branded HTML** layout (current emails are plain-text, consistent with the rest of the
+     email system). Totals breakdown (tourist tax line) and the balance-due block stay deferred too.
 9. **On deposit paid:**
    - **Auto (polling):** the devis is **converted to a reservation**, `depositPaid=true` with
      `depositPaidDate = today`, a **dashboard message** is posted, and a **notification email** is sent
@@ -204,10 +211,11 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 | `controllers/` | `dashboardController.js` | T | Surface payment dashboard messages (paid, overdue) + the cancel action. |
 | `routes/` | `payments.js` | C | `POST /reservations/:id/payment-links`, `GET …/status`, `POST …/cancel-unpaid`, payment-settings + Qonto OAuth routes. |
 | `utils/` | `emailContextBuilder.js` | T | Add the stay-recap + payment context (amounts, link URL, due date, signature/logo) for the new templates. |
-| `utils/` | `reservationEmailSender.js` | C | **Done.** Event-triggered send of a template by `stableKey` for a reservation (load graph → `buildContext` → `pickTemplateSide` → `renderTemplate` → send → `email_log`). Never throws; `buildConfirmationSender()` currys deps into the `sendConfirmation(reservationId)` passed to `runPaymentPoll`. |
+| `utils/` | `reservationEmailSender.js` | C | **Done.** Event-/action-triggered send of a template by `stableKey` for a reservation (load graph → `buildContext` → merge optional `extraContext` (e.g. `{ paymentLink }`) → `pickTemplateSide` → `renderTemplate` → send → `email_log`). Never throws; `buildConfirmationSender()` currys deps into the `sendConfirmation(reservationId)` passed to `runPaymentPoll`. |
 | `utils/` | `paymentPollRunner.js` | C | **Done.** On a paid **deposit**/**full** link that confirms a stay, calls the injected `sendConfirmation` (best-effort) after applying the paid effect; a **balance** payment does not. |
-| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | C | **`reservation_confirmation` done** (FR + EN, `dayOffset 0` sentinel, `sendMode 'manual'` but excluded from queue/cron — sent programmatically). To come: deposit request, deposit reminder, deposit-abandoned (client), full-payment request (last-minute), balance request/reminder/confirmed, balance-abandoned (client), overdue-internal (host). |
-| `models/` | `emailLogModel.js` | C | **Done.** `listPending` excludes `reservation_confirmation` (`COALESCE(stableKey,'')` NULL-safe) so the event-triggered confirmation never surfaces in the manual pending queue. |
+| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | C | **`reservation_confirmation` + `deposit_request` done** (FR + EN, `dayOffset 0` sentinel, `sendMode 'manual'` but excluded from queue/cron — sent programmatically/by host action; shared `EVENT_TRIGGERED_STABLE_KEYS` constant drives the exclusion). To come: deposit reminder, deposit-abandoned (client), full-payment request (last-minute), balance request/reminder/confirmed, balance-abandoned (client), overdue-internal (host). |
+| `models/` | `emailLogModel.js` | C | **Done.** `listPending` excludes the `EVENT_TRIGGERED_STABLE_KEYS` (`reservation_confirmation`, `deposit_request`; `COALESCE(stableKey,'')` NULL-safe) so action/event-triggered emails never surface in the manual pending queue. |
+| `controllers/` | `paymentsController.js` (deposit email) | C | **Done.** `sendPaymentRequestEmail` — resolve type → create/reuse the link → render+send the `<type>_request` template via `reservationEmailSender` with `extraContext:{ paymentLink, hasPaymentLink:true }` → return `{ sent, url, amountCents, emailLogId, recipientEmail }` (400 when no client email). |
 | `utils/` | `emailAutoSendRunner.js` | T | Support the **`depositDueDate` / `balanceDueDate` anchors** + the configurable offsets (alongside the existing `startDate` anchor). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New **payment polling pass** (twice/day; detect paid links → trigger flows) + drive the deposit/balance reminder + abandonment passes off the configured offsets. |
 | `database.js` | `database.js` | T | Migrations: create `payment_links`; add Qonto + payment-timing settings columns; add `reservations.cancelledUnpaidAt`; add template `anchor` column. |
@@ -219,7 +227,7 @@ Polling + reminder passes reuse the scheduler's in-progress-guard pattern (like 
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/` | `ReservationPage.js` (devis mode) | T | "Envoyer la demande d'acompte" / "…de solde" / "…du règlement total" (last-minute) action (PageActionBar); shows link status. |
+| `pages/` | `ReservationPage.js` (devis mode) | C | **« Envoyer la demande d'acompte » done:** the action now **emails** the deposit link to the guest (calls `POST …/payment-emails`), no longer opens a tab; success dialog names the recipient + keeps a **« Vérifier le paiement »** action (manual poll). "…de solde" / "…du règlement total" still to come. |
 | `pages/` | `PaymentsSettingsPage.js` | C | **Done:** dedicated **Paiements** page at `/parametres/paiements` (settings submenu) — Qonto connection `StatusCard` + "Connecter Qonto" button, the **provider-connection form** (bank-account picker + phone/site/≥80-char description → `connect-provider`; `pending` → redirect to the onboarding/KYC URL, return on `?provider=callback` → `refresh-connection`), and editable timings via `PageActionBar`. Route registered in `roles.js` (`ADMIN`). |
 | `pages/` | `UnpaidReservationsPage.js` | C | Dedicated list of abandoned devis + released reservations (uses `DataPageScaffold`/`TableCard`). |
 | `components/` | dashboard notification items | T | Payment-paid + balance-overdue messages; the overdue one has a **Cancel** button. |
@@ -241,7 +249,10 @@ list). Email rendering stays server-side.
 | GET | `/api/payments/qonto/bank-accounts` | — | `{ bankAccounts: [{ id, name, iban, main }] }` | **Done** |
 | POST | `/api/payments/qonto/connect-provider` | `{ bankAccountId, phone, websiteUrl, businessDescription }` | `{ connectionStatus, connectionLocation? }` (`connectionLocation` = onboarding URL when `pending`) | **Done** |
 | GET | `/api/payments/qonto/refresh-connection` | — | `{ connectionStatus }` (re-checks via `GET /v2/payment_links/connections`) | **Done** |
-| POST | `/api/reservations/:id/payment-links` | `{ type: 'deposit'|'balance'|'full'|'complement' }` | `{ url, status, expiresAt }` (creates link + sends the matching email) | To come |
+| POST | `/api/reservations/:id/payment-links` | `{ type: 'deposit'|'balance'|'full'|'complement' }` | `{ url, status, amountCents, qontoPaymentLinkId }` (creates/reuses a link, **no email** — used by the site flow, use case 2) | **Done** |
+| GET | `/api/reservations/:id/payment-links` | — | `{ links: [...] }` | **Done** |
+| POST | `/api/reservations/:id/payment-emails` | `{ type: 'deposit' }` | `{ sent, url, amountCents, emailLogId, recipientEmail }` (creates/reuses the link **and** emails the matching `<type>_request` template to the guest) | **Done** |
+| POST | `/api/payments/poll` | — | `{ checked, paid, results }` (manual poll-now) | **Done** |
 | POST | `/api/reservations/:id/cancel-unpaid` | — | `{ ok }` (archive + free dates) | To come |
 
 ---
@@ -307,6 +318,10 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
       `reservationEmailSender` renders + sends the `reservation_confirmation` template and logs `sent`,
       logs `failed` on SMTP error, and skips when the client has no email.
       _(payment-poll-runner + reservation-email-sender unit tests)_
+- [x] **Deposit-request email** — `reservationEmailSender` injects `extraContext.paymentLink` and the
+      rendered `deposit_request` body contains the link + the deposit amount; `EVENT_TRIGGERED_STABLE_KEYS`
+      keeps both `deposit_request` and `reservation_confirmation` out of `listPending`.
+      _(reservation-email-sender + email-log-model unit tests)_
 - [ ] Reminder/abandonment scheduling — deposit (J-5/J-day, abandon J+1) off `depositDueDate` and
       balance (J-10/J-5/J-day, abandon J+1) off `balanceDueDate`, all from the **configured offsets**;
       paid → later reminders suppressed.

@@ -225,30 +225,77 @@ function resolveAmountCents(id, type, row) {
 
 // Create a Qonto payment link for a reservation/devis (deposit by default). The amount comes from the
 // engine-computed reservation fields (depositAmount / balanceAmount / finalPrice), never the client.
-async function createReservationPaymentLink(req, res) {
-  const id = Number(req.params.id);
-  const type = String((req.body && req.body.type) || 'deposit');
-  if (!LINK_TYPES[type]) return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' });
+// Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
+// Returns the link descriptor. Throws `{ httpStatus, error, message }` on a validation problem;
+// Qonto/transport errors bubble up unchanged (handled by qontoError at the call site).
+async function ensurePaymentLink(id, type) {
+  if (!LINK_TYPES[type]) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
 
   const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice FROM reservations WHERE id = ?').get(id);
-  if (!r) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   const amountCents = resolveAmountCents(id, type, r);
-  if (amountCents <= 0) return res.status(400).json({ error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type — vérifie le devis/réservation.' });
+  if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type — vérifie le devis/réservation.' };
 
   // Reuse the current open link of that type if there is one (avoid duplicates on a double-click).
   const existing = paymentLinksModel.findOpenForReservation(id, type);
   if (existing && existing.url) {
-    return res.json({ id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true });
+    return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true };
   }
 
+  const link = await withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title: LINK_TITLES[type], amountCents }));
+  const row = paymentLinksModel.create({
+    reservationId: id, type, amountCents,
+    qontoPaymentLinkId: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null,
+  });
+  return { id: row.id, type, amountCents, url: link.url, status: link.mappedStatus, qontoPaymentLinkId: link.id, reused: false };
+}
+
+// POST /reservations/:id/payment-links — create/reuse a link WITHOUT emailing (used by the site flow,
+// use case 2). The host-facing "email the link" action is sendPaymentRequestEmail below.
+async function createReservationPaymentLink(req, res) {
+  const id = Number(req.params.id);
+  const type = String((req.body && req.body.type) || 'deposit');
   try {
-    const link = await withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title: LINK_TITLES[type], amountCents }));
-    const row = paymentLinksModel.create({
-      reservationId: id, type, amountCents,
-      qontoPaymentLinkId: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null,
+    return res.json(await ensurePaymentLink(id, type));
+  } catch (err) {
+    if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
+    return qontoError(res, err);
+  }
+}
+
+// Template per request type. Only the deposit request ships now (balance/full requests to come).
+const REQUEST_TEMPLATES = { deposit: 'deposit_request' };
+
+// POST /reservations/:id/payment-emails — host action « Envoyer la demande d'acompte ». Creates/reuses
+// the link AND emails the matching `<type>_request` template to the guest with the link injected.
+async function sendPaymentRequestEmail(req, res) {
+  const id = Number(req.params.id);
+  const type = String((req.body && req.body.type) || 'deposit');
+  const stableKey = REQUEST_TEMPLATES[type];
+  if (!stableKey) return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit).' });
+
+  try {
+    const link = await ensurePaymentLink(id, type);
+    const result = await sendReservationTemplateEmail({
+      database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
+      settingsModel, emailServiceFactory: createEmailService,
+      reservationId: id, stableKey,
+      extraContext: { vars: { paymentLink: link.url }, flags: { hasPaymentLink: true } },
     });
-    return res.json({ id: row.id, type, amountCents, url: link.url, status: link.mappedStatus, qontoPaymentLinkId: link.id });
-  } catch (err) { return qontoError(res, err); }
+    if (!result.sent) {
+      const map = {
+        'no-email':       { s: 400, m: "Le client n'a pas d'adresse email." },
+        'no-reservation': { s: 404, m: 'Réservation introuvable.' },
+        'no-template':    { s: 500, m: 'Template « deposit_request » manquant.' },
+      };
+      const e = map[result.reason] || { s: 502, m: `Envoi du mail impossible : ${result.reason}` };
+      return res.status(e.s).json({ error: 'EMAIL_NOT_SENT', reason: result.reason, message: e.m, url: link.url, amountCents: link.amountCents });
+    }
+    return res.json({ sent: true, url: link.url, amountCents: link.amountCents, emailLogId: result.emailLogId, recipientEmail: result.recipientEmail });
+  } catch (err) {
+    if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
+    return qontoError(res, err);
+  }
 }
 
 // Every payment link of a reservation/devis (newest first) — the status the UI renders.
@@ -278,5 +325,5 @@ async function pollPaymentsNow(req, res) {
 module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
-  createReservationPaymentLink, listReservationPaymentLinks, pollPaymentsNow,
+  createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
 };

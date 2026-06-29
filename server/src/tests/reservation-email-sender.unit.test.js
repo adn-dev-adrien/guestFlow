@@ -20,8 +20,8 @@ function seed({ email = 'jean@x.fr' } = {}) {
   ensureDefaultEmailTemplates(db, { logger: { log() {} } });
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite des Pins')").run();
   db.prepare('INSERT INTO clients (id, firstName, lastName, email) VALUES (1, ?, ?, ?)').run('Jean', 'Dupont', email);
-  const info = db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice)
-                           VALUES ('reservation', 1, 1, '2026-08-10', '2026-08-12', 2, 300)`).run();
+  const info = db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount)
+                           VALUES ('reservation', 1, 1, '2026-08-10', '2026-08-12', 2, 300, 90, 210)`).run();
   return { db, reservationId: Number(info.lastInsertRowid) };
 }
 
@@ -57,6 +57,23 @@ test('renders + sends the confirmation email and logs it as sent', async () => {
   const log = db.prepare('SELECT status, recipientEmail FROM email_log WHERE reservationId = ?').get(reservationId);
   assert.equal(log.status, 'sent');
   assert.equal(log.recipientEmail, 'jean@x.fr');
+});
+
+test('deposit_request: injects extraContext.paymentLink + the deposit amount into the body', async () => {
+  const { db, reservationId } = seed();
+  const sent = [];
+  const r = await sendReservationTemplateEmail({
+    ...deps(db, sent),
+    stableKey: 'deposit_request',
+    reservationId,
+    extraContext: { vars: { paymentLink: 'https://pay.qonto/pl_abc' }, flags: { hasPaymentLink: true } },
+  });
+
+  assert.equal(r.sent, true);
+  assert.equal(r.recipientEmail, 'jean@x.fr');
+  assert.match(sent[0].text, /https:\/\/pay\.qonto\/pl_abc/);  // {{paymentLink}} from extraContext
+  assert.match(sent[0].text, /90/);                            // {{depositAmount}}
+  assert.match(sent[0].text, /bloque vos dates/i);             // the "blocks the dates" notice
 });
 
 test('no client email → does not send, returns no-email', async () => {

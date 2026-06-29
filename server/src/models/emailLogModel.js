@@ -13,6 +13,8 @@
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
+const { EVENT_TRIGGERED_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
+
 // specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
 // today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
 const STAY_RETENTION_DAYS = 3;
@@ -90,9 +92,9 @@ function buildModel(database) {
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
         AND t.sendMode = 'manual'
-        -- The reservation-confirmation template is EVENT-triggered (sent on payment, see
-        -- utils/reservationEmailSender), not a date-driven manual email — keep it out of the queue.
-        AND COALESCE(t.stableKey, '') != 'reservation_confirmation'
+        -- Event-/action-triggered templates (confirmation on payment, deposit request on host action —
+        -- see utils/reservationEmailSender) are sent programmatically, never from this date-driven queue.
+        AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id
@@ -100,7 +102,7 @@ function buildModel(database) {
             AND l.status IN ('sent', 'acknowledged-skip')
         )
       ORDER BY r.startDate ASC, t.dayOffset ASC
-    `).all(String(today), Number(lookbackDays), String(today), String(today));
+    `).all(String(today), Number(lookbackDays), String(today), String(today), ...EVENT_TRIGGERED_STABLE_KEYS);
   }
 
   // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation

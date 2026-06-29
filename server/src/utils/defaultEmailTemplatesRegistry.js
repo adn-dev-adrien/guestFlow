@@ -205,6 +205,59 @@ const RESERVATION_CONFIRMATION_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// Deposit request — ACTION-triggered (sent by paymentsController.sendPaymentRequestEmail when the host
+// clicks « Envoyer la demande d'acompte »). The payment link is injected per-send as {{paymentLink}}
+// (extraContext); like the confirmation it is kept out of the manual queue + the auto cron.
+const DEPOSIT_REQUEST_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Pour confirmer votre séjour {{propertyWithArticle}}, il vous suffit de régler l\'acompte en ligne.',
+  '',
+  'Récapitulatif de votre séjour :',
+  '- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+  '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+  '{{#if hasReservedOptions}}- Option(s) : {{reservedOptionsList}}',
+  '{{/if}}{{#if hasResources}}- Équipements : {{resourcesList}}',
+  '{{/if}}- Montant total du séjour : {{finalPrice}}',
+  '',
+  'Acompte à régler maintenant : {{depositAmount}}',
+  '',
+  'Payer l\'acompte en ligne : {{paymentLink}}',
+  '',
+  'Important : le règlement de l\'acompte bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
+  '',
+  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const DEPOSIT_REQUEST_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'To confirm your stay at {{propertyWithArticle}}, simply pay the deposit online.',
+  '',
+  'Summary of your stay:',
+  '- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}} from {{checkInTime}}',
+  '- Departure: {{endDate}} before {{checkOutTime}}',
+  '{{#if hasReservedOptions}}- Option(s): {{reservedOptionsList}}',
+  '{{/if}}{{#if hasResources}}- Equipment: {{resourcesList}}',
+  '{{/if}}- Total stay amount: {{finalPrice}}',
+  '',
+  'Deposit to pay now: {{depositAmount}}',
+  '',
+  'Pay the deposit online: {{paymentLink}}',
+  '',
+  'Important: paying the deposit secures your dates. Until it is paid, the dates remain available and may be booked by another guest.',
+  '',
+  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 const DEFAULT_TEMPLATES = Object.freeze([
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
@@ -239,6 +292,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual',   // cron only auto-sends 'auto'; this one is sent programmatically on payment
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'deposit_request',
+    name:      'Demande d\'acompte (lien de paiement)',
+    subject:   'Réglez l\'acompte pour confirmer votre séjour {{propertyWithArticle}}',
+    body:      DEPOSIT_REQUEST_BODY,
+    subjectEn: 'Pay the deposit to confirm your stay at {{propertyWithArticle}}',
+    bodyEn:    DEPOSIT_REQUEST_BODY_EN,
+    dayOffset: 0,          // sentinel — action-triggered (host « Envoyer la demande d'acompte »)
+    sendMode:  'manual',   // sent by the host action, excluded from queue/cron (EVENT_TRIGGERED_STABLE_KEYS)
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -247,8 +311,14 @@ const DEFAULT_TEMPLATES = Object.freeze([
   // ───────────────────────────────────────────────────────────────────────────────
 ]);
 
+// Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
+// date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
+// the model's exclusion and the senders stay in sync.
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request']);
+
 module.exports = {
   DEFAULT_TEMPLATES,
+  EVENT_TRIGGERED_STABLE_KEYS,
   // Exposed verbatim for tests that need the same body string the seed inserts.
   ARRIVAL_REMINDER_7D_BODY,
   ARRIVAL_REMINDER_1D_BODY,

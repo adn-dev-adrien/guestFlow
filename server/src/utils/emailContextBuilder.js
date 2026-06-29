@@ -336,6 +336,9 @@ function buildContext({ reservation, client, property, options = [], resources =
       cautionAmount:   formatCurrency(cautionAmountNum),
       complementAmount: formatCurrency(complementAmountNum),
       complementNotice,
+      // Online payment link — empty by default; the sender injects the real URL per-send via
+      // `extraContext` (the link is created on demand, it is not a reservation column).
+      paymentLink:     '',
       // Lists
       optionsList,
       reservedOptionsList,
@@ -368,6 +371,7 @@ function buildContext({ reservation, client, property, options = [], resources =
       hasResources,
       hasNordicBath,
       hasBabyBedNotice,
+      hasPaymentLink: false, // overridden per-send via extraContext when a payment link is attached
     },
   };
 }

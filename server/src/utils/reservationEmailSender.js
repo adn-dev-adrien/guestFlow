@@ -12,7 +12,7 @@ const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
 const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
 
-async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey }) {
+async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
   const template = templatesModel.findByStableKey(stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
 
@@ -43,8 +43,15 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const settings = settingsModel.read();
   const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
   const context = buildContext({ reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, settings, lang });
+  // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
+  // built context's vars/flags so callers can inject values without touching emailContextBuilder.
+  const extra = extraContext || {};
+  const merged = {
+    vars:  { ...context.vars,  ...(extra.vars || {}) },
+    flags: { ...context.flags, ...(extra.flags || {}) },
+  };
   const side = pickTemplateSide(template, lang);
-  const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, context);
+  const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, merged);
 
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
@@ -53,7 +60,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
       templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
       errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,
     });
-    return { sent: true, emailLogId: row && row.id };
+    return { sent: true, emailLogId: row && row.id, recipientEmail: to };
   } catch (err) {
     const errMsg = err && err.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : String((err && err.message) || 'unknown');
     logModel.insert({
