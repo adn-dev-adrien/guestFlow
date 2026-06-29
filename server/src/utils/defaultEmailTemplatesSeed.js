@@ -26,19 +26,19 @@ function ensureDefaultEmailTemplates(database, { logger = console } = {}) {
     // Bilingual columns (specs/email-language-fr-en.md) are optional in minimal/legacy schemas — only
     // insert subjectEn/bodyEn when the columns exist.
     const hasEnCols = cols.includes('subjectEn') && cols.includes('bodyEn');
-    const insert = hasEnCols
-      ? database.prepare(`
-        INSERT INTO email_templates
-          (stableKey, name, subject, body, subjectEn, bodyEn, dayOffset, sendMode, enabled)
-        VALUES
-          (@stableKey, @name, @subject, @body, @subjectEn, @bodyEn, @dayOffset, @sendMode, @enabled)
-      `)
-      : database.prepare(`
-        INSERT INTO email_templates
-          (stableKey, name, subject, body, dayOffset, sendMode, enabled)
-        VALUES
-          (@stableKey, @name, @subject, @body, @dayOffset, @sendMode, @enabled)
-      `);
+    // The scheduling anchor column is optional in legacy/minimal schemas — only persist it when present
+    // (defaults to 'start' at the DB level otherwise).
+    const hasAnchorCol = cols.includes('anchor');
+    const enFrag     = hasEnCols    ? ', subjectEn, bodyEn'      : '';
+    const enVals     = hasEnCols    ? ', @subjectEn, @bodyEn'    : '';
+    const anchorFrag = hasAnchorCol ? ', anchor'                 : '';
+    const anchorVals = hasAnchorCol ? ', @anchor'                : '';
+    const insert = database.prepare(`
+      INSERT INTO email_templates
+        (stableKey, name, subject, body${enFrag}, dayOffset, sendMode, enabled${anchorFrag})
+      VALUES
+        (@stableKey, @name, @subject, @body${enVals}, @dayOffset, @sendMode, @enabled${anchorVals})
+    `);
 
     const insertedKeys = [];
     const skippedKeys = [];
@@ -62,6 +62,7 @@ function ensureDefaultEmailTemplates(database, { logger = console } = {}) {
           row.subjectEn = def.subjectEn || null;
           row.bodyEn    = def.bodyEn || null;
         }
+        if (hasAnchorCol) row.anchor = def.anchor || 'start';
         insert.run(row);
         insertedKeys.push(def.stableKey);
       }
