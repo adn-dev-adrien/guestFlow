@@ -12,9 +12,18 @@
  */
 
 const crypto = require('crypto');
+const database = require('../database');
 const settingsModel = require('../models/settingsModel');
+const paymentLinksModel = require('../models/paymentLinksModel');
+const devisModel = require('../models/devisModel');
 const { buildQontoClient } = require('../utils/qontoClient');
 const { getValidQontoAccessToken } = require('../utils/qontoAuth');
+const { runPaymentPoll } = require('../utils/paymentPollRunner');
+const { buildConfirmationSender } = require('../utils/reservationEmailSender');
+const emailTemplatesModel = require('../models/emailTemplatesModel');
+const emailLogModel = require('../models/emailLogModel');
+const { createEmailService } = require('../utils/emailService');
+const { calculateReservationQuote } = require('../utils/pricing');
 const { validatePaymentTimings, OFFSET_FIELDS } = require('../utils/paymentTimingsValidation');
 const { validateProviderConnection } = require('../utils/paymentProviderValidation');
 
@@ -168,7 +177,106 @@ async function qontoRefreshConnection(req, res) {
   } catch (err) { return qontoError(res, err); }
 }
 
+// ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
+
+const LINK_TYPES = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
+const LINK_TITLES = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour' };
+
+// Amount in cents for a link type, taken from the SAME engine the fiche/PDF use (re-run against the
+// persisted devis) so the Qonto page matches the acompte/solde/total GuestFlow shows. The stored
+// `depositAmount`/`balanceAmount` columns can be stale (pricing-rule change, public-API devis); the
+// engine is the single source of truth. Falls back to the stored row for reservations or on failure.
+function resolveAmountCents(id, type, row) {
+  let euros = Number(row[LINK_TYPES[type]] || 0); // fallback = stored column
+  try {
+    const full = devisModel.findById(id); // devis only (kind='devis'); reservations keep the stored column
+    if (full) {
+      const quote = calculateReservationQuote({
+        db: database,
+        propertyId: Number(full.propertyId),
+        startDate: full.startDate, endDate: full.endDate,
+        checkInTime: full.checkInTime, checkOutTime: full.checkOutTime,
+        adults: Number(full.adults || 0), children: Number(full.children || 0),
+        teens: Number(full.teens || 0), babies: Number(full.babies || 0),
+        discountPercent: Number(full.discountPercent || 0),
+        customPrice: full.customPrice != null ? Number(full.customPrice) : undefined,
+        selectedOptions: (full.options || []).filter((o) => !o.isCustom).map((o) => ({
+          optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
+          unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
+        })),
+        customOptions: (full.options || []).filter((o) => o.isCustom).map((o) => ({
+          customKey: String(o.customOptionId || o.title || ''),
+          description: o.title || o.description || '',
+          amount: Number(o.amount ?? o.originalTotalPrice ?? o.totalPrice ?? 0),
+          offered: Boolean(o.offered),
+        })),
+        selectedResources: (full.resources || []).map((r) => ({
+          resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
+          unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
+        })),
+        platform: full.platform,
+      });
+      const field = type === 'deposit' ? 'depositAmount' : type === 'balance' ? 'balanceAmount' : 'finalPrice';
+      if (quote && quote[field] != null) euros = Number(quote[field]);
+    }
+  } catch { /* engine failure → keep the stored-column fallback */ }
+  return Math.round(euros * 100);
+}
+
+// Create a Qonto payment link for a reservation/devis (deposit by default). The amount comes from the
+// engine-computed reservation fields (depositAmount / balanceAmount / finalPrice), never the client.
+async function createReservationPaymentLink(req, res) {
+  const id = Number(req.params.id);
+  const type = String((req.body && req.body.type) || 'deposit');
+  if (!LINK_TYPES[type]) return res.status(400).json({ error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' });
+
+  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice FROM reservations WHERE id = ?').get(id);
+  if (!r) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  const amountCents = resolveAmountCents(id, type, r);
+  if (amountCents <= 0) return res.status(400).json({ error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type — vérifie le devis/réservation.' });
+
+  // Reuse the current open link of that type if there is one (avoid duplicates on a double-click).
+  const existing = paymentLinksModel.findOpenForReservation(id, type);
+  if (existing && existing.url) {
+    return res.json({ id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true });
+  }
+
+  try {
+    const link = await withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title: LINK_TITLES[type], amountCents }));
+    const row = paymentLinksModel.create({
+      reservationId: id, type, amountCents,
+      qontoPaymentLinkId: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null,
+    });
+    return res.json({ id: row.id, type, amountCents, url: link.url, status: link.mappedStatus, qontoPaymentLinkId: link.id });
+  } catch (err) { return qontoError(res, err); }
+}
+
+// Every payment link of a reservation/devis (newest first) — the status the UI renders.
+function listReservationPaymentLinks(req, res) {
+  return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
+}
+
+// Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
+// cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
+async function pollPaymentsNow(req, res) {
+  try {
+    const summary = await runPaymentPoll({
+      database,
+      paymentLinksModel,
+      devisModel,
+      qontoClient: buildQontoClient(),
+      getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
+      sendConfirmation: buildConfirmationSender({
+        database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
+        settingsModel, emailServiceFactory: createEmailService,
+      }),
+    });
+    return res.json(summary);
+  } catch (err) { return qontoError(res, err); }
+}
+
 module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
+  createReservationPaymentLink, listReservationPaymentLinks, pollPaymentsNow,
 };

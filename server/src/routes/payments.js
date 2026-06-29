@@ -22,4 +22,9 @@ router.get('/qonto/refresh-connection', ctrl.qontoRefreshConnection);
 router.get('/settings', ctrl.getSettings);
 router.put('/settings', ctrl.updateSettings);
 
+// Payment links on a reservation/devis + the manual poll trigger (specs/online-payments-qonto.md §3.4 / §7).
+router.post('/reservations/:id/payment-links', ctrl.createReservationPaymentLink);
+router.get('/reservations/:id/payment-links', ctrl.listReservationPaymentLinks);
+router.post('/poll', ctrl.pollPaymentsNow);
+
 module.exports = router;

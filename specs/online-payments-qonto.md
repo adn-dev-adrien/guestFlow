@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
-| **Branch** | `feature/online-payments-qonto` _(user-managed)_ |
+| **Status** | Phase 2 (deposit happy-path + confirmation email) Implemented — validated on sandbox; balance/reminders/abandonment deferred |
+| **Branch** | `feature/qonto-online-payments-phase2` _(user-managed)_ |
 | **Created** | 2026-06-11 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
@@ -109,6 +109,15 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
      séjour confirmé") with the stay recap.
    - **Manual:** the host converts the devis → on conversion, the guest gets the same confirmation
      email.
+   - **Confirmation email — implemented.** The guest confirmation is the default template
+     `reservation_confirmation` (FR + EN; subject "Confirmation de votre réservation …"; body recaps
+     the **stay total** `{{finalPrice}}`, **dates + times**, **options** and **resources**). It is
+     **event-triggered** (sent by `utils/reservationEmailSender` from the payment poll the instant a
+     paid link confirms the stay — deposit, use case 1; or full payment, use case 2), never
+     date-scheduled: it is excluded from the manual pending queue (`emailLogModel.listPending`) and from
+     the `auto` cron. The send is **best-effort** — an SMTP error is logged in `email_log` as `failed`
+     and never breaks the payment flow. A **balance** payment is a later top-up and does **not** retrigger
+     this confirmation. The template is editable like any other on the Emails page.
 10. Conversion reuses `devisModel.convertToReservation`; the deposit-paid date is the conversion day.
 11. **Deposit reminders (same system as the balance, configurable).** While the deposit is unpaid, the
     guest gets reminder emails at the configured offsets before the deposit due date (default **J-5**
@@ -195,7 +204,10 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 | `controllers/` | `dashboardController.js` | T | Surface payment dashboard messages (paid, overdue) + the cancel action. |
 | `routes/` | `payments.js` | C | `POST /reservations/:id/payment-links`, `GET …/status`, `POST …/cancel-unpaid`, payment-settings + Qonto OAuth routes. |
 | `utils/` | `emailContextBuilder.js` | T | Add the stay-recap + payment context (amounts, link URL, due date, signature/logo) for the new templates. |
-| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | T | Seed the new templates: deposit request, deposit reminder, deposit confirmed, **deposit-abandoned (client)**, full-payment request (last-minute), balance request, balance reminder, balance confirmed, **balance-abandoned (client)**, overdue-internal (host). |
+| `utils/` | `reservationEmailSender.js` | C | **Done.** Event-triggered send of a template by `stableKey` for a reservation (load graph → `buildContext` → `pickTemplateSide` → `renderTemplate` → send → `email_log`). Never throws; `buildConfirmationSender()` currys deps into the `sendConfirmation(reservationId)` passed to `runPaymentPoll`. |
+| `utils/` | `paymentPollRunner.js` | C | **Done.** On a paid **deposit**/**full** link that confirms a stay, calls the injected `sendConfirmation` (best-effort) after applying the paid effect; a **balance** payment does not. |
+| `utils/` | `defaultEmailTemplatesRegistry.js` + `defaultEmailTemplatesSeed.js` | C | **`reservation_confirmation` done** (FR + EN, `dayOffset 0` sentinel, `sendMode 'manual'` but excluded from queue/cron — sent programmatically). To come: deposit request, deposit reminder, deposit-abandoned (client), full-payment request (last-minute), balance request/reminder/confirmed, balance-abandoned (client), overdue-internal (host). |
+| `models/` | `emailLogModel.js` | C | **Done.** `listPending` excludes `reservation_confirmation` (`COALESCE(stableKey,'')` NULL-safe) so the event-triggered confirmation never surfaces in the manual pending queue. |
 | `utils/` | `emailAutoSendRunner.js` | T | Support the **`depositDueDate` / `balanceDueDate` anchors** + the configurable offsets (alongside the existing `startDate` anchor). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | New **payment polling pass** (twice/day; detect paid links → trigger flows) + drive the deposit/balance reminder + abandonment passes off the configured offsets. |
 | `database.js` | `database.js` | T | Migrations: create `payment_links`; add Qonto + payment-timing settings columns; add `reservations.cancelledUnpaidAt`; add template `anchor` column. |
@@ -288,8 +300,13 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 - [ ] **Last-minute engine rule (`pricing.js`)** — a stay starting within the window → deposit = 0,
       full total due (depositDisabled), like iCal; outside the window → normal deposit/balance split;
       threshold is the configurable window.
-- [ ] Polling pass — open link paid → marks paid + converts devis + posts dashboard msg + queues
-      emails; already-paid link skipped; API error doesn't throw.
+- [x] Polling pass — open link paid → marks paid + converts devis + posts dashboard msg + queues
+      emails; already-paid link skipped; API error doesn't throw. _(payment-poll-runner unit tests)_
+- [x] **Confirmation email** — a paid **deposit**/**full** link triggers `sendConfirmation` with the
+      confirmed reservation id; a **balance** payment does not; a throwing sender never breaks the poll.
+      `reservationEmailSender` renders + sends the `reservation_confirmation` template and logs `sent`,
+      logs `failed` on SMTP error, and skips when the client has no email.
+      _(payment-poll-runner + reservation-email-sender unit tests)_
 - [ ] Reminder/abandonment scheduling — deposit (J-5/J-day, abandon J+1) off `depositDueDate` and
       balance (J-10/J-5/J-day, abandon J+1) off `balanceDueDate`, all from the **configured offsets**;
       paid → later reminders suppressed.
@@ -298,7 +315,8 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 - [ ] Email context — deposit/balance/full recap + amounts + link + signature/logo present.
 
 ### Manual verification
-- [ ] End-to-end on a Qonto **test/sandbox**: deposit link → pay → polling converts devis + emails.
+- [x] End-to-end on a Qonto **test/sandbox**: deposit link → pay → polling converts devis. _(confirmation
+      email send requires SMTP configured; the conversion + send wiring is unit-tested.)_
 - [ ] Last-minute devis (≤ 30 j) → no deposit on the fiche, single full-payment email + link.
 - [ ] Deposit unpaid past deadline → devis abandoned + client email + unpaid page.
 - [ ] Balance J-10 email + link; pay → confirmation; overdue J+1 → client email + dashboard cancel → unpaid page.
@@ -331,11 +349,58 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
   ("solde") setting (§3.7). The two columns `paymentLastMinuteDays` / `paymentFullPaymentDueDaysBefore`
   were dropped from the model/page/validator.
 
+**Resolved 2026-06-29 (validated against the sandbox):**
+- **Q4 — Qonto auth → OAuth2 (authorization-code).** A first attempt used the simpler **API key**, but the
+  `/v2/payment_links/*` endpoints **reject it** (`401 "OAuth2 authentication is required here"`) — the API
+  key only works for read endpoints like `bank_accounts`. So **OAuth2 is mandatory** for payment links.
+  The provider connection needs a one-time **Mollie onboarding/KYC** (self-serve in sandbox; the canonical
+  test org « Abacate » comes already `enabled`). **Production caveat:** an OAuth app with the
+  `payment_link` scope requires **Qonto validation** before go-live (PSD2). Setup recipe in §10.
+- **Paid-detection model (confirmed in sandbox):** a link's top-level `status` goes `open → processing`
+  when a guest pays and **does not** become `paid`; the authoritative paid signal is a payment with
+  `status: "paid"` on **`GET /v2/payment_links/{id}/payments`** (as §3.3 prescribed). The poll runner
+  uses that sub-resource.
+
 **Still open (for setup / implementation):**
-- **Q4 — Qonto auth:** confirm the OAuth2 authorization-code flow (vs a simpler API key) and whether
-  the one-time payment-links provider connection needs KYC; both go in the setup procedure (deliverable 4).
 - **Q6 — complement:** model the `payment_links` `complement` type now (table + endpoint), expose the
   button later with the Tap-to-Pay project. Confirm that's fine.
 - **Q8 — last-minute deposit scope:** the engine auto-drops the deposit for last-minute stays; the host
   can still re-enable it per-reservation via the existing `depositDisabled` toggle (auto-default, not
   forced). Confirm that's the intended behavior.
+
+## 10. Setup + manual end-to-end test — sandbox (deliverable 4)
+
+**Phase 2 status (2026-06-29):** the deposit happy-path is implemented and **validated end-to-end on the
+Qonto sandbox** (link created → paid with a Mollie test card → poll detected → devis converted +
+deposit flagged). Server: `POST /api/payments/reservations/:id/payment-links`,
+`GET …/payment-links`, `POST /api/payments/poll` + `utils/paymentPollRunner` (twice-a-day cron in
+`scheduledTasks` + the manual poll). Client: devis action **« Envoyer la demande d'acompte »** →
+opens the Qonto link → **« Vérifier le paiement »** polls + (on paid) lands on the new reservation.
+
+### A. Connect Qonto (OAuth, sandbox) — once
+1. **Developer Portal** (developers.qonto.com) → app **Settings → Redirection URIs**: add
+   `http://localhost:3000/api/payments/qonto/callback` (localhost is accepted). Scopes:
+   `offline_access organization.read payment_link.read payment_link.write`.
+2. `server/.env.local`: `QONTO_ENV=sandbox`, `QONTO_CLIENT_ID`, `QONTO_CLIENT_SECRET`,
+   `QONTO_STAGING_TOKEN`, `QONTO_REDIRECT_URI=http://localhost:3000/api/payments/qonto/callback`.
+   (Leave `QONTO_API_LOGIN`/`QONTO_API_SECRET_KEY` unset/commented — api-key mode can't do payment links.)
+3. **Log in to the Sandbox web app** `https://sandbox.staging.qonto.co` first (test creds on the
+   Developer-Portal Overview) — otherwise the OAuth flow dead-ends on the portal.
+4. GuestFlow → **Paramètres → Paiements → « Connecter Qonto »** → pick an org (« Abacate Organization »
+   has the provider already `enabled`) → **Accepter**. `qonto/status` → `connected:true, authMode:oauth`.
+
+### B. Manual end-to-end payment test
+1. Create a **devis** with a non-zero deposit (or open an existing draft devis).
+2. On the devis, click **« Envoyer la demande d'acompte »** → a Qonto payment page opens in a new tab
+   (amount = the devis deposit).
+3. Pay with a **Mollie test card**: `4543 4740 0224 9996`, any future expiry (e.g. `12/30`), any CVC
+   (e.g. `123`), any name. → you land on the **Mollie test-mode** page → choose status **« Payé »** →
+   **Continuez**.
+4. Back in GuestFlow, click **« Vérifier le paiement »** (or wait for the cron). Expected:
+   - the link's payment is detected `paid` (via `…/payments`), the devis is **converted to a
+     reservation** (dates blocked), and the reservation's **deposit is flagged paid**;
+   - GuestFlow navigates to the new reservation.
+5. `POST /api/payments/poll` returns e.g. `{ checked, paid:1, results:[{ status:'paid', effect:'converted', reservationId }] }`.
+
+> Test-mode notes: the Qonto link stays `processing` (never `paid`) — detection is on the payments
+> sub-resource. Amounts ≥ €1001 in Mollie test mode trigger forced failures; use a small amount.

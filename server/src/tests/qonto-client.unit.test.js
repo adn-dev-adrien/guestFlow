@@ -85,6 +85,20 @@ test('getPaymentLink maps the Qonto status (paid)', async () => {
   assert.equal(calls[0].url, 'https://thirdparty-sandbox.staging.qonto.co/v2/payment_links/pl_1');
 });
 
+test('getPaymentLinkPayments flags paid from the payments sub-resource', async () => {
+  const { fetchImpl, calls } = stubFetch({ payments: [{ id: 'pay_1', status: 'paid', paid_at: '2026-07-01T10:00:00Z' }] });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  const r = await client.getPaymentLinkPayments({ accessToken: 'at_1', id: 'pl_1' });
+  assert.equal(r.paid, true);
+  assert.equal(r.paidPayment.id, 'pay_1');
+  assert.equal(calls[0].url, 'https://thirdparty-sandbox.staging.qonto.co/v2/payment_links/pl_1/payments');
+
+  // No paid payment → paid:false (e.g. the link is only `processing`).
+  const none = stubFetch({ payments: [{ id: 'pay_2', status: 'open' }] });
+  const c2 = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: none.fetchImpl });
+  assert.equal((await c2.getPaymentLinkPayments({ accessToken: 'at', id: 'pl_1' })).paid, false);
+});
+
 test('a non-OK response throws with status + parsed body', async () => {
   const { fetchImpl } = stubFetch({ errors: [{ code: 'forbidden' }] }, { ok: false, status: 403 });
   const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
