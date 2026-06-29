@@ -161,6 +161,50 @@ const ARRIVAL_REMINDER_1D_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// Reservation confirmation — EVENT-triggered (sent by utils/reservationEmailSender when an online
+// payment confirms the stay: acompte reçu OR paiement total). NOT date-driven: `dayOffset` is a
+// sentinel and it's kept out of the manual queue (emailLogModel.listPending) + the auto cron
+// (sendMode 'manual'). Editable like any template in the Emails page.
+const RESERVATION_CONFIRMATION_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Nous avons bien reçu votre paiement : votre réservation {{propertyWithArticle}} est confirmée. Merci !',
+  '',
+  'Récapitulatif de votre séjour :',
+  '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
+  '{{/if}}- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+  '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+  '{{#if hasReservedOptions}}- Option(s) réservée(s) : {{reservedOptionsList}}',
+  '{{/if}}{{#if hasResources}}- Équipements réservés : {{resourcesList}}',
+  '{{/if}}- Montant du séjour : {{finalPrice}}',
+  '',
+  'Vous recevrez les informations pratiques d\'arrivée à l\'approche de votre séjour. Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const RESERVATION_CONFIRMATION_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'We have received your payment: your reservation at {{propertyWithArticle}} is confirmed. Thank you!',
+  '',
+  'Summary of your stay:',
+  '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
+  '{{/if}}- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}} from {{checkInTime}}',
+  '- Departure: {{endDate}} before {{checkOutTime}}',
+  '{{#if hasReservedOptions}}- Option(s) booked: {{reservedOptionsList}}',
+  '{{/if}}{{#if hasResources}}- Equipment booked: {{resourcesList}}',
+  '{{/if}}- Stay amount: {{finalPrice}}',
+  '',
+  'You will receive practical arrival information as your stay approaches. For any question, simply reply to this email or call us at {{companyPhone}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 const DEFAULT_TEMPLATES = Object.freeze([
   Object.freeze({
     stableKey: 'arrival_reminder_7d',
@@ -182,6 +226,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
     bodyEn:    ARRIVAL_REMINDER_1D_BODY_EN,
     dayOffset: -2,
     sendMode:  'manual',
+    enabled:   true,
+  }),
+  Object.freeze({
+    stableKey: 'reservation_confirmation',
+    name:      'Confirmation de réservation (paiement reçu)',
+    subject:   'Confirmation de votre réservation {{propertyWithArticle}}',
+    body:      RESERVATION_CONFIRMATION_BODY,
+    subjectEn: 'Confirmation of your reservation at {{propertyWithArticle}}',
+    bodyEn:    RESERVATION_CONFIRMATION_BODY_EN,
+    dayOffset: 0,          // sentinel — event-triggered, never date-scheduled (see listPending exclusion)
+    sendMode:  'manual',   // cron only auto-sends 'auto'; this one is sent programmatically on payment
     enabled:   true,
   }),
   // ───────────────────────────────────────────────────────────────────────────────

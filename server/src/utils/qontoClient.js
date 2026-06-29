@@ -131,12 +131,24 @@ function buildQontoClient(config = {}) {
       return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), expirationDate: link.expiration_date || null, raw: link };
     },
 
-    // Poll a link's current status (the polling pass reads this; `paid` → trigger the business flow).
+    // Poll a link's current status. NOTE: the link's top-level `status` only goes open → processing
+    // when a guest pays (it does NOT flip to `paid` in sandbox) — the authoritative "paid" signal is on
+    // the payments sub-resource (see getPaymentLinkPayments). The polling pass uses the latter.
     async getPaymentLink({ accessToken, id }) {
       const res = await fetchImpl(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) });
       const json = await readBody(res, 'get payment link');
       const link = json.payment_link || json;
       return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
+    },
+
+    // The payments made against a link (specs/online-payments-qonto.md §3.3). A payment with
+    // `status: "paid"` is the real "the guest paid" signal. Returns `{ paid, paidPayment, payments }`.
+    async getPaymentLinkPayments({ accessToken, id }) {
+      const res = await fetchImpl(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/payments`, { method: 'GET', headers: apiHeaders(accessToken) });
+      const json = await readBody(res, 'get payment link payments');
+      const payments = Array.isArray(json.payments) ? json.payments : [];
+      const paidPayment = payments.find((p) => String(p.status || '').toLowerCase() === 'paid') || null;
+      return { paid: Boolean(paidPayment), paidPayment, payments };
     },
 
     // List the organisation's bank accounts (the provider-connection form's account picker). Tolerates

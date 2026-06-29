@@ -90,6 +90,9 @@ function buildModel(database) {
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE t.enabled = 1
         AND t.sendMode = 'manual'
+        -- The reservation-confirmation template is EVENT-triggered (sent on payment, see
+        -- utils/reservationEmailSender), not a date-driven manual email — keep it out of the queue.
+        AND COALESCE(t.stableKey, '') != 'reservation_confirmation'
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id
