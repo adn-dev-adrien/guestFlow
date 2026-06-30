@@ -83,17 +83,20 @@ Let a website visitor **pay their full stay online** and have the reservation co
 8. **Endpoint.** `POST /api/payments/qonto/webhook` — **public** (Qonto calls it server-to-server; it
    bypasses the session guard like the OAuth callback) but **authenticated by signature**, not by our
    session/API key.
-9. **Signature verification.** Qonto signs each delivery (HMAC-SHA256 over the raw body with a shared
-   **webhook secret**). The handler recomputes the HMAC on the **raw request body** (a raw-body capture
-   is needed for that route) and constant-time-compares it; a bad/absent signature → `401`, nothing is
-   processed. The secret lives in **`.env.local` as `QONTO_WEBHOOK_SECRET`** — consistent with the Qonto
-   client id/secret and `PUBLIC_API_KEY` (app-level secrets, not per-connection). When the secret is
-   unset, the webhook **fails closed** (`503`). **Exact header name + scheme to confirm in sandbox (§9).**
-10. **Effect.** On a payment-succeeded event, resolve the `payment_link` by its Qonto id and run
-    `processPaidLink` (mark paid → `applyPaidEffect` → confirmation email → conflict check/notify) — the
-    same code path as the poll. **Idempotent**: a webhook replay or a poll that already handled the link
-    is a no-op. Always answer `200` quickly once verified (Qonto retries on non-2xx); unknown/again-paid
-    links still return `200`.
+9. **Signature verification (scheme confirmed from docs.qonto.com, 2026-06-30).** Header
+   **`X-Qonto-Signature`** = `t={unix_ts},v1={hex_hmac}`. The signed payload is `{t}.{raw_body}`,
+   HMAC-SHA256 keyed by the **webhook secret**; the handler recomputes it on the **raw request body**
+   (a raw-body capture feeds the HMAC) and constant-time-compares the hex. A delivery older than
+   **5 minutes** is rejected (replay guard). Bad/absent/stale signature → `401`, nothing processed. The
+   secret lives in **`.env.local` as `QONTO_WEBHOOK_SECRET`** (app-level, like the client secret /
+   `PUBLIC_API_KEY`); unset → **fails closed** (`503`). Header name overridable via
+   `QONTO_WEBHOOK_SIGNATURE_HEADER`.
+10. **Effect.** The `v1/payment-links` webhook emits **`payment_links.created` / `payment_links.updated`**
+    (no dedicated "paid" event); the id is at **`data.payment_link_id`**. On any delivery we resolve the
+    local link by its Qonto id and run `processPaidLink` (mark paid → `applyPaidEffect` → confirmation
+    email → conflict check/notify) — the same code path as the poll. **Idempotent**: a replay or a poll
+    that already handled the link is a no-op. Always answer `200` once verified (Qonto retries on
+    non-2xx); unknown/again-paid links still return `200`.
 11. **Defence in depth.** The webhook never trusts amounts or status text blindly — it re-reads the
     link's authoritative paid state via `getPaymentLinkPayments` before applying the effect (same as the
     poll), so a forged-but-unsigned call can't confirm a booking even if the signature scheme changes.
@@ -201,9 +204,14 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 2. ~~Admin conflict badge~~ — **Resolved 2026-06-30: in scope** (chip on the reservation fiche + calendar).
 3. **On-demand poll cost** — polling a single link on every status GET is bounded, but if the site polls
    aggressively we may want a short cache / min-interval. Decide at plan time.
-4. **Qonto webhook support + signature scheme** _(new)_ — confirm in sandbox: (a) Qonto can push a
-   payment-succeeded webhook for payment links; (b) the signature **header name + HMAC scheme** (algo,
-   what's signed); (c) how the webhook URL + secret are **registered** with Qonto (dashboard vs API),
-   like the OAuth redirect-URI setup. If Qonto offers **no** webhook, the **poll fallback already
-   confirms bookings** — we ship poll-only and revisit. The code path is built signature-agnostic enough
-   to slot the confirmed scheme in.
+4. ~~Qonto webhook support + signature scheme~~ — **Resolved 2026-06-30 (docs.qonto.com).** Qonto's
+   `v1/payment-links` webhook exists (events `payment_links.created`/`updated`, id at
+   `data.payment_link_id`); signature header **`X-Qonto-Signature`** = `t={ts},v1={hmac}`, signed
+   payload `{ts}.{body}`, HMAC-SHA256, 5-min replay tolerance. **Code now implements exactly this.**
+   **Remaining live step (needs Adrien + a publicly reachable HTTPS URL):** register the webhook with
+   Qonto (its *Create a Webhook* API / dashboard) pointing at
+   `https://<public-host>/api/payments/qonto/webhook`, copy the returned secret into
+   `QONTO_WEBHOOK_SECRET`, and fire a test payment. The Pi's self-signed TLS may block delivery — verify
+   Qonto accepts it or front it with a valid cert. The **poll fallback confirms bookings** until then.
+5. **Return URL field** — confirm `createPaymentLink`'s `redirect_url` is the field Qonto honours for the
+   post-payment redirect (sandbox); set `PUBLIC_SITE_ORIGIN`.

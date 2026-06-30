@@ -7,8 +7,12 @@
  *
  * The poll remains the reconciliation fallback, so a missed/late webhook still confirms the booking.
  *
- * NOTE: the exact Qonto signature header + scheme is confirmed in sandbox (§9). `SIGNATURE_HEADER` and
- * the hex/base64 digest acceptance below are written tolerant so the verified scheme slots in.
+ * Scheme (confirmed from docs.qonto.com, 2026-06-30): header **`X-Qonto-Signature`** =
+ * `t={unix_timestamp},v1={hex_hmac}`; the signed payload is `{timestamp}.{raw_body}`, HMAC-SHA256 with
+ * the webhook secret; a delivery whose timestamp is older than 5 minutes is rejected (replay guard).
+ * The `v1/payment-links` webhook emits `payment_links.created` / `payment_links.updated` (no dedicated
+ * "paid" event) with the id at `data.payment_link_id` — so we re-read the authoritative paid state on
+ * any delivery rather than trusting the event.
  */
 
 const crypto = require('crypto');
@@ -21,39 +25,49 @@ const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const settingsModel = require('../models/settingsModel');
 
 const SIGNATURE_HEADER = String(process.env.QONTO_WEBHOOK_SIGNATURE_HEADER || 'x-qonto-signature').toLowerCase();
+const TOLERANCE_SECONDS = 5 * 60; // reject deliveries older than 5 minutes (replay protection)
 
-function constantTimeEqual(a, b) {
-  const ba = Buffer.from(String(a || ''));
-  const bb = Buffer.from(String(b || ''));
-  // Hash both to a fixed length so timingSafeEqual never throws on a length mismatch (which would
-  // itself leak length through the exception path).
-  const ha = crypto.createHash('sha256').update(ba).digest();
-  const hb = crypto.createHash('sha256').update(bb).digest();
-  return crypto.timingSafeEqual(ha, hb);
+function constantTimeEqualHex(a, b) {
+  const ba = Buffer.from(String(a || ''), 'utf8');
+  const bb = Buffer.from(String(b || ''), 'utf8');
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
 }
 
-// True iff `signature` matches the HMAC-SHA256 of `rawBody` under `secret`. Accepts hex or base64
-// (the exact encoding Qonto sends is confirmed in sandbox).
-function verifySignature(rawBody, signature, secret) {
-  if (!secret || !signature || !rawBody || !rawBody.length) return false;
-  const mac = crypto.createHmac('sha256', secret).update(rawBody);
-  const hex = mac.digest('hex');
-  const b64 = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
-  const sig = String(signature).trim().replace(/^sha256=/i, '');
-  return constantTimeEqual(sig, hex) || constantTimeEqual(sig, b64);
+// Parse the `t={ts},v1={sig}` header into { t, v1 }.
+function parseSignatureHeader(header) {
+  const out = {};
+  String(header || '').split(',').forEach((part) => {
+    const idx = part.indexOf('=');
+    if (idx > 0) out[part.slice(0, idx).trim()] = part.slice(idx + 1).trim();
+  });
+  return { t: out.t, v1: out.v1 };
 }
 
-// Pull the Qonto payment-link id out of the event body — defensive across the shapes Qonto may send.
+// Verify Qonto's signed-payload scheme (specs/public-online-payment.md §3bis). `nowSeconds` is
+// injectable for tests.
+function verifySignature(rawBody, header, secret, nowSeconds = Math.floor(Date.now() / 1000)) {
+  if (!secret || !header || !rawBody || !rawBody.length) return false;
+  const { t, v1 } = parseSignatureHeader(header);
+  if (!t || !v1) return false;
+  const ts = Number(t);
+  if (!Number.isFinite(ts) || Math.abs(nowSeconds - ts) > TOLERANCE_SECONDS) return false; // stale/replay
+  const signedPayload = `${t}.${rawBody.toString('utf8')}`;
+  const expected = crypto.createHmac('sha256', secret).update(signedPayload).digest('hex');
+  return constantTimeEqualHex(v1, expected);
+}
+
+// Pull the Qonto payment-link id out of the event body. Qonto puts it at `data.payment_link_id`; the
+// extra shapes are defensive fallbacks.
 function extractPaymentLinkId(body) {
   if (!body || typeof body !== 'object') return null;
   const candidates = [
+    body.data && body.data.payment_link_id,
     body.payment_link && body.payment_link.id,
     body.data && body.data.payment_link && body.data.payment_link.id,
-    body.data && body.data.object && body.data.object.id,
     body.data && body.data.id,
-    body.object && body.object.id,
-    body.resource_id,
     body.payment_link_id,
+    body.resource_id,
   ];
   const found = candidates.find((c) => c != null && String(c).trim() !== '');
   return found ? String(found) : null;
