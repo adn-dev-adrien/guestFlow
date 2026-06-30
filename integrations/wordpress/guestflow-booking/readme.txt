@@ -37,5 +37,8 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 
 == Changelog ==
 
+= 1.3.0 =
+* Paiement en ligne (option du bloc « Devis & demande ») : le visiteur règle la totalité de son séjour via la page sécurisée Qonto, puis revient sur une vue de confirmation qui suit l'état du paiement. Au paiement, GuestFlow bloque les dates et envoie l'e-mail de confirmation. Nouvelles routes proxy `/booking-requests/{id}/pay` (nonce) et `/booking-requests/{id}/status`.
+
 = 1.0.0 =
 * Version initiale : 3 blocs (calendrier, devis/demande, liste des logements), proxy PHP REST, page de réglages, cache transients, anti-spam honeypot.

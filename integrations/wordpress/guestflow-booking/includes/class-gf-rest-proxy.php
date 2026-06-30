@@ -63,6 +63,18 @@ final class GF_Rest_Proxy
             'permission_callback' => [$this, 'verify_nonce'],
             'callback'            => [$this, 'post_booking_request'],
         ]);
+        // Online full-payment (specs/public-online-payment.md): create/reuse the Qonto link for a
+        // booking-request devis (nonce-protected write), then poll its status from the success page.
+        register_rest_route(self::NS, '/booking-requests/(?P<id>\d+)/pay', [
+            'methods'             => 'POST',
+            'permission_callback' => [$this, 'verify_nonce'],
+            'callback'            => [$this, 'post_pay'],
+        ]);
+        register_rest_route(self::NS, '/booking-requests/(?P<id>\d+)/status', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_payment_status'],
+        ]);
     }
 
     /** Write protection: only the plugin's own frontend (carrying the wp_rest nonce) may POST here. */
@@ -119,6 +131,27 @@ final class GF_Rest_Proxy
     {
         $body = (array) $request->get_json_params();
         $res = GF_Api_Client::instance()->post('/booking-requests', $body);
+        return $this->relay($res);
+    }
+
+    public function post_pay(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        $body = (array) $request->get_json_params();
+        // Only a same-origin return path is forwarded (GuestFlow allowlists it against PUBLIC_SITE_ORIGIN).
+        $forward = [];
+        if (isset($body['returnPath']) && is_string($body['returnPath'])) {
+            $forward['returnPath'] = $body['returnPath'];
+        }
+        $res = GF_Api_Client::instance()->post("/booking-requests/{$id}/pay", $forward);
+        return $this->relay($res);
+    }
+
+    public function get_payment_status(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        // Never cached — the success page polls this until the payment confirms.
+        $res = GF_Api_Client::instance()->get("/booking-requests/{$id}/status");
         return $this->relay($res);
     }
 

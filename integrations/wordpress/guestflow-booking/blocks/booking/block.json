@@ -10,7 +10,8 @@
   "textdomain": "guestflow-booking",
   "attributes": {
     "propertyId": { "type": "number", "default": 0 },
-    "showOptions": { "type": "boolean", "default": true }
+    "showOptions": { "type": "boolean", "default": true },
+    "payOnline": { "type": "boolean", "default": false }
   },
   "supports": { "html": false, "align": ["wide"] },
   "editorScript": "guestflow-booking-editor",

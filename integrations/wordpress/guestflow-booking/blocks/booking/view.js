@@ -14,9 +14,22 @@
     return d.getFullYear() + '-' + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
   }
 
+  function queryParam(name) {
+    try { return new URLSearchParams(window.location.search).get(name); } catch (e) { return null; }
+  }
+
   function init(container) {
     var propertyId = parseInt(container.dataset.propertyId, 10) || 0;
     var showOptions = container.dataset.showOptions !== '0';
+    var payOnline = container.dataset.payOnline === '1';
+
+    // Returning from the Qonto payment page → show the live confirmation status instead of the wizard.
+    var returnedDevisId = parseInt(queryParam('gf_payment'), 10) || 0;
+    if (returnedDevisId) {
+      renderStatus(container, returnedDevisId);
+      return;
+    }
+
     if (!GF.configured || !propertyId) {
       container.innerHTML = '';
       container.appendChild(GF.el('div', { class: 'gf-error' }, GF.t('unavailable')));
@@ -34,11 +47,53 @@
         container.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(r[0])));
         return;
       }
-      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || []);
+      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || [], payOnline);
     });
   }
 
-  function build(container, propertyId, detail, options) {
+  // Success-page view: poll the booking-request status until the payment confirms (the webhook/poll on
+  // the GuestFlow side converts the devis → reservation + sends the confirmation email). Read-only.
+  function renderStatus(container, devisId) {
+    container.innerHTML = '';
+    var box = GF.el('div', { class: 'gf-booking' });
+    container.appendChild(box);
+    var tries = 0;
+    var MAX_TRIES = 20;
+
+    function waiting() {
+      box.innerHTML = '';
+      box.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('confirmingPayment')));
+    }
+
+    function recap(d) {
+      box.innerHTML = '';
+      box.appendChild(GF.el('div', { class: 'gf-success' }, GF.t(d.status === 'conflict' ? 'paymentConflict' : 'paymentConfirmed')));
+      if (d.propertyName || d.startDate) {
+        var lines = GF.el('div', { class: 'gf-summary' });
+        lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('strong', {}, GF.t('stayRecap')), GF.el('span', {}, d.propertyName || '')));
+        if (d.startDate) lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('span', {}, GF.t('startDate') + ' → ' + GF.t('endDate')), GF.el('span', {}, d.startDate + ' → ' + d.endDate)));
+        if (d.finalPrice != null) lines.appendChild(GF.el('div', { class: 'gf-summary-line gf-summary-total' }, GF.el('span', {}, GF.t('total')), GF.el('span', {}, GF.euro(d.finalPrice))));
+        box.appendChild(lines);
+      }
+    }
+
+    function poll() {
+      GF.api('GET', '/booking-requests/' + devisId + '/status').then(function (res) {
+        var d = (res.body && res.body.data) || {};
+        if (d.status === 'confirmed' || d.status === 'conflict') { recap(d); return; }
+        waiting();
+        tries++;
+        if (tries < MAX_TRIES) { setTimeout(poll, 3000); return; }
+        box.innerHTML = '';
+        box.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('paymentPending')));
+      });
+    }
+
+    waiting();
+    poll();
+  }
+
+  function build(container, propertyId, detail, options, payOnline) {
     var f = {}; // field refs
     var debounceTimer = null;
 
@@ -104,7 +159,8 @@
       GF.el('div', { class: 'gf-hp' }, GF.el('label', {}, 'Ne pas remplir', f.hp))
     );
 
-    f.submit = GF.el('button', { class: 'gf-btn', type: 'button', disabled: 'disabled', onClick: submit }, GF.t('sendRequest'));
+    var submitLabel = payOnline ? GF.t('payOnline') : GF.t('sendRequest');
+    f.submit = GF.el('button', { class: 'gf-btn', type: 'button', disabled: 'disabled', onClick: submit }, submitLabel);
     var feedback = GF.el('div', {});
 
     var form = GF.el('div', { class: 'gf-booking' },
@@ -198,17 +254,41 @@
         _hp: f.hp.value,
       });
       f.submit.disabled = true;
-      f.submit.textContent = GF.t('sending');
+      f.submit.textContent = payOnline ? GF.t('preparingPayment') : GF.t('sending');
       GF.api('POST', '/booking-requests', body).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
+          if (payOnline) { startPayment(res.body.data.requestId); return; }
           container.innerHTML = '';
           container.appendChild(GF.el('div', { class: 'gf-success' }, GF.t('requestSent', res.body.data.reference || '')));
           return;
         }
         f.submit.disabled = false;
-        f.submit.textContent = GF.t('sendRequest');
+        f.submit.textContent = submitLabel;
         feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.errorMessage(res)));
       });
+    }
+
+    // Use case 2: create/reuse the Qonto FULL link for the just-created devis and send the visitor to
+    // the hosted payment page. Qonto returns them to this same page with ?gf_payment=<id> (the status
+    // view above then polls until confirmed). Amount + availability are enforced server-side.
+    function startPayment(devisId) {
+      if (!devisId) { paymentError(); return; }
+      var returnPath = window.location.pathname + '?gf_payment=' + devisId;
+      GF.api('POST', '/booking-requests/' + devisId + '/pay', { returnPath: returnPath }).then(function (res) {
+        if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl) {
+          feedback.innerHTML = '';
+          feedback.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('redirectingPayment')));
+          window.location.href = res.body.data.paymentUrl;
+          return;
+        }
+        paymentError(res);
+      });
+    }
+
+    function paymentError(res) {
+      f.submit.disabled = false;
+      f.submit.textContent = submitLabel;
+      feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, res ? GF.errorMessage(res) : GF.t('genericError')));
     }
 
     recompute();

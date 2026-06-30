@@ -26,6 +26,11 @@
               label: __('Proposer les options', 'guestflow-booking'),
               checked: a.showOptions !== false,
               onChange: function (v) { props.setAttributes({ showOptions: !!v }); },
+            }),
+            el(ToggleControl, {
+              label: __('Paiement en ligne (séjour réglé en totalité, dates bloquées au paiement)', 'guestflow-booking'),
+              checked: !!a.payOnline,
+              onChange: function (v) { props.setAttributes({ payOnline: !!v }); },
             })
           )
         ),

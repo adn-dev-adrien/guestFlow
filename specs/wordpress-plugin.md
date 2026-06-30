@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual verification on a live WordPress site |
+| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
@@ -59,6 +59,14 @@ remaining the single source of truth for prices, availability, and validation.
    (`X-WP-Nonce`) emitted to the block script, so only the plugin's own frontend can trigger it.
    GuestFlow still enforces its own honeypot + rate limit (defense in depth). The plugin forwards the
    `_hp` honeypot field unchanged.
+6b. **Online full-payment (v1.3.0, specs/public-online-payment.md).** The booking block has a `payOnline`
+   option. When on, after the booking request creates the devis the block calls the proxy
+   `POST /booking-requests/:id/pay` (nonce) → GuestFlow returns the Qonto hosted-payment URL → the
+   visitor is redirected there to pay the **full stay**. Qonto returns them to the same page with
+   `?gf_payment=<id>`; the block then polls the proxy `GET /booking-requests/:id/status` until
+   `confirmed` and shows the stay recap. The proxy forwards only a same-origin `returnPath` (GuestFlow
+   re-allowlists it). The amount, availability re-check, date-blocking and confirmation email are all
+   server-side (GuestFlow); the plugin still holds no business logic.
 7. **Three Gutenberg blocks** (namespace `guestflow/`), all shipped in v1:
    - `guestflow/calendar` — availability calendar for one property.
    - `guestflow/booking` — the quote→request wizard (dates + guests + options → live quote → contact

@@ -103,6 +103,15 @@ final class GF_Blocks
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),
                 'requiredFields'  => __('Merci de renseigner tous les champs obligatoires.', 'guestflow-booking'),
+                // Online payment flow (specs/public-online-payment.md)
+                'payOnline'       => __('Payer en ligne', 'guestflow-booking'),
+                'preparingPayment' => __('Préparation du paiement…', 'guestflow-booking'),
+                'redirectingPayment' => __('Redirection vers le paiement sécurisé…', 'guestflow-booking'),
+                'confirmingPayment' => __('Confirmation de votre paiement en cours…', 'guestflow-booking'),
+                'paymentConfirmed' => __('Paiement confirmé — votre réservation est validée !', 'guestflow-booking'),
+                'paymentPending'  => __('Paiement en attente. Si vous venez de payer, patientez quelques instants.', 'guestflow-booking'),
+                'paymentConflict' => __('Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails.', 'guestflow-booking'),
+                'stayRecap'       => __('Votre séjour', 'guestflow-booking'),
             ],
         ];
     }
