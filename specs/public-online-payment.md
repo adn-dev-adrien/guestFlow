@@ -190,9 +190,18 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 - Force an overbooking (block the dates after the link is created) → pay → `confirmed` **conflict**, admin
   notified, reservation flagged.
 
+## 7bis. Website side (WordPress plugin)
+
+The visitor flow is implemented in the in-repo **WordPress plugin** (`integrations/wordpress/`, v1.3.0,
+see [wordpress-plugin.md](wordpress-plugin.md) §3 rule 6b): the `guestflow/booking` block gains a
+`payOnline` option that, after the booking request, calls the plugin proxy
+`POST /booking-requests/:id/pay` → redirects the visitor to the Qonto page → on return polls
+`GET /booking-requests/:id/status` and shows the stay recap. The plugin proxies to this spec's
+`/public/v1` endpoints with the API key server-side; no business logic on the WordPress side.
+
 ## 8. Out of scope
 
-- Building the website UI (recap/success pages) — site-side.
+- Hand-coding a bespoke website outside the plugin (the plugin IS the website integration).
 - Deposit/partial online payment from the site (use case 2 is **full** only).
 - Caution card imprint (separate Mollie-direct project).
 - Auto-refund on conflict (manual admin resolution only).
