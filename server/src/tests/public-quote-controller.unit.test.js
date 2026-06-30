@@ -35,12 +35,13 @@ function minimalQuote() {
   };
 }
 
-function buildController({ captures, applicableOptionIds = [7], applicableResourceIds = [3] } = {}) {
+function buildController({ captures, applicableOptionIds = [7], applicableResourceIds = [3], propertyDefaults = [] } = {}) {
   return withMocks({
     '../../database': {},
     '../../utils/pricing': { calculateReservationQuote: (input) => { captures.engineInput = input; return minimalQuote(); } },
     '../../models/optionsModel': { listForProperty: () => applicableOptionIds.map((id) => ({ id })) },
     '../../models/resourcesModel': { list: () => applicableResourceIds.map((id) => ({ id })) },
+    '../../models/propertyOptionDefaultsModel': { listForProperty: () => propertyDefaults },
     './publicCatalogController': { computeBlockedDates: () => [], rangeHasBlockedNight: () => false },
   }, () => {
     const m = '../controllers/public/publicQuoteController';
@@ -67,9 +68,25 @@ test('quote forces platform=direct and drops every price-override field before t
   assert.equal('customPrice' in sent, false);
   assert.equal('discountPercent' in sent, false);
   assert.equal('depositAmount' in sent, false);
-  assert.equal('offeredOptionIds' in sent, false);
+  // The client's hostile offeredOptionIds:[7] must NOT be honored (only server-side defaults can mark
+  // an option offered). With no property defaults here, the engine sees an empty offered list.
+  assert.deepEqual(sent.offeredOptionIds, []);
   // Options are re-mapped to {optionId, quantity} only — no smuggled unitPrice.
   assert.deepEqual(sent.selectedOptions, [{ optionId: 7, quantity: 1 }]);
+});
+
+test('quote injects the property DEFAULT options (paid → priced, offered → free) like the devis', () => {
+  const captures = {};
+  // Property has two defaults: option 8 PAID (offered:0), option 17 OFFERED (offered:1).
+  const controller = buildController({ captures, propertyDefaults: [{ optionId: 8, offered: 0 }, { optionId: 17, offered: 1 }] });
+  const res = fakeRes();
+  controller.quote({ body: { propertyId: 2, startDate: '2026-09-10', endDate: '2026-09-13', adults: 2 } }, res);
+  assert.equal(res.statusCode, 200);
+  const sent = captures.engineInput;
+  // Both defaults reach the engine as selected lines...
+  assert.deepEqual(sent.selectedOptions, [{ optionId: 8, quantity: 1 }, { optionId: 17, quantity: 1 }]);
+  // ...but only the OFFERED one (17) is marked free; the PAID default (8) is charged.
+  assert.deepEqual(sent.offeredOptionIds, [17]);
 });
 
 test('quote rejects an option not applicable to the property (422)', () => {

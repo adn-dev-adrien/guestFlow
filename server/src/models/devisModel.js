@@ -22,32 +22,9 @@ const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
 
-/**
- * Merge property option defaults into a payload's `selectedOptions` array. Idempotent:
- * if a default option is already present in the payload, it's left untouched (no
- * duplicate). Implements §3.3 rule 11–13 — server-side enforcement of property
- * defaults so a UI bug or raw-API caller can't accidentally skip them.
- */
-function mergePropertyDefaultsIntoPayload(payload, propertyId, defaultsModel) {
-  const defaults = defaultsModel.listForProperty(propertyId);
-  if (!defaults || defaults.length === 0) return payload;
-  const existing = new Set((payload.selectedOptions || []).map((o) => Number(o.optionId)));
-  const toAdd = defaults
-    .filter((d) => !existing.has(Number(d.optionId)))
-    .map((d) => ({ optionId: Number(d.optionId), quantity: 1 }));
-  if (toAdd.length === 0) return payload;
-  // Also propagate the `offered` flag — a default with offered=true means the line
-  // is included in the price (no extra charge to the customer).
-  const existingOfferedIds = new Set((payload.offeredOptionIds || []).map((id) => Number(id)));
-  const newOfferedIds = defaults
-    .filter((d) => d.offered && !existingOfferedIds.has(Number(d.optionId)))
-    .map((d) => Number(d.optionId));
-  return {
-    ...payload,
-    selectedOptions: [...(payload.selectedOptions || []), ...toAdd],
-    offeredOptionIds: [...(payload.offeredOptionIds || []), ...newOfferedIds],
-  };
-}
+// Property default-options merge — shared with the public live quote so preview == devis (the function
+// moved to utils/propertyDefaultOptions; re-exported via __test for the existing devis tests).
+const { mergePropertyDefaultsIntoPayload } = require('../utils/propertyDefaultOptions');
 
 /**
  * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
