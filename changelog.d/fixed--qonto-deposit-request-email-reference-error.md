@@ -1,0 +1,1 @@
+- Fixed the « Envoyer la demande d'acompte » action which failed with a server error: the email sender was not imported in the payments controller, so creating + emailing the deposit link threw on every call. The endpoint now sends the email correctly.
