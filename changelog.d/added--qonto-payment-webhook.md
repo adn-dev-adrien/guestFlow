@@ -1,0 +1,1 @@
+- Paiements : ajout d'un **webhook Qonto** (`POST /api/payments/qonto/webhook`, signature HMAC vérifiée) qui confirme une réservation **dès** que le paiement réussit, sans attendre le polling. Le polling reste actif comme filet de réconciliation.

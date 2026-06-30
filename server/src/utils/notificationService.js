@@ -226,7 +226,45 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, notifyNewIcalReservation, __test: { buildDevisEmail, buildReservationEmail } };
+  function buildConflictEmail(resa, publicUrl) {
+    const guest = `${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim();
+    const subject = `⚠️ Conflit de dates — paiement en ligne (${resa.propertyName || ''})`;
+    const lines = [
+      'Un paiement en ligne a été réglé pour un séjour dont les dates ne sont plus disponibles.',
+      'La réservation a été créée (le client a payé) mais ses dates chevauchent une autre réservation.',
+      'Action requise : remboursement ou relogement.',
+      '',
+      `Logement : ${resa.propertyName || ''}`,
+      `Client : ${guest || '—'}`,
+      `Séjour : du ${resa.startDate} au ${resa.endDate}`,
+    ];
+    const link = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
+    if (link) lines.push('', `Ouvrir la réservation : ${link}`);
+    return { subject, text: lines.join('\n') };
+  }
+
+  // Admin alert when a paid online full-payment was converted onto now-unavailable dates
+  // (specs/public-online-payment.md §3 rule 5). Best-effort: never throws.
+  async function notifyBookingConflict(reservationId) {
+    try {
+      const resa = loadReservation(reservationId);
+      if (!resa) return { sent: false, skipped: 'not_found' };
+      await pushNewReservation({
+        title: '⚠️ Conflit de dates — paiement en ligne',
+        body: [`${String(resa.firstName || '').trim()} ${String(resa.lastName || '').trim()}`.trim(), resa.propertyName].map((s) => String(s || '').trim()).filter(Boolean).join(' · '),
+        url: `/reservations/${Number(resa.id)}`,
+      });
+      const ctx = resolveContext();
+      if (ctx.skip) return { sent: false, skipped: ctx.skip };
+      const { subject, text } = buildConflictEmail(resa, ctx.publicUrl);
+      return await deliver({ recipient: ctx.recipient, subject, text });
+    } catch (err) {
+      logger.warn('[notificationService.notifyBookingConflict]', err && err.message ? err.message : err);
+      return { sent: false, skipped: 'error' };
+    }
+  }
+
+  return { notifyNewSiteDevis, notifyNewIcalReservation, notifyBookingConflict, __test: { buildDevisEmail, buildReservationEmail, buildConflictEmail } };
 }
 
 const defaultService = buildNotificationService();

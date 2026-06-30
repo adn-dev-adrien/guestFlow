@@ -75,6 +75,18 @@ test('createPaymentLink posts a Basket with the amount formatted from cents + au
   assert.equal(sent.items[0].title, 'Acompte séjour');
 });
 
+test('createPaymentLink includes redirect_url only when provided', async () => {
+  const withRedirect = stubFetch({ payment_link: { id: 'pl_r', url: 'u', status: 'open' } });
+  let client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: withRedirect.fetchImpl });
+  await client.createPaymentLink({ accessToken: 'at', title: 'x', amountCents: 100, redirectUrl: 'https://site/merci' });
+  assert.equal(JSON.parse(withRedirect.calls[0].opts.body).payment_link.redirect_url, 'https://site/merci');
+
+  const without = stubFetch({ payment_link: { id: 'pl_n', url: 'u', status: 'open' } });
+  client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: without.fetchImpl });
+  await client.createPaymentLink({ accessToken: 'at', title: 'x', amountCents: 100 });
+  assert.equal('redirect_url' in JSON.parse(without.calls[0].opts.body).payment_link, false);
+});
+
 test('getPaymentLink maps the Qonto status (paid)', async () => {
   const { fetchImpl, calls } = stubFetch({ payment_link: { id: 'pl_1', url: 'u', status: 'paid' } });
   const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
@@ -97,6 +109,24 @@ test('getPaymentLinkPayments flags paid from the payments sub-resource', async (
   const none = stubFetch({ payments: [{ id: 'pay_2', status: 'open' }] });
   const c2 = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: none.fetchImpl });
   assert.equal((await c2.getPaymentLinkPayments({ accessToken: 'at', id: 'pl_1' })).paid, false);
+});
+
+test('createWebhookSubscription posts callback_url + types + our secret', async () => {
+  const { fetchImpl, calls } = stubFetch({ webhook_subscription: { id: 'wh_1', callback_url: 'https://gf/api/payments/qonto/webhook', types: ['v1/payment-links'], secret: 'whsec_x' } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  const sub = await client.createWebhookSubscription({ accessToken: 'at', callbackUrl: 'https://gf/api/payments/qonto/webhook', secret: 'whsec_x' });
+  assert.equal(sub.id, 'wh_1');
+  assert.equal(calls[0].url, 'https://thirdparty-sandbox.staging.qonto.co/v2/webhook_subscriptions');
+  const body = JSON.parse(calls[0].opts.body);
+  assert.deepEqual(body.types, ['v1/payment-links']);
+  assert.equal(body.callback_url, 'https://gf/api/payments/qonto/webhook');
+  assert.equal(body.secret, 'whsec_x');
+});
+
+test('getAuthorizeUrl requests the webhook scope (needed to register subscriptions)', () => {
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: stubFetch().fetchImpl });
+  const qs = new URL(client.getAuthorizeUrl({ redirectUri: 'https://x/cb', state: 's' })).searchParams;
+  assert.ok(qs.get('scope').includes('webhook'));
 });
 
 test('a non-OK response throws with status + parsed body', async () => {

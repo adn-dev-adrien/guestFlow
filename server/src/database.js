@@ -1565,6 +1565,10 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // only). Both NULL on direct / unused.
   if (!rcols.includes('platformGrossAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformGrossAmount REAL');
   if (!rcols.includes('platformPayoutAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPayoutAmount REAL');
+  // specs/public-online-payment.md §5 — set when a paid online full-payment was converted onto dates that
+  // had become unavailable (the devis never blocked them). Drives the admin notification + the conflict
+  // chip; NULL on every normal booking. Idempotent ADD COLUMN.
+  if (!rcols.includes('bookingConflictAt')) db.exec('ALTER TABLE reservations ADD COLUMN bookingConflictAt TEXT');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
 db.exec(`

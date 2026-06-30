@@ -14,6 +14,7 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PageActionBar from '../components/PageActionBar';
+import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import PricingSummary from '../components/PricingSummary';
 import ClientFormFields from '../components/ClientFormFields';
@@ -228,6 +229,7 @@ export default function ReservationPage() {
     // Human-readable reservation number (specs/reservation-number-and-search.md). Generated server-side
     // on first save; editable (overridable). '' for a new reservation until the first save returns it.
     reservationNumber: '',
+    bookingConflictAt: null, // online-payment date conflict (specs/public-online-payment.md §6)
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
     totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
@@ -649,6 +651,7 @@ export default function ReservationPage() {
           setForm({
             clientId: res.clientId,
             reservationNumber: res.reservationNumber || '',
+            bookingConflictAt: res.bookingConflictAt || null,
             adults: res.adults || 1,
             children: res.children || 0,
             teens: res.teens || 0,
@@ -2574,8 +2577,13 @@ export default function ReservationPage() {
       <PageActionBar
         title={computedTitle}
         onBack={goBackToOrigin}
-        subtitle={useCurrentPricing
-          ? <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />
+        subtitle={(useCurrentPricing || form.bookingConflictAt)
+          ? (
+            <>
+              {useCurrentPricing && <Chip size="small" color="warning" variant="outlined" label="Tarifs actuels appliqués (non sauvegardé)" />}
+              <ReservationConflictBadge conflictAt={form.bookingConflictAt} />
+            </>
+          )
           : null}
         center={(selectedClient || form.reservationNumber) ? (
           <>
