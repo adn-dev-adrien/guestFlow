@@ -43,7 +43,11 @@ Let a website visitor **pay their full stay online** and have the reservation co
      already paid (`404`/`409`).
    - **re-checks availability** for the dates (same engine/blocked-dates check as booking-request); if
      the dates are no longer free → `409 DATES_UNAVAILABLE` (we can still reject here — nothing paid yet).
-   - resolves the **full amount from the engine** (`finalPrice` → cents), never the client.
+   - resolves the **full amount from the engine** (re-run from the saved devis via `utils/devisQuote`),
+     never the client: the **tax-INCLUSIVE** total `totalStayPrice` (accommodation + options + resources
+     + **taxe de séjour**), EXCEPT when the tourist tax is `collectedOnArrival` → then `finalPrice`
+     (tax-exclusive). _(Decision 2026-06-30: the online full payment collects the taxe de séjour unless
+     it's perceived on arrival.)_ Falls back to the stored `finalPrice` column on an engine error.
    - creates a Qonto **`full`** payment link, persisted in `payment_links` (`reservationId = devis id`,
      `type='full'`); reuses the current open `full` link if one exists (idempotent on double-submit).
    - sets the Qonto **return URL** to the site success page (built from a **configured site origin** +
