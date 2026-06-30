@@ -75,6 +75,18 @@ test('createPaymentLink posts a Basket with the amount formatted from cents + au
   assert.equal(sent.items[0].title, 'Acompte séjour');
 });
 
+test('createPaymentLink includes redirect_url only when provided', async () => {
+  const withRedirect = stubFetch({ payment_link: { id: 'pl_r', url: 'u', status: 'open' } });
+  let client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: withRedirect.fetchImpl });
+  await client.createPaymentLink({ accessToken: 'at', title: 'x', amountCents: 100, redirectUrl: 'https://site/merci' });
+  assert.equal(JSON.parse(withRedirect.calls[0].opts.body).payment_link.redirect_url, 'https://site/merci');
+
+  const without = stubFetch({ payment_link: { id: 'pl_n', url: 'u', status: 'open' } });
+  client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: without.fetchImpl });
+  await client.createPaymentLink({ accessToken: 'at', title: 'x', amountCents: 100 });
+  assert.equal('redirect_url' in JSON.parse(without.calls[0].opts.body).payment_link, false);
+});
+
 test('getPaymentLink maps the Qonto status (paid)', async () => {
   const { fetchImpl, calls } = stubFetch({ payment_link: { id: 'pl_1', url: 'u', status: 'paid' } });
   const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { getSchoolHolidayInfo } from '../frenchHolidays';
 import { getClosureForDate } from '../utils/closureCalendar';
 import {
@@ -110,6 +111,11 @@ export default function CalendarDayCell({
         {isLabelDay ? (
           <>
             <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+              {midRes.bookingConflictAt && (
+                <Tooltip title="Conflit de dates — paiement en ligne reçu (remboursement / relogement à traiter)">
+                  <WarningAmberIcon sx={{ fontSize: 15, verticalAlign: 'text-bottom', mr: 0.5 }} />
+                </Tooltip>
+              )}
               {midRes.firstName} {midRes.lastName}
             </Typography>
             <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>

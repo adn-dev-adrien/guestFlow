@@ -114,7 +114,7 @@ function buildQontoClient(config = {}) {
     },
 
     // Create a single-amount payment link (Basket type: one line item carrying the whole amount).
-    async createPaymentLink({ accessToken, title, amountCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false }) {
+    async createPaymentLink({ accessToken, title, amountCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false, redirectUrl }) {
       const value = (Math.round(Number(amountCents || 0)) / 100).toFixed(2);
       const payload = {
         payment_link: {
@@ -125,6 +125,9 @@ function buildQontoClient(config = {}) {
           items: [{ title: String(title || 'Paiement'), quantity: 1, unit_price: { value, currency }, vat_rate: String(vatRate) }],
         },
       };
+      // Where Qonto sends the payer back after a successful payment (the site success page). Only set
+      // when provided — the exact field is confirmed in sandbox (specs/public-online-payment.md §9).
+      if (redirectUrl) payload.payment_link.redirect_url = String(redirectUrl);
       const res = await fetchImpl(`${apiBase}/v2/payment_links`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) });
       const json = await readBody(res, 'create payment link');
       const link = json.payment_link || json;

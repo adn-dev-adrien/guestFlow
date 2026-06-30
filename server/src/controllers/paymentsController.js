@@ -19,7 +19,8 @@ const devisModel = require('../models/devisModel');
 const { buildQontoClient } = require('../utils/qontoClient');
 const { getValidQontoAccessToken } = require('../utils/qontoAuth');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
-const { buildConfirmationSender, sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
+const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
+const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const { createEmailService } = require('../utils/emailService');
@@ -278,15 +279,9 @@ function listReservationPaymentLinks(req, res) {
 async function pollPaymentsNow(req, res) {
   try {
     const summary = await runPaymentPoll({
-      database,
-      paymentLinksModel,
-      devisModel,
+      ...buildPaymentEffectDeps(),
       qontoClient: buildQontoClient(),
       getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
-      sendConfirmation: buildConfirmationSender({
-        database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
-        settingsModel, emailServiceFactory: createEmailService,
-      }),
     });
     return res.json(summary);
   } catch (err) { return qontoError(res, err); }
