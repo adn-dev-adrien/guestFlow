@@ -12,6 +12,8 @@ const resourcesModel = require('../../models/resourcesModel');
 const { validateStayInput } = require('../../utils/publicInputValidation');
 const { toPublicQuote } = require('../../utils/publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
+const { mergePropertyDefaultsIntoPayload } = require('../../utils/propertyDefaultOptions');
+const propertyOptionDefaultsModel = require('../../models/propertyOptionDefaultsModel');
 const { ok, fail } = require('./publicHttp');
 
 /** Reject any option id that is not applicable to the property. Returns an error list or null. */
@@ -35,6 +37,17 @@ function checkResourceApplicability(propertyId, resources) {
 }
 
 function buildEngineQuote(input) {
+  // Apply the property's DEFAULT options (paid → added, offered → free) the SAME way the booking-request
+  // devis does, so the live preview matches the price the guest will actually be charged. The offered
+  // ids come ONLY from the server-side defaults — never from client input (no price manipulation).
+  const merged = mergePropertyDefaultsIntoPayload(
+    {
+      selectedOptions: input.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
+      offeredOptionIds: [],
+    },
+    Number(input.propertyId),
+    propertyOptionDefaultsModel,
+  );
   return calculateReservationQuote({
     db,
     propertyId: input.propertyId,
@@ -46,7 +59,8 @@ function buildEngineQuote(input) {
     children: input.children,
     teens: input.teens,
     babies: input.babies,
-    selectedOptions: input.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
+    selectedOptions: merged.selectedOptions,
+    offeredOptionIds: merged.offeredOptionIds,
     selectedResources: (input.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
   });
