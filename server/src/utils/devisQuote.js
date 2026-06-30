@@ -41,21 +41,27 @@ function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
   });
 }
 
-// Cents to charge for a FULL online payment of a public devis: the tax-INCLUSIVE total
-// (`totalStayPrice` = accommodation + options + resources + tourist tax), EXCEPT when the tax is
-// collected on arrival → then `finalPrice` (tax-exclusive). Falls back to the stored finalPrice column
-// on any engine failure so a payment is never blocked by a recompute hiccup.
+// Cents to charge for a FULL online payment of a public devis = exactly what the guest agreed to on
+// the quote: the **stored** `finalPrice` (accommodation + the options/resources THEY selected) + the
+// **stored** `touristTaxTotal`, EXCEPT when the tax is collected on arrival → then `finalPrice` only.
+//
+// IMPORTANT: the amount must come from the SAVED devis, NOT a fresh engine recompute — a recompute can
+// drift from the quote (e.g. the engine auto-adds a "Linge de lit" auto-option the public quote never
+// showed), which would over-charge the guest. We re-run the engine ONLY to read the `collectedOnArrival`
+// flag (a property-config boolean, never an amount). Falls back to the passed row on any failure.
 function fullPaymentCents({ database, devisModel, calc }, devisId, fallbackRow) {
+  const devis = (devisModel && typeof devisModel.findById === 'function' && devisModel.findById(devisId)) || fallbackRow || {};
+  const finalPrice = Number(devis.finalPrice != null ? devis.finalPrice : (fallbackRow && fallbackRow.finalPrice) || 0);
+  const tax = Number(devis.touristTaxTotal || 0);
+
+  let collectedOnArrival = false;
   try {
     const q = recomputeDevisQuote({ database, devisModel, calc }, devisId);
-    if (q) {
-      const euros = q.touristTaxCollectedOnArrival
-        ? Number(q.finalPrice || 0)
-        : Number(q.totalStayPrice || 0);
-      if (euros > 0) return Math.round(euros * 100);
-    }
-  } catch { /* fall back to the stored column */ }
-  return Math.round(Number((fallbackRow && fallbackRow.finalPrice) || 0) * 100);
+    if (q) collectedOnArrival = Boolean(q.touristTaxCollectedOnArrival);
+  } catch { /* default: tax included */ }
+
+  const euros = finalPrice + (collectedOnArrival ? 0 : tax);
+  return Math.round(euros * 100);
 }
 
 module.exports = { recomputeDevisQuote, fullPaymentCents };
