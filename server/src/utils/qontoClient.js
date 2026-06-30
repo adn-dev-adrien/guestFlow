@@ -17,8 +17,10 @@ const SANDBOX_HOSTS = { oauth: 'https://oauth-sandbox.staging.qonto.co', api: 'h
 const PROD_HOSTS = { oauth: 'https://oauth.qonto.com', api: 'https://thirdparty.qonto.com' };
 
 // `offline_access` is required to receive a refresh token; the rest are what payment links + the
-// provider connection need (write to create links, read to poll, organization.read for the bank account).
-const DEFAULT_SCOPES = ['offline_access', 'organization.read', 'payment_link.read', 'payment_link.write'];
+// provider connection need (write to create links, read to poll, organization.read for the bank
+// account). `webhook` is required to create the payment-link webhook subscription (POST
+// /v2/webhook_subscriptions) — see specs/public-online-payment.md §3bis.
+const DEFAULT_SCOPES = ['offline_access', 'organization.read', 'payment_link.read', 'payment_link.write', 'webhook'];
 
 // Maps a Qonto payment-link status to our `payment_links.status` enum.
 function mapQontoStatus(qontoStatus) {
@@ -152,6 +154,25 @@ function buildQontoClient(config = {}) {
       const payments = Array.isArray(json.payments) ? json.payments : [];
       const paidPayment = payments.find((p) => String(p.status || '').toLowerCase() === 'paid') || null;
       return { paid: Boolean(paidPayment), paidPayment, payments };
+    },
+
+    // Webhook subscriptions (specs/public-online-payment.md §3bis). Create one for the payment-link
+    // events, pointing at our public callback, with OUR secret so the signature uses QONTO_WEBHOOK_SECRET.
+    async createWebhookSubscription({ accessToken, callbackUrl, types = ['v1/payment-links'], secret, description }) {
+      const body = { callback_url: String(callbackUrl), types };
+      if (secret) body.secret = String(secret);
+      if (description) body.description = String(description);
+      const res = await fetchImpl(`${apiBase}/v2/webhook_subscriptions`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(body) });
+      const json = await readBody(res, 'create webhook subscription');
+      const sub = json.webhook_subscription || json;
+      return { id: sub.id, callbackUrl: sub.callback_url, types: sub.types, hasSecret: Boolean(sub.secret), raw: sub };
+    },
+
+    async listWebhookSubscriptions({ accessToken }) {
+      const res = await fetchImpl(`${apiBase}/v2/webhook_subscriptions`, { method: 'GET', headers: apiHeaders(accessToken) });
+      const json = await readBody(res, 'list webhook subscriptions');
+      const subs = json.webhook_subscriptions || json.subscriptions || [];
+      return subs.map((s) => ({ id: s.id, callbackUrl: s.callback_url, types: s.types }));
     },
 
     // List the organisation's bank accounts (the provider-connection form's account picker). Tolerates

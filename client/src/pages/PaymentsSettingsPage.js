@@ -132,6 +132,16 @@ export default function PaymentsSettingsPage() {
     }
   };
 
+  const handleRegisterWebhook = async () => {
+    setError(''); setNotice('');
+    try {
+      await api.registerQontoWebhook();
+      setNotice('Webhook Qonto enregistré ✓ (les paiements seront confirmés en temps réel)');
+    } catch (e) {
+      setError(e?.body?.message || e.message || "Échec de l'enregistrement du webhook (QONTO_WEBHOOK_SECRET + URL publique requis).");
+    }
+  };
+
   const handleConnectProvider = async () => {
     setConnecting(true); setError('');
     try {
@@ -184,13 +194,20 @@ export default function PaymentsSettingsPage() {
             { label: 'Provider de liens', value: providerEnabled ? 'Activé' : (qonto.connectionStatus || 'non connecté') },
           ]}
           actions={(
-            <Button
-              variant={connected ? 'outlined' : 'contained'}
-              disabled={!qonto.configured}
-              onClick={() => { window.location.href = '/api/payments/qonto/authorize'; }}
-            >
-              {connected ? 'Reconnecter Qonto' : 'Connecter Qonto'}
-            </Button>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+              <Button
+                variant={connected ? 'outlined' : 'contained'}
+                disabled={!qonto.configured}
+                onClick={() => { window.location.href = '/api/payments/qonto/authorize'; }}
+              >
+                {connected ? 'Reconnecter Qonto' : 'Connecter Qonto'}
+              </Button>
+              {connected && (
+                <Button variant="outlined" onClick={handleRegisterWebhook}>
+                  Enregistrer le webhook
+                </Button>
+              )}
+            </Box>
           )}
         />
 

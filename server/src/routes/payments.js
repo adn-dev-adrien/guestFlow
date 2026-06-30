@@ -17,6 +17,8 @@ router.get('/qonto/status', ctrl.qontoStatus);
 // index.js exempts this exact path. specs/public-online-payment.md §3bis.
 const qontoWebhookController = require('../controllers/qontoWebhookController');
 router.post('/qonto/webhook', qontoWebhookController.handleWebhook);
+// Admin one-shot: register the payment-link webhook subscription with Qonto.
+router.post('/qonto/webhook/register', ctrl.registerQontoWebhook);
 
 // Qonto payment-links provider connection.
 router.get('/qonto/bank-accounts', ctrl.qontoBankAccounts);

@@ -143,7 +143,8 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 
 | Method | Endpoint | Auth | Response | Notes |
 |---|---|---|---|---|
-| POST | `/api/payments/qonto/webhook` | Qonto **HMAC signature** (no session) | `200` (always, once verified) | Payment-succeeded push → `processPaidLink`. Bad/absent signature → `401`. Idempotent. |
+| POST | `/api/payments/qonto/webhook` | Qonto **HMAC signature** (no session) | `200` (always, once verified) | `payment_links.*` push → re-read paid state → `processPaidLink`. Bad/absent/stale signature → `401`. Idempotent. |
+| POST | `/api/payments/qonto/webhook/register` | admin session | `{ ok, id, callbackUrl }` | One-shot: `POST /v2/webhook_subscriptions` (`callback_url` = publicUrl + the webhook path, `types:['v1/payment-links']`, `secret`=`QONTO_WEBHOOK_SECRET`). Needs the OAuth **`webhook`** scope. Button on the Paiements page. |
 
 ## 5. Data model
 
