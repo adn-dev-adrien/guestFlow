@@ -118,6 +118,49 @@ test('a confirmation that throws never breaks the poll (best-effort)', async () 
   assert.equal(db.prepare('SELECT status FROM payment_links WHERE id = ?').get(link.id).status, 'paid');
 });
 
+test('a paid FULL link on a devis → converts it + marks fully paid (deposit + balance)', async () => {
+  const { db, devisId } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+
+  await runPaymentPoll(deps(db, 'paid'));
+
+  const devis = db.prepare('SELECT devisStatus, convertedReservationId FROM reservations WHERE id = ?').get(devisId);
+  assert.equal(devis.devisStatus, 'converted');
+  const resa = db.prepare('SELECT depositPaid, balancePaid, balancePaidDate FROM reservations WHERE id = ?').get(devis.convertedReservationId);
+  assert.equal(resa.depositPaid, 1);
+  assert.equal(resa.balancePaid, 1, 'full payment settles the balance too');
+  assert.ok(resa.balancePaidDate, 'balancePaidDate stamped');
+});
+
+test('a paid FULL link on a devis with a date conflict → flags bookingConflictAt + notifies the admin', async () => {
+  const { db, devisId } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+
+  const notified = [];
+  await runPaymentPoll({ ...deps(db, 'paid'), checkConflict: () => true, notifyConflict: (id) => { notified.push(id); } });
+
+  const devis = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(devisId);
+  const resa = db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = ?').get(devis.convertedReservationId);
+  assert.ok(resa.bookingConflictAt, 'conflict stamped on the converted reservation');
+  assert.deepEqual(notified, [devis.convertedReservationId], 'admin notified once with the reservation id');
+});
+
+test('no conflict → bookingConflictAt stays null, admin not notified', async () => {
+  const { db, devisId } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+
+  const notified = [];
+  await runPaymentPoll({ ...deps(db, 'paid'), checkConflict: () => false, notifyConflict: (id) => { notified.push(id); } });
+
+  const devis = db.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(devisId);
+  const resa = db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = ?').get(devis.convertedReservationId);
+  assert.equal(resa.bookingConflictAt, null);
+  assert.deepEqual(notified, []);
+});
+
 test('an open link stays open; an expired link is recorded', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);

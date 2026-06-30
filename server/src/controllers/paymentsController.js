@@ -19,7 +19,8 @@ const devisModel = require('../models/devisModel');
 const { buildQontoClient } = require('../utils/qontoClient');
 const { getValidQontoAccessToken } = require('../utils/qontoAuth');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
-const { buildConfirmationSender, sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
+const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
+const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
 const { createEmailService } = require('../utils/emailService');
@@ -273,20 +274,31 @@ function listReservationPaymentLinks(req, res) {
   return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
 }
 
+// Register (or report) the Qonto payment-link webhook subscription (specs/public-online-payment.md
+// §3bis). Builds the callback from the configured public URL + uses QONTO_WEBHOOK_SECRET so deliveries
+// are signed with the secret our endpoint verifies. One-shot admin action from the Paiements page.
+async function registerQontoWebhook(req, res) {
+  const secret = String(process.env.QONTO_WEBHOOK_SECRET || '').trim();
+  if (!secret) return res.status(400).json({ error: 'WEBHOOK_SECRET_MISSING', message: 'Définis QONTO_WEBHOOK_SECRET dans server/.env.local avant d’enregistrer le webhook.' });
+  const base = settingsModel.publicUrl();
+  if (!base) return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres)." });
+  const callbackUrl = `${base.replace(/\/+$/, '')}/api/payments/qonto/webhook`;
+  try {
+    const sub = await withAccessToken((client, at) => client.createWebhookSubscription({
+      accessToken: at, callbackUrl, types: ['v1/payment-links'], secret, description: 'GuestFlow payment links',
+    }));
+    return res.json({ ok: true, id: sub.id, callbackUrl });
+  } catch (err) { return sendError(res, err); }
+}
+
 // Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
 async function pollPaymentsNow(req, res) {
   try {
     const summary = await runPaymentPoll({
-      database,
-      paymentLinksModel,
-      devisModel,
+      ...buildPaymentEffectDeps(),
       qontoClient: buildQontoClient(),
       getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
-      sendConfirmation: buildConfirmationSender({
-        database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
-        settingsModel, emailServiceFactory: createEmailService,
-      }),
     });
     return res.json(summary);
   } catch (err) { return qontoError(res, err); }
@@ -296,4 +308,5 @@ module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
+  registerQontoWebhook,
 };

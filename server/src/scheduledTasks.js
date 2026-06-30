@@ -25,7 +25,7 @@ const devisModel = require('./models/devisModel');
 const { buildQontoClient } = require('./utils/qontoClient');
 const { getValidQontoAccessToken } = require('./utils/qontoAuth');
 const { runPaymentPoll } = require('./utils/paymentPollRunner');
-const { buildConfirmationSender } = require('./utils/reservationEmailSender');
+const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
 
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
@@ -204,15 +204,9 @@ async function runPaymentPollPass(reason = 'cron') {
   paymentPollInProgress = true;
   try {
     const summary = await runPaymentPoll({
-      database: db,
-      paymentLinksModel,
-      devisModel,
+      ...buildPaymentEffectDeps(),
       qontoClient: buildQontoClient(),
       getAccessToken: () => getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient }),
-      sendConfirmation: buildConfirmationSender({
-        database: db, templatesModel: emailTemplatesModel, logModel: emailLogModel,
-        settingsModel, emailServiceFactory: createEmailService,
-      }),
     });
     if (summary.paid > 0) console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
   } catch (err) {

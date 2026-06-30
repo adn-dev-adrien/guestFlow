@@ -74,7 +74,12 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // 50 KB). Pinning the limit ourselves keeps a runaway client (or an attacker who got past
 // auth) from eating the Pi's RAM via a multi-MB body. 256 KB leaves headroom for future
 // growth without inviting abuse. Spotted in the 2026-06-01 security audit (finding M1).
-app.use(express.json({ limit: '256kb' }));
+// Capture the raw request bytes so the Qonto webhook can verify its HMAC signature against the exact
+// payload (the parsed body can't be re-serialised byte-for-byte). specs/public-online-payment.md §3bis.
+app.use(express.json({
+  limit: '256kb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 
 // Server-side sessions persisted in SQLite (survive restarts). Cookie is httpOnly + sameSite + Secure
 // when HTTPS is actually available — a Secure cookie over plain HTTP is silently dropped by the
@@ -134,6 +139,9 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api', (req, res, next) => {
   if (req.path === '/version') return next();
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
+  // The Qonto webhook is a server-to-server call (no session) authenticated by its HMAC signature
+  // inside the controller — it must bypass the session guard, like the OAuth callback's browser flow.
+  if (req.method === 'POST' && req.path === '/payments/qonto/webhook') return next();
   return requireAuth(req, res, next);
 });
 
@@ -142,6 +150,7 @@ app.use('/api', (req, res, next) => {
 app.use('/api', (req, res, next) => {
   if (req.path === '/version') return next();
   if (req.method === 'GET' && /^\/ical\/export\//.test(req.path)) return next();
+  if (req.method === 'POST' && req.path === '/payments/qonto/webhook') return next();
   if (!req.user) return next(); // requireAuth above already 401'd if no session
   return enforceRoleAccess(req, res, next);
 });

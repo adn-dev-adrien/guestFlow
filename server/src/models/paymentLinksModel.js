@@ -70,6 +70,14 @@ function buildModel(database) {
     ).get(Number(reservationId), String(type));
   }
 
+  // Resolve a link by its Qonto id (the webhook receives the remote id, not our row id).
+  function findByQontoPaymentLinkId(qontoId) {
+    if (!qontoId) return undefined;
+    return database.prepare(
+      `SELECT ${SELECT_COLS} FROM payment_links WHERE qontoPaymentLinkId = ? ORDER BY id DESC LIMIT 1`
+    ).get(String(qontoId));
+  }
+
   // Idempotent: only an `open` row transitions to `paid`. A late/duplicate call on an already-paid
   // (or cancelled/expired) row changes nothing and reports it didn't flip — so the polling pass
   // never double-processes a payment.
@@ -97,6 +105,7 @@ function buildModel(database) {
     listOpen,
     listForReservation,
     findOpenForReservation,
+    findByQontoPaymentLinkId,
     markPaid,
     updateStatus,
   };

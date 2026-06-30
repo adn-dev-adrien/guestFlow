@@ -230,6 +230,7 @@ const api = {
   getReservationPaymentLinks: (id) => request(`/payments/reservations/${id}/payment-links`),
   sendDepositRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'deposit' } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
+  registerQontoWebhook: () => request('/payments/qonto/webhook/register', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
 

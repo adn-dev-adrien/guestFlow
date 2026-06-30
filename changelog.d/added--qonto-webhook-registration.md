@@ -1,0 +1,1 @@
+- Paiements : bouton **« Enregistrer le webhook »** sur la page Paiements (Qonto connecté) qui crée l'abonnement webhook `v1/payment-links` côté Qonto (URL de rappel + secret partagé), pour confirmer les paiements en temps réel. Nécessite `QONTO_WEBHOOK_SECRET` + l'URL publique configurée + le scope OAuth `webhook`.
