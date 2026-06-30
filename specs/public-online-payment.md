@@ -205,14 +205,19 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 2. ~~Admin conflict badge~~ — **Resolved 2026-06-30: in scope** (chip on the reservation fiche + calendar).
 3. **On-demand poll cost** — polling a single link on every status GET is bounded, but if the site polls
    aggressively we may want a short cache / min-interval. Decide at plan time.
-4. ~~Qonto webhook support + signature scheme~~ — **Resolved 2026-06-30 (docs.qonto.com).** Qonto's
-   `v1/payment-links` webhook exists (events `payment_links.created`/`updated`, id at
-   `data.payment_link_id`); signature header **`X-Qonto-Signature`** = `t={ts},v1={hmac}`, signed
-   payload `{ts}.{body}`, HMAC-SHA256, 5-min replay tolerance. **Code now implements exactly this.**
-   **Remaining live step (needs Adrien + a publicly reachable HTTPS URL):** register the webhook with
-   Qonto (its *Create a Webhook* API / dashboard) pointing at
-   `https://<public-host>/api/payments/qonto/webhook`, copy the returned secret into
-   `QONTO_WEBHOOK_SECRET`, and fire a test payment. The Pi's self-signed TLS may block delivery — verify
-   Qonto accepts it or front it with a valid cert. The **poll fallback confirms bookings** until then.
+4. ~~Qonto webhook support + signature scheme~~ — **VERIFIED LIVE 2026-06-30 (sandbox + webhook.site).**
+   Registered a `v1/payment-links` subscription via `POST /v2/webhook_subscriptions` (OAuth scope
+   **`webhook`**, secret supplied by us) pointing at a webhook.site URL, created a payment link, and
+   Qonto delivered a signed `POST` with header **`X-Qonto-Signature: t={ts},v1={hex_hmac}`** over
+   `{ts}.{body}`. **Our `verifySignature` accepts the real signature with the correct secret and rejects
+   a wrong one; `extractPaymentLinkId` read the real `data.payment_link_id`.** The scheme + code are
+   confirmed on the real Qonto environment.
+   - **Prerequisite captured:** the OAuth **app must have the `webhook` scope enabled** (Developer Portal
+     → app scopes) and the connection re-consented — done for the **sandbox** app; the **prod** app will
+     need the same one-time scope enable + re-consent (and possibly Qonto validation, like `payment_link`).
+   - **Remaining for true prod end-to-end:** register the subscription against the public Pi URL
+     (`https://<public-host>/api/payments/qonto/webhook`) with `QONTO_WEBHOOK_SECRET`, and confirm Qonto
+     can reach it over TLS (self-signed cert may need fronting). The « Enregistrer le webhook » button
+     does the registration. The **poll fallback confirms bookings** regardless.
 5. **Return URL field** — confirm `createPaymentLink`'s `redirect_url` is the field Qonto honours for the
    post-payment redirect (sandbox); set `PUBLIC_SITE_ORIGIN`.
