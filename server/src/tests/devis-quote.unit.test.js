@@ -1,9 +1,13 @@
 // devisQuote — the online full-payment amount for a public devis (specs/public-online-payment.md).
-// SENSITIVE: the amount charged must = accommodation + options + resources + tourist tax, and must NOT
-// regress when options/resources are added. The tourist tax is included EXCEPT when collected on arrival.
+// SENSITIVE: the guest must be charged EXACTLY the quote they agreed to — the stored finalPrice
+// (accommodation + the options/resources THEY selected) + the stored tourist tax — never a fresh engine
+// recompute (which can drift, e.g. auto-add a "Linge de lit" option the quote never showed). The tax is
+// included EXCEPT when collected on arrival.
 //
-// Part A: pure logic (stubbed engine) — locks the tax decision + fallback.
-// Part B: REAL pricing engine over a seeded property — verifies the actual euro amounts.
+// Part A: fullPaymentCents (stubbed) — locks the agreed-amount rule, the tax decision, the anti-drift
+//         guarantee, and the fallback.
+// Part B: recomputeDevisQuote over the REAL pricing engine — proves the engine prices options/resources
+//         and the tourist tax correctly (this is what feeds the stored devis finalPrice at creation).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,43 +16,59 @@ const Database = require('better-sqlite3');
 const { recomputeDevisQuote, fullPaymentCents } = require('../utils/devisQuote');
 const { calculateReservationQuote } = require('../utils/pricing');
 
-// ---------- Part A: tax decision + fallback (stubbed engine) ----------
+// ---------- Part A: agreed amount + tax decision + anti-drift + fallback ----------
 
-const devisStub = (over = {}) => ({ findById: () => ({ propertyId: 1, startDate: '2026-09-15', endDate: '2026-09-18', adults: 2, options: [], resources: [], ...over }) });
-
-test('fullPaymentCents: NOT collected on arrival → charges the tax-INCLUSIVE total (totalStayPrice)', () => {
-  const calc = () => ({ finalPrice: 782.40, totalStayPrice: 789.60, touristTaxCollectedOnArrival: false });
-  const cents = fullPaymentCents({ database: {}, devisModel: devisStub(), calc }, 1, { finalPrice: 782.40 });
-  assert.equal(cents, 78960); // 789,60 € = hébergement+options+ressources + taxe de séjour
+// devisModel.findById returns the SAVED devis row (the amounts the guest saw); calc only feeds the
+// collectedOnArrival flag.
+const deps = ({ devis, onArrival = false, recomputeFinalPrice }) => ({
+  database: {},
+  devisModel: { findById: () => devis },
+  calc: () => ({ finalPrice: recomputeFinalPrice != null ? recomputeFinalPrice : (devis && devis.finalPrice), touristTaxCollectedOnArrival: onArrival }),
 });
 
-test('fullPaymentCents: collected on arrival → charges finalPrice (tax excluded)', () => {
-  const calc = () => ({ finalPrice: 782.40, totalStayPrice: 789.60, touristTaxCollectedOnArrival: true });
-  const cents = fullPaymentCents({ database: {}, devisModel: devisStub(), calc }, 1, { finalPrice: 782.40 });
-  assert.equal(cents, 78240);
+test('charges the stored finalPrice + stored tourist tax (tax included by default)', () => {
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
+  assert.equal(fullPaymentCents(deps({ devis }), 1, devis), 78960); // 789,60 €
 });
 
-test('fullPaymentCents: engine returns null → falls back to the stored finalPrice column', () => {
+test('collected on arrival → charges finalPrice only (tax excluded)', () => {
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
+  assert.equal(fullPaymentCents(deps({ devis, onArrival: true }), 1, devis), 78240);
+});
+
+test('options + resources are already baked into the stored finalPrice → included in the charge', () => {
+  const devis = { finalPrice: 440, touristTaxTotal: 6 }; // 360 + option 50 + resource 30, tax 6
+  assert.equal(fullPaymentCents(deps({ devis }), 1, devis), 44600);
+});
+
+test('REGRESSION: a drifting engine recompute (auto-added option) must NOT change the charge', () => {
+  // The guest agreed to 782,40 + 7,20. A recompute would add a 14 € "Linge de lit" auto-option (796,40).
+  // We must still charge the agreed 789,60 — never the recompute.
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
+  assert.equal(fullPaymentCents(deps({ devis, recomputeFinalPrice: 796.40 }), 1, devis), 78960);
+});
+
+test('no devis found → falls back to the passed row finalPrice (payment never blocked)', () => {
   const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => null }, calc: () => null }, 1, { finalPrice: 500 });
   assert.equal(cents, 50000);
 });
 
-test('fullPaymentCents: engine throws → falls back to the stored finalPrice column (payment never blocked)', () => {
-  const calc = () => { throw new Error('engine boom'); };
-  const cents = fullPaymentCents({ database: {}, devisModel: devisStub(), calc }, 1, { finalPrice: 500 });
-  assert.equal(cents, 50000);
+test('engine throws (flag unknown) → defaults to tax included', () => {
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
+  const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => devis }, calc: () => { throw new Error('boom'); } }, 1, devis);
+  assert.equal(cents, 78960);
 });
 
-test('recomputeDevisQuote: passes the devis options + resources to the engine (so they are priced in)', () => {
+test('recomputeDevisQuote: passes the devis options + resources to the engine (so they are priced)', () => {
   let input = null;
-  const calc = (i) => { input = i; return { finalPrice: 0, totalStayPrice: 0 }; };
-  const devisModel = devisStub({ options: [{ optionId: 7, quantity: 2 }], resources: [{ resourceId: 3, quantity: 1 }] });
+  const calc = (i) => { input = i; return {}; };
+  const devisModel = { findById: () => ({ propertyId: 1, startDate: '2026-09-15', endDate: '2026-09-18', adults: 2, options: [{ optionId: 7, quantity: 2 }], resources: [{ resourceId: 3, quantity: 1 }] }) };
   recomputeDevisQuote({ database: {}, devisModel, calc }, 1);
   assert.deepEqual(input.selectedOptions, [{ optionId: 7, quantity: 2, unitPrice: undefined }]);
   assert.deepEqual(input.selectedResources, [{ resourceId: 3, quantity: 1, unitPrice: undefined, offered: false }]);
 });
 
-// ---------- Part B: real pricing engine over a seeded property ----------
+// ---------- Part B: real pricing engine — options / resources / tourist tax ----------
 
 function seedDb() {
   const db = new Database(':memory:');
@@ -84,7 +104,6 @@ function seedDb() {
     );
     CREATE TABLE property_resource_prices ( propertyId INTEGER NOT NULL, resourceId INTEGER NOT NULL, price REAL, freeMinutes INTEGER DEFAULT 0, PRIMARY KEY (propertyId, resourceId) );
   `);
-  // 120 €/night; tourist tax 1 €/adult/night.
   db.prepare("INSERT INTO properties (id, name, touristTaxPerDayPerPerson) VALUES (1, 'Gîte test', 1)").run();
   db.prepare("INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 120, 1)").run();
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (7, 'Ménage', 'per_stay', 50)").run();
@@ -94,57 +113,40 @@ function seedDb() {
   return db;
 }
 
-// 3 nights, 2 adults → accommodation 360 ; tourist tax 1 x 2 adults x 3 nights = 6.
 const STAY = { propertyId: 1, startDate: '2026-07-10', endDate: '2026-07-13', adults: 2, children: 0, teens: 0, babies: 0 };
-const deps = (db, devis) => ({ database: db, devisModel: { findById: () => devis }, calc: calculateReservationQuote });
+const engineDeps = (db, devis) => ({ database: db, devisModel: { findById: () => devis }, calc: calculateReservationQuote });
 
-test('real engine — base stay: finalPrice excl. tax, totalStayPrice = finalPrice + tourist tax', () => {
-  const db = seedDb();
-  const q = recomputeDevisQuote(deps(db, { ...STAY, options: [], resources: [] }), 1);
-  assert.equal(q.finalPrice, 360, 'accommodation only (3 x 120), tax-exclusive');
-  assert.equal(q.touristTaxTotal, 6, '1 € x 2 adultes x 3 nuits');
-  assert.equal(q.totalStayPrice, 366, 'finalPrice + tourist tax');
-  // The online full payment charges the tax-INCLUSIVE total.
-  assert.equal(fullPaymentCents(deps(db, { ...STAY, options: [], resources: [] }), 1, { finalPrice: 360 }), 36600);
+test('real engine — base: finalPrice excl. tax; totalStayPrice = finalPrice + tourist tax', () => {
+  const q = recomputeDevisQuote(engineDeps(seedDb(), { ...STAY, options: [], resources: [] }), 1);
+  assert.equal(q.finalPrice, 360);
+  assert.equal(q.touristTaxTotal, 6); // 1 € x 2 adultes x 3 nuits
+  assert.equal(q.totalStayPrice, 366);
 });
 
-test('real engine — with an option: amount includes the option AND the tourist tax', () => {
-  const db = seedDb();
-  const devis = { ...STAY, options: [{ optionId: 7, quantity: 1 }], resources: [] };
-  const q = recomputeDevisQuote(deps(db, devis), 1);
-  assert.equal(q.finalPrice, 410, 'accommodation 360 + option 50');
-  assert.equal(q.touristTaxTotal, 6);
-  assert.equal(q.totalStayPrice, 416, 'finalPrice + tax');
-  assert.equal(fullPaymentCents(deps(db, devis), 1, { finalPrice: 410 }), 41600);
+test('real engine — with an option: option included in finalPrice', () => {
+  const q = recomputeDevisQuote(engineDeps(seedDb(), { ...STAY, options: [{ optionId: 7, quantity: 1 }], resources: [] }), 1);
+  assert.equal(q.finalPrice, 410); // 360 + 50
 });
 
-test('real engine — with a resource: amount includes the resource AND the tourist tax', () => {
-  const db = seedDb();
-  const devis = { ...STAY, options: [], resources: [{ resourceId: 10, quantity: 1 }] };
-  const q = recomputeDevisQuote(deps(db, devis), 1);
-  assert.equal(q.finalPrice, 390, 'accommodation 360 + resource 30');
-  assert.equal(q.totalStayPrice, 396, 'finalPrice + tax 6');
-  assert.equal(fullPaymentCents(deps(db, devis), 1, { finalPrice: 390 }), 39600);
+test('real engine — with a resource: resource included in finalPrice', () => {
+  const q = recomputeDevisQuote(engineDeps(seedDb(), { ...STAY, options: [], resources: [{ resourceId: 10, quantity: 1 }] }), 1);
+  assert.equal(q.finalPrice, 390); // 360 + 30
 });
 
-test('real engine — options + resources together: full amount = accommodation + options + resources + tax (no regression)', () => {
-  const db = seedDb();
-  const devis = { ...STAY, options: [{ optionId: 7, quantity: 1 }], resources: [{ resourceId: 10, quantity: 1 }] };
-  const q = recomputeDevisQuote(deps(db, devis), 1);
-  assert.equal(q.finalPrice, 440, '360 + 50 + 30');
+test('real engine — options + resources: finalPrice = accommodation + options + resources; totalStayPrice adds the tax', () => {
+  const q = recomputeDevisQuote(engineDeps(seedDb(), { ...STAY, options: [{ optionId: 7, quantity: 1 }], resources: [{ resourceId: 10, quantity: 1 }] }), 1);
+  assert.equal(q.finalPrice, 440); // 360 + 50 + 30
   assert.equal(q.touristTaxTotal, 6);
   assert.equal(q.totalStayPrice, 446);
-  assert.equal(fullPaymentCents(deps(db, devis), 1, { finalPrice: 440 }), 44600, 'paiement = 446,00 € (tout inclus + taxe)');
 });
 
-test('real engine — invariant: totalStayPrice is always finalPrice + touristTaxTotal', () => {
+test('real engine — invariant: totalStayPrice always = finalPrice + touristTaxTotal', () => {
   const db = seedDb();
   for (const devis of [
     { ...STAY, options: [], resources: [] },
-    { ...STAY, options: [{ optionId: 7, quantity: 1 }], resources: [] },
     { ...STAY, options: [{ optionId: 7, quantity: 1 }], resources: [{ resourceId: 10, quantity: 1 }] },
   ]) {
-    const q = recomputeDevisQuote(deps(db, devis), 1);
+    const q = recomputeDevisQuote(engineDeps(db, devis), 1);
     assert.equal(Math.round(q.totalStayPrice * 100), Math.round((q.finalPrice + q.touristTaxTotal) * 100));
   }
 });
