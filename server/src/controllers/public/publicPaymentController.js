@@ -17,6 +17,8 @@ const { getValidQontoAccessToken } = require('../../utils/qontoAuth');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
+const { fullPaymentCents } = require('../../utils/devisQuote');
+const { calculateReservationQuote } = require('../../utils/pricing');
 const settingsModel = require('../../models/settingsModel');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { ok, fail } = require('./publicHttp');
@@ -58,8 +60,9 @@ async function pay(req, res) {
     const link = await ensurePaymentLink({
       database: db,
       paymentLinksModel,
-      // Full stay total, from the engine-computed devis finalPrice (never the client).
-      resolveAmountCents: (_id, _type, r) => Math.round(Number(r.finalPrice || 0) * 100),
+      // Full stay total re-computed from the saved devis (never the client): tax-INCLUSIVE
+      // (accommodation + options + resources + tourist tax), unless the tax is collected on arrival.
+      resolveAmountCents: (_id, _type, r) => fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r),
       createLink: ({ title, amountCents }) => withAccessToken((client, at) =>
         client.createPaymentLink({ accessToken: at, title, amountCents, redirectUrl: redirectUrl || undefined })),
     }, id, 'full');
