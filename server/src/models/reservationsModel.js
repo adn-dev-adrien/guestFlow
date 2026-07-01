@@ -1188,6 +1188,12 @@ function createReservationsModel(database) {
               .run(reservationId);
           }
         }
+        // specs/arrival-departure-sas.md §3.6 — going all the way through the arrival SAS validates the
+        // planning coche AND the dashboard « Prêt » + « Arrivé » (checkInReady is both). Forward-only
+        // convenience: completing the SAS means the guest is in; re-committing re-affirms it, and it's
+        // never auto-unticked here (the operator can always uncheck it on the planning/dashboard).
+        database.prepare("UPDATE reservations SET checkInReady = 1, checkInDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
+
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
       return tx();
@@ -1269,6 +1275,11 @@ function createReservationsModel(database) {
           database.prepare("UPDATE reservations SET extinguisherSealOkAtDeparture = ?, updatedAt = datetime('now') WHERE id = ?")
             .run(extinguisherSealOkAtDeparture ? 1 : 0, reservationId);
         }
+
+        // specs/arrival-departure-sas.md §3.6 — going all the way through the departure SAS validates the
+        // planning coche = dashboard « Parti » (checkOutDone). Same forward-only, never-auto-untick rule
+        // as the arrival flags above.
+        database.prepare("UPDATE reservations SET checkOutDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
       });
       tx();
     },
