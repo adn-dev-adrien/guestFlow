@@ -341,6 +341,9 @@ const api = {
   getReservationSas: (id) => request(`/reservations/${encodeURIComponent(id)}/sas`),
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
+  // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the
+  // background when the check-in opens; returns { configured, resolved, department, alerts:[] }.
+  getReservationWeatherAlerts: (id) => request(`/reservations/${encodeURIComponent(id)}/weather-alerts`),
   // Priced linen items + repair amounts (« Tarifs facturables » — specs/extinguisher-seal-and-repair-amounts.md).
   getLinenItems: () => request('/settings/linen-items'),
   updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),

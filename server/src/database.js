@@ -1596,7 +1596,22 @@ db.exec(`
 {
   const scols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);
   if (!scols.includes('portalCode')) db.exec("ALTER TABLE app_settings ADD COLUMN portalCode TEXT DEFAULT ''");
+  // Météo-France Vigilance API key (specs/checkin-weather-alerts.md §5). Operator-configured secret,
+  // AES-256-GCM encrypted at rest (settingsModel.ENCRYPTED_COLUMNS). Empty → the weather-alert feature
+  // is inert (no page, no error).
+  if (!scols.includes('meteoFranceApiKeyEncrypted')) db.exec("ALTER TABLE app_settings ADD COLUMN meteoFranceApiKeyEncrypted TEXT DEFAULT ''");
 }
+
+// Weather vigilance cache (specs/checkin-weather-alerts.md §5). One row per département: the normalized
+// phenomena payload (JSON) + the fetch timestamp, so opening several check-ins in a row reuses a fresh
+// cache instead of hammering the Météo-France API. Survives restarts (durable, unlike an in-memory cache).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS weather_vigilance_cache (
+    departmentCode TEXT PRIMARY KEY,
+    payload        TEXT NOT NULL,
+    fetchedAt      TEXT NOT NULL
+  );
+`);
 
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.

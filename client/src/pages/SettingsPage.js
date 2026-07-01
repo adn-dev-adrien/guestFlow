@@ -12,6 +12,7 @@ import SettingsReservationLockSection from '../components/SettingsReservationLoc
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
 import SettingsSmtpSection from '../components/SettingsSmtpSection';
 import SettingsNotificationsSection from '../components/SettingsNotificationsSection';
+import SettingsWeatherSection from '../components/SettingsWeatherSection';
 import SettingsPushNotificationsSection from '../components/SettingsPushNotificationsSection';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
@@ -55,6 +56,12 @@ const EMPTY_FORM = {
     enabled: true,
     icalReservationEnabled: true,
     recipientEmail: '',
+  },
+  // Weather alerts (specs/checkin-weather-alerts.md). The Météo-France key is a masked secret; the
+  // server returns only `apiKeySet`. apiKeyDraft: same 3-way semantics as smtp.passwordDraft.
+  weather: {
+    apiKeySet: false,
+    apiKeyDraft: undefined,
   },
 };
 
@@ -121,6 +128,11 @@ function buildPayloadFromDraft(draft, saved) {
   const notificationsDirty = diffFields(draft.notifications, saved.notifications);
   if (Object.keys(notificationsDirty).length > 0) payload.notifications = notificationsDirty;
 
+  // Weather — masked API key, 3-way like the SMTP password (only sent when touched).
+  if (draft.weather.apiKeyDraft !== undefined) {
+    payload.weather = { apiKey: draft.weather.apiKeyDraft };
+  }
+
   return payload;
 }
 
@@ -151,6 +163,11 @@ function fromServer(settings) {
     notifications: {
       ...EMPTY_FORM.notifications,
       ...(settings.notifications || {}),
+    },
+    weather: {
+      ...EMPTY_FORM.weather,
+      ...(settings.weather || {}),
+      apiKeyDraft: undefined,
     },
   };
 }
@@ -222,6 +239,13 @@ export default function SettingsPage() {
     setDraft((prev) => ({
       ...prev,
       smtp: { ...prev.smtp, passwordDraft: value },
+    }));
+  };
+
+  const updateWeatherApiKey = (value) => {
+    setDraft((prev) => ({
+      ...prev,
+      weather: { ...prev.weather, apiKeyDraft: value },
     }));
   };
 
@@ -427,6 +451,13 @@ export default function SettingsPage() {
               errors={errors}
               onChange={updateGroup('notifications')}
               disabled={loading || saving}
+            />
+          </Box>
+
+          <Box sx={{ breakInside: 'avoid' }}>
+            <SettingsWeatherSection
+              values={draft.weather}
+              onChangeApiKey={updateWeatherApiKey}
             />
           </Box>
 

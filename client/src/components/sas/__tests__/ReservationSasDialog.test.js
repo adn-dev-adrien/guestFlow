@@ -12,6 +12,9 @@ vi.mock('../../../api', () => ({
     getReservationSas: vi.fn(),
     commitArrivalSas: vi.fn().mockResolvedValue({ ok: true, complementAmount: 85 }),
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
+    // Weather alerts (specs/checkin-weather-alerts.md) — fired in the background on arrival open.
+    // Default to "no alert" so the wizard flow under test is unchanged.
+    getReservationWeatherAlerts: vi.fn().mockResolvedValue({ configured: false, resolved: false, department: null, alerts: [] }),
   },
 }));
 

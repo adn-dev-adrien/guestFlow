@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const controller = require('../controllers/reservationsController');
 const sasController = require('../controllers/sasController');
+const weatherController = require('../controllers/weatherController');
 
 // Thin routes: wire HTTP verbs/paths to controller methods. All logic lives in the controller,
 // model (DB), and utils (occupancy / audit / bed distribution).
@@ -15,6 +16,9 @@ router.get('/:id/history', controller.getHistory);
 router.get('/:id/sas', sasController.getSas);
 router.post('/:id/sas/arrival', sasController.commitArrival);
 router.post('/:id/sas/departure', sasController.commitDeparture);
+// Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the background
+// when the check-in opens; never blocks the wizard, degrades to an empty list on any failure.
+router.get('/:id/weather-alerts', weatherController.getReservationAlerts);
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
 router.put('/:id', controller.update);
