@@ -128,6 +128,11 @@ function shapeResponse(row) {
     reservations: {
       allowEditPastReservations: Number(row.allowEditPastReservations) === 1,
     },
+    // Weather alerts block (specs/checkin-weather-alerts.md). The key itself is never returned; the
+    // row comes from settingsModel.read() which substitutes the encrypted blob with the boolean flag.
+    weather: {
+      apiKeySet: Boolean(row.meteoFranceApiKeySet),
+    },
     // Laundry block — weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Surfaced
     // to the client as `weekday: 0..6` (Date.getDay() convention) so the SettingsLaundrySection
     // Select can map values directly to the WEEKDAY_OPTIONS constant.
