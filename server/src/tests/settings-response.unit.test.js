@@ -84,6 +84,7 @@ test('shapeResponse: wraps under company / quote / googleCalendar', () => {
     companyIban: 'FR7630006000011234567890189',
     companyBic: 'BNPAFRPP',
     companyBankName: 'BNP',
+    portalCode: 'PC-4290',
     quoteFooterText: 'Merci',
     quoteValidityDays: 45,
     companyLogoPath: '/uploads/x.png',
@@ -93,6 +94,10 @@ test('shapeResponse: wraps under company / quote / googleCalendar', () => {
   assert.equal(out.company.name, 'Acme');
   assert.equal(out.company.siret, '12345678901234');
   assert.equal(out.company.logoPath, '/uploads/x.png');
+  // Non-regression: portalCode must round-trip through GET /settings so the Settings form
+  // shows the saved code on load (fix/settings-portal-code-display). Was previously omitted
+  // from the company block → the field always rendered empty.
+  assert.equal(out.company.portalCode, 'PC-4290');
   assert.equal(out.quote.footerText, 'Merci');
   assert.equal(out.quote.validityDays, 45);
   assert.equal(out.googleCalendar.calendarId, 'cal');
@@ -108,6 +113,7 @@ test('shapeResponse: empty row → empty wrapped payload + defaults', () => {
   const out = shapeResponse({});
   assert.equal(out.company.name, '');
   assert.equal(out.company.logoPath, '');
+  assert.equal(out.company.portalCode, '');
   assert.equal(out.quote.validityDays, 30);
   assert.equal(out.googleCalendar.calendarId, '');
   assert.equal(out.googleCalendar.privateKeyMasked, '');

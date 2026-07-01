@@ -147,6 +147,10 @@ confirmation — records the caution status and the complement(s) on the reserva
 21. A **single global `portalCode`** (the domain's gate code) is configured in **Réglages** (general
     settings). The arrival SAS rule 5.bis shows it; empty → that page is skipped. (Decision 2026-06-12:
     global, per the operator's « dans les settings » — see §9 if it should later become per-property.)
+21.bis. **`portalCode` must round-trip through `GET /api/settings`** so the Réglages « Code portail »
+    field is **populated on page load**, not just writable. (Fix 2026-07-01: `settingsResponse.shapeResponse`
+    omitted `portalCode` from the `company` block, so the field always rendered empty even when a code was
+    saved. Guarded by a non-regression test in `tests/settings-response.unit.test.js`.)
 
 ### 3.6 Completing a SAS validates the planning coche + dashboard status (2026-07-01)
 22. **Going all the way through a SAS validates the matching status flags** — the point of finishing the

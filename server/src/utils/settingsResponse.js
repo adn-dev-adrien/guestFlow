@@ -83,6 +83,10 @@ function shapeResponse(row) {
       bic: safeStr(row.companyBic).trim(),
       bankName: safeStr(row.companyBankName).trim(),
       logoPath: safeStr(row.companyLogoPath),
+      // Domain gate/access code shown on the arrival SAS (specs/arrival-departure-sas.md §3.5).
+      // Must round-trip through GET /settings so the field is populated on page load, not just
+      // writable — otherwise the client always shows it empty.
+      portalCode: safeStr(row.portalCode).trim(),
     },
     quote: {
       footerText: safeStr(row.quoteFooterText),

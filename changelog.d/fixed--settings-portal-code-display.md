@@ -1,0 +1,1 @@
+- Paramètres : le « Code portail » enregistré s'affiche désormais au chargement de la page (il était sauvegardé mais toujours affiché vide, car absent de la réponse `GET /settings`).
