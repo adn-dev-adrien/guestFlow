@@ -21,6 +21,7 @@ function makeDb() {
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
+      checkInReady INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0, checkOutDone INTEGER DEFAULT 0,
       extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER,
       breakfastTime TEXT,
       breakfastCoffee INTEGER NOT NULL DEFAULT 0, breakfastTea INTEGER NOT NULL DEFAULT 0,
@@ -328,6 +329,56 @@ test('commitDepartureSas: a 0-qty or 0-priced extinguisher tariff produces no li
   const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
   assert.equal(r.endOfStayComplementAmount, 0);
   assert.equal(r.endOfStayComplementDetail, null);
+});
+
+// ── planning coche + dashboard status flags (specs/arrival-departure-sas.md §3.6) ──────────────────
+
+test('commitArrivalSas: completing the arrival SAS validates checkInReady (coche/Prêt) + checkInDone (Arrivé)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  let r = db.prepare('SELECT checkInReady, checkInDone FROM reservations WHERE id = 1').get();
+  assert.equal(r.checkInReady, 0);
+  assert.equal(r.checkInDone, 0);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  r = db.prepare('SELECT checkInReady, checkInDone FROM reservations WHERE id = 1').get();
+  assert.equal(r.checkInReady, 1, 'planning coche + dashboard « Prêt » validated');
+  assert.equal(r.checkInDone, 1, 'dashboard « Arrivé » validated');
+});
+
+test('commitArrivalSas: does not touch the departure « Parti » flag', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, {});
+  assert.equal(db.prepare('SELECT checkOutDone FROM reservations WHERE id = 1').get().checkOutDone, 0);
+});
+
+test('commitArrivalSas: re-committing keeps the flags validated (never auto-unticked)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  // Operator manually unchecks « Arrivé » on the dashboard, then re-opens + re-commits the SAS.
+  db.prepare('UPDATE reservations SET checkInDone = 0 WHERE id = 1').run();
+  model.commitArrivalSas(1, { cautionReceived: false });
+  const r = db.prepare('SELECT checkInReady, checkInDone FROM reservations WHERE id = 1').get();
+  assert.equal(r.checkInReady, 1);
+  assert.equal(r.checkInDone, 1, 'completing the SAS re-affirms « Arrivé »');
+});
+
+test('commitDepartureSas: completing the departure SAS validates checkOutDone (coche/Parti)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  assert.equal(db.prepare('SELECT checkOutDone FROM reservations WHERE id = 1').get().checkOutDone, 0);
+  model.commitDepartureSas(1, { cautionReturned: true });
+  assert.equal(db.prepare('SELECT checkOutDone FROM reservations WHERE id = 1').get().checkOutDone, 1, 'planning coche + dashboard « Parti » validated');
+});
+
+test('commitDepartureSas: does not touch the arrival « Prêt »/« Arrivé » flags', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {});
+  const r = db.prepare('SELECT checkInReady, checkInDone FROM reservations WHERE id = 1').get();
+  assert.equal(r.checkInReady, 0);
+  assert.equal(r.checkInDone, 0);
 });
 
 // ── specs/recall-unpaid-arrival-complement-at-checkout.md ──────────────────────────────────────────

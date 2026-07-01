@@ -148,6 +148,20 @@ confirmation — records the caution status and the complement(s) on the reserva
     settings). The arrival SAS rule 5.bis shows it; empty → that page is skipped. (Decision 2026-06-12:
     global, per the operator's « dans les settings » — see §9 if it should later become per-property.)
 
+### 3.6 Completing a SAS validates the planning coche + dashboard status (2026-07-01)
+22. **Going all the way through a SAS validates the matching status flags** — the point of finishing the
+    airlock is that the operator no longer has to tick the checkboxes by hand.
+    - **Arrival commit** sets `checkInReady = 1` **and** `checkInDone = 1`. `checkInReady` is both the
+      **planning arrival coche** (« Prêt ») and the dashboard **« Prêt »** column; `checkInDone` is the
+      dashboard **« Arrivé »** column. So finishing the arrival SAS validates the planning coche AND the
+      dashboard « Prêt » + « Arrivé » for that reservation.
+    - **Departure commit** sets `checkOutDone = 1` — the **planning departure coche** = dashboard **« Parti »**.
+    - **Forward-only, idempotent, never auto-unticked.** Each commit sets the flag(s) to 1; a re-opened +
+      re-committed SAS (specs/reopen-completed-sas.md) re-affirms them. The commit never sets a flag back to
+      0, so the operator's manual tick/untick on the planning or dashboard remains authoritative between SAS
+      runs. (Unlike the caution / complement markers, these are not tri-state — completing the SAS is an
+      unambiguous « done ».)
+
 **Edge cases:**
 - Caution already received → no caution page on arrival; caution-return page on departure only if received.
 - Reservation with no options, linen fine, cleaning included → arrival SAS = intro + (caution?) + ménage
@@ -234,6 +248,10 @@ confirmation — records the caution status and the complement(s) on the reserva
   re-opened + re-edited (specs/reopen-completed-sas.md; superseded the 2026-06-13 disabled-lock).
 - Arrival complement items reuse `reservation_custom_options` (`inComplement=1`, plus `sasArrivalOrigin=1`
   since 2026-06-15 so a re-opened SAS can REPLACE them without double-charging — specs/reopen-completed-sas.md).
+- **Planning coche + dashboard status flags** (pre-existing columns, no migration): `checkInReady`,
+  `checkInDone`, `checkOutDone` (all `INTEGER DEFAULT 0`). §3.6 rule 22 — the arrival commit sets
+  `checkInReady = 1` + `checkInDone = 1`, the departure commit sets `checkOutDone = 1` (set-only, never
+  cleared by the commit).
 
 **Data impact:** purely additive. Existing reservations get `endOfStayComplementAmount = 0`. No recompute of
 existing reservations needed.
@@ -292,7 +310,7 @@ existing reservations needed.
 
 ## 7. Test plan
 
-### Server unit tests (`tests/sas-commit.unit.test.js`, +8)
+### Server unit tests (`tests/sas-commit.unit.test.js`, +14)
 - [x] `linenItemsModel`: replace-all drops empty labels, re-numbers per category, list ordered.
 - [x] `getCleaningPriceForProperty`: per-property override wins over base; null when no cleaning option.
 - [x] `commitArrivalSas`: caution received set; linen + cleaning items inserted as custom options
@@ -300,7 +318,11 @@ existing reservations needed.
       items ignored.
 - [x] `commitDepartureSas`: caution returned set on « Rendue », untouched on « litige »; end-of-stay
       complement amount + detail stored.
-- [x] Full server suite 1481 green; migrations verified on a DB copy.
+- [x] **§3.6 status flags (+6, 2026-07-01):** arrival commit validates `checkInReady` + `checkInDone`
+      (planning coche + dashboard « Prêt »/« Arrivé ») and leaves `checkOutDone` untouched; a re-committed
+      arrival re-affirms the flags (never auto-untick); departure commit validates `checkOutDone` (planning
+      coche / dashboard « Parti ») and leaves the arrival flags untouched.
+- [x] Full server suite 1926 green; migrations verified on a DB copy.
 
 ### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`, +3)
 - [x] Arrival full flow: caution « Fait », linen « Pas OK » **reveals** the priced-items page (regression
