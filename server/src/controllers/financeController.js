@@ -26,4 +26,14 @@ function touristTax(req, res) {
   return res.json(result.data);
 }
 
-module.exports = { summary, breakdown, projection, operational, touristTax };
+// specs/tourist-tax-declared-checkbox.md §4.3 — tick / untick « Déclarée » for one reservation.
+function setTouristTaxDeclared(req, res) {
+  const result = model.setTouristTaxDeclared({
+    reservationId: req.params.reservationId,
+    declared: Boolean(req.body && req.body.declared),
+  });
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  return res.json({ ok: true, declaredAt: result.data.declaredAt });
+}
+
+module.exports = { summary, breakdown, projection, operational, touristTax, setTouristTaxDeclared };

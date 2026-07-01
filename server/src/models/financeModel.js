@@ -531,6 +531,7 @@ function createFinanceModel(database) {
           COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0) as optionsTotal,
           COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal,
           COALESCE(r.finalPrice, 0) as finalPrice,
+          r.touristTaxDeclaredAt as touristTaxDeclaredAt,
           DATE(r.endDate, '-1 day') as lastNightDate
         FROM reservations r
         JOIN properties p ON p.id = r.propertyId
@@ -619,6 +620,7 @@ function createFinanceModel(database) {
             startDate: row.startDate,
             endDate: row.endDate,
             lastNightDate: row.lastNightDate,
+            touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
             adults,
             children: children + teens,
             nightsCount,
@@ -677,6 +679,26 @@ function createFinanceModel(database) {
           },
         },
       };
+    },
+
+    // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
+    // declared=true stamps the server clock (so we know WHEN it was declared); declared=false clears it.
+    setTouristTaxDeclared({ reservationId, declared } = {}) {
+      const id = Number(reservationId);
+      if (!Number.isInteger(id) || id <= 0) {
+        return { ok: false, status: 400, error: 'Réservation invalide.' };
+      }
+      const exists = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind = 'reservation'").get(id);
+      if (!exists) {
+        return { ok: false, status: 404, error: 'Réservation introuvable.' };
+      }
+      if (declared) {
+        database.prepare("UPDATE reservations SET touristTaxDeclaredAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(id);
+      } else {
+        database.prepare("UPDATE reservations SET touristTaxDeclaredAt = NULL, updatedAt = datetime('now') WHERE id = ?").run(id);
+      }
+      const declaredAt = database.prepare('SELECT touristTaxDeclaredAt FROM reservations WHERE id = ?').get(id).touristTaxDeclaredAt || null;
+      return { ok: true, data: { declaredAt } };
     },
   };
 

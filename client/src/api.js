@@ -179,6 +179,8 @@ const api = {
   getFinanceProjection: (date) => request(`/finance/projection?date=${date || ''}`),
   getFinanceOperational: () => request('/finance/operational'),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
+  // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
+  setTouristTaxDeclared: (reservationId, declared) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared } }),
 
   // School holidays — getSchoolHolidays now returns { periods, syncState }.
   getSchoolHolidays: () => request('/school-holidays'),

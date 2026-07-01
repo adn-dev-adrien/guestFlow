@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Alert, Grid
+  TableCell, TableContainer, TableHead, TableRow, Alert, Grid, Checkbox, Tooltip
 } from '@mui/material';
 import PageHeader from '../components/PageHeader';
 import MonthYearPicker from '../components/MonthYearPicker';
@@ -33,15 +33,19 @@ function formatDateFr(dateStr) {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
 }
 
-function formatReservationDates(startDate, endDateExclusive) {
+// « Dates réservation » = the reservation's stay dates (arrival → departure), exactly like the fiche
+// réservation. specs/tourist-tax-declared-checkbox.md §3 rule 1 — no day is subtracted (a 1-night stay
+// 20/06 → 21/06 shows « 20/06 au 21/06 »).
+function formatReservationDates(startDate, endDate) {
   const start = formatDateFr(startDate);
-  if (!endDateExclusive) return start;
-  const endDate = new Date(`${endDateExclusive}T00:00:00`);
-  endDate.setDate(endDate.getDate() - 1);
-  const y = endDate.getFullYear();
-  const m = String(endDate.getMonth() + 1).padStart(2, '0');
-  const d = String(endDate.getDate()).padStart(2, '0');
-  return `${start} au ${formatDateFr(`${y}-${m}-${d}`)}`;
+  if (!endDate) return start;
+  return `${start} au ${formatDateFr(endDate)}`;
+}
+
+// The declared marker is stored as a SQLite datetime string ("YYYY-MM-DD HH:MM:SS"); show the date only.
+function formatDeclaredDate(declaredAt) {
+  const m = String(declaredAt || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
 export default function TouristTaxPage() {
@@ -67,6 +71,27 @@ export default function TouristTaxPage() {
       reservations: rowsByPropertyId.get(Number(property.propertyId)) || [],
     }));
   }, [data]);
+
+  // specs/tourist-tax-declared-checkbox.md §3 — tick / untick « Déclarée » for one reservation. Optimistic:
+  // reflect the toggle immediately, then reconcile with the server-authoritative declaredAt; revert on error.
+  const patchDeclared = (reservationId, value) =>
+    setData((prev) => (prev ? {
+      ...prev,
+      reservations: prev.reservations.map((r) =>
+        r.reservationId === reservationId ? { ...r, touristTaxDeclaredAt: value } : r),
+    } : prev));
+
+  const handleToggleDeclared = async (row) => {
+    const declared = !row.touristTaxDeclaredAt;
+    patchDeclared(row.reservationId, declared ? '__pending__' : null);
+    try {
+      const res = await api.setTouristTaxDeclared(row.reservationId, declared);
+      patchDeclared(row.reservationId, res.declaredAt);
+    } catch (e) {
+      patchDeclared(row.reservationId, row.touristTaxDeclaredAt);
+      setError(e.message || "Impossible de mettre à jour la déclaration");
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -158,6 +183,7 @@ export default function TouristTaxPage() {
                     <Table size="small" sx={{ minWidth: 980 }}>
                       <TableHead>
                         <TableRow>
+                          <TableCell sx={{ fontWeight: 600 }} align="center" padding="checkbox">Déclarée</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Nom réservation</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Dates réservation</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Nuits</TableCell>
@@ -175,6 +201,23 @@ export default function TouristTaxPage() {
                             onClick={() => navigate(withFrom(`/reservations/${row.reservationId}`, '/finance/tourist-tax'))}
                             sx={{ cursor: 'pointer' }}
                           >
+                            <TableCell
+                              padding="checkbox"
+                              align="center"
+                              onClick={(e) => e.stopPropagation()}
+                              sx={{ cursor: 'default' }}
+                            >
+                              <Tooltip title={row.touristTaxDeclaredAt
+                                ? (formatDeclaredDate(row.touristTaxDeclaredAt) ? `Déclarée le ${formatDeclaredDate(row.touristTaxDeclaredAt)}` : 'Déclarée')
+                                : 'Non déclarée'}>
+                                <Checkbox
+                                  size="small"
+                                  checked={!!row.touristTaxDeclaredAt}
+                                  onChange={() => handleToggleDeclared(row)}
+                                  slotProps={{ input: { 'aria-label': `Déclarée — ${row.reservationName || 'Réservation'}` } }}
+                                />
+                              </Tooltip>
+                            </TableCell>
                             <TableCell>{row.reservationName || 'Réservation'}</TableCell>
                             <TableCell>{formatReservationDates(row.startDate, row.endDate)}</TableCell>
                             <TableCell align="right">{row.nightsCount}</TableCell>
@@ -186,7 +229,7 @@ export default function TouristTaxPage() {
                         ))}
                         {property.reservations.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={7} align="center">Aucune réservation directe sur ce logement pour le mois sélectionné</TableCell>
+                            <TableCell colSpan={8} align="center">Aucune réservation directe sur ce logement pour le mois sélectionné</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
