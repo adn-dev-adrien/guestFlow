@@ -43,6 +43,9 @@ const ENCRYPTED_COLUMNS = [
   // encrypted, never returned to the client (masked to booleans below).
   'qontoAccessTokenEncrypted',
   'qontoRefreshTokenEncrypted',
+  // Météo-France Vigilance API key (specs/checkin-weather-alerts.md §3 rule 10). Operator secret,
+  // stored encrypted; never returned to the client (masked to a boolean below).
+  'meteoFranceApiKeyEncrypted',
 ];
 
 const COLUMNS = [
@@ -130,6 +133,9 @@ const COLUMNS = [
   'qontoConnectionId',
   'qontoConnectionStatus',
   'qontoConnectedAt',
+  // Météo-France Vigilance API key (specs/checkin-weather-alerts.md). Encrypted (above); masked to
+  // `meteoFranceApiKeySet` on read so the client only learns whether a key is configured.
+  'meteoFranceApiKeyEncrypted',
 ];
 
 const NUMERIC_DEFAULTS = {
@@ -175,6 +181,8 @@ const HTTP_MASKED_COLUMNS = {
   // Qonto tokens are never exposed; the client only learns whether a connection exists.
   qontoAccessTokenEncrypted: 'qontoAccessTokenSet',
   qontoRefreshTokenEncrypted: 'qontoConnected',
+  // Météo-France key is never exposed; the client only learns whether it's configured.
+  meteoFranceApiKeyEncrypted: 'meteoFranceApiKeySet',
 };
 
 function createSettingsModel(databaseInstance) {
@@ -371,6 +379,21 @@ function createSettingsModel(databaseInstance) {
     // True once the OAuth flow has stored a refresh token (the durable credential).
     qontoConnected() {
       return Boolean(readRaw().qontoRefreshTokenEncrypted);
+    },
+
+    // ----- Météo-France Vigilance (specs/checkin-weather-alerts.md) -----
+
+    // Decrypted Météo-France API key for internal use (the vigilance fetch). NEVER exposed via HTTP.
+    // On key mismatch it decodes to '' and a marker fires — the caller then treats the feature as
+    // unconfigured rather than crashing.
+    meteoFranceApiKey() {
+      const row = readRaw();
+      const blob = row.meteoFranceApiKeyEncrypted;
+      if (!blob) return '';
+      const r = safeDecrypt(blob);
+      if (r.ok) return r.value;
+      warnDecryptFailure('meteoFranceApiKeyEncrypted', r.reason);
+      return '';
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.

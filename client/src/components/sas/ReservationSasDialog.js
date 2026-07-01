@@ -35,10 +35,12 @@ import FlightLandIcon from '@mui/icons-material/FlightLand';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 import ConfirmDialog from '../ConfirmDialog';
+import SasWeatherAlertPage from './SasWeatherAlertPage';
 
 function euro(n) {
   return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
@@ -89,6 +91,7 @@ function stepMeta(key, mode) {
     case 'cautionReturn': return { title: 'Retour caution', Icon: SavingsIcon };
     case 'extinguisher':
     case 'extinguisherItems': return { title: 'Extincteur', Icon: FireExtinguisherIcon };
+    case 'weather': return { title: 'Alerte météo', Icon: ReportProblemIcon };
     case 'recap': return { title: 'Récapitulatif', Icon: FactCheckIcon };
     default: return { title: '', Icon: null };
   }
@@ -186,6 +189,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [complementPaidCash, setComplementPaidCash] = useState(false);
   const [complementsSettled, setComplementsSettled] = useState(false);
   const [complementsPaidCash, setComplementsPaidCash] = useState(false);
+  // Weather alerts (specs/checkin-weather-alerts.md) — fetched in the background when the arrival SAS
+  // opens; empty until (and unless) a qualifying Orange/Red vigilance overlaps the stay.
+  const [weatherAlerts, setWeatherAlerts] = useState([]);
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;
@@ -196,6 +202,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
     setComplementSettled(false); setComplementPaidCash(false); setComplementsSettled(false); setComplementsPaidCash(false);
+    setWeatherAlerts([]);
     api.getReservationSas(reservationId)
       .then((d) => {
         if (cancelled) return;
@@ -261,6 +268,19 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     return () => { cancelled = true; };
   }, [open, reservationId]);
 
+  // Weather alerts (specs/checkin-weather-alerts.md) — background fetch on open, arrival SAS only.
+  // Non-blocking: the wizard renders normally; the weather page appears (before recap) once/if the
+  // response carries ≥1 alert. Any error degrades to no page.
+  useEffect(() => {
+    if (!open || !reservationId || mode !== 'arrival') return undefined;
+    let cancelled = false;
+    setWeatherAlerts([]);
+    api.getReservationWeatherAlerts(reservationId)
+      .then((res) => { if (!cancelled) setWeatherAlerts(Array.isArray(res?.alerts) ? res.alerts : []); })
+      .catch(() => { if (!cancelled) setWeatherAlerts([]); });
+    return () => { cancelled = true; };
+  }, [open, reservationId, mode]);
+
   const r = data?.reservation;
   const modeColor = MODE_COLOR[mode] || MODE_COLOR.arrival;
   const bedItems = useMemo(() => (data?.linenItems || []).filter((i) => i.category === 'bed'), [data]);
@@ -285,6 +305,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
         'cleaning',
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
+        // Weather alert (specs/checkin-weather-alerts.md): last page before the recap, only when a
+        // qualifying alert overlaps the stay.
+        weatherAlerts.length > 0 ? 'weather' : null,
         'recap',
       ].filter(Boolean);
     }
@@ -300,7 +323,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean);
-  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk]);
+  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -520,6 +543,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: 2 }}>{data.portalCode}</Typography>
           </Stack>
         );
+      case 'weather':
+        return <SasWeatherAlertPage alerts={weatherAlerts} />;
       case 'caution':
       case 'cautionReport':
         return (
@@ -850,6 +875,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           />
         </>;
       case 'extinguisherItems': return <>{quit}{next()}</>;
+      case 'weather': return <>{quit}{next()}</>;
       case 'recap':
         return <>{quit}
           <Button variant="contained" onClick={commit} disabled={committing} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>Valider et terminer</Button>
