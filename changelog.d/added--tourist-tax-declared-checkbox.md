@@ -1,0 +1,1 @@
+- Tourist-tax extraction page: a « Déclarée » checkbox in front of every reservation row records when it was declared to the commune (date shown on hover) and persists across reloads (specs/tourist-tax-declared-checkbox.md).
