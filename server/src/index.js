@@ -37,7 +37,12 @@ const commitSha = String(
 const commitShaShort = commitSha ? commitSha.slice(0, 7) : null;
 
 const app = express();
-app.set('trust proxy', 1); // honor X-Forwarded-* behind the prod reverse proxy (secure cookies)
+// `trust proxy` MUST match the real deployment: today the Node app is exposed directly (its own TLS,
+// no reverse proxy), so we trust NO forwarded hop — otherwise any direct caller could spoof
+// X-Forwarded-For and defeat the IP rate limiters (specs/public-online-payment.md §7). When a reverse
+// proxy is put in front (WordPress prod), set TRUST_PROXY_HOPS to the exact number of trusted hops.
+const TRUST_PROXY_HOPS = process.env.TRUST_PROXY_HOPS;
+app.set('trust proxy', TRUST_PROXY_HOPS != null && TRUST_PROXY_HOPS !== '' ? Number(TRUST_PROXY_HOPS) : false);
 
 // HTTP security headers + a CSP tuned for the SPA (MUI/emotion inject inline styles; CRA is built
 // with INLINE_RUNTIME_CHUNK=false so script-src can stay 'self').

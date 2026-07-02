@@ -58,4 +58,19 @@ const bookingRequestLimiter = rateLimit({
   message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de demandes envoyées, réessayez plus tard.' } },
 });
 
-module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter };
+/**
+ * Payment-status poll limiter (specs/public-online-payment.md §7, resolves §9 Q3). GET /status is a
+ * read that also drives external Qonto calls + a devis→reservation conversion when a link is paid, so
+ * it must be capped tighter than the broad public limiter to prevent a Qonto-quota / cost DoS. A legit
+ * success page polls every 3 s for ~1 min (≈20 hits) then stops, so the default 120 / 5 min / IP leaves
+ * ample headroom for reloads while blocking abusive bursts.
+ */
+const paymentStatusLimiter = rateLimit({
+  windowMs: Number(process.env.PAYMENT_STATUS_RATELIMIT_WINDOW_MS) || (5 * 60 * 1000),
+  max: Number(process.env.PAYMENT_STATUS_RATELIMIT_MAX) || 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
+});
+
+module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStatusLimiter };

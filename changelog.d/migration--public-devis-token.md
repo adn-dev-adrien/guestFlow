@@ -1,0 +1,1 @@
+- **`reservations.publicToken TEXT`** (nullable) — per-devis capability token for the public online-payment routes (spec `public-online-payment.md` §7). Idempotent `ADD COLUMN` in `database.js`; NULL on all existing/non-public rows (tokens are minted only for new WordPress booking requests).

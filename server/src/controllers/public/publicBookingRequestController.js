@@ -12,6 +12,7 @@ const clientsModel = require('../../models/clientsModel');
 const devisModel = require('../../models/devisModel');
 const notificationService = require('../../utils/notificationService');
 const { validateStayInput, validateGuest } = require('../../utils/publicInputValidation');
+const { generateToken } = require('../../utils/publicDevisToken');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
 const { buildEngineQuote, checkOptionApplicability, checkResourceApplicability } = require('./publicQuoteController');
 const { ok, fail } = require('./publicHttp');
@@ -97,9 +98,11 @@ function create(req, res) {
   if (result.error) return fail(res, result.status || 400, 'BOOKING_REQUEST_FAILED', result.error);
 
   const devis = result.data;
-  // Mark the row as a public-origin request so the admin can filter/badge it. Separate write —
-  // the flag is not part of devis create's contract; no atomicity concern for a marker.
-  db.prepare("UPDATE reservations SET requestOrigin = 'public' WHERE id = ?").run(devis.id);
+  // Mark the row as a public-origin request so the admin can filter/badge it, and mint the per-devis
+  // capability token that authorises the public /pay + /status routes (specs/public-online-payment.md
+  // §7). Separate write — neither is part of devis create's contract; no atomicity concern for markers.
+  const publicToken = generateToken();
+  db.prepare("UPDATE reservations SET requestOrigin = 'public', publicToken = ? WHERE id = ?").run(publicToken, devis.id);
 
   // Best-effort admin notification (specs/site-booking-notifications.md §3 rule 6). Fire-and-forget:
   // the service swallows its own errors, so a failed/disabled/unconfigured email never affects the
@@ -108,6 +111,8 @@ function create(req, res) {
 
   return ok(res, {
     requestId: devis.id,
+    // Capability token the proxy must echo back on /pay + /status for this devis (never guessable).
+    publicToken,
     status: 'pending',
     reference: devis.devisNumber || null,
     propertyId: v.value.propertyId,

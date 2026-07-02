@@ -53,6 +53,12 @@ test('no devis found → falls back to the passed row finalPrice (payment never 
   assert.equal(cents, 50000);
 });
 
+test('no devis found → the fallback row STILL carries the tourist tax (no silent tax-free undercharge)', () => {
+  // paymentRequestService now selects touristTaxTotal onto the fallback row; the tax must be charged.
+  const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => null }, calc: () => null }, 1, { finalPrice: 500, touristTaxTotal: 12 });
+  assert.equal(cents, 51200);
+});
+
 test('engine throws (flag unknown) → defaults to tax included', () => {
   const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
   const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => devis }, calc: () => { throw new Error('boom'); } }, 1, devis);
