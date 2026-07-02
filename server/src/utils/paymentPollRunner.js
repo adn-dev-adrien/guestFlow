@@ -85,7 +85,14 @@ const CONFIRMING_EFFECTS = new Set(['converted', 'already-converted', 'deposit-m
 // conflict notification (both best-effort). Idempotent. Returns the per-link result object.
 async function processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment, sendConfirmation, checkConflict, notifyConflict }) {
   const p = paidPayment || {};
-  paymentLinksModel.markPaid(link.id, { qontoPaymentId: p.id || null, paidAt: p.paid_at || new Date().toISOString() });
+  // markPaid is atomic (UPDATE … WHERE status='open') and reports whether THIS call flipped the link.
+  // The webhook, the on-demand /status poll and the cron can all observe the same paid link at once;
+  // only the caller that actually flips it runs the effect + confirmation email, so the guest never
+  // gets a duplicate email and the admin never gets a duplicate conflict alert.
+  const { flipped } = paymentLinksModel.markPaid(link.id, { qontoPaymentId: p.id || null, paidAt: p.paid_at || new Date().toISOString() });
+  if (!flipped) {
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', effect: 'already-processed' };
+  }
   const effect = applyPaidEffect({ database, devisModel, link, checkConflict });
 
   if (CONFIRMING_TYPES.has(link.type) && CONFIRMING_EFFECTS.has(effect.effect)) {
