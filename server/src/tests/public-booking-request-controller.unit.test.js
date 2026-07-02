@@ -48,7 +48,7 @@ function buildController({
           return undefined;
         },
         run(...args) {
-          if (/UPDATE reservations SET requestOrigin/i.test(s)) captures.requestOriginUpdateId = args[0];
+          if (/UPDATE reservations SET requestOrigin/i.test(s)) { captures.requestOriginToken = args[0]; captures.requestOriginUpdateId = args[1]; }
           return { changes: 1 };
         },
       };
@@ -120,8 +120,11 @@ test('valid request → creates a DRAFT DEVIS (platform direct), marks requestOr
   assert.ok(captures.devisCreate, 'devis created');
   assert.equal(captures.devisCreate.platform, 'direct', 'forced to direct');
   assert.equal(captures.devisCreate.clientId, 7);
-  // requestOrigin marked on the freshly-created devis row.
+  // requestOrigin marked on the freshly-created devis row, with a per-devis capability token that is
+  // both persisted and returned to the proxy (specs/public-online-payment.md §7).
   assert.equal(captures.requestOriginUpdateId, 99);
+  assert.ok(captures.requestOriginToken && captures.requestOriginToken.length >= 32, 'a capability token is minted');
+  assert.equal(res.body.data.publicToken, captures.requestOriginToken, 'the minted token is returned to the proxy');
 });
 
 test('price-override / non-whitelisted fields from the body never reach the persisted devis', () => {

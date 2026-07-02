@@ -1572,6 +1572,10 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // had become unavailable (the devis never blocked them). Drives the admin notification + the conflict
   // chip; NULL on every normal booking. Idempotent ADD COLUMN.
   if (!rcols.includes('bookingConflictAt')) db.exec('ALTER TABLE reservations ADD COLUMN bookingConflictAt TEXT');
+  // specs/public-online-payment.md §7 — unguessable capability token minted per public devis. Required
+  // (constant-time compared) on the public /pay and /status routes so the sequential row id alone can't
+  // be enumerated to read another booking's recap or mint its payment link. NULL on non-public rows.
+  if (!rcols.includes('publicToken')) db.exec('ALTER TABLE reservations ADD COLUMN publicToken TEXT');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
 db.exec(`

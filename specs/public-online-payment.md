@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented — server flow + webhook + public endpoints + conflict badge done & unit-tested. **Pending sandbox verification** of the Qonto webhook signature scheme + the payment-link return URL (§9 Q1/Q4); the poll fallback already confirms bookings regardless. |
+| **Status** | Implemented + **hardened 2026-07-02** (audit follow-up): per-devis capability token on `pay`/`status` (anti-enumeration), exactly-once confirmation under concurrency (`markPaid().flipped` gate), stale-link amount re-check, dedicated `/status` throttle, `trust proxy` off by default, numeric-id guard, fallback-tax fix. **Pending sandbox verification** of the Qonto webhook signature scheme + the payment-link return URL (§9 Q1/Q4); the poll fallback already confirms bookings regardless. |
 | **Branch** | `feature/public-online-payment` _(user-managed)_ |
 | **Created** | 2026-06-30 |
 | **Author** | Adrien |
@@ -37,10 +37,12 @@ Let a website visitor **pay their full stay online** and have the reservation co
 1. **The site owns the UI** (recap + success page). GuestFlow stays **API-only**: it exposes (a) a way to
    create the full-payment link for a public devis, (b) a status endpoint the site polls. _(decided
    2026-06-30)_
-2. **Create the payment link.** After a booking request exists (its devis id), the site calls
-   `POST /public/v1/booking-requests/:id/pay`. The server:
+2. **Create the payment link.** After a booking request exists (its devis id + `publicToken`), the site
+   calls `POST /public/v1/booking-requests/:id/pay` with `{ token }`. The server:
    - loads the devis; rejects unless it is `requestOrigin='public'`, `kind='devis'`, not converted, not
-     already paid (`404`/`409`).
+     already paid (`404`/`409`), **and the per-devis `publicToken` matches** (constant-time; a bad id or
+     wrong/missing token is indistinguishable from `404` so the sequential id can't be enumerated — see
+     rule 7).
    - **re-checks availability** for the dates (same engine/blocked-dates check as booking-request); if
      the dates are no longer free → `409 DATES_UNAVAILABLE` (we can still reject here — nothing paid yet).
    - resolves the full amount via `utils/devisQuote.fullPaymentCents` = **the amounts the guest agreed to
@@ -52,7 +54,10 @@ Let a website visitor **pay their full stay online** and have the reservation co
      online full payment collects the taxe de séjour unless it's perceived on arrival. Anti-drift fix
      2026-06-30 after a live sandbox test charged 803,60 € instead of the quoted 789,60 €.)_
    - creates a Qonto **`full`** payment link, persisted in `payment_links` (`reservationId = devis id`,
-     `type='full'`); reuses the current open `full` link if one exists (idempotent on double-submit).
+     `type='full'`); reuses the current open `full` link **only if it still bills the current amount** —
+     if the devis was edited between two `pay` calls the stored amount drifts, so the stale link is
+     retired (`cancelled`) and a fresh one minted at the correct amount (else the guest would pay the old
+     total while the stay is booked as fully paid at the new one). _(hardening 2026-07-02)_
    - sets the Qonto **return URL** to the site success page (built from a **configured site origin** +
      a `returnPath` from the body — allowlisted to the configured origin to prevent open redirects).
    - returns `{ paymentUrl, amountCents, status:'open' }`.
@@ -63,7 +68,13 @@ Let a website visitor **pay their full stay online** and have the reservation co
    **`POST /api/payments/qonto/webhook`** (public, **signature-verified** — see §3bis). The handler runs
    the **same per-link effect** as the poll. The existing **poll** (cron + on-demand from the status
    endpoint) stays as a **reconciliation fallback** so a missed/late webhook still confirms the booking.
-   Both funnel through one idempotent `processPaidLink` (a `paid` link is never processed twice).
+   Both funnel through one idempotent `processPaidLink` (a `paid` link is never processed twice). The
+   idempotency is anchored on `paymentLinksModel.markPaid`, whose `UPDATE … WHERE status='open'` is
+   atomic and reports whether **this** caller flipped the link; `processPaidLink` runs the effect +
+   confirmation email **only** for the caller that flipped it, so when the webhook, the on-demand
+   `/status` poll and the cron observe the same paid link at once the guest still gets **exactly one**
+   confirmation email and the admin **one** conflict alert. _(hardening 2026-07-02 — previously the
+   `flipped` result was ignored, allowing a duplicate email under that race.)_
    A paid **`full`** link on a **devis** now **converts it to a reservation** (was: only `deposit`
    converted), marks it **fully paid** (`depositPaid=1` + `balancePaid=1`, dates = today), and sends the
    **`reservation_confirmation`** email. Dates are blocked **only on successful payment** (the devis never
@@ -72,8 +83,10 @@ Let a website visitor **pay their full stay online** and have the reservation co
    taken between the booking request and a successful payment. The guest **already paid**, so we **convert
    anyway**, set a **conflict flag** on the reservation, and **notify the admin** (manual resolution:
    refund / relocate). We never reject a successful payment.
-6. **Status endpoint.** `GET /public/v1/booking-requests/:id/status` returns a minimal, non-PII payload
-   the site polls from its success page:
+6. **Status endpoint.** `GET /public/v1/booking-requests/:id/status?token=…` returns a minimal, non-PII
+   payload the site polls from its success page. Like `pay`, it **requires the per-devis `publicToken`**
+   (the success page echoes it from the return URL) and is throttled by a dedicated
+   `paymentStatusLimiter` (tighter than the broad public limiter — see rule 7). Statuses:
    - `pending` — link open, not yet paid.
    - `paid` — a paid payment exists but conversion hasn't run yet (between payment and the poll).
    - `confirmed` — devis converted → reservation; returns `reservationId` + a small recap (property name,
@@ -83,7 +96,26 @@ Let a website visitor **pay their full stay online** and have the reservation co
    an **on-demand poll of that devis's open link** before answering (bounded, best-effort).
 7. **Security.** All three routes sit under `/public/v1` → shared API-key + `publicApiLimiter`; the `pay`
    write adds the stricter `bookingRequestLimiter`. Amounts are engine-side; the return URL is allowlisted;
-   no PII beyond the booking the proxy already submitted is returned.
+   no PII beyond the booking the proxy already submitted is returned. Additional hardening _(2026-07-02
+   security audit)_:
+   - **Per-devis capability token.** The devis id is a sequential `INTEGER PRIMARY KEY` — guessable, and it
+     reaches the browser via the proxy. So each public devis carries an unguessable `publicToken`
+     (~192-bit, `crypto.randomBytes`), minted at booking-request creation, returned to the proxy, and
+     **required + constant-time compared** on both `pay` and `status`. Without it a visitor could iterate
+     ids to read other bookings' recaps or mint their payment links. A bad id / wrong token → `404`
+     (indistinguishable from "not found"). Non-numeric / non-positive id → `404` before any DB bind (no
+     `500`). `utils/publicDevisToken.js` (`generateToken` / `tokensMatch`).
+   - **`/status` throttle.** `status` is a GET that also drives external Qonto calls + a devis→reservation
+     conversion when the link is paid, so it gets its own `paymentStatusLimiter` (default 120 / 5 min /
+     IP) — enough for a legit success page (polls every 3 s for ~1 min) but caps a Qonto-quota / cost DoS.
+     Resolves §9 Q3.
+   - **`trust proxy`.** The Node app is exposed **directly** (its own TLS, no reverse proxy today), so
+     `trust proxy` defaults to **`false`** — otherwise any direct caller to `:4000` could spoof
+     `X-Forwarded-For` and defeat the IP rate limiters. When a reverse proxy is put in front (WordPress
+     prod), set `TRUST_PROXY_HOPS` to the exact trusted-hop count. _(The plugin's API client does not
+     forward the visitor IP, so public-route limiting is per-proxy-IP regardless.)_
+   - **Charged amount.** `fullPaymentCents`'s fallback row now carries `touristTaxTotal`, so a missed devis
+     lookup can never silently charge tax-free.
 
 ### 3bis. Qonto webhook (primary confirmation signal)
 
@@ -114,10 +146,14 @@ Let a website visitor **pay their full stay online** and have the reservation co
 
 | Layer | File | Responsibility |
 |---|---|---|
-| `routes/public/` | `bookingRequests.js` | Add `POST /:id/pay` (bookingRequestLimiter) + `GET /:id/status`. |
-| `controllers/public/` | `publicPaymentController.js` _(new)_ | `pay` (validate devis state → availability re-check → engine amount → create/reuse `full` link with return URL → `{ paymentUrl, amountCents }`) + `status` (on-demand poll → map link/devis state → `pending|paid|confirmed|conflict`). Reuses `paymentRequestService.ensurePaymentLink` (inject a `createLink` that passes the return URL) + `runPaymentPoll`. |
-| `utils/` | `paymentRequestService.js` | Reused as-is for link create/reuse (already injectable). |
-| `utils/` | `paymentPollRunner.js` | **Change:** extract a reusable **`processPaidLink({ link, ... })`** (mark paid → effect → confirmation → conflict) shared by the poll **and** the webhook. `applyPaidEffect` — a paid **`full`** link on a **`kind='devis'`** row now **converts** it (like `deposit`) + marks it fully paid; on conversion, **availability re-check** → set `bookingConflictAt` + return a `conflict` marker. |
+| `routes/public/` | `bookingRequests.js` | `POST /:id/pay` (bookingRequestLimiter) + `GET /:id/status` (**`paymentStatusLimiter`**). Both token-gated. |
+| `controllers/public/` | `publicPaymentController.js` _(new)_ | `pay` (validate devis state **+ token** → availability re-check → engine amount → create/reuse `full` link with return URL → `{ paymentUrl, amountCents }`) + `status` (**token-gated** on-demand poll → map link/devis state → `pending|paid|confirmed|conflict`). `loadPublicDevis(id, token)` guards numeric id + constant-time token. Reuses `paymentRequestService.ensurePaymentLink` + `processPaidLink`. |
+| `controllers/public/` | `publicBookingRequestController.js` | **Change:** mint the per-devis `publicToken` at create (same write as `requestOrigin='public'`) + return it in the create response. |
+| `utils/` | `publicDevisToken.js` _(new)_ | `generateToken()` (~192-bit base64url) + `tokensMatch(stored, provided)` (constant-time, never throws). |
+| `utils/` | `paymentRequestService.js` | **Change:** reuse an open link only if `amountCents` still matches (else retire it `cancelled` + create fresh); select `touristTaxTotal` onto the row so the amount resolver never loses the tax on the fallback. |
+| `middleware/` | `rateLimiters.js` | **Add** `paymentStatusLimiter` (default 120 / 5 min / IP) for `GET /status`. |
+| `index.js` | `index.js` | **Change:** `trust proxy` = `TRUST_PROXY_HOPS` if set, else **`false`** (direct-exposure default; no XFF spoofing). |
+| `utils/` | `paymentPollRunner.js` | **Change:** extract a reusable **`processPaidLink({ link, ... })`** (mark paid → effect → confirmation → conflict) shared by the poll **and** the webhook. **Gates on `markPaid().flipped`** so only the caller that actually flips open→paid runs the effect + email (exactly-once under the webhook/poll/cron race). `applyPaidEffect` — a paid **`full`** link on a **`kind='devis'`** row now **converts** it (like `deposit`) + marks it fully paid; on conversion, **availability re-check** → set `bookingConflictAt` + return a `conflict` marker. |
 | `controllers/` | `qontoWebhookController.js` _(new)_ | Verify the Qonto signature (HMAC over raw body, constant-time) → resolve the link by Qonto id → `processPaidLink` (re-reads paid state via `getPaymentLinkPayments`) → `200`. Idempotent; bad signature → `401`. |
 | `routes/` | `payments.js` | Add `POST /qonto/webhook` (raw-body parser for that route only; **no** session guard). |
 | `middleware/` | raw-body capture | Capture the raw bytes for the webhook route so the HMAC matches Qonto's signature (the global JSON parser would discard them). |
@@ -126,7 +162,7 @@ Let a website visitor **pay their full stay online** and have the reservation co
 | `models/` | `devisModel.js` | Reuse `convertToReservation`; add a guarded read for the public status (by id + origin). |
 | `models/` | `reservationsModel.js` | Reuse availability/conflict helpers (the iCal anti-overbooking check) for the conversion-time re-check. |
 | `utils/` | `notificationService.js` | **Add** `notifyBookingConflict(reservationId)` — admin email when a paid online booking lands on now-unavailable dates. |
-| `database.js` | `database.js` | Migration: `reservations.bookingConflictAt TEXT` (nullable) — set when a paid conversion hit an availability conflict; surfaced to the admin. |
+| `database.js` | `database.js` | Migrations: `reservations.bookingConflictAt TEXT` (conflict flag) + **`reservations.publicToken TEXT`** (per-devis capability token). Both nullable, idempotent `ADD COLUMN`. |
 | `controllers/` | `paymentsController.js` | Wire `notifyBookingConflict` into the poll deps (admin path), mirroring `sendConfirmation`. |
 
 ### 4.2 Client (`client/src/`)
@@ -141,10 +177,11 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 
 | Method | Endpoint | Body | Response | Notes |
 |---|---|---|---|---|
-| POST | `/booking-requests/:id/pay` | `{ returnPath?: string }` | `{ data: { paymentUrl, amountCents, currency, status } }` | Creates/reuses the `full` link. `409` if dates no longer free / already paid; `404` unknown/ non-public devis. |
-| GET | `/booking-requests/:id/status` | — | `{ data: { status, reservationId?, propertyName?, startDate?, endDate?, finalPrice? } }` | `status ∈ pending\|paid\|confirmed\|conflict`. On-demand poll before answering. |
+| POST | `/booking-requests/:id/pay` | `{ token: string, returnPath?: string }` | `{ data: { paymentUrl, amountCents, currency, status } }` | Creates/reuses the `full` link. **`token` required** (per-devis capability). `409` if dates no longer free / already paid; `404` unknown / non-public devis / bad-or-missing token. |
+| GET | `/booking-requests/:id/status?token=…` | — | `{ data: { status, reservationId?, propertyName?, startDate?, endDate?, finalPrice? } }` | `status ∈ pending\|paid\|confirmed\|conflict`. **`token` required**; `404` on mismatch. `paymentStatusLimiter`. On-demand poll before answering. |
 
-(Existing `POST /booking-requests` unchanged; the site calls it first to get the devis id.)
+`POST /booking-requests` is unchanged except its response now also returns **`publicToken`** (the site
+calls it first to get the devis id **+ token**, then echoes the token to `pay`/`status`).
 
 **Internal API (not `/public/v1`):**
 
@@ -158,6 +195,9 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 - **`reservations.bookingConflictAt TEXT`** (nullable) — timestamp set when a paid online payment was
   converted onto dates that had become unavailable. Drives the admin notification + badge. Idempotent
   migration in `database.js`.
+- **`reservations.publicToken TEXT`** (nullable) — per-devis capability token minted at booking-request
+  creation; required (constant-time) on the public `pay`/`status` routes. NULL on non-public rows.
+  Idempotent migration in `database.js`.
 - The webhook secret is **not** a DB column — it lives in `.env.local` as `QONTO_WEBHOOK_SECRET`.
 - No new table; reuses `payment_links` (`type='full'`) + the devis row.
 
@@ -186,6 +226,15 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
   signature → `401`, nothing processed; replayed event / already-paid link → `200` no-op (idempotent);
   unknown link id → `200` no-op. `processPaidLink` re-reads paid state via `getPaymentLinkPayments`
   before applying the effect.
+- **Hardening (2026-07-02):**
+  - `publicDevisToken` — `generateToken` is url-safe / long / unique; `tokensMatch` is true only on an
+    exact non-empty match and rejects empty / missing / non-string / different-length inputs (no throw).
+  - `paymentPollRunner` — **concurrent `processPaidLink` on the same paid link** converts once, sends
+    **one** confirmation email and **one** conflict notify (the second caller no-ops on `flipped=false`).
+  - `paymentRequestService` — an open link whose amount **drifted** is `cancelled` + a fresh link minted
+    at the current amount (not reused).
+  - `devisQuote` — the fallback row **still carries the tourist tax** (no silent tax-free undercharge).
+  - `publicBookingRequestController` — a `publicToken` is minted, persisted, and returned to the proxy.
 
 ### Client tests (Vitest) — required
 - The reservation **conflict chip** renders when `bookingConflictAt` is set and is absent otherwise
@@ -206,6 +255,12 @@ see [wordpress-plugin.md](wordpress-plugin.md) §3 rule 6b): the `guestflow/book
 `GET /booking-requests/:id/status` and shows the stay recap. The plugin proxies to this spec's
 `/public/v1` endpoints with the API key server-side; no business logic on the WordPress side.
 
+**Capability token threading (2026-07-02).** The create response returns `publicToken`; the block
+captures it, sends it in the `pay` body **and** embeds it in the Qonto return URL
+(`?gf_payment=<id>&gf_token=<token>`), so the success page reads it back and passes it as `?token=` to
+the status poll. The proxy (`class-gf-rest-proxy.php`) forwards `token` from the `pay` body and the
+`status` query to `/public/v1`. Without the token the routes answer `404`.
+
 ## 8. Out of scope
 
 - Hand-coding a bespoke website outside the plugin (the plugin IS the website integration).
@@ -219,8 +274,10 @@ see [wordpress-plugin.md](wordpress-plugin.md) §3 rule 6b): the `guestflow/book
    name (sandbox check). If unsupported → ship "status polled only" (the site provides its own return
    link); the rest of the flow is unchanged.
 2. ~~Admin conflict badge~~ — **Resolved 2026-06-30: in scope** (chip on the reservation fiche + calendar).
-3. **On-demand poll cost** — polling a single link on every status GET is bounded, but if the site polls
-   aggressively we may want a short cache / min-interval. Decide at plan time.
+3. ~~On-demand poll cost~~ — **Resolved 2026-07-02:** `GET /status` now has a dedicated
+   `paymentStatusLimiter` (default 120 / 5 min / IP) capping the external Qonto calls it drives; the fast
+   paths (already confirmed / no open link) short-circuit before any Qonto call. A finer per-link
+   min-interval cache was considered unnecessary given the limiter.
 4. ~~Qonto webhook support + signature scheme~~ — **VERIFIED LIVE 2026-06-30 (sandbox + webhook.site).**
    Registered a `v1/payment-links` subscription via `POST /v2/webhook_subscriptions` (OAuth scope
    **`webhook`**, secret supplied by us) pointing at a webhook.site URL, created a payment link, and

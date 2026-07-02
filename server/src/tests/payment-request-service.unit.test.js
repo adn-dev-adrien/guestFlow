@@ -31,6 +31,7 @@ function fakeLinksModel(db) {
                                VALUES (@reservationId, @type, @amountCents, @qontoPaymentLinkId, @url, @status, @expiresAt)`).run(row);
       return { id: Number(info.lastInsertRowid), ...row };
     },
+    updateStatus: (id, status) => { db.prepare('UPDATE payment_links SET status = ? WHERE id = ?').run(status, id); },
   };
 }
 
@@ -66,6 +67,21 @@ test('ensurePaymentLink: reuses an open link without calling createLink', async 
   assert.equal(createCalls, 0, 'no Qonto create on reuse');
   assert.equal(link.reused, true);
   assert.equal(link.url, 'https://pay/open');
+});
+
+test('ensurePaymentLink: an open link whose amount drifted is cancelled + a fresh link is minted at the current amount', async () => {
+  const { db, devisId } = seed();
+  // A stale open link for 90.00 € (e.g. before the devis was edited).
+  const stale = fakeLinksModel(db).create({ reservationId: devisId, type: 'full', amountCents: 9000, qontoPaymentLinkId: 'ql_stale', url: 'https://pay/stale', status: 'open', expiresAt: null });
+  let createArgs = null;
+  const deps = baseDeps(db, { resolveAmountCents: () => 12000, createLink: async (a) => { createArgs = a; return { id: 'ql_fresh', url: 'https://pay/fresh', mappedStatus: 'open' }; } });
+
+  const link = await ensurePaymentLink(deps, devisId, 'full');
+
+  assert.equal(link.reused, false, 'the stale link is not reused');
+  assert.equal(createArgs.amountCents, 12000, 'the fresh link bills the current amount');
+  assert.equal(link.url, 'https://pay/fresh');
+  assert.equal(db.prepare('SELECT status FROM payment_links WHERE id = ?').get(stale.id).status, 'cancelled', 'the stale link is retired');
 });
 
 test('ensurePaymentLink: invalid type → 400', async () => {

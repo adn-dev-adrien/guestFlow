@@ -24,9 +24,10 @@
     var payOnline = container.dataset.payOnline === '1';
 
     // Returning from the Qonto payment page → show the live confirmation status instead of the wizard.
+    // The per-devis capability token travels in the return URL so the status poll can authorise itself.
     var returnedDevisId = parseInt(queryParam('gf_payment'), 10) || 0;
     if (returnedDevisId) {
-      renderStatus(container, returnedDevisId);
+      renderStatus(container, returnedDevisId, queryParam('gf_token') || '');
       return;
     }
 
@@ -53,7 +54,7 @@
 
   // Success-page view: poll the booking-request status until the payment confirms (the webhook/poll on
   // the GuestFlow side converts the devis → reservation + sends the confirmation email). Read-only.
-  function renderStatus(container, devisId) {
+  function renderStatus(container, devisId, token) {
     container.innerHTML = '';
     var box = GF.el('div', { class: 'gf-booking' });
     container.appendChild(box);
@@ -78,7 +79,8 @@
     }
 
     function poll() {
-      GF.api('GET', '/booking-requests/' + devisId + '/status').then(function (res) {
+      var qs = token ? ('?token=' + encodeURIComponent(token)) : '';
+      GF.api('GET', '/booking-requests/' + devisId + '/status' + qs).then(function (res) {
         var d = (res.body && res.body.data) || {};
         if (d.status === 'confirmed' || d.status === 'conflict') { recap(d); return; }
         waiting();
@@ -257,7 +259,7 @@
       f.submit.textContent = payOnline ? GF.t('preparingPayment') : GF.t('sending');
       GF.api('POST', '/booking-requests', body).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
-          if (payOnline) { startPayment(res.body.data.requestId); return; }
+          if (payOnline) { startPayment(res.body.data.requestId, res.body.data.publicToken); return; }
           container.innerHTML = '';
           container.appendChild(GF.el('div', { class: 'gf-success' }, GF.t('requestSent', res.body.data.reference || '')));
           return;
@@ -269,12 +271,13 @@
     }
 
     // Use case 2: create/reuse the Qonto FULL link for the just-created devis and send the visitor to
-    // the hosted payment page. Qonto returns them to this same page with ?gf_payment=<id> (the status
-    // view above then polls until confirmed). Amount + availability are enforced server-side.
-    function startPayment(devisId) {
-      if (!devisId) { paymentError(); return; }
-      var returnPath = window.location.pathname + '?gf_payment=' + devisId;
-      GF.api('POST', '/booking-requests/' + devisId + '/pay', { returnPath: returnPath }).then(function (res) {
+    // the hosted payment page. Qonto returns them to this same page with ?gf_payment=<id>&gf_token=<t>
+    // (the status view above then polls until confirmed). Amount + availability are enforced
+    // server-side; the per-devis token authorises both the pay call and the return-page status poll.
+    function startPayment(devisId, token) {
+      if (!devisId || !token) { paymentError(); return; }
+      var returnPath = window.location.pathname + '?gf_payment=' + devisId + '&gf_token=' + encodeURIComponent(token);
+      GF.api('POST', '/booking-requests/' + devisId + '/pay', { returnPath: returnPath, token: token }).then(function (res) {
         if (res.status >= 200 && res.status < 300 && res.body && res.body.data && res.body.data.paymentUrl) {
           feedback.innerHTML = '';
           feedback.appendChild(GF.el('div', { class: 'gf-loading' }, GF.t('redirectingPayment')));

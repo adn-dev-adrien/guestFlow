@@ -18,6 +18,7 @@ const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
 const { fullPaymentCents } = require('../../utils/devisQuote');
+const { tokensMatch } = require('../../utils/publicDevisToken');
 const { calculateReservationQuote } = require('../../utils/pricing');
 const settingsModel = require('../../models/settingsModel');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
@@ -35,17 +36,22 @@ function buildReturnUrl(returnPath) {
   return `${origin}${path}`;
 }
 
-// Load a devis that is eligible for the public payment flow, or an error tag.
-function loadPublicDevis(id) {
-  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
+// Load a devis eligible for the public payment flow, gated on the per-devis capability token, or an
+// error tag. A bad id or a wrong/missing token is indistinguishable from "not found" so the sequential
+// row id can't be enumerated (specs/public-online-payment.md §7).
+function loadPublicDevis(id, token) {
+  if (!Number.isInteger(id) || id <= 0) return { error: 'not_found' };
+  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
   if (!row || row.kind !== 'devis' || row.requestOrigin !== 'public') return { error: 'not_found' };
+  if (!tokensMatch(row.publicToken, token)) return { error: 'not_found' };
   if (row.convertedReservationId) return { error: 'already_converted', row };
   return { row };
 }
 
 async function pay(req, res) {
   const id = Number(req.params.id);
-  const { row, error } = loadPublicDevis(id);
+  const token = req.body && req.body.token;
+  const { row, error } = loadPublicDevis(id, token);
   if (error === 'not_found') return fail(res, 404, 'DEVIS_NOT_FOUND', 'Devis introuvable.');
   if (error === 'already_converted') return fail(res, 409, 'ALREADY_CONFIRMED', 'Cette réservation est déjà confirmée.');
 
@@ -92,16 +98,16 @@ function recap(reservationRow) {
 
 async function status(req, res) {
   const id = Number(req.params.id);
-  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
-  if (!row || row.kind !== 'devis' || row.requestOrigin !== 'public') return fail(res, 404, 'DEVIS_NOT_FOUND', 'Devis introuvable.');
+  const token = req.query && req.query.token;
+  const { row, error } = loadPublicDevis(id, token);
+  if (error === 'not_found') return fail(res, 404, 'DEVIS_NOT_FOUND', 'Devis introuvable.');
 
-  // Already confirmed (by the webhook / a prior poll)?
-  const confirmedId = row.convertedReservationId;
   const asConfirmed = (rid) => {
     const r = db.prepare('SELECT * FROM reservations WHERE id = ?').get(rid);
     return ok(res, { status: r && r.bookingConflictAt ? 'conflict' : 'confirmed', ...recap(r) });
   };
-  if (confirmedId) return asConfirmed(confirmedId);
+  // Already confirmed (by the webhook / a prior poll)? loadPublicDevis tags it `already_converted`.
+  if (error === 'already_converted') return asConfirmed(row.convertedReservationId);
 
   // On-demand reconciliation: if the devis's full link is paid at Qonto but not yet processed, process
   // it now (best-effort) so the success page sees `confirmed` without waiting for the cron.

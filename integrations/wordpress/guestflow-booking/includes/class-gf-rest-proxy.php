@@ -138,10 +138,14 @@ final class GF_Rest_Proxy
     {
         $id = (int) $request['id'];
         $body = (array) $request->get_json_params();
-        // Only a same-origin return path is forwarded (GuestFlow allowlists it against PUBLIC_SITE_ORIGIN).
+        // Forward only the same-origin return path (GuestFlow allowlists it against PUBLIC_SITE_ORIGIN)
+        // and the per-devis capability token that authorises paying THIS devis.
         $forward = [];
         if (isset($body['returnPath']) && is_string($body['returnPath'])) {
             $forward['returnPath'] = $body['returnPath'];
+        }
+        if (isset($body['token']) && is_string($body['token'])) {
+            $forward['token'] = $body['token'];
         }
         $res = GF_Api_Client::instance()->post("/booking-requests/{$id}/pay", $forward);
         return $this->relay($res);
@@ -150,8 +154,14 @@ final class GF_Rest_Proxy
     public function get_payment_status(WP_REST_Request $request): WP_REST_Response
     {
         $id = (int) $request['id'];
-        // Never cached — the success page polls this until the payment confirms.
-        $res = GF_Api_Client::instance()->get("/booking-requests/{$id}/status");
+        // Never cached — the success page polls this until the payment confirms. The per-devis token
+        // (echoed by the success page from the return URL) authorises reading THIS devis's status.
+        $query = [];
+        $token = $request->get_param('token');
+        if (is_string($token) && $token !== '') {
+            $query['token'] = sanitize_text_field($token);
+        }
+        $res = GF_Api_Client::instance()->get("/booking-requests/{$id}/status", $query);
         return $this->relay($res);
     }
 

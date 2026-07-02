@@ -21,15 +21,23 @@ async function ensurePaymentLink(deps, id, type) {
   const { database, paymentLinksModel, resolveAmountCents, createLink } = deps;
   if (!LINK_TYPES[type]) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
 
-  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice FROM reservations WHERE id = ?').get(id);
+  // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
+  // (specs/public-online-payment.md — avoids a silent tax-free undercharge if the devis lookup misses).
+  const r = database.prepare('SELECT id, kind, depositAmount, balanceAmount, finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
   if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
   const amountCents = resolveAmountCents(id, type, r);
   if (amountCents <= 0) throw { httpStatus: 400, error: 'ZERO_AMOUNT', message: 'Montant nul pour ce type — vérifie le devis/réservation.' };
 
-  // Reuse the current open link of that type if there is one (avoid duplicates on a double-click).
+  // Reuse the current open link of that type if there is one (avoid duplicates on a double-click) — but
+  // ONLY if it still bills the current amount. If the devis was edited between two `pay` calls the stored
+  // amount drifts; reusing the stale link would charge the old total yet book the stay as fully paid at
+  // the new total. Retire the stale link and mint a fresh one at the correct amount.
   const existing = paymentLinksModel.findOpenForReservation(id, type);
   if (existing && existing.url) {
-    return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true };
+    if (Number(existing.amountCents) === Number(amountCents)) {
+      return { id: existing.id, type, amountCents: existing.amountCents, url: existing.url, status: existing.status, qontoPaymentLinkId: existing.qontoPaymentLinkId, reused: true };
+    }
+    paymentLinksModel.updateStatus(existing.id, 'cancelled');
   }
 
   const link = await createLink({ title: LINK_TITLES[type], amountCents });

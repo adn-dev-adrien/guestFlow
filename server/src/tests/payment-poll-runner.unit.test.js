@@ -9,7 +9,7 @@ const Database = require('better-sqlite3');
 
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
-const { runPaymentPoll } = require('../utils/paymentPollRunner');
+const { runPaymentPoll, processPaidLink } = require('../utils/paymentPollRunner');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 
@@ -159,6 +159,37 @@ test('no conflict → bookingConflictAt stays null, admin not notified', async (
   const resa = db.prepare('SELECT bookingConflictAt FROM reservations WHERE id = ?').get(devis.convertedReservationId);
   assert.equal(resa.bookingConflictAt, null);
   assert.deepEqual(notified, []);
+});
+
+test('concurrent processPaidLink on the same paid link (webhook + poll race) → converts once, one email, one conflict notify', async () => {
+  const { db, devisId } = seed();
+  const links = paymentLinksModel.buildModel(db);
+  // Both the webhook and the on-demand poll captured the SAME still-open link before either flipped it.
+  const link = links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+  const captured = { id: link.id, reservationId: devisId, type: 'full', qontoPaymentLinkId: 'ql_full' };
+
+  const emails = [];
+  const notified = [];
+  const deps = {
+    database: db,
+    devisModel: devisModel.buildModel(db),
+    paymentLinksModel: links,
+    checkConflict: () => true,
+    sendConfirmation: async (id) => { emails.push(id); },
+    notifyConflict: (id) => { notified.push(id); },
+    paidPayment: { id: 'pay_1', paid_at: '2026-09-21T10:00:00Z' },
+  };
+
+  const first = await processPaidLink({ ...deps, link: captured });
+  const second = await processPaidLink({ ...deps, link: captured });
+
+  assert.equal(first.effect, 'converted');
+  assert.equal(second.effect, 'already-processed', 'the second caller no-ops (markPaid did not flip)');
+
+  const converted = db.prepare("SELECT COUNT(*) AS c FROM reservations WHERE kind = 'reservation'").get().c;
+  assert.equal(converted, 1, 'exactly one reservation created');
+  assert.deepEqual(emails, [first.reservationId], 'confirmation email sent exactly once');
+  assert.deepEqual(notified, [first.reservationId], 'conflict alert sent exactly once');
 });
 
 test('an open link stays open; an expired link is recorded', async () => {
