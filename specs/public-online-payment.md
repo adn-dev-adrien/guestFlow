@@ -178,7 +178,7 @@ reservation status-chip pattern. Responsive per the existing chip rules. **Vites
 | Method | Endpoint | Body | Response | Notes |
 |---|---|---|---|---|
 | POST | `/booking-requests/:id/pay` | `{ token: string, returnPath?: string }` | `{ data: { paymentUrl, amountCents, currency, status } }` | Creates/reuses the `full` link. **`token` required** (per-devis capability). `409` if dates no longer free / already paid; `404` unknown / non-public devis / bad-or-missing token. |
-| GET | `/booking-requests/:id/status?token=…` | — | `{ data: { status, reservationId?, propertyName?, startDate?, endDate?, finalPrice? } }` | `status ∈ pending\|paid\|confirmed\|conflict`. **`token` required**; `404` on mismatch. `paymentStatusLimiter`. On-demand poll before answering. |
+| GET | `/booking-requests/:id/status?token=…` | — | `{ data: { status, reservationId?, propertyName?, startDate?, endDate?, finalPrice?, totalStayPrice? } }` | `status ∈ pending\|paid\|confirmed\|conflict`. **`token` required**; `404` on mismatch. `paymentStatusLimiter`. On-demand poll before answering. `totalStayPrice` = tax-inclusive total actually charged (2026-07-02: the site displays THIS as « Total », never the tax-exclusive `finalPrice`). |
 
 `POST /booking-requests` is unchanged except its response now also returns **`publicToken`** (the site
 calls it first to get the devis id **+ token**, then echoes the token to `pay`/`status`).
@@ -254,6 +254,11 @@ see [wordpress-plugin.md](wordpress-plugin.md) §3 rule 6b): the `guestflow/book
 `POST /booking-requests/:id/pay` → redirects the visitor to the Qonto page → on return polls
 `GET /booking-requests/:id/status` and shows the stay recap. The plugin proxies to this spec's
 `/public/v1` endpoints with the API key server-side; no business logic on the WordPress side.
+
+**Headline total display (fix 2026-07-02, found by the prod E2E).** The block's quote summary and the
+success-page recap display **`totalStayPrice`** (tax-INCLUSIVE — what the guest actually pays online) as
+« Total », never the tax-exclusive `finalPrice`: showing `finalPrice` under a tax line understated the
+charge (e.g. displayed 210,25 € while the card was charged 220,05 €).
 
 **Capability token threading (2026-07-02).** The create response returns `publicToken`; the block
 captures it, sends it in the `pay` body **and** embeds it in the Qonto return URL
