@@ -399,6 +399,38 @@ jobs:
           echo "✓ Service started with PM2"
           echo "✓ Database path: $PERSISTENT_DB"
 
+      - name: 🔌 Deploy WordPress plugin into the wp_app container
+        # The release archive ships only the GuestFlow server/client. The in-repo WordPress plugin
+        # (integrations/wordpress/guestflow-booking) runs INSIDE the `wp_app` Docker container on the
+        # Pi and used to need a manual `docker cp` after every change — a recurring drift/foot-gun
+        # (site + API out of sync). This step syncs it on every deploy. Browser cache-busting is
+        # handled by filemtime versioning in class-gf-blocks.php (no plugin-version bump needed).
+        run: |
+          CONTAINER="wp_app"
+          PLUGIN_SRC="${GITHUB_WORKSPACE}/integrations/wordpress/guestflow-booking"
+          PLUGIN_DEST="/var/www/html/wp-content/plugins/guestflow-booking"
+
+          if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+            echo "ℹ WordPress container '$CONTAINER' not running — skipping plugin sync (non-fatal)."
+            exit 0
+          fi
+          if [ ! -d "$PLUGIN_SRC" ]; then
+            echo "❌ Plugin source not found at $PLUGIN_SRC"; exit 1
+          fi
+
+          # Replace the plugin dir contents atomically (handles removed files too), then fix ownership.
+          # tar-stream avoids docker cp's overlay-only semantics so stale files never linger.
+          tar -C "$PLUGIN_SRC" -cf - . \
+            | docker exec -i "$CONTAINER" sh -c '
+                set -e
+                DEST="/var/www/html/wp-content/plugins/guestflow-booking"
+                rm -rf "$DEST" && mkdir -p "$DEST"
+                tar -C "$DEST" -xf -
+                chown -R www-data:www-data "$DEST"
+              '
+          echo "✓ WordPress plugin synced into ${CONTAINER}:${PLUGIN_DEST}"
+          docker exec "$CONTAINER" sh -c "ls -la ${PLUGIN_DEST} | head -6"
+
       - name: ✅ Check service status
         if: success()
         run: |
