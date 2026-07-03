@@ -44,8 +44,33 @@ function toPublicPropertyDetail(row) {
   };
 }
 
+// Human-readable price-basis + quantity labels for the site — computed SERVER-SIDE from priceType +
+// showsPlanningCard so it is the single source of truth: adding an option needs NO website change, the
+// plugin just renders these strings (specs/public-planning-options.md). A planning-card option is
+// billed by SÉANCE on the site (the visitor's quantity = number of sessions), so its labels differ
+// from the back-office occurrence model.
+function optionPriceLabels(priceType, showsPlanningCard) {
+  const pt = String(priceType || '');
+  const perPerson = pt.indexOf('per_person') === 0;
+  if (showsPlanningCard) {
+    return {
+      priceUnitLabel: perPerson ? 'par personne et par séance' : 'par séance',
+      quantityLabel: 'Nombre de séances',
+    };
+  }
+  const MAP = {
+    per_person: 'par personne',
+    per_person_per_night: 'par personne et par nuit',
+    per_night: 'par nuit',
+    per_stay: 'au séjour',
+    per_participant_progressive: 'par participant',
+  };
+  return { priceUnitLabel: MAP[pt] || null, quantityLabel: null };
+}
+
 function toPublicOption(row) {
   if (!row) return null;
+  const labels = optionPriceLabels(row.priceType, row.showsPlanningCard);
   const out = {
     id: Number(row.id),
     title: row.title,
@@ -53,6 +78,12 @@ function toPublicOption(row) {
     description: row.description || null,
     priceType: row.priceType,
     price: Number(row.price || 0),
+    // Planning-card option: booked as a time slot. On the site it's billed by quantity and « à
+    // planifier avec l'hôte » (specs/public-planning-options.md).
+    showsPlanningCard: Boolean(row.showsPlanningCard),
+    // Backend-owned display labels (source of truth) — the site renders them as-is.
+    priceUnitLabel: labels.priceUnitLabel,
+    quantityLabel: labels.quantityLabel,
   };
   if (row.autoOptionType) out.autoOptionType = row.autoOptionType;
   if (row.priceType === 'per_participant_progressive' && Array.isArray(row.optionProgressiveTiers) && row.optionProgressiveTiers.length) {

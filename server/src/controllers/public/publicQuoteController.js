@@ -64,6 +64,9 @@ function buildEngineQuote(input) {
     offeredOptionIds: merged.offeredOptionIds,
     selectedResources: (input.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
+    // Public/site flow: planning-card options are billed by quantity (unschedulable on the site) —
+    // the operator fixes the slots later (specs/public-planning-options.md).
+    planningCardAsQuantity: true,
   });
 }
 

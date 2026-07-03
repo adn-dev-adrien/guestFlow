@@ -93,6 +93,9 @@ function create(req, res) {
     selectedOptions: v.value.options.map((o) => ({ optionId: o.optionId, quantity: o.quantity })),
     selectedResources: (v.value.resources || []).map((r) => ({ resourceId: r.resourceId, quantity: r.quantity })),
     platform: 'direct',
+    // Public/site devis: planning-card options are billed by quantity + left unscheduled for the operator
+    // to arrange (specs/public-planning-options.md).
+    planningCardAsQuantity: true,
     notes: String(req.body.message || '').trim(),
   });
   if (result.error) return fail(res, result.status || 400, 'BOOKING_REQUEST_FAILED', result.error);

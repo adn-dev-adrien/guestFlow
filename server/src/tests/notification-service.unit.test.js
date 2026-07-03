@@ -18,7 +18,7 @@ function seedDb() {
       finalPrice REAL, touristTaxTotal REAL, icalOriginalSummary TEXT, platform TEXT, sourcePlatformKey TEXT, sourceIcalSourceId INTEGER);
     CREATE TABLE clients (id INTEGER PRIMARY KEY, firstName TEXT, lastName TEXT, email TEXT, phone TEXT);
     CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
-    CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT);
+    CREATE TABLE options (id INTEGER PRIMARY KEY, title TEXT, showsPlanningCard INTEGER DEFAULT 0);
     CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, quantity REAL, totalPrice REAL, offered INTEGER);
     CREATE TABLE resources (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, quantity REAL, totalPrice REAL, offered INTEGER);
@@ -77,6 +77,18 @@ test('notifyNewSiteDevis sends TO the configured recipient with details + devis 
   assert.match(sent[0].text, /Linge de lit : offert/);
   assert.match(sent[0].text, /Bain nordique/);
   assert.match(sent[0].text, /https:\/\/app\.example\.com\/reservations\/new\?mode=devis&devisId=99/);
+});
+
+test('notifyNewSiteDevis lists planning-card options « à planifier » (specs/public-planning-options.md)', async () => {
+  const db = seedDb();
+  db.prepare('UPDATE options SET showsPlanningCard = 1 WHERE id = 6').run(); // Petit déjeuner is a planning option
+  const sent = [];
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings(), emailServiceFactory: makeFakeFactory(sent), logger: silentLogger });
+  await svc.notifyNewSiteDevis(99);
+  assert.match(sent[0].text, /À planifier avec le client/);
+  assert.match(sent[0].text, /- Petit déjeuner ×2/);
+  // Linge de lit (id 8, not a planning option) must NOT be in the à-planifier section.
+  assert.equal(/À planifier[\s\S]*Linge de lit/.test(sent[0].text), false);
 });
 
 test('empty recipient falls back to the SMTP sender', async () => {

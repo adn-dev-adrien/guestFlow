@@ -88,7 +88,7 @@ function buildNotificationService({
     `).get(Number(devisId));
     if (!row) return null;
     row.options = db.prepare(`
-      SELECT o.title, ro.quantity, ro.totalPrice, ro.offered
+      SELECT o.title, o.showsPlanningCard, ro.quantity, ro.totalPrice, ro.offered
         FROM reservation_options ro
         LEFT JOIN options o ON o.id = ro.optionId
        WHERE ro.reservationId = ?
@@ -125,6 +125,13 @@ function buildNotificationService({
     if (devis.options && devis.options.length) {
       lines.push('', 'Options :');
       for (const o of devis.options) lines.push(lineLabel(o.title, o.totalPrice, o.offered));
+    }
+    // Planning-card options booked from the site have no scheduled slot — the operator must contact the
+    // guest to arrange the time (specs/public-planning-options.md §3 rule 5).
+    const toSchedule = (devis.options || []).filter((o) => o.showsPlanningCard);
+    if (toSchedule.length) {
+      lines.push('', 'À planifier avec le client (horaire à convenir) :');
+      for (const o of toSchedule) lines.push(`- ${o.title} ×${Number(o.quantity || 1)}`);
     }
     if (devis.resources && devis.resources.length) {
       lines.push('', 'Ressources :');

@@ -118,6 +118,9 @@ final class GF_Blocks
                 'depositPaid'     => __('Acompte réglé', 'guestflow-booking'),
                 'balanceDueBefore' => __('Solde à régler avant le %s', 'guestflow-booking'),
                 'balanceEmailFollows' => __('Un email vous sera envoyé pour régler le solde à l’échéance.', 'guestflow-booking'),
+                // Planning-card options (specs/public-planning-options.md)
+                'toBeScheduled'   => __('À planifier avec l’hôte — nous vous contacterons pour convenir de l’horaire.', 'guestflow-booking'),
+                'moreInfo'        => __('Plus d’infos', 'guestflow-booking'),
             ],
         ];
     }
