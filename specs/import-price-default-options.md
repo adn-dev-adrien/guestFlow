@@ -46,9 +46,11 @@ also zeroes the **option lines**, which the operator does need to see.
 ## 2. Goal
 
 An iCal/Lodgify-imported reservation shows its paid default options at their **correct amount
-immediately** — no more save-to-fix. Free (`offered = 1`) defaults stay at 0. The reservation-level
-totals (`finalPrice`/`deposit`/`balance`/`complement`) remain intentionally unpriced until the
-operator saves (unchanged from today).
+immediately** — no more save-to-fix. Free (`offered = 1`) defaults stay at 0. If a later re-sync
+changes a still-pristine reservation's stay, its option amounts are kept in sync too (a `per_night`
+default follows the new number of nights). The reservation-level totals
+(`finalPrice`/`deposit`/`balance`/`complement`) remain intentionally unpriced until the operator saves
+(unchanged from today).
 
 ## 3. Functional rules
 
@@ -73,10 +75,16 @@ operator saves (unchanged from today).
    test schema without the pricing tables), it **falls back to the legacy zero-amount insert** so the
    reservation still imports. This preserves the existing behaviour where prod/dev always have the
    tables and minimal test schemas degrade to a no-op.
-7. **Applies to both create branches.** The new-event branch
-   ([`propertyIcalModel.js:472`](../server/src/models/propertyIcalModel.js#L472)) and the re-create
-   branch ([`propertyIcalModel.js:501`](../server/src/models/propertyIcalModel.js#L501)) both pass the
-   stay data and price the defaults.
+7. **Applies to both create branches.** The new-event branch and the re-create branch (a mapped
+   reservation whose row was deleted) both pass the stay data and price the defaults.
+8. **Re-sync reprices pristine reservations.** When a re-sync updates a **non-locked** iCal reservation
+   (its feed event changed — e.g. new dates), its existing option lines are repriced for the new stay via
+   the same engine (`repriceReservationDefaultOptions`), so a `per_night` default follows the new number
+   of nights. **Locked reservations are never touched:** any manual edit locks an iCal reservation
+   (`computeNextIcalSyncLocked` → `sourceType = 'ical'` ⇒ 1) and diverts re-syncs to the date-drift
+   approval flow (`shouldSkipIcalReservationUpdate`), so no operator customisation is ever overwritten.
+   The create (insert) and re-sync (in-place update) paths share one pricing helper
+   (`priceOptionLinesById`) so option pricing stays single-sourced.
 
 **Edge cases:**
 - Engine drops an option not linked to the property (`property_options`) → no line → that option falls
@@ -97,7 +105,7 @@ operator saves (unchanged from today).
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| models | `models/propertyIcalModel.js` | T | `require('../utils/pricing')`; rebuild `applyPropertyOptionDefaults(reservationId, propertyId, stay)` to price defaults via `calculateReservationQuote` (guarded) and bind engine `quantity/unitPrice/billedUnits/totalPrice/offered`; change the `insertReservationOption` statement to bind those 4 amount columns; pass `stay` ({ startDate, endDate, checkInTime, checkOutTime, adults }) from both create call sites. |
+| models | `models/propertyIcalModel.js` | T | `require('../utils/pricing')`; add a shared `priceOptionLinesById(propertyId, stay, optionRows)` helper (guarded engine call → Map). `applyPropertyOptionDefaults` uses it to bind engine `quantity/unitPrice/billedUnits/totalPrice/offered` on insert (statement changed to bind the 4 amount columns); a new `repriceReservationDefaultOptions` uses it to UPDATE existing option amounts on a non-locked re-sync. Pass `stay` ({ startDate, endDate, checkInTime, checkOutTime, adults }) from both create call sites and the non-locked update branch. |
 | utils | `utils/pricing.js` | — | **No change** — reused as-is (`calculateReservationQuote`, `offeredOptionIds`). |
 | models | `models/reservationsModel.js` | — | No change. |
 | database | `database.js` | — | No migration. |
@@ -130,7 +138,7 @@ finance totals still read 0 until the operator saves (unchanged). Responsive: N/
 
 ## 7. Test plan
 
-### Server unit tests (`server/src/tests/import-price-default-options.unit.test.js` — new) — 2/2 green
+### Server unit tests (`server/src/tests/import-price-default-options.unit.test.js` — new) — 4/4 green
 - [x] Full schema (import tables + pricing tables: `pricing_rules`, `property_options`,
   `property_option_prices`, `app_settings`). Seed a **paid** default (`offered = 0`, `per_stay`, base
   40, per-property override 60) and a **free** default (`offered = 1`, base 25). Stub the feed, run
@@ -138,14 +146,20 @@ finance totals still read 0 until the operator saves (unchanged). Responsive: N/
   `unitPrice = 60`, `billedUnits = 1`; free default `totalPrice = 0`, `offered = 1`; the `reservations`
   row keeps `finalPrice = 0` and `totalPrice = 0` (still unpriced).
 - [x] `per_night` paid default over a 3-night stay prices at `3 × unit` (`billedUnits = 3`, `totalPrice = 60`).
+- [x] **Re-sync reprices a pristine reservation** (rule 8): first sync a `per_night` default (3 nights →
+  billed 3), then re-sync the same UID with a 5-night stay → the option reprices to `billedUnits = 5`,
+  `totalPrice = 100`.
+- [x] **Locked reservation is NOT repriced** (rule 8 safety): after locking the reservation, a re-sync with
+  a longer stay leaves the option (`billedUnits = 3`, `totalPrice = 60`) and the dates untouched, and
+  records a pending date-drift alert instead.
 - [x] Engine-failure fallback: with a minimal schema (no pricing tables), `syncSource` still creates the
   option row at 0 without throwing (guards rule 6) — covered by the existing
   `property-ical-sync.unit.test.js` create tests, which stay green.
 
 ### Regression
 - [x] `property-ical-sync.unit.test.js` (the 5-step sync contract) stays green (24/24) — its minimal
-  schema degrades the engine call to the legacy 0-insert, so its `offered`/`quantity` assertions hold.
-- [x] Full server suite: 1991/1991 green.
+  schema degrades the engine call to the legacy 0-insert / no-op reprice, so its assertions hold.
+- [x] Full server suite: 1993/1993 green.
 
 ### Manual verification
 - [ ] After deploy, a real Lodgify import: the paid default option shows its amount on the fiche without
@@ -156,9 +170,6 @@ finance totals still read 0 until the operator saves (unchanged). Responsive: N/
 - **Reservation-level pricing at import** — totals stay 0 by design (rule 5). Only option lines change.
 - **Back-fill of already-imported reservations** currently showing 0 — one save fixes each; a bulk
   migration is not in scope.
-- **The iCal UPDATE/re-sync path** (`updateReservation`, dates change on a mapped reservation) does not
-  reprice options — unchanged from today (a save reconciles). Could be a follow-up if per-night drift
-  bites.
 - **inComplement routing / acompte-solde contribs at import** — left at their column defaults (as today);
   the operator's save sets them. The fix touches only `quantity/unitPrice/billedUnits/totalPrice/offered`.
 
