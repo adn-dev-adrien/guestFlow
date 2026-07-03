@@ -366,6 +366,14 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     }
   }
 }
+// Per-property « Acompte en ligne » toggle (specs/public-online-deposit.md §5). Default 0 → existing
+// behaviour (single online full payment) is unchanged until the operator opts a property in.
+{
+  const propCols = db.prepare("PRAGMA table_info(properties)").all().map((c) => c.name);
+  if (!propCols.includes('publicDepositEnabled')) {
+    db.exec('ALTER TABLE properties ADD COLUMN publicDepositEnabled INTEGER NOT NULL DEFAULT 0');
+  }
+}
 
 // Single-rate VAT migration (specs/single-vat-rate.md §5). Seeds `vatRate` from the legacy
 // accommodation column ONCE (prod has 10 % there → no behavioural surprise), then DROPS the

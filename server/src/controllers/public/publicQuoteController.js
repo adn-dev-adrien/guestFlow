@@ -12,6 +12,7 @@ const resourcesModel = require('../../models/resourcesModel');
 const { validateStayInput } = require('../../utils/publicInputValidation');
 const { toPublicQuote } = require('../../utils/publicProjections');
 const { computeBlockedDates, rangeHasBlockedNight } = require('./publicCatalogController');
+const { resolvePublicPaymentMode } = require('../../utils/publicPaymentMode');
 const { mergePropertyDefaultsIntoPayload } = require('../../utils/propertyDefaultOptions');
 const propertyOptionDefaultsModel = require('../../models/propertyOptionDefaultsModel');
 const { ok, fail } = require('./publicHttp');
@@ -85,8 +86,11 @@ function quote(req, res) {
   const blocked = computeBlockedDates(v.value.propertyId, v.value.startDate, v.value.endDate);
   const available = !rangeHasBlockedNight(v.value.startDate, v.value.endDate, blocked);
 
+  // Server-decided payment mode: deposit only when the property opted in AND the deposit is positive.
+  const paymentMode = resolvePublicPaymentMode(db, v.value.propertyId, Math.round(Number(engineQuote.depositAmount || 0) * 100));
+
   return ok(res, toPublicQuote(engineQuote, {
-    available, startDate: v.value.startDate, endDate: v.value.endDate,
+    available, startDate: v.value.startDate, endDate: v.value.endDate, paymentMode,
   }));
 }
 

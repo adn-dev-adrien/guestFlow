@@ -258,6 +258,53 @@ const DEPOSIT_REQUEST_BODY_EN = [
   '{{senderName}}',
 ].join('\n');
 
+// Balance request — sent when only the acompte was collected online (specs/public-online-deposit.md):
+// automatically by the daily balance cron at the due date, and on demand by the host « Envoyer la
+// demande de solde » action. The payment link is injected per-send as {{paymentLink}} (extraContext).
+const BALANCE_REQUEST_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Votre acompte pour le séjour {{propertyWithArticle}} est bien reçu — merci ! Il vous reste à régler le solde.',
+  '',
+  'Récapitulatif de votre séjour :',
+  '- Logement : {{propertyName}}',
+  '- Arrivée  : le {{startDate}} à partir de {{checkInTime}}',
+  '- Départ   : le {{endDate}} avant {{checkOutTime}}',
+  '- Montant total du séjour : {{finalPrice}}',
+  '- Acompte déjà réglé : {{depositAmount}}',
+  '',
+  'Solde à régler : {{balanceAmount}} (avant le {{balanceDueDate}})',
+  '',
+  'Payer le solde en ligne : {{paymentLink}}',
+  '',
+  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const BALANCE_REQUEST_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'We have received your deposit for your stay at {{propertyWithArticle}} — thank you! The balance is now due.',
+  '',
+  'Summary of your stay:',
+  '- Property : {{propertyName}}',
+  '- Arrival  : {{startDate}} from {{checkInTime}}',
+  '- Departure: {{endDate}} before {{checkOutTime}}',
+  '- Total stay amount: {{finalPrice}}',
+  '- Deposit already paid: {{depositAmount}}',
+  '',
+  'Balance to pay: {{balanceAmount}} (before {{balanceDueDate}})',
+  '',
+  'Pay the balance online: {{paymentLink}}',
+  '',
+  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
 // Deposit reminder — MANUAL, anchored on the devis validity date (validUntil). Surfaces in the manual
 // pending queue for an open, deposit-unpaid devis; the host sends it by hand. Re-offers the existing
 // open deposit link, injected at send time as {{paymentLink}} (emailsController.buildPreview).
@@ -364,6 +411,17 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual',     // MANUAL on purpose — the host sends it by hand from the pending queue
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'balance_request',
+    name:      'Demande de solde (lien de paiement)',
+    subject:   'Réglez le solde de votre séjour {{propertyWithArticle}}',
+    body:      BALANCE_REQUEST_BODY,
+    subjectEn: 'Pay the balance for your stay at {{propertyWithArticle}}',
+    bodyEn:    BALANCE_REQUEST_BODY_EN,
+    dayOffset: 0,          // sentinel — event-triggered (daily balance cron at the due date + host action)
+    sendMode:  'manual',   // excluded from the manual queue/auto cron (EVENT_TRIGGERED_STABLE_KEYS)
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -375,7 +433,7 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request']);
 
 module.exports = {
   DEFAULT_TEMPLATES,

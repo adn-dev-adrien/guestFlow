@@ -13,6 +13,7 @@ import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import PageActionBar from '../components/PageActionBar';
 import ReservationConflictBadge from '../components/ReservationConflictBadge';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
@@ -2363,6 +2364,25 @@ export default function ReservationPage() {
     }
   };
 
+  // Online-deposit flow (specs/public-online-deposit.md §3 rule 8): manually send / re-send the balance
+  // payment request for a reservation whose deposit was collected online but whose solde is still due.
+  const handleSendBalanceRequest = async () => {
+    if (!editingReservationId) return;
+    try {
+      // Persist current edits first so the link amount matches the solde shown on the fiche.
+      const saved = await handleSaveReservation(() => {});
+      if (!saved) return;
+      const r = await api.sendBalanceRequestEmail(editingReservationId);
+      const euros = (Number(r.amountCents || 0) / 100).toFixed(2).replace('.', ',');
+      await alert({
+        title: 'Demande de solde envoyée ✓',
+        message: `Un email avec le lien de paiement du solde (${euros} €) a été envoyé à ${r.recipientEmail || 'le client'}.`,
+      });
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande de solde (Qonto connecté ? email client renseigné ?).' });
+    }
+  };
+
   const handleCheckDepositPayment = async () => {
     try {
       const summary = await api.pollPayments();
@@ -2519,6 +2539,10 @@ export default function ReservationPage() {
     // specs/online-payments-qonto.md §3.4 — generate + send the Qonto deposit payment link for this devis.
     ...(isDevisMode && editingDevisId
       ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande d\'acompte', onClick: handleSendDepositRequest, color: 'success' }] : []),
+    // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
+    // collected online but the solde is still due (reservation, positive balance, not yet paid).
+    ...(!isDevisMode && editingReservationId && !form.balancePaid && Number(pricingQuote?.balanceAmount || 0) > 0
+      ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];
 
   const actionBarAfter = [

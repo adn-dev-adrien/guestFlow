@@ -114,8 +114,8 @@ function toPublicAvailability({ propertyId, from, to, blockedDates }) {
  * (range vs blocked dates) and injected. EXCLUDES VAT net breakdowns, accounting buckets, override
  * flags, and resource lines.
  */
-function toPublicQuote(quote, { available, startDate, endDate }) {
-  return {
+function toPublicQuote(quote, { available, startDate, endDate, paymentMode = 'full' }) {
+  const base = {
     propertyId: Number(quote.property?.id ?? quote.propertyId),
     startDate,
     endDate,
@@ -155,10 +155,17 @@ function toPublicQuote(quote, { available, startDate, endDate }) {
     // Grand total of the stay INCLUDING the tourist tax (finalPrice is tax-exclusive). This is the
     // headline "Total du séjour" a public consumer should display.
     totalStayPrice: Number(quote.totalStayPrice || 0),
-    deposit: { amount: Number(quote.depositAmount || 0), dueDate: quote.depositDueDate || null },
-    balance: { amount: Number(quote.balanceAmount || 0), dueDate: quote.balanceDueDate || null },
+    // The SERVER-decided payment mode (specs/public-online-deposit.md). In 'full' mode the site charges
+    // the whole stay at once, so the deposit/balance blocks are OMITTED — the site must not display
+    // Acompte/Solde lines that don't reflect how the guest actually pays.
+    payment: { mode: paymentMode === 'deposit' ? 'deposit' : 'full' },
     complementOnArrival: Number(quote.complementAmount || 0),
   };
+  if (paymentMode === 'deposit') {
+    base.deposit = { amount: Number(quote.depositAmount || 0), dueDate: quote.depositDueDate || null };
+    base.balance = { amount: Number(quote.balanceAmount || 0), dueDate: quote.balanceDueDate || null };
+  }
+  return base;
 }
 
 module.exports = {

@@ -300,6 +300,13 @@ async function sendPaymentRequestEmail(req, res) {
   } catch (err) { return sendError(res, err); }
 }
 
+// Programmatic « send the balance request » (create/reuse the balance Qonto link + email the
+// balance_request template) — used by the daily balance cron and reusable by any ops trigger.
+// Returns the same { httpStatus, body } shape as sendPaymentRequest.
+function sendBalanceRequestFor(id) {
+  return paymentRequestService.sendPaymentRequest(requestServiceDeps(), Number(id), 'balance');
+}
+
 // Every payment link of a reservation/devis (newest first) — the status the UI renders.
 function listReservationPaymentLinks(req, res) {
   return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
@@ -339,5 +346,5 @@ module.exports = {
   qontoAuthorize, qontoCallback, qontoStatus, getSettings, updateSettings,
   qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  registerQontoWebhook,
+  registerQontoWebhook, sendBalanceRequestFor,
 };
