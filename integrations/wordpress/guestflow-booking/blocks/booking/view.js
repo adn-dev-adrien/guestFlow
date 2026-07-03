@@ -73,7 +73,8 @@
         var lines = GF.el('div', { class: 'gf-summary' });
         lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('strong', {}, GF.t('stayRecap')), GF.el('span', {}, d.propertyName || '')));
         if (d.startDate) lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('span', {}, GF.t('startDate') + ' → ' + GF.t('endDate')), GF.el('span', {}, d.startDate + ' → ' + d.endDate)));
-        if (d.finalPrice != null) lines.appendChild(GF.el('div', { class: 'gf-summary-line gf-summary-total' }, GF.el('span', {}, GF.t('total')), GF.el('span', {}, GF.euro(d.finalPrice))));
+        var recapTotal = d.totalStayPrice != null ? d.totalStayPrice : d.finalPrice; // tax-inclusive when the server provides it
+        if (recapTotal != null) lines.appendChild(GF.el('div', { class: 'gf-summary-line gf-summary-total' }, GF.el('span', {}, GF.t('total')), GF.el('span', {}, GF.euro(recapTotal))));
         box.appendChild(lines);
       }
     }
@@ -230,7 +231,9 @@
         summary.appendChild(line(o.title + ' ×' + o.quantity, o.offered ? GF.euro(0) : GF.euro(o.total)));
       });
       if (q.touristTax && q.touristTax.total) summary.appendChild(line(GF.t('touristTax'), GF.euro(q.touristTax.total)));
-      summary.appendChild(line(GF.t('total'), GF.euro(q.finalPrice), 'gf-summary-total'));
+      // Headline total = totalStayPrice (tax-INCLUSIVE) — what the guest actually pays online.
+      // finalPrice is tax-exclusive; showing it as "Total" under a tax line understated the charge.
+      summary.appendChild(line(GF.t('total'), GF.euro(q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice), 'gf-summary-total'));
       if (q.deposit && q.deposit.amount) summary.appendChild(line(GF.t('deposit'), GF.euro(q.deposit.amount)));
       if (q.balance && q.balance.amount) summary.appendChild(line(GF.t('balance'), GF.euro(q.balance.amount)));
 

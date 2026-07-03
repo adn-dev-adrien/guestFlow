@@ -87,12 +87,15 @@ async function withAccessToken(fn) {
 // Minimal, non-PII recap of a confirmed booking.
 function recap(reservationRow) {
   const propertyName = (db.prepare('SELECT name FROM properties WHERE id = ?').get(reservationRow.propertyId) || {}).name || '';
+  const finalPrice = Number(reservationRow.finalPrice || 0);
   return {
     reservationId: reservationRow.id,
     propertyName,
     startDate: reservationRow.startDate,
     endDate: reservationRow.endDate,
-    finalPrice: Number(reservationRow.finalPrice || 0),
+    finalPrice,
+    // Tax-inclusive stay total — matches what the guest was charged online (the site displays this).
+    totalStayPrice: Number((finalPrice + Number(reservationRow.touristTaxTotal || 0)).toFixed(2)),
   };
 }
 
