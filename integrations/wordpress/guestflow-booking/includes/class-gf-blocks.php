@@ -30,13 +30,13 @@ final class GF_Blocks
 
     public function register(): void
     {
-        $ver = GF_BOOKING_VERSION;
-
-        // Shared style (editor + front).
-        wp_register_style('guestflow-style', GF_BOOKING_URL . 'assets/style.css', [], $ver);
+        // Version each asset by its file mtime so a redeploy that changes a file busts the browser
+        // cache automatically — the release CI syncs these files into the container without bumping
+        // the plugin version.
+        wp_register_style('guestflow-style', GF_BOOKING_URL . 'assets/style.css', [], $this->asset_ver('assets/style.css'));
 
         // Runtime holder for the localized config; every block script depends on it.
-        wp_register_script('gf-runtime', GF_BOOKING_URL . 'assets/runtime.js', [], $ver, true);
+        wp_register_script('gf-runtime', GF_BOOKING_URL . 'assets/runtime.js', [], $this->asset_ver('assets/runtime.js'), true);
         wp_localize_script('gf-runtime', 'GFBooking', $this->runtime_config());
 
         foreach (self::BLOCKS as $name) {
@@ -44,18 +44,25 @@ final class GF_Blocks
                 "guestflow-{$name}-editor",
                 GF_BOOKING_URL . "blocks/{$name}/editor.js",
                 ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-i18n', 'gf-runtime'],
-                $ver,
+                $this->asset_ver("blocks/{$name}/editor.js"),
                 true
             );
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$name}/view.js",
                 ['gf-runtime'],
-                $ver,
+                $this->asset_ver("blocks/{$name}/view.js"),
                 true
             );
             register_block_type(GF_BOOKING_DIR . "blocks/{$name}");
         }
+    }
+
+    /** Cache-busting version for an asset = its file mtime (falls back to the plugin version). */
+    private function asset_ver(string $relPath): string
+    {
+        $mtime = @filemtime(GF_BOOKING_DIR . $relPath);
+        return $mtime ? (string) $mtime : GF_BOOKING_VERSION;
     }
 
     private function runtime_config(): array
