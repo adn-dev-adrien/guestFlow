@@ -115,25 +115,42 @@ function buildQontoClient(config = {}) {
       return { accessToken: json.access_token, refreshToken: json.refresh_token || refreshToken, expiresIn: Number(json.expires_in) || null };
     },
 
-    // Create a single-amount payment link (Basket type: one line item carrying the whole amount).
-    async createPaymentLink({ accessToken, title, amountCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false, redirectUrl }) {
-      const value = (Math.round(Number(amountCents || 0)) / 100).toFixed(2);
-      const payload = {
-        payment_link: {
-          reusable: Boolean(reusable),
-          potential_payment_methods: paymentMethods,
-          // Qonto expects `vat_rate` as a STRING (e.g. "0", "20") — a number is rejected with
-          // "cannot unmarshal number ... of type string".
-          items: [{ title: String(title || 'Paiement'), quantity: 1, unit_price: { value, currency }, vat_rate: String(vatRate) }],
-        },
-      };
+    // Create a payment link. Two shapes:
+    //  - single line: pass { title, amountCents, vatRate? } (one item carrying the whole amount);
+    //  - VAT basket: pass { items: [{ title, amountCents(HT), vatRate }], expectedTotalCents } built by
+    //    utils/paymentLinkItems — Qonto adds VAT on top of each HT unit_price (specs/payment-links-vat.md).
+    // `unit_price` is HT; Qonto's link `amount` = Σ round_half_up(unit_price × (1+vat_rate/100)).
+    async createPaymentLink({ accessToken, title, amountCents, items, expectedTotalCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false, redirectUrl }) {
+      const toLine = (t, cents, rate) => ({
+        title: String(t || 'Paiement'), quantity: 1,
+        unit_price: { value: (Math.round(Number(cents || 0)) / 100).toFixed(2), currency },
+        // Qonto expects `vat_rate` as a STRING (e.g. "0", "20") — a number is rejected with
+        // "cannot unmarshal number ... of type string".
+        vat_rate: String(rate == null ? 0 : rate),
+      });
+      const wireItems = Array.isArray(items) && items.length
+        ? items.map((it) => toLine(it.title, it.amountCents, it.vatRate))
+        : [toLine(title, amountCents, vatRate)];
+      const payload = { payment_link: { reusable: Boolean(reusable), potential_payment_methods: paymentMethods, items: wireItems } };
       // Where Qonto sends the payer back after a successful payment (the site success page). Only set
       // when provided — the exact field is confirmed in sandbox (specs/public-online-payment.md §9).
       if (redirectUrl) payload.payment_link.redirect_url = String(redirectUrl);
       const res = await fetchImpl(`${apiBase}/v2/payment_links`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) });
       const json = await readBody(res, 'create payment link');
       const link = json.payment_link || json;
-      return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), expirationDate: link.expiration_date || null, raw: link };
+      // Money guard (specs/payment-links-vat.md §3 rule 5): the amount Qonto computed from the HT items
+      // MUST equal what we intend to charge. On mismatch, fail loudly rather than present a wrong link.
+      if (expectedTotalCents != null && link && link.amount && link.amount.value != null) {
+        const chargedCents = Math.round(Number(link.amount.value) * 100);
+        if (chargedCents !== Math.round(Number(expectedTotalCents))) {
+          const err = new Error(`Qonto payment-link amount ${chargedCents}c ≠ expected ${Math.round(Number(expectedTotalCents))}c`);
+          err.status = 500; err.body = { code: 'AMOUNT_MISMATCH', charged: chargedCents, expected: Math.round(Number(expectedTotalCents)), items: wireItems };
+          // eslint-disable-next-line no-console
+          console.error(`[qonto] payment-link amount mismatch: ${JSON.stringify(err.body)}`);
+          throw err;
+        }
+      }
+      return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), expirationDate: link.expiration_date || null, amountValue: link.amount && link.amount.value, raw: link };
     },
 
     // Poll a link's current status. NOTE: the link's top-level `status` only goes open → processing

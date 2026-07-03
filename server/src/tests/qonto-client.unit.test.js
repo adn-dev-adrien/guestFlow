@@ -75,6 +75,40 @@ test('createPaymentLink posts a Basket with the amount formatted from cents + au
   assert.equal(sent.items[0].title, 'Acompte séjour');
 });
 
+test('createPaymentLink emits a multi-item VAT basket (HT unit prices) when items[] is passed', async () => {
+  const { fetchImpl, calls } = stubFetch({ payment_link: { id: 'pl_v', url: 'u', status: 'open', amount: { value: '266.05', currency: 'EUR' } } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  await client.createPaymentLink({ accessToken: 'at', items: [
+    { title: 'Séjour et prestations', amountCents: 23295, vatRate: 10 },
+    { title: 'Taxe de séjour', amountCents: 980, vatRate: 0 },
+  ], expectedTotalCents: 26605 });
+  const sent = JSON.parse(calls[0].opts.body).payment_link;
+  assert.equal(sent.items.length, 2);
+  assert.deepEqual(sent.items[0].unit_price, { value: '232.95', currency: 'EUR' });
+  assert.equal(sent.items[0].vat_rate, '10'); // STRING
+  assert.deepEqual(sent.items[1].unit_price, { value: '9.80', currency: 'EUR' });
+  assert.equal(sent.items[1].vat_rate, '0');
+});
+
+test('createPaymentLink THROWS when Qonto amount ≠ expectedTotalCents (money guard)', async () => {
+  const { fetchImpl } = stubFetch({ payment_link: { id: 'pl_bad', url: 'u', status: 'open', amount: { value: '292.66', currency: 'EUR' } } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  await assert.rejects(
+    () => client.createPaymentLink({ accessToken: 'at', items: [{ title: 'x', amountCents: 26605, vatRate: 10 }], expectedTotalCents: 26605 }),
+    (e) => { assert.match(e.message, /amount .* ≠ expected/); assert.equal(e.body.code, 'AMOUNT_MISMATCH'); return true; },
+  );
+});
+
+test('createPaymentLink passes the money guard when amounts match', async () => {
+  const { fetchImpl } = stubFetch({ payment_link: { id: 'pl_ok', url: 'u', status: 'open', amount: { value: '266.05', currency: 'EUR' } } });
+  const client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl });
+  const link = await client.createPaymentLink({ accessToken: 'at', items: [
+    { title: 'Séjour', amountCents: 23295, vatRate: 10 }, { title: 'Taxe', amountCents: 980, vatRate: 0 },
+  ], expectedTotalCents: 26605 });
+  assert.equal(link.id, 'pl_ok');
+  assert.equal(link.amountValue, '266.05');
+});
+
 test('createPaymentLink includes redirect_url only when provided', async () => {
   const withRedirect = stubFetch({ payment_link: { id: 'pl_r', url: 'u', status: 'open' } });
   let client = buildQontoClient({ ...SANDBOX_CFG, fetchImpl: withRedirect.fetchImpl });

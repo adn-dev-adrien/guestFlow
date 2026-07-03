@@ -17,7 +17,7 @@ const { getValidQontoAccessToken } = require('../../utils/qontoAuth');
 const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
-const { fullPaymentCents } = require('../../utils/devisQuote');
+const { fullPaymentCents, fullPaymentComponents } = require('../../utils/devisQuote');
 const { tokensMatch } = require('../../utils/publicDevisToken');
 const { calculateReservationQuote } = require('../../utils/pricing');
 const settingsModel = require('../../models/settingsModel');
@@ -69,8 +69,11 @@ async function pay(req, res) {
       // Full stay total re-computed from the saved devis (never the client): tax-INCLUSIVE
       // (accommodation + options + resources + tourist tax), unless the tax is collected on arrival.
       resolveAmountCents: (_id, _type, r) => fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r),
-      createLink: ({ title, amountCents }) => withAccessToken((client, at) =>
-        client.createPaymentLink({ accessToken: at, title, amountCents, redirectUrl: redirectUrl || undefined })),
+      // VAT basket so the Qonto/Mollie page shows the real TVA (stay @ global rate + tourist tax @ 0 %)
+      // while charging exactly the resolved total (specs/payment-links-vat.md).
+      resolveItems: (_id, _type, r) => fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r),
+      createLink: ({ title, amountCents, items, expectedTotalCents }) => withAccessToken((client, at) =>
+        client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents, redirectUrl: redirectUrl || undefined })),
     }, id, 'full');
     return ok(res, { paymentUrl: link.url, amountCents: link.amountCents, currency: 'EUR', status: link.status });
   } catch (err) {

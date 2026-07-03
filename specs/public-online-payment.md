@@ -53,7 +53,9 @@ Let a website visitor **pay their full stay online** and have the reservation co
      the engine is re-run ONLY to read the `collectedOnArrival` boolean). _(Decision 2026-06-30: the
      online full payment collects the taxe de séjour unless it's perceived on arrival. Anti-drift fix
      2026-06-30 after a live sandbox test charged 803,60 € instead of the quoted 789,60 €.)_
-   - creates a Qonto **`full`** payment link, persisted in `payment_links` (`reservationId = devis id`,
+   - creates a Qonto **`full`** payment link as a **VAT basket** (stay @ the global rate + tourist tax @
+     0 %, total charged exactly — [payment-links-vat.md](payment-links-vat.md), 2026-07-03), persisted in
+     `payment_links` (`reservationId = devis id`,
      `type='full'`); reuses the current open `full` link **only if it still bills the current amount** —
      if the devis was edited between two `pay` calls the stored amount drifts, so the stale link is
      retired (`cancelled`) and a fresh one minted at the correct amount (else the guest would pay the old
