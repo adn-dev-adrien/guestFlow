@@ -1,0 +1,1 @@
+- **SAS — hide already-settled steps** (spec `sas-hide-settled-steps.md`, 2026-07-03). The arrival caution page no longer appears once the caution is received (even when reopening a completed SAS), and the ménage page is skipped when the cleaning is already included — its « vaisselle / poubelles » client reminder moves to the recap. Departure steps unchanged.

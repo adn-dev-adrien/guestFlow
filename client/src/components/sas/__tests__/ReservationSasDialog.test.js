@@ -80,6 +80,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   // recap
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.getByText(/Total : 85,00 €/)).toBeInTheDocument();
+  expect(screen.queryByText(/vaisselle doit être faite/)).toBeNull(); // cleaning not included → no reminder
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
@@ -119,13 +120,14 @@ test('arrival SAS intro: property photo, centred blue client name, platform badg
   expect(screen.getByText('3 personnes')).toBeInTheDocument();    // 2 adults + 1 child
 });
 
-test('arrival SAS reopen: pre-fills the prior commit (caution shown despite received) + re-commit sends the reconstructed complement once', async () => {
-  // specs/reopen-completed-sas.md §2/§3 — a completed SAS reopens with its data; the caution step
-  // stays reachable in edit mode; the SAS-origin complement is reconstructed and re-sent without dup.
+test('arrival SAS reopen: caution hidden once received, ménage reminder rides on recap, complement reconstructed once', async () => {
+  // specs/sas-hide-settled-steps.md §3 — reopening a completed SAS no longer shows the arrival caution
+  // page once received (the commit leaves the marker untouched → undefined). Cleaning included → no ménage
+  // page; its client reminder rides on the recap. The SAS-origin complement is reconstructed + re-sent once.
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: {
       arrivalSasDoneAt: '2026-07-10 15:00:00',
-      cautionReceived: 1,                                // fresh mode would SKIP the caution step
+      cautionReceived: 1,                                // caution page hidden even in re-edit now
       extinguisherSealOkAtArrival: 1,
       departureHandoverNote: 'Clé sous le pot',
       // complementAmount already INCLUDES the prior SAS line (5 €) — the recap must subtract it from
@@ -134,30 +136,27 @@ test('arrival SAS reopen: pre-fills the prior commit (caution shown despite rece
       // The prior SAS complement, surfaced as a SAS-origin custom option (as getByIdWithDetails does).
       options: [{ isCustom: 1, sasArrivalOrigin: 1, inComplement: 1, description: 'Taie d\'oreiller', unitPrice: 5 }],
     },
-    cleaning: { included: true, price: null },           // cleaning = simple Suivant
+    cleaning: { included: true, price: null },
   }));
   renderDialog({ mode: 'arrival' });
 
   await screen.findByText('Commencer');
   clickBtn('Commencer');
 
-  // Edit mode: caution step shown even though already received; keep « Fait ».
-  await screen.findByText(/Caution à percevoir/);
-  clickBtn('Fait');
+  // Caution page NOT shown despite re-edit → land straight on the reconstructed prestations step.
+  const suivant = await screen.findByRole('button', { name: 'Suivant' });
+  expect(screen.queryByText(/Caution à percevoir/)).toBeNull();
+  fireEvent.click(suivant);
 
-  // The reconstructed complement is a custom option → the prestations step shows; just go through it.
-  fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
-  // cleaning included → Suivant → recap (extinguisher check is departure-only now)
-  await screen.findByText(/Le ménage est inclus/);
-  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
-
+  // cleaning included → no ménage page → recap, which carries the vaisselle/poubelles reminder.
   await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/vaisselle doit être faite/)).toBeInTheDocument();
   expect(screen.getByText(/Total : 5,00 €/)).toBeInTheDocument(); // reconstructed pillow only
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  expect(arg.cautionReceived).toBe(true);
+  expect(arg.cautionReceived).toBeUndefined(); // caution step hidden → marker left untouched (tri-state)
   expect(arg.complementItems).toEqual([{ label: 'Taie d\'oreiller', amount: 5 }]); // exactly one, no dup
   expect(arg.departureHandoverNote).toBe('Clé sous le pot');
 });
@@ -173,8 +172,8 @@ test('arrival SAS: linen OK skips the priced-items page', async () => {
   // caution skipped (received) → linen page (capacity variant)
   await screen.findByText(/ne couvre pas le nombre de personnes/);
   clickBtn('OK');
-  // → cleaning (included reminder), NOT the priced-items page
-  await screen.findByText(/Le ménage est inclus/);
+  // → recap (cleaning included is hidden), NOT the priced-items page
+  await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.queryByText('Éléments de linge manquants')).toBeNull();
 });
 
@@ -191,11 +190,8 @@ test('arrival SAS recap: an in-complément extra is detailed with quantity + pri
   return (async () => {
     await screen.findByText('Commencer');
     clickBtn('Commencer');
-    // options step (an option is present) → Suivant
+    // options step (an option is present) → Suivant → recap (cleaning included is hidden)
     fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
-    // cleaning included → Suivant
-    await screen.findByText(/Le ménage est inclus/);
-    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));
     await screen.findByText('Récapitulatif — complément à percevoir');
     // The MUI Dialog renders in a portal → assert on document.body.
     expect(document.body.textContent).toMatch(/Repas du soir/);
@@ -220,9 +216,7 @@ test('arrival SAS recap: the tourist tax collected at arrival is itemised as a �
   return (async () => {
     await screen.findByText('Commencer');
     clickBtn('Commencer');
-    fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));      // options step
-    await screen.findByText(/Le ménage est inclus/);
-    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }));             // cleaning step
+    fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));      // options step → recap
     await screen.findByText('Récapitulatif — complément à percevoir');
     expect(document.body.textContent).toMatch(/Taxe de séjour\s*:\s*4,80\s?€/);   // the itemised tax line
     expect(screen.getByText(/Total : 84,80\s?€/)).toBeInTheDocument();            // detail reconciles with the total
@@ -245,8 +239,8 @@ test('arrival SAS: breakfast page hidden when not applicable', async () => {
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
-  // no breakfast key in payload → straight to cleaning (no « Petit déjeuner » page)
-  await screen.findByText(/Le ménage est inclus/);
+  // no breakfast key + cleaning included + caution received → straight to recap (no « Petit déjeuner » page)
+  await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.queryByText('Petit déjeuner')).toBeNull();
 });
 
@@ -266,12 +260,12 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
   await screen.findByText(/ne correspond pas au nombre de personnes/);
   clickBtn('Continuer');
 
-  // cleaning (included) → recap. findByRole retries until the confirm's close transition
-  // lifts the background aria-hidden (otherwise « Suivant » isn't yet accessible).
-  fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }));
+  // cleaning included is hidden → « Continuer » lands directly on the recap. findByRole retries until the
+  // confirm's close transition lifts the background aria-hidden (otherwise the button isn't yet accessible).
   await screen.findByText('Récapitulatif — complément à percevoir');
+  const validate = await screen.findByRole('button', { name: 'Valider et terminer' });
   fireEvent.change(screen.getByLabelText(/Note pour le départ/), { target: { value: 'clé sous le pot' } });
-  clickBtn('Valider et terminer');
+  fireEvent.click(validate);
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
@@ -292,8 +286,8 @@ test('arrival SAS: breakfast total matching persons advances with NO confirm', a
   fireEvent.click(plus[0]); // café 1
   fireEvent.click(plus[1]); // thé 1 → total 2 = persons 2
   clickBtn('Suivant');
-  // no confirm — straight to cleaning
-  await screen.findByText(/Le ménage est inclus/);
+  // no confirm — straight to recap (cleaning included is hidden)
+  await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.queryByText(/ne correspond pas au nombre de personnes/)).toBeNull();
 });
 

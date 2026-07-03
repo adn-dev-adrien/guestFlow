@@ -68,7 +68,9 @@ confirmation — records the caution status and the complement(s) on the reserva
    de personnes, bed config. Button **Commencer**.
 5.bis **Code portail (only if a portal code is configured).** Shows the access/gate code to give to the
    client (global setting `portalCode`, §3.5). Informational. Button **Suivant**.
-6. **Caution (only if `cautionAmount > 0` AND not `cautionReceived`).** Shows the caution amount. Buttons:
+6. **Caution (only if `cautionAmount > 0` AND not `cautionReceived`).** Shows the caution amount; hidden as
+   soon as the caution is received, including when reopening a completed SAS (specs/sas-hide-settled-steps.md §3).
+   Buttons:
    - **Fait** → marks the caution to be validated on commit (`cautionReceived=1`, `cautionReceivedDate=today`).
    - **Reporté** → defer; this page is **re-shown right before the recap** (rule 11).
 7. **Options réservées (only if the reservation has ≥ 1 option/resource).** Read-only list of the options +
@@ -84,18 +86,19 @@ confirmation — records the caution status and the complement(s) on the reserva
    from **Réglages → Blanchisserie** (§3.4). The operator ticks the missing elements and sets a **quantity**
    per element. Each selected line `(label, qty × price)` is **accumulated into the arrival complement**
    (committed at the recap). Button **Suivant**.
-10. **Ménage.**
+10. **Ménage (only if the cleaning is NOT already included).**
     - **Cleaning included** (reservation has the cleaning option `autoOptionType='cleaning'`, or it's a
-      property default) → *« Le ménage est inclus. Rappeler : la vaisselle doit être faite et rangée, les
-      poubelles vidées. »* Button **Suivant**.
+      property default) → **no ménage page**; the client reminder (« vaisselle faite et rangée, poubelles
+      vidées ») is carried to the recap instead (rule 12, specs/sas-hide-settled-steps.md §3).
     - **Cleaning not included** → *« Le ménage n'a pas été pris. Tarif ménage pour ce logement : X €. »*
       Buttons **Ajouter le ménage** (→ accumulates the cleaning charge into the arrival complement + adds the
       cleaning option to the reservation) / **Non merci** (→ next).
 11. **Caution reportée (only if rule 6 = « Reporté »).** Re-shows the caution page once more before the recap.
 12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
     (before the SAS) **+** the items added during the SAS (linen elements + cleaning), **with the full detail
-    line by line**. Also shows the caution status (Fait / non traité). Buttons **Valider et terminer**
-    (commit) / **Quitter**.
+    line by line**. Also shows the caution status (Fait / non traité). When the cleaning is included, shows the
+    client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
+    specs/sas-hide-settled-steps.md §3). Buttons **Valider et terminer** (commit) / **Quitter**.
 
 ### 3.2 Departure SAS — pages (in order, each conditional)
 13. **Récap séjour (intro, always).** Client, logement, dates, heure de départ. Button **Commencer**.
@@ -167,9 +170,10 @@ confirmation — records the caution status and the complement(s) on the reserva
       unambiguous « done ».)
 
 **Edge cases:**
-- Caution already received → no caution page on arrival; caution-return page on departure only if received.
-- Reservation with no options, linen fine, cleaning included → arrival SAS = intro + (caution?) + ménage
-  (included) + recap (complement = pre-existing only).
+- Caution already received → no caution page on arrival, even when reopening a completed SAS
+  (specs/sas-hide-settled-steps.md §3); caution-return page on departure only if received.
+- Reservation with no options, linen fine, cleaning included → arrival SAS = intro + (caution?) + recap
+  (complement = pre-existing only; the ménage reminder rides on the recap, no dedicated ménage page).
 - `complementPaid=1` on arrival: adding items still records them; the recap warns the arrival complement was
   already marked paid (so the operator knows to collect the delta manually). (Open question §9.)
 - Quitter at any point → no DB change (state was in memory only).
