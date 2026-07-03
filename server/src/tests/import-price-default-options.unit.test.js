@@ -155,3 +155,49 @@ test('import prices a per_night paid default across the stay length', async () =
   assert.equal(paid.billedUnits, 3, 'per_night → billed for the 3 nights');
   assert.equal(paid.totalPrice, 60, '3 × 20 €');
 });
+
+test('re-sync with changed dates reprices a pristine per_night default to the new stay length', async () => {
+  const db = buildDb();
+  db.prepare("UPDATE options SET priceType = 'per_night', price = 20 WHERE id = 10").run();
+  db.prepare('UPDATE property_option_prices SET price = 20 WHERE optionId = 10').run();
+  const model = propertyIcalModel.buildModel(db);
+
+  stubFetch([{ uid: 'E3', start: '20260801', end: '20260804', summary: 'Léa Martin' }]); // 3 nights
+  await model.syncSource(source);
+  assert.equal(db.prepare('SELECT billedUnits FROM reservation_options WHERE optionId = 10').get().billedUnits, 3);
+
+  // The platform pushes a longer stay → the (still pristine, non-locked) reservation is updated and its
+  // per_night option is repriced to 5 nights.
+  stubFetch([{ uid: 'E3', start: '20260801', end: '20260806', summary: 'Léa Martin' }]); // 5 nights
+  const result = await model.syncSource(source);
+  assert.equal(result.updatedCount, 1);
+  const paid = db.prepare('SELECT * FROM reservation_options WHERE optionId = 10').get();
+  assert.equal(paid.billedUnits, 5, 'repriced to the new 5-night stay');
+  assert.equal(paid.totalPrice, 100, '5 × 20 €');
+});
+
+test('re-sync does NOT reprice a LOCKED reservation (operator work is protected)', async () => {
+  const db = buildDb();
+  db.prepare("UPDATE options SET priceType = 'per_night', price = 20 WHERE id = 10").run();
+  db.prepare('UPDATE property_option_prices SET price = 20 WHERE optionId = 10').run();
+  const model = propertyIcalModel.buildModel(db);
+
+  stubFetch([{ uid: 'E4', start: '20260801', end: '20260804', summary: 'Paul Roux' }]); // 3 nights
+  await model.syncSource(source);
+  const resaId = db.prepare('SELECT id FROM reservations').get().id;
+  // Simulate an operator edit → the reservation is now sync-locked.
+  db.prepare('UPDATE reservations SET icalSyncLocked = 1 WHERE id = ?').run(resaId);
+
+  // A longer stay arrives, but the locked reservation must NOT be touched: dates unchanged, option
+  // amount unchanged, and the date change is recorded as a pending drift instead.
+  stubFetch([{ uid: 'E4', start: '20260801', end: '20260806', summary: 'Paul Roux' }]); // 5 nights
+  const result = await model.syncSource(source);
+  assert.equal(result.lockedCount, 1);
+  assert.equal(result.updatedCount, 0);
+
+  const paid = db.prepare('SELECT * FROM reservation_options WHERE optionId = 10').get();
+  assert.equal(paid.billedUnits, 3, 'locked → option NOT repriced');
+  assert.equal(paid.totalPrice, 60, 'locked → amount left as the operator had it');
+  assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-08-04', 'locked → dates untouched');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_date_drift_alerts').get().c, 1, 'a pending drift alert was recorded');
+});

@@ -300,12 +300,18 @@ function createPropertyIcalModel(database) {
         `);
         // Apply the property's default options to a freshly-created iCal reservation so a bed-linen
         // (or any) default option appears immediately on the booking, marked `offered` per the
-        // property setting (specs/bed-config-in-linen-card.md §10 follow-up). Pricing is left at 0 —
-        // iCal reservations stay unpriced (the platform handles payment); when the operator opens
-        // and saves one, the pricing engine recomputes every option from optionId + quantity.
-        // Guarded: minimal test schemas may lack property_option_defaults / reservation_options, in
-        // which case this is a no-op (prod/dev DBs always have them).
+        // property setting (specs/bed-config-in-linen-card.md §10 follow-up). Paid defaults are PRICED
+        // through the authoritative engine at import (specs/import-price-default-options.md) so an
+        // « obligatoire par défaut mais payante » option shows its real amount immediately instead of 0;
+        // free (offered=1) defaults stay 0. The reservation ROW itself stays unpriced — an iCal booking
+        // carries no stay price (the platform handles payment); only the option LINES get amounts.
+        // Guarded: minimal test schemas may lack the pricing / option tables → no-op / legacy zero insert.
         let applyPropertyOptionDefaults = () => {};
+        // Re-price a NON-locked (never-edited) iCal reservation's existing option lines when a re-sync
+        // changes the stay (e.g. a per_night option must follow the new number of nights). Only pristine
+        // reservations reach the update path — a manual edit locks the reservation and diverts re-syncs to
+        // the date-drift flow (shouldSkipIcalReservationUpdate) — so there is no operator work to clobber.
+        let repriceReservationDefaultOptions = () => {};
         try {
           // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option)
           // are NOT materialised onto the booking — they're counted via the laundry/stock
@@ -328,20 +334,21 @@ function createPropertyIcalModel(database) {
             INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `);
+          const listReservationOptionRows = database.prepare('SELECT optionId, offered FROM reservation_options WHERE reservationId = ?');
+          const updateReservationOptionAmount = database.prepare(`
+            UPDATE reservation_options SET quantity = ?, unitPrice = ?, billedUnits = ?, totalPrice = ?
+            WHERE reservationId = ? AND optionId = ?
+          `);
           const isInternalLinen = (d) => hasDisplayToClient
             && Number(d.displayToClient) === 0
             && linenCols.some((c) => Number(d[c]) === 1);
-          // Price the default options through the authoritative engine so a « obligatoire par défaut
-          // mais payante » default (offered=0) lands with its real amount at import — not 0, which used
-          // to force the operator to open + save the reservation just to materialise it
-          // (specs/import-price-default-options.md). Offered=1 defaults stay free. The reservation ROW
-          // stays unpriced on purpose (see comment above); only the option LINES get amounts.
-          applyPropertyOptionDefaults = (reservationId, propertyId, stay) => {
-            const defaults = listPropertyOptionDefaults.all(propertyId).filter((d) => !isInternalLinen(d));
-            if (defaults.length === 0) return;
-            // Guarded: on any pricing failure (e.g. a minimal test schema without the pricing tables)
-            // fall back to the legacy zero-amount insert so an import never breaks.
-            const pricedById = new Map();
+          // Price a set of option rows ({ optionId, offered }) through the authoritative engine for the
+          // given stay → Map(optionId → priced line). offered=1 rows keep totalPrice 0 (the engine zeroes
+          // them, exactly like a save). Guarded → empty map on any pricing failure so the caller can fall
+          // back. Shared by the create (insert) and re-sync (update) paths so pricing stays single-sourced.
+          const priceOptionLinesById = (propertyId, stay, optionRows) => {
+            const byId = new Map();
+            if (!optionRows.length) return byId;
             try {
               const quote = calculateReservationQuote({
                 db: database,
@@ -354,12 +361,17 @@ function createPropertyIcalModel(database) {
                 children: 0,
                 teens: 0,
                 babies: 0,
-                selectedOptions: defaults.map((d) => ({ optionId: d.optionId, quantity: 1 })),
-                // offered=1 defaults → engine zeroes their totalPrice (kept free), like a save does.
-                offeredOptionIds: defaults.filter((d) => d.offered).map((d) => d.optionId),
+                selectedOptions: optionRows.map((r) => ({ optionId: r.optionId, quantity: 1 })),
+                offeredOptionIds: optionRows.filter((r) => r.offered).map((r) => r.optionId),
               });
-              for (const line of (quote.optionLines || [])) pricedById.set(Number(line.optionId), line);
-            } catch { /* pricing unavailable → legacy zero amounts below */ }
+              for (const line of (quote.optionLines || [])) byId.set(Number(line.optionId), line);
+            } catch { /* pricing unavailable → empty map → legacy zero amounts */ }
+            return byId;
+          };
+          applyPropertyOptionDefaults = (reservationId, propertyId, stay) => {
+            const defaults = listPropertyOptionDefaults.all(propertyId).filter((d) => !isInternalLinen(d));
+            if (defaults.length === 0) return;
+            const pricedById = priceOptionLinesById(propertyId, stay, defaults);
             for (const d of defaults) {
               const line = pricedById.get(Number(d.optionId));
               insertReservationOption.run(
@@ -374,7 +386,24 @@ function createPropertyIcalModel(database) {
               );
             }
           };
-        } catch { /* minimal test schema without these tables — skip defaults */ }
+          repriceReservationDefaultOptions = (reservationId, propertyId, stay) => {
+            const rows = listReservationOptionRows.all(reservationId);
+            if (rows.length === 0) return;
+            const pricedById = priceOptionLinesById(propertyId, stay, rows);
+            for (const r of rows) {
+              const line = pricedById.get(Number(r.optionId));
+              if (!line) continue; // no priced line (engine unavailable / option unlinked) → leave the row as-is
+              updateReservationOptionAmount.run(
+                line.quantity || 1,
+                Number(line.unitPrice || 0),
+                Number(line.billedUnits || 0),
+                Number(line.totalPrice || 0),
+                reservationId,
+                r.optionId,
+              );
+            }
+          };
+        } catch { /* minimal test schema without these tables — skip defaults / reprice */ }
         const updateReservation = database.prepare(`
           UPDATE reservations
           SET startDate = ?, endDate = ?, adults = ?, checkInTime = ?, checkOutTime = ?, platform = ?, sourceIcalEventUid = ?, updatedAt = datetime('now')
@@ -602,6 +631,16 @@ function createPropertyIcalModel(database) {
               event.uid,
               mapping.reservationId,
             );
+            // Keep the (pristine) reservation's option amounts in sync with the new stay — a per_night
+            // default must follow the changed number of nights (specs/import-price-default-options.md §3).
+            // Locked reservations never reach here, so no operator customisation is overwritten.
+            repriceReservationDefaultOptions(mapping.reservationId, source.propertyId, {
+              startDate: event.startDate,
+              endDate: event.endDate,
+              checkInTime: property.defaultCheckIn || '15:00',
+              checkOutTime: property.defaultCheckOut || '10:00',
+              adults: event.adults,
+            });
             upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
             updatedCount += 1;
           }
