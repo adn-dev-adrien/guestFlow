@@ -75,7 +75,16 @@
         if (d.startDate) lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('span', {}, GF.t('startDate') + ' → ' + GF.t('endDate')), GF.el('span', {}, d.startDate + ' → ' + d.endDate)));
         var recapTotal = d.totalStayPrice != null ? d.totalStayPrice : d.finalPrice; // tax-inclusive when the server provides it
         if (recapTotal != null) lines.appendChild(GF.el('div', { class: 'gf-summary-line gf-summary-total' }, GF.el('span', {}, GF.t('total')), GF.el('span', {}, GF.euro(recapTotal))));
+        // Online-deposit flow: only the acompte was collected — surface the solde still due. The server
+        // includes this block only when the balance is unpaid.
+        var depositFlow = d.payment && d.payment.mode === 'deposit' && d.payment.balanceAmount;
+        if (depositFlow) {
+          if (d.payment.depositAmount != null) lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('span', {}, GF.t('depositPaid')), GF.el('span', {}, GF.euro(d.payment.depositAmount))));
+          var solLabel = d.payment.balanceDueDate ? GF.t('balanceDueBefore', d.payment.balanceDueDate) : GF.t('balance');
+          lines.appendChild(GF.el('div', { class: 'gf-summary-line' }, GF.el('span', {}, solLabel), GF.el('span', {}, GF.euro(d.payment.balanceAmount))));
+        }
         box.appendChild(lines);
+        if (depositFlow) box.appendChild(GF.el('div', { class: 'gf-inline-info' }, GF.t('balanceEmailFollows')));
       }
     }
 
@@ -234,8 +243,18 @@
       // Headline total = totalStayPrice (tax-INCLUSIVE) — what the guest actually pays online.
       // finalPrice is tax-exclusive; showing it as "Total" under a tax line understated the charge.
       summary.appendChild(line(GF.t('total'), GF.euro(q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice), 'gf-summary-total'));
-      if (q.deposit && q.deposit.amount) summary.appendChild(line(GF.t('deposit'), GF.euro(q.deposit.amount)));
-      if (q.balance && q.balance.amount) summary.appendChild(line(GF.t('balance'), GF.euro(q.balance.amount)));
+      // Deposit mode (server-decided): the site charges the acompte now, the solde is emailed later. The
+      // server OMITS the deposit/balance blocks in full mode, so these lines only appear when relevant.
+      var depositMode = q.payment && q.payment.mode === 'deposit';
+      if (depositMode && q.deposit && q.deposit.amount) {
+        summary.appendChild(line(GF.t('depositNow'), GF.euro(q.deposit.amount)));
+        if (q.balance && q.balance.amount) {
+          var balLabel = q.balance.dueDate ? GF.t('balanceDueBefore', q.balance.dueDate) : GF.t('balance');
+          summary.appendChild(line(balLabel, GF.euro(q.balance.amount)));
+        }
+      }
+      // Button reflects what the guest pays now (« Payer l'acompte » vs « Payer en ligne »).
+      if (payOnline) f.submit.textContent = depositMode ? GF.t('payDeposit') : GF.t('payOnline');
 
       warn.innerHTML = '';
       var ok = true;

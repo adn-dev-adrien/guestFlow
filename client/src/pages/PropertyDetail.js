@@ -51,6 +51,7 @@ const NEW_DEFAULTS = {
   extraGuestPrice: 0,
   singleBeds: 0, doubleBeds: 0,
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
+  publicDepositEnabled: false,
   defaultCautionAmount: 500,
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
@@ -165,6 +166,7 @@ export default function PropertyDetail() {
       extraGuestPrice: p.extraGuestPrice ?? 0,
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
+      publicDepositEnabled: Boolean(p.publicDepositEnabled),
       defaultCautionAmount: p.defaultCautionAmount ?? 500,
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
@@ -871,6 +873,15 @@ export default function PropertyDetail() {
                 <TextField label="Caution par défaut (€)" type="number" value={form.defaultCautionAmount ?? 500} onChange={(e) => updateField('defaultCautionAmount', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" slotProps={{
                   htmlInput: { step: 50 }
                 }} />
+                <Box>
+                  <FormControlLabel
+                    control={<Switch checked={Boolean(form.publicDepositEnabled)} onChange={(e) => updateField('publicDepositEnabled', e.target.checked)} />}
+                    label="Acompte en ligne (site web)"
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5, ml: 0.5 }}>
+                    Le site encaisse l'acompte à la réservation ; le solde est demandé par email à l'échéance. Sinon, le séjour est payé en une fois.
+                  </Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>

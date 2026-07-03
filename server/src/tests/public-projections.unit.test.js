@@ -108,6 +108,7 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
     // internals that must NOT leak:
     vatPercentageAccommodation: 10, accommodationNetPrice: 763.6, totalVatAmount: 93.9, engineFinalPrice: 1033,
   };
+  // Default (full mode): no Acompte/Solde blocks — the site charges the whole stay at once.
   const q = toPublicQuote(engineQuote, { available: true, startDate: '2026-07-20', endDate: '2026-07-27' });
   assert.equal(q.propertyId, 1);
   assert.equal(q.startDate, '2026-07-20');
@@ -116,7 +117,9 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
   assert.equal(q.finalPrice, 1033);
   // Headline total INCLUDES the tourist tax (1033 + 33), unlike the tax-exclusive finalPrice.
   assert.equal(q.totalStayPrice, 1066);
-  assert.equal(q.deposit.amount, 309.9);
+  assert.equal(q.payment.mode, 'full');
+  assert.equal('deposit' in q, false, 'full mode omits the deposit block');
+  assert.equal('balance' in q, false, 'full mode omits the balance block');
   assert.equal(q.touristTax.total, 33);
   assert.equal(q.options[0].total, 168);
   // The projected option line must not carry the accounting bucket.
@@ -132,4 +135,12 @@ test('toPublicQuote maps engine output and leaks no VAT/accounting internals', (
   assert.equal(keys.includes('accommodationNetPrice'), false);
   assert.equal(keys.includes('totalVatAmount'), false);
   assert.equal(keys.includes('engineFinalPrice'), false);
+
+  // Deposit mode: the Acompte/Solde blocks ARE included (specs/public-online-deposit.md).
+  const qDep = toPublicQuote(engineQuote, { available: true, startDate: '2026-07-20', endDate: '2026-07-27', paymentMode: 'deposit' });
+  assert.equal(qDep.payment.mode, 'deposit');
+  assert.equal(qDep.deposit.amount, 309.9);
+  assert.equal(qDep.deposit.dueDate, '2026-06-20');
+  assert.equal(qDep.balance.amount, 723.1);
+  assert.equal(qDep.balance.dueDate, '2026-07-13');
 });

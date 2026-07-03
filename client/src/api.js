@@ -231,6 +231,7 @@ const api = {
   createReservationPaymentLink: (id, type = 'deposit') => request(`/payments/reservations/${id}/payment-links`, { method: 'POST', body: { type } }),
   getReservationPaymentLinks: (id) => request(`/payments/reservations/${id}/payment-links`),
   sendDepositRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'deposit' } }),
+  sendBalanceRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'balance' } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   registerQontoWebhook: () => request('/payments/qonto/webhook/register', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),

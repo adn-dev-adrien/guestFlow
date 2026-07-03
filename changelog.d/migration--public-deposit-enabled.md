@@ -1,0 +1,1 @@
+- **`properties.publicDepositEnabled INTEGER NOT NULL DEFAULT 0`** (spec `public-online-deposit.md` §5) — active le mode « acompte en ligne » du site logement par logement. `ADD COLUMN` idempotent dans `database.js` ; défaut 0 → tous les logements existants gardent le paiement unique tant que l'opérateur ne l'active pas.

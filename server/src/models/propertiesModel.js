@@ -16,6 +16,12 @@ const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
 const platformsModel = require('./platformsModel');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 
+// Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
+// coerced explicitly to a 0/1 bit for INTEGER columns.
+function toBit(v) {
+  return v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0;
+}
+
 // Canonical French articles for "votre séjour <article> <name>" in client emails
 // (specs/email-automation.md §3 rule 13). Anything off-list falls back to 'au'.
 const VALID_NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
@@ -149,8 +155,8 @@ function createPropertiesModel(database) {
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`
-        INSERT INTO properties (name, nameArticle, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO properties (name, nameArticle, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, publicDepositEnabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         sentenceCase(body.name),
         normalizeNameArticle(body.nameArticle),
@@ -174,6 +180,7 @@ function createPropertiesModel(database) {
         body.touristTaxPercentage ?? 0,
         body.touristTaxDepartmentPercentage ?? 0,
         body.touristTaxFixedAmount ?? 0,
+        toBit(body.publicDepositEnabled),
       );
 
       const propertyId = result.lastInsertRowid;
@@ -207,7 +214,7 @@ function createPropertiesModel(database) {
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
       database.prepare(`
-        UPDATE properties SET name=?, nameArticle=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, updatedAt=datetime('now')
+        UPDATE properties SET name=?, nameArticle=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, publicDepositEnabled=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
         sentenceCase(body.name),
@@ -232,6 +239,7 @@ function createPropertiesModel(database) {
         body.touristTaxPercentage ?? 0,
         body.touristTaxDepartmentPercentage ?? 0,
         body.touristTaxFixedAmount ?? 0,
+        toBit(body.publicDepositEnabled),
         id,
       );
 

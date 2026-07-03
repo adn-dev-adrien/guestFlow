@@ -112,6 +112,12 @@ final class GF_Blocks
                 'paymentPending'  => __('Paiement en attente. Si vous venez de payer, patientez quelques instants.', 'guestflow-booking'),
                 'paymentConflict' => __('Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails.', 'guestflow-booking'),
                 'stayRecap'       => __('Votre séjour', 'guestflow-booking'),
+                // Online-deposit flow (specs/public-online-deposit.md)
+                'payDeposit'      => __('Payer l’acompte', 'guestflow-booking'),
+                'depositNow'      => __('Acompte à payer maintenant', 'guestflow-booking'),
+                'depositPaid'     => __('Acompte réglé', 'guestflow-booking'),
+                'balanceDueBefore' => __('Solde à régler avant le %s', 'guestflow-booking'),
+                'balanceEmailFollows' => __('Un email vous sera envoyé pour régler le solde à l’échéance.', 'guestflow-booking'),
             ],
         ];
     }
