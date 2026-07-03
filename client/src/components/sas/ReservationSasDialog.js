@@ -289,11 +289,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // Ordered list of active page keys, given the data + current decisions.
   const activeKeys = useMemo(() => {
     if (!data) return [];
-    // When re-editing a completed SAS (specs/reopen-completed-sas.md §3 rule 3), the caution steps
-    // stay reachable even if already received / returned, so they can be reviewed or corrected.
+    // On departure, the caution-RETURN step stays reachable when re-editing a completed SAS
+    // (specs/reopen-completed-sas.md §3 rule 3), so a mis-marked return can be corrected.
     const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
     if (mode === 'arrival') {
-      const cautionStep = Number(r.cautionAmount || 0) > 0 && (!r.cautionReceived || isEditing);
+      // Arrival caution is hidden as soon as it's received, even in re-edit (specs/sas-hide-settled-steps.md §3).
+      const cautionStep = Number(r.cautionAmount || 0) > 0 && !r.cautionReceived;
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return [
         'intro',
@@ -303,7 +304,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         data.breakfast?.applicable ? 'breakfast' : null,
         r.bedLinenAlert ? 'linen' : null,
         (r.bedLinenAlert && linenOk === false) ? 'linenItems' : null,
-        'cleaning',
+        // Ménage step is hidden when the cleaning is already included (specs/sas-hide-settled-steps.md §3);
+        // the vaisselle/poubelles reminder then moves to the recap.
+        data.cleaning?.included ? null : 'cleaning',
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
         // Weather alert (specs/checkin-weather-alerts.md): last page before the recap, only when a
         // qualifying alert overlaps the stay.
@@ -707,6 +710,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           return (
             <Stack spacing={1}>
               <Typography variant="h6">Récapitulatif — complément à percevoir</Typography>
+              {/* specs/sas-hide-settled-steps.md §3 rule 4 — when the ménage page is hidden (cleaning
+                  included), its client reminder is carried here so it's not lost. */}
+              {data.cleaning?.included && (
+                <Typography variant="body2" color="text.secondary">
+                  Ménage inclus — rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées.
+                </Typography>
+              )}
               {/* Detail of what's already due (each complement line with quantity + price), instead of a
                   lump « Déjà dû ». Falls back to the total if the breakdown isn't available. */}
               {existing > 0 && (
