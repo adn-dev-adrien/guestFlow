@@ -52,7 +52,8 @@ test('toPublicOption strips linen/towel internals; tiers only for progressive', 
     countsAsBedLinen: 1, linenIncludesSingle: 1, towelLargePerPerson: 2, autoOptionType: null,
     optionProgressiveTiers: [{ participantNumber: 1, unitPrice: 10 }],
   });
-  assert.deepEqual(Object.keys(o).sort(), ['description', 'id', 'price', 'priceType', 'title', 'titleEn']);
+  assert.deepEqual(Object.keys(o).sort(), ['description', 'id', 'price', 'priceType', 'showsPlanningCard', 'title', 'titleEn']);
+  assert.equal(o.showsPlanningCard, false); // not set on this option
   assert.equal('countsAsBedLinen' in o, false);
   assert.equal('towelLargePerPerson' in o, false);
   assert.equal('progressiveTiers' in o, false); // not a progressive priceType
