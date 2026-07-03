@@ -52,16 +52,29 @@ test('toPublicOption strips linen/towel internals; tiers only for progressive', 
     countsAsBedLinen: 1, linenIncludesSingle: 1, towelLargePerPerson: 2, autoOptionType: null,
     optionProgressiveTiers: [{ participantNumber: 1, unitPrice: 10 }],
   });
-  assert.deepEqual(Object.keys(o).sort(), ['description', 'id', 'price', 'priceType', 'title', 'titleEn']);
+  assert.deepEqual(Object.keys(o).sort(), ['description', 'id', 'price', 'priceType', 'priceUnitLabel', 'quantityLabel', 'showsPlanningCard', 'title', 'titleEn']);
+  assert.equal(o.showsPlanningCard, false); // not set on this option
+  // Backend-owned labels (source of truth) — non-planning per_person_per_night.
+  assert.equal(o.priceUnitLabel, 'par personne et par nuit');
+  assert.equal(o.quantityLabel, null);
   assert.equal('countsAsBedLinen' in o, false);
   assert.equal('towelLargePerPerson' in o, false);
   assert.equal('progressiveTiers' in o, false); // not a progressive priceType
+
+  // Planning-card option: billed by séance on the site → séance-based labels from the backend.
+  const planning = toPublicOption({ id: 6, title: 'Petit déjeuner', priceType: 'per_person_per_night', price: 8, showsPlanningCard: 1 });
+  assert.equal(planning.priceUnitLabel, 'par personne et par séance');
+  assert.equal(planning.quantityLabel, 'Nombre de séances');
+
+  const perStay = toPublicOption({ id: 3, title: 'Ménage', priceType: 'per_stay', price: 80 });
+  assert.equal(perStay.priceUnitLabel, 'au séjour');
 
   const prog = toPublicOption({
     id: 9, title: 'Lit suppl.', priceType: 'per_participant_progressive', price: 0,
     optionProgressiveTiers: [{ participantNumber: 1, unitPrice: 10 }],
   });
   assert.deepEqual(prog.progressiveTiers, [{ participantNumber: 1, unitPrice: 10 }]);
+  assert.equal(prog.priceUnitLabel, 'par participant');
 
   const auto = toPublicOption({ id: 5, title: 'Arrivée anticipée', priceType: 'per_hour', price: 15, autoOptionType: 'early_check_in' });
   assert.equal(auto.autoOptionType, 'early_check_in');
