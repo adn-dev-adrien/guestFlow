@@ -22,6 +22,7 @@ const platformsModel = require('./platformsModel');
 const { formatPlatformName } = require('../utils/platformNameFormat');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
+const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
 const notificationService = require('../utils/notificationService');
 // Establishment closures (2026-06-06): every iCal event is checked against the
@@ -325,15 +326,52 @@ function createPropertyIcalModel(database) {
           `);
           const insertReservationOption = database.prepare(`
             INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
-            VALUES (?, ?, 1, 0, 0, ?, 0, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `);
           const isInternalLinen = (d) => hasDisplayToClient
             && Number(d.displayToClient) === 0
             && linenCols.some((c) => Number(d[c]) === 1);
-          applyPropertyOptionDefaults = (reservationId, propertyId) => {
-            for (const d of listPropertyOptionDefaults.all(propertyId)) {
-              if (isInternalLinen(d)) continue; // internal linen → laundry fallback handles it
-              insertReservationOption.run(reservationId, d.optionId, d.priceType || 'per_stay', d.offered ? 1 : 0);
+          // Price the default options through the authoritative engine so a « obligatoire par défaut
+          // mais payante » default (offered=0) lands with its real amount at import — not 0, which used
+          // to force the operator to open + save the reservation just to materialise it
+          // (specs/import-price-default-options.md). Offered=1 defaults stay free. The reservation ROW
+          // stays unpriced on purpose (see comment above); only the option LINES get amounts.
+          applyPropertyOptionDefaults = (reservationId, propertyId, stay) => {
+            const defaults = listPropertyOptionDefaults.all(propertyId).filter((d) => !isInternalLinen(d));
+            if (defaults.length === 0) return;
+            // Guarded: on any pricing failure (e.g. a minimal test schema without the pricing tables)
+            // fall back to the legacy zero-amount insert so an import never breaks.
+            const pricedById = new Map();
+            try {
+              const quote = calculateReservationQuote({
+                db: database,
+                propertyId,
+                startDate: stay.startDate,
+                endDate: stay.endDate,
+                checkInTime: stay.checkInTime,
+                checkOutTime: stay.checkOutTime,
+                adults: stay.adults,
+                children: 0,
+                teens: 0,
+                babies: 0,
+                selectedOptions: defaults.map((d) => ({ optionId: d.optionId, quantity: 1 })),
+                // offered=1 defaults → engine zeroes their totalPrice (kept free), like a save does.
+                offeredOptionIds: defaults.filter((d) => d.offered).map((d) => d.optionId),
+              });
+              for (const line of (quote.optionLines || [])) pricedById.set(Number(line.optionId), line);
+            } catch { /* pricing unavailable → legacy zero amounts below */ }
+            for (const d of defaults) {
+              const line = pricedById.get(Number(d.optionId));
+              insertReservationOption.run(
+                reservationId,
+                d.optionId,
+                line ? (line.quantity || 1) : 1,
+                line ? Number(line.unitPrice || 0) : 0,
+                line ? Number(line.billedUnits || 0) : 0,
+                d.priceType || 'per_stay',
+                line ? Number(line.totalPrice || 0) : 0,
+                d.offered ? 1 : 0,
+              );
             }
           };
         } catch { /* minimal test schema without these tables — skip defaults */ }
@@ -469,7 +507,13 @@ function createPropertyIcalModel(database) {
                 event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
-              applyPropertyOptionDefaults(reservationId, source.propertyId);
+              applyPropertyOptionDefaults(reservationId, source.propertyId, {
+                startDate: event.startDate,
+                endDate: event.endDate,
+                checkInTime: property.defaultCheckIn || '15:00',
+                checkOutTime: property.defaultCheckOut || '10:00',
+                adults: event.adults,
+              });
               assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
@@ -498,7 +542,13 @@ function createPropertyIcalModel(database) {
                 event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
-              applyPropertyOptionDefaults(reservationId, source.propertyId);
+              applyPropertyOptionDefaults(reservationId, source.propertyId, {
+                startDate: event.startDate,
+                endDate: event.endDate,
+                checkInTime: property.defaultCheckIn || '15:00',
+                checkOutTime: property.defaultCheckOut || '10:00',
+                adults: event.adults,
+              });
               assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               if (previousUid && previousUid !== event.uid) {
