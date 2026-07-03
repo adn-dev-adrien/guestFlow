@@ -26,6 +26,9 @@ const { buildQontoClient } = require('./utils/qontoClient');
 const { getValidQontoAccessToken } = require('./utils/qontoAuth');
 const { runPaymentPoll } = require('./utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
+// Balance-request daily pass (specs/public-online-deposit.md §3 rule 8).
+const { runBalanceRequestPass } = require('./utils/balanceRequestRunner');
+const paymentsController = require('./controllers/paymentsController');
 
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
@@ -38,6 +41,9 @@ let arrivalDeparturePushFirstRun = true;
 let lastEmailAutoSendDate = null;
 // Same once-per-day guard for the email-history rolling-window purge.
 let lastEmailHistoryPurgeDate = null;
+// Once-per-day guard for the balance-request pass (online-deposit solde).
+let lastBalanceRequestDate = null;
+let balanceRequestInProgress = false;
 
 async function performAutoSync() {
   if (syncInProgress) {
@@ -216,6 +222,38 @@ async function runPaymentPollPass(reason = 'cron') {
   }
 }
 
+// Balance-request daily pass: create/reuse the balance link + email the balance_request template for
+// reservations whose deposit was collected online but whose solde is now due. Skips silently when Qonto
+// isn't connected (the sender can't mint links) — retried the next day.
+async function runBalanceRequestJob(reason = 'daily') {
+  if (balanceRequestInProgress) return;
+  if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
+  balanceRequestInProgress = true;
+  try {
+    const summary = await runBalanceRequestPass({
+      database: db,
+      templatesModel: emailTemplatesModel,
+      logModel: emailLogModel,
+      sendBalanceRequest: (id) => paymentsController.sendBalanceRequestFor(id),
+    });
+    if (summary.sent > 0) console.log(`[balance-request] ${reason}: ${summary.sent} sent / ${summary.checked} eligible`);
+  } catch (err) {
+    console.error('[balance-request] pass error:', err && err.message ? err.message : err);
+  } finally {
+    balanceRequestInProgress = false;
+  }
+}
+
+// Per-minute tick, gated ≥ 08:00 local, once per local day (same shape as the auto-email tick).
+function tickBalanceRequest() {
+  const now = new Date();
+  if (now.getHours() < 8) return;
+  const today = isoToday(now);
+  if (lastBalanceRequestDate === today) return;
+  lastBalanceRequestDate = today;
+  runBalanceRequestJob('daily 08:00 pass').catch((err) => console.error('[balance-request] unhandled:', err));
+}
+
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -257,6 +295,11 @@ function startScheduledTasks() {
   const PAYMENT_POLL_TICK = 15 * 60 * 1000;
   setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
   setTimeout(() => runPaymentPollPass('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
+
+  // Balance-request daily pass: per-minute tick gated ≥ 08:00 + once-per-day guard (online-deposit solde).
+  const BALANCE_REQUEST_TICK = 60 * 1000;
+  setInterval(tickBalanceRequest, BALANCE_REQUEST_TICK);
+  setTimeout(tickBalanceRequest, 120 * 1000);
 }
 
 module.exports = {
@@ -269,4 +312,7 @@ module.exports = {
   tickEmailAutoSend,
   // Arrival/departure push — exposed for tests + ops trigger.
   runArrivalDeparturePushPass,
+  // Balance-request pass — exposed for tests + ops trigger.
+  runBalanceRequestJob,
+  tickBalanceRequest,
 };

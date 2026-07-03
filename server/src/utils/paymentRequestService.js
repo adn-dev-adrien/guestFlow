@@ -14,8 +14,8 @@ const { buildVatItems } = require('./paymentLinkItems');
 
 const LINK_TYPES   = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
 const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour' };
-// Template per request type. Only the deposit request ships now (balance/full requests to come).
-const REQUEST_TEMPLATES = { deposit: 'deposit_request' };
+// Template per request type. Deposit (use case 1) + balance (online-deposit solde, specs/public-online-deposit.md).
+const REQUEST_TEMPLATES = { deposit: 'deposit_request', balance: 'balance_request' };
 
 // Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
 //   deps: { database, paymentLinksModel, resolveAmountCents, createLink({ title, amountCents, items?, expectedTotalCents? }),
@@ -72,7 +72,7 @@ async function ensurePaymentLink(deps, id, type) {
 //   deps: ensurePaymentLink deps + { sendTemplate({ reservationId, stableKey, paymentLink }) → senderResult }
 async function sendPaymentRequest(deps, id, type) {
   const stableKey = REQUEST_TEMPLATES[type];
-  if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit).' } };
+  if (!stableKey) return { httpStatus: 400, body: { error: 'INVALID_TYPE', message: 'Type de demande invalide (deposit/balance).' } };
 
   const link = await ensurePaymentLink(deps, id, type); // {httpStatus} throw bubbles to the controller
   const result = await deps.sendTemplate({ reservationId: id, stableKey, paymentLink: link.url });

@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS properties (
     touristTaxPerDayPerPerson REAL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
-  , touristTaxMode TEXT DEFAULT 'per_day_per_person', touristTaxPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0, nameArticle TEXT DEFAULT 'au');
+  , touristTaxMode TEXT DEFAULT 'per_day_per_person', touristTaxPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0, nameArticle TEXT DEFAULT 'au', publicDepositEnabled INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS property_option_defaults (
     propertyId INTEGER NOT NULL,

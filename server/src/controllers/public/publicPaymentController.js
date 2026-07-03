@@ -18,6 +18,7 @@ const { ensurePaymentLink } = require('../../utils/paymentRequestService');
 const { processPaidLink } = require('../../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../../utils/paymentEffectDeps');
 const { fullPaymentCents, fullPaymentComponents } = require('../../utils/devisQuote');
+const { resolvePublicPaymentMode, depositPaymentCents, depositPaymentComponents } = require('../../utils/publicPaymentMode');
 const { tokensMatch } = require('../../utils/publicDevisToken');
 const { calculateReservationQuote } = require('../../utils/pricing');
 const settingsModel = require('../../models/settingsModel');
@@ -61,21 +62,35 @@ async function pay(req, res) {
     return fail(res, 409, 'DATES_UNAVAILABLE', 'Ces dates ne sont plus disponibles.');
   }
 
+  // Server-decided mode (specs/public-online-deposit.md): 'deposit' charges the stored acompte now (solde
+  // by a later emailed link); 'full' charges the whole stay. The client never chooses.
+  const mode = resolvePublicPaymentMode(db, row.propertyId, depositPaymentCents(db, id, row));
+  const linkType = mode === 'deposit' ? 'deposit' : 'full';
+
+  // If the property's mode flipped between the quote and this pay, retire an open link of the OTHER
+  // public type so the guest can't pay the stale one and we don't leave a dangling open link.
+  const stale = paymentLinksModel.findOpenForReservation(id, linkType === 'deposit' ? 'full' : 'deposit');
+  if (stale && stale.url) paymentLinksModel.updateStatus(stale.id, 'cancelled');
+
   const redirectUrl = buildReturnUrl(req.body && req.body.returnPath);
   try {
     const link = await ensurePaymentLink({
       database: db,
       paymentLinksModel,
-      // Full stay total re-computed from the saved devis (never the client): tax-INCLUSIVE
-      // (accommodation + options + resources + tourist tax), unless the tax is collected on arrival.
-      resolveAmountCents: (_id, _type, r) => fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r),
-      // VAT basket so the Qonto/Mollie page shows the real TVA (stay @ global rate + tourist tax @ 0 %)
-      // while charging exactly the resolved total (specs/payment-links-vat.md).
-      resolveItems: (_id, _type, r) => fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r),
+      // Amount re-derived from the SAVED devis (never the client). Deposit = stored acompte column;
+      // full = tax-inclusive stay total (unless the tax is collected on arrival).
+      resolveAmountCents: (_id, _type, r) => (mode === 'deposit'
+        ? depositPaymentCents(db, id, r)
+        : fullPaymentCents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)),
+      // VAT basket so the Qonto/Mollie page shows the real TVA while charging exactly the resolved total
+      // (specs/payment-links-vat.md). Deposit is accommodation-only (single taxable line).
+      resolveItems: (_id, _type, r) => (mode === 'deposit'
+        ? depositPaymentComponents(db, id, r)
+        : fullPaymentComponents({ database: db, devisModel, calc: calculateReservationQuote }, id, r)),
       createLink: ({ title, amountCents, items, expectedTotalCents }) => withAccessToken((client, at) =>
         client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents, redirectUrl: redirectUrl || undefined })),
-    }, id, 'full');
-    return ok(res, { paymentUrl: link.url, amountCents: link.amountCents, currency: 'EUR', status: link.status });
+    }, id, linkType);
+    return ok(res, { paymentUrl: link.url, amountCents: link.amountCents, currency: 'EUR', status: link.status, paymentMode: mode });
   } catch (err) {
     if (err && err.httpStatus) return fail(res, err.httpStatus, err.error || 'PAYMENT_LINK_FAILED', err.message || 'Lien de paiement impossible.');
     return fail(res, 502, 'QONTO_API_ERROR', 'Erreur du fournisseur de paiement.');
@@ -87,11 +102,13 @@ async function withAccessToken(fn) {
   return fn(buildQontoClient(), accessToken);
 }
 
-// Minimal, non-PII recap of a confirmed booking.
+// Minimal, non-PII recap of a confirmed booking. When only the acompte was collected online (deposit
+// mode: balancePaid=0 with a positive balance), a `payment` block surfaces the balance still due so the
+// success page can show « Acompte payé — solde à régler avant le … ».
 function recap(reservationRow) {
   const propertyName = (db.prepare('SELECT name FROM properties WHERE id = ?').get(reservationRow.propertyId) || {}).name || '';
   const finalPrice = Number(reservationRow.finalPrice || 0);
-  return {
+  const out = {
     reservationId: reservationRow.id,
     propertyName,
     startDate: reservationRow.startDate,
@@ -100,6 +117,16 @@ function recap(reservationRow) {
     // Tax-inclusive stay total — matches what the guest was charged online (the site displays this).
     totalStayPrice: Number((finalPrice + Number(reservationRow.touristTaxTotal || 0)).toFixed(2)),
   };
+  const balanceAmount = Number(reservationRow.balanceAmount || 0);
+  if (Number(reservationRow.balancePaid || 0) !== 1 && balanceAmount > 0) {
+    out.payment = {
+      mode: 'deposit',
+      depositAmount: Number(reservationRow.depositAmount || 0),
+      balanceAmount,
+      balanceDueDate: reservationRow.balanceDueDate || null,
+    };
+  }
+  return out;
 }
 
 async function status(req, res) {
@@ -115,9 +142,12 @@ async function status(req, res) {
   // Already confirmed (by the webhook / a prior poll)? loadPublicDevis tags it `already_converted`.
   if (error === 'already_converted') return asConfirmed(row.convertedReservationId);
 
-  // On-demand reconciliation: if the devis's full link is paid at Qonto but not yet processed, process
-  // it now (best-effort) so the success page sees `confirmed` without waiting for the cron.
-  const link = paymentLinksModel.findOpenForReservation(id, 'full');
+  // On-demand reconciliation: if the devis's open link (deposit OR full, per the property's mode) is paid
+  // at Qonto but not yet processed, process it now (best-effort) so the success page sees `confirmed`
+  // without waiting for the cron.
+  const mode = resolvePublicPaymentMode(db, row.propertyId, depositPaymentCents(db, id, row));
+  const link = paymentLinksModel.findOpenForReservation(id, mode)
+    || paymentLinksModel.findOpenForReservation(id, mode === 'deposit' ? 'full' : 'deposit');
   if (link && link.qontoPaymentLinkId) {
     try {
       const accessToken = await getValidQontoAccessToken({ settings: settingsModel, clientFactory: buildQontoClient });
