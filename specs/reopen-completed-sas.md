@@ -60,11 +60,14 @@ flags follow the checkbox faithfully. A SAS never reverts to "not done".
      `extinguisherSealOkAtDeparture`; the end-of-stay complement (missing items + end-of-stay
      cleaning + extinguisher-seal billing) reconstructed from `endOfStayComplementDetail` (JSON).
 
-3. **All relevant steps reachable in edit mode.** When reopening a done SAS, the caution
-   (arrival) / caution-return (departure) steps are shown **even when already received /
-   returned** (pre-ticked), so they can be reviewed or corrected. Other step gating
-   (portal, options, breakfast applicability, bed-linen alert, missing-items ask) is unchanged.
-   Forward + « Précédent » navigation unchanged.
+3. **Relevant steps reachable in edit mode.** When reopening a done SAS, the **departure**
+   caution-return step is shown **even when already returned** (pre-ticked), so a mis-marked return
+   can be corrected. Other step gating (portal, options, breakfast applicability, bed-linen alert,
+   missing-items ask) is unchanged. Forward + « Précédent » navigation unchanged.
+   **Superseded for the arrival caution (specs/sas-hide-settled-steps.md §3):** the arrival caution
+   step is now hidden as soon as it's received, **even in edit mode**. Its state is still pre-filled
+   (so the recap notes « Caution marquée comme perçue ») and left untouched on re-commit; correcting a
+   mis-marked *arrival* caution is done from the reservation fiche, not the SAS.
 
 4. **Re-commit = REPLACE, never append (finance-critical).**
    - **Arrival complement.** SAS-origin complement rows in `reservation_custom_options` are
