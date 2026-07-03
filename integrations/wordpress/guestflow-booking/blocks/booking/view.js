@@ -139,16 +139,13 @@
       var lines = pickable.map(function (o) {
         var input = GF.el('input', { type: 'number', min: '0', value: '0', onInput: scheduleQuote });
         f.optionInputs[o.id] = input;
-        var perPerson = String(o.priceType || '').indexOf('per_person') === 0;
-        // A planning-card option is billed by SÉANCE on the site (specs/public-planning-options.md), so
-        // its unit label is « / séance » (+ « / pers. » when per person), not « / nuit ».
-        var unit = o.showsPlanningCard
-          ? (perPerson ? ' / pers. / séance' : ' / séance')
-          : (o.priceType === 'per_person' ? ' / pers.' : (o.priceType === 'per_person_per_night' ? ' / pers. / nuit' : ''));
-        var label = (o.title || '') + (o.price ? ' (' + GF.euro(o.price) + unit + ')' : '');
-        // Plain row (label ↔ input) unless the option needs a description ⓘ or an « à planifier » note,
-        // in which case it becomes a stacked card (head row + note + collapsible description).
-        if (!o.description && !o.showsPlanningCard) {
+        // Price-basis label + quantity label come from the BACKEND (source of truth) — a new option
+        // renders correctly with NO change here (specs/public-planning-options.md).
+        var priceStr = o.price ? (' (' + GF.euro(o.price) + (o.priceUnitLabel ? ' · ' + o.priceUnitLabel : '') + ')') : '';
+        var label = (o.title || '') + priceStr;
+        // Plain row (label ↔ input) unless the option needs a description ⓘ, an « à planifier » note,
+        // or a quantity label — then it becomes a stacked card.
+        if (!o.description && !o.showsPlanningCard && !o.quantityLabel) {
           return GF.el('div', { class: 'gf-option-line' }, GF.el('span', {}, label), input);
         }
         var titleGroup = [GF.el('span', {}, label)];
@@ -161,7 +158,10 @@
             onClick: function () { descBox.style.display = descBox.style.display === 'none' ? 'block' : 'none'; },
           }, 'ⓘ'));
         }
-        var head = GF.el('div', { class: 'gf-option-head' }, GF.el('span', { class: 'gf-option-title' }, titleGroup), input);
+        var qtyField = o.quantityLabel
+          ? GF.el('span', { class: 'gf-qty' }, GF.el('label', {}, o.quantityLabel), input)
+          : input;
+        var head = GF.el('div', { class: 'gf-option-head' }, GF.el('span', { class: 'gf-option-title' }, titleGroup), qtyField);
         var body = [head];
         if (o.showsPlanningCard) body.push(GF.el('div', { class: 'gf-option-note' }, GF.t('toBeScheduled')));
         if (descBox) body.push(descBox);

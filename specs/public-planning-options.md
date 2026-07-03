@@ -48,10 +48,14 @@ option vanishing silently.
    **unchanged** (they keep using the real scheduled occurrences). Set by: the public live quote, the
    booking-request devis creation, and the public devis price recompute (so the quote, the stored
    `finalPrice`, and the online-payment amount all agree).
-4. **The site displays them clearly:**
-   - kept selectable with a **quantity** input (as today), with a **price-basis label** derived from
-     `priceType` (`/ pers.`, `/ pers. / séance`, `/ séance`…) so the guest sees whether it's per person
-     or per group;
+4. **The site displays them clearly — labels owned by the backend (source of truth).** _(decision
+   2026-07-03: the price-basis + quantity labels are computed SERVER-SIDE and rendered as-is by the
+   plugin, so adding an option needs NO website change.)_ `toPublicOption` returns `priceUnitLabel`
+   (« par personne et par séance », « au séjour »…) and `quantityLabel` (« Nombre de séances » for a
+   planning option, else null), derived from `priceType` + `showsPlanningCard`. The plugin has **no**
+   hardcoded `priceType` string logic.
+   - kept selectable with a **quantity** input (as today), the field labelled by `quantityLabel` when
+     present (« Nombre de séances »), and the price shown with `priceUnitLabel`;
    - each option shows its **description** (from `options.description`) via an ergonomic, **responsive**
      affordance — an info (ⓘ) toggle: tooltip on hover (desktop) **and** tap-to-expand (mobile), never
      hover-only;
@@ -92,7 +96,7 @@ option vanishing silently.
 | `controllers/public/` | `publicBookingRequestController.js` | T | Ensure the created devis is priced with the flag (forward through `devisModel.create`). |
 | `models/` | `devisModel.js` | T | `create`/recompute accept + forward `planningCardAsQuantity` (only the public path sets it) so the stored `finalPrice` includes the option. |
 | `utils/` | `devisQuote.js` | T | `recomputeDevisQuote` (used for `collectedOnArrival` + components) sets the flag for a public devis so the pay amount matches the quote. |
-| `utils/` | `publicProjections.js` | T | `toPublicOption` exposes `showsPlanningCard` (the site labels/hints planning options); `description` is already exposed. |
+| `utils/` | `publicProjections.js` | T | `toPublicOption` exposes `showsPlanningCard` + computes **`priceUnitLabel`** and **`quantityLabel`** (server-owned display strings from `priceType` + `showsPlanningCard`) so the site renders any option — new ones included — with no plugin change; `description` already exposed. |
 | `utils/` | `notificationService.js` | T | `notifyNewSiteDevis` lists planning-card options « à planifier » (title + quantity). |
 
 ### 4.2 Client side (`client/src/`)
@@ -106,7 +110,7 @@ deferred: a small « à planifier » chip on the devis list; not in this spec.)
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `blocks/booking/view.js` | T | For a planning-card option (`o.showsPlanningCard`): price-basis label + an info (ⓘ) toggle showing `o.description` (hover + tap, responsive) + a « À planifier avec l'hôte » hint. Quantity input unchanged. |
+| `blocks/booking/view.js` | T | Renders each option generically from backend fields — `priceUnitLabel`, `quantityLabel`, `description` (ⓘ toggle, hover + tap, responsive), and the « À planifier avec l'hôte » hint when `showsPlanningCard`. **No hardcoded `priceType` logic** → a new option shows correctly without editing the plugin. |
 | `assets/gf-booking.css` (or inline) | T | Styles for the ⓘ toggle / description popover (responsive, tap-friendly ≥44px). |
 | `includes/class-gf-blocks.php` | T | New i18n strings (`toBeScheduled`, price-basis labels). |
 
@@ -117,7 +121,7 @@ into the `wp_app` container (memory `wp-plugin-deploy-gap`).
 
 | Method | Endpoint | Change |
 |---|---|---|
-| GET | `/properties/:id/options` | Each option gains `showsPlanningCard: boolean` (description already present). |
+| GET | `/properties/:id/options` | Each option gains `showsPlanningCard: boolean`, `priceUnitLabel: string\|null`, `quantityLabel: string\|null` (description already present). |
 | POST | `/quote` | A planning-card option in `options[]` is now priced (billedUnits per rule 1) and appears in `options[]` of the response instead of being dropped. |
 | POST | `/booking-requests` | Same option is persisted on the devis (billed, unscheduled). |
 
@@ -149,7 +153,7 @@ now includes them.
 
 ### Server unit tests
 - [x] `planning-card-public-pricing.unit.test.js` — with `planningCardAsQuantity`: per-person option billed `quantity × persons × unitPrice` (32 €) + `cardOccurrences=[]` + `toBeScheduled`; per-group (`per_stay`) billed `quantity × unitPrice`; quantity 0 → no line. **Regression (flag off):** a planning-card option with NO occurrences is still dropped, WITH occurrences prices by occurrence count (admin unchanged). 5 tests.
-- [x] `public-projections.unit.test.js` — `toPublicOption` exposes `showsPlanningCard` (updated key-set assertion).
+- [x] `public-projections.unit.test.js` — `toPublicOption` exposes `showsPlanningCard` + `priceUnitLabel` + `quantityLabel` (planning → « par personne et par séance » / « Nombre de séances » ; non-planning per_person_per_night → « par personne et par nuit » ; per_stay → « au séjour » ; progressive → « par participant »).
 - [x] `notification-service.unit.test.js` — `notifyNewSiteDevis` lists the « à planifier » options (title × qty) and excludes non-planning options.
 - [x] Full suite 1989 green (existing public-quote / booking-request / devisQuote paths exercised by the shared engine change).
 
