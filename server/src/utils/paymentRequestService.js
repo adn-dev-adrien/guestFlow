@@ -10,15 +10,21 @@
  *   - `sendPaymentRequest` returns `{ httpStatus, body }` for the controller to relay verbatim.
  */
 
+const { buildVatItems } = require('./paymentLinkItems');
+
 const LINK_TYPES   = { deposit: 'depositAmount', balance: 'balanceAmount', full: 'finalPrice' };
 const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour' };
 // Template per request type. Only the deposit request ships now (balance/full requests to come).
 const REQUEST_TEMPLATES = { deposit: 'deposit_request' };
 
 // Resolve a usable payment link for (reservation, type): reuse the current open one or create it.
-//   deps: { database, paymentLinksModel, resolveAmountCents, createLink({ title, amountCents }) }
+//   deps: { database, paymentLinksModel, resolveAmountCents, createLink({ title, amountCents, items?, expectedTotalCents? }),
+//           resolveItems?(id, type, row) → { components, vatRatePercent } | null }
+// When resolveItems yields components, the link is created as a VAT basket (specs/payment-links-vat.md):
+// Qonto shows the real TVA while the charged total stays exactly amountCents. Absent/mismatched → the
+// legacy single 0 %-VAT line (total-only) is used, so the charged amount is never at risk.
 async function ensurePaymentLink(deps, id, type) {
-  const { database, paymentLinksModel, resolveAmountCents, createLink } = deps;
+  const { database, paymentLinksModel, resolveAmountCents, createLink, resolveItems } = deps;
   if (!LINK_TYPES[type]) throw { httpStatus: 400, error: 'INVALID_TYPE', message: 'Type de lien invalide (deposit/balance/full).' };
 
   // touristTaxTotal is carried so the full-payment amount resolver has the tax even on the fallback row
@@ -40,7 +46,21 @@ async function ensurePaymentLink(deps, id, type) {
     paymentLinksModel.updateStatus(existing.id, 'cancelled');
   }
 
-  const link = await createLink({ title: LINK_TITLES[type], amountCents });
+  // Build the VAT basket when the caller can split the amount; only trust it when the components sum to
+  // the exact charge (else fall back to the safe single 0 %-VAT line — the total must never drift).
+  const linkArgs = { title: LINK_TITLES[type], amountCents };
+  if (typeof resolveItems === 'function') {
+    let built = null;
+    try { built = resolveItems(id, type, r); } catch { built = null; }
+    if (built && Array.isArray(built.components)) {
+      const { items, expectedTotalCents } = buildVatItems(built);
+      if (expectedTotalCents === amountCents && items.length) {
+        linkArgs.items = items;
+        linkArgs.expectedTotalCents = expectedTotalCents;
+      }
+    }
+  }
+  const link = await createLink(linkArgs);
   const row = paymentLinksModel.create({
     reservationId: id, type, amountCents,
     qontoPaymentLinkId: link.id, url: link.url, status: link.mappedStatus, expiresAt: link.expirationDate || null,

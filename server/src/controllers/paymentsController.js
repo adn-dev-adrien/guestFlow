@@ -181,7 +181,7 @@ async function qontoRefreshConnection(req, res) {
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
 const paymentRequestService = require('../utils/paymentRequestService');
-const { LINK_TYPES } = paymentRequestService;
+const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
 // Wire the module-scoped deps into the injectable service (utils/paymentRequestService).
 function requestServiceDeps() {
@@ -189,8 +189,9 @@ function requestServiceDeps() {
     database,
     paymentLinksModel,
     resolveAmountCents,
-    createLink: ({ title, amountCents }) =>
-      withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title, amountCents })),
+    resolveItems: (id, type) => resolveVatComponents(id, type),
+    createLink: ({ title, amountCents, items, expectedTotalCents }) =>
+      withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents })),
     sendTemplate: ({ reservationId, stableKey, paymentLink }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
@@ -200,45 +201,75 @@ function requestServiceDeps() {
   };
 }
 
-// Amount in cents for a link type, taken from the SAME engine the fiche/PDF use (re-run against the
-// persisted devis) so the Qonto page matches the acompte/solde/total GuestFlow shows. The stored
-// `depositAmount`/`balanceAmount` columns can be stale (pricing-rule change, public-API devis); the
-// engine is the single source of truth. Falls back to the stored row for reservations or on failure.
+// Re-run the pricing engine against a persisted devis (the SAME source the fiche/PDF use). Returns the
+// quote or null (a reservation row / engine failure). Shared by the amount + VAT-components resolvers.
+function runDevisEngineQuote(id) {
+  try {
+    const full = devisModel.findById(id); // devis only (kind='devis'); reservations keep stored columns
+    if (!full) return null;
+    return calculateReservationQuote({
+      db: database,
+      propertyId: Number(full.propertyId),
+      startDate: full.startDate, endDate: full.endDate,
+      checkInTime: full.checkInTime, checkOutTime: full.checkOutTime,
+      adults: Number(full.adults || 0), children: Number(full.children || 0),
+      teens: Number(full.teens || 0), babies: Number(full.babies || 0),
+      discountPercent: Number(full.discountPercent || 0),
+      customPrice: full.customPrice != null ? Number(full.customPrice) : undefined,
+      selectedOptions: (full.options || []).filter((o) => !o.isCustom).map((o) => ({
+        optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
+        unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
+      })),
+      customOptions: (full.options || []).filter((o) => o.isCustom).map((o) => ({
+        customKey: String(o.customOptionId || o.title || ''),
+        description: o.title || o.description || '',
+        amount: Number(o.amount ?? o.originalTotalPrice ?? o.totalPrice ?? 0),
+        offered: Boolean(o.offered),
+      })),
+      selectedResources: (full.resources || []).map((r) => ({
+        resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
+        unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
+      })),
+      platform: full.platform,
+    });
+  } catch { return null; }
+}
+
+// Amount in cents for a link type, taken from the SAME engine the fiche/PDF use so the Qonto page
+// matches the acompte/solde/total GuestFlow shows. The stored `depositAmount`/`balanceAmount` columns
+// can be stale (pricing-rule change, public-API devis); the engine is the single source of truth.
+// Falls back to the stored row for reservations or on failure.
 function resolveAmountCents(id, type, row) {
   let euros = Number(row[LINK_TYPES[type]] || 0); // fallback = stored column
-  try {
-    const full = devisModel.findById(id); // devis only (kind='devis'); reservations keep the stored column
-    if (full) {
-      const quote = calculateReservationQuote({
-        db: database,
-        propertyId: Number(full.propertyId),
-        startDate: full.startDate, endDate: full.endDate,
-        checkInTime: full.checkInTime, checkOutTime: full.checkOutTime,
-        adults: Number(full.adults || 0), children: Number(full.children || 0),
-        teens: Number(full.teens || 0), babies: Number(full.babies || 0),
-        discountPercent: Number(full.discountPercent || 0),
-        customPrice: full.customPrice != null ? Number(full.customPrice) : undefined,
-        selectedOptions: (full.options || []).filter((o) => !o.isCustom).map((o) => ({
-          optionId: Number(o.optionId), quantity: Number(o.quantity || 1),
-          unitPrice: o.unitPrice != null ? Number(o.unitPrice) : undefined,
-        })),
-        customOptions: (full.options || []).filter((o) => o.isCustom).map((o) => ({
-          customKey: String(o.customOptionId || o.title || ''),
-          description: o.title || o.description || '',
-          amount: Number(o.amount ?? o.originalTotalPrice ?? o.totalPrice ?? 0),
-          offered: Boolean(o.offered),
-        })),
-        selectedResources: (full.resources || []).map((r) => ({
-          resourceId: Number(r.resourceId), quantity: Number(r.quantity || 1),
-          unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
-        })),
-        platform: full.platform,
-      });
-      const field = type === 'deposit' ? 'depositAmount' : type === 'balance' ? 'balanceAmount' : 'finalPrice';
-      if (quote && quote[field] != null) euros = Number(quote[field]);
-    }
-  } catch { /* engine failure → keep the stored-column fallback */ }
+  const quote = runDevisEngineQuote(id);
+  const field = type === 'deposit' ? 'depositAmount' : type === 'balance' ? 'balanceAmount' : 'finalPrice';
+  if (quote && quote[field] != null) euros = Number(quote[field]);
   return Math.round(euros * 100);
+}
+
+// VAT basket components per link type (specs/payment-links-vat.md), from the engine quote. The tourist
+// tax is VAT-exempt and (for direct stays) rides on the solde, so only `balance` carries a 0 %-VAT tax
+// line; deposit (accommodation-only) and admin full (finalPrice, tax-excl) are single taxable lines.
+// Returns null for reservations / engine failure → the caller keeps the safe single 0 %-VAT line.
+function resolveVatComponents(id, type) {
+  const quote = runDevisEngineQuote(id);
+  if (!quote) return null;
+  const cents = (v) => Math.round(Number(v || 0) * 100);
+  const vatRatePercent = quote.vatPercentageAccommodation != null ? Number(quote.vatPercentageAccommodation) : 10;
+  const taxCents = Boolean(quote.touristTaxCollectedOnArrival) ? 0 : cents(quote.touristTaxTotal);
+  let components = null;
+  if (type === 'deposit') {
+    components = [{ title: LINK_TITLES.deposit, grossCents: cents(quote.depositAmount), taxable: true }];
+  } else if (type === 'full') {
+    components = [{ title: LINK_TITLES.full, grossCents: cents(quote.finalPrice), taxable: true }];
+  } else if (type === 'balance') {
+    const balCents = cents(quote.balanceAmount);
+    components = [{ title: LINK_TITLES.balance, grossCents: balCents - taxCents, taxable: true }];
+    if (taxCents > 0) components.push({ title: 'Taxe de séjour', grossCents: taxCents, taxable: false });
+  } else {
+    return null; // complement etc. → single line fallback
+  }
+  return { components, vatRatePercent };
 }
 
 // Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; anything

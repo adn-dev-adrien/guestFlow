@@ -64,4 +64,34 @@ function fullPaymentCents({ database, devisModel, calc }, devisId, fallbackRow) 
   return Math.round(euros * 100);
 }
 
-module.exports = { recomputeDevisQuote, fullPaymentCents };
+// Global VAT rate (single-rate model, specs/single-vat-rate.md). Falls back to 10 on any read failure.
+function globalVatRate(database) {
+  try {
+    const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
+    return row && row.vatRate != null ? Number(row.vatRate) : 10;
+  } catch { return 10; }
+}
+
+// VAT basket components for a public FULL payment (specs/payment-links-vat.md): the stay (accommodation
+// + options + resources = the stored `finalPrice`, VAT-liable at the global rate) as one taxable line,
+// plus the tourist tax as a 0 %-VAT line (VAT-exempt) — unless collected on arrival (then no tax line).
+// Sum of components === fullPaymentCents by construction, so the charged total is unchanged.
+function fullPaymentComponents({ database, devisModel, calc }, devisId, fallbackRow) {
+  const devis = (devisModel && typeof devisModel.findById === 'function' && devisModel.findById(devisId)) || fallbackRow || {};
+  const finalPrice = Number(devis.finalPrice != null ? devis.finalPrice : (fallbackRow && fallbackRow.finalPrice) || 0);
+  const tax = Number(devis.touristTaxTotal || 0);
+
+  let collectedOnArrival = false;
+  try {
+    const q = recomputeDevisQuote({ database, devisModel, calc }, devisId);
+    if (q) collectedOnArrival = Boolean(q.touristTaxCollectedOnArrival);
+  } catch { /* default: tax included */ }
+
+  const components = [{ title: 'Séjour et prestations', grossCents: Math.round(finalPrice * 100), taxable: true }];
+  if (!collectedOnArrival && tax > 0) {
+    components.push({ title: 'Taxe de séjour', grossCents: Math.round(tax * 100), taxable: false });
+  }
+  return { components, vatRatePercent: globalVatRate(database) };
+}
+
+module.exports = { recomputeDevisQuote, fullPaymentCents, fullPaymentComponents };
