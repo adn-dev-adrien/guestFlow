@@ -269,6 +269,9 @@ function createModel(database) {
       customPrice: body.customPrice != null && body.customPrice !== '' ? Number(body.customPrice) : undefined,
       offeredOptionIds: body.offeredOptionIds, lockedResourceLines,
       platform: body.platform || existing?.platform,
+      // Public/site devis: bill planning-card options by quantity (unschedulable on the site) —
+      // specs/public-planning-options.md. Admin devis leave this falsy (occurrence-based).
+      planningCardAsQuantity: Boolean(body.planningCardAsQuantity),
     });
   }
 

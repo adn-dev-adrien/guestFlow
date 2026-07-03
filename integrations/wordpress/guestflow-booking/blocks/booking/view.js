@@ -139,10 +139,33 @@
       var lines = pickable.map(function (o) {
         var input = GF.el('input', { type: 'number', min: '0', value: '0', onInput: scheduleQuote });
         f.optionInputs[o.id] = input;
-        var unit = o.priceType === 'per_person' ? ' / pers.'
-          : (o.priceType === 'per_person_per_night' ? ' / pers. / nuit' : '');
+        var perPerson = String(o.priceType || '').indexOf('per_person') === 0;
+        // A planning-card option is billed by SÉANCE on the site (specs/public-planning-options.md), so
+        // its unit label is « / séance » (+ « / pers. » when per person), not « / nuit ».
+        var unit = o.showsPlanningCard
+          ? (perPerson ? ' / pers. / séance' : ' / séance')
+          : (o.priceType === 'per_person' ? ' / pers.' : (o.priceType === 'per_person_per_night' ? ' / pers. / nuit' : ''));
         var label = (o.title || '') + (o.price ? ' (' + GF.euro(o.price) + unit + ')' : '');
-        return GF.el('div', { class: 'gf-option-line' }, GF.el('span', {}, label), input);
+        // Plain row (label ↔ input) unless the option needs a description ⓘ or an « à planifier » note,
+        // in which case it becomes a stacked card (head row + note + collapsible description).
+        if (!o.description && !o.showsPlanningCard) {
+          return GF.el('div', { class: 'gf-option-line' }, GF.el('span', {}, label), input);
+        }
+        var titleGroup = [GF.el('span', {}, label)];
+        var descBox = null;
+        if (o.description) {
+          descBox = GF.el('div', { class: 'gf-option-desc', style: 'display:none' }, o.description);
+          // ⓘ toggle: tap-to-expand (mobile) + native tooltip on hover (desktop). Responsive + ≥44px.
+          titleGroup.push(GF.el('button', {
+            type: 'button', class: 'gf-info-btn', title: o.description, 'aria-label': GF.t('moreInfo'),
+            onClick: function () { descBox.style.display = descBox.style.display === 'none' ? 'block' : 'none'; },
+          }, 'ⓘ'));
+        }
+        var head = GF.el('div', { class: 'gf-option-head' }, GF.el('span', { class: 'gf-option-title' }, titleGroup), input);
+        var body = [head];
+        if (o.showsPlanningCard) body.push(GF.el('div', { class: 'gf-option-note' }, GF.t('toBeScheduled')));
+        if (descBox) body.push(descBox);
+        return GF.el('div', { class: 'gf-option-line gf-option-rich' }, body);
       });
       optionsBox = GF.el('div', {}, GF.el('strong', {}, GF.t('options')), GF.el('div', { class: 'gf-options-list' }, lines));
     }

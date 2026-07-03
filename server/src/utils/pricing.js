@@ -989,6 +989,12 @@ function calculateReservationQuote({
   // reservation it PINS the total séjour: finalPrice = platformGrossAmount, the accommodation absorbing
   // the remainder (brut − options − resources − extra-guest). Empty / direct → normal pricing.
   platformGrossAmount: platformGrossAmountInput,
+  // specs/public-online-deposit.md → public-planning-options.md — the PUBLIC/site flow can't schedule
+  // a planning-card option's slots, so when truthy the engine bills such an option by the client's
+  // QUANTITY as the occurrence count (quantity × (perPerson ? persons : 1) × unitPrice) instead of
+  // requiring `cardOccurrences`; the line stays unscheduled (operator fixes the slots later). Admin
+  // flows leave this falsy → the existing occurrence-based behaviour is unchanged.
+  planningCardAsQuantity,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1136,13 +1142,35 @@ function calculateReservationQuote({
       // billedUnits = occurrences × (persons when the option is per-person, else 1). An empty
       // selection means the option isn't taken → no line, no charge.
       if (option.showsPlanningCard) {
-        const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
-        if (occurrences.length === 0) return null;
+        // PUBLIC/site flow (planningCardAsQuantity): the visitor can't schedule the slots, so the
+        // selected QUANTITY stands in for the occurrence count — bill quantity × (perPerson ? persons :
+        // 1) × unitPrice and leave the line UNSCHEDULED (empty cardOccurrences; the operator fixes the
+        // real slots later). Admin flow: the scheduled occurrences drive the billed quantity as before.
         const perPerson = String(priceType).includes('per_person');
-        const billedUnits = roundMoney(occurrences.length * (perPerson ? persons : 1));
         const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
           ? Number(optionUnitOverrides[optionId])
           : Number(option.price || 0);
+        if (planningCardAsQuantity) {
+          const qty = Math.max(0, Number(selected?.quantity || 0));
+          if (qty <= 0) return null;
+          const billedUnits = roundMoney(qty * (perPerson ? persons : 1));
+          const realTotal = roundMoney(billedUnits * unitBase);
+          return {
+            optionId,
+            title: option.title,
+            quantity: qty,
+            unitPrice: unitBase,
+            billedUnits,
+            priceType,
+            cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
+            toBeScheduled: true,
+            ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
+            ...pickContribsAndForce(selected, locked),
+          };
+        }
+        const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
+        if (occurrences.length === 0) return null;
+        const billedUnits = roundMoney(occurrences.length * (perPerson ? persons : 1));
         const realTotal = roundMoney(billedUnits * unitBase);
         return {
           optionId,

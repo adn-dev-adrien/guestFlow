@@ -53,6 +53,9 @@ function toPublicOption(row) {
     description: row.description || null,
     priceType: row.priceType,
     price: Number(row.price || 0),
+    // Planning-card option: booked as a time slot. On the site it's billed by quantity and « à
+    // planifier avec l'hôte » (specs/public-planning-options.md).
+    showsPlanningCard: Boolean(row.showsPlanningCard),
   };
   if (row.autoOptionType) out.autoOptionType = row.autoOptionType;
   if (row.priceType === 'per_participant_progressive' && Array.isArray(row.optionProgressiveTiers) && row.optionProgressiveTiers.length) {

@@ -38,6 +38,9 @@ function recomputeDevisQuote({ database, devisModel, calc }, devisId) {
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : undefined, offered: Boolean(r.offered),
     })),
     platform: full.platform,
+    // A public devis prices planning-card options by quantity (specs/public-planning-options.md), so the
+    // recompute must match the stored devis (else it would drop them and diverge).
+    planningCardAsQuantity: full.requestOrigin === 'public',
   });
 }
 
