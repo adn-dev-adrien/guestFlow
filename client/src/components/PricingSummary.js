@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Tooltip } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { formatCurrency } from '../utils/formatters';
 
 // Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
 // (spec force-item-to-complement.md §6.2). When `onClick` is provided, the chip becomes a
@@ -190,7 +191,7 @@ export default function PricingSummary({
                   variant="caption"
                   sx={{ fontWeight: 600, textDecoration: 'line-through', color: 'text.secondary' }}
                 >
-                  {parsedTotalPrice.toFixed(2)}€
+                  {formatCurrency(parsedTotalPrice)}
                 </Typography>
               )}
               <Typography variant="body2" sx={{ fontWeight: 600, color: (discountAmount > 0 || form.customPrice !== '') ? 'success.main' : 'inherit' }}>
@@ -239,7 +240,7 @@ export default function PricingSummary({
                     Nuit {night.nightNumber} • {new Date(`${night.date}T00:00:00`).toLocaleDateString('fr-FR')}
                   </Typography>
                   <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    {Number(night.price || 0).toFixed(2)}€
+                    {formatCurrency(Number(night.price || 0))}
                   </Typography>
                 </Box>
               ))}
@@ -255,7 +256,7 @@ export default function PricingSummary({
                     Surcoût voyageurs
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {extraGuestCount} pers. au-delà de {includedGuests} incluses × {extraGuestUnitPrice.toFixed(2)}€
+                    {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -278,7 +279,7 @@ export default function PricingSummary({
                       color: extraGuestSurchargeOffered ? 'text.secondary' : 'inherit',
                     }}
                   >
-                    {extraGuestSurchargeOriginal.toFixed(2)}€
+                    {formatCurrency(extraGuestSurchargeOriginal)}
                   </Typography>
                 </Box>
               </Box>
@@ -397,7 +398,7 @@ export default function PricingSummary({
                           color: isOffered ? 'text.secondary' : 'inherit',
                         }}
                       >
-                        {amount.toFixed(2)}€
+                        {formatCurrency(amount)}
                       </Typography>
                     </Box>
                   </Box>
@@ -495,7 +496,7 @@ export default function PricingSummary({
                           color: isOffered ? 'text.secondary' : 'inherit',
                         }}
                       >
-                        {amount.toFixed(2)}€
+                        {formatCurrency(amount)}
                       </Typography>
                     </Box>
                   </Box>
@@ -583,7 +584,7 @@ export default function PricingSummary({
                       with the « Plateforme » tag above — NOT struck-through (it isn't « offert »). The
                       caption below explains who handles it. */}
                   <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                    {touristTaxDisplayedAmount.toFixed(2)}€
+                    {formatCurrency(touristTaxDisplayedAmount)}
                   </Typography>
                 </Box>
               </Box>
@@ -594,7 +595,7 @@ export default function PricingSummary({
                     {touristTaxLabel || 'Calculée automatiquement selon le mode du logement'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Base: {touristTaxUnitAmount.toFixed(2)}€ x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
+                    Base: {formatCurrency(touristTaxUnitAmount)} x {touristTaxAdultsCount} adulte{touristTaxAdultsCount > 1 ? 's' : ''} x {touristTaxNights} nuit{touristTaxNights > 1 ? 's' : ''}
                   </Typography>
                 </Box>
               )}
@@ -628,11 +629,11 @@ export default function PricingSummary({
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="caption" color="text.secondary">Total HT</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 500 }}>{totalNetPrice.toFixed(2)}€</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 500 }}>{totalVatAmount.toFixed(2)}€</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
             </Box>
           </Box>
 
@@ -665,7 +666,7 @@ export default function PricingSummary({
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, ...(opts.pt ? { pt: 0.5 } : {}) }}>
                 <Typography variant={opts.strong ? 'subtitle2' : 'body2'} color={opts.strong ? 'text.primary' : 'text.secondary'} sx={opts.strong ? { fontWeight: 700 } : undefined}>{label}</Typography>
                 {/* sign + amount kept on a single line for readability (no wrap in the narrow column). */}
-                <Typography variant={opts.strong ? 'subtitle2' : 'body2'} sx={{ fontWeight: opts.strong ? 700 : 600, color: opts.color || 'inherit', whiteSpace: 'nowrap' }}>{opts.sign || ''}{Math.abs(value).toFixed(2)}€</Typography>
+                <Typography variant={opts.strong ? 'subtitle2' : 'body2'} sx={{ fontWeight: opts.strong ? 700 : 600, color: opts.color || 'inherit', whiteSpace: 'nowrap' }}>{opts.sign || ''}{formatCurrency(Math.abs(value))}</Typography>
               </Box>
             );
             return (
@@ -692,7 +693,7 @@ export default function PricingSummary({
                         <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
                           dont complément à percevoir sur place
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{complement.toFixed(2)}€</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(complement)}</Typography>
                       </Box>
                       {form.complementPaid && (
                         <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
@@ -718,12 +719,12 @@ export default function PricingSummary({
               </Typography>
             ) : (
               // specs/platform-per-echeance-commission.md — show the NET acompte (montant − commission acompte).
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{(Number(form.depositAmount || 0) - Number(quote?.acompteCommissionAmount || 0)).toFixed(2)}€</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency((Number(form.depositAmount || 0) - Number(quote?.acompteCommissionAmount || 0)))}</Typography>
             )}
           </Box>
           {!form.depositDisabled && Number(quote?.acompteCommissionAmount || 0) > 0 && (
             <Typography variant="caption" color="text.secondary">
-              net de la commission acompte ({Number(quote.acompteCommissionAmount).toFixed(2)}€)
+              net de la commission acompte ({formatCurrency(Number(quote.acompteCommissionAmount))})
             </Typography>
           )}
           {!form.depositDisabled && form.depositDueDate && (
@@ -748,15 +749,14 @@ export default function PricingSummary({
             <Typography variant="body2" color="text.secondary">Solde</Typography>
             {/* specs/platform-per-echeance-commission.md — show the NET solde (montant − commission solde). */}
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {((form.depositDisabled
+              {formatCurrency((form.depositDisabled
                 ? (Number(form.depositAmount || 0) + Number(form.balanceAmount || 0))
-                : Number(form.balanceAmount || 0)) - Number(quote?.platformCommissionAmount || 0)).toFixed(2)}
-              €
+                : Number(form.balanceAmount || 0)) - Number(quote?.platformCommissionAmount || 0))}
             </Typography>
           </Box>
           {Number(quote?.platformCommissionAmount || 0) > 0 && (
             <Typography variant="caption" color="text.secondary">
-              net de la commission solde ({Number(quote.platformCommissionAmount).toFixed(2)}€)
+              net de la commission solde ({formatCurrency(Number(quote.platformCommissionAmount))})
             </Typography>
           )}
           {form.balanceDueDate && (
@@ -772,7 +772,7 @@ export default function PricingSummary({
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">Caution</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{form.cautionAmount.toFixed(2)}€</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(form.cautionAmount)}</Typography>
           </Box>
           {form.cautionReceived && (
             <Chip size="small" label="Caution reçue" color="success" variant="outlined" sx={{ width: 'fit-content' }} />

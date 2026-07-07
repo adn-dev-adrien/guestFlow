@@ -41,15 +41,7 @@ import api from '../../api';
 import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 import ConfirmDialog from '../ConfirmDialog';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
-
-function euro(n) {
-  return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
-}
-function frDate(iso) {
-  if (!iso) return '';
-  try { return new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }); }
-  catch { return iso; }
-}
+import { formatCurrency, displayDateLong } from '../../utils/formatters';
 
 // Integer stepper for a labelled breakfast drink (icon + label, no price). Module-level so it
 // keeps a stable identity across parent re-renders (an inline component would remount on every
@@ -137,7 +129,7 @@ function IntroDateRow({ kind, date, time }) {
         size="small"
         sx={{ height: 24, fontSize: 11, fontWeight: 800, color: 'white', bgcolor: bg, '& .MuiChip-icon': { ml: 0.75, mr: -0.25 } }}
       />
-      <Typography variant="body1" sx={{ fontWeight: 600 }}>{frDate(date)}</Typography>
+      <Typography variant="body1" sx={{ fontWeight: 600 }}>{displayDateLong(date)}</Typography>
       <Chip
         icon={<AccessTimeIcon sx={{ fontSize: 14, color: 'white !important' }} />}
         label={time}
@@ -382,8 +374,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const lineText = (l) => {
     const qty = Number(l.qty || 0);
     const unit = Number(l.unitPrice || 0);
-    if (qty > 1 && unit > 0) return `${l.label} : ${qty} × ${euro(unit)} = ${euro(l.amount)}`;
-    return `${l.label} : ${euro(l.amount)}`;
+    if (qty > 1 && unit > 0) return `${l.label} : ${qty} × ${formatCurrency(unit)} = ${formatCurrency(l.amount)}`;
+    return `${l.label} : ${formatCurrency(l.amount)}`;
   };
 
   const depMissingLines = useMemo(() => allItems
@@ -474,7 +466,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.label}</Typography>
-          <Typography variant="caption" color="text.secondary">{euro(item.price)} / unité</Typography>
+          <Typography variant="caption" color="text.secondary">{formatCurrency(item.price)} / unité</Typography>
         </Box>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
           <Button size="small" variant="outlined" onClick={() => set(qty - 1)} disabled={qty <= 0} sx={{ minWidth: 36 }}>−</Button>
@@ -552,7 +544,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'cautionReport':
         return (
           <Stack spacing={1.5}>
-            <Typography variant="body1">Caution à percevoir : <strong>{euro(r.cautionAmount)}</strong></Typography>
+            <Typography variant="body1">Caution à percevoir : <strong>{formatCurrency(r.cautionAmount)}</strong></Typography>
             <Typography variant="body2" color="text.secondary">Encaisser la caution (chèque / empreinte) avant de continuer.</Typography>
             {caution === 'fait' && <Chip label="Marquée comme perçue" color="success" sx={{ alignSelf: 'flex-start' }} />}
             {caution === 'reporte' && stepKey === 'caution' && <Chip label="Reportée — réaffichée à la fin" color="warning" sx={{ alignSelf: 'flex-start' }} />}
@@ -627,7 +619,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Stack spacing={1}>
               <Typography variant="body1">Le ménage de fin de séjour a-t-il été fait correctement ?</Typography>
               {cleaningOk === false && data.cleaning.price != null && (
-                <Typography variant="body2" color="warning.main">Ménage à facturer : {euro(data.cleaning.price)}.</Typography>
+                <Typography variant="body2" color="warning.main">Ménage à facturer : {formatCurrency(data.cleaning.price)}.</Typography>
               )}
             </Stack>
           );
@@ -644,9 +636,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Stack spacing={1.5}>
             <Typography variant="body1">Le ménage n'a pas été pris.</Typography>
             {data.cleaning.price != null
-              ? <Typography variant="body2">Tarif ménage pour ce logement : <strong>{euro(data.cleaning.price)}</strong>. Proposer au client ?</Typography>
+              ? <Typography variant="body2">Tarif ménage pour ce logement : <strong>{formatCurrency(data.cleaning.price)}</strong>. Proposer au client ?</Typography>
               : <Typography variant="body2" color="text.secondary">Aucun tarif de ménage configuré pour ce logement.</Typography>}
-            {cleaningAdded && <Chip label={`Ménage ajouté (${euro(data.cleaning.price)})`} color="info" sx={{ alignSelf: 'flex-start' }} />}
+            {cleaningAdded && <Chip label={`Ménage ajouté (${formatCurrency(data.cleaning.price)})`} color="info" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
       case 'missingAsk':
@@ -669,7 +661,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'cautionReturn':
         return (
           <Stack spacing={1.5}>
-            <Typography variant="body1">Rendre la caution de <strong>{euro(r.cautionAmount)}</strong>.</Typography>
+            <Typography variant="body1">Rendre la caution de <strong>{formatCurrency(r.cautionAmount)}</strong>.</Typography>
             {cautionReturned === true && <Chip label="Caution rendue" color="success" sx={{ alignSelf: 'flex-start' }} />}
             {cautionReturned === false && <Chip label="Litige / dégât — caution conservée" color="error" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
@@ -698,7 +690,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {extinguisherLines.length > 0 && (
               <>
                 <Divider />
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>Sous-total : {euro(extinguisherLines.reduce((s, l) => s + l.amount, 0))}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Sous-total : {formatCurrency(extinguisherLines.reduce((s, l) => s + l.amount, 0))}</Typography>
               </>
             )}
           </Stack>
@@ -722,15 +714,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {existing > 0 && (
                 complementDetailLines.length > 0
                   ? complementDetailLines.map((l, i) => <Typography key={`d${i}`} variant="body2">{lineText(l)}</Typography>)
-                  : <Typography variant="body2">Déjà dû : <strong>{euro(existing)}</strong></Typography>
+                  : <Typography variant="body2">Déjà dû : <strong>{formatCurrency(existing)}</strong></Typography>
               )}
               {arrivalAddedLines.map((l, i) => <Typography key={i} variant="body2">+ {lineText(l)}</Typography>)}
-              {preservedArrival.map((l, i) => <Typography key={`p${i}`} variant="body2">+ {l.label} : {euro(l.amount)}</Typography>)}
+              {preservedArrival.map((l, i) => <Typography key={`p${i}`} variant="body2">+ {l.label} : {formatCurrency(l.amount)}</Typography>)}
               <Divider />
-              <Typography variant="h6">Total : {euro(total)}</Typography>
+              <Typography variant="h6">Total : {formatCurrency(total)}</Typography>
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
-                <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({euro(arrivalAdded)}) manuellement.</Typography>
+                <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(arrivalAdded)}) manuellement.</Typography>
               )}
               {total > 0 && Number(r.complementPaid || 0) !== 1 && (
                 <>
@@ -773,12 +765,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <Divider />
                 <Typography variant="subtitle2" color="warning.main">Compléments d'arrivée non perçus</Typography>
                 {(arrivalRecall.detail || []).map((l, i) => (
-                  <Typography key={`ar${i}`} variant="body2">{l.label} : {euro(l.amount)}</Typography>
+                  <Typography key={`ar${i}`} variant="body2">{l.label} : {formatCurrency(l.amount)}</Typography>
                 ))}
-                <Typography variant="body2">Sous-total arrivée : <strong>{euro(recalledArrivalAmount)}</strong></Typography>
+                <Typography variant="body2">Sous-total arrivée : <strong>{formatCurrency(recalledArrivalAmount)}</strong></Typography>
               </>
             )}
-            {departureGrandTotal > 0 && (<><Divider /><Typography variant="h6">Total à percevoir : {euro(departureGrandTotal)}</Typography></>)}
+            {departureGrandTotal > 0 && (<><Divider /><Typography variant="h6">Total à percevoir : {formatCurrency(departureGrandTotal)}</Typography></>)}
             {departureGrandTotal > 0 && (
               <>
                 <FormControlLabel
