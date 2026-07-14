@@ -65,11 +65,19 @@ change, zero server change.
       `PropertyCalendarOverview.js`, `SyncedPropertyMiniCalendars.js` (0 importers each, re-verified at
       implementation time).
 6. **Formatters centralized** (umbrella §3.7) — `utils/formatters.js` gains
-   `formatCurrency(n)` → `1 234,50 €` (Intl fr-FR, 2 decimals) and `formatCurrencyRounded(n)` → `1 234 €`
+   `formatCurrency(n)` → `1 234,50 €` (2 decimals) and `formatCurrencyRounded(n)` → `1 234 €`
    (KPI style). All client-side money strings migrate to them (the 4 divergent formats:
    FinancePage:17, AccountingPage:42, PricingSummary:193, PropertyPricingSeasonsPage:581 + other local
-   helpers found by grep). The 14+ local `formatDate` definitions migrate to the shared `displayDate()`.
-   Server-shaped strings (devis PDF, emails) untouched — fat backend unchanged.
+   helpers found by grep). The 14+ local `formatDate` definitions migrate to the shared `displayDate()`
+   or its explicit role variants (`displayDateShort`/`Long`/`DateTime`) — deliberate contextual formats
+   (weekday-long planning labels, laundry day labels) stay local. Server-shaped strings (devis PDF,
+   emails) untouched — fat backend unchanged.
+   **Correction (post-merge adversarial review, 2026-07-14, PR `fix/finance-detail-exact-amounts`):**
+   the initial codemod applied `formatCurrencyRounded` to ALL of FinancePage's `eur()` sites, including
+   the per-reservation reconciliation tables (projection, période, retards) whose amounts carry cents
+   (platform commissions) — rows no longer visually summed to their footer. Rule made explicit:
+   `formatCurrencyRounded` is for **KPI tiles and chart labels only**; every table row/footer/actionable
+   chip uses `formatCurrency`. A cents-reconciliation test now locks it.
 7. **`/design` v1** — new `pages/DesignPage.js`, route `/design`, admin-only via the existing
    `canSeeRoute()` pattern, sidebar entry under Réglages. Sections: Palette (swatches + token names +
    hex), Typographie (role specimens with real French copy), Espacements & rayons, Formats (montants via
