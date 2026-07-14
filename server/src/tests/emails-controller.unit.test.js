@@ -59,13 +59,22 @@ function fakeSettings(extra = {}) {
   };
 }
 
+// Dash-ISO date `days` from now — keeps date-window tests robust to the actual run date.
+function isoOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function makeFixture(over = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO email_templates (id, name, subject, body, dayOffset, sendMode, enabled) VALUES (10, 'J-7', 'Sujet {{clientFirstName}}', 'Hello {{clientFirstName}}', -7, 'manual', 1)").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean@dupont.fr')").run();
-  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (100, 'reservation', 1, 1, '2026-07-10', '2026-07-13')").run();
+  // Future-relative stay (J+7 → J+10): the history rolling window hides rows once
+  // today > startDate + 3 days, so hardcoded July-2026 dates rotted after that month passed.
+  db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate) VALUES (100, 'reservation', 1, 1, ?, ?)").run(isoOffset(7), isoOffset(10));
   return {
     db,
     templatesModel: buildTemplatesModel(db),
@@ -293,9 +302,9 @@ test('acknowledge: idempotent — a 2nd call returns alreadyHandled, no second r
 test('pending: routes through logModel.listPending', () => {
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService() });
-  // Make sure today=2026-07-03 matches J-7 of startDate=2026-07-10.
+  // The fixture stay starts at J+7, so the REAL today is exactly its J-7 send date.
   const r = res();
-  ctl.pending({ query: { today: '2026-07-03' } }, r);
+  ctl.pending({ query: { today: isoOffset(0) } }, r);
   assert.equal(r.body.length, 1);
   assert.equal(r.body[0].templateId, 10);
   assert.equal(r.body[0].reservationId, 100);

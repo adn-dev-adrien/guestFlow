@@ -171,9 +171,17 @@ test('cross-platform shared reservation survives until BOTH feeds drop it', asyn
   // Under the soft cancellation flow (specs/ical-cancellation-approval.md §3 rule 1),
   // the second drop no longer auto-deletes — it raises ONE pending cancellation alert.
   const { db, model } = fresh();
-  stubFetch([{ uid: 'A1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  // Future-relative stay: a PAST booking dropped from every feed is deliberately NOT a cancellation
+  // (past-stay carve-out) — the hardcoded July-2026 dates rotted once that month passed.
+  const compact = (days) => {
+    const x = new Date();
+    x.setDate(x.getDate() + days);
+    return `${x.getFullYear()}${String(x.getMonth() + 1).padStart(2, '0')}${String(x.getDate()).padStart(2, '0')}`;
+  };
+  const stay = { start: compact(30), end: compact(33) };
+  stubFetch([{ uid: 'A1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(SOURCE_A);
-  stubFetch([{ uid: 'B1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  stubFetch([{ uid: 'B1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(SOURCE_B); // both sources now map to the one reservation
 
   // Source A drops the booking — but Booking still lists it → reservation survives,

@@ -242,7 +242,10 @@ test('unlocked + dates change: NO drift row (full update path)', async () => {
 test('cancellation: an event no longer in the feed records a pending alert (soft delete)', async () => {
   // specs/ical-cancellation-approval.md §3 rule 1 — the engine no longer auto-deletes.
   const { db, model, source } = freshModel();
-  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
+  // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
+  const stay = { start: isoOffset(30).compact, end: isoOffset(33).compact };
+  stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
   const result = await model.syncSource(source);
@@ -256,7 +259,10 @@ test('cancellation: an event no longer in the feed records a pending alert (soft
 test('cancellation: locked reservation falls out of feed → still soft-cancelled (no lock short-circuit)', async () => {
   // The lock does NOT protect against soft cancellation; the user explicitly approves.
   const { db, model, source } = freshModel();
-  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
+  // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
+  const stay = { start: isoOffset(30).compact, end: isoOffset(33).compact };
+  stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'E1'").run();
   stubFetch([]);
@@ -267,7 +273,10 @@ test('cancellation: locked reservation falls out of feed → still soft-cancelle
 
 test('cancellation: repeated empty-feed sync keeps ONE pending row (UPSERT)', async () => {
   const { db, model, source } = freshModel();
-  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
+  // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
+  const stay = { start: isoOffset(30).compact, end: isoOffset(33).compact };
+  stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
   await model.syncSource(source);
@@ -278,14 +287,17 @@ test('cancellation: repeated empty-feed sync keeps ONE pending row (UPSERT)', as
 test('cancellation: auto-resolve when the UID reappears in the feed before the user reacts', async () => {
   // specs/ical-cancellation-approval.md §3 rule 4 — the alert is dropped silently.
   const { db, model, source } = freshModel();
-  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
+  // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
+  const stay = { start: isoOffset(30).compact, end: isoOffset(33).compact };
+  stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
   await model.syncSource(source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
 
   // The platform un-cancels: same UID is back in the feed.
-  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts').get().c, 0, 'pending row deleted, not acknowledged');
   // The reservation also re-acquires its mapping in the standard create/legacy-match path.
@@ -332,7 +344,10 @@ test('unavailable/blocked events are filtered out (no reservation)', async () =>
 
 test('update with a renamed guest does not create an orphan client', async () => {
   const { db, model, source } = freshModel();
-  stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  // Future-relative dates: a PAST stay falling out of the feed is deliberately NOT a cancellation
+  // (past-stay carve-out) — hardcoded July-2026 dates made these tests rot once that month passed.
+  const stay = { start: isoOffset(30).compact, end: isoOffset(33).compact };
+  stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM clients').get().c, 1);
 
