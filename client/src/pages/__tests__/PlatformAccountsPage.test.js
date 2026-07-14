@@ -18,6 +18,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import DialogProvider from '../../components/DialogProvider';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -53,7 +54,7 @@ const SAMPLE_GET = {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/comptabilite/plateformes']}>
-      <PlatformAccountsPage />
+      <DialogProvider><PlatformAccountsPage /></DialogProvider>
     </MemoryRouter>
   );
 }

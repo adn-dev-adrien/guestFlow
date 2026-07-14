@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/ds-components` |
 | **Created** | 2026-07-14 |
 | **Author** | Adrien |
@@ -33,7 +33,7 @@ After this phase: any page can render loading/empty/error states and fire succes
 one import; every shared dialog is fullScreen on mobile; 4 pages (Clients, Historique emails,
 Options, Ressources) get the sticky `PageActionBar` in one move; a crash or unknown URL shows a
 recoverable screen; statuses and platforms have exactly one chip rendering each; and
-`specs/DESIGN-SYSTEM.md` + `/design` document it all. Sweeps 3-6 then only *apply* these pieces.
+`specs/design-system-reference.md` + `/design` document it all. Sweeps 3-6 then only *apply* these pieces.
 
 ## 3. Functional rules
 
@@ -93,7 +93,9 @@ recoverable screen; statuses and platforms have exactly one chip rendering each;
 
 ### 3.6 Reference deliverables
 
-15. **`specs/DESIGN-SYSTEM.md`** — tokens tables (from phase 1), typography roles, spacing scale,
+15. **`specs/design-system-reference.md`** (named `-reference`: macOS case-insensitive
+    filesystems forbid `DESIGN-SYSTEM.md` next to `design-system.md`) — tokens tables (from
+    phase 1), typography roles, spacing scale,
     the canonical top-right actions (§3.4 umbrella), table conventions (§3.5 umbrella), component
     catalogue with do/don't per component. CLAUDE.md §7 gets a pointer.
 16. **`/design` v2** — fixes the phase-1 review finding: the `pageTitle`/`sectionHeader` type
@@ -144,7 +146,7 @@ recoverable screen; statuses and platforms have exactly one chip rendering each;
 | pages | `EmailHistoryPage.js` | T | Local StatusBadge deleted → shared. |
 | pages | `DesignPage.js` | T | v2 « Composants » catalogue. |
 | `App.js` | shell | T | ErrorBoundary wrap + `path="*"` NotFound. |
-| docs | `specs/DESIGN-SYSTEM.md` | C | Reference doc (§3.6). |
+| docs | `specs/design-system-reference.md` | C | Reference doc (§3.6). |
 
 **Component reuse declaration:** creates the 7 generics above (all designed for app-wide reuse — the
 whole point of the phase); consumes phase-1 tokens; no page-specific component created.
@@ -172,28 +174,28 @@ No schema change, no migration.
 
 ## 7. Test plan
 
-### Client unit tests (vitest)
-- [ ] Each new generic: render + states (LoadingState variants, EmptyState CTA, ErrorAlert retry
-  callback, PlatformChip color resolution, UnsavedChangesDialog buttons order/labels).
-- [ ] `useToast`: success/error render, auto-hide, throw outside provider.
-- [ ] fullScreen dialogs: `matchMedia` mock at xs → `fullScreen` prop true (FormDialog,
-  ConfirmDialog, alert).
-- [ ] `DataPageScaffold`: renders PageActionBar (sticky bar present), create node button fires,
-  EmptyState shown when `hasItems` false.
-- [ ] ErrorBoundary: child throw → fallback + reset on route change. NotFound route renders on
-  unknown URL.
-- [ ] Migrated pages: feedback tests updated (Alert assertions → toast assertions).
-- [ ] Full suite green.
+### Client unit tests (vitest) — full suite 637/637 green (+24 new)
+- [x] `ds-generics.test.js` (18): LoadingState variants, EmptyState CTA, ErrorAlert retry,
+  StatusBadge soft backgrounds ×5, PlatformChip color resolution + empty, UnsavedChangesDialog
+  canonical copy + stay-first order + 3 handlers, ResponsiveTable table/cards/empty,
+  RouteErrorBoundary crash fallback.
+- [x] `ds-feedback.test.js` (6): useToast success/error render + throw outside provider;
+  FormDialog/ConfirmDialog fullScreen at xs (matchMedia mock); DataPageScaffold PageActionBar +
+  labeled CTA + EmptyState row.
+- [x] Migrated pages: 4 page suites re-wrapped (Router/DialogProvider) — 37 tests green unchanged
+  in intent (incl. PlatformAccounts « +N » toast assertion, now hitting the Snackbar portal).
 
-### E2E (Playwright)
-- [ ] Full suite green; +1 smoke: unknown URL shows « Page introuvable ».
+### E2E (Playwright) — 29 passed / 1 skipped
+- [x] +1 smoke `auth/not-found.spec.js`: unknown URL shows « Page introuvable » + CTA back to the
+  dashboard.
 
-### Manual UI verification
-- [ ] `/design` v2: every component demo works (dialogs open fullScreen on xs, toasts fire).
-- [ ] One migrated feedback flow per pattern (e.g. save Réglages → success toast; failed save →
-  error toast).
-- [ ] Unsaved-changes guard on PropertyDetail + ReservationPage unchanged behaviorally.
-- [ ] xs/md/lg pass on the 4 scaffold pages.
+### Manual UI verification (2026-07-15, Playwright-driven browser)
+- [x] `/design` v2 desktop: single `<h1>` in the outline (specimen fix verified), full catalogue.
+- [x] Toast fired for real: soft error background `#F7E8E5`, bottom-center (y 836/900).
+- [x] 404 page at xs: EmptyState + « Retour au tableau de bord ».
+- [x] ConfirmDialog at xs: `paperFullScreen` AND truly covers the viewport (390/390) — required a
+  theme patch: the phase-1 mobile Dialog margin shrank fullScreen papers by 16 px; now scoped with
+  `'&.MuiDialog-paperFullScreen'` (theme.js).
 
 ## 8. Out of scope
 
@@ -203,7 +205,16 @@ No schema change, no migration.
 - The pre-existing `/settings` `alignItems` console error (phase-3 sweep).
 - Dark mode, WordPress blocks, PDFs/emails (umbrella §8).
 
-## 9. Open questions
+## 9. Open questions & implementation deviations
 
-- None blocking. Toast position (bottom-center) and durations (4 s/6 s) are proposals — trivially
-  adjustable at review.
+- **Resolved (implementation):** toast = bottom-center, 4 s/6 s, soft semantic background.
+- **Load-vs-action rule made explicit:** a LOAD failure renders a persistent `ErrorAlert` (with
+  retry) — a 6-second toast is no substitute for « impossible de charger la page ». Applied to
+  LinenStock / Settings / PlatformAccounts load errors; action feedback toasts.
+- **PlatformChip adoptions deferred to the sweeps:** adopting it in `FinancePage` here would
+  conflict with the in-flight #330 (same lines). The component + `/design` + reference doc land
+  now; call sites migrate per block.
+- **PaymentsSettings `error` Alert kept inline** (mixes load + action errors) — split in the
+  phase-3 Réglages sweep.
+- **Reference doc named `specs/design-system-reference.md`** — macOS's case-insensitive filesystem
+  forbids `DESIGN-SYSTEM.md` next to `design-system.md`.

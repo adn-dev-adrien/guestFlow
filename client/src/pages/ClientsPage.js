@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, TextField, TableRow,
   TableCell, IconButton, InputAdornment, Chip, Typography, Divider, CircularProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
@@ -499,8 +499,12 @@ export default function ClientsPage() {
               {c.notes && <Chip label={c.notes.substring(0, 30)} size="small" variant="outlined" />}
             </TableCell>
             <TableCell align="right">
-              <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleOpen(c); }}><EditIcon fontSize="small" /></IconButton>
-              <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}><DeleteIcon fontSize="small" /></IconButton>
+              <Tooltip title="Modifier">
+                <IconButton size="small" aria-label="Modifier" onClick={(e) => { e.stopPropagation(); handleOpen(c); }}><EditIcon fontSize="small" /></IconButton>
+              </Tooltip>
+              <Tooltip title="Supprimer">
+                <IconButton size="small" color="error" aria-label="Supprimer" onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}><DeleteIcon fontSize="small" /></IconButton>
+              </Tooltip>
             </TableCell>
           </TableRow>
         ))}

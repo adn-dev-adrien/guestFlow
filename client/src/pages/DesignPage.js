@@ -1,7 +1,18 @@
-import React from 'react';
-import { Box, Card, CardContent, Divider, Grid, Stack, Typography } from '@mui/material';
+import React, { useState } from 'react';
+import {
+  Box, Button, Card, CardContent, Divider, Grid, Stack, TableCell, TableRow, Typography,
+} from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import InboxIcon from '@mui/icons-material/Inbox';
 import PageActionBar from '../components/PageActionBar';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
+import StatusBadge from '../components/StatusBadge';
+import PlatformChip from '../components/PlatformChip';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import ResponsiveTable from '../components/ResponsiveTable';
+import { useAppDialogs, useToast } from '../components/DialogProvider';
 import {
   formatCurrency, formatCurrencyRounded,
   displayDate, displayDateShort, displayDateLong, displayDateTime,
@@ -53,10 +64,19 @@ function FormatRow({ code, value }) {
   );
 }
 
+const DEMO_ROWS = [
+  { id: 1, client: 'Jean Dupont', logement: 'Le Moulin', montant: 642 },
+  { id: 2, client: 'Marie Martin', logement: 'La Grange', montant: 1218.5 },
+  { id: 3, client: 'Paul Roux', logement: 'Tente Lodge', montant: 480 },
+];
+
 export default function DesignPage() {
   const theme = useTheme();
   const p = theme.palette;
   const semantics = ['success', 'warning', 'error', 'info'];
+  const { confirm, alert, openForm } = useAppDialogs();
+  const { showSuccess, showError } = useToast();
+  const [unsavedOpen, setUnsavedOpen] = useState(false);
 
   return (
     <Box>
@@ -98,11 +118,13 @@ export default function DesignPage() {
           <Stack spacing={1.5} divider={<Divider />}>
             <Box>
               <Typography variant="caption" color="text.secondary">pageTitle — serif, titre de page (PageActionBar / PageHeader)</Typography>
-              <Typography variant="pageTitle" sx={{ display: 'block' }}>Planning — semaine du 6 juillet</Typography>
+              {/* component="p": specimens must not inject real <h1>/<h2> into the page outline
+                  (post-merge review finding, specs/ds-components.md §3.6). */}
+              <Typography variant="pageTitle" component="p" sx={{ display: 'block' }}>Planning — semaine du 6 juillet</Typography>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">sectionHeader — serif, tête de section</Typography>
-              <Typography variant="sectionHeader" sx={{ display: 'block' }}>Réservations à venir</Typography>
+              <Typography variant="sectionHeader" component="p" sx={{ display: 'block' }}>Réservations à venir</Typography>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">kpiValue + kpiLabel — chiffres en sans, tabulaires (jamais de serif sur un montant)</Typography>
@@ -137,6 +159,105 @@ export default function DesignPage() {
               <Typography variant="body2">Carte — rayon {theme.shape.borderRadius}px, ombre chaude</Typography>
             </Box>
           </Stack>
+        </Section>
+
+        <Section title="Composants — états">
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="caption" color="text.secondary">LoadingState (spinner)</Typography>
+              <LoadingState py={2} label="Chargement…" />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="caption" color="text.secondary">LoadingState (skeleton)</Typography>
+              <LoadingState variant="skeleton" rows={2} />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Typography variant="caption" color="text.secondary">EmptyState</Typography>
+              <EmptyState
+                icon={<InboxIcon />}
+                message="Aucune réservation sur cette période."
+                actionLabel="Créer une réservation"
+                onAction={() => showSuccess('Action déclenchée depuis EmptyState.')}
+                py={2}
+              />
+            </Grid>
+          </Grid>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="caption" color="text.secondary">ErrorAlert (avec « Réessayer »)</Typography>
+          <ErrorAlert onRetry={() => showSuccess('Réessayer déclenché.')} sx={{ mt: 0.5 }} />
+        </Section>
+
+        <Section title="Composants — feedback & dialogues">
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            <code>useToast()</code> est le seul canal de feedback post-action ; les dialogues partagés
+            passent en plein écran sous <code>sm</code>.
+          </Typography>
+          <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
+            <Button variant="contained" onClick={() => showSuccess('Enregistré.')}>Toast succès</Button>
+            <Button variant="contained" color="error" onClick={() => showError("Échec de l'enregistrement.")}>Toast erreur</Button>
+            <Button variant="outlined" onClick={() => confirm({ title: 'Supprimer le logement', message: 'Cette action est irréversible.', confirmLabel: 'Supprimer' })}>ConfirmDialog</Button>
+            <Button variant="outlined" onClick={() => alert({ title: 'Information', message: 'Le paiement a été vérifié.' })}>Alert dialog</Button>
+            <Button variant="outlined" onClick={() => openForm({ title: 'Nouveau client', content: <Typography variant="body2">Contenu du formulaire…</Typography> })}>FormDialog</Button>
+            <Button variant="outlined" onClick={() => setUnsavedOpen(true)}>UnsavedChangesDialog</Button>
+          </Stack>
+          <UnsavedChangesDialog
+            open={unsavedOpen}
+            onStay={() => setUnsavedOpen(false)}
+            onDiscard={() => { setUnsavedOpen(false); showError('Modifications perdues (démo).'); }}
+            onSaveAndQuit={() => { setUnsavedOpen(false); showSuccess('Enregistré et quitté (démo).'); }}
+          />
+        </Section>
+
+        <Section title="Composants — badges & puces">
+          <Typography variant="caption" color="text.secondary">StatusBadge — fond doux + texte foncé, une seule variante par sémantique</Typography>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mt: 0.5, mb: 2 }}>
+            <StatusBadge status="success" label="Payé" />
+            <StatusBadge status="info" label="Acompte reçu" />
+            <StatusBadge status="warning" label="Solde à venir" />
+            <StatusBadge status="error" label="Caution à percevoir" />
+            <StatusBadge status="neutral" label="Brouillon" />
+          </Stack>
+          <Typography variant="caption" color="text.secondary">PlatformChip — couleur plateforme, texte blanc</Typography>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mt: 0.5 }}>
+            <PlatformChip platform="Airbnb" />
+            <PlatformChip platform="Booking" />
+            <PlatformChip platform="Direct" />
+          </Stack>
+        </Section>
+
+        <Section title="Composants — ResponsiveTable">
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Tableau sur <code>md+</code>, cartes empilées sur <code>xs</code> — redimensionne la fenêtre
+            pour voir la bascule. Montants à droite en chiffres tabulaires (règle §3.5).
+          </Typography>
+          <ResponsiveTable
+            items={DEMO_ROWS}
+            getKey={(r) => r.id}
+            minWidth={480}
+            head={(
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Logement</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>Montant</TableCell>
+              </TableRow>
+            )}
+            renderRow={(r) => (
+              <TableRow key={r.id} hover>
+                <TableCell>{r.client}</TableCell>
+                <TableCell>{r.logement}</TableCell>
+                <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{formatCurrency(r.montant)}</TableCell>
+              </TableRow>
+            )}
+            renderMobileCard={(r) => (
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.client}</Typography>
+                  <Typography variant="caption" color="text.secondary">{r.logement}</Typography>
+                </Box>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{formatCurrency(r.montant)}</Typography>
+              </Stack>
+            )}
+          />
         </Section>
 
         <Section title="Formats d'affichage (utils/formatters.js)">

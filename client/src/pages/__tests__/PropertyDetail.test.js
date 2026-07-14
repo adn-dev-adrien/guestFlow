@@ -39,6 +39,7 @@ const PLATFORMS = [
   { platformKey: 'airbnb', platformLabel: 'Airbnb', color: '#FF5A5F', isDirect: false, isBuiltIn: true, url: '', collectsTouristTax: 1, touristTaxCollection: 'platform', disabled: 0, sourceId: null, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
 ];
 
+import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
 
@@ -71,7 +72,7 @@ beforeEach(() => {
 // ── load → populate ──────────────────────────────────────────────────────
 
 test('existing property: loads via api.getProperty and populates the form', async () => {
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   expect(await screen.findByText('Le Moulin')).toBeInTheDocument(); // name heading (read mode)
   expect(api.getProperty).toHaveBeenCalledWith('5');
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
@@ -84,7 +85,7 @@ test('existing property: loads via api.getProperty and populates the form', asyn
 // ── dirty reveals actions + save sends a FormData payload ─────────────────
 
 test('editing a field reveals Save and persists via api.updateProperty (FormData)', async () => {
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
 
   fireEvent.change(screen.getByLabelText(/Caution par défaut/), { target: { value: '750' } });
@@ -100,7 +101,7 @@ test('editing a field reveals Save and persists via api.updateProperty (FormData
 });
 
 test('Cancel reverts the edits and clears the dirty actions', async () => {
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
 
   const caution = screen.getByLabelText(/Caution par défaut/);
@@ -117,7 +118,7 @@ test('Cancel reverts the edits and clears the dirty actions', async () => {
 
 test('new property: Create is disabled until a name is set, then posts a FormData + navigates', async () => {
   routerState.id = 'new';
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
 
   const createBtn = screen.getByRole('button', { name: 'Créer le logement' });
   expect(createBtn).toBeDisabled();
@@ -137,7 +138,7 @@ test('new property: Create is disabled until a name is set, then posts a FormDat
 // ── Plateformes & iCal (specs/platforms-and-ical-rework.md) ───────────────
 
 test('Plateformes & iCal: renders the merged platform list (built-ins incl. direct)', async () => {
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
   await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledWith('5'));
 
@@ -149,7 +150,7 @@ test('Plateformes & iCal: renders the merged platform list (built-ins incl. dire
 });
 
 test('Plateformes & iCal: inline-editing a platform URL upserts the source + reloads the list', async () => {
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
   await screen.findByText('Airbnb');
 
@@ -173,7 +174,7 @@ test('Plateformes & iCal: inline-editing a platform URL upserts the source + rel
 test('Plateformes & iCal: the « Taxe de séjour » Select persists the GLOBAL 3-way mode', async () => {
   // specs/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform;
   // choosing « Plateforme → vous » (platform_reversed) calls the global setter (applies everywhere).
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
   await screen.findByText('Airbnb');
 
@@ -189,7 +190,7 @@ test('Plateformes & iCal: the « Taxe de séjour » Select persists the GLOBAL 3
 });
 
 test('Plateformes & iCal: clicking a platform name chip opens the colour palette', async () => {
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
   await screen.findByText('Airbnb');
 
@@ -208,7 +209,7 @@ test('Plateformes & iCal: a configured DEFAULT platform cannot be deleted; a cus
       { platformKey: 'vrbo', platformLabel: 'Vrbo', color: '#757575', isDirect: false, isBuiltIn: false, url: 'https://v/c.ics', collectsTouristTax: 1, disabled: 0, sourceId: 11, lastSyncAt: null, lastSyncStatus: null, lastSyncMessage: null },
     ],
   });
-  render(<PropertyDetail />);
+  render(<DialogProvider><PropertyDetail /></DialogProvider>);
   await screen.findByText('Le Moulin');
   await screen.findByText('Vrbo');
 

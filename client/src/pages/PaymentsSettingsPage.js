@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 
 import PageActionBar from '../components/PageActionBar';
+import { useToast } from '../components/DialogProvider';
 import StatusCard from '../components/StatusCard';
 import api from '../api';
 
@@ -51,7 +52,9 @@ export default function PaymentsSettingsPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  // Success feedback goes through the shared toasts (specs/ds-components.md §3.2); the inline
+  // `error` Alert stays for now (it mixes load + action errors — split in the Réglages sweep).
+  const { showSuccess } = useToast();
 
   // Provider connection.
   const [bankAccounts, setBankAccounts] = useState(null); // null = not loaded yet
@@ -75,7 +78,7 @@ export default function PaymentsSettingsPage() {
   // OAuth callback feedback.
   useEffect(() => {
     const q = new URLSearchParams(location.search).get('qonto');
-    if (q === 'connected') setNotice('Qonto connecté ✓');
+    if (q === 'connected') showSuccess('Qonto connecté ✓');
     else if (q === 'error') setError('Échec de la connexion Qonto — vérifie les identifiants et les logs.');
     else if (q === 'invalid_state') setError('Connexion Qonto invalide (state). Réessaie depuis cette page.');
   }, [location.search]);
@@ -86,7 +89,7 @@ export default function PaymentsSettingsPage() {
     api.refreshQontoConnection()
       .then((r) => {
         setQonto((prev) => (prev ? { ...prev, connectionStatus: r.connectionStatus } : prev));
-        setNotice(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
+        showSuccess(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
       })
       .catch((e) => setError(e.message || 'Impossible de vérifier le statut du provider.'));
   }, [location.search]);
@@ -124,7 +127,7 @@ export default function PaymentsSettingsPage() {
         balanceReminderOffsetsText: offsetsToText(res.timings.balanceReminderOffsets),
       }));
       setDirty(false);
-      setNotice('Délais enregistrés ✓');
+      showSuccess('Délais enregistrés ✓');
     } catch (e) {
       setError(e.message || "Échec de l'enregistrement (vérifie les valeurs).");
     } finally {
@@ -133,10 +136,10 @@ export default function PaymentsSettingsPage() {
   };
 
   const handleRegisterWebhook = async () => {
-    setError(''); setNotice('');
+    setError('');
     try {
       await api.registerQontoWebhook();
-      setNotice('Webhook Qonto enregistré ✓ (les paiements seront confirmés en temps réel)');
+      showSuccess('Webhook Qonto enregistré ✓ (les paiements seront confirmés en temps réel)');
     } catch (e) {
       setError(e?.body?.message || e.message || "Échec de l'enregistrement du webhook (QONTO_WEBHOOK_SECRET + URL publique requis).");
     }
@@ -152,7 +155,7 @@ export default function PaymentsSettingsPage() {
         return;
       }
       setQonto((prev) => (prev ? { ...prev, connectionStatus: r.connectionStatus } : prev));
-      setNotice(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
+      showSuccess(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
     } catch (e) {
       const messages = e?.body?.messages;
       setError(Array.isArray(messages) ? messages.join(' · ') : (e.message || 'Échec de la connexion du provider.'));
@@ -182,7 +185,6 @@ export default function PaymentsSettingsPage() {
     <Box>
       <PageActionBar title="Paiements" backTo="/settings" onSave={handleSave} saveDisabled={!dirty} saveBusy={saving} />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 900, mx: 'auto' }}>
-        {notice && <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert>}
         {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
 
         <StatusCard

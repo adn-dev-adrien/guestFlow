@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Alert, Switch, TextField, Link as MuiLink,
+  TableCell, TableBody, TableContainer, Stack, Switch, TextField, Link as MuiLink,
   CircularProgress, Button, Tooltip,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
@@ -10,6 +10,8 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
+import ErrorAlert from '../components/ErrorAlert';
+import { useToast } from '../components/DialogProvider';
 import { useAuth } from '../hooks/useAuth';
 import { userHasRole, ADMIN } from '../constants/roles';
 
@@ -44,7 +46,10 @@ export default function PlatformAccountsPage() {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState({});
-  const [globalMessage, setGlobalMessage] = useState(null);
+  // Load failures stay persistent (ErrorAlert); action feedback goes through the shared toasts
+  // (specs/ds-components.md §3.2).
+  const [loadError, setLoadError] = useState(false);
+  const { showSuccess, showError } = useToast();
   const [savedDefaultAccount, setSavedDefaultAccount] = useState('622600');
   const [vatRateCommission, setVatRateCommission] = useState(20);
   const [savedPlatforms, setSavedPlatforms] = useState([]);
@@ -67,7 +72,7 @@ export default function PlatformAccountsPage() {
         setSavedPlatforms(sortedPlatforms);
         setPlatforms(sortedPlatforms);
       } catch (err) {
-        if (mounted) setGlobalMessage({ severity: 'error', text: err.message || 'Impossible de charger la configuration.' });
+        if (mounted) setLoadError(true);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -105,7 +110,6 @@ export default function PlatformAccountsPage() {
   async function handleSave() {
     setSaving(true);
     setErrors({});
-    setGlobalMessage(null);
     try {
       const payload = {
         defaultAccount,
@@ -126,7 +130,7 @@ export default function PlatformAccountsPage() {
       }));
       setSavedPlatforms(sortedPlatforms);
       setPlatforms(sortedPlatforms);
-      setGlobalMessage({ severity: 'success', text: 'Configuration enregistrée.' });
+      showSuccess('Configuration enregistrée.');
     } catch (err) {
       const apiErrors = err?.body?.errors;
       if (apiErrors) {
@@ -138,9 +142,9 @@ export default function PlatformAccountsPage() {
           }
         }
         setErrors(next);
-        setGlobalMessage({ severity: 'error', text: 'Vérifiez les champs en erreur.' });
+        showError('Vérifiez les champs en erreur.');
       } else {
-        setGlobalMessage({ severity: 'error', text: err?.message || 'Échec de l\'enregistrement.' });
+        showError(err?.message || 'Échec de l\'enregistrement.');
       }
     } finally {
       setSaving(false);
@@ -151,12 +155,10 @@ export default function PlatformAccountsPage() {
     setDefaultAccount(savedDefaultAccount);
     setPlatforms(savedPlatforms);
     setErrors({});
-    setGlobalMessage(null);
   }
 
   async function handleRefresh() {
     setRefreshing(true);
-    setGlobalMessage(null);
     try {
       const result = await api.refreshPlatformAccounts();
       const sortedPlatforms = (result.platforms || []).map((p) => ({
@@ -171,14 +173,11 @@ export default function PlatformAccountsPage() {
       });
       setSavedPlatforms(sortedPlatforms);
       const newCount = Number(result.newCount || 0);
-      setGlobalMessage({
-        severity: newCount > 0 ? 'success' : 'info',
-        text: newCount > 0
-          ? `+${newCount} nouvelle${newCount > 1 ? 's' : ''} plateforme${newCount > 1 ? 's' : ''} ramassée${newCount > 1 ? 's' : ''}.`
-          : 'Aucune nouvelle plateforme à ramasser — la liste est à jour.',
-      });
+      showSuccess(newCount > 0
+        ? `+${newCount} nouvelle${newCount > 1 ? 's' : ''} plateforme${newCount > 1 ? 's' : ''} ramassée${newCount > 1 ? 's' : ''}.`
+        : 'Aucune nouvelle plateforme à ramasser — la liste est à jour.');
     } catch (err) {
-      setGlobalMessage({ severity: 'error', text: err?.message || 'Échec du rafraîchissement.' });
+      showError(err?.message || 'Échec du rafraîchissement.');
     } finally {
       setRefreshing(false);
     }
@@ -198,10 +197,12 @@ export default function PlatformAccountsPage() {
         cancelTooltip="Annuler"
       />
 
-      {globalMessage && (
-        <Alert severity={globalMessage.severity} sx={{ mb: 2 }} onClose={() => setGlobalMessage(null)}>
-          {globalMessage.text}
-        </Alert>
+      {loadError && (
+        <ErrorAlert
+          message="Impossible de charger la configuration."
+          onRetry={() => window.location.reload()}
+          sx={{ mb: 2 }}
+        />
       )}
 
       {loading ? (
@@ -260,7 +261,9 @@ export default function PlatformAccountsPage() {
                   </span>
                 </Tooltip>
               </Box>
-              <Table size="small">
+              {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
+              <TableContainer>
+              <Table size="small" sx={{ minWidth: 720 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Plateforme</TableCell>
@@ -307,6 +310,7 @@ export default function PlatformAccountsPage() {
                   })}
                 </TableBody>
               </Table>
+              </TableContainer>
             </CardContent>
           </Card>
         </Stack>
