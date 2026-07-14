@@ -10,7 +10,8 @@ export default function PageHeader({
 }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-      <Typography variant="h4">{title}</Typography>
+      {/* pageTitle role variant (specs/design-system.md §3.2) — same rendering as PageActionBar titles. */}
+      <Typography variant="pageTitle">{title}</Typography>
       {actionLabel && onAction && (
         <Button
           variant="contained"

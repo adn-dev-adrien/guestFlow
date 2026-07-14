@@ -24,6 +24,7 @@ import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import api from '../api';
 import { useAppDialogs } from './DialogProvider';
+import { displayDateShort } from '../utils/formatters';
 
 function offsetLabel(n) {
   const num = Number(n);
@@ -32,20 +33,11 @@ function offsetLabel(n) {
   return `J+${num}`;
 }
 
-function formatDate(iso) {
-  if (!iso) return '';
-  try {
-    return new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString('fr-FR', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    });
-  } catch { return String(iso); }
-}
-
 function reservationLabel(r) {
   if (!r) return '';
   const who = r.clientFullName || 'Client inconnu';
   const where = r.propertyName ? ` — ${r.propertyName}` : '';
-  return `${who}${where} — du ${formatDate(r.startDate)} au ${formatDate(r.endDate)}`;
+  return `${who}${where} — du ${displayDateShort(r.startDate)} au ${displayDateShort(r.endDate)}`;
 }
 
 export default function EmailComposeDialog({ open, onClose, onQueued }) {
@@ -95,7 +87,7 @@ export default function EmailComposeDialog({ open, onClose, onQueued }) {
       if (res && res.alreadySent) {
         const proceed = await confirm({
           title: 'Email déjà envoyé',
-          message: `Ce mail (« ${selectedTemplate?.name || 'modèle'} ») a déjà été envoyé le ${formatDate(res.lastSentAt)} pour cette réservation. Le recréer quand même ?`,
+          message: `Ce mail (« ${selectedTemplate?.name || 'modèle'} ») a déjà été envoyé le ${displayDateShort(res.lastSentAt)} pour cette réservation. Le recréer quand même ?`,
           confirmLabel: 'Recréer',
           cancelLabel: 'Annuler',
           confirmColor: 'warning',

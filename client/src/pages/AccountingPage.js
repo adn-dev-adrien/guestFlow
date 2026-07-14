@@ -15,6 +15,7 @@ import PageActionBar from '../components/PageActionBar';
 import MonthYearPicker from '../components/MonthYearPicker';
 import { useAuth } from '../hooks/useAuth';
 import { userHasRole, ADMIN } from '../constants/roles';
+import { formatCurrency, displayDate } from '../utils/formatters';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
 // VAT (44571xxx) = blue, tourist-tax pass-through (46710000) = purple. Used to colour rows and
@@ -36,17 +37,6 @@ const LINE_STYLES = {
  *   - GET /api/accounting/platforms?month=&year=  → preview JSON
  *   - GET /api/accounting/sales.csv?month=&year=  → CSV download
  */
-
-function formatEur(value) {
-  if (value == null) return '—';
-  return `${Number(value).toFixed(2).replace('.', ',')} €`;
-}
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
 
 export default function AccountingPage() {
   const { user } = useAuth();
@@ -171,7 +161,7 @@ export default function AccountingPage() {
                     icon={sales.totals.allBalanced ? <CheckCircleIcon /> : <WarningAmberIcon />}
                     label={sales.totals.allBalanced ? 'Tout équilibré' : 'Déséquilibre détecté'}
                   />
-                  <Chip size="small" variant="outlined" label={`Total débits ${formatEur(sales.totals.totalDebits)}`} />
+                  <Chip size="small" variant="outlined" label={`Total débits ${formatCurrency(sales.totals.totalDebits)}`} />
                 </Stack>
               )}
             </Stack>
@@ -226,7 +216,7 @@ export default function AccountingPage() {
                 </Stack>
                 {preview && (
                   <Typography variant="body2" color="text.secondary">
-                    Total commissions plateformes : <strong>{formatEur(preview.totalCommission)}</strong>
+                    Total commissions plateformes : <strong>{formatCurrency(preview.totalCommission)}</strong>
                   </Typography>
                 )}
               </Stack>
@@ -270,7 +260,7 @@ export default function AccountingPage() {
                           onClick={clickable ? () => navigate(`/reservations/${row.reservationId}`) : undefined}
                           sx={clickable ? { cursor: 'pointer' } : undefined}
                         >
-                          <TableCell>{formatDate(row.date)}</TableCell>
+                          <TableCell>{displayDate(row.date)}</TableCell>
                           <TableCell>{row.propertyName || '—'}</TableCell>
                           <TableCell>{row.client}</TableCell>
                           <TableCell>{row.platform}</TableCell>
@@ -278,12 +268,12 @@ export default function AccountingPage() {
                             <KindBadge kind={row.kind} />
                           </TableCell>
                           {/* Revenu brut (CA) = what the guest paid the platform. */}
-                          <TableCell>{formatEur(row.encaissement)}</TableCell>
-                          <TableCell>{row.commission == null ? '—' : `− ${formatEur(row.commission)}`}</TableCell>
+                          <TableCell>{formatCurrency(row.encaissement)}</TableCell>
+                          <TableCell>{row.commission == null ? '—' : `− ${formatCurrency(row.commission)}`}</TableCell>
                           {/* Net perçu (versement) — highlighted: it's the figure the operator reconciles
                               against the platform's bank transfer. */}
                           <TableCell sx={{ fontWeight: 700, bgcolor: 'rgba(46,125,50,0.08)' }}>
-                            {formatEur(row.net)}
+                            {formatCurrency(row.net)}
                           </TableCell>
                         </TableRow>
                       );
@@ -391,11 +381,11 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <EuroIcon fontSize="small" sx={{ color: 'text.secondary' }} />
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                {formatEur(entry.encaissementTtc)}
+                {formatCurrency(entry.encaissementTtc)}
               </Typography>
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {Math.round((entry.fraction || 0) * 100)} % du séjour ({formatEur(entry.finalPrice)})
+              {Math.round((entry.fraction || 0) * 100)} % du séjour ({formatCurrency(entry.finalPrice)})
             </Typography>
           </Stack>
           <Chip
@@ -412,13 +402,13 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
         <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 1, bgcolor: 'rgba(33, 150, 243, 0.04)', borderBottom: '1px dashed', borderColor: 'divider' }}>
           <Stack direction="row" spacing={3} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Typography variant="caption" color="text.secondary">
-              Revenu brut : <strong>{formatEur(entry.encaissementTtc)}</strong>
+              Revenu brut : <strong>{formatCurrency(entry.encaissementTtc)}</strong>
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Commission plateforme : <strong>− {formatEur(entry.platform.commission)}</strong>
+              Commission plateforme : <strong>− {formatCurrency(entry.platform.commission)}</strong>
             </Typography>
             <Typography variant="caption" sx={{ color: 'success.dark' }}>
-              Net perçu (versement) : <strong>{formatEur(entry.platform.net)}</strong>
+              Net perçu (versement) : <strong>{formatCurrency(entry.platform.net)}</strong>
             </Typography>
           </Stack>
         </Box>
@@ -452,18 +442,18 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
                 </TableCell>
                 <TableCell sx={{ color: 'text.secondary' }}>{line.libelle}</TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.debit != null ? 700 : 400 }}>
-                  {line.debit != null ? formatEur(line.debit) : '—'}
+                  {line.debit != null ? formatCurrency(line.debit) : '—'}
                 </TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.credit != null ? 700 : 400 }}>
-                  {line.credit != null ? formatEur(line.credit) : '—'}
+                  {line.credit != null ? formatCurrency(line.credit) : '—'}
                 </TableCell>
               </TableRow>
             );
           })}
           <TableRow sx={{ bgcolor: 'grey.100' }}>
             <TableCell colSpan={3} sx={{ fontWeight: 700 }}>Σ</TableCell>
-            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatEur(entry.sumDebits)}</TableCell>
-            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatEur(entry.sumCredits)}</TableCell>
+            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatCurrency(entry.sumDebits)}</TableCell>
+            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatCurrency(entry.sumCredits)}</TableCell>
           </TableRow>
         </TableBody>
       </Table>

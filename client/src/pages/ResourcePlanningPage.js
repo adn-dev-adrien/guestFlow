@@ -273,7 +273,9 @@ export default function ResourcePlanningPage() {
           {/* Legend */}
           <Box sx={{ display: 'flex', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 14, height: 14, bgcolor: '#1976d2', borderRadius: 0.5 }} />
+              {/* « Non payé » is INFO blue, not primary: the « Maison » primary is green and would
+                  collide with the green « Payé » swatch below. */}
+              <Box sx={{ width: 14, height: 14, bgcolor: 'info.main', borderRadius: 0.5 }} />
               <Typography variant="caption">Non payé</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -437,7 +439,7 @@ export default function ResourcePlanningPage() {
                                   right: 2,
                                   top,
                                   height,
-                                  bgcolor: b.isReservationSession ? '#00897b' : (b.paid ? '#388e3c' : '#1976d2'),
+                                  bgcolor: (t) => (b.isReservationSession ? '#00897b' : (b.paid ? '#388e3c' : t.palette.info.main)),
                                   color: 'white',
                                   borderRadius: 0.75,
                                   px: 0.5,

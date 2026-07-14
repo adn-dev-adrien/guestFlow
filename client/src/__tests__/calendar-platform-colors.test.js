@@ -8,7 +8,6 @@ import {
   DEFAULT_PLATFORM_COLOR,
 } from '../constants/platforms';
 import { getReservationColor } from '../utils/calendarVisuals';
-import { buildDayGradient as buildSyncedDayGradient } from '../components/SyncedPropertyMiniCalendars';
 import { buildMiniStripDayGradient } from '../components/MiniPlanningStrip';
 
 // 2026-06-05 regression net. After PR #118 normalized every platform name to
@@ -16,10 +15,12 @@ import { buildMiniStripDayGradient } from '../components/MiniPlanningStrip';
 // grey because they were doing direct `PLATFORM_COLORS[platform]` lookups
 // (lowercase keys vs UpperCamelCase values from the DB). This file pins every
 // path that maps a reservation's platform to a colour: the central
-// `getReservationColor` util + the two `buildDayGradient` helpers used by the
-// mini strip and the synced mini calendars. The bottom of the file also asserts
-// that no source module outside `constants/platforms.js` does a direct
-// `PLATFORM_COLORS[…]` lookup (which would re-open the regression silently).
+// `getReservationColor` util + the mini strip's `buildDayGradient` helper. (The
+// SyncedPropertyMiniCalendars gradient was covered here too until that dead
+// component was removed by the phase-1 DS cleanup, specs/ds-theme-maison.md.)
+// The bottom of the file also asserts that no source module outside
+// `constants/platforms.js` does a direct `PLATFORM_COLORS[…]` lookup (which
+// would re-open the regression silently).
 
 // ── Pure-function coverage ─────────────────────────────────────────────────
 
@@ -40,52 +41,6 @@ describe('getReservationColor (utils/calendarVisuals) — central calendar colou
 
   test('unknown platform → default grey (legitimate fallback)', () => {
     expect(getReservationColor('UnknownVendor')).toBe(DEFAULT_PLATFORM_COLOR);
-  });
-});
-
-// ── SyncedPropertyMiniCalendars — pages/CalendarPage + pages/Dashboard ─────
-
-describe('SyncedPropertyMiniCalendars.buildDayGradient (dashboard + simplified calendar)', () => {
-  test('middle-of-stay day on an Airbnb (UpperCamelCase) reservation uses the airbnb colour', () => {
-    const out = buildSyncedDayGradient({
-      departureRes: null,
-      arrivalRes: null,
-      middleRes: { platform: 'Airbnb', startDate: '2026-06-10', endDate: '2026-06-15' },
-    });
-    expect(out.background).toBe(PLATFORM_COLORS.airbnb);
-    expect(out.background).not.toBe(DEFAULT_PLATFORM_COLOR);
-  });
-
-  test('departure + arrival day with TWO different UpperCamelCase platforms builds a multi-colour gradient', () => {
-    const out = buildSyncedDayGradient({
-      departureRes: { platform: 'Airbnb', checkOutTime: '10:00' },
-      arrivalRes: { platform: 'Booking', checkInTime: '15:00' },
-      middleRes: null,
-    });
-    expect(out.background).toContain(PLATFORM_COLORS.airbnb);
-    expect(out.background).toContain(PLATFORM_COLORS.booking);
-    expect(out.background).not.toContain(DEFAULT_PLATFORM_COLOR);
-  });
-
-  test('Gitedefrance + Pitchup (post-PR-#118 forms) both surface their canonical colours', () => {
-    const middle = buildSyncedDayGradient({
-      departureRes: null,
-      arrivalRes: null,
-      middleRes: { platform: 'Gitedefrance' },
-    });
-    expect(middle.background).toBe(PLATFORM_COLORS.gitedefrance);
-
-    const partial = buildSyncedDayGradient({
-      departureRes: { platform: 'Pitchup', checkOutTime: '10:00' },
-      arrivalRes: null,
-      middleRes: null,
-    });
-    expect(partial.background).toContain(PLATFORM_COLORS.pitchup);
-  });
-
-  test('empty day → solid EMPTY_DAY_COLOR (no platform involved)', () => {
-    const out = buildSyncedDayGradient({ departureRes: null, arrivalRes: null, middleRes: null });
-    expect(out.background).toBe('#f5f5f5');
   });
 });
 

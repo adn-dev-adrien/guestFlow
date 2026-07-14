@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader';
 import MonthYearPicker from '../components/MonthYearPicker';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
+import { displayDate } from '../utils/formatters';
 
 function pad2(v) {
   return String(v).padStart(2, '0');
@@ -26,20 +27,13 @@ function getMaxSelectableMonth() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
-function formatDateFr(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-').map(Number);
-  if (!y || !m || !d) return dateStr;
-  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
-}
-
 // « Dates réservation » = the reservation's stay dates (arrival → departure), exactly like the fiche
 // réservation. specs/tourist-tax-declared-checkbox.md §3 rule 1 — no day is subtracted (a 1-night stay
 // 20/06 → 21/06 shows « 20/06 au 21/06 »).
 function formatReservationDates(startDate, endDate) {
-  const start = formatDateFr(startDate);
+  const start = displayDate(startDate);
   if (!endDate) return start;
-  return `${start} au ${formatDateFr(endDate)}`;
+  return `${start} au ${displayDate(endDate)}`;
 }
 
 // The declared marker is stored as a SQLite datetime string ("YYYY-MM-DD HH:MM:SS"); show the date only.

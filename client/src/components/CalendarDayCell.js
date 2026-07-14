@@ -103,7 +103,7 @@ export default function CalendarDayCell({
         bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
         opacity: isPast ? 0.5 : 1,
-        border: isToday ? '3px solid #1976d2' : 'none',
+        border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
         transition: 'border 0.2s',
       }}>
         {renderHolidayIndicators(dateStr)}
@@ -169,7 +169,7 @@ export default function CalendarDayCell({
             bgcolor: devisColor, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
             opacity: isPast ? 0.5 : 1,
-            border: isToday ? '3px solid #1976d2' : 'none',
+            border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
             transition: 'border 0.2s',
             background: isArrival
               ? `linear-gradient(135deg, transparent 0%, transparent 49.5%, ${devisColor} 50%, ${devisColor} 100%)`
@@ -212,7 +212,7 @@ export default function CalendarDayCell({
           bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
           color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
           fontWeight: inDrag ? 600 : 400,
-          border: isToday ? '3px solid #1976d2' : 'none',
+          border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
           ...(!isPast && !closure && { '&:hover': { bgcolor: 'primary.light', color: 'white' } }),
           transition: 'background-color 0.15s, border 0.2s',
           ...(closure ? {
@@ -414,7 +414,7 @@ export default function CalendarDayCell({
         height: 64, boxSizing: 'border-box',
         cursor: 'pointer', fontSize: 14, fontWeight: 600,
         background: gradient || 'grey.100',
-        border: dateStr === today ? '3px solid #1976d2' : '1px solid #e0e0e0',
+        border: (t) => (dateStr === today ? `3px solid ${t.palette.primary.main}` : '1px solid #e0e0e0'),
         color: 'text.primary', overflow: 'hidden',
         opacity: isPast ? 0.5 : 1,
         transition: 'border 0.2s',

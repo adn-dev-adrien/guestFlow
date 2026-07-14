@@ -13,6 +13,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import DataPageScaffold from '../components/DataPageScaffold';
 import EmailLogViewDialog from '../components/EmailLogViewDialog';
 import api from '../api';
+import { displayDateTime } from '../utils/formatters';
 
 const PAGE_SIZE = 50;
 
@@ -25,14 +26,6 @@ function StatusBadge({ status, channel }) {
   if (status === 'failed') return <Chip label="Échec" size="small" color="error" variant="outlined" />;
   if (status === 'acknowledged-skip') return <Chip label="Ignoré" size="small" color="default" variant="outlined" />;
   return <Chip label={status} size="small" />;
-}
-
-function formatDateTime(iso) {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso.replace(' ', 'T'));
-    return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-  } catch { return iso; }
 }
 
 export default function EmailHistoryPage() {
@@ -127,7 +120,7 @@ export default function EmailHistoryPage() {
       >
         {rows.map((r) => (
           <TableRow key={r.id} hover>
-            <TableCell>{formatDateTime(r.sentAt)}</TableCell>
+            <TableCell>{displayDateTime(r.sentAt)}</TableCell>
             <TableCell>
               <Stack>
                 <Typography variant="body2">{r.templateName || <em>(modèle supprimé)</em>}</Typography>

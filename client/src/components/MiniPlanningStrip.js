@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import {
   Box, Button, IconButton, Typography, Card, CardContent, Stack
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { getPlatformColor } from '../constants/platforms';
@@ -129,12 +130,14 @@ export default function MiniPlanningStrip({
   onRecenter = () => {},
   isLocked,
 }) {
+  const theme = useTheme();
   const safeReservations = Array.isArray(reservations) ? reservations : [];
   // Use getPlatformColor so the lookup tolerates UpperCamelCase (post-PR #118 normalisation),
   // lowercase, or accented free-form platform values — all resolve to the same colour.
+  // No platform → brand primary (deliberately NOT the grey DEFAULT_PLATFORM_COLOR, see docstring).
   const selectedReservationColor = currentReservation?.platform
     ? getPlatformColor(currentReservation.platform)
-    : '#1976d2';
+    : theme.palette.primary.main;
 
   const miniDays = useMemo(() => {
     return Array.from({ length: miniVisibleDays }, (_, i) => addDays(miniCalendarStart, i)).filter(Boolean);

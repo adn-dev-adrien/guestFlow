@@ -14,13 +14,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, AlertTitle, Box, Typography, Stack, Chip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-}
+import { displayDateLong } from '../utils/formatters';
 
 export default function LinenShortageAlert() {
   const navigate = useNavigate();
@@ -56,14 +50,14 @@ export default function LinenShortageAlert() {
     <Alert severity="error" variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}>
       <AlertTitle sx={{ fontWeight: 700 }}>
         Stock blanchisserie insuffisant — {totalShortages} type{totalShortages > 1 ? 's' : ''} de linge en rupture
-        {earliestShortageDate ? <> à partir du {formatDate(earliestShortageDate)}</> : null}
+        {earliestShortageDate ? <> à partir du {displayDateLong(earliestShortageDate)}</> : null}
       </AlertTitle>
       <Stack spacing={2} sx={{ mt: 1 }}>
         {data.shortagesByType.map((entry) => (
           <Box key={entry.type}>
             <Typography variant="body2" color="text.secondary">
               <strong>{entry.label}</strong> : jusqu&apos;à <strong>{entry.maxMissing} manquant{entry.maxMissing > 1 ? 's' : ''}</strong>
-              {' · '}première rupture le <strong>{formatDate(entry.firstShortageDate)}</strong>
+              {' · '}première rupture le <strong>{displayDateLong(entry.firstShortageDate)}</strong>
             </Typography>
             {entry.impactedReservations.length > 0 && (
               <Box sx={{ mt: 0.75 }}>

@@ -21,13 +21,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { displayDateShort } from '../utils/formatters';
 
 // Relative-time formatting is purely presentational (no business rules), so it lives client-side
 // per CLAUDE.md §6 / §7. Coarse buckets only — minute / heure / jour — to match French copy.
@@ -128,10 +122,10 @@ export default function IcalDateDriftAlert() {
               )}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Dates actuelles : <strong>{formatDate(alert.previousStartDate)} → {formatDate(alert.previousEndDate)}</strong>
+              Dates actuelles : <strong>{displayDateShort(alert.previousStartDate)} → {displayDateShort(alert.previousEndDate)}</strong>
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Dates proposées : <strong>{formatDate(alert.newStartDate)} → {formatDate(alert.newEndDate)}</strong>
+              Dates proposées : <strong>{displayDateShort(alert.newStartDate)} → {displayDateShort(alert.newEndDate)}</strong>
             </Typography>
             <Typography variant="caption" color="text.secondary">
               Détecté {relativeFromNow(alert.detectedAt)}

@@ -28,7 +28,7 @@ import EventBusyIcon from '@mui/icons-material/EventBusy';
 import PlatformColorPicker from '../components/PlatformColorPicker';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { PLATFORM_COLORS, normalizePlatformKey } from '../constants/platforms';
-import { displayDate } from '../utils/formatters';
+import { displayDate, formatCurrency } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
 import IcalExportCard from '../components/IcalExportCard';
@@ -1146,10 +1146,10 @@ export default function PropertyDetail() {
                           </Box>
                         </TableCell>
                         <TableCell>{(r.pricingMode || 'fixed') === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
-                        <TableCell>{Number(r.pricePerNight || 0).toFixed(2)}€</TableCell>
+                        <TableCell>{formatCurrency(Number(r.pricePerNight || 0))}</TableCell>
                         <TableCell>{r.minNights}</TableCell>
                         <TableCell>
-                          <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: r.color || '#1976d2' }} />
+                          <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: (t) => r.color || t.palette.primary.main }} />
                         </TableCell>
                       </TableRow>
                     ))}
