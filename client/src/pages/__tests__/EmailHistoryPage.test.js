@@ -17,6 +17,8 @@ vi.mock('../../api', () => ({
 }));
 
 import api from '../../api';
+import { MemoryRouter } from 'react-router-dom';
+import DialogProvider from '../../components/DialogProvider';
 import EmailHistoryPage from '../EmailHistoryPage';
 
 const ROW = {
@@ -38,7 +40,7 @@ beforeEach(() => {
 });
 
 test('loads the history and renders a row with its status badge + subject', async () => {
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   await waitFor(() => expect(api.getEmailHistory).toHaveBeenCalled());
   expect(await screen.findByText('jane@s.com')).toBeInTheDocument();
   expect(screen.getByText('Envoyé')).toBeInTheDocument();
@@ -48,13 +50,13 @@ test('loads the history and renders a row with its status badge + subject', asyn
 
 test('shows the empty message when there are no rows', async () => {
   api.getEmailHistory.mockResolvedValue({ rows: [], total: 0 });
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   expect(await screen.findByText("Aucun email dans l'historique")).toBeInTheDocument();
 });
 
 test('changing the status filter re-queries with the status param and resets to page 0', async () => {
   const user = userEvent.setup();
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   await screen.findByText('jane@s.com');
 
   // The status filter is the first of the two Selects (status, then template).
@@ -70,7 +72,7 @@ test('changing the status filter re-queries with the status param and resets to 
 
 test('the reservation # filter is forwarded to the API', async () => {
   const user = userEvent.setup();
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   await screen.findByText('jane@s.com');
 
   await user.type(screen.getByLabelText('Réservation #'), '100');
@@ -82,7 +84,7 @@ test('the reservation # filter is forwarded to the API', async () => {
 });
 
 test('pagination buttons are disabled on a single page', async () => {
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   await screen.findByText('jane@s.com');
   expect(screen.getByRole('button', { name: 'Précédent' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Suivant' })).toBeDisabled();
@@ -91,7 +93,7 @@ test('pagination buttons are disabled on a single page', async () => {
 test('"Suivant" advances the page and re-queries with the next offset', async () => {
   const user = userEvent.setup();
   api.getEmailHistory.mockResolvedValue({ rows: [ROW], total: 120 }); // 3 pages of 50
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   await screen.findByText('jane@s.com');
 
   await user.click(screen.getByRole('button', { name: 'Suivant' }));
@@ -104,7 +106,7 @@ test('"Suivant" advances the page and re-queries with the next offset', async ()
 
 test('clicking the view icon opens the log detail dialog', async () => {
   const user = userEvent.setup();
-  render(<EmailHistoryPage />);
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   const row = (await screen.findByText('jane@s.com')).closest('tr');
   await user.click(within(row).getByRole('button'));
 

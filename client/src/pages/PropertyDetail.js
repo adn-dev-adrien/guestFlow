@@ -31,6 +31,8 @@ import { PLATFORM_COLORS, normalizePlatformKey } from '../constants/platforms';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
 import ConfirmDialog from '../components/ConfirmDialog';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import { useToast } from '../components/DialogProvider';
 import IcalExportCard from '../components/IcalExportCard';
 import api from '../api';
 
@@ -122,6 +124,8 @@ export default function PropertyDetail() {
   const from = getFromParam(location.search);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  // Saves used to succeed SILENTLY on this page — toast the outcome (specs/ds-components.md §3.2).
+  const { showSuccess } = useToast();
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
@@ -428,6 +432,7 @@ export default function PropertyDetail() {
       setPhotoFile(null);
       setPhotoValidationError('');
       await load();
+      showSuccess('Logement enregistré.');
     } catch (err) {
       setPhotoValidationError(err?.message || 'Impossible de mettre à jour la photo du logement.');
     } finally {
@@ -1393,18 +1398,12 @@ export default function PropertyDetail() {
         </Box>
 
       </Box>
-      {/* Unsaved changes dialog */}
-      <Dialog open={navGuardOpen} onClose={() => setNavGuardOpen(false)}>
-        <DialogTitle>Modifications non sauvegardées</DialogTitle>
-        <DialogContent>
-          <Typography>Vous avez des modifications non sauvegardées. Voulez-vous les sauvegarder avant de quitter ?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleNavGuardLeave} color="error">Quitter sans sauvegarder</Button>
-          <Button onClick={() => setNavGuardOpen(false)}>Rester sur la page</Button>
-          <Button variant="contained" onClick={handleNavGuardSave}>Sauvegarder et quitter</Button>
-        </DialogActions>
-      </Dialog>
+      <UnsavedChangesDialog
+        open={navGuardOpen}
+        onStay={() => setNavGuardOpen(false)}
+        onDiscard={handleNavGuardLeave}
+        onSaveAndQuit={handleNavGuardSave}
+      />
       {!isNew && <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}

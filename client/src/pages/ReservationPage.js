@@ -26,7 +26,8 @@ import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
 import usePlatforms from '../hooks/usePlatforms';
-import { useAppDialogs } from '../components/DialogProvider';
+import { useAppDialogs, useToast } from '../components/DialogProvider';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import api from '../api';
 import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
@@ -111,6 +112,8 @@ export default function ReservationPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { confirm, alert } = useAppDialogs();
+  // Pure-info confirmations toast instead of modaling (specs/ds-components.md §3.2).
+  const { showSuccess } = useToast();
   const from = getFromParam(searchParams);
   
   // Check if in devis mode
@@ -2375,10 +2378,7 @@ export default function ReservationPage() {
       if (!saved) return;
       const r = await api.sendBalanceRequestEmail(editingReservationId);
       const euros = formatCurrency(Number(r.amountCents || 0) / 100);
-      await alert({
-        title: 'Demande de solde envoyée ✓',
-        message: `Un email avec le lien de paiement du solde (${euros}) a été envoyé à ${r.recipientEmail || 'le client'}.`,
-      });
+      showSuccess(`Demande de solde envoyée — email avec le lien de paiement (${euros}) envoyé à ${r.recipientEmail || 'le client'}.`);
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande de solde (Qonto connecté ? email client renseigné ?).' });
     }
@@ -2888,19 +2888,12 @@ export default function ReservationPage() {
         />
       </FormDialog>
 
-      <Dialog open={unsavedDialogOpen} onClose={() => setUnsavedDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Modifications non enregistrées</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2">
-            Vous avez des modifications non enregistrées. Voulez-vous enregistrer avant de quitter cette page ?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUnsavedDialogOpen(false)}>Continuer l'édition</Button>
-          <Button color="error" onClick={handleDiscardChanges}>Perdre les modifications</Button>
-          <Button variant="contained" onClick={handleSaveAndLeave}>Enregistrer</Button>
-        </DialogActions>
-      </Dialog>
+      <UnsavedChangesDialog
+        open={unsavedDialogOpen}
+        onStay={() => setUnsavedDialogOpen(false)}
+        onDiscard={handleDiscardChanges}
+        onSaveAndQuit={handleSaveAndLeave}
+      />
 
       <EmailManualSendDialog
         open={emailSendOpen}

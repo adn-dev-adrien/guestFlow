@@ -9,6 +9,7 @@ import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PageHeader from '../components/PageHeader';
+import { useToast } from '../components/DialogProvider';
 import LaundryDayCard from '../components/LaundryDayCard';
 import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
 import OptionDayCard from '../components/OptionDayCard';
@@ -113,6 +114,9 @@ function ResourceBookingsSection({ bookings }) {
 
 export default function PlanningPage() {
   const navigate = useNavigate();
+  // Post-action failures surface through the shared toasts — the page used raw window.alert
+  // (specs/ds-components.md §3.2).
+  const { showError } = useToast();
   // Reused by every "card / row click → open reservation" handler below (arrivals,
   // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
   // back button return here.
@@ -300,8 +304,7 @@ export default function PlanningPage() {
       setInventoryByDate(inventory?.byLaundryDay || {});
     } catch (err) {
       setSkippedLaundryDates(previous);
-      // eslint-disable-next-line no-alert
-      window.alert(`Impossible d'enregistrer le voyage non réalisé. ${err?.message || ''}`);
+      showError(`Impossible d'enregistrer le voyage non réalisé. ${err?.message || ''}`);
     }
   }, [skippedLaundryDates, startDate]);
 
@@ -325,8 +328,7 @@ export default function PlanningPage() {
       setManualAdditionsByDate(additions?.additions || {});
       setEditManualDate(null);
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      window.alert(`Impossible d'enregistrer l'ajout manuel. ${err?.message || ''}`);
+      showError(`Impossible d'enregistrer l'ajout manuel. ${err?.message || ''}`);
     } finally {
       setManualSaving(false);
     }

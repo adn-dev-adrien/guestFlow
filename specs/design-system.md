@@ -171,8 +171,9 @@ backend unchanged); this is pure presentational formatting.
 
 ### 3.8 Reference deliverables
 
-- **`specs/DESIGN-SYSTEM.md`** — the versioned reference: tokens table, typography roles, spacing scale,
-  component catalogue with usage rules, do/don't. CLAUDE.md §7 updated to point at it.
+- **`specs/design-system-reference.md`** — the versioned reference: tokens table, typography roles,
+  spacing scale, component catalogue with usage rules, do/don't. (Named `-reference`: macOS's
+  case-insensitive filesystem forbids `DESIGN-SYSTEM.md` next to this file.) CLAUDE.md §7 points at it.
 - **`/design` page** (admin-only route) — live showcase: token swatches, type specimens, every generic
   component in its states (loading/empty/error/toast/chips/dialogs/table). The page consumes the real theme
   and real components — drift becomes visible immediately.

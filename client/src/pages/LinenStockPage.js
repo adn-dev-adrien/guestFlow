@@ -12,13 +12,15 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Card, CardContent, Stack, Typography, TextField, FormHelperText, Alert } from '@mui/material';
+import { Box, Card, CardContent, Stack, Typography, TextField, FormHelperText } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import BathtubIcon from '@mui/icons-material/Bathtub';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import SettingsLaundrySection from '../components/SettingsLaundrySection';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ErrorAlert from '../components/ErrorAlert';
+import { useToast } from '../components/DialogProvider';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 
 const EMPTY = { bedSingle: 0, bedDouble: 0, bedBaby: 0, towelLarge: 0, towelMedium: 0, towelSmall: 0, towelBathMat: 0 };
@@ -40,7 +42,10 @@ export default function LinenStockPage() {
   // alongside the stock so the save bar + dirty guard cover both.
   const [laundryWeekday, setLaundryWeekday] = useState(2);
   const [savedWeekday, setSavedWeekday] = useState(2);
-  const [snackbar, setSnackbar] = useState(null);
+  // Load failures stay persistent (ErrorAlert); action feedback goes through the shared toasts
+  // (specs/ds-components.md §3.2).
+  const [loadError, setLoadError] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
     draft: { ...draft, laundryWeekday },
@@ -62,7 +67,7 @@ export default function LinenStockPage() {
         setLaundryWeekday(wd);
         setSavedWeekday(wd);
       } catch (err) {
-        if (mounted) setSnackbar({ severity: 'error', message: err.message || 'Impossible de charger le stock.' });
+        if (mounted) setLoadError(true);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -78,9 +83,9 @@ export default function LinenStockPage() {
       await api.updateSettings({ linenStock: draft, laundry: { weekday: laundryWeekday } });
       setSavedForm(draft);
       setSavedWeekday(laundryWeekday);
-      setSnackbar({ severity: 'success', message: 'Enregistré.' });
+      showSuccess('Enregistré.');
     } catch (err) {
-      setSnackbar({ severity: 'error', message: err.message || 'Échec de l\'enregistrement.' });
+      showError(err.message || 'Échec de l\'enregistrement.');
     } finally {
       setSaving(false);
     }
@@ -100,10 +105,12 @@ export default function LinenStockPage() {
         cancelDisabled={loading || saving || !isDirty}
       />
       <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: { xs: '100%', md: 900, lg: 1240 }, mx: 'auto' }}>
-        {snackbar && (
-          <Alert severity={snackbar.severity} sx={{ mb: 2 }} onClose={() => setSnackbar(null)}>
-            {snackbar.message}
-          </Alert>
+        {loadError && (
+          <ErrorAlert
+            message="Impossible de charger le stock."
+            onRetry={() => window.location.reload()}
+            sx={{ mb: 2 }}
+          />
         )}
 
         {/* « Jour de blanchisserie » (moved here from Paramètres → Générale). */}
