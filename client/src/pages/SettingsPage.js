@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Alert } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import api from '../api';
 import { setFavicon } from '../utils/setFavicon';
 import PageActionBar from '../components/PageActionBar';
+import ErrorAlert from '../components/ErrorAlert';
+import { useToast } from '../components/DialogProvider';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
@@ -179,7 +181,10 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [errors, setErrors] = useState({});
-  const [globalMessage, setGlobalMessage] = useState(null);
+  // Load failures stay persistent (ErrorAlert); save feedback goes through the shared toasts
+  // (specs/ds-components.md §3.2).
+  const [loadError, setLoadError] = useState(false);
+  const { showSuccess, showError } = useToast();
   const [savedForm, setSavedForm] = useState(EMPTY_FORM);
   const [draft, setDraft] = useState(EMPTY_FORM);
   const [updatedAtLabel, setUpdatedAtLabel] = useState(null);
@@ -199,7 +204,7 @@ export default function SettingsPage() {
         setDraft(shaped);
         setUpdatedAtLabel(data && data.updatedAtLabel);
       } catch (err) {
-        if (mounted) setGlobalMessage({ severity: 'error', text: err.message || 'Impossible de charger les paramètres.' });
+        if (mounted) setLoadError(true);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -276,7 +281,6 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setErrors({});
-    setGlobalMessage(null);
     const payload = buildPayloadFromDraft(draft, savedForm);
     if (Object.keys(payload).length === 0) {
       setSaving(false);
@@ -288,12 +292,12 @@ export default function SettingsPage() {
       setSavedForm(shaped);
       setDraft(shaped);
       setUpdatedAtLabel(updated && updated.updatedAtLabel);
-      setGlobalMessage({ severity: 'success', text: 'Paramètres enregistrés.' });
+      showSuccess('Paramètres enregistrés.');
     } catch (err) {
       if (err && err.errors) {
         setErrors(err.errors);
       } else {
-        setGlobalMessage({ severity: 'error', text: err.message || "Impossible d'enregistrer les paramètres." });
+        showError(err.message || "Impossible d'enregistrer les paramètres.");
       }
     } finally {
       setSaving(false);
@@ -303,7 +307,6 @@ export default function SettingsPage() {
   const handleCancel = () => {
     setDraft(savedForm);
     setErrors({});
-    setGlobalMessage(null);
   };
 
   const handleTest = async () => {
@@ -367,14 +370,12 @@ export default function SettingsPage() {
       />
 
       <Box sx={{ maxWidth: { xs: '100%', md: 920, lg: 1240 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
-        {globalMessage && (
-          <Alert
-            severity={globalMessage.severity}
+        {loadError && (
+          <ErrorAlert
+            message="Impossible de charger les paramètres."
+            onRetry={() => window.location.reload()}
             sx={{ mb: 2 }}
-            onClose={() => setGlobalMessage(null)}
-          >
-            {globalMessage.text}
-          </Alert>
+          />
         )}
 
         {/* Masonry: 1 column ≤ md (readable), 2 balanced columns on lg+ to kill desktop

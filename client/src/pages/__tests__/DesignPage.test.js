@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 
 import theme from '../../theme';
+import DialogProvider from '../../components/DialogProvider';
 import DesignPage from '../DesignPage';
 
 // specs/design-system.md §3.8 — the /design showcase reads the REAL theme + REAL formatters, so this
@@ -13,7 +14,9 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <ThemeProvider theme={theme}>
-        <DesignPage />
+        <DialogProvider>
+          <DesignPage />
+        </DialogProvider>
       </ThemeProvider>
     </MemoryRouter>,
   );

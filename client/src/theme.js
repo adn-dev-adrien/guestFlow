@@ -62,6 +62,12 @@ const theme = createTheme({
         paper: {
           width: 'calc(100% - 16px)',
           margin: 8,
+          // fullScreen dialogs (xs) must actually cover the viewport — don't let the mobile
+          // margin above shrink them (specs/ds-components.md §3.3).
+          '&.MuiDialog-paperFullScreen': {
+            width: '100%',
+            margin: 0,
+          },
         },
       },
     },

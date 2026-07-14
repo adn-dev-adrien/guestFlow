@@ -5,27 +5,30 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, TableRow, TableCell, Chip, Typography, Stack, FormControl, InputLabel,
-  Select, MenuItem, Button, TextField, IconButton,
+  Box, TableRow, TableCell, Typography, Stack, FormControl, InputLabel,
+  Select, MenuItem, Button, TextField, IconButton, Tooltip,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DataPageScaffold from '../components/DataPageScaffold';
+import StatusBadge from '../components/StatusBadge';
 import EmailLogViewDialog from '../components/EmailLogViewDialog';
 import api from '../api';
 import { displayDateTime } from '../utils/formatters';
 
 const PAGE_SIZE = 50;
 
-function StatusBadge({ status, channel }) {
+// Maps the email-log domain status to the shared StatusBadge (specs/ds-components.md §3.5 — the
+// page used to ship its own shadowing StatusBadge with a divergent outlined rendering).
+function EmailStatusBadge({ status, channel }) {
   if (status === 'sent') {
     return channel === 'manual'
-      ? <Chip label="Envoyé manuellement" size="small" color="info" variant="outlined" />
-      : <Chip label="Envoyé" size="small" color="success" variant="outlined" />;
+      ? <StatusBadge status="info" label="Envoyé manuellement" />
+      : <StatusBadge status="success" label="Envoyé" />;
   }
-  if (status === 'failed') return <Chip label="Échec" size="small" color="error" variant="outlined" />;
-  if (status === 'acknowledged-skip') return <Chip label="Ignoré" size="small" color="default" variant="outlined" />;
-  return <Chip label={status} size="small" />;
+  if (status === 'failed') return <StatusBadge status="error" label="Échec" />;
+  if (status === 'acknowledged-skip') return <StatusBadge status="neutral" label="Ignoré" />;
+  return <StatusBadge status="neutral" label={String(status)} />;
 }
 
 export default function EmailHistoryPage() {
@@ -130,14 +133,16 @@ export default function EmailHistoryPage() {
               </Stack>
             </TableCell>
             <TableCell>{r.recipientEmail || '—'}</TableCell>
-            <TableCell><StatusBadge status={r.status} channel={r.channel} /></TableCell>
+            <TableCell><EmailStatusBadge status={r.status} channel={r.channel} /></TableCell>
             <TableCell sx={{ maxWidth: 260, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               {r.renderedSubject}
             </TableCell>
             <TableCell align="right">
-              <IconButton size="small" onClick={() => setViewing(r)}>
-                <VisibilityIcon fontSize="small" />
-              </IconButton>
+              <Tooltip title="Voir l'email">
+                <IconButton size="small" aria-label="Voir l'email" onClick={() => setViewing(r)}>
+                  <VisibilityIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </TableCell>
           </TableRow>
         ))}
