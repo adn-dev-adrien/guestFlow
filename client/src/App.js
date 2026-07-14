@@ -78,6 +78,9 @@ import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import EmailHistoryPage from './pages/EmailHistoryPage';
 import DesignPage from './pages/DesignPage';
 import ScrollToTop from './components/ScrollToTop';
+import RouteErrorBoundary from './components/ErrorBoundary';
+import EmptyState from './components/EmptyState';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
 
 const DRAWER_WIDTH = 240;
 
@@ -848,6 +851,9 @@ function AppShell() {
         {/* Anti-lockout safety net — persistent until the operator has logged in once with the new
             address. See specs/admin-account-management.md follow-up #7 (2026-06-02). */}
         <EmailVerifyBanner />
+        {/* Render-crash guard + catch-all 404 (specs/ds-components.md §3.4) — a component throw or
+            an unknown URL used to leave the main area blank. */}
+        <RouteErrorBoundary>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/clients" element={<ClientsPage />} />
@@ -883,9 +889,26 @@ function AppShell() {
           <Route path="/emails"            element={<EmailTemplatesPage />} />
           <Route path="/emails/modeles"    element={<Navigate to="/emails" replace />} />
           <Route path="/emails/historique" element={<EmailHistoryPage />} />
+          <Route path="*" element={<NotFoundRoute />} />
         </Routes>
+        </RouteErrorBoundary>
       </Box>
     </Box>
+  );
+}
+
+// Catch-all 404 (specs/ds-components.md §3.4) — no role gate: any signed-in user can land here.
+function NotFoundRoute() {
+  const navigate = useNavigate();
+  return (
+    <EmptyState
+      icon={<SearchOffIcon />}
+      title="Page introuvable"
+      message="Cette adresse ne correspond à aucune page de GuestFlow."
+      actionLabel="Retour au tableau de bord"
+      onAction={() => navigate('/')}
+      py={10}
+    />
   );
 }
 
