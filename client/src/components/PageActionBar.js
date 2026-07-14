@@ -147,8 +147,8 @@ export default function PageActionBar({
         )}
         {title && (
           <Typography
-            variant="h6"
-            sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 700, whiteSpace: 'nowrap' }}
+            variant="pageTitle"
+            sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
           >
             {title}
           </Typography>

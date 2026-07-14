@@ -15,13 +15,7 @@ import {
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { displayDateShort } from '../utils/formatters';
 
 // Coarse relative-time formatting (presentation only). Mirrors the sibling iCal alert cards.
 function relativeFromNow(iso) {
@@ -89,7 +83,7 @@ export default function IcalNewReservationsAlert() {
                 {alert.propertyName ? ` · ${alert.propertyName}` : ''}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Du <strong>{formatDate(alert.startDate)}</strong> au <strong>{formatDate(alert.endDate)}</strong>
+                Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
                 {alert.platformLabel ? <> · Source : <strong>{alert.platformLabel}</strong></> : null}
               </Typography>
               <Typography variant="caption" color="text.secondary">

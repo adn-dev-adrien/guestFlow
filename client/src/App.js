@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import PaletteIcon from '@mui/icons-material/Palette';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useDynamicFavicon } from './hooks/useDynamicFavicon';
 import { ADMIN, ACCOUNTANT, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
@@ -75,6 +76,8 @@ import AccountingPage from './pages/AccountingPage';
 import PlatformAccountsPage from './pages/PlatformAccountsPage';
 import EmailTemplatesPage from './pages/EmailTemplatesPage';
 import EmailHistoryPage from './pages/EmailHistoryPage';
+import DesignPage from './pages/DesignPage';
+import ScrollToTop from './components/ScrollToTop';
 
 const DRAWER_WIDTH = 240;
 
@@ -94,7 +97,7 @@ const navItems = [
 const CALENDAR_CHILDREN  = ['/calendar', '/resource-planning'];
 const EMAILS_CHILDREN    = ['/emails', '/emails/historique'];
 const FINANCE_CHILDREN   = ['/finance', '/finance/tourist-tax', '/comptabilite', '/comptabilite/plateformes'];
-const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/paiements', '/account'];
+const SETTINGS_CHILDREN  = ['/settings', '/properties', '/options', '/resources', '/parametres/options-ressources', '/clients', '/school-holidays', '/establishment-closures', '/parametres/vacances-fermetures', '/parametres/stock-blanchisserie', '/parametres/tarifs', '/parametres/paiements', '/account', '/design'];
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
@@ -629,6 +632,20 @@ function NavContent({ onItemClick }) {
                     }} />
                   </ListItemButton>
                   )}
+                  {can('/design') && (
+                  <ListItemButton
+                    component={Link}
+                    to="/design"
+                    onClick={(e) => onItemClick && onItemClick(e, '/design')}
+                    selected={location.pathname === '/design'}
+                    sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 34 }}><PaletteIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Design system" slotProps={{
+                      primary: { variant: 'body2', noWrap: true }
+                    }} />
+                  </ListItemButton>
+                  )}
                 </List>
               </Collapse>
             )}
@@ -860,6 +877,7 @@ function AppShell() {
           <Route path="/settings/password" element={<Navigate to="/account" replace />} />
           <Route path="/comptes" element={<Navigate to="/account" replace />} />
           <Route path="/account" element={<UserManagementPage />} />
+          <Route path="/design" element={<DesignPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
           <Route path="/comptabilite/plateformes" element={<PlatformAccountsPage />} />
           <Route path="/emails"            element={<EmailTemplatesPage />} />
@@ -911,6 +929,8 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
+        {/* Pages must open at the top with the sticky bar visible (specs/design-system.md §3.6). */}
+        <ScrollToTop />
         <DialogProvider>
           <AuthProvider>
             <AuthGate />

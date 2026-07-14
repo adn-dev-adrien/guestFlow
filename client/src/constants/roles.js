@@ -65,6 +65,8 @@ export const ROUTE_ROLES = Object.freeze({
   // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
   '/parametres/paiements':   [ADMIN],
   '/account':                [ADMIN, ACCOUNTANT],
+  // specs/design-system.md §3.8 — living design-system showcase (tokens, typography, formats).
+  '/design':                 [ADMIN],
 });
 
 export function canSeeRoute(user, path) {

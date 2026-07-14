@@ -20,13 +20,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { displayDateShort } from '../utils/formatters';
 
 // Coarse relative-time formatting (presentation only — no business rules). Mirrors
 // `IcalDateDriftAlert.relativeFromNow`.
@@ -126,7 +120,7 @@ export default function IcalCancellationAlert() {
               )}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Du <strong>{formatDate(alert.startDate)}</strong> au <strong>{formatDate(alert.endDate)}</strong>
+              Du <strong>{displayDateShort(alert.startDate)}</strong> au <strong>{displayDateShort(alert.endDate)}</strong>
               {alert.sourceName ? <> · Source : <strong>{alert.sourceName}</strong></> : null}
             </Typography>
             <Typography variant="caption" color="text.secondary">

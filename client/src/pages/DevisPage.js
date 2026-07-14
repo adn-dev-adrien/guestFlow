@@ -14,6 +14,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import PageActionBar from '../components/PageActionBar';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
+import { displayDate, formatCurrency } from '../utils/formatters';
 
 const STATUS_LABELS = {
   draft: 'Brouillon',
@@ -28,17 +29,6 @@ const STATUS_COLORS = {
   accepted: 'success',
   converted: 'secondary',
 };
-
-function formatDate(str) {
-  if (!str) return '—';
-  const [y, m, d] = str.split('-');
-  return `${d}/${m}/${y}`;
-}
-
-function formatPrice(v) {
-  if (v == null) return '—';
-  return `${Number(v).toFixed(2).replace('.', ',')} €`;
-}
 
 export default function DevisPage() {
   const navigate = useNavigate();
@@ -103,7 +93,8 @@ export default function DevisPage() {
       const result = await api.convertDevisToReservation(devis.id);
       navigate(`/reservations/${result.reservationId}`);
     } catch (e) {
-      alert(e.message || 'Erreur lors de la conversion');
+      // DialogProvider.alert takes an options OBJECT — a bare string used to render an empty dialog.
+      alert({ title: 'Conversion impossible', message: e.message || 'Erreur lors de la conversion' });
     }
   };
 
@@ -247,11 +238,11 @@ export default function DevisPage() {
                       <TableCell>
                         <Typography variant="body2">{d.propertyName || '—'}</Typography>
                       </TableCell>
-                      <TableCell>{formatDate(d.startDate)}</TableCell>
-                      <TableCell>{formatDate(d.endDate)}</TableCell>
+                      <TableCell>{displayDate(d.startDate)}</TableCell>
+                      <TableCell>{displayDate(d.endDate)}</TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {formatPrice(Number(d.finalPrice || 0) + Number(d.touristTaxTotal || 0))}
+                          {formatCurrency(Number(d.finalPrice || 0) + Number(d.touristTaxTotal || 0))}
                         </Typography>
                       </TableCell>
                       <TableCell align="center" onClick={(e) => e.stopPropagation()}>

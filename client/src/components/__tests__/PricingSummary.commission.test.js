@@ -41,20 +41,20 @@ test('full cascade: offered tax + complement + commission', () => {
     platformNetReceivedAmount: 220, sejourNetTotal: 235,
   });
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();
-  expect(screen.getByText('274.60€')).toBeInTheDocument();           // gross
+  expect(screen.getByText('274,60 €')).toBeInTheDocument();           // gross
   expect(screen.getByText('Taxe de séjour (plateforme)')).toBeInTheDocument();
-  expect(screen.getByText('− 9.60€')).toBeInTheDocument();           // tax → commune
+  expect(screen.getByText('− 9,60 €')).toBeInTheDocument();           // tax → commune
   expect(screen.getAllByText('Compléments (perçus sur place)').length).toBe(2); // − then +
-  expect(screen.getByText('− 15.00€')).toBeInTheDocument();
-  expect(screen.getByText('+ 15.00€')).toBeInTheDocument();
+  expect(screen.getByText('− 15,00 €')).toBeInTheDocument();
+  expect(screen.getByText('+ 15,00 €')).toBeInTheDocument();
   expect(screen.getByText('Montant soumis à commission')).toBeInTheDocument();
-  expect(screen.getByText('250.00€')).toBeInTheDocument();
+  expect(screen.getByText('250,00 €')).toBeInTheDocument();
   expect(screen.getByText('Commission solde')).toBeInTheDocument();
-  expect(screen.getByText('− 30.00€')).toBeInTheDocument();
+  expect(screen.getByText('− 30,00 €')).toBeInTheDocument();
   expect(screen.getByText('Versement plateforme')).toBeInTheDocument();
-  expect(screen.getByText('220.00€')).toBeInTheDocument();
+  expect(screen.getByText('220,00 €')).toBeInTheDocument();
   expect(screen.getByText('Total perçu sur le séjour')).toBeInTheDocument();
-  expect(screen.getByText('235.00€')).toBeInTheDocument();
+  expect(screen.getByText('235,00 €')).toBeInTheDocument();
   // The old #302 labels are gone.
   expect(screen.queryByText('Versement Plateforme')).toBeNull(); // capital P (the old label)
   expect(screen.queryByText('Net perçu TTC')).toBeNull();
@@ -66,11 +66,11 @@ test('offered tax, no complement → « − Taxe de séjour (plateforme) » then
     complementAmount: 0, preArrivalAmount: 195.20, platformCommissionAmount: 30, totalPlatformCommission: 30,
     platformNetReceivedAmount: 165.20, sejourNetTotal: 165.20,
   });
-  expect(screen.getByText('204.80€')).toBeInTheDocument();           // gross = 200 + 4.80
+  expect(screen.getByText('204,80 €')).toBeInTheDocument();           // gross = 200 + 4.80
   expect(screen.getByText('Taxe de séjour (plateforme)')).toBeInTheDocument();
-  expect(screen.getByText('− 4.80€')).toBeInTheDocument();
+  expect(screen.getByText('− 4,80 €')).toBeInTheDocument();
   expect(screen.getByText('Montant soumis à commission')).toBeInTheDocument();
-  expect(screen.getByText('195.20€')).toBeInTheDocument();
+  expect(screen.getByText('195,20 €')).toBeInTheDocument();
   expect(screen.queryByText('Compléments (perçus sur place)')).toBeNull(); // no complement
 });
 
@@ -84,9 +84,9 @@ test('platform with commission, no tax/complement → no deduction sub-lines, ju
   expect(screen.queryByText('Montant soumis à commission')).toBeNull();
   expect(screen.queryByText('Taxe de séjour (plateforme)')).toBeNull();
   expect(screen.getByText('Commission acompte')).toBeInTheDocument();
-  expect(screen.getByText('− 9.00€')).toBeInTheDocument();
+  expect(screen.getByText('− 9,00 €')).toBeInTheDocument();
   expect(screen.getByText('Commission solde')).toBeInTheDocument();
-  expect(screen.getByText('− 21.00€')).toBeInTheDocument();
+  expect(screen.getByText('− 21,00 €')).toBeInTheDocument();
   expect(screen.getByText('Versement plateforme')).toBeInTheDocument();
   expect(screen.getByText('Total perçu sur le séjour')).toBeInTheDocument();
 });
@@ -97,7 +97,7 @@ test('non-offered platform → NO « Taxe de séjour (plateforme) » deduction l
     complementAmount: 0, preArrivalAmount: 262, platformCommissionAmount: 30, totalPlatformCommission: 30, platformNetReceivedAmount: 232, sejourNetTotal: 232,
   });
   expect(screen.queryByText('Taxe de séjour (plateforme)')).toBeNull();
-  expect(screen.queryByText('− 12.00€')).toBeNull();
+  expect(screen.queryByText('− 12,00 €')).toBeNull();
 });
 
 // specs/platform-per-echeance-commission.md — the Acompte / Solde lines show the NET amount (montant −
@@ -112,8 +112,8 @@ test('Acompte / Solde lines show the net amount (montant − commission de l\'é
       parsedTotalPrice={200} accommodationDiscountedPriceDisplay={'200.00'}
     />
   );
-  expect(screen.getByText('56.59€')).toBeInTheDocument();  // acompte 60 − 3.41
-  expect(screen.getByText('137.39€')).toBeInTheDocument(); // solde 140 − 2.61
+  expect(screen.getByText('56,59 €')).toBeInTheDocument();  // acompte 60 − 3.41
+  expect(screen.getByText('137,39 €')).toBeInTheDocument(); // solde 140 − 2.61
   expect(screen.getByText(/net de la commission acompte/i)).toBeInTheDocument();
   expect(screen.getByText(/net de la commission solde/i)).toBeInTheDocument();
 });
@@ -124,7 +124,7 @@ test('direct reservation → a single « Total du séjour », no platform cascad
     { ...FORM, platform: 'direct' }
   );
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();
-  expect(screen.getByText('260.00€')).toBeInTheDocument(); // 250 + 10 tax
+  expect(screen.getByText('260,00 €')).toBeInTheDocument(); // 250 + 10 tax
   expect(screen.queryByText('Montant soumis à commission')).toBeNull();
   expect(screen.queryByText('Versement plateforme')).toBeNull();
   expect(screen.queryByText('Total perçu sur le séjour')).toBeNull();

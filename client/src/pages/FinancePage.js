@@ -10,11 +10,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import PageHeader from '../components/PageHeader';
 import OperationalPaymentsTable from '../components/OperationalPaymentsTable';
 import FinanceBreakdownDialog from '../components/FinanceBreakdownDialog';
-import { displayDate } from '../utils/formatters';
+import { displayDate, formatCurrencyRounded } from '../utils/formatters';
 import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
 
-const eur = (n) => `${Number(n || 0).toLocaleString('fr-FR')} €`;
 
 const RADIAN = Math.PI / 180;
 // specs/finance-overview-rework.md §3.4 — the amounts sit INSIDE the camembert (white text at each slice
@@ -26,7 +25,7 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) =
   const y = cy + r * Math.sin(-midAngle * RADIAN);
   return (
     <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
-      {eur(value)}
+      {formatCurrencyRounded(value)}
     </text>
   );
 };
@@ -150,9 +149,9 @@ export default function FinancePage() {
             {c.caption && <Typography component="span" variant="caption" sx={{ opacity: 0.85, ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
           </Typography>
           {/* TTC centered both horizontally and vertically; HT right-aligned at the bottom. */}
-          <Typography variant="h4" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', my: 0, lineHeight: 1.1 }}>{eur(c.value)}</Typography>
+          <Typography variant="h4" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', my: 0, lineHeight: 1.1 }}>{formatCurrencyRounded(c.value)}</Typography>
           {c.valueHt != null && (
-            <Typography variant="caption" sx={{ opacity: 0.85, textAlign: 'right', mr: 1 }}>{eur(c.valueHt)} HT</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.85, textAlign: 'right', mr: 1 }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
           )}
         </CardContent>
       </Card>
@@ -175,15 +174,15 @@ export default function FinancePage() {
             <Grid container spacing={2} sx={{ mb: 2 }}>
               <Grid size={{ xs: 12, sm: 4 }}>
                 <Typography variant="subtitle2" color="text.secondary">Total de séjour d'ici cette date</Typography>
-                <Typography variant="h5">{eur(projection.total)}</Typography>
+                <Typography variant="h5">{formatCurrencyRounded(projection.total)}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
                 <Typography variant="subtitle2" color="text.secondary">Déjà encaissé</Typography>
-                <Typography variant="h5">{eur(projection.collected)}</Typography>
+                <Typography variant="h5">{formatCurrencyRounded(projection.collected)}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
                 <Typography variant="subtitle2" color="text.secondary">En attente</Typography>
-                <Typography variant="h5">{eur(projection.pending)}</Typography>
+                <Typography variant="h5">{formatCurrencyRounded(projection.pending)}</Typography>
               </Grid>
             </Grid>
             <TableContainer>
@@ -204,8 +203,8 @@ export default function FinancePage() {
                       <TableCell>{d.clientName}</TableCell>
                       <TableCell>{d.propertyName}</TableCell>
                       <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
-                      <TableCell align="right">{eur(d.collected)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(d.totalSejour)}</TableCell>
+                      <TableCell align="right">{formatCurrencyRounded(d.collected)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrencyRounded(d.totalSejour)}</TableCell>
                       <TableCell align="center">
                         <Chip size="small" label={d.settled ? 'Réglé' : 'En attente'} color={d.settled ? 'success' : 'warning'} variant={d.settled ? 'filled' : 'outlined'} />
                       </TableCell>
@@ -215,8 +214,8 @@ export default function FinancePage() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={3} sx={footerCellSx}>Total</TableCell>
-                    <TableCell align="right" sx={footerCellSx}>{eur(projection.collected)}</TableCell>
-                    <TableCell align="right" sx={footerCellSx}>{eur(projection.total)}</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{formatCurrencyRounded(projection.collected)}</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{formatCurrencyRounded(projection.total)}</TableCell>
                     <TableCell sx={footerCellSx} />
                   </TableRow>
                 </TableFooter>
@@ -271,11 +270,11 @@ export default function FinancePage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis />
-                    <RechartsTooltip formatter={(value) => eur(value)} />
+                    <RechartsTooltip formatter={(value) => formatCurrencyRounded(value)} />
                     {/* Bar height = Σ total de séjour for that logement on the period; the amount is
                         printed inside the bar. */}
                     <Bar dataKey="revenue" fill="#1565c0" name="Total de séjour" radius={[4, 4, 0, 0]}>
-                      <LabelList dataKey="revenue" position="center" formatter={(value) => eur(value)} fill="#fff" fontSize={12} fontWeight={600} />
+                      <LabelList dataKey="revenue" position="center" formatter={(value) => formatCurrencyRounded(value)} fill="#fff" fontSize={12} fontWeight={600} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -293,7 +292,7 @@ export default function FinancePage() {
                     {pieData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
                   </Pie>
                   <Legend />
-                  <RechartsTooltip formatter={(value) => eur(value)} />
+                  <RechartsTooltip formatter={(value) => formatCurrencyRounded(value)} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -307,7 +306,7 @@ export default function FinancePage() {
             <Typography variant="h6">Suivi opérationnel</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               <Chip size="small" color={overdueReservationsCount > 0 ? 'error' : 'success'} label={`${overdueReservationsCount} retard${overdueReservationsCount > 1 ? 's' : ''}`} />
-              <Chip size="small" color={overdueTotalAmount > 0 ? 'error' : 'success'} label={`Retard total: ${eur(overdueTotalAmount)}`} />
+              <Chip size="small" color={overdueTotalAmount > 0 ? 'error' : 'success'} label={`Retard total: ${formatCurrencyRounded(overdueTotalAmount)}`} />
               <Chip size="small" label={`En attente: ${pendingPayments.length}`} />
               <Chip size="small" label={`À venir: ${upcomingReservations.length}`} />
               <Chip size="small" label={`Période: ${(summary?.reservations || []).length}`} />
@@ -362,7 +361,7 @@ export default function FinancePage() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                    <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{eur(overdueTotalAmount)}</TableCell>
+                    <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{formatCurrencyRounded(overdueTotalAmount)}</TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
@@ -377,7 +376,7 @@ export default function FinancePage() {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                 <Chip
                   size="small"
-                  label={`En attente de paiement : ${eur(pendingTotals.remainingToPay)}`}
+                  label={`En attente de paiement : ${formatCurrencyRounded(pendingTotals.remainingToPay)}`}
                   sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
                 />
               </Box>
@@ -405,7 +404,7 @@ export default function FinancePage() {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                 <Chip
                   size="small"
-                  label={`En attente de paiement : ${eur(upcomingTotals.remainingToPay)}`}
+                  label={`En attente de paiement : ${formatCurrencyRounded(upcomingTotals.remainingToPay)}`}
                   sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
                 />
               </Box>
@@ -450,7 +449,7 @@ export default function FinancePage() {
                           <TableCell>{r.propertyName}</TableCell>
                           <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
                           <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: getPlatformColor(r.platform), color: 'white' }} /></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700 }}>{eur(r.totalSejour)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrencyRounded(r.totalSejour)}</TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
                               {/* settled honours caisse interne (§3.6): a complement paid off-books shows « Réglé ». */}
@@ -480,7 +479,7 @@ export default function FinancePage() {
                   <TableFooter>
                     <TableRow>
                       <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                      <TableCell align="right" sx={footerCellSx}>{eur(summary.revenueTotal)}</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{formatCurrencyRounded(summary.revenueTotal)}</TableCell>
                       <TableCell sx={footerCellSx} />
                     </TableRow>
                   </TableFooter>

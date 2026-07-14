@@ -16,7 +16,10 @@ export const DAY_RANGE = DAY_END - DAY_START;
 
 export const CLEANING_COLOR = '#e53935';
 export const BLOCKED_NIGHT_COLOR = '#ff9800'; // Orange pour les nuits bloquées
-export const ZONE_COLORS = { A: '#1976d2', B: '#388e3c', C: '#f57c00' };
+// Single source of truth for the school-zone colors (specs/design-system.md §3.9 phase 1) — this file
+// used to carry a second, CONFLICTING map, so zone colors differed between the calendar and the
+// SchoolHolidays page. Re-exported so calendar components keep their import path.
+export { ZONE_COLORS } from '../constants/schoolHolidayZoneColors';
 
 export function getDaysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();

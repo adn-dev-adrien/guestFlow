@@ -39,6 +39,7 @@ import {
   toWireOccurrences as toWireCardOccurrences,
   isDailyCard,
 } from '../utils/cardOccurrences';
+import { formatCurrency } from '../utils/formatters';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -2350,10 +2351,10 @@ export default function ReservationPage() {
       if (!saved) return;
       // The server creates/reuses the Qonto deposit link AND emails it to the client in one action.
       const r = await api.sendDepositRequestEmail(editingDevisId);
-      const euros = (Number(r.amountCents || 0) / 100).toFixed(2).replace('.', ',');
+      const euros = formatCurrency(Number(r.amountCents || 0) / 100);
       const check = await confirm({
         title: 'Demande d’acompte envoyée ✓',
-        message: `Un email avec le lien de paiement de l’acompte (${euros} €) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé, clique « Vérifier le paiement ».`,
+        message: `Un email avec le lien de paiement de l’acompte (${euros}) a été envoyé à ${r.recipientEmail}. Le règlement bloquera les dates. Une fois payé, clique « Vérifier le paiement ».`,
         confirmLabel: 'Vérifier le paiement',
         cancelLabel: 'Fermer',
         confirmColor: 'primary',
@@ -2373,10 +2374,10 @@ export default function ReservationPage() {
       const saved = await handleSaveReservation(() => {});
       if (!saved) return;
       const r = await api.sendBalanceRequestEmail(editingReservationId);
-      const euros = (Number(r.amountCents || 0) / 100).toFixed(2).replace('.', ',');
+      const euros = formatCurrency(Number(r.amountCents || 0) / 100);
       await alert({
         title: 'Demande de solde envoyée ✓',
-        message: `Un email avec le lien de paiement du solde (${euros} €) a été envoyé à ${r.recipientEmail || 'le client'}.`,
+        message: `Un email avec le lien de paiement du solde (${euros}) a été envoyé à ${r.recipientEmail || 'le client'}.`,
       });
     } catch (e) {
       await alert({ title: 'Erreur', message: e.message || 'Impossible d’envoyer la demande de solde (Qonto connecté ? email client renseigné ?).' });

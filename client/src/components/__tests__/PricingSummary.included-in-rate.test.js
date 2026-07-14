@@ -43,8 +43,8 @@ test('included-in-rate option → « Comprise » + « incluse dans le tarif » +
   expect(screen.getByRole('button', { name: 'Comprise' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '✓ Offert' })).toBeNull();
   // Shown at 0 €, NOT the struck-through original price.
-  expect(screen.getAllByText('0.00€').length).toBeGreaterThan(0);
-  expect(screen.queryByText('25.00€')).toBeNull();
+  expect(screen.getAllByText('0,00 €').length).toBeGreaterThan(0);
+  expect(screen.queryByText('25,00 €')).toBeNull();
 });
 
 test('a one-off offered option (not included) keeps « ✓ Offert » + the struck-through price', () => {
@@ -55,5 +55,5 @@ test('a one-off offered option (not included) keeps « ✓ Offert » + the struc
   expect(screen.queryByText('incluse dans le tarif')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Comprise' })).toBeNull();
   // The struck-through original price (15) is shown, not 0.
-  expect(screen.getByText('15.00€')).toBeInTheDocument();
+  expect(screen.getByText('15,00 €')).toBeInTheDocument();
 });

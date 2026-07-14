@@ -19,7 +19,7 @@ import PageHeader from '../components/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PlatformPriceCard from '../components/PlatformPriceCard';
 import api from '../api';
-import { displayDate } from '../utils/formatters';
+import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { getSchoolHolidayInfo } from '../frenchHolidays';
 
@@ -564,7 +564,7 @@ export default function PropertyPricingSeasonsPage() {
                   <TableRow key={s.id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: s.color || '#1976d2' }} />
+                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => s.color || t.palette.primary.main }} />
                         {s.label}
                       </Box>
                     </TableCell>
@@ -578,7 +578,7 @@ export default function PropertyPricingSeasonsPage() {
                       </Box>
                     </TableCell>
                     <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
-                    <TableCell>{Number(s.pricePerNight || 0).toFixed(2)} €</TableCell>
+                    <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
                     <TableCell>{s.minNights}</TableCell>
                     <TableCell>
                       <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
@@ -690,8 +690,8 @@ export default function PropertyPricingSeasonsPage() {
                                 sx={{
                                   height: 20,
                                   borderRadius: 0.8,
-                                  borderTop: c.inMonth && c.season ? `3px solid ${c.season.color || '#1976d2'}` : '3px solid transparent',
-                                  bgcolor: c.inMonth ? (c.season ? `${c.season.color || '#1976d2'}22` : 'background.paper') : 'transparent',
+                                  borderTop: (t) => (c.inMonth && c.season ? `3px solid ${c.season.color || t.palette.primary.main}` : '3px solid transparent'),
+                                  bgcolor: (t) => (c.inMonth ? (c.season ? `${c.season.color || t.palette.primary.main}22` : t.palette.background.paper) : 'transparent'),
                                   color: c.inMonth ? 'text.primary' : 'transparent',
                                   fontSize: 10,
                                   display: 'flex',
@@ -700,7 +700,7 @@ export default function PropertyPricingSeasonsPage() {
                                   position: 'relative',
                                   cursor: c.inMonth && c.season ? 'pointer' : 'default',
                                   '&:hover': c.inMonth && c.season ? {
-                                    outline: `1px solid ${c.season.color || '#1976d2'}`,
+                                    outline: (t) => `1px solid ${c.season.color || t.palette.primary.main}`,
                                   } : undefined,
                                 }}
                                 title={c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : ''}
@@ -819,7 +819,7 @@ export default function PropertyPricingSeasonsPage() {
             {seasonForm.pricingMode === 'progressive' && (
               <>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip label={`Tarif semaine équivalent: ${Number(progressivePreview.weekPriceEquivalent || 0).toFixed(2)} €`} color="primary" variant="outlined" />
+                  <Chip label={`Tarif semaine équivalent: ${formatCurrency(Number(progressivePreview.weekPriceEquivalent || 0))}`} color="primary" variant="outlined" />
                   <Button size="small" variant="outlined" onClick={handlePrefillWithConfirm}>
                     Pré-remplir modèle dégressif standard
                   </Button>
@@ -895,7 +895,7 @@ export default function PropertyPricingSeasonsPage() {
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                {Number(t.cumulativePrice || 0).toFixed(2)} €
+                                {formatCurrency(Number(t.cumulativePrice || 0))}
                               </Box>
                             </TableCell>
                           </TableRow>

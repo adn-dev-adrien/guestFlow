@@ -19,11 +19,7 @@ import {
 } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
-
-function euro(n) {
-  if (n == null) return '—';
-  return `${(Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',')} €`;
-}
+import { formatCurrency } from '../utils/formatters';
 
 export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
   const [data, setData] = useState({ platforms: [], seasons: [] });
@@ -124,10 +120,10 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
                 {seasons.map((s) => (
                   <TableRow key={s.ruleId}>
                     <TableCell>{s.label}</TableCell>
-                    <TableCell align="right">{euro(s.netPerNight)}</TableCell>
+                    <TableCell align="right">{formatCurrency(s.netPerNight)}</TableCell>
                     {platforms.map((p) => (
                       <TableCell key={p.id} align="right" sx={{ fontWeight: 600 }}>
-                        {euro(s.byPlatform?.[p.id])}
+                        {formatCurrency(s.byPlatform?.[p.id])}
                       </TableCell>
                     ))}
                   </TableRow>

@@ -1,5 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 
 const PIXELS_PER_MINUTE = 1.2;
 const HOUR_COL_WIDTH = 40;
@@ -183,11 +184,13 @@ export default function MiniDayPlanner({
           px: 1.5,
           py: 0.5,
           borderRadius: 1,
-          bgcolor: selectedStart && selectedEnd ? '#e8f5e9' : '#e3f2fd',
-          borderLeft: `3px solid ${selectedStart && selectedEnd ? '#4caf50' : '#1976d2'}`,
+          // Selection-in-progress is INFO blue (not primary): the « complete » state is green, and the
+          // « Maison » primary is green too — primary here would make the two states indistinguishable.
+          bgcolor: (t) => (selectedStart && selectedEnd ? t.palette.success.soft : t.palette.info.soft),
+          borderLeft: (t) => `3px solid ${selectedStart && selectedEnd ? t.palette.success.main : t.palette.info.main}`,
         }}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: selectedStart && selectedEnd ? 'success.dark' : 'primary.dark' }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: selectedStart && selectedEnd ? 'success.dark' : 'info.dark' }}>
           {selectionState}
         </Typography>
       </Box>
@@ -202,7 +205,7 @@ export default function MiniDayPlanner({
           <Typography variant="caption" color="text.secondary">Remise en état</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 10, bgcolor: '#1976d2', borderRadius: 0.5 }} />
+          <Box sx={{ width: 10, height: 10, bgcolor: 'info.main', borderRadius: 0.5 }} />
           <Typography variant="caption" color="text.secondary">Sélectionné</Typography>
         </Box>
       </Box>
@@ -329,11 +332,11 @@ export default function MiniDayPlanner({
                 right: 2,
                 top: pendingBox.top - 1,
                 height: 3,
-                bgcolor: '#1976d2',
+                bgcolor: 'info.main',
                 borderRadius: 1,
                 pointerEvents: 'none',
                 zIndex: 3,
-                boxShadow: '0 0 0 2px rgba(25,118,210,0.3)',
+                boxShadow: (t) => `0 0 0 2px ${alpha(t.palette.info.main, 0.3)}`,
               }}
             />
           )}
@@ -346,8 +349,8 @@ export default function MiniDayPlanner({
                 right: 2,
                 top: selectionBox.top,
                 height: selectionBox.height,
-                bgcolor: 'rgba(25,118,210,0.18)',
-                border: '2px solid #1976d2',
+                bgcolor: (t) => alpha(t.palette.info.main, 0.18),
+                border: (t) => `2px solid ${t.palette.info.main}`,
                 borderRadius: 0.75,
                 pointerEvents: 'none',
                 zIndex: 3,
