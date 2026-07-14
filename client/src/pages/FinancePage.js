@@ -10,7 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import PageHeader from '../components/PageHeader';
 import OperationalPaymentsTable from '../components/OperationalPaymentsTable';
 import FinanceBreakdownDialog from '../components/FinanceBreakdownDialog';
-import { displayDate, formatCurrencyRounded } from '../utils/formatters';
+import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
 import { getPlatformColor } from '../constants/platforms';
 import api from '../api';
 
@@ -203,8 +203,8 @@ export default function FinancePage() {
                       <TableCell>{d.clientName}</TableCell>
                       <TableCell>{d.propertyName}</TableCell>
                       <TableCell>{displayDate(d.startDate)} → {displayDate(d.endDate)}</TableCell>
-                      <TableCell align="right">{formatCurrencyRounded(d.collected)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrencyRounded(d.totalSejour)}</TableCell>
+                      <TableCell align="right">{formatCurrency(d.collected)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(d.totalSejour)}</TableCell>
                       <TableCell align="center">
                         <Chip size="small" label={d.settled ? 'Réglé' : 'En attente'} color={d.settled ? 'success' : 'warning'} variant={d.settled ? 'filled' : 'outlined'} />
                       </TableCell>
@@ -214,8 +214,8 @@ export default function FinancePage() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={3} sx={footerCellSx}>Total</TableCell>
-                    <TableCell align="right" sx={footerCellSx}>{formatCurrencyRounded(projection.collected)}</TableCell>
-                    <TableCell align="right" sx={footerCellSx}>{formatCurrencyRounded(projection.total)}</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{formatCurrency(projection.collected)}</TableCell>
+                    <TableCell align="right" sx={footerCellSx}>{formatCurrency(projection.total)}</TableCell>
                     <TableCell sx={footerCellSx} />
                   </TableRow>
                 </TableFooter>
@@ -306,7 +306,7 @@ export default function FinancePage() {
             <Typography variant="h6">Suivi opérationnel</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               <Chip size="small" color={overdueReservationsCount > 0 ? 'error' : 'success'} label={`${overdueReservationsCount} retard${overdueReservationsCount > 1 ? 's' : ''}`} />
-              <Chip size="small" color={overdueTotalAmount > 0 ? 'error' : 'success'} label={`Retard total: ${formatCurrencyRounded(overdueTotalAmount)}`} />
+              <Chip size="small" color={overdueTotalAmount > 0 ? 'error' : 'success'} label={`Retard total: ${formatCurrency(overdueTotalAmount)}`} />
               <Chip size="small" label={`En attente: ${pendingPayments.length}`} />
               <Chip size="small" label={`À venir: ${upcomingReservations.length}`} />
               <Chip size="small" label={`Période: ${(summary?.reservations || []).length}`} />
@@ -354,14 +354,14 @@ export default function FinancePage() {
                           )}
                         </Box>
                       </TableCell>
-                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{r.overdueAmount}€</TableCell>
+                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{formatCurrency(r.overdueAmount)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                    <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{formatCurrencyRounded(overdueTotalAmount)}</TableCell>
+                    <TableCell align="right" sx={{ ...footerCellSx, color: 'error.main' }}>{formatCurrency(overdueTotalAmount)}</TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
@@ -376,7 +376,7 @@ export default function FinancePage() {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                 <Chip
                   size="small"
-                  label={`En attente de paiement : ${formatCurrencyRounded(pendingTotals.remainingToPay)}`}
+                  label={`En attente de paiement : ${formatCurrency(pendingTotals.remainingToPay)}`}
                   sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
                 />
               </Box>
@@ -404,7 +404,7 @@ export default function FinancePage() {
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                 <Chip
                   size="small"
-                  label={`En attente de paiement : ${formatCurrencyRounded(upcomingTotals.remainingToPay)}`}
+                  label={`En attente de paiement : ${formatCurrency(upcomingTotals.remainingToPay)}`}
                   sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 600 }}
                 />
               </Box>
@@ -449,7 +449,7 @@ export default function FinancePage() {
                           <TableCell>{r.propertyName}</TableCell>
                           <TableCell>{displayDate(r.startDate)} → {displayDate(r.endDate)}</TableCell>
                           <TableCell><Chip label={r.platform} size="small" sx={{ bgcolor: getPlatformColor(r.platform), color: 'white' }} /></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrencyRounded(r.totalSejour)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(r.totalSejour)}</TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
                               {/* settled honours caisse interne (§3.6): a complement paid off-books shows « Réglé ». */}
@@ -479,7 +479,7 @@ export default function FinancePage() {
                   <TableFooter>
                     <TableRow>
                       <TableCell colSpan={4} sx={footerCellSx}>Total</TableCell>
-                      <TableCell align="right" sx={footerCellSx}>{formatCurrencyRounded(summary.revenueTotal)}</TableCell>
+                      <TableCell align="right" sx={footerCellSx}>{formatCurrency(summary.revenueTotal)}</TableCell>
                       <TableCell sx={footerCellSx} />
                     </TableRow>
                   </TableFooter>

@@ -146,8 +146,9 @@ describe('FinancePage — total-de-séjour overview', () => {
     renderPage();
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Réservations à venir' }));
-    // green « En attente de paiement » box (Σ reste à payer of upcoming)
-    expect(await screen.findByText(/En attente de paiement : 620\s*€/)).toBeInTheDocument();
+    // green « En attente de paiement » box (Σ reste à payer of upcoming) — exact amount
+    // (actionable total → formatCurrency, specs/ds-theme-maison.md §3 rule 6 correction).
+    expect(await screen.findByText(/En attente de paiement : 620,00\s*€/)).toBeInTheDocument();
     // the reservation row + no end-of-stay column header + no « Tout solder » action (read-only)
     expect(await screen.findByText('Léa Roux')).toBeInTheDocument();
     expect(screen.getByText('Gîte')).toBeInTheDocument();
@@ -193,8 +194,34 @@ describe('FinancePage — total-de-séjour overview', () => {
     renderPage();
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
-    // discreet chip « En attente de paiement : 300 € » (label = phrase + remainingDue total)
-    expect(await screen.findByText(/En attente de paiement : 300\s*€/)).toBeInTheDocument();
+    // discreet chip « En attente de paiement : 300,00 € » (exact actionable total)
+    expect(await screen.findByText(/En attente de paiement : 300,00\s*€/)).toBeInTheDocument();
+  });
+
+  test('projection detail rows and footer reconcile at the cent (never rounded)', async () => {
+    // Regression net for the phase-1 review finding: cents-bearing amounts (platform commissions
+    // make them routine) must render EXACT in the reconciliation table — rows must visually sum to
+    // the footer. Only the KPI h5 figures above the table stay rounded (overview style).
+    api.getFinanceProjection.mockResolvedValue({
+      targetDate: '2026-07-16',
+      total: 501, // 2 × 250.50
+      collected: 200.5,
+      pending: 300.5,
+      details: [
+        { reservationId: 1, clientName: 'Jean Dupont', propertyName: 'Gîte', startDate: '2026-07-01', endDate: '2026-07-04', collected: 100.25, totalSejour: 250.5, settled: false },
+        { reservationId: 2, clientName: 'Marie Martin', propertyName: 'Tente', startDate: '2026-07-05', endDate: '2026-07-08', collected: 100.25, totalSejour: 250.5, settled: false },
+      ],
+    });
+    renderPage();
+    await screen.findByText('Revenus');
+    // Detail rows: exact cents, twice each.
+    expect((await screen.findAllByText('250,50 €')).length).toBe(2);
+    expect(screen.getAllByText('100,25 €').length).toBe(2);
+    // Footer: exact — reconciles with the rows (2 × 250,50 = 501,00).
+    expect(screen.getByText('501,00 €')).toBeInTheDocument();
+    expect(screen.getByText('200,50 €')).toBeInTheDocument();
+    // KPI h5 figures stay rounded (overview style): « 501 € » present as the headline total.
+    expect(screen.getByText('501 €')).toBeInTheDocument();
   });
 
   test('hides the « Paiements en retard » tab when nothing is overdue', async () => {
