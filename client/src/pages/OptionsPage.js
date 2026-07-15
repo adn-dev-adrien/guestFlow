@@ -7,6 +7,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../api';
 import PricedItemsPage from '../components/PricedItemsPage';
+import { formatCurrency } from '../utils/formatters';
 import PropertiesMultiSelect from '../components/PropertiesMultiSelect';
 import OptionPropertyDefaultsMirror from '../components/OptionPropertyDefaultsMirror';
 
@@ -451,9 +452,10 @@ function ProgressivePricingFields({ form, setForm }) {
   );
 }
 
-export default function OptionsPage() {
+export default function OptionsPage({ barCenter }) {
   return (
     <PricedItemsPage
+      barCenter={barCenter}
       pageTitle="Options de sejour"
       itemLabel="option"
       emptyForm={emptyOption}
@@ -465,15 +467,15 @@ export default function OptionsPage() {
         if (item.priceType === 'free') return 'Gratuit';
         const overrides = Object.entries(item.propertyPrices || {})
           .filter(([, v]) => v !== null && v !== undefined && v !== '');
-        if (overrides.length === 0) return `${item.price} €`;
+        if (overrides.length === 0) return formatCurrency(item.price);
         return (
           <Box>
             <Typography variant="body2" sx={{ lineHeight: 1.35 }}>
-              {item.price} € <Typography component="span" variant="caption" color="text.secondary">(base)</Typography>
+              {formatCurrency(item.price)} <Typography component="span" variant="caption" color="text.secondary">(base)</Typography>
             </Typography>
             {overrides.map(([pid, price]) => (
               <Typography key={pid} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
-                {(properties.find((p) => Number(p.id) === Number(pid))?.name) || `#${pid}`} : {Number(price)} €
+                {(properties.find((p) => Number(p.id) === Number(pid))?.name) || `#${pid}`} : {formatCurrency(price)}
               </Typography>
             ))}
           </Box>

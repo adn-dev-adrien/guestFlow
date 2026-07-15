@@ -12,14 +12,17 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Box, Card, CardContent, Typography, TextField, Button, Stack, Alert, CircularProgress,
+  Box, Card, CardContent, Typography, TextField, Button, Stack, CircularProgress,
   Select, MenuItem, FormControl, InputLabel, Divider,
 } from '@mui/material';
 
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
+import ErrorAlert from '../components/ErrorAlert';
+import ConfirmDialog from '../components/ConfirmDialog';
+import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import StatusCard from '../components/StatusCard';
 import api from '../api';
 
@@ -47,40 +50,49 @@ const EMPTY_PROVIDER_FORM = { bankAccountId: '', phone: '', websiteUrl: 'https:/
 
 export default function PaymentsSettingsPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [qonto, setQonto] = useState(null);
   const [draft, setDraft] = useState(null);
-  const [dirty, setDirty] = useState(false);
+  const [savedDraft, setSavedDraft] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  // Success feedback goes through the shared toasts (specs/ds-components.md §3.2); the inline
-  // `error` Alert stays for now (it mixes load + action errors — split in the Réglages sweep).
-  const { showSuccess } = useToast();
+  // Load failures stay persistent (ErrorAlert); action failures toast
+  // (specs/ds-sweep-settings.md §3.3 — the old single `error` state mixed both).
+  const [loadError, setLoadError] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   // Provider connection.
   const [bankAccounts, setBankAccounts] = useState(null); // null = not loaded yet
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
   const [connecting, setConnecting] = useState(false);
 
+  // Navigation guard on unsaved timing changes (specs/ds-sweep-settings.md §3.7).
+  const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
+    draft: draft || {},
+    saved: savedDraft || {},
+    navigate,
+  });
+
   const load = useCallback(async () => {
     const data = await api.getPaymentSettings();
     setQonto(data.qonto);
-    setDraft({
+    const shaped = {
       ...data.timings,
       depositReminderOffsetsText: offsetsToText(data.timings.depositReminderOffsets),
       balanceReminderOffsetsText: offsetsToText(data.timings.balanceReminderOffsets),
-    });
-    setDirty(false);
+    };
+    setDraft(shaped);
+    setSavedDraft(shaped);
     return data.qonto;
   }, []);
 
-  useEffect(() => { load().catch((e) => setError(e.message || 'Erreur de chargement')); }, [load]);
+  useEffect(() => { load().catch(() => setLoadError(true)); }, [load]);
 
   // OAuth callback feedback.
   useEffect(() => {
     const q = new URLSearchParams(location.search).get('qonto');
     if (q === 'connected') showSuccess('Qonto connecté ✓');
-    else if (q === 'error') setError('Échec de la connexion Qonto — vérifie les identifiants et les logs.');
-    else if (q === 'invalid_state') setError('Connexion Qonto invalide (state). Réessaie depuis cette page.');
+    else if (q === 'error') showError('Échec de la connexion Qonto — vérifie les identifiants et les logs.');
+    else if (q === 'invalid_state') showError('Connexion Qonto invalide (state). Réessaie depuis cette page.');
   }, [location.search]);
 
   // Return from the provider onboarding (KYC) → re-check the status.
@@ -91,7 +103,7 @@ export default function PaymentsSettingsPage() {
         setQonto((prev) => (prev ? { ...prev, connectionStatus: r.connectionStatus } : prev));
         showSuccess(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
       })
-      .catch((e) => setError(e.message || 'Impossible de vérifier le statut du provider.'));
+      .catch((e) => showError(e.message || 'Impossible de vérifier le statut du provider.'));
   }, [location.search]);
 
   // Load the bank accounts once OAuth is connected and the provider isn't enabled yet.
@@ -109,11 +121,11 @@ export default function PaymentsSettingsPage() {
       .catch(() => setBankAccounts([])); // a load failure shows an empty picker + a hint
   }, [needsProvider, bankAccounts]);
 
-  const setField = (key, value) => { setDraft((d) => ({ ...d, [key]: value })); setDirty(true); };
+  const setField = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
   const setProviderField = (key, value) => setProviderForm((f) => ({ ...f, [key]: value }));
 
   const handleSave = async () => {
-    setSaving(true); setError('');
+    setSaving(true);
     try {
       const payload = {
         depositReminderOffsets: textToOffsets(draft.depositReminderOffsetsText),
@@ -121,32 +133,32 @@ export default function PaymentsSettingsPage() {
       };
       DAY_FIELDS.forEach((f) => { payload[f] = Number(draft[f]); });
       const res = await api.updatePaymentSettings(payload);
-      setDraft((d) => ({
+      const next = (d) => ({
         ...d, ...res.timings,
         depositReminderOffsetsText: offsetsToText(res.timings.depositReminderOffsets),
         balanceReminderOffsetsText: offsetsToText(res.timings.balanceReminderOffsets),
-      }));
-      setDirty(false);
+      });
+      setDraft(next);
+      setSavedDraft((prev) => next(prev || {}));
       showSuccess('Délais enregistrés ✓');
     } catch (e) {
-      setError(e.message || "Échec de l'enregistrement (vérifie les valeurs).");
+      showError(e.message || "Échec de l'enregistrement (vérifie les valeurs).");
     } finally {
       setSaving(false);
     }
   };
 
   const handleRegisterWebhook = async () => {
-    setError('');
     try {
       await api.registerQontoWebhook();
       showSuccess('Webhook Qonto enregistré ✓ (les paiements seront confirmés en temps réel)');
     } catch (e) {
-      setError(e?.body?.message || e.message || "Échec de l'enregistrement du webhook (QONTO_WEBHOOK_SECRET + URL publique requis).");
+      showError(e?.body?.message || e.message || "Échec de l'enregistrement du webhook (QONTO_WEBHOOK_SECRET + URL publique requis).");
     }
   };
 
   const handleConnectProvider = async () => {
-    setConnecting(true); setError('');
+    setConnecting(true);
     try {
       const r = await api.connectQontoProvider({ ...providerForm, phone: normalizeFrPhone(providerForm.phone) });
       if (r.connectionLocation) {
@@ -158,7 +170,7 @@ export default function PaymentsSettingsPage() {
       showSuccess(r.connectionStatus === 'enabled' ? 'Provider de liens activé ✓' : `Connexion provider : ${r.connectionStatus}`);
     } catch (e) {
       const messages = e?.body?.messages;
-      setError(Array.isArray(messages) ? messages.join(' · ') : (e.message || 'Échec de la connexion du provider.'));
+      showError(Array.isArray(messages) ? messages.join(' · ') : (e.message || 'Échec de la connexion du provider.'));
     } finally {
       setConnecting(false);
     }
@@ -183,9 +195,9 @@ export default function PaymentsSettingsPage() {
 
   return (
     <Box>
-      <PageActionBar title="Paiements" backTo="/settings" onSave={handleSave} saveDisabled={!dirty} saveBusy={saving} />
-      <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 900, mx: 'auto' }}>
-        {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
+      <PageActionBar title="Paiements" backTo="/settings" onSave={handleSave} saveDisabled={!isDirty} saveBusy={saving} />
+      <Box sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 900, mx: 'auto' }}>
+        {loadError && <ErrorAlert message="Impossible de charger les paramètres de paiement." onRetry={() => window.location.reload()} />}
 
         <StatusCard
           title="Connexion bancaire (Qonto)"
@@ -216,7 +228,7 @@ export default function PaymentsSettingsPage() {
         {connected && !providerEnabled && (
           <Card variant="outlined">
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Connexion du provider de liens</Typography>
+              <Typography variant="sectionHeader" sx={{ display: 'block', mb: 1 }}>Connexion du provider de liens</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Dernière étape avant de pouvoir générer des liens de paiement : on connecte ton compte
                 Qonto au provider de paiement. Une vérification (KYC) peut être demandée — tu seras alors
@@ -260,7 +272,7 @@ export default function PaymentsSettingsPage() {
 
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Délais &amp; relances</Typography>
+            <Typography variant="sectionHeader" sx={{ display: 'block', mb: 1 }}>Délais &amp; relances</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Tout en jours. Les relances sont des décalages par rapport à la date d'échéance
               (négatif = avant, 0 = le jour J). Plusieurs relances séparées par des virgules.
@@ -283,6 +295,16 @@ export default function PaymentsSettingsPage() {
           </CardContent>
         </Card>
       </Box>
+      <ConfirmDialog
+        open={guardDialogOpen}
+        onClose={dismissGuard}
+        onConfirm={confirmLeave}
+        title="Modifications non enregistrées"
+        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        confirmLabel="Quitter sans enregistrer"
+        cancelLabel="Rester"
+        confirmColor="error"
+      />
     </Box>
   );
 }

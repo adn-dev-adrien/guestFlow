@@ -31,7 +31,8 @@ test('clicking a template row opens its edit dialog', async ({ page }) => {
 
 test('"Voir l\'historique" navigates to the history page', async ({ page }) => {
   await page.goto('/emails');
-  await page.getByRole('link', { name: /Voir l'historique/ }).click();
+  // Since the phase-3 sweep the action lives in the PageActionBar as an icon button (aria-label).
+  await page.getByRole('button', { name: "Voir l'historique" }).click();
   await expect(page).toHaveURL(/\/emails\/historique$/);
   await expect(page.getByRole('heading', { name: 'Historique des emails' })).toBeVisible();
 });

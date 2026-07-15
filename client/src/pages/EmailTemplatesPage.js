@@ -5,21 +5,25 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Box, Card, Table, TableContainer, TableHead, TableBody, TableRow, TableCell,
+  Box, Card, TableRow, TableCell,
   IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
-  Select, MenuItem, TextField,
+  Select, MenuItem, TextField, Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HistoryIcon from '@mui/icons-material/History';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import FormDialog from '../components/FormDialog';
 import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import EmailComposeDialog from '../components/EmailComposeDialog';
 import ClientFormFields from '../components/ClientFormFields';
 import api from '../api';
-import { useAppDialogs } from '../components/DialogProvider';
+import { useAppDialogs, useToast } from '../components/DialogProvider';
+import PageActionBar from '../components/PageActionBar';
+import ErrorAlert from '../components/ErrorAlert';
+import LoadingState from '../components/LoadingState';
+import ResponsiveTable from '../components/ResponsiveTable';
 import { isValidEmail } from '../utils/validation';
 
 const EMPTY_CLIENT = {
@@ -103,6 +107,8 @@ export default function EmailTemplatesPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const { showError } = useToast();
   const [open, setOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(emptyTemplate);
@@ -120,9 +126,13 @@ export default function EmailTemplatesPage() {
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const rows = await api.getEmailTemplates();
       setItems(rows);
+    } catch {
+      // Silent before this sweep — a failed load rendered as an innocent empty list.
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -134,8 +144,9 @@ export default function EmailTemplatesPage() {
       setPending(rows || []);
     } catch {
       setPending([]);
+      showError("Impossible de charger les emails à envoyer.");
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { reloadPending(); }, [reloadPending]);
@@ -315,22 +326,33 @@ export default function EmailTemplatesPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Typography variant="h4">Emails</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          <Button startIcon={<AddIcon />} variant="contained" onClick={() => setComposeOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-            Créer un email
-          </Button>
-          <Button startIcon={<HistoryIcon />} component={RouterLink} to="/emails/historique" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-            Voir l'historique
-          </Button>
-        </Stack>
-      </Box>
+      {/* Canonical top bar (specs/ds-sweep-settings.md §3.1) — replaces the hand-rolled h4 header;
+          « Nouveau modèle » moves up from the templates-card corner. */}
+      <PageActionBar
+        title="Emails"
+        actionsBefore={[
+          { node: (
+            <Button key="compose" startIcon={<AddIcon />} variant="contained" size="small" onClick={() => setComposeOpen(true)}>
+              Créer un email
+            </Button>
+          ) },
+          { node: (
+            <Button key="new-template" startIcon={<AddIcon />} variant="outlined" size="small" onClick={() => handleOpen(null)}>
+              Nouveau modèle
+            </Button>
+          ) },
+          { icon: <HistoryIcon />, tooltip: "Voir l'historique", onClick: () => navigate('/emails/historique'), color: 'info' },
+        ]}
+      />
+
+      {loadError && (
+        <ErrorAlert message="Impossible de charger les modèles d'emails." onRetry={reload} sx={{ mt: 2, mb: 1 }} />
+      )}
 
       {pending.length > 0 && (
         <Card sx={{ mb: 3 }}>
           <Box sx={{ px: 2, pt: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>Emails à envoyer</Typography>
+            <Typography variant="sectionHeader">Emails à envoyer</Typography>
             <Typography variant="caption" color="text.secondary">
               Modèles en mode manuel dont la date d'envoi est aujourd'hui ou dans les 7 derniers jours, et emails ajoutés manuellement.
             </Typography>
@@ -348,14 +370,17 @@ export default function EmailTemplatesPage() {
 
       <Card>
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Modèles d'emails</Typography>
-          <Button startIcon={<AddIcon />} variant="contained" onClick={() => handleOpen(null)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-            Nouveau modèle
-          </Button>
+          <Typography variant="sectionHeader">Modèles d'emails</Typography>
         </Box>
-        <TableContainer>
-          <Table size="small" sx={{ minWidth: 860 }}>
-            <TableHead>
+        {loading ? (
+          <Box sx={{ px: 2, pb: 2 }}><LoadingState variant="skeleton" rows={4} /></Box>
+        ) : (
+          <ResponsiveTable
+            items={items}
+            getKey={(row) => row.id}
+            minWidth={860}
+            emptyText="Aucun modèle d'email"
+            head={(
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Quand</TableCell>
@@ -363,51 +388,69 @@ export default function EmailTemplatesPage() {
                 <TableCell sx={{ fontWeight: 600 }}>Activé</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                    {loading ? 'Chargement…' : 'Aucun modèle d\'email'}
-                  </TableCell>
-                </TableRow>
-              ) : items.map((row) => (
-                <TableRow
-                  key={row.id}
-                  hover
-                  onClick={() => handleOpen(row)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <Typography>{row.name}</Typography>
-                      {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>{describeOffset(row.dayOffset)}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={row.sendMode === 'auto' ? 'Auto' : 'Manuel'}
-                      size="small"
-                      color={row.sendMode === 'auto' ? 'success' : 'info'}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Switch
-                      checked={Boolean(row.enabled)}
-                      onChange={(e) => handleToggleEnabled(row, e.target.checked)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <IconButton onClick={() => handleDelete(row)} size="small" color="error"><DeleteIcon fontSize="small" /></IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            )}
+            renderRow={(row) => (
+              <TableRow
+                key={row.id}
+                hover
+                onClick={() => handleOpen(row)}
+                sx={{ cursor: 'pointer' }}
+              >
+                <TableCell>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Typography>{row.name}</Typography>
+                    {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
+                  </Stack>
+                </TableCell>
+                <TableCell>{describeOffset(row.dayOffset)}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={row.sendMode === 'auto' ? 'Auto' : 'Manuel'}
+                    size="small"
+                    color={row.sendMode === 'auto' ? 'success' : 'info'}
+                    variant="outlined"
+                  />
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={Boolean(row.enabled)}
+                    onChange={(e) => handleToggleEnabled(row, e.target.checked)}
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                  <Tooltip title="Supprimer">
+                    <IconButton onClick={() => handleDelete(row)} size="small" color="error" aria-label="Supprimer"><DeleteIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            )}
+            renderMobileCard={(row) => (
+              <Stack onClick={() => handleOpen(row)} sx={{ cursor: 'pointer', gap: 0.5 }}>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>
+                  <Chip
+                    label={row.sendMode === 'auto' ? 'Auto' : 'Manuel'}
+                    size="small"
+                    color={row.sendMode === 'auto' ? 'success' : 'info'}
+                    variant="outlined"
+                  />
+                </Stack>
+                <Typography variant="caption" color="text.secondary">{describeOffset(row.dayOffset)}</Typography>
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={Boolean(row.enabled)}
+                    onChange={(e) => handleToggleEnabled(row, e.target.checked)}
+                    size="small"
+                  />
+                  <Tooltip title="Supprimer">
+                    <IconButton onClick={() => handleDelete(row)} size="small" color="error" aria-label="Supprimer"><DeleteIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                </Stack>
+              </Stack>
+            )}
+          />
+        )}
       </Card>
 
       <EmailManualSendDialog

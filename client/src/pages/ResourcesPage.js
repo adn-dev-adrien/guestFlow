@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import api from '../api';
 import PricedItemsPage from '../components/PricedItemsPage';
+import { alpha } from '@mui/material/styles';
 
 const SLOT_DURATION_OPTIONS = [
   { value: 5, label: '5 min' },
@@ -316,9 +317,10 @@ export function toResourcePayload(form) {
   };
 }
 
-export default function ResourcesPage() {
+export default function ResourcesPage({ barCenter }) {
   return (
     <PricedItemsPage
+      barCenter={barCenter}
       pageTitle="Ressources"
       itemLabel="ressource"
       emptyForm={emptyResource}
@@ -371,7 +373,7 @@ export default function ResourcesPage() {
         const n = (item.name || '').toLowerCase();
         return n.includes('lit') && (n.includes('bébé') || n.includes('bebe'));
       }}
-      getRowSx={(item) => (item.isComplex ? { bgcolor: 'rgba(2, 136, 209, 0.05)' } : {})}
+      getRowSx={(item) => (item.isComplex ? { bgcolor: (t) => alpha(t.palette.info.main, 0.05) } : {})}
       renderExtraFormFields={(form, setForm, { properties }) => (
         <>
           {/* Bilingual devis PDF (specs/devis-english-language.md §3 rule 7 + §6.3). */}

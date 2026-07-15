@@ -84,11 +84,11 @@ export default function SettingsPushNotificationsSection() {
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-        <Stack spacing={2.5}>
+        <Stack spacing={2}>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <NotificationsActiveIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Notifications push (cet appareil)</Typography>
+              <Typography variant="sectionHeader">Notifications push (cet appareil)</Typography>
             </Box>
             <Typography variant="body2" color="text.secondary">
               Recevez une notification, même quand GuestFlow est fermé, sur cet appareil. Le choix des

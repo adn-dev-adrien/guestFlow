@@ -82,7 +82,9 @@ export default function LogoUpload({
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={{ xs: 1.5, sm: 2 }}
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        // In sx, not as a prop: MUI 9's Stack forwards unknown props to the DOM (React
+        // « alignItems »-on-DOM console error) and drops the style (specs/ds-sweep-settings.md §3.6).
+        sx={{ alignItems: { xs: 'flex-start', sm: 'center' } }}
       >
         {showImage ? (
           <Box
@@ -93,10 +95,11 @@ export default function LogoUpload({
               height: 64,
               maxWidth: 200,
               objectFit: 'contain',
-              border: '1px solid #eee',
+              border: '1px solid',
+              borderColor: 'divider',
               borderRadius: 1,
               p: 0.5,
-              bgcolor: '#fafafa',
+              bgcolor: 'grey.50',
             }}
           />
         ) : (
@@ -154,7 +157,7 @@ export default function LogoUpload({
         <Typography
           variant="caption"
           color={error ? 'error' : 'text.secondary'}
-          sx={{ display: 'block', mt: 0.75 }}
+          sx={{ display: 'block', mt: 1 }}
         >
           {error || helperText}
         </Typography>
