@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Box, TableRow, TableCell, TableSortLabel,
-  IconButton, Button, TextField,
+  Box, Stack, Typography, Tooltip, TableRow, TableCell, TableSortLabel,
+  IconButton, TextField,
   FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -11,6 +11,7 @@ import DataPageScaffold from './DataPageScaffold';
 import FormDialog from './FormDialog';
 import PropertiesMultiSelect from './PropertiesMultiSelect';
 import { useAppDialogs } from './DialogProvider';
+import { formatCurrency } from '../utils/formatters';
 import useCrudResource from '../hooks/useCrudResource';
 
 const PRICE_TYPES = [
@@ -50,6 +51,8 @@ export default function PricedItemsPage({
   // specs/option-property-scope.md: options use an EXPLICIT scope (« Tous » = all ids, empty = none).
   // Resources keep the legacy « empty = all ». Drives the « Logements » column label below.
   explicitPropertyScope = false,
+  // Tab-wrapper mode (specs/ds-sweep-settings.md §3.2): the wrapper's Tabs render centered in the bar.
+  barCenter,
 }) {
     const resolvedPriceTypes = priceTypes || PRICE_TYPES;
 
@@ -78,6 +81,8 @@ export default function PricedItemsPage({
 
   const {
     items,
+    loading,
+    error,
     reload,
     createItem: createCrudItem,
     updateItem: updateCrudItem,
@@ -163,8 +168,22 @@ export default function PricedItemsPage({
     });
   }, [items, sortCol, sortDir, formNameKey, formDescriptionKey]);
 
-  const SortableCell = ({ col, children }) => (
-    <TableCell sx={{ fontWeight: 600 }}>
+  // Shared by the table row and the xs card (specs/ds-sweep-settings.md §3.5).
+  const propertiesLabel = (item) => {
+    const pids = item.propertyIds || [];
+    const everyProp = properties.length > 0 && properties.every((p) => pids.includes(p.id));
+    if (explicitPropertyScope) {
+      if (pids.length === 0) return 'Aucun logement';
+      if (everyProp) return 'Tous les logements';
+      return pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
+    }
+    return pids.length === 0
+      ? 'Tous les logements'
+      : pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
+  };
+
+  const SortableCell = ({ col, children, align }) => (
+    <TableCell align={align} sx={{ fontWeight: 600 }}>
       <TableSortLabel
         active={sortCol === col}
         direction={sortCol === col ? sortDir : 'asc'}
@@ -182,65 +201,93 @@ export default function PricedItemsPage({
         actionLabel={`Nouvelle ${itemLabel}`}
         actionIcon={<AddIcon />}
         onAction={() => openDialog(null)}
+        barCenter={barCenter}
+        loading={loading && items.length === 0}
+        error={error ? `Impossible de charger les ${itemLabel}s.` : ''}
+        onRetry={reload}
         minWidth={showQuantity ? 980 : 860}
         head={(
           <TableRow>
             <SortableCell col="name">Nom</SortableCell>
             <SortableCell col="description">Description</SortableCell>
             <SortableCell col="properties">Logements</SortableCell>
-            <SortableCell col="price">Prix</SortableCell>
-            {showQuantity && <SortableCell col="quantity">Quantite</SortableCell>}
+            <SortableCell col="price" align="right">Prix</SortableCell>
+            {showQuantity && <SortableCell col="quantity" align="right">Quantite</SortableCell>}
             <SortableCell col="priceType">Type de prix</SortableCell>
             <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
           </TableRow>
         )}
-        hasItems={items.length > 0}
-        emptyColSpan={showQuantity ? 7 : 6}
         emptyText={`Aucune ${itemLabel}`}
-      >
-        {sortedItems.map((item) => {
+        items={sortedItems}
+        getKey={(item) => item.id}
+        renderRow={(item) => {
           const deleteDisabled = isDeleteDisabled ? isDeleteDisabled(item) : false;
           const name = item[formNameKey] || '';
           const description = item[formDescriptionKey] || '';
           return (
             <TableRow key={item.id} hover sx={{ cursor: 'pointer', ...(getRowSx ? getRowSx(item) : {}) }} onClick={() => openDialog(item)}>
               <TableCell>{name}</TableCell>
-              <TableCell>{description || '-'}</TableCell>
-              <TableCell>
-                {(() => {
-                  const pids = item.propertyIds || [];
-                  const everyProp = properties.length > 0 && properties.every((p) => pids.includes(p.id));
-                  if (explicitPropertyScope) {
-                    if (pids.length === 0) return 'Aucun logement';
-                    if (everyProp) return 'Tous les logements';
-                    return pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
-                  }
-                  return pids.length === 0
-                    ? 'Tous les logements'
-                    : pids.map((pid) => properties.find((p) => p.id === pid)?.name || pid).join(', ');
-                })()}
+              <TableCell>{description || '—'}</TableCell>
+              <TableCell>{propertiesLabel(item)}</TableCell>
+              {/* Amounts right-aligned in tabular figures via formatCurrency (design-system-reference.md §5). */}
+              <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                {renderPriceCell ? renderPriceCell(item, properties) : formatCurrency(item.price)}
               </TableCell>
-              <TableCell>{renderPriceCell ? renderPriceCell(item, properties) : `${item.price} €`}</TableCell>
-              {showQuantity && <TableCell>{item.quantity}</TableCell>}
-              <TableCell>{resolvedPriceTypes.find((t) => t.value === item.priceType)?.label || item.priceType || '-'}</TableCell>
+              {showQuantity && <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{item.quantity}</TableCell>}
+              <TableCell>{resolvedPriceTypes.find((t) => t.value === item.priceType)?.label || item.priceType || '—'}</TableCell>
               <TableCell align="right">
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
-                <IconButton
-                  size="small"
-                  color="error"
-                  disabled={deleteDisabled}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!deleteDisabled) handleDelete(item);
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
+                <Tooltip title="Modifier">
+                  <IconButton size="small" aria-label="Modifier" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
+                </Tooltip>
+                <Tooltip title="Supprimer">
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      aria-label="Supprimer"
+                      disabled={deleteDisabled}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!deleteDisabled) handleDelete(item);
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </TableCell>
             </TableRow>
           );
-        })}
-      </DataPageScaffold>
+        }}
+        renderMobileCard={(item) => {
+          const deleteDisabled = isDeleteDisabled ? isDeleteDisabled(item) : false;
+          return (
+            <Stack onClick={() => openDialog(item)} sx={{ cursor: 'pointer', gap: 0.5 }}>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{item[formNameKey] || ''}</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                  {renderPriceCell ? renderPriceCell(item, properties) : formatCurrency(item.price)}
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                {propertiesLabel(item)} · {resolvedPriceTypes.find((t) => t.value === item.priceType)?.label || item.priceType || '—'}
+              </Typography>
+              <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+                <Tooltip title="Modifier">
+                  <IconButton size="small" aria-label="Modifier" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
+                </Tooltip>
+                <Tooltip title="Supprimer">
+                  <span>
+                    <IconButton size="small" color="error" aria-label="Supprimer" disabled={deleteDisabled} onClick={(e) => { e.stopPropagation(); if (!deleteDisabled) handleDelete(item); }}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            </Stack>
+          );
+        }}
+      />
       <FormDialog
         open={open}
         onClose={() => setOpen(false)}

@@ -34,6 +34,11 @@ import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
+import ErrorAlert from '../components/ErrorAlert';
+import TableCard from '../components/TableCard';
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
+import { displayDateTime } from '../utils/formatters';
 import ConfirmDialog from '../components/ConfirmDialog';
 import StatusBadge from '../components/StatusBadge';
 import AccountFormDialog from '../components/AccountFormDialog';
@@ -42,14 +47,10 @@ import SelfProfileSection from '../components/SelfProfileSection';
 import { ROLE_LABELS, ADMIN, userHasRole } from '../constants/roles';
 import { useAuth } from '../hooks/useAuth';
 
+// SQLite stores lastLoginAt in UTC without a Z suffix — normalise before the shared formatter.
 function formatLastLogin(iso) {
   if (!iso) return '—';
-  const date = new Date(`${String(iso).replace(' ', 'T')}${iso.includes('Z') ? '' : 'Z'}`);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
-  }).format(date);
+  return displayDateTime(`${String(iso).replace(' ', 'T')}${String(iso).includes('Z') ? '' : 'Z'}`);
 }
 
 function statusOf(user) {
@@ -277,7 +278,22 @@ export default function UserManagementPage() {
 
   return (
     <Box>
-      <PageActionBar title="Gestion utilisateur" subtitle={subtitle} />
+      <PageActionBar
+        title="Gestion utilisateur"
+        subtitle={subtitle}
+        actionsBefore={isAdmin ? [{ node: (
+          <Button
+            key="add-account"
+            variant="contained"
+            size="small"
+            startIcon={<PersonAddAlt1Icon />}
+            onClick={openCreate}
+            disabled={loading}
+          >
+            Ajouter un compte
+          </Button>
+        ) }] : []}
+      />
 
       <Box sx={{ maxWidth: { xs: '100%', md: 1100 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
         {/* Section 1 — Mes informations (tous les rôles, profil personnel). */}
@@ -294,9 +310,7 @@ export default function UserManagementPage() {
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2}>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Mon mot de passe
-                </Typography>
+                <Typography variant="sectionHeader">Mon mot de passe</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                   Choisissez un nouveau mot de passe d'au moins 10 caractères.
                   {wasMustChange && (
@@ -320,41 +334,27 @@ export default function UserManagementPage() {
         {/* Section 3 — Gestion des comptes (admin uniquement). */}
         {isAdmin && (
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1.5, mt: 1 }}>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Gestion des comptes
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {users.length} compte{users.length > 1 ? 's' : ''} — créer, modifier, réinitialiser un mot de passe ou supprimer un accès.
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                size="small"
-                startIcon={<PersonAddAlt1Icon />}
-                onClick={openCreate}
-                disabled={loading}
-              >
-                Ajouter un compte
-              </Button>
+            <Box sx={{ mb: 1.5, mt: 1 }}>
+              <Typography variant="sectionHeader">Gestion des comptes</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {users.length} compte{users.length > 1 ? 's' : ''} — créer, modifier, réinitialiser un mot de passe ou supprimer un accès.
+              </Typography>
             </Box>
 
             {loadError && (
-              <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>
+              <ErrorAlert message={loadError} onRetry={refresh} sx={{ mb: 2 }} />
             )}
 
-            {loading && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <CircularProgress />
-              </Box>
-            )}
+            {loading && <LoadingState />}
 
-            {!loading && users.length === 0 && (
-              <Alert severity="info">
-                Aucun autre compte. Cliquez sur <strong>Ajouter un compte</strong> pour inviter un
-                collaborateur ou un comptable.
-              </Alert>
+            {!loading && !loadError && users.length === 0 && (
+              <EmptyState
+                icon={<PersonAddAlt1Icon />}
+                message="Aucun autre compte. Utilisez « Ajouter un compte » pour inviter un collaborateur ou un comptable."
+                actionLabel="Ajouter un compte"
+                onAction={openCreate}
+                py={4}
+              />
             )}
 
             {!loading && users.length > 0 && (isMobile
@@ -445,10 +445,8 @@ export default function UserManagementPage() {
 
 function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy }) {
   return (
-    <Card variant="outlined">
-      <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small">
-          <TableHead>
+    <TableCard>
+      <TableHead>
             <TableRow>
               <TableCell>Nom</TableCell>
               <TableCell>Email</TableCell>
@@ -522,9 +520,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
               );
             })}
           </TableBody>
-        </Table>
-      </Box>
-    </Card>
+    </TableCard>
   );
 }
 
@@ -538,7 +534,7 @@ function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleT
         return (
           <Card key={u.id} variant="outlined" sx={{ opacity: u.isActive ? 1 : 0.65 }}>
             <CardContent sx={{ p: 2 }}>
-              <Stack spacing={1.2}>
+              <Stack spacing={1}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{fullName(u)}</Typography>
