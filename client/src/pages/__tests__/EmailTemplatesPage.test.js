@@ -23,13 +23,20 @@ vi.mock('../../api', () => ({
   },
 }));
 
-vi.mock('../../components/DialogProvider', () => ({
-  __esModule: true,
-  useAppDialogs: () => ({
+vi.mock('../../components/DialogProvider', () => {
+  // Stable identities, like the real provider (its context value is memoized) — a fresh object per
+  // render would re-trigger useCallback/useEffect chains that depend on the toast fns.
+  const stableToast = { showSuccess: vi.fn(), showError: vi.fn() };
+  const stableDialogs = {
     confirm: vi.fn().mockResolvedValue(true),
     alert: vi.fn().mockResolvedValue(),
-  }),
-}));
+  };
+  return {
+    __esModule: true,
+    useAppDialogs: () => stableDialogs,
+    useToast: () => stableToast,
+  };
+});
 
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {

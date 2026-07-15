@@ -24,9 +24,9 @@ export default function SettingsQuoteSection({
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-        <Stack spacing={2.5}>
+        <Stack spacing={2}>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            <Typography variant="sectionHeader">
               Paramètres des devis
             </Typography>
           </Box>

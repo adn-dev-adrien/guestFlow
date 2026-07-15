@@ -3,6 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import DialogProvider from '../../components/DialogProvider';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../../theme';
 import { vi } from 'vitest';
 
 // Mock the API + auth before importing the page so the imports pick up the mocks.
@@ -37,7 +39,9 @@ function setAuth(user) {
 function renderPage() {
   return render(
     <MemoryRouter>
-      <DialogProvider><UserManagementPage /></DialogProvider>
+      <ThemeProvider theme={theme}>
+        <DialogProvider><UserManagementPage /></DialogProvider>
+      </ThemeProvider>
     </MemoryRouter>
   );
 }

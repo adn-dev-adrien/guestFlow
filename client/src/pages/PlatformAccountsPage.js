@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
@@ -7,10 +7,13 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import SyncIcon from '@mui/icons-material/Sync';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
+import LoadingState from '../components/LoadingState';
+import ConfirmDialog from '../components/ConfirmDialog';
+import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import { useToast } from '../components/DialogProvider';
 import { useAuth } from '../hooks/useAuth';
 import { userHasRole, ADMIN } from '../constants/roles';
@@ -80,18 +83,17 @@ export default function PlatformAccountsPage() {
     return () => { mounted = false; };
   }, []);
 
-  const isDirty = useMemo(() => {
-    if (defaultAccount !== savedDefaultAccount) return true;
-    if (platforms.length !== savedPlatforms.length) return true;
-    for (let i = 0; i < platforms.length; i += 1) {
-      const a = platforms[i];
-      const b = savedPlatforms[i];
-      if (a.id !== b.id) return true;
-      if ((a.commissionAccountNumber || '') !== (b.commissionAccountNumber || '')) return true;
-      if (Boolean(a.hasVatOnCommission) !== Boolean(b.hasVatOnCommission)) return true;
-    }
-    return false;
-  }, [defaultAccount, savedDefaultAccount, platforms, savedPlatforms]);
+  // Same fields the old manual comparator watched — projected so the guard's deep-equal doesn't
+  // trip on unrelated platform metadata (specs/ds-sweep-settings.md §3.7).
+  const dirtyProjection = (account, list) => ({
+    account,
+    rows: (list || []).map((x) => ({ id: x.id, c: x.commissionAccountNumber || '', v: Boolean(x.hasVatOnCommission) })),
+  });
+  const { isDirty, guardDialogOpen, dismissGuard, confirmLeave } = useDirtyFormGuard({
+    draft: dirtyProjection(defaultAccount, platforms),
+    saved: dirtyProjection(savedDefaultAccount, savedPlatforms),
+    navigate,
+  });
 
   function handleDefaultAccountChange(value) {
     setDefaultAccount(normalizeAccount(value));
@@ -188,6 +190,9 @@ export default function PlatformAccountsPage() {
       <PageActionBar
         title="Plan comptable"
         backTo="/comptabilite"
+        actionsBefore={[
+          { icon: <SyncIcon />, tooltip: 'Rafraîchir la liste', onClick: handleRefresh, color: 'info', disabled: refreshing || saving },
+        ]}
         onSave={handleSave}
         saveDisabled={!isDirty || saving}
         saveBusy={saving}
@@ -206,16 +211,14 @@ export default function PlatformAccountsPage() {
       )}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
+        <LoadingState />
       ) : (
         <Stack spacing={3}>
           <Card variant="outlined">
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Compte par défaut</Typography>
+                  <Typography variant="sectionHeader">Compte par défaut</Typography>
                   <Typography variant="body2" color="text.secondary">
                     Utilisé pour les plateformes qui n'ont pas leur propre compte commission renseigné.
                   </Typography>
@@ -238,7 +241,7 @@ export default function PlatformAccountsPage() {
             <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
               <Box sx={{ px: { xs: 1, sm: 2 }, pt: { xs: 1, sm: 1.5 }, pb: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-start' }, gap: 1 }}>
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Par plateforme</Typography>
+                  <Typography variant="sectionHeader">Par plateforme</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     TVA déductible commissions appliquée: <strong>{vatRateCommission} %</strong>
                     {isAdmin
@@ -246,20 +249,6 @@ export default function PlatformAccountsPage() {
                       : <em> &nbsp;(modifiable par un administrateur)</em>}
                   </Typography>
                 </Box>
-                <Tooltip title="Re-scanner les sources iCal + les réservations pour ajouter toute nouvelle plateforme">
-                  <span>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
-                      onClick={handleRefresh}
-                      disabled={refreshing || saving}
-                      sx={{ alignSelf: { sm: 'flex-start' }, whiteSpace: 'nowrap' }}
-                    >
-                      Rafraîchir la liste
-                    </Button>
-                  </span>
-                </Tooltip>
               </Box>
               {/* Scroll-contained (specs/ds-components.md §3.1) — this was the app's only raw, unwrapped <Table>. */}
               <TableContainer>
@@ -315,6 +304,16 @@ export default function PlatformAccountsPage() {
           </Card>
         </Stack>
       )}
+      <ConfirmDialog
+        open={guardDialogOpen}
+        onClose={dismissGuard}
+        onConfirm={confirmLeave}
+        title="Modifications non enregistrées"
+        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        confirmLabel="Quitter sans enregistrer"
+        cancelLabel="Rester"
+        confirmColor="error"
+      />
     </Box>
   );
 }
