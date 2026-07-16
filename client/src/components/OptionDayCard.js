@@ -78,7 +78,7 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
                 onChange={() => onToggleDone(item, !done)}
                 onClick={stop}
                 sx={{ p: 0, flexShrink: 0 }}
-                inputProps={{ 'aria-label': done ? 'Préparé' : 'Marquer comme préparé' }}
+                slotProps={{ input: { 'aria-label': done ? 'Préparé' : 'Marquer comme préparé' } }}
               />
             </Tooltip>
           )}

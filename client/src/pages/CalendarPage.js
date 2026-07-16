@@ -1,27 +1,35 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Box, useMediaQuery, useTheme } from '@mui/material';
-import PageHeader from '../components/PageHeader';
+import {
+  Box, Typography, Chip, Button, FormControl, InputLabel, Select, MenuItem,
+  useMediaQuery, useTheme,
+} from '@mui/material';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import TodayIcon from '@mui/icons-material/Today';
+import PageActionBar from '../components/PageActionBar';
+import ErrorAlert from '../components/ErrorAlert';
 import CumulativeMonthCalendar from '../components/CumulativeMonthCalendar';
-import CalendarToolbar from '../components/CalendarToolbar';
 import CalendarMonthGrid from '../components/CalendarMonthGrid';
 import CalendarWeekView from '../components/CalendarWeekView';
 import CalendarDayCell from '../components/CalendarDayCell';
 import CalendarNoteDialog from '../components/CalendarNoteDialog';
-import { useAppDialogs } from '../components/DialogProvider';
+import { useAppDialogs, useToast } from '../components/DialogProvider';
 import api from '../api';
 import { getDayOccupancyConflictMessage, getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
-import { formatDate, shiftDate, getDaysInMonth } from '../utils/calendarVisuals';
+import { formatDate, shiftDate, getDaysInMonth, CLEANING_COLOR, ZONE_COLORS } from '../utils/calendarVisuals';
 import useInfiniteMonthScroll from '../hooks/useInfiniteMonthScroll';
 
 const NOTE_MAX_LENGTH = 50;
 
 export default function CalendarPage() {
   const { alert } = useAppDialogs();
+  const { showSuccess, showError } = useToast();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  const [loadError, setLoadError] = useState(false);
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -63,8 +71,21 @@ export default function CalendarPage() {
   }, [months, prependMonth, appendMonth]);
 
   // ---------- DATA LOADING ----------
-  const loadProperties = async () => setProperties(await api.getProperties());
-  const loadSchoolHolidays = async () => setSchoolHolidays((await api.getSchoolHolidays()).periods || []);
+  const loadProperties = async () => {
+    try {
+      setProperties(await api.getProperties());
+    } catch {
+      setLoadError(true);
+    }
+  };
+  // School holidays are a cosmetic overlay (zone dots) — their absence degrades silently.
+  const loadSchoolHolidays = async () => {
+    try {
+      setSchoolHolidays((await api.getSchoolHolidays()).periods || []);
+    } catch {
+      setSchoolHolidays([]);
+    }
+  };
 
   const loadCalendarData = useCallback(async () => {
     if (!selectedProp || months.length === 0) return;
@@ -74,33 +95,43 @@ export default function CalendarPage() {
     const to = formatDate(last.year, last.month, getDaysInMonth(last.year, last.month));
     if (from === lastLoadedRange.current.from && to === lastLoadedRange.current.to) return;
     lastLoadedRange.current = { from, to };
-    const prop = await api.getProperty(selectedProp);
-    setSelectedProperty(prop);
-    const [data, notes, devisData] = await Promise.all([
-      api.getReservations({ propertyId: selectedProp, from, to }),
-      api.getCalendarNotes(selectedProp, from, to),
-      api.getDevis({ propertyId: selectedProp, from, to }).catch(() => []),
-    ]);
-    setReservations(data);
-    setDevisList((devisData || []).filter((d) => d.status !== 'converted'));
-    const notesMap = {};
-    notes.forEach((n) => { notesMap[n.date] = n.note; });
-    setCalendarNotes(notesMap);
     try {
-      const occupied = await api.getOccupiedDates(selectedProp, from, to);
+      const prop = await api.getProperty(selectedProp);
+      setSelectedProperty(prop);
+      const [data, notes, devisData] = await Promise.all([
+        api.getReservations({ propertyId: selectedProp, from, to }),
+        api.getCalendarNotes(selectedProp, from, to),
+        // Devis overlay is cosmetic (dashed ghost bars) — silent-degrading enrichment.
+        api.getDevis({ propertyId: selectedProp, from, to }).catch(() => []),
+      ]);
+      setReservations(data);
+      setDevisList((devisData || []).filter((d) => d.status !== 'converted'));
+      const notesMap = {};
+      notes.forEach((n) => { notesMap[n.date] = n.note; });
+      setCalendarNotes(notesMap);
+      // Occupied dates + closures are ANTI-OVERBOOKING inputs (drag-select guards) — a failure
+      // must surface, not silently allow selecting an actually-blocked range
+      // (specs/ds-sweep-planning.md rule 9; original phase-1 audit finding CalendarPage.js:93).
+      const [occupied, cls] = await Promise.all([
+        api.getOccupiedDates(selectedProp, from, to),
+        api.getEstablishmentClosures({ propertyId: selectedProp, from, to }),
+      ]);
       setOccupiedDates(occupied || []);
-    } catch (err) {
-      console.error('Failed to load occupied dates:', err);
-      setOccupiedDates([]);
-    }
-    try {
-      const cls = await api.getEstablishmentClosures({ propertyId: selectedProp, from, to });
       setClosures(cls || []);
+      setLoadError(false);
     } catch (err) {
-      console.error('Failed to load closures:', err);
+      setOccupiedDates([]);
       setClosures([]);
+      setLoadError(true);
     }
   }, [selectedProp, months]);
+
+  const retryLoads = () => {
+    setLoadError(false);
+    lastLoadedRange.current = { from: '', to: '' };
+    loadProperties();
+    loadCalendarData();
+  };
 
   // Public holidays are now server-computed; fetch them for the visible years (deduped by year set).
   const visibleYearsKey = useMemo(
@@ -318,20 +349,30 @@ export default function CalendarPage() {
 
   const handleSaveNote = async () => {
     if (!selectedProp || !noteDialogDate) return;
-    await api.upsertCalendarNote(selectedProp, noteDialogDate, noteDialogText);
-    setCalendarNotes((prev) => {
-      const next = { ...prev };
-      if (noteDialogText.trim()) next[noteDialogDate] = noteDialogText.trim();
-      else delete next[noteDialogDate];
-      return next;
-    });
-    setNoteDialogOpen(false);
+    try {
+      await api.upsertCalendarNote(selectedProp, noteDialogDate, noteDialogText);
+      setCalendarNotes((prev) => {
+        const next = { ...prev };
+        if (noteDialogText.trim()) next[noteDialogDate] = noteDialogText.trim();
+        else delete next[noteDialogDate];
+        return next;
+      });
+      setNoteDialogOpen(false);
+      showSuccess('Note enregistrée.');
+    } catch (e) {
+      showError(e.message || "Impossible d'enregistrer la note.");
+    }
   };
 
   const handleDeleteNote = async () => {
-    await api.deleteCalendarNote(selectedProp, noteDialogDate);
-    setCalendarNotes((prev) => { const next = { ...prev }; delete next[noteDialogDate]; return next; });
-    setNoteDialogOpen(false);
+    try {
+      await api.deleteCalendarNote(selectedProp, noteDialogDate);
+      setCalendarNotes((prev) => { const next = { ...prev }; delete next[noteDialogDate]; return next; });
+      setNoteDialogOpen(false);
+      showSuccess('Note supprimée.');
+    } catch (e) {
+      showError(e.message || 'Impossible de supprimer la note.');
+    }
   };
 
   // ---------- RENDER ----------
@@ -359,19 +400,61 @@ export default function CalendarPage() {
     />
   );
 
+  // Property picker cluster — bar `center` on sm+, compact strip under the bar on xs
+  // (specs/ds-sweep-planning.md rule 3; absorbs the former CalendarToolbar).
+  const renderPropertyPicker = () => (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <FormControl size="small" sx={{ minWidth: 200 }}>
+        <InputLabel>Logement</InputLabel>
+        {/* Until the property list lands, a URL-driven selectedProp has no matching option —
+            render '' meanwhile to avoid MUI's transient out-of-range warning on deep links. */}
+        <Select value={properties.length ? selectedProp : ''} label="Logement" onChange={(e) => handleSelectProperty(e.target.value)}>
+          {properties.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+        </Select>
+      </FormControl>
+      {selectedProp && (
+        <Button variant="text" size="small" onClick={() => setSelectedProp('')}>Vue logements</Button>
+      )}
+    </Box>
+  );
+
   return (
     <Box>
-      <PageHeader title="Calendrier des réservations" />
-
-      <CalendarToolbar
-        properties={properties}
-        selectedProp={selectedProp}
-        onSelectProperty={handleSelectProperty}
-        onClearProperty={() => setSelectedProp('')}
-        onPrevMonth={prependMonth}
-        onNextMonth={appendMonth}
-        onToday={scrollToToday}
+      <PageActionBar
+        title="Calendrier"
+        titleOnXs
+        center={renderPropertyPicker()}
+        actionsBefore={[
+          ...(selectedProp ? [
+            { icon: <NavigateBeforeIcon />, tooltip: 'Mois précédent', onClick: prependMonth },
+            { icon: <NavigateNextIcon />, tooltip: 'Mois suivant', onClick: appendMonth },
+          ] : []),
+          { icon: <TodayIcon />, tooltip: "Aujourd'hui", onClick: scrollToToday, color: 'primary' },
+        ]}
       />
+      {/* xs fallback for the bar's hidden `center` — same picker, compact strip. */}
+      <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
+        {renderPropertyPicker()}
+      </Box>
+
+      {loadError && (
+        <ErrorAlert
+          message="Certaines données du calendrier n'ont pas pu être chargées (disponibilités / fermetures incluses)."
+          onRetry={retryLoads}
+          sx={{ mb: 2 }}
+        />
+      )}
+
+      {/* Colour legend (cleaning + school-holiday zones) — informational, stays next to the grid. */}
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+        <Chip label="Ménage" size="small" sx={{ bgcolor: CLEANING_COLOR, color: 'common.white' }} />
+        {[['A', ZONE_COLORS.A], ['B', ZONE_COLORS.B], ['C', ZONE_COLORS.C]].map(([zone, color]) => (
+          <Box key={zone} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
+            <Typography variant="caption" color="text.secondary">Zone {zone}</Typography>
+          </Box>
+        ))}
+      </Box>
 
       {selectedProp ? (
         isMobile ? (

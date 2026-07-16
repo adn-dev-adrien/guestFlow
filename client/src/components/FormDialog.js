@@ -3,10 +3,11 @@
  * fullScreen under the `sm` breakpoint (specs/ds-components.md §3.3 — CLAUDE.md dialog rule).
  *
  * Props: open, onClose, title, children, maxWidth ('sm'), fullWidth (true),
- *        cancelLabel ('Annuler'), submitLabel ('Enregistrer'), onSubmit, submitDisabled, submitColor.
+ *        cancelLabel ('Annuler'), submitLabel ('Enregistrer'), onSubmit, submitDisabled, submitColor,
+ *        secondaryAction (ReactNode, start-aligned in the actions row — e.g. a « Supprimer » button).
  */
 import React from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, useMediaQuery } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
 export default function FormDialog({
@@ -21,6 +22,7 @@ export default function FormDialog({
   onSubmit,
   submitDisabled,
   submitColor,
+  secondaryAction,
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -29,6 +31,8 @@ export default function FormDialog({
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>{children}</DialogContent>
       <DialogActions>
+        {secondaryAction}
+        {secondaryAction && <Box sx={{ flex: 1 }} />}
         <Button onClick={onClose}>{cancelLabel}</Button>
         <Button variant="contained" color={submitColor} onClick={onSubmit} disabled={submitDisabled}>
           {submitLabel}

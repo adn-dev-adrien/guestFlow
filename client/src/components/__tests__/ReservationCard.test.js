@@ -198,12 +198,13 @@ test('options + resources — chips rendered for non-empty lists', () => {
 // payment + amount (collected on arrival for platform/iCal reservations).
 test('complement — shows "Complément à percevoir" with the amount when complementAmount > 0', () => {
   render(<ReservationCard reservation={{ ...BASE, complementAmount: 45, complementPaid: false }} onToggleReady={noop} />);
-  expect(screen.getByText(/Complément à percevoir : 45\.00€/)).toBeInTheDocument();
+  // Canonical formatCurrency output (ds phase 5): « 45,00 € », not the legacy « 45.00€ ».
+  expect(screen.getByText(/Complément à percevoir : 45,00 €/)).toBeInTheDocument();
 });
 
 test('complement — marks it (perçu) when complementPaid', () => {
   render(<ReservationCard reservation={{ ...BASE, complementAmount: 45, complementPaid: true }} onToggleReady={noop} />);
-  expect(screen.getByText(/Complément à percevoir : 45\.00€ \(perçu\)/)).toBeInTheDocument();
+  expect(screen.getByText(/Complément à percevoir : 45,00 € \(perçu\)/)).toBeInTheDocument();
 });
 
 test('complement — no chip when complementAmount is 0 / absent', () => {
@@ -215,7 +216,7 @@ test('complement — no chip when complementAmount is 0 / absent', () => {
 // red so the host knows to collect it at check-in.
 test('caution — shows "Caution à percevoir" with the amount when unpaid (cautionReceived = 0)', () => {
   render(<ReservationCard reservation={{ ...BASE, cautionAmount: 300, cautionReceived: 0 }} onToggleReady={noop} />);
-  expect(screen.getByText(/Caution à percevoir : 300\.00€/)).toBeInTheDocument();
+  expect(screen.getByText(/Caution à percevoir : 300,00 €/)).toBeInTheDocument();
 });
 
 test('caution — no chip when the caution has been received', () => {

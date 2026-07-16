@@ -7,7 +7,8 @@ import { test, expect } from '@playwright/test';
 const ROUTES = [
   { url: '/',                            heading: 'Tableau de bord' },
   { url: '/planning',                    heading: 'Planning' },
-  { url: '/calendar',                    heading: 'Calendrier des réservations' },
+  // Retitled « Calendrier » by the DS phase-5 sweep (specs/ds-sweep-planning.md rule 3).
+  { url: '/calendar',                    heading: 'Calendrier', exact: true },
   { url: '/finance',                     heading: 'Suivi financier' },
   { url: '/comptabilite',                heading: 'Comptabilité' },
   { url: '/devis',                       heading: 'Devis' },

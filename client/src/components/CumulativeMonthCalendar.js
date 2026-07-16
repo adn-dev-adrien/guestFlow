@@ -12,6 +12,7 @@
  */
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Box, Typography, Button, Stack, Tooltip, CircularProgress, Chip, useMediaQuery, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import api from '../api';
 import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 import { formatDate, shiftDate, getDaysInMonth } from '../utils/calendarVisuals';
@@ -21,7 +22,8 @@ const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const BAR_H = 22;      // px per lane
 const HEADER_H = 24;   // px for the day-number band
-const CLOSURE_COLOR = '#9e9e9e';
+// Closure bars/legend: theme grey (resolved via useTheme — bars are CSS strings, not sx tokens).
+const closureColor = (theme) => theme.palette.grey[500];
 const GLOBAL_GROUP_KEY = '';            // global closures (all logements) → sort first (top band)
 const GLOBAL_LABEL = 'Tous les logements';
 
@@ -175,6 +177,8 @@ export function monthItems(year, month, items) {
 }
 
 function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick, onCreateReservation }) {
+  const theme = useTheme();
+  const CLOSURE_COLOR = closureColor(theme);
   const { weeks } = useMemo(
     () => (isMobile ? { weeks: [] } : buildMonthLayout(year, month, items, todayStr)),
     [year, month, items, todayStr, isMobile],
@@ -183,10 +187,10 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
 
   const stickyLabel = (
     <Typography
-      variant="subtitle1"
+      variant="sectionHeader"
       sx={{
-        position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', py: 0.5,
-        fontWeight: 800, textTransform: 'capitalize', borderBottom: '2px solid', borderColor: 'primary.light',
+        display: 'block', position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', py: 0.5,
+        textTransform: 'capitalize', borderBottom: '2px solid', borderColor: 'primary.light',
       }}
     >
       {MONTHS_FR[month]} {year}
@@ -201,7 +205,7 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
         {list.length === 0 && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', py: 1 }}>Aucune réservation.</Typography>
         )}
-        <Stack spacing={0.75} sx={{ mt: 0.75 }}>
+        <Stack spacing={1} sx={{ mt: 1 }}>
           {list.map((it) => {
             const closure = it.kind === 'closure';
             const color = closure ? CLOSURE_COLOR : getPlatformColor(it.platform);
@@ -228,7 +232,7 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                 </Box>
                 <Stack spacing={0.25} sx={{ alignItems: 'flex-end', flexShrink: 0 }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{frRange(it.startDate, it.lastDay)}</Typography>
-                  {!closure && <Chip label={formatPlatformLabel(it.platform)} size="small" sx={{ height: 18, fontSize: 10, bgcolor: color, color: '#fff' }} />}
+                  {!closure && <Chip label={formatPlatformLabel(it.platform)} size="small" sx={{ height: 18, fontSize: 10, bgcolor: color, color: 'common.white' }} />}
                 </Stack>
               </Box>
             );
@@ -291,12 +295,12 @@ function MonthBlock({ year, month, items, todayStr, isMobile, onReservationClick
                     onClick={closure ? undefined : (e) => { e.stopPropagation(); onReservationClick && onReservationClick(item.reservationId); }}
                     sx={{
                       position: 'absolute', left, width, top, height: BAR_H - 4,
-                      bgcolor: color, color: '#fff', cursor: closure ? 'default' : 'pointer',
+                      bgcolor: color, color: 'common.white', cursor: closure ? 'default' : 'pointer',
                       borderTopLeftRadius: bar.roundStart ? 6 : 0, borderBottomLeftRadius: bar.roundStart ? 6 : 0,
                       borderTopRightRadius: bar.roundEnd ? 6 : 0, borderBottomRightRadius: bar.roundEnd ? 6 : 0,
-                      px: 0.75, display: 'flex', alignItems: 'center', overflow: 'hidden',
+                      px: 0.5, display: 'flex', alignItems: 'center', overflow: 'hidden',
                       fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                      boxShadow: 1, ...(closure ? { border: '1px dashed rgba(0,0,0,0.25)' } : { '&:hover': { filter: 'brightness(0.92)' } }),
+                      boxShadow: 1, ...(closure ? { border: (t) => `1px dashed ${alpha(t.palette.common.black, 0.25)}` } : { '&:hover': { filter: 'brightness(0.92)' } }),
                       // Past stays greyed (visual only), consistent with the mobile agenda + per-property grid.
                       opacity: todayStr > item.lastDay ? 0.5 : 1,
                     }}
@@ -405,7 +409,7 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
           ))}
           {hasClosures && (
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-              <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: CLOSURE_COLOR }} />
+              <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: 'grey.500' }} />
               <Typography variant="caption" color="text.secondary">Fermeture</Typography>
             </Stack>
           )}
