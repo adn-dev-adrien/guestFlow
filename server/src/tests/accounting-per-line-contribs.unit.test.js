@@ -7,25 +7,10 @@ const { __test: { buildEntry } } = require('../models/accountingModel');
 // Drives `buildEntry` with synthetic `perLineData` to verify the contrib-driven path emits
 // exactly the right per-bucket TTC for each kind, with zero cross-contamination.
 
-function quoteOf({ accommodationTtc, optionsTtc, resourcesTtc, taxTtc = 0 }) {
-  // Engine-shape quote — VAT extracted at 10 % accommodation / 20 % standard.
-  const vatAcco = round2(accommodationTtc * (10 / 110));
-  const vatOpt = round2(optionsTtc * (20 / 120));
-  const vatRes = round2(resourcesTtc * (20 / 120));
-  return {
-    finalPrice: accommodationTtc + optionsTtc + resourcesTtc,
-    accommodationNetPrice: round2(accommodationTtc - vatAcco),
-    accommodationVatAmount: vatAcco,
-    optionsNetPrice: round2(optionsTtc - vatOpt),
-    optionsVatAmount: vatOpt,
-    resourcesNetPrice: round2(resourcesTtc - vatRes),
-    resourcesVatAmount: vatRes,
-    vatPercentageAccommodation: 10,
-    vatPercentageOptions: 20,
-    vatPercentageResources: 20,
-    touristTaxCollectedOnArrival: false,
-  };
-}
+// buildEntry signature post specs/accounting-encaissement-effective-percent.md:
+// (row, kind, perLineData, commissionContext, taxContext) — no quote. Every bucket extracts
+// HT/VAT at the SINGLE global rate (specs/single-vat-rate.md), 10 % by default here (no
+// commissionContext injected).
 
 function round2(v) { return Math.round(Number(v || 0) * 100) / 100; }
 
@@ -48,7 +33,7 @@ function rowOf(overrides = {}) {
 
 test('legacy fallback (no contribs) → identical pro-rata behaviour as before', () => {
   // Deposit at 30 %: fraction = 60/200 = 0.3, applied to the full reservation HT in the export.
-  const entry = buildEntry(rowOf(), quoteOf({ accommodationTtc: 200, optionsTtc: 0, resourcesTtc: 0 }), 'deposit');
+  const entry = buildEntry(rowOf(), 'deposit');
   assert.equal(entry.fraction, 0.3);
   assert.equal(entry.encaissementTtc, 60);
   // Buckets carry the FULL reservation HT/VAT (the export engine multiplies by fraction).
@@ -69,7 +54,7 @@ test('contrib path: deposit entry uses the per-line acompteContribTtc directly',
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
     touristTaxAcompteContribTtc: 0, touristTaxSoldeContribTtc: 0,
   });
-  const entry = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 100, resourcesTtc: 0 }), 'deposit', perLineData);
+  const entry = buildEntry(row, 'deposit', perLineData);
   assert.equal(entry.fraction, 1);
   // Bucket TTCs are pre-applied (no multiplication needed in the export engine).
   const acco = entry.buckets.find((b) => b.name === 'accommodation');
@@ -77,8 +62,8 @@ test('contrib path: deposit entry uses the per-line acompteContribTtc directly',
   // Accommodation: 60 TTC → 60/1.10 = 54.55 HT
   assert.equal(acco.ht, round2(60 / 1.10));
   assert.equal(acco.vat, round2(60 - acco.ht));
-  // Options: 30 TTC → 30/1.20 = 25 HT
-  assert.equal(opt.ht, round2(30 / 1.20));
+  // Options: 30 TTC → 30/1.10 = 27.27 HT (single global 10 % rate)
+  assert.equal(opt.ht, round2(30 / 1.10));
   assert.equal(entry.encaissementTtc, 90);
 });
 
@@ -94,11 +79,11 @@ test('contrib path: balance entry mirrors solde contribs (no contamination from 
     finalPrice: 300, depositAmount: 90, balanceAmount: 210,
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
   });
-  const entry = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 100, resourcesTtc: 0 }), 'balance', perLineData);
+  const entry = buildEntry(row, 'balance', perLineData);
   const acco = entry.buckets.find((b) => b.name === 'accommodation');
   const opt = entry.buckets.find((b) => b.name === 'options');
   assert.equal(acco.ht, round2(140 / 1.10));
-  assert.equal(opt.ht, round2(70 / 1.20));
+  assert.equal(opt.ht, round2(70 / 1.10));
   assert.equal(entry.encaissementTtc, 210);
 });
 
@@ -114,16 +99,16 @@ test('forced option lives 100 % in complement entry, NOT in deposit/balance', ()
     finalPrice: 300, depositAmount: 60, balanceAmount: 140, complementAmount: 100, complementPaid: 1, complementPaidDate: '2026-07-10',
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
   });
-  const deposit = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 100, resourcesTtc: 0 }), 'deposit', perLineData);
-  const balance = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 100, resourcesTtc: 0 }), 'balance', perLineData);
-  const complement = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 100, resourcesTtc: 0 }), 'complement', perLineData);
+  const deposit = buildEntry(row, 'deposit', perLineData);
+  const balance = buildEntry(row, 'balance', perLineData);
+  const complement = buildEntry(row, 'complement', perLineData);
   // Deposit + balance carry ONLY the accommodation contribs (the option is forced).
   assert.equal(deposit.encaissementTtc, 60);
   assert.equal(balance.encaissementTtc, 140);
   assert.equal(deposit.buckets.find((b) => b.name === 'options'), undefined);
   // Complement carries the forced option at 100 %.
   const compOpt = complement.buckets.find((b) => b.name === 'options');
-  assert.equal(compOpt.ht, round2(100 / 1.20));
+  assert.equal(compOpt.ht, round2(100 / 1.10));
 });
 
 test('post-payment growth: complement entry carries the delta, deposit/balance stay clean', () => {
@@ -141,12 +126,12 @@ test('post-payment growth: complement entry carries the delta, deposit/balance s
     complementPaid: 1, complementPaidDate: '2026-07-10',
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
   });
-  const deposit = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 130, resourcesTtc: 0 }), 'deposit', perLineData);
-  const complement = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 130, resourcesTtc: 0 }), 'complement', perLineData);
+  const deposit = buildEntry(row, 'deposit', perLineData);
+  const complement = buildEntry(row, 'complement', perLineData);
   // Deposit: option contrib is 30, NOT 39 (= 30 % of 130 from grown total).
-  assert.equal(deposit.buckets.find((b) => b.name === 'options').ht, round2(30 / 1.20));
+  assert.equal(deposit.buckets.find((b) => b.name === 'options').ht, round2(30 / 1.10));
   // Complement: only the delta = 30.
-  assert.equal(complement.buckets.find((b) => b.name === 'options').ht, round2(30 / 1.20));
+  assert.equal(complement.buckets.find((b) => b.name === 'options').ht, round2(30 / 1.10));
 });
 
 test('complement entry sums forced + delta correctly', () => {
@@ -165,10 +150,10 @@ test('complement entry sums forced + delta correctly', () => {
     complementPaid: 1, complementPaidDate: '2026-07-10',
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
   });
-  const complement = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 230, resourcesTtc: 0 }), 'complement', perLineData);
+  const complement = buildEntry(row, 'complement', perLineData);
   // Forced (100) + delta (130 - 30 - 70 = 30) = 130 TTC in options bucket.
   const opt = complement.buckets.find((b) => b.name === 'options');
-  assert.equal(opt.ht, round2(130 / 1.20));
+  assert.equal(opt.ht, round2(130 / 1.10));
 });
 
 test('tax routed to complement (touristTaxInComplement=1) → kept with taxTtc surfaced for the 46710000 line', () => {
@@ -184,7 +169,7 @@ test('tax routed to complement (touristTaxInComplement=1) → kept with taxTtc s
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
     touristTaxAcompteContribTtc: 0, touristTaxSoldeContribTtc: 0,
   });
-  const complement = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 0, resourcesTtc: 0 }), 'complement', perLineData);
+  const complement = buildEntry(row, 'complement', perLineData);
   assert.ok(complement, 'pure-tax complement is kept');
   // Revenue buckets are all 0 (tax-only), but the entry carries the tax via taxTtc.
   assert.equal(complement.encaissementTtc, 10);
@@ -204,12 +189,12 @@ test('resource contribs follow the same per-bucket attribution', () => {
     finalPrice: 230, depositAmount: 69, balanceAmount: 161,
     accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
   });
-  const deposit = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 0, resourcesTtc: 30 }), 'deposit', perLineData);
+  const deposit = buildEntry(row, 'deposit', perLineData);
   const res = deposit.buckets.find((b) => b.name === 'resources');
-  assert.equal(res.ht, round2(9 / 1.20));
+  assert.equal(res.ht, round2(9 / 1.10));
 });
 
-test('legacy reservation (all contribs NULL) → fallback path keeps existing behaviour exactly', () => {
+test('legacy reservation (all contribs NULL) → fallback buckets come from the STORED line totals', () => {
   const perLineData = {
     optionLines: [{ optionId: 10, totalPrice: 100, offered: 0, inComplement: 0, acompteContribTtc: null, soldeContribTtc: null }],
     customOptionLines: [],
@@ -218,9 +203,13 @@ test('legacy reservation (all contribs NULL) → fallback path keeps existing be
     accommodationTtcCurrent: 200,
   };
   const row = rowOf({ finalPrice: 300, depositAmount: 90, balanceAmount: 210, totalPrice: 200 });
-  const entry = buildEntry(row, quoteOf({ accommodationTtc: 200, optionsTtc: 100, resourcesTtc: 0 }), 'deposit', perLineData);
+  const perLineDataWithTotals = { ...perLineData, optionsTtc: 100, resourcesTtc: 0 };
+  const entry = buildEntry(row, 'deposit', perLineDataWithTotals);
   assert.equal(entry.fraction, round2(90 / 300));
-  // Buckets carry FULL reservation HT/VAT (pre-feature contract).
+  // Buckets carry FULL reservation HT/VAT (the export multiplies by fraction), derived from
+  // the stored line totals at the single global 10 % rate — no quote involved.
   const opt = entry.buckets.find((b) => b.name === 'options');
-  assert.equal(opt.ht, round2(100 - 100 * (20/120))); // ≈ 83.33
+  assert.equal(opt.ht, round2(100 / 1.10)); // 90.91
+  const acco = entry.buckets.find((b) => b.name === 'accommodation');
+  assert.equal(acco.ht, round2(200 / 1.10)); // finalPrice 300 − options 100 = 200 TTC
 });

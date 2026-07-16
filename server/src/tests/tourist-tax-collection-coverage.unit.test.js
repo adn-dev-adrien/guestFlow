@@ -199,16 +199,8 @@ function makeRow(overrides = {}) {
     ...overrides,
   };
 }
-function makeQuote(overrides = {}) {
-  return {
-    finalPrice: 200,
-    accommodationNetPrice: 181.82, accommodationVatAmount: 18.18, vatPercentageAccommodation: 10,
-    optionsNetPrice: 0, optionsVatAmount: 0, vatPercentageOptions: 20,
-    resourcesNetPrice: 0, resourcesVatAmount: 0, vatPercentageResources: 20,
-    touristTaxCollectedOnArrival: false,
-    ...overrides,
-  };
-}
+// buildEntry(row, kind, perLineData, commissionContext, taxContext) — quote-free since
+// specs/accounting-encaissement-effective-percent.md; the routing flag rides taxContext.
 const csvLines = (entries) => serializeCsv(CSV_HEADERS, buildRows(entries), { bom: false }).split('\r\n').filter(Boolean);
 
 test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the entry detail + CSV', () => {
@@ -218,9 +210,7 @@ test('Comptabilité: owner-collected tax → a dedicated 46710000 line in the en
     platform: 'gitedefrance',
     complementAmount: 4.80, complementPaid: 1, complementPaidDate: '2026-08-20',
   });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: true });
-
-  const entry = buildEntry(row, quote, 'complement');
+  const entry = buildEntry(row, 'complement', null, null, { collectedOnArrival: true });
   assert.ok(entry, 'the owner-collected tax complement produces an accounting entry');
   assert.equal(entry.taxTtc, 4.80, 'the entry detail surfaces the tourist tax on its own (taxTtc)');
 
@@ -234,10 +224,8 @@ test('Comptabilité: platform-remits tax → NO 46710000 line (tax is the platfo
   // The platform collects + remits to the commune (touristTaxCollectedOnArrival = false, not reversed);
   // the stay carries no owner-side tax.
   const row = makeRow({ platform: 'airbnb', touristTaxTotal: 0 });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: false });
-
-  const dep = buildEntry(row, quote, 'deposit');
-  const bal = buildEntry(row, quote, 'balance');
+  const dep = buildEntry(row, 'deposit');
+  const bal = buildEntry(row, 'balance');
   assert.equal(dep.taxTtc, 0);
   assert.equal(bal.taxTtc, 0);
 
@@ -254,9 +242,7 @@ test('Comptabilité: platform-reversed tax (case 1) → the tax rides the balanc
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,
     balanceAmount: 204.80, balancePaid: 1, balancePaidDate: '2026-08-15',
   });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: false });
-
-  const bal = buildEntry(row, quote, 'balance');
+  const bal = buildEntry(row, 'balance');
   assert.ok(bal, 'the balance entry is emitted');
   assert.equal(bal.taxTtc, 4.80, 'the tax surfaces on its own (taxTtc)');
   assert.equal(bal.encaissementTtc, 204.80, 'the payout we banked = stay 200 + tax 4.80');

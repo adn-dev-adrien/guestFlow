@@ -2,26 +2,24 @@
  * Accounting model — DB access layer for the monthly accounting export.
  *
  * One "encaissement" = one deposit or one balance whose **paid date** falls in the selected month.
- * For each, we fetch the underlying reservation + client + property + per-bucket HT/VAT from the
- * pricing engine quote. The pure `accountingExport` util takes this shape and produces the balanced
- * journal lines (see utils/accountingExport.js).
+ * For each, we fetch the underlying reservation + client + property and derive the per-bucket
+ * HT/VAT from the STORED row money (finalPrice + persisted line totals) — never from a recomputed
+ * pricing-engine quote, whose rules may have drifted since the booking was paid
+ * (specs/accounting-encaissement-effective-percent.md). The pure `accountingExport` util takes
+ * this shape and produces the balanced journal lines (see utils/accountingExport.js).
  *
  * Scope (spec §3.4):
  * - Only `kind='reservation'` rows (devis never exported).
  * - Caution is excluded entirely (handled by ignoring `caution*` fields).
- * - Tourist tax is excluded from the revenue accounts (kept out of the export — accountant doesn't ask
- *   for it; it's collected for the commune). Two routing modes:
- *     • direct + platform-collect: tax (if any) is silently absorbed into the rounding residue of the
- *       deposit + balance entries, as the export engine balances Σ credits to debit.
- *     • owner-collect non-direct (`touristTaxCollectedOnArrival` from the quote): pro-rate against
- *       `finalPrice` (not `totalStayTtc`); the complement entry has its tax portion carved out and
- *       the entry is dropped entirely if it is pure tax (see `buildEntry`).
+ * - Tourist tax never hits a revenue account: it rides the 46710000 pass-through line, entirely
+ *   on the solde entry (specs/tourist-tax-on-solde.md) — or on the complement when the routing
+ *   sends it there (owner-collect platforms / `touristTaxInComplement`).
  *
  * Factory `create(db)` (+ a default bound to the production DB), mirroring the other models.
  */
 
 const db = require('../database');
-const { calculateReservationQuote } = require('../utils/pricing');
+const { isPlatformCollectingTouristTax } = require('../utils/pricing');
 const platformsModel = require('./platformsModel');
 const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
@@ -76,19 +74,23 @@ function createAccountingModel(database) {
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
       const commissionContext = buildCommissionContext(database);
 
-      // For each reservation, recompute its quote (which loads options/resources/nights from the DB)
-      // to get the per-bucket HT + VAT splits. The quote ignores any encaissement-side dates, so this
-      // is safe and deterministic.
       return reservations.flatMap((row) => {
-        const quote = computeQuoteForReservation(database, row);
-        const perLineData = buildPerLineData(database, row, quote);
+        const perLineData = buildPerLineData(database, row);
+        // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a
+        // non-direct platform that does NOT collect the tax from the guest (case 3 « owner » of
+        // specs/per-platform-tourist-tax-three-way.md). Mirrors the pricing engine's
+        // `isTouristTaxCollectedOnArrival` without recomputing a full quote.
+        const collectedOnArrival = String(row.platform || 'direct').toLowerCase() !== 'direct'
+          && Number(row.touristTaxTotal || 0) > 0
+          && !isPlatformCollectingTouristTax(database, row.propertyId, row.platform);
+        const taxContext = { collectedOnArrival };
         const entries = [];
         const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
-        if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, quote, 'deposit', perLineData, commissionContext));
-        if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, quote, 'balance', perLineData, commissionContext));
+        if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, 'deposit', perLineData, commissionContext, taxContext));
+        if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, 'balance', perLineData, commissionContext, taxContext));
         // Cash complements are settled off the books → never emitted as an encaissement.
         if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
-          entries.push(buildEntry(row, quote, 'complement', perLineData, commissionContext));
+          entries.push(buildEntry(row, 'complement', perLineData, commissionContext, taxContext));
         }
         // End-of-stay complement (SAS): a flat TTC amount booked as a « prestation complémentaire »
         // at the app general VAT rate (specs/cash-complement-and-endofstay-finance.md §3.1). Excluded
@@ -131,92 +133,10 @@ function resolveCommissionConfig(row, commissionContext) {
   return { account, hasVat };
 }
 
-function computeQuoteForReservation(database, row) {
-  // Load options + resources from the DB to feed the engine the same shape the controllers do.
-  // Per-line `inComplement` + contribs flow through so the engine's quote.optionLines surface
-  // them — `buildEntry` then reads them to compute per-bucket attribution per kind.
-  const options = database.prepare(`
-    SELECT optionId, quantity, billedUnits, unitPrice, priceType, totalPrice, offered,
-      COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_options WHERE reservationId = ?
-  `).all(row.id);
-  const customOptions = database.prepare(`
-    SELECT id AS customOptionId, description, amount, COALESCE(offered, 0) AS offered, sortOrder,
-      COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id
-  `).all(row.id);
-  const resources = database.prepare(`
-    SELECT resourceId, quantity, billedUnits, unitPrice, priceType, totalPrice, offered,
-      COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_resources WHERE reservationId = ?
-  `).all(row.id);
-  // 2026-06-05 — the legacy path of `buildEntry` (taken when ALL contribs are NULL on a
-  // reservation, e.g. a Solde flipped before the force-item-to-complement feature shipped)
-  // reads buckets straight off this recomputed `quote`. To keep the buckets aligned with the
-  // money actually persisted on the row, the engine MUST see the same routing+overrides the
-  // controller fed it on save. Specifically:
-  //
-  //   - `offeredOptionIds` / `offered`: without them the engine rebuilds option lines at their
-  //     catalog price (offered options resurface — e.g. an 80 € ménage that the operator
-  //     offered to 0 €), `quote.optionsTotal` grows, and the legacy bucket emits a phantom
-  //     70600010 (`Prestation complémentaire`) credit. The residue absorption on the last
-  //     credit (`accountingExport.js → entryToRows`) then drives the VAT line NEGATIVE to
-  //     keep Σ credits == grossDebit. Symptom: a `Frais Gîtes de France` export with
-  //     `44571100 VAT 10% = -17,36 €` reported on Chloé Le Lann's reservation
-  //     (resa #5 on prod, balancePaidDate 2026-05-07).
-  //   - `customPrice`: without it the engine recomputes accommodation from the pricing rules
-  //     and ignores the operator's manual override stored on `reservations.customPrice`. Same
-  //     residue-absorption side-effect, just on the accommodation bucket.
-  //
-  // Passing both fields makes the legacy path's buckets match `row.finalPrice` exactly →
-  // residue collapses to ≤ 1 cent of pure rounding noise → no negative VAT.
-  const offeredOptionIds = options.filter((o) => Number(o.offered) === 1).map((o) => Number(o.optionId));
-  return calculateReservationQuote({
-    db: database,
-    propertyId: row.propertyId,
-    startDate: row.startDate,
-    endDate: row.endDate,
-    checkInTime: row.checkInTime,
-    checkOutTime: row.checkOutTime,
-    adults: row.adults,
-    children: row.children,
-    teens: row.teens,
-    babies: row.babies,
-    discountPercent: row.discountPercent,
-    customPrice: row.customPrice,
-    selectedOptions: options.map((o) => ({
-      optionId: o.optionId,
-      quantity: o.quantity,
-      inComplement: o.inComplement,
-      offered: Boolean(o.offered),
-    })),
-    customOptions: customOptions.map((c) => ({
-      customOptionId: c.customOptionId,
-      customKey: String(c.customOptionId),
-      description: c.description,
-      amount: c.amount,
-      offered: Boolean(c.offered),
-      inComplement: c.inComplement,
-      acompteContribTtc: c.acompteContribTtc,
-      soldeContribTtc: c.soldeContribTtc,
-    })),
-    selectedResources: resources.map((r) => ({
-      resourceId: r.resourceId,
-      quantity: r.quantity,
-      inComplement: r.inComplement,
-      offered: Boolean(r.offered),
-    })),
-    offeredOptionIds,
-    depositPaid: false,
-    balancePaid: false,
-    platform: row.platform,
-    touristTaxInComplement: row.touristTaxInComplement,
-  });
-}
 
 // Read the per-line contribs + current totals for one reservation. Used by `buildEntry` to
 // drive the contrib-based per-bucket attribution (spec force-item-to-complement.md §5).
-function buildPerLineData(database, row, quote) {
+function buildPerLineData(database, row) {
   const optionLines = database.prepare(`
     SELECT optionId, totalPrice, COALESCE(offered, 0) AS offered,
       COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
@@ -249,56 +169,53 @@ function buildPerLineData(database, row, quote) {
   const optionsCurrentTotal = (optionLines.reduce((s, l) => s + nz(l.totalPrice), 0))
     + (customOptionLines.reduce((s, l) => s + nz(l.totalPrice), 0));
   const resourcesCurrentTotal = resourceLines.reduce((s, l) => s + nz(l.totalPrice), 0);
-  const accommodationTtcCurrent = Math.max(0, round2(Number(quote.finalPrice || 0) - optionsCurrentTotal - resourcesCurrentTotal));
+  const accommodationTtcCurrent = Math.max(0, round2(Number(row.finalPrice || 0) - optionsCurrentTotal - resourcesCurrentTotal));
 
-  return { optionLines, customOptionLines, resourceLines, hasContribs, accommodationTtcCurrent };
+  return {
+    optionLines, customOptionLines, resourceLines, hasContribs, accommodationTtcCurrent,
+    optionsTtc: round2(optionsCurrentTotal),
+    resourcesTtc: round2(resourcesCurrentTotal),
+  };
 }
 
-// Shape an entry the export engine consumes. Buckets carry HT/VAT for the entry's actual
-// contribution per type — and `fraction = 1`, so `accountingExport.js` multiplies by 1 and
-// writes the value as-is.
+// Shape an entry the export engine consumes.
 //
-// Two paths (spec force-item-to-complement.md §5):
+// Two bucket paths (spec force-item-to-complement.md §5):
 //   1. **Contrib-driven (preferred)**: when ANY per-line `acompteContribTtc` / `soldeContribTtc`
 //      is non-NULL on the reservation, we trust those snapshots and the reservation-level
 //      `accommodation*ContribTtc` / `touristTax*ContribTtc`. The bucket TTC for `deposit` is
 //      `sum(option/resource/custom.acompteContribTtc) + accommodationAcompteContribTtc`. For
 //      `balance` we use `soldeContribTtc`. For `complement` we compute `currentTotal − acompte −
 //      solde` per line (= the post-payment growth) plus the forced lines at 100 % plus the
-//      forced tax portion. This guarantees zero cross-contamination across kinds.
-//   2. **Legacy fallback**: when all per-line contribs are NULL (reservation pre-dates this
-//      feature), we replay the historic pro-rata behavior: full reservation HT × fraction,
-//      where `fraction = encaissementTtc / denominator`. Identical to pre-feature output, so
-//      historical exports stay stable.
+//      forced tax portion. Zero cross-contamination across kinds; `fraction = 1` (the export
+//      multiplies by 1 and writes the values as-is).
+//   2. **Stored-money fallback**: when all per-line contribs are NULL, full-reservation buckets
+//      from the persisted line totals, multiplied export-side by `fraction` = the échéance's
+//      effective share of the séjour.
 //
-// Tourist tax is excluded from the accountant journal entirely. When the reservation routes
-// the tax to complement (`collectedOnArrival` OR `touristTaxInComplement = 1`), we strip the
-// tax TTC from the complement entry, and drop the entry if its remainder is 0.
+// Tourist tax never hits a revenue account. When the reservation routes the tax to complement
+// (`collectedOnArrival` OR `touristTaxInComplement = 1`) the complement carries it on the
+// 46710000 pass-through; otherwise it rides entirely on the solde (specs/tourist-tax-on-solde.md).
 //
-// Returns `null` when the entry boils down to pure tourist tax (excluded from the export).
+// Returns `null` when there is nothing to book (zero stored amount, or a contrib entry whose
+// buckets and tax are all zero).
 //
-// accounting-platform-commission-and-no-deposit.md §3.5 rules 11–13:
-//   - CA HT is recognised on the GROSS (`clientGrossAmount`), so revenue buckets are scaled
-//     by `effectiveGross / finalPrice` before being returned.
-//   - Commission TTC = effectiveGross − finalPrice for the balance entry of a non-direct
-//     reservation; 0 elsewhere (deposit on platforms is always 0 post-migration; complement
-//     is host-billed extras with no commission).
-//   - The CCLIENT debit drops to the **net** (= bank movement). The commission HT debit +
-//     optional VAT debit absorb the gap so Σ debits = Σ credits = gross TTC.
-function buildEntry(row, quote, kind, perLineData, commissionContext) {
-  // Use the STORED `row.finalPrice` (= the price the user actually committed to and what every
-  // other GuestFlow surface displays — fiche réservation, projections, finance summary) and
-  // fall back to the engine's recompute only when the stored value is missing (iCal imports
-  // with blank prices). Regression 2026-06-02: Adrien spotted a transaction in the platforms
-  // table whose commission was 0 € while the fiche showed it correctly. Cause: the engine
-  // recomputed `quote.finalPrice` from the current pricing rules + options, which had drifted
-  // upwards from the stored `row.finalPrice` since the booking was paid. The commission
-  // (`gross − finalPrice`) collapsed to 0 because `quote.finalPrice ≥ gross`. Preferring the
-  // stored value makes both surfaces show the same number for the same money flow.
-  const finalPriceTtc = Number(row.finalPrice || quote.finalPrice || 0);
+// specs/accounting-encaissement-effective-percent.md — money resolution:
+//   - CA (`encaissementTtc`) = the STORED échéance amount × gross-up ratio. The ratio is 1 for
+//     every reservation written by the current engine (schedule sums to finalPrice + tax), so
+//     stored amounts pass through unscaled; it only grosses up the two historical shapes
+//     (« solde = net » era, `clientGrossAmount` era) to what the guest actually paid.
+//   - Net perçu = CA − this échéance's commission → the CCLIENT debit (= bank movement). The
+//     commission HT debit + optional VAT debit absorb the gap so Σ debits = Σ credits = CA.
+//   - Revenue buckets derive from the STORED row money (finalPrice + persisted line totals),
+//     never from a recomputed quote (pricing-rule drift corrupted the credit lines otherwise).
+//
+// `taxContext.collectedOnArrival` is resolved by the caller (no quote recompute); pure-function
+// callers (unit tests) inject it directly.
+function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
+  const finalPriceTtc = Number(row.finalPrice || 0);
   const touristTaxTotal = Number(row.touristTaxTotal || 0);
-  const totalStayTtc = finalPriceTtc + touristTaxTotal;
-  const collectedOnArrival = Boolean(quote.touristTaxCollectedOnArrival);
+  const collectedOnArrival = Boolean(taxContext && taxContext.collectedOnArrival);
   const taxRoutedToComplement = collectedOnArrival || Number(row.touristTaxInComplement || 0) === 1;
   // specs/per-platform-tourist-tax-three-way.md — case 1 "platform reverses the tax to us" is now a
   // REAL charge stored in `row.touristTaxTotal` and scheduled in the balance (the platform pays it
@@ -316,7 +233,7 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     complement: row.complementPaidDate,
   };
 
-  const encaissementTtc = amountByKind[kind] || 0;
+  const storedAmountTtc = amountByKind[kind] || 0;
 
   // Defensive null-return for the (rare) case of a `*Paid = 1 + *PaidDate in month` but
   // `*Amount = 0`. Real-world cause: a reservation toggled `depositDisabled = ON` after the
@@ -327,7 +244,7 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   // contrib-driven path did), producing a phantom "tout à zéro" row in the platforms table
   // + a balanced-but-empty card in the journal preview. See spec accountant-accounting-
   // export.md §3.4 rule 12bis.
-  if (encaissementTtc === 0) return null;
+  if (storedAmountTtc === 0) return null;
 
   // Gross/net resolution + commission for this entry (§3.5, revised 2026-06-21).
   // The platform commission is now operator-entered (`platformCommissionAmount`); « Prix payé par le
@@ -348,19 +265,18 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
   let commissionTtcTotal;
   let grossRatio;
   if (enteredCommissionTtc > 0) {
-    // NEW model: the CA is the total séjour (= finalPrice); the commission is operator-entered; the
-    // commission rides on the balance debit and the net = total − commission (spec platform-commission-line.md).
-    // `grossRatio` grosses the STORED encaissement amounts (deposit + balance + complement) up to the total
-    // séjour. CRUCIAL: derive the ratio from the ACTUAL stored sum, not from (finalPrice − commission).
-    // Reservations saved AFTER « solde = net » store the net (sum = finalPrice − commission), but older ones
-    // (or any not re-saved) still store the FULL total (sum = finalPrice). Using a fixed (finalPrice −
-    // commission) denominator double-grosses the latter (prod bug 2026-06-22: CA 122,14 / net 105,66 instead
-    // of 102,50 / 86,02). `finalPrice / storedSum` makes CA = finalPrice + net = finalPrice − commission for
-    // both shapes (≈1 when the sum is already the full total, the gross-up factor when it's the net).
+    // Entered-commission model: the guest pays the schedule GROSS (deposit + balance + complement =
+    // finalPrice + tourist tax — what the current engine stores); the commission is operator-entered
+    // per échéance. `grossRatio` grosses the stored amounts up to what the guest actually paid:
+    // (finalPrice + touristTaxTotal) / storedSum. For every current-model reservation that's exactly
+    // 1 → stored amounts pass through UNSCALED. Prod bug 2026-07-15 (resa #22224, Thomas): the old
+    // numerator was bare `finalPrice`, so a tax-in-schedule reservation had ratio 131,28/134,26 and
+    // its 67,13 € acompte displayed as 65,64 €. Rows from the « solde = net » era (sum = finalPrice −
+    // commission, e.g. prod #7) keep a ratio > 1 and gross up to the guest-paid total, as before.
     commissionTtcTotal = enteredCommissionTtc;
     effectiveGross = finalPriceTtc;
     const storedSum = round2((Number(row.depositAmount) || 0) + (Number(row.balanceAmount) || 0) + (Number(row.complementAmount) || 0));
-    grossRatio = storedSum > 0 ? finalPriceTtc / storedSum : 1;
+    grossRatio = storedSum > 0 ? (finalPriceTtc + touristTaxTotal) / storedSum : 1;
   } else {
     // LEGACY fallback: commission derived from the stored `clientGrossAmount` (> net); the stored amounts
     // summed to finalPrice (not reduced), so the ratio grosses them up to the gross.
@@ -409,115 +325,95 @@ function buildEntry(row, quote, kind, perLineData, commissionContext) {
     };
   }
 
-  // `perLineData` is optional: when omitted (legacy callers / unit tests that don't model the
-  // contrib columns) the fallback path runs unchanged.
-  const hasContribs = Boolean(perLineData && perLineData.hasContribs);
+  // ── Shared money resolution (spec rules 2–5) ────────────────────────────
+  // CA = stored échéance × ratio (ratio = 1 for current-model rows). Net = CA − commission.
+  const encaissementTtc = round2(storedAmountTtc * grossRatio);
+  // Tourist tax carried by this échéance — part of the CA (the guest paid it) but credited to
+  // the 46710000 pass-through, never a 70xxx revenue line.
+  const taxTtc = computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc);
+  const encaissementNetTtc = round2(encaissementTtc - (commissionLine ? commissionLine.ttc : 0));
+  // Single global sales VAT rate (specs/single-vat-rate.md) — same one the quote carried.
+  const vatRate = commissionContext && Number.isFinite(Number(commissionContext.vatRate))
+    ? Number(commissionContext.vatRate)
+    : 10;
 
-  // ── Contrib-driven path ─────────────────────────────────────────────────
-  if (hasContribs) {
-    const ttcByBucket = computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComplement);
-    // Tourist tax for this kind — captured at flip time for deposit/balance; at complement
-    // time it's "what's left of the tax after the two prior buckets took their share". The
-    // tax is part of the encaissement TTC (the customer paid it) but credited to the
-    // pass-through account 46710000 in the export, NOT to a 70xxx revenue line.
-    const taxTtc = computeTaxTtcForKind(row, kind, taxRoutedToComplement);
-
-    // Scale per-bucket TTCs by the gross ratio so the credited HT + VAT reflect the BRUT
-    // the customer paid the platform (§3.5). For directs grossRatio === 1, so this is a
-    // no-op and the entry shape stays identical to the pre-spec output.
-    const grossByBucket = {
-      accommodation: round2(ttcByBucket.accommodation * grossRatio),
-      options:       round2(ttcByBucket.options       * grossRatio),
-      resources:     round2(ttcByBucket.resources     * grossRatio),
-    };
-    const totalGrossTtc = round2(grossByBucket.accommodation + grossByBucket.options + grossByBucket.resources + taxTtc);
-    if (totalGrossTtc === 0) return null;
-    // Net = what the owner banks; commission absorbs the difference on the debit side.
-    const encaissementNetTtc = round2(totalGrossTtc - (commissionLine ? commissionLine.ttc : 0));
-
-    const buckets = [
-      bucketFromTtc('accommodation', grossByBucket.accommodation, Number(quote.vatPercentageAccommodation || 0)),
-      bucketFromTtc('options',       grossByBucket.options,       Number(quote.vatPercentageOptions       || 0)),
-      bucketFromTtc('resources',     grossByBucket.resources,     Number(quote.vatPercentageResources     || 0)),
-    ].filter((b) => b.ht > 0 || b.vat > 0);
-
-    return {
-      reservationId: row.id,
-      kind,
-      paidDate: dateByKind[kind] || null,
-      client: { firstName: row.firstName || '', lastName: row.lastName || '' },
-      propertyName: row.propertyName || '',
-      platform: row.platform || 'direct',
-      clientGrossAmount: round2(effectiveGross),
-      finalPrice: finalPriceTtc,
-      // Encaissement TTC = revenue-on-gross TTC + tax TTC. The export engine credits revenue
-      // 70xxx + VAT 44571xxx on this gross figure, and the CCLIENT debit + commission debits
-      // sum to the same value (§3.5).
-      encaissementTtc: totalGrossTtc,
-      encaissementNetTtc,
-      commission: commissionLine,
-      taxTtc: round2(taxTtc),
-      fraction: 1,
-      buckets,
-    };
-  }
-
-  // ── Legacy fallback (pre-feature reservations, no contribs) ─────────────
-  // We keep the historic fraction-based pro-rating BUT we no longer strip the tax: the tax
-  // portion of the encaissement now rides on the `46710000` pass-through line so the
-  // accountant has a complete picture (post-2026-06-01 policy change, see spec §3.4 rule 14).
-  const fraction = totalStayTtc > 0 ? encaissementTtc / totalStayTtc : 0;
-  // What portion of the encaissement is tax? In the legacy path we don't have per-bucket
-  // contribs — we pro-rate against the total stay TTC. When collectedOnArrival, the deposit
-  // and balance carry no tax (their TTC is finalPrice-relative); the tax all lands in
-  // complement.
-  let legacyTaxTtc;
-  if (collectedOnArrival) {
-    legacyTaxTtc = kind === 'complement' ? Math.min(touristTaxTotal, encaissementTtc) : 0;
-  } else if (kind === 'deposit') {
-    // specs/tourist-tax-on-solde.md — the tax never rides the acompte.
-    legacyTaxTtc = 0;
-  } else if (kind === 'balance') {
-    // Direct + case 1 (platform reverses to us): the WHOLE tax sits on the solde (clamped to the
-    // balance amount as a defensive guard — balance = accommodation remainder + tax ≥ tax).
-    legacyTaxTtc = round2(Math.min(touristTaxTotal, encaissementTtc));
-  } else {
-    legacyTaxTtc = 0;
-  }
-
-  // §3.5 — legacy path: same gross-ratio scaling, applied through `fraction`. We scale the
-  // computed `fraction` by `grossRatio` so the buckets (still computed on NET in the engine
-  // quote) end up at the right gross HT/VAT when the CSV does `bucket.ht × fraction`.
-  // The encaissement reported to the export = encaissement × grossRatio so the credits sum
-  // to the gross. Commission gets booked separately on the debit side.
-  const legacyEncaissementGross = round2(encaissementTtc * grossRatio);
-  // The revenue buckets must absorb exactly `encaissement − tax` (the tax is booked separately on
-  // 46710000). With the tax now riding entirely on the solde, the deposit's revenue = its full
-  // amount and the balance's revenue = its amount − the full tax — both bank-matched.
-  const legacyFraction = finalPriceTtc > 0
-    ? ((encaissementTtc - legacyTaxTtc) / finalPriceTtc) * grossRatio
-    : 0;
-  const legacyEncaissementNet = round2(legacyEncaissementGross - (commissionLine ? commissionLine.ttc : 0));
-
-  return {
+  const common = {
     reservationId: row.id,
     kind,
     paidDate: dateByKind[kind] || null,
     client: { firstName: row.firstName || '', lastName: row.lastName || '' },
     propertyName: row.propertyName || '',
     platform: row.platform || 'direct',
-    clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
     finalPrice: finalPriceTtc,
-    encaissementTtc: legacyEncaissementGross,
-    encaissementNetTtc: legacyEncaissementNet,
+    encaissementTtc,
+    encaissementNetTtc,
     commission: commissionLine,
-    taxTtc: legacyTaxTtc,
-    fraction: legacyFraction,
-    buckets: [
-      bucket('accommodation', quote.accommodationNetPrice, quote.accommodationVatAmount, quote.vatPercentageAccommodation),
-      bucket('options', Number(quote.optionsNetPrice || 0), Number(quote.optionsVatAmount || 0), quote.vatPercentageOptions),
-      bucket('resources', quote.resourcesNetPrice, quote.resourcesVatAmount, quote.vatPercentageResources),
-    ].filter((b) => b.ht > 0 || b.vat > 0),
+    taxTtc: round2(taxTtc),
+  };
+
+  // `perLineData` is optional: when omitted (legacy callers / unit tests that don't model the
+  // contrib columns) the fallback path runs with empty line totals.
+  const hasContribs = Boolean(perLineData && perLineData.hasContribs);
+
+  // ── Contrib-driven path ─────────────────────────────────────────────────
+  // Bucket TTCs are the per-line snapshots captured at flip time from the money actually paid —
+  // used AS-IS (the former × grossRatio scaling distorted them; spec rule 10). `fraction = 1`:
+  // the export engine multiplies by 1 and writes the values verbatim, the ≤ 2-cent residue
+  // being absorbed on the last credit so Σ credits = CA.
+  if (hasContribs) {
+    const ttcByBucket = computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComplement);
+    const totalBucketsTtc = round2(ttcByBucket.accommodation + ttcByBucket.options + ttcByBucket.resources + taxTtc);
+    // Nothing to credit (e.g. a complement whose lines all contributed 0) → drop the entry,
+    // a debit-only card can never balance.
+    if (totalBucketsTtc === 0) return null;
+
+    const buckets = [
+      bucketFromTtc('accommodation', ttcByBucket.accommodation, vatRate),
+      bucketFromTtc('options',       ttcByBucket.options,       vatRate),
+      bucketFromTtc('resources',     ttcByBucket.resources,     vatRate),
+    ].filter((b) => b.ht > 0 || b.vat > 0);
+
+    return {
+      ...common,
+      clientGrossAmount: round2(effectiveGross),
+      fraction: 1,
+      buckets,
+    };
+  }
+
+  // ── Stored-money fallback (no per-line contribs) ────────────────────────
+  // Full-reservation buckets from the PERSISTED line totals (offered lines are stored at 0);
+  // the export engine multiplies each bucket by `fraction` = the échéance's effective share of
+  // the séjour (spec rules 6–8). Immune to pricing-rule drift by construction — the former
+  // quote-recompute buckets are gone.
+  const optionsTtc = perLineData ? Number(perLineData.optionsTtc || 0) : 0;
+  const resourcesTtc = perLineData ? Number(perLineData.resourcesTtc || 0) : 0;
+  const accommodationTtc = Math.max(0, round2(finalPriceTtc - optionsTtc - resourcesTtc));
+  const revenueTtc = Math.max(0, round2(encaissementTtc - taxTtc));
+
+  let fraction;
+  let buckets;
+  if (finalPriceTtc > 0) {
+    // Effective percent: deposit = depositAmount / finalPrice (= the property's depositPercent
+    // whenever the deposit was automatic); balance = (balance − tax) / finalPrice; etc.
+    fraction = revenueTtc / finalPriceTtc;
+    buckets = [
+      bucketFromTtc('accommodation', accommodationTtc, vatRate),
+      bucketFromTtc('options',       optionsTtc,       vatRate),
+      bucketFromTtc('resources',     resourcesTtc,     vatRate),
+    ].filter((b) => b.ht > 0 || b.vat > 0);
+  } else {
+    // Defensive: blank-price row (iCal import never priced) with real money paid — book the
+    // whole revenue share as accommodation so the entry still balances.
+    fraction = 1;
+    buckets = [bucketFromTtc('accommodation', revenueTtc, vatRate)].filter((b) => b.ht > 0 || b.vat > 0);
+  }
+
+  return {
+    ...common,
+    clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
+    fraction,
+    buckets,
   };
 }
 
@@ -551,24 +447,26 @@ function buildEndOfStayEntry(row, vatRate) {
 // Tax TTC for a given encaissement kind, read from the per-bucket capture columns. Returns 0
 // when the tax was either routed to complement (and this kind isn't 'complement') or
 // already-captured-as-zero (e.g. collectedOnArrival path).
-function computeTaxTtcForKind(row, kind, taxRoutedToComplement) {
+function computeTaxTtcForKind(row, kind, taxRoutedToComplement, encaissementTtc) {
   const total = round2(nz(row.touristTaxTotal));
+  const cap = Number(encaissementTtc) > 0 ? Number(encaissementTtc) : total;
   if (taxRoutedToComplement) {
     // Collected on arrival / forced to complement: the tax is never on the acompte or the solde.
-    // The complement carries whatever is left after the (always-zero) deposit + balance shares.
+    // The complement carries whatever is left after the (always-zero) deposit + balance shares,
+    // clamped to the complement's own CA as a defensive guard.
     if (kind !== 'complement') return 0;
     const inDeposit = nz(row.touristTaxAcompteContribTtc);
     const inBalance = nz(row.touristTaxSoldeContribTtc);
-    return round2(Math.max(0, total - inDeposit - inBalance));
+    return round2(Math.min(Math.max(0, total - inDeposit - inBalance), cap));
   }
   // specs/tourist-tax-on-solde.md — when the tax rides the pre-arrival schedule it is booked
   // ENTIRELY on the SOLDE, never the acompte. We force this regardless of the stored per-bucket
   // contribs: legacy reservations whose acompte flip captured a proportional tax share (before
   // this rule shipped) must still show 0 tax on the deposit and the full tax on the balance.
-  // The balance amount is always ≥ the tax (balance = accommodation remainder + tax), so the
+  // The balance CA is always ≥ the tax (balance = accommodation remainder + tax), so the
   // clamp is only a defensive guard.
   if (kind === 'deposit') return 0;
-  if (kind === 'balance') return round2(Math.min(total, Number(row.balanceAmount) || total));
+  if (kind === 'balance') return round2(Math.min(total, cap));
   return 0;
 }
 
@@ -644,10 +542,6 @@ function bucketFromTtc(name, ttc, ratePercent) {
   const vat = round2(ttc * (rate / (100 + rate)));
   const ht = round2(ttc - vat);
   return { name, ht, vat, ratePercent: rate };
-}
-
-function bucket(name, ht, vat, ratePercent) {
-  return { name, ht: Number(ht || 0), vat: Number(vat || 0), ratePercent: Number(ratePercent || 0) };
 }
 
 const defaultModel = createAccountingModel(db);
