@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Tooltip } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { formatCurrency } from '../utils/formatters';
+import StatusBadge from './StatusBadge';
+import { formatCurrency, displayDate } from '../utils/formatters';
 
 // Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
 // (spec force-item-to-complement.md §6.2). When `onClick` is provided, the chip becomes a
@@ -173,8 +174,8 @@ export default function PricingSummary({
         overscrollBehavior: 'contain',
       }}
     >
-      <Card variant="outlined" sx={{ bgcolor: '#fff', p: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
+      <Card variant="outlined" sx={{ bgcolor: 'background.paper', p: 2 }}>
+        <Typography variant="sectionHeader" sx={{ mb: 2 }}>
           Résumé tarifaire
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -195,7 +196,7 @@ export default function PricingSummary({
                 </Typography>
               )}
               <Typography variant="body2" sx={{ fontWeight: 600, color: (discountAmount > 0 || form.customPrice !== '') ? 'success.main' : 'inherit' }}>
-                {accommodationDiscountedPriceDisplay ?? '—'}€
+                {accommodationDiscountedPriceDisplay != null ? formatCurrency(accommodationDiscountedPriceDisplay) : '—'}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
                 {nightlyBreakdown.length > 0 ? (
@@ -222,8 +223,8 @@ export default function PricingSummary({
                 borderColor: 'divider',
                 borderRadius: 1,
                 px: 1,
-                py: 0.75,
-                bgcolor: '#fafafa',
+                py: 1,
+                bgcolor: 'grey.50',
                 maxHeight: 160,
                 overflowY: 'auto',
               }}
@@ -237,7 +238,7 @@ export default function PricingSummary({
                   sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.25 }}
                 >
                   <Typography variant="caption" color="text.secondary">
-                    Nuit {night.nightNumber} • {new Date(`${night.date}T00:00:00`).toLocaleDateString('fr-FR')}
+                    Nuit {night.nightNumber} • {displayDate(night.date)}
                   </Typography>
                   <Typography variant="caption" sx={{ fontWeight: 600 }}>
                     {formatCurrency(Number(night.price || 0))}
@@ -683,7 +684,7 @@ export default function PricingSummary({
                     {complement > 0 && row('Compléments (perçus sur place)', complement, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
                     {form.complementPaid && complement > 0 && (
-                      <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                      <StatusBadge status="success" label="Complément payé" />
                     )}
                   </>
                 ) : (
@@ -696,7 +697,7 @@ export default function PricingSummary({
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(complement)}</Typography>
                       </Box>
                       {form.complementPaid && (
-                        <Chip size="small" label="Complément payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+                        <StatusBadge status="success" label="Complément payé" />
                       )}
                     </>
                   )
@@ -729,11 +730,11 @@ export default function PricingSummary({
           )}
           {!form.depositDisabled && form.depositDueDate && (
             <Typography variant="caption" color="text.secondary">
-              À payer avant : {new Date(form.depositDueDate).toLocaleDateString('fr-FR')}
+              À payer avant : {displayDate(form.depositDueDate)}
             </Typography>
           )}
           {!form.depositDisabled && form.depositPaid && (
-            <Chip size="small" label="Acompte payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+            <StatusBadge status="success" label="Acompte payé" />
           )}
 
           {/* Solde — when `depositDisabled` is on, the displayed amount is the SUM of the
@@ -761,11 +762,11 @@ export default function PricingSummary({
           )}
           {form.balanceDueDate && (
             <Typography variant="caption" color="text.secondary">
-              À payer avant : {new Date(form.balanceDueDate).toLocaleDateString('fr-FR')}
+              À payer avant : {displayDate(form.balanceDueDate)}
             </Typography>
           )}
           {form.balancePaid && (
-            <Chip size="small" label="Solde payé" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+            <StatusBadge status="success" label="Solde payé" />
           )}
 
           {/* Caution */}
@@ -775,10 +776,10 @@ export default function PricingSummary({
             <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(form.cautionAmount)}</Typography>
           </Box>
           {form.cautionReceived && (
-            <Chip size="small" label="Caution reçue" color="success" variant="outlined" sx={{ width: 'fit-content' }} />
+            <StatusBadge status="success" label="Caution reçue" />
           )}
           {form.cautionReturned && (
-            <Chip size="small" label="Caution restituée" color="info" variant="outlined" sx={{ width: 'fit-content' }} />
+            <StatusBadge status="info" label="Caution restituée" />
           )}
         </Stack>
       </Card>

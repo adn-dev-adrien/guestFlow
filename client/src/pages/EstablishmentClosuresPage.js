@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, IconButton, TextField, TableHead, TableBody, TableRow, TableCell,
-  Tooltip, MenuItem, Alert, Typography,
+  Tooltip, MenuItem, Alert, Typography, Button,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -13,6 +13,9 @@ import dayjs from 'dayjs';
 import PageActionBar from '../components/PageActionBar';
 import TableCard from '../components/TableCard';
 import FormDialog from '../components/FormDialog';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
@@ -45,14 +48,24 @@ export default function EstablishmentClosuresPage({ barCenter }) {
   const [dialogError, setDialogError] = useState('');
   const [saving, setSaving] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = async () => {
-    const [closuresList, propsList] = await Promise.all([
-      api.getEstablishmentClosures(),
-      api.getProperties(),
-    ]);
-    setClosures(closuresList || []);
-    setProperties(propsList || []);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [closuresList, propsList] = await Promise.all([
+        api.getEstablishmentClosures(),
+        api.getProperties(),
+      ]);
+      setClosures(closuresList || []);
+      setProperties(propsList || []);
+    } catch (e) {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -131,15 +144,18 @@ export default function EstablishmentClosuresPage({ barCenter }) {
         center={barCenter}
         title="Fermetures de l'établissement"
         actionsBefore={[{
-          icon: <AddIcon />,
-          tooltip: 'Ajouter une fermeture',
-          onClick: openCreate,
-          color: 'primary',
-          variant: 'contained',
+          node: (
+            <Button key="add-closure" variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreate}>
+              Ajouter une fermeture
+            </Button>
+          ),
         }]}
       />
 
       <Box sx={{ maxWidth: { xs: '100%', md: 920, lg: 1200 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
+        {loadError && <ErrorAlert message="Impossible de charger les fermetures." onRetry={load} sx={{ mb: 2 }} />}
+        {loading && !loadError && <LoadingState label="Chargement des fermetures…" />}
+        {!loading && !loadError && (
         <TableCard minWidth={760}>
           <TableHead>
             <TableRow>
@@ -153,10 +169,8 @@ export default function EstablishmentClosuresPage({ barCenter }) {
           <TableBody>
             {closures.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="body2" color="text.disabled" sx={{ textAlign: 'center', py: 3, fontStyle: 'italic' }}>
-                    Aucune fermeture configurée
-                  </Typography>
+                <TableCell colSpan={5} sx={{ p: 0, border: 0 }}>
+                  <EmptyState message="Aucune fermeture configurée." py={4} />
                 </TableCell>
               </TableRow>
             ) : closures.map((row) => (
@@ -194,6 +208,7 @@ export default function EstablishmentClosuresPage({ barCenter }) {
             ))}
           </TableBody>
         </TableCard>
+        )}
       </Box>
 
       <FormDialog
