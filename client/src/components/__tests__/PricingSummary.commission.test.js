@@ -100,9 +100,11 @@ test('non-offered platform → NO « Taxe de séjour (plateforme) » deduction l
   expect(screen.queryByText('− 12,00 €')).toBeNull();
 });
 
-// specs/platform-per-echeance-commission.md — the Acompte / Solde lines show the NET amount (montant −
-// la commission de cette échéance). Unaffected by the cascade.
-test('Acompte / Solde lines show the net amount (montant − commission de l\'échéance)', () => {
+// specs/platform-per-echeance-commission.md — the Acompte / Solde lines show the GROSS the guest pays
+// (the stored amount), under the labels « Montant acompte/solde payé par le client ». The commission +
+// net « Versement plateforme » live in the cascade above. Resolved 2026-07-16 (Damien Nicolet): a
+// « payé par le client » figure must NOT have the commission silently subtracted.
+test('Acompte / Solde lines show the client-paid GROSS under the « payé par le client » labels', () => {
   render(
     <PricingSummary
       quote={{ ...QUOTE, finalPrice: 200, totalStayPrice: 200, acompteCommissionAmount: 3.41, platformCommissionAmount: 2.61, totalPlatformCommission: 6.02, platformNetReceivedAmount: 193.98 }}
@@ -112,10 +114,46 @@ test('Acompte / Solde lines show the net amount (montant − commission de l\'é
       parsedTotalPrice={200} accommodationDiscountedPriceDisplay={'200.00'}
     />
   );
-  expect(screen.getByText('56,59 €')).toBeInTheDocument();  // acompte 60 − 3.41
-  expect(screen.getByText('137,39 €')).toBeInTheDocument(); // solde 140 − 2.61
-  expect(screen.getByText(/net de la commission acompte/i)).toBeInTheDocument();
-  expect(screen.getByText(/net de la commission solde/i)).toBeInTheDocument();
+  expect(screen.getByText('Montant acompte payé par le client')).toBeInTheDocument();
+  expect(screen.getByText('Montant solde payé par le client')).toBeInTheDocument();
+  expect(screen.getByText('60,00 €')).toBeInTheDocument();   // acompte GROSS (not 56,59)
+  expect(screen.getByText('140,00 €')).toBeInTheDocument();  // solde GROSS (not 137,39)
+  // The old net-of-commission captions are gone (commission shown in the cascade instead).
+  expect(screen.queryByText(/net de la commission acompte/i)).toBeNull();
+  expect(screen.queryByText(/net de la commission solde/i)).toBeNull();
+});
+
+// Damien Nicolet regression (2026-07-16): the entered deposit/balance is the client-paid GROSS, shown
+// as-is under the « payé par le client » label. Guest pays 126,38 per échéance (= Adrien's 122,97 net
+// take + 3,41 Lodgify commission) → both lines show 126,38. Locks the reported prod scenario.
+test('Acompte / Solde show the client-paid gross — Damien Nicolet BRUT case', () => {
+  render(
+    <PricingSummary
+      quote={{ ...QUOTE, finalPrice: 252.76, totalStayPrice: 252.76, acompteCommissionAmount: 3.41, platformCommissionAmount: 3.41, totalPlatformCommission: 6.82, platformNetReceivedAmount: 245.94 }}
+      form={{ ...FORM, depositAmount: 126.38, balanceAmount: 126.38 }}
+      selectedProperty={{ name: 'Villa A' }}
+      offeredOptionIds={new Set()} propertyOptions={[]} availableResources={[]}
+      parsedTotalPrice={252.76} accommodationDiscountedPriceDisplay={'252.76'}
+    />
+  );
+  // Both échéances show the client-paid gross 126,38 (the 122,97 net take is the « Versement »).
+  expect(screen.getAllByText('126,38 €').length).toBeGreaterThanOrEqual(2);
+});
+
+// Direct reservations keep the plain « Acompte » / « Solde » labels (no commission, no gross/net gap).
+test('Direct reservation keeps the plain Acompte / Solde labels', () => {
+  render(
+    <PricingSummary
+      quote={{ ...QUOTE, finalPrice: 200, totalStayPrice: 200 }}
+      form={{ ...FORM, platform: 'direct', depositAmount: 60, balanceAmount: 140 }}
+      selectedProperty={{ name: 'Villa A' }}
+      offeredOptionIds={new Set()} propertyOptions={[]} availableResources={[]}
+      parsedTotalPrice={200} accommodationDiscountedPriceDisplay={'200.00'}
+    />
+  );
+  expect(screen.getByText('Acompte')).toBeInTheDocument();
+  expect(screen.getByText('Solde')).toBeInTheDocument();
+  expect(screen.queryByText('Montant acompte payé par le client')).toBeNull();
 });
 
 test('direct reservation → a single « Total du séjour », no platform cascade', () => {
