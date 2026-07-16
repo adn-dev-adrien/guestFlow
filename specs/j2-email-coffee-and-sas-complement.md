@@ -6,7 +6,7 @@
 | **Branch** | `feature/j2-email-coffee-and-sas-complement` |
 | **Created** | 2026-07-16 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#339](https://github.com/adn-dev-adrien/guestFlow/pull/339) |
 
 ---
 
