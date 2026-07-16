@@ -7,6 +7,10 @@
  * would never reach an already-seeded row. Adrien explicitly asked to OVERWRITE it even if it was
  * personalised — so we force the name / subject / body / dayOffset from the registry. We deliberately
  * KEEP `sendMode` and `enabled` (the operator's auto-vs-manual + on/off choice). Idempotent.
+ *
+ * specs/j2-email-coffee-and-sas-complement.md — also force `subjectEn`/`bodyEn` (the generic EN backfill
+ * only fills EMPTY columns, so registry copy changes — e.g. the new coffee/capsule line — never reach an
+ * already-populated EN row). Same overwrite intent as the FR side, for this one template.
  */
 
 const { DEFAULT_TEMPLATES } = require('./defaultEmailTemplatesRegistry');
@@ -23,11 +27,19 @@ function runArrivalReminderJ2Migration(db) {
   const def = DEFAULT_TEMPLATES.find((t) => t.stableKey === 'arrival_reminder_1d');
   if (!def) return { action: 'no_def' };
 
-  const info = db.prepare(`
-    UPDATE email_templates
-       SET name = ?, subject = ?, body = ?, dayOffset = ?, updatedAt = datetime('now')
-     WHERE stableKey = 'arrival_reminder_1d'
-  `).run(def.name, def.subject, def.body, Number(def.dayOffset));
+  // Guard the EN columns: older schemas may predate the bilingual feature. Only write them when present.
+  const hasEn = cols.includes('subjectEn') && cols.includes('bodyEn');
+  const info = hasEn
+    ? db.prepare(`
+      UPDATE email_templates
+         SET name = ?, subject = ?, body = ?, subjectEn = ?, bodyEn = ?, dayOffset = ?, updatedAt = datetime('now')
+       WHERE stableKey = 'arrival_reminder_1d'
+    `).run(def.name, def.subject, def.body, def.subjectEn || '', def.bodyEn || '', Number(def.dayOffset))
+    : db.prepare(`
+      UPDATE email_templates
+         SET name = ?, subject = ?, body = ?, dayOffset = ?, updatedAt = datetime('now')
+       WHERE stableKey = 'arrival_reminder_1d'
+    `).run(def.name, def.subject, def.body, Number(def.dayOffset));
 
   return { action: Number(info.changes) > 0 ? 'updated' : 'not_found' };
 }
