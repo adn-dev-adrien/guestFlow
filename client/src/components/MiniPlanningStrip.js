@@ -7,6 +7,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { getPlatformColor } from '../constants/platforms';
 import { getBlockedNightConflictInfo } from '../utils/reservationConflicts';
+import { BLOCKED_NIGHT_COLOR } from '../utils/calendarVisuals';
 
 const DAY_START = 8;
 const DAY_END = 21;
@@ -39,8 +40,10 @@ function hourToPercent(hour) {
   return Math.max(0, Math.min(100, ((hour - DAY_START) / DAY_RANGE) * 100));
 }
 
+// `buildMiniStripDayGradient` is a PURE exported function (pinned by calendar-platform-colors.test.js)
+// so it cannot read the theme: EMPTY_DAY_COLOR stays a module constant (the grey[100] equivalent).
+// BLOCKED_NIGHT_COLOR comes from the single-source calendar constants (ds-sweep-planning rule 14).
 const EMPTY_DAY_COLOR = '#f5f5f5';
-const BLOCKED_NIGHT_COLOR = '#ff9800';
 
 /**
  * Compute the day-cell background + text colour for the mini planning strip.
@@ -178,7 +181,7 @@ export default function MiniPlanningStrip({
   const buildDayGradient = (args) => buildMiniStripDayGradient({ ...args, selectedReservationColor });
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
         <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
           {miniDays.length > 0 && (() => {
@@ -199,7 +202,7 @@ export default function MiniPlanningStrip({
           </Button>
         </Stack>
 
-        <Box sx={{ display: 'flex', alignItems: 'stretch', gap: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'stretch', gap: 1 }}>
           <IconButton
             size="small"
             onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -1))}
@@ -217,7 +220,7 @@ export default function MiniPlanningStrip({
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
 
-          <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${miniDays.length || 1}, minmax(0, 1fr))`, gap: 0.75 }}>
+          <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${miniDays.length || 1}, minmax(0, 1fr))`, gap: 1 }}>
             {miniDays.map((day) => {
             const isArrival = isArrivalDay(day);
             const isDeparture = isDepartureDay(day);
@@ -282,7 +285,7 @@ export default function MiniPlanningStrip({
                     background: finalDayStyle.background,
                     minHeight: 56,
                     px: 0.5,
-                    py: 0.75,
+                    py: 1,
                     textAlign: 'center',
                     cursor: isLocked ? 'not-allowed' : 'pointer',
                     opacity: isLocked ? 0.85 : 1,
@@ -294,7 +297,7 @@ export default function MiniPlanningStrip({
                     transition: 'transform 0.12s ease, box-shadow 0.12s ease',
                     '&:hover': {
                       transform: isLocked ? 'none' : 'translateY(-1px)',
-                      boxShadow: isLocked ? 'none' : '0 2px 6px rgba(0,0,0,0.14)',
+                      boxShadow: isLocked ? 'none' : 2,
                     },
                   }}
                 >

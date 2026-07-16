@@ -1,8 +1,11 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
 
+import theme from '../../../theme';
+import DialogProvider from '../../DialogProvider';
 import ReservationSasDialog from '../ReservationSasDialog';
 import api from '../../../api';
 
@@ -41,7 +44,9 @@ function sasPayload(over = {}) {
 function renderDialog(props) {
   return render(
     <MemoryRouter>
-      <ReservationSasDialog open reservationId={1} onClose={() => {}} onCommitted={() => {}} {...props} />
+      <ThemeProvider theme={theme}><DialogProvider>
+        <ReservationSasDialog open reservationId={1} onClose={() => {}} onCommitted={() => {}} {...props} />
+      </DialogProvider></ThemeProvider>
     </MemoryRouter>,
   );
 }

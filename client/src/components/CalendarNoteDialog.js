@@ -1,9 +1,11 @@
 import React from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Box } from '@mui/material';
+import { TextField, Button } from '@mui/material';
+import FormDialog from './FormDialog';
 
 /**
  * CalendarNoteDialog — add / edit / delete a single calendar-day note.
- * Pure presentational: the parent owns persistence + state.
+ * Pure presentational: the parent owns persistence + state. Built on FormDialog
+ * (fullScreen on xs inherited); « Supprimer » rides the secondary-action slot.
  *
  * Props:
  *  - open: boolean
@@ -16,25 +18,23 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, B
  */
 export default function CalendarNoteDialog({ open, date, text, maxLength, hasNote, onChangeText, onSave, onDelete, onClose }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Note — {date}</DialogTitle>
-      <DialogContent>
-        <TextField
-          autoFocus fullWidth multiline rows={2} margin="dense"
-          label="Note (50 car. max)"
-          value={text}
-          onChange={(e) => onChangeText(e.target.value.slice(0, maxLength))}
-          helperText={`${text.length}/${maxLength}`}
-        />
-      </DialogContent>
-      <DialogActions>
-        {hasNote && (
-          <Button color="error" onClick={onDelete}>Supprimer</Button>
-        )}
-        <Box sx={{ flex: 1 }} />
-        <Button onClick={onClose}>Annuler</Button>
-        <Button variant="contained" onClick={onSave}>Enregistrer</Button>
-      </DialogActions>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={`Note — ${date}`}
+      maxWidth="xs"
+      onSubmit={onSave}
+      secondaryAction={hasNote ? (
+        <Button color="error" onClick={onDelete}>Supprimer</Button>
+      ) : null}
+    >
+      <TextField
+        autoFocus fullWidth multiline rows={2} margin="dense"
+        label="Note (50 car. max)"
+        value={text}
+        onChange={(e) => onChangeText(e.target.value.slice(0, maxLength))}
+        helperText={`${text.length}/${maxLength}`}
+      />
+    </FormDialog>
   );
 }

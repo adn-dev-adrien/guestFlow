@@ -14,7 +14,7 @@ import {
   CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
   LinearProgress, IconButton, FormControlLabel,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
@@ -40,6 +40,9 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 import ConfirmDialog from '../ConfirmDialog';
+import LoadingState from '../LoadingState';
+import ErrorAlert from '../ErrorAlert';
+import { useToast } from '../DialogProvider';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
 import { formatCurrency, displayDateLong } from '../../utils/formatters';
 
@@ -62,8 +65,9 @@ function CountStepper({ icon, label, value, onChange }) {
   );
 }
 
-// Mode accent colours for the header band + the big step icon (specs/arrival-departure-sas.md §6 refonte).
-const MODE_COLOR = { arrival: '#ef6c00', departure: '#455a64' };
+// Mode accent colours for the header band + the big step icon (specs/arrival-departure-sas.md §6
+// refonte) — from the « Maison » palette: warm ochre arrival / slate-blue departure.
+const modeColorFor = (theme, mode) => (mode === 'arrival' ? theme.palette.warning.main : theme.palette.info.main);
 
 // Short band title + the meaningful icon for each step.
 function stepMeta(key, mode) {
@@ -92,9 +96,9 @@ function stepMeta(key, mode) {
 // Big centred step icon above the page content + a slightly larger body type scale (refonte §6).
 function StepLayout({ Icon, color, children }) {
   return (
-    <Stack spacing={2.5} sx={{ alignItems: 'center' }}>
+    <Stack spacing={2} sx={{ alignItems: 'center' }}>
       {Icon && (
-        <Box sx={{ width: 84, height: 84, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}1A`, color, flexShrink: 0 }}>
+        <Box sx={{ width: 84, height: 84, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(color, 0.1), color, flexShrink: 0 }}>
           <Icon sx={{ fontSize: 48 }} />
         </Box>
       )}
@@ -109,7 +113,7 @@ function StepLayout({ Icon, color, children }) {
 function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
   return (
     <>
-      <Button variant="contained" color="error" sx={{ color: '#000' }} onClick={onBad}>{badLabel}</Button>
+      <Button variant="contained" color="error" sx={{ color: 'common.black' }} onClick={onBad}>{badLabel}</Button>
       <Button variant="contained" onClick={onGood}>{goodLabel}</Button>
     </>
   );
@@ -119,22 +123,22 @@ function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
 // a coloured ARRIVÉE/DÉPART chip (FlightLand/FlightTakeoff) + the date + a time pill, left-aligned.
 function IntroDateRow({ kind, date, time }) {
   const isArrival = kind === 'arrival';
-  const bg = isArrival ? 'warning.main' : '#455a64'; // orange arrival / slate departure (planning palette)
+  const bg = isArrival ? 'warning.main' : 'info.main'; // ochre arrival / slate departure (mode palette)
   const Icon = isArrival ? FlightLandIcon : FlightTakeoffIcon;
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
       <Chip
-        icon={<Icon sx={{ fontSize: 16, color: 'white !important' }} />}
+        icon={<Icon sx={{ fontSize: 16 }} />}
         label={isArrival ? 'ARRIVÉE' : 'DÉPART'}
         size="small"
-        sx={{ height: 24, fontSize: 11, fontWeight: 800, color: 'white', bgcolor: bg, '& .MuiChip-icon': { ml: 0.75, mr: -0.25 } }}
+        sx={{ height: 24, fontSize: 11, fontWeight: 800, color: 'common.white', bgcolor: bg, '& .MuiChip-icon': { ml: 1, mr: -0.25, color: 'common.white' } }}
       />
       <Typography variant="body1" sx={{ fontWeight: 600 }}>{displayDateLong(date)}</Typography>
       <Chip
-        icon={<AccessTimeIcon sx={{ fontSize: 14, color: 'white !important' }} />}
+        icon={<AccessTimeIcon sx={{ fontSize: 14 }} />}
         label={time}
         size="small"
-        sx={{ height: 20, fontSize: 12, fontWeight: 800, borderRadius: 1.5, color: 'white', bgcolor: bg, '& .MuiChip-icon': { ml: 0.5, mr: -0.25 } }}
+        sx={{ height: 20, fontSize: 12, fontWeight: 800, borderRadius: 1.5, color: 'common.white', bgcolor: bg, '& .MuiChip-icon': { ml: 0.5, mr: -0.25, color: 'common.white' } }}
       />
     </Stack>
   );
@@ -144,6 +148,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const { showError } = useToast();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -274,7 +279,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }, [open, reservationId, mode]);
 
   const r = data?.reservation;
-  const modeColor = MODE_COLOR[mode] || MODE_COLOR.arrival;
+  const modeColor = modeColorFor(theme, mode);
   const bedItems = useMemo(() => (data?.linenItems || []).filter((i) => i.category === 'bed'), [data]);
   const allItems = useMemo(() => (data?.linenItems || []), [data]);
 
@@ -452,7 +457,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       if (onCommitted) onCommitted();
       if (onClose) onClose();
     } catch (e) {
+      // Inline (visible in the fullscreen dialog) + toast (app-wide feedback channel).
       setError(e?.message || "Échec de l'enregistrement.");
+      showError(e?.message || "Échec de l'enregistrement du SAS.");
     } finally {
       setCommitting(false);
     }
@@ -484,8 +491,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
 
   // ---- page renderers ----
   function renderStepContent() {
-    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress /></Box>;
-    if (error && !data) return <Typography color="error">{error}</Typography>;
+    if (loading) return <LoadingState py={5} />;
+    if (error && !data) return <ErrorAlert message={error} />;
     if (!data) return null;
 
     switch (stepKey) {
@@ -498,16 +505,17 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Box component="img" src={r.propertyPhoto} alt={r.propertyName}
                 sx={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 2 }} />
             )}
-            {/* 2. Property name, centred. */}
-            <Typography variant="h6" sx={{ textAlign: 'center', fontWeight: 700, lineHeight: 1.2 }}>{r.propertyName}</Typography>
-            {/* 3. Client name — centred, blue, larger, wraps onto 2 lines if needed. */}
-            <Typography variant="h4" sx={{ textAlign: 'center', color: 'primary.main', fontWeight: 800, lineHeight: 1.15, overflowWrap: 'anywhere' }}>
+            {/* 2. Property name, centred — serif section-header role, sized up for the guest-facing intro. */}
+            <Typography variant="sectionHeader" sx={{ textAlign: 'center', fontSize: '1.2rem', lineHeight: 1.2 }}>{r.propertyName}</Typography>
+            {/* 3. Client name — the intro's hero line: serif title role (component=p — no heading
+                semantics inside the dialog), sized like the old h4. */}
+            <Typography variant="pageTitle" component="p" sx={{ textAlign: 'center', color: 'primary.main', fontSize: '1.6rem', lineHeight: 1.15, overflowWrap: 'anywhere' }}>
               {r.firstName} {r.lastName}
             </Typography>
             {/* 4. Platform badge — exactly like the planning (outlined, platform colour). */}
             {r.platform && (
               <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                <Box component="span" sx={{ px: 1, py: 0.375, border: '1.5px solid', borderColor: getPlatformColor(r.platform), color: getPlatformColor(r.platform), bgcolor: 'transparent', borderRadius: 1, fontSize: 14, fontWeight: 800, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+                <Box component="span" sx={{ px: 1, py: 0.5, border: '1.5px solid', borderColor: getPlatformColor(r.platform), color: getPlatformColor(r.platform), bgcolor: 'transparent', borderRadius: 1, fontSize: 14, fontWeight: 800, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
                   {formatPlatformLabel(r.platform)}
                 </Box>
               </Box>
@@ -523,7 +531,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Typography variant="body1">{personsCount} personne{personsCount > 1 ? 's' : ''}</Typography>
             </Stack>
             {mode === 'departure' && r.departureHandoverNote && (
-              <Box sx={{ mt: 1, p: 1, borderRadius: 1, bgcolor: 'rgba(255, 193, 7, 0.12)', border: '1px solid', borderColor: 'warning.light' }}>
+              <Box sx={(t) => ({ mt: 1, p: 1, borderRadius: 1, bgcolor: alpha(t.palette.warning.main, 0.12), border: '1px solid', borderColor: 'warning.light' })}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', display: 'block' }}>Note laissée à l'arrivée</Typography>
                 <Typography variant="body2">{r.departureHandoverNote}</Typography>
               </Box>
@@ -535,7 +543,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return (
           <Stack spacing={1.5} sx={{ alignItems: 'center', py: 1 }}>
             <Typography variant="body1">Code du portail à communiquer au client :</Typography>
-            <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: 2 }}>{data.portalCode}</Typography>
+            {/* Portal code = digits → kpiValue role (sans, tabular — amounts/codes never serif), h3-sized. */}
+            <Typography variant="kpiValue" sx={{ fontSize: '2.6rem', letterSpacing: 2 }}>{data.portalCode}</Typography>
           </Stack>
         );
       case 'weather':
@@ -578,7 +587,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Stack spacing={0.5} divider={<Divider />}>
               <CountStepper icon={<LocalCafeIcon color="action" />} label="Café" value={Number(breakfast.coffee)} onChange={(v) => setBreakfast((b) => ({ ...b, coffee: v }))} />
               <CountStepper icon={<EmojiFoodBeverageIcon color="action" />} label="Thé" value={Number(breakfast.tea)} onChange={(v) => setBreakfast((b) => ({ ...b, tea: v }))} />
-              <CountStepper icon={<FreeBreakfastIcon sx={{ color: '#795548' }} />} label="Chocolat chaud" value={Number(breakfast.chocolate)} onChange={(v) => setBreakfast((b) => ({ ...b, chocolate: v }))} />
+              <CountStepper icon={<FreeBreakfastIcon sx={{ color: 'secondary.dark' }} />} label="Chocolat chaud" value={Number(breakfast.chocolate)} onChange={(v) => setBreakfast((b) => ({ ...b, chocolate: v }))} />
             </Stack>
             <Typography variant="caption" sx={{ color: breakfastMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastMismatch ? 700 : 400 }}>
               {breakfastTotal} boisson{breakfastTotal > 1 ? 's' : ''} pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}
@@ -669,7 +678,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'extinguisher':
         return (
           <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
-            <Typography variant="h6" sx={{ textAlign: 'center' }}>L'extincteur est-il en bon état ?</Typography>
+            <Typography variant="body1" sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.15rem' }}>L'extincteur est-il en bon état ?</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
               Si non, vous pourrez ajouter les frais (plomb manquant, utilisation) au complément de fin de séjour.
             </Typography>
@@ -701,7 +710,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           const total = Math.round((existing + arrivalAdded + preservedArrivalSum) * 100) / 100;
           return (
             <Stack spacing={1}>
-              <Typography variant="h6">Récapitulatif — complément à percevoir</Typography>
+              <Typography variant="sectionHeader">Récapitulatif — complément à percevoir</Typography>
               {/* specs/sas-hide-settled-steps.md §3 rule 4 — when the ménage page is hidden (cleaning
                   included), its client reminder is carried here so it's not lost. */}
               {data.cleaning?.included && (
@@ -719,7 +728,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {arrivalAddedLines.map((l, i) => <Typography key={i} variant="body2">+ {lineText(l)}</Typography>)}
               {preservedArrival.map((l, i) => <Typography key={`p${i}`} variant="body2">+ {l.label} : {formatCurrency(l.amount)}</Typography>)}
               <Divider />
-              <Typography variant="h6">Total : {formatCurrency(total)}</Typography>
+              {/* Amounts never render in serif → bold sans body, not sectionHeader. */}
+              <Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>Total : {formatCurrency(total)}</Typography>
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
               {Number(r.complementPaid || 0) === 1 && arrivalAdded > 0 && (
                 <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(arrivalAdded)}) manuellement.</Typography>
@@ -755,7 +765,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         }
         return (
           <Stack spacing={1}>
-            <Typography variant="h6">Récapitulatif fin de séjour</Typography>
+            <Typography variant="sectionHeader">Récapitulatif fin de séjour</Typography>
             {endOfStayLines.length === 0 && recalledArrivalAmount === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
             {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{lineText(l)}</Typography>)}
             {/* specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement was never
@@ -763,14 +773,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {arrivalRecall && (
               <>
                 <Divider />
-                <Typography variant="subtitle2" color="warning.main">Compléments d'arrivée non perçus</Typography>
+                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', color: 'warning.main' }}>Compléments d'arrivée non perçus</Typography>
                 {(arrivalRecall.detail || []).map((l, i) => (
                   <Typography key={`ar${i}`} variant="body2">{l.label} : {formatCurrency(l.amount)}</Typography>
                 ))}
                 <Typography variant="body2">Sous-total arrivée : <strong>{formatCurrency(recalledArrivalAmount)}</strong></Typography>
               </>
             )}
-            {departureGrandTotal > 0 && (<><Divider /><Typography variant="h6">Total à percevoir : {formatCurrency(departureGrandTotal)}</Typography></>)}
+            {departureGrandTotal > 0 && (<><Divider /><Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>Total à percevoir : {formatCurrency(departureGrandTotal)}</Typography></>)}
             {departureGrandTotal > 0 && (
               <>
                 <FormControlLabel
@@ -887,8 +897,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }
 
   function renderBody() {
-    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
-    if (error && !data) return <Typography color="error">{error}</Typography>;
+    if (loading) return <LoadingState />;
+    if (error && !data) return <ErrorAlert message={error} />;
     if (!data) return null;
     // Intro leads with the property photo, so suppress the big centred step icon there.
     const bodyIcon = stepKey === 'intro' ? null : stepMeta(stepKey, mode).Icon;
@@ -910,27 +920,27 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     <Dialog open={open} onClose={committing ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}
       disableAutoFocus disableEnforceFocus disableRestoreFocus>
       {/* Mode-coloured header band (specs/arrival-departure-sas.md §6 refonte). The ✕ IS the Quitter. */}
-      <Box sx={{ bgcolor: modeColor, color: '#fff', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
+      <Box sx={{ bgcolor: modeColor, color: 'common.white', px: { xs: 2, sm: 3 }, pt: 1.5, pb: stepIdx >= 0 ? 1 : 1.5 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           {stepIdx > 0 && (
-            <IconButton onClick={goBack} disabled={committing} sx={{ color: '#fff', ml: -0.5 }} aria-label="Précédent"><ArrowBackIcon /></IconButton>
+            <IconButton onClick={goBack} disabled={committing} sx={{ color: 'common.white', ml: -0.5 }} aria-label="Précédent"><ArrowBackIcon /></IconButton>
           )}
           {StepIcon && <StepIcon sx={{ fontSize: 28 }} />}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5 }}>{bandTitle}</Typography>
+            <Typography variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit' }}>{bandTitle}</Typography>
             {r && <Typography variant="caption" noWrap sx={{ display: 'block', opacity: 0.9 }}>{r.firstName} {r.lastName} · {r.propertyName}</Typography>}
           </Box>
           {r && (
             <Link component="button" type="button" variant="caption" underline="hover"
-              sx={{ color: '#fff', whiteSpace: 'nowrap' }}
+              sx={{ color: 'common.white', whiteSpace: 'nowrap' }}
               onClick={() => navigate(`/reservations/${reservationId}`)}>Fiche</Link>
           )}
-          <IconButton onClick={onClose} disabled={committing} sx={{ color: '#fff', ml: 0.5 }} aria-label="Quitter"><CloseIcon /></IconButton>
+          <IconButton onClick={onClose} disabled={committing} sx={{ color: 'common.white', ml: 0.5 }} aria-label="Quitter"><CloseIcon /></IconButton>
         </Stack>
         {stepIdx >= 0 && (
           <Box sx={{ mt: 1 }}>
             <LinearProgress variant="determinate" value={((stepIdx + 1) / activeKeys.length) * 100}
-              sx={{ height: 6, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.3)', '& .MuiLinearProgress-bar': { bgcolor: '#fff' } }} />
+              sx={(t) => ({ height: 6, borderRadius: 3, bgcolor: alpha(t.palette.common.white, 0.3), '& .MuiLinearProgress-bar': { bgcolor: 'common.white' } })} />
             <Typography variant="caption" sx={{ opacity: 0.9, mt: 0.5, display: 'block' }}>Étape {stepIdx + 1}/{activeKeys.length}</Typography>
           </Box>
         )}
@@ -939,7 +949,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         {renderBody()}
         {error && data && <Typography color="error" variant="body2" sx={{ mt: 2 }}>{error}</Typography>}
       </DialogContent>
-      <DialogActions sx={{ p: { xs: 2, sm: 2 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.25, fontSize: '1rem', minHeight: 48 } }}>
+      <DialogActions sx={{ p: { xs: 2, sm: 2 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, justifyContent: { sm: 'flex-end' }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' }, py: 1.5, fontSize: '1rem', minHeight: 48 } }}>
         {renderActions()}
       </DialogActions>
     </Dialog>

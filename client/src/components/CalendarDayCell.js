@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { getSchoolHolidayInfo } from '../frenchHolidays';
 import { getClosureForDate } from '../utils/closureCalendar';
@@ -29,13 +30,23 @@ export default function CalendarDayCell({
   today, cleaningHours, inDrag, isDragging,
   onReservationClick, onMouseDown, onMouseEnter, onOpenNote, onOpenNewReservation, onDevisClick,
 }) {
+  // Gradient stops are plain CSS strings, so the cell needs concrete color VALUES from the theme
+  // (sx token strings can't reach inside `linear-gradient(...)`).
+  const theme = useTheme();
+  const white = theme.palette.common.white;
+  const whiteSoft = alpha(white, 0.85);
+  const whiteFaint = alpha(white, 0.7);
+  const darkTextShadow = `0 0 2px ${alpha(theme.palette.common.black, 0.5)}`;
+  const dragColor = theme.palette.primary.light;
+  const devisColor = theme.palette.grey[400];
+
   const renderHolidayIndicators = (dateStr) => {
     const isPublicHoliday = publicHolidays.has(dateStr);
     const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
     return (
       <>
         {isPublicHoliday && (
-          <Typography sx={{ position: 'absolute', top: 1, left: '50%', transform: 'translateX(-50%)', fontSize: 14, color: '#d32f2f', zIndex: 3, pointerEvents: 'none', lineHeight: 1, opacity: 0.7, whiteSpace: 'nowrap' }}>férié</Typography>
+          <Typography sx={{ position: 'absolute', top: 1, left: '50%', transform: 'translateX(-50%)', fontSize: 14, color: 'error.main', zIndex: 3, pointerEvents: 'none', lineHeight: 1, opacity: 0.7, whiteSpace: 'nowrap' }}>férié</Typography>
         )}
         {schoolInfo && (
           <Box sx={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '3px', zIndex: 3, pointerEvents: 'none' }}>
@@ -55,10 +66,10 @@ export default function CalendarDayCell({
     return (
       <Typography title={note} sx={{
         position: 'absolute', bottom: hasReservation ? 14 : 16, left: '50%', transform: 'translateX(-50%)',
-        fontSize, lineHeight: 1.1, color: hasReservation ? 'rgba(255,255,255,0.9)' : '#1a1a1a',
+        fontSize, lineHeight: 1.1, color: hasReservation ? alpha(white, 0.9) : 'text.primary',
         zIndex: 2, pointerEvents: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         maxWidth: '90%', fontStyle: 'italic', fontWeight: 600,
-        textShadow: hasReservation ? '0 0 2px rgba(0,0,0,0.5)' : 'none',
+        textShadow: hasReservation ? darkTextShadow : 'none',
       }}>
         {note}
       </Typography>
@@ -100,7 +111,7 @@ export default function CalendarDayCell({
     return (
       <Box data-date={dateStr} onClick={() => onReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); onOpenNote(dateStr); }} sx={{
         textAlign: 'center', py: 3, borderRadius: 1, position: 'relative', cursor: 'pointer',
-        bgcolor: color, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
+        bgcolor: color, color: 'common.white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
         opacity: isPast ? 0.5 : 1,
         border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
@@ -110,7 +121,7 @@ export default function CalendarDayCell({
         {renderNoteLabel(dateStr, true)}
         {isLabelDay ? (
           <>
-            <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap' }}>
               {midRes.bookingConflictAt && (
                 <Tooltip title="Conflit de dates — paiement en ligne reçu (remboursement / relogement à traiter)">
                   <WarningAmberIcon sx={{ fontSize: 15, verticalAlign: 'text-bottom', mr: 0.5 }} />
@@ -118,12 +129,12 @@ export default function CalendarDayCell({
               )}
               {midRes.firstName} {midRes.lastName}
             </Typography>
-            <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
               {midRes.platform}
             </Typography>
           </>
         ) : (
-          <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{day}</Typography>
+          <Typography sx={{ fontSize: 14, color: whiteFaint }}>{day}</Typography>
         )}
       </Box>
     );
@@ -150,7 +161,6 @@ export default function CalendarDayCell({
     // Render devis (quote) as faded background when no reservation
     const activeDevis = midDevis || arrivalDevis || departureDevis;
     if (activeDevis && !inDrag) {
-      const devisColor = '#bdbdbd';
       const isArrival = Boolean(arrivalDevis);
       const isDeparture = Boolean(departureDevis);
       const resStart = new Date(activeDevis.startDate);
@@ -166,7 +176,7 @@ export default function CalendarDayCell({
           onClick={() => onDevisClick(activeDevis.id)}
           sx={{
             textAlign: 'center', py: 1, borderRadius: 1, position: 'relative', cursor: 'pointer',
-            bgcolor: devisColor, color: 'white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
+            bgcolor: devisColor, color: 'common.white', fontWeight: 600, fontSize: 14, overflow: 'hidden',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 64, height: 64, boxSizing: 'border-box',
             opacity: isPast ? 0.5 : 1,
             border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
@@ -182,19 +192,19 @@ export default function CalendarDayCell({
           {renderNoteLabel(dateStr, true)}
           {isLabelDay && (
             <>
-              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
                 devis
               </Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'white', whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.1, color: 'common.white', whiteSpace: 'nowrap' }}>
                 {activeDevis.firstName} {activeDevis.lastName}
               </Typography>
-              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, lineHeight: 1.1, color: whiteSoft, whiteSpace: 'nowrap' }}>
                 {activeDevis.platform || '-'}
               </Typography>
             </>
           )}
           {!isLabelDay && (
-            <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{day}</Typography>
+            <Typography sx={{ fontSize: 14, color: whiteFaint }}>{day}</Typography>
           )}
         </Box>
       );
@@ -210,14 +220,17 @@ export default function CalendarDayCell({
           height: 64, boxSizing: 'border-box',
           cursor: isPast || closure ? 'default' : 'pointer', fontSize: 14,
           bgcolor: isPast ? 'grey.300' : inDrag ? 'primary.light' : 'grey.100',
-          color: isPast ? 'grey.500' : inDrag ? 'white' : 'text.primary',
+          color: isPast ? 'grey.500' : inDrag ? 'common.white' : 'text.primary',
           fontWeight: inDrag ? 600 : 400,
           border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
-          ...(!isPast && !closure && { '&:hover': { bgcolor: 'primary.light', color: 'white' } }),
+          ...(!isPast && !closure && { '&:hover': { bgcolor: 'primary.light', color: 'common.white' } }),
           transition: 'background-color 0.15s, border 0.2s',
           ...(closure ? {
-            backgroundImage:
-              'repeating-linear-gradient(135deg, rgba(0,0,0,0.06) 0, rgba(0,0,0,0.06) 8px, rgba(0,0,0,0.14) 8px, rgba(0,0,0,0.14) 16px)',
+            backgroundImage: (t) => {
+              const soft = alpha(t.palette.common.black, 0.06);
+              const strong = alpha(t.palette.common.black, 0.14);
+              return `repeating-linear-gradient(135deg, ${soft} 0, ${soft} 8px, ${strong} 8px, ${strong} 16px)`;
+            },
             borderTop: '1px dashed',
             borderBottom: '1px dashed',
             borderColor: 'grey.500',
@@ -256,7 +269,7 @@ export default function CalendarDayCell({
   const departColor = departureRes ? getReservationColor(departureRes.platform) : null;
   const arriveColor = arrivalRes ? getReservationColor(arrivalRes.platform) : null;
   const stops = [];
-  const gapColor = inDrag ? '#42a5f5' : 'transparent';
+  const gapColor = inDrag ? dragColor : 'transparent';
 
   if (departPct !== null) {
     stops.push(`${departColor} 0%`);
@@ -303,7 +316,7 @@ export default function CalendarDayCell({
 
   if (arrivePct !== null) {
     if (departPct === null) {
-      const freeColor = isEarlyArrivalDay ? BLOCKED_NIGHT_COLOR : (inDrag ? '#42a5f5' : 'transparent');
+      const freeColor = isEarlyArrivalDay ? BLOCKED_NIGHT_COLOR : (inDrag ? dragColor : 'transparent');
       stops.push(`${freeColor} 0%`);
       stops.push(`${freeColor} ${arrivePct}%`);
     }
@@ -313,7 +326,7 @@ export default function CalendarDayCell({
 
   if (blockedNightInfo && !departureRes && !arrivalRes) {
     if (blockedNightInfo.type === 'early-arrival') {
-      const freeColor = inDrag ? '#42a5f5' : 'transparent';
+      const freeColor = inDrag ? dragColor : 'transparent';
       stops.length = 0;
       stops.push(`${freeColor} 0%`);
       stops.push(`${freeColor} ${blockedNightInfo.startPct}%`);
@@ -414,23 +427,23 @@ export default function CalendarDayCell({
         height: 64, boxSizing: 'border-box',
         cursor: 'pointer', fontSize: 14, fontWeight: 600,
         background: gradient || 'grey.100',
-        border: (t) => (dateStr === today ? `3px solid ${t.palette.primary.main}` : '1px solid #e0e0e0'),
+        border: (t) => (dateStr === today ? `3px solid ${t.palette.primary.main}` : `1px solid ${t.palette.divider}`),
         color: 'text.primary', overflow: 'hidden',
         opacity: isPast ? 0.5 : 1,
         transition: 'border 0.2s',
       }}
     >
-      <Box sx={{ position: 'relative', zIndex: 1, textShadow: '0 0 3px rgba(255,255,255,0.8)' }}>
+      <Box sx={{ position: 'relative', zIndex: 1, textShadow: `0 0 3px ${alpha(white, 0.8)}` }}>
         {day}
       </Box>
       {renderHolidayIndicators(dateStr)}
       {renderNoteLabel(dateStr, !!(departureRes || arrivalRes || blockedNightInfo))}
       {blockedNightInfo?.client && !departureRes && !arrivalRes && (
         <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
-          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
             {compactName(blockedNightInfo.client.firstName, blockedNightInfo.client.lastName)}
           </Typography>
-          <Typography sx={{ fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.88)', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+          <Typography sx={{ fontSize: 9, fontWeight: 500, color: alpha(white, 0.88), lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
             {blockedNightInfo.type === 'early-arrival' ? 'arrivée anticipée' : 'nuit bloquée'}
           </Typography>
         </Box>
@@ -442,10 +455,10 @@ export default function CalendarDayCell({
         const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
         return (
           <Box sx={{ position: 'absolute', bottom: 1, right: 2, zIndex: 2, textAlign: 'right', lineHeight: 1, pointerEvents: 'none' }}>
-            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
               {compactName(arrivalRes.firstName, arrivalRes.lastName)}
             </Typography>
-            <Typography sx={{ fontSize: platSize, fontWeight: 500, color: 'rgba(255,255,255,0.85)', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+            <Typography sx={{ fontSize: platSize, fontWeight: 500, color: whiteSoft, lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
               {arrivalRes.platform}
             </Typography>
           </Box>
@@ -458,10 +471,10 @@ export default function CalendarDayCell({
         const platSize = Math.max(9, Math.round(colorPct / 100 * 20));
         return (
           <Box sx={{ position: 'absolute', top: 1, left: 2, zIndex: 2, textAlign: 'left', lineHeight: 1, pointerEvents: 'none' }}>
-            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+            <Typography sx={{ fontSize: nameSize, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
               {compactName(departureRes.firstName, departureRes.lastName)}
             </Typography>
-            <Typography sx={{ fontSize: platSize, fontWeight: 500, color: 'rgba(255,255,255,0.85)', lineHeight: 1, whiteSpace: 'nowrap', textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+            <Typography sx={{ fontSize: platSize, fontWeight: 500, color: whiteSoft, lineHeight: 1, whiteSpace: 'nowrap', textShadow: darkTextShadow }}>
               {departureRes.platform}
             </Typography>
           </Box>

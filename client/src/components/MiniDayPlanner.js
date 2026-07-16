@@ -173,7 +173,7 @@ export default function MiniDayPlanner({
   return (
     <Box>
       {date && (
-        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.75, color: 'text.secondary', textTransform: 'capitalize' }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 1, color: 'text.secondary', textTransform: 'capitalize' }}>
           {getDateDisplay()}
         </Typography>
       )}
@@ -195,13 +195,13 @@ export default function MiniDayPlanner({
         </Typography>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 0.75, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 1, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 10, bgcolor: '#ffcdd2', border: '1px solid #ef9a9a', borderRadius: 0.5 }} />
+          <Box sx={(t) => ({ width: 10, height: 10, bgcolor: t.palette.error.soft, border: `1px solid ${alpha(t.palette.error.main, 0.4)}`, borderRadius: 0.5 })} />
           <Typography variant="caption" color="text.secondary">Occupé</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 10, bgcolor: 'rgba(211,47,47,0.3)', border: '1px dashed #b71c1c', borderRadius: 0.5 }} />
+          <Box sx={(t) => ({ width: 10, height: 10, bgcolor: alpha(t.palette.error.main, 0.3), border: `1px dashed ${t.palette.error.dark}`, borderRadius: 0.5 })} />
           <Typography variant="caption" color="text.secondary">Remise en état</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -280,26 +280,26 @@ export default function MiniDayPlanner({
             <Box key={occupied.key} sx={{ pointerEvents: 'none' }}>
               <Tooltip title={`${occupied.startTime}–${occupied.endTime} · ${occupied.description || 'Réservé'}`} arrow>
                 <Box
-                  sx={{
+                  sx={(t) => ({
                     position: 'absolute',
                     left: 2,
                     right: 2,
                     top: occupied.top,
                     height: occupied.height,
-                    bgcolor: '#ffcdd2',
-                    border: '1px solid #ef9a9a',
+                    bgcolor: t.palette.error.soft,
+                    border: `1px solid ${alpha(t.palette.error.main, 0.4)}`,
                     borderRadius: 0.5,
                     px: 0.5,
                     overflow: 'hidden',
                     pointerEvents: 'all',
                     zIndex: 2,
-                  }}
+                  })}
                 >
-                  <Typography variant="caption" sx={{ fontSize: '9px', fontWeight: 700, color: '#c62828', display: 'block', lineHeight: 1.3 }}>
+                  <Typography variant="caption" sx={{ fontSize: '9px', fontWeight: 700, color: 'error.dark', display: 'block', lineHeight: 1.3 }}>
                     {occupied.startTime}–{occupied.endTime}
                   </Typography>
                   {occupied.height >= 20 && (
-                    <Typography variant="caption" sx={{ fontSize: '9px', color: '#c62828', display: 'block', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                    <Typography variant="caption" sx={{ fontSize: '9px', color: 'error.dark', display: 'block', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
                       {occupied.description}
                     </Typography>
                   )}
@@ -307,18 +307,18 @@ export default function MiniDayPlanner({
               </Tooltip>
               {occupied.turnoverHeight > 0 && (
                 <Box
-                  sx={{
+                  sx={(t) => ({
                     position: 'absolute',
                     left: 2,
                     right: 2,
                     top: occupied.turnoverTop,
                     height: Math.max(occupied.turnoverHeight, 4),
-                    bgcolor: 'rgba(211,47,47,0.3)',
-                    border: '1px dashed rgba(183,28,28,0.6)',
+                    bgcolor: alpha(t.palette.error.main, 0.3),
+                    border: `1px dashed ${alpha(t.palette.error.dark, 0.6)}`,
                     borderRadius: 0.5,
                     pointerEvents: 'none',
                     zIndex: 2,
-                  }}
+                  })}
                 />
               )}
             </Box>
@@ -360,7 +360,7 @@ export default function MiniDayPlanner({
                 px: 0.5,
               }}
             >
-              <Typography variant="caption" sx={{ fontSize: '9px', fontWeight: 700, color: '#1565c0', lineHeight: 1.3 }}>
+              <Typography variant="caption" sx={{ fontSize: '9px', fontWeight: 700, color: 'info.dark', lineHeight: 1.3 }}>
                 {selectedStart}–{selectedEnd}
               </Typography>
             </Box>

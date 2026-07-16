@@ -15,6 +15,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, Box, Typography, IconButton, Button, Chip, Stack } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import TodayIcon from '@mui/icons-material/Today';
@@ -125,7 +126,9 @@ export default function CalendarWeekView({
         sx={{
           display: 'flex', gap: 1, p: 1, borderRadius: 1, minHeight: 56,
           border: '1px solid', borderColor: isToday ? 'primary.main' : 'divider',
-          bgcolor: isToday ? 'primary.lighter' : 'background.paper',
+          // `primary.lighter` is NOT a real token (it silently resolved to undefined and today's
+          // row lost its tint) — use an alpha tint of primary instead. ds-sweep-planning rule 15.
+          bgcolor: (t) => (isToday ? alpha(t.palette.primary.main, 0.08) : t.palette.background.paper),
           opacity: isPast ? 0.6 : 1,
         }}
       >
@@ -138,7 +141,7 @@ export default function CalendarWeekView({
             {date.getDate()}
           </Typography>
           <Stack direction="row" spacing={0.3} sx={{ justifyContent: 'center', mt: 0.25 }}>
-            {isPublicHoliday && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#d32f2f' }} />}
+            {isPublicHoliday && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'error.main' }} />}
             {schoolInfo?.zones?.map((z) => (
               <Box key={z} sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: ZONE_COLORS[z] }} />
             ))}
@@ -177,7 +180,7 @@ export default function CalendarWeekView({
           {summary.devis.map(({ kind, devis }) => (
             <EventLine
               key={`devis-${devis.id}-${kind}`}
-              color="#bdbdbd"
+              color="grey.400"
               faded
               icon={kind === 'arrival' ? '↑' : kind === 'departure' ? '↓' : '•'}
               primary={`Devis — ${compactName(devis.firstName, devis.lastName)}`}

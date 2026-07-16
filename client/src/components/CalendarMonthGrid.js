@@ -61,7 +61,7 @@ export default function CalendarMonthGrid({ months, scrollRef, onScroll, onMouse
                           position: 'absolute', top: 1, left: 1, zIndex: 4, pointerEvents: 'none',
                           bgcolor: 'primary.main', borderRadius: '4px', px: 0.5, py: '1px', lineHeight: 1,
                         }}>
-                          <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'white', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                          <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'common.white', lineHeight: 1, whiteSpace: 'nowrap' }}>
                             {badgeLabel}
                           </Typography>
                         </Box>

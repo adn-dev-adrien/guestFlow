@@ -2,13 +2,17 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, Chip, Divider,
-  LinearProgress, TextField, Button, IconButton,
+  TextField, Button, IconButton,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import TodayIcon from '@mui/icons-material/Today';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import PageHeader from '../components/PageHeader';
+import PageActionBar from '../components/PageActionBar';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 import { useToast } from '../components/DialogProvider';
 import LaundryDayCard from '../components/LaundryDayCard';
 import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
@@ -69,9 +73,9 @@ function ResourceBookingsSection({ bookings }) {
           ? minutesToTime(timeToMinutes(b.endTime) + turnover)
           : null;
         return (
-          <Card key={b.id} variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: 'rgba(2,136,209,0.04)' }}>
+          <Card key={b.id} variant="outlined" sx={(t) => ({ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: alpha(t.palette.info.main, 0.04) })}>
             <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Inventory2Icon sx={{ fontSize: 16, color: 'info.main' }} />
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.dark' }}>
                   {b.resourceName || 'Ressource'}
@@ -95,7 +99,7 @@ function ResourceBookingsSection({ bookings }) {
               </Box>
 
               {turnover > 0 && turnoverEnd && (
-                <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 0.75, display: 'block' }}>
+                <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 1, display: 'block' }}>
                   Remise en état: +{turnover} min (jusqu'à {turnoverEnd})
                 </Typography>
               )}
@@ -141,10 +145,11 @@ export default function PlanningPage() {
       await api.setPlanningOptionCardDone({
         reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
       });
-    } catch {
+    } catch (e) {
       apply(!nextDone); // revert
+      showError(e.message || 'Impossible de mettre à jour la préparation.');
     }
-  }, []);
+  }, [showError]);
 
   // The breakfast card shares the « fait » toggle (specs/breakfast-option-planning-card.md) — same
   // generic occurrence endpoint, but optimistic state lives in breakfastByDate (matched by reservation
@@ -163,10 +168,11 @@ export default function PlanningPage() {
       await api.setPlanningOptionCardDone({
         reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
       });
-    } catch {
+    } catch (e) {
       apply(!nextDone);
+      showError(e.message || 'Impossible de mettre à jour le petit déjeuner.');
     }
-  }, []);
+  }, [showError]);
 
   // Resource session card « fait » toggle (specs/resource-hourly-scheduling.md §3.4). Matched by
   // reservationId + resourceId + date + start; optimistic with revert on failure.
@@ -184,10 +190,11 @@ export default function PlanningPage() {
       await api.setPlanningResourceCardDone({
         reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone,
       });
-    } catch {
+    } catch (e) {
       apply(!nextDone); // revert
+      showError(e.message || 'Impossible de mettre à jour la session.');
     }
-  }, []);
+  }, [showError]);
 
   // Arrival / departure SAS (specs/arrival-departure-sas.md). Clicking an arrival card opens the
   // arrival SAS, a departure row the departure SAS. `{ reservationId, mode }` drives the dialog.
@@ -213,6 +220,7 @@ export default function PlanningPage() {
   const openClient = useCallback((clientId) => { if (clientId) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate]);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [planningDays, setPlanningDays] = useState([]);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [alertMap, setAlertMap] = useState({});
@@ -247,7 +255,6 @@ export default function PlanningPage() {
   const [editManualDate, setEditManualDate] = useState(null);
   const [manualSaving, setManualSaving] = useState(false);
 
-  const scrollContainerRef = useRef(null);
   const lastLoadedRef = useRef(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -434,109 +441,106 @@ export default function PlanningPage() {
     setAlertMap(alerts);
   }, []);
 
-  const getAlertColor = (alertType) => {
-    if (alertType === 'orange') return 'rgba(255, 152, 0, 0.08)';
-    if (alertType === 'red') return 'rgba(244, 67, 54, 0.08)';
-    if (alertType === 'blue') return 'rgba(33, 150, 243, 0.08)';
-    return 'background.paper';
-  };
-
   const loadPlanning = async (from) => {
     setLoading(true);
-    const to = addDays(from, DAYS_AHEAD - 1);
-    const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, resourceCardsSummary, manualAdditions] = await Promise.all([
-      api.getReservations({ from, to }),
-      api.getResourceBookingPlanningEvents(from, to).catch(() => []),
-      // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
-      api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
-      // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
-      api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
-      // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
-      // Non-blocking like the others; an empty map keeps the planning fully functional.
-      api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
-      // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
-      api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
-      // specs/resource-hourly-scheduling.md §3.4 — resource session cards. Non-blocking.
-      api.getPlanningResourceCards({ from, to }).catch(() => ({ resourceCardsByDate: {} })),
-      // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
-      // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
-      api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
-    ]);
-    const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
-    const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
+    setLoadError(false);
+    try {
+      const to = addDays(from, DAYS_AHEAD - 1);
+      const [reservationsBase, rbEvents, laundrySummary, inventoryProjection, breakfastSummary, optionCardsSummary, resourceCardsSummary, manualAdditions] = await Promise.all([
+        api.getReservations({ from, to }),
+        api.getResourceBookingPlanningEvents(from, to).catch(() => []),
+        // Non-blocking: a 500 here must not break the planning. Silent fallback to empty.
+        api.getLaundryPlanningSummary({ from, to }).catch(() => ({ laundryDays: [] })),
+        // §3.7 follow-up — linen inventory projection. Same non-blocking discipline.
+        api.getLinenInventory().catch(() => ({ byLaundryDay: {} })),
+        // specs/breakfast-option-and-planning-card.md §4.2 — per-day breakfast list.
+        // Non-blocking like the others; an empty map keeps the planning fully functional.
+        api.getBreakfastPlanningSummary({ from, to }).catch(() => ({ breakfastByDate: {} })),
+        // specs/option-planning-card.md §3.3 — option-driven planning cards. Non-blocking.
+        api.getPlanningOptionCards({ from, to }).catch(() => ({ optionCardsByDate: {} })),
+        // specs/resource-hourly-scheduling.md §3.4 — resource session cards. Non-blocking.
+        api.getPlanningResourceCards({ from, to }).catch(() => ({ resourceCardsByDate: {} })),
+        // specs/manual-laundry-additions.md — per-trip manual linen, for the « dont ajout manuel »
+        // caption + the editor's pre-fill. Already folded into the summary/inventory server-side.
+        api.getLaundryManualAdditions().catch(() => ({ additions: {} })),
+      ]);
+      const arrivals = reservationsBase.filter((r) => r.startDate >= from && r.startDate <= to);
+      const detailed = await Promise.all(arrivals.map((r) => api.getReservation(r.id)));
 
-    const byDate = {};
-    for (const r of detailed) {
-      if (!byDate[r.startDate]) byDate[r.startDate] = [];
-      byDate[r.startDate].push(r);
-    }
-
-    const days = Object.keys(byDate)
-      .sort()
-      .map((date) => ({
-        date,
-        reservations: byDate[date].sort((a, b) =>
-          (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59')
-        ),
-      }));
-
-    setPlanningDays(days);
-
-    const departuresByDate = {};
-    for (const reservation of reservationsBase) {
-      if (reservation.endDate >= from && reservation.endDate <= to) {
-        if (!departuresByDate[reservation.endDate]) departuresByDate[reservation.endDate] = [];
-        departuresByDate[reservation.endDate].push(reservation);
+      const byDate = {};
+      for (const r of detailed) {
+        if (!byDate[r.startDate]) byDate[r.startDate] = [];
+        byDate[r.startDate].push(r);
       }
+
+      const days = Object.keys(byDate)
+        .sort()
+        .map((date) => ({
+          date,
+          reservations: byDate[date].sort((a, b) =>
+            (a.checkInTime || '23:59').localeCompare(b.checkInTime || '23:59')
+          ),
+        }));
+
+      setPlanningDays(days);
+
+      const departuresByDate = {};
+      for (const reservation of reservationsBase) {
+        if (reservation.endDate >= from && reservation.endDate <= to) {
+          if (!departuresByDate[reservation.endDate]) departuresByDate[reservation.endDate] = [];
+          departuresByDate[reservation.endDate].push(reservation);
+        }
+      }
+      Object.keys(departuresByDate).forEach((date) => {
+        departuresByDate[date].sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
+      });
+      setDeparturesMap(departuresByDate);
+
+      // Group resource bookings by date
+      const rbByDate = {};
+      for (const rb of rbEvents) {
+        if (!rbByDate[rb.date]) rbByDate[rb.date] = [];
+        rbByDate[rb.date].push(rb);
+      }
+      setResourceBookingsMap(rbByDate);
+
+      // Build laundryByDate from the new endpoint. Keys are ISO dates → LaundryDayCard props.
+      const lByDate = {};
+      for (const ld of (laundrySummary?.laundryDays || [])) {
+        lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
+      }
+      setLaundryByDate(lByDate);
+      setManualAdditionsByDate(manualAdditions?.additions || {});
+      // Breakfast map (date → { items, totalPersons }) directly from the server payload.
+      setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
+      // Option-driven planning cards (specs/option-planning-card.md §3.3).
+      setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
+      // Resource session cards (specs/resource-hourly-scheduling.md §3.4).
+      setResourceCardsByDate(resourceCardsSummary?.resourceCardsByDate || {});
+
+      // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
+      // horizon; LaundryDayCard filters the types it actually renders.
+      setInventoryByDate(inventoryProjection?.byLaundryDay || {});
+
+      detectAlerts(days, properties);
+      lastLoadedRef.current = to;
+    } catch (e) {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    Object.keys(departuresByDate).forEach((date) => {
-      departuresByDate[date].sort((a, b) => (a.checkOutTime || '10:00').localeCompare(b.checkOutTime || '10:00'));
-    });
-    setDeparturesMap(departuresByDate);
-
-    // Group resource bookings by date
-    const rbByDate = {};
-    for (const rb of rbEvents) {
-      if (!rbByDate[rb.date]) rbByDate[rb.date] = [];
-      rbByDate[rb.date].push(rb);
-    }
-    setResourceBookingsMap(rbByDate);
-
-    // Build laundryByDate from the new endpoint. Keys are ISO dates → LaundryDayCard props.
-    const lByDate = {};
-    for (const ld of (laundrySummary?.laundryDays || [])) {
-      lByDate[ld.date] = { dropOff: ld.dropOff, pickUp: ld.pickUp };
-    }
-    setLaundryByDate(lByDate);
-    setManualAdditionsByDate(manualAdditions?.additions || {});
-    // Breakfast map (date → { items, totalPersons }) directly from the server payload.
-    setBreakfastByDate(breakfastSummary?.breakfastByDate || {});
-    // Option-driven planning cards (specs/option-planning-card.md §3.3).
-    setOptionCardsByDate(optionCardsSummary?.optionCardsByDate || {});
-    // Resource session cards (specs/resource-hourly-scheduling.md §3.4).
-    setResourceCardsByDate(resourceCardsSummary?.resourceCardsByDate || {});
-
-    // Inventory map (date → per-type clean snapshot). Hydrated for every laundry day in the
-    // horizon; LaundryDayCard filters the types it actually renders.
-    setInventoryByDate(inventoryProjection?.byLaundryDay || {});
-
-    detectAlerts(days, properties);
-    lastLoadedRef.current = to;
-    setLoading(false);
   };
 
   useEffect(() => {
     loadPlanning(startDate);
   }, [startDate, properties]); // eslint-disable-line
 
-  // Infinite scroll listener
+  // Infinite scroll listener — bound to the WINDOW: the page has no scroll container of its own
+  // anymore (specs/ds-sweep-planning.md rule 6 — the sticky bar must survive scrolling).
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
     const handleScroll = () => {
-      const { scrollHeight, scrollTop, clientHeight } = container;
-      if (scrollHeight - scrollTop - clientHeight < 200 && !loading && lastLoadedRef.current) {
+      const doc = document.documentElement;
+      if (doc.scrollHeight - window.scrollY - window.innerHeight < 200 && !loading && lastLoadedRef.current) {
         const nextStart = addDays(lastLoadedRef.current, 1);
         const nextEnd = addDays(nextStart, DAYS_AHEAD - 1);
         // Pull the next-window laundry summary alongside the reservations so the new days
@@ -626,94 +630,93 @@ export default function PlanningPage() {
       }
     };
 
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, [loading, planningDays, detectAlerts, properties]); // eslint-disable-line
 
   const handleToggleReady = async (r) => {
     const newReady = !r.checkInReady;
-    await api.markPayment(r.id, { checkInReady: newReady });
-    setPlanningDays((prev) =>
-      prev.map((day) => ({
-        ...day,
-        reservations: day.reservations.map((res) =>
-          res.id === r.id ? { ...res, checkInReady: newReady } : res
-        ),
-      }))
-    );
+    try {
+      await api.markPayment(r.id, { checkInReady: newReady });
+      setPlanningDays((prev) =>
+        prev.map((day) => ({
+          ...day,
+          reservations: day.reservations.map((res) =>
+            res.id === r.id ? { ...res, checkInReady: newReady } : res
+          ),
+        }))
+      );
+    } catch (e) {
+      showError(e.message || 'Impossible de mettre à jour le statut.');
+    }
   };
 
   const handleToggleDepartureDone = async (reservation) => {
     const newValue = !reservation.checkOutDone;
-    await api.markPayment(reservation.id, { checkOutDone: newValue });
-    setDeparturesMap((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((date) => {
-        next[date] = next[date].map((r) => (r.id === reservation.id ? { ...r, checkOutDone: newValue } : r));
+    try {
+      await api.markPayment(reservation.id, { checkOutDone: newValue });
+      setDeparturesMap((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((date) => {
+          next[date] = next[date].map((r) => (r.id === reservation.id ? { ...r, checkOutDone: newValue } : r));
+        });
+        return next;
       });
-      return next;
-    });
+    } catch (e) {
+      showError(e.message || 'Impossible de mettre à jour le statut.');
+    }
   };
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <PageHeader title="Planning" />
-      {/* Controls */}
-      <Card sx={{ mb: 2, mx: 2, mt: 2 }}>
-        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, -1))} aria-label="Jour précédent">
-              <NavigateBeforeIcon />
-            </IconButton>
-            <TextField
-              type="date"
-              size="small"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              sx={{ width: 155 }}
-              slotProps={{
-                htmlInput: { style: { padding: '6px 10px' } }
-              }}
-            />
-            <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, 1))} aria-label="Jour suivant">
-              <NavigateNextIcon />
-            </IconButton>
-            {startDate !== todayStr && (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<TodayIcon />}
-                onClick={() => setStartDate(todayStr)}
-              >
-                Aujourd'hui
-              </Button>
-            )}
-          </Box>
-
-          {/* Color legend removed 2026-06-06 — the per-card alert explanation text is
-              clear enough on its own; the legend block added clutter at the top of the
-              page without surfacing actionable info. */}
-        </CardContent>
-      </Card>
-      {loading && <LinearProgress />}
-      {/* Scrollable content */}
-      <Box
-        ref={scrollContainerRef}
-        sx={{
-          flex: 1,
-          overflowY: 'auto',
-          px: 2,
-          pb: 2,
+  // Date cluster — bar `center` on sm+, compact strip under the bar on xs
+  // (specs/ds-sweep-planning.md rule 2). Color legend removed 2026-06-06.
+  const renderDateNav = () => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+      <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, -1))} aria-label="Jour précédent">
+        <NavigateBeforeIcon />
+      </IconButton>
+      <TextField
+        type="date"
+        size="small"
+        value={startDate}
+        onChange={(e) => setStartDate(e.target.value)}
+        sx={{ width: 155 }}
+        slotProps={{
+          htmlInput: { style: { padding: '6px 10px' }, 'aria-label': 'Date de début' }
         }}
-      >
-        {!loading && planningDays.length === 0 && (
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" align="center" sx={{ py: 3 }}>
-                Aucune arrivée ni créneau ressource sur les {DAYS_AHEAD} prochains jours
-              </Typography>
-            </CardContent>
-          </Card>
+      />
+      <IconButton size="small" onClick={() => setStartDate((d) => addDays(d, 1))} aria-label="Jour suivant">
+        <NavigateNextIcon />
+      </IconButton>
+      {startDate !== todayStr && (
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<TodayIcon />}
+          onClick={() => setStartDate(todayStr)}
+        >
+          Aujourd'hui
+        </Button>
+      )}
+    </Box>
+  );
+
+  return (
+    <Box>
+      <PageActionBar title="Planning" titleOnXs center={renderDateNav()} />
+      {/* xs fallback for the bar's hidden `center` — same date cluster, compact strip. */}
+      <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
+        {renderDateNav()}
+      </Box>
+
+      {loadError && (
+        <ErrorAlert message="Impossible de charger le planning." onRetry={() => loadPlanning(startDate)} sx={{ mb: 3 }} />
+      )}
+      {loading && <LoadingState variant="skeleton" rows={3} />}
+      {/* Day list — normally-flowing content scrolled by the window (rule 6): no page-owned
+          scroll container, so the sticky bar stays visible and the page opens at the top. */}
+      <Box>
+        {!loading && !loadError && planningDays.length === 0 && (
+          <EmptyState message={`Aucune arrivée ni créneau ressource sur les ${DAYS_AHEAD} prochains jours.`} />
         )}
 
         {/* Merge reservation days + resource booking days + laundry days with content.
@@ -764,28 +767,28 @@ export default function PlanningPage() {
                     alignItems: 'center',
                     gap: 1,
                     bgcolor: isToday ? 'primary.main' : allReady ? 'success.main' : 'grey.200',
-                    color: isToday || allReady ? 'white' : 'text.primary',
+                    color: isToday || allReady ? 'common.white' : 'text.primary',
                     borderRadius: 2,
                     px: 2,
-                    py: 0.75,
+                    py: 1,
                     flexGrow: 1,
                   }}
                 >
                   <TodayIcon sx={{ fontSize: 20 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                  <Typography variant="sectionHeader" sx={{ textTransform: 'capitalize' }}>
                     {frenchWeekday(date)}
                     {isToday && ' — Aujourd\'hui'}
                   </Typography>
                   <Chip
                     label={`${reservations.filter((r) => r.checkInReady).length}/${reservations.length}`}
                     size="small"
-                    sx={{
+                    sx={(t) => ({
                       ml: 'auto',
-                      bgcolor: 'rgba(255,255,255,0.25)',
-                      color: isToday || allReady ? 'white' : 'text.primary',
+                      bgcolor: alpha(t.palette.common.white, 0.25),
+                      color: isToday || allReady ? 'common.white' : 'text.primary',
                       fontWeight: 700,
                       height: 22,
-                    }}
+                    })}
                   />
                 </Box>
               </Box>
@@ -857,7 +860,7 @@ export default function PlanningPage() {
               />
 
               {dayDepartures.length > 0 && (
-                <Box sx={{ mb: 1.25 }}>
+                <Box sx={{ mb: 1.5 }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {dayDepartures.map((r) => (
                       <DepartureMiniRow

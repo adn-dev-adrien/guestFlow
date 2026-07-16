@@ -7,6 +7,8 @@
  *
  * Props:
  *   title?       string         (page title, hidden on xs by default)
+ *   titleOnXs?   boolean        (show the title on xs too — for pages whose bar would
+ *                                otherwise be empty on mobile; ellipsized when tight)
  *   backTo?      string         (router path; shows a back IconButton on the left)
  *   onBack?      () => void      (back handler; takes precedence over backTo for computed navigation)
  *   subtitle?    ReactNode      (rendered beside the title — e.g. a Chip or caption)
@@ -90,6 +92,7 @@ function renderCustomAction(action, key) {
 
 export default function PageActionBar({
   title,
+  titleOnXs = false,
   backTo,
   onBack,
   subtitle,
@@ -148,7 +151,11 @@ export default function PageActionBar({
         {title && (
           <Typography
             variant="pageTitle"
-            sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
+            sx={{
+              display: { xs: titleOnXs ? 'block' : 'none', sm: 'block' },
+              whiteSpace: 'nowrap',
+              ...(titleOnXs && { overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }),
+            }}
           >
             {title}
           </Typography>

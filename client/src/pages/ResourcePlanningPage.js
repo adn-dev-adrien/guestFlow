@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Card, CardContent, IconButton, Select, MenuItem,
+  Box, Typography, Button, IconButton, Select, MenuItem,
   FormControl, InputLabel, Tooltip, Chip,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import AddIcon from '@mui/icons-material/Add';
-import PageHeader from '../components/PageHeader';
+import PageActionBar from '../components/PageActionBar';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 import ResourceBookingDialog from '../components/ResourceBookingDialog';
+import { useToast } from '../components/DialogProvider';
 import { withFrom } from '../utils/navigation';
 import api from '../api';
 
@@ -51,6 +55,7 @@ const todayStr = () => new Date().toISOString().split('T')[0];
 
 export default function ResourcePlanningPage() {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [resources, setResources] = useState([]);
   const [selectedResourceId, setSelectedResourceId] = useState(null);
   const [monday, setMonday] = useState(() => getMondayOf(todayStr()));
@@ -58,31 +63,37 @@ export default function ResourcePlanningPage() {
   // Reservation-attached hourly sessions (specs/resource-hourly-scheduling.md §3.4) — shown read-only
   // alongside the standalone bookings, reusing the existing planning-resource-cards endpoint.
   const [reservationSessions, setReservationSessions] = useState([]);
+  const [loadError, setLoadError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
   const [clickedDate, setClickedDate] = useState(null);
   const [clickedTime, setClickedTime] = useState(null);
 
   // Load complex resources once
-  useEffect(() => {
-    api.getResources().then((items) => {
-      const complex = (items || []).filter((r) => r.isComplex);
-      setResources(complex);
-      if (complex.length > 0) setSelectedResourceId(complex[0].id);
-    });
+  const loadResources = useCallback(() => {
+    api.getResources()
+      .then((items) => {
+        const complex = (items || []).filter((r) => r.isComplex);
+        setResources(complex);
+        if (complex.length > 0) setSelectedResourceId((prev) => prev || complex[0].id);
+      })
+      .catch(() => setLoadError(true));
   }, []);
+  useEffect(() => { loadResources(); }, [loadResources]);
 
   const selectedResource = useMemo(
     () => resources.find((r) => r.id === selectedResourceId) || null,
     [resources, selectedResourceId],
   );
 
-  // Load bookings when resource or week changes
+  // Load bookings when resource or week changes. A failed load must SURFACE (an empty grid would
+  // read as « libre » and invite double-booking) — specs/ds-sweep-planning.md rule 9.
   const loadBookings = useCallback(() => {
     if (!selectedResourceId) return;
+    setLoadError(false);
     api.getResourceBookings({ resourceId: selectedResourceId, weekStart: monday })
       .then(setBookings)
-      .catch(() => setBookings([]));
+      .catch(() => { setBookings([]); setLoadError(true); });
     // Reservation sessions for this resource in the visible week (read-only). Reuses the planning
     // cards endpoint and filters to the selected resource.
     api.getPlanningResourceCards({ from: monday, to: addDays(monday, 6) })
@@ -106,7 +117,7 @@ export default function ResourcePlanningPage() {
         }
         setReservationSessions(out);
       })
-      .catch(() => setReservationSessions([]));
+      .catch(() => { setReservationSessions([]); setLoadError(true); });
   }, [selectedResourceId, monday]);
 
   useEffect(() => { loadBookings(); }, [loadBookings]);
@@ -189,19 +200,29 @@ export default function ResourcePlanningPage() {
   }
 
   async function handleSave(data) {
-    if (editingBooking) {
-      await api.updateResourceBooking(editingBooking.id, data);
-    } else {
-      await api.createResourceBooking({ resourceId: selectedResourceId, ...data });
+    try {
+      if (editingBooking) {
+        await api.updateResourceBooking(editingBooking.id, data);
+      } else {
+        await api.createResourceBooking({ resourceId: selectedResourceId, ...data });
+      }
+      loadBookings();
+      setDialogOpen(false);
+      showSuccess('Réservation enregistrée.');
+    } catch (e) {
+      showError(e.message || "Impossible d'enregistrer la réservation.");
     }
-    loadBookings();
-    setDialogOpen(false);
   }
 
   async function handleDelete(id) {
-    await api.deleteResourceBooking(id);
-    loadBookings();
-    setDialogOpen(false);
+    try {
+      await api.deleteResourceBooking(id);
+      loadBookings();
+      setDialogOpen(false);
+      showSuccess('Réservation supprimée.');
+    } catch (e) {
+      showError(e.message || 'Impossible de supprimer la réservation.');
+    }
   }
 
   const weekLabel = (() => {
@@ -215,61 +236,80 @@ export default function ResourcePlanningPage() {
   // Count bookings this week for badge
   const weekBookingCount = bookings.length;
 
+  // Resource + week cluster — bar `center` on sm+, compact strip under the bar on xs
+  // (specs/ds-sweep-planning.md rule 4).
+  const renderWeekControls = () => (
+    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <FormControl size="small" sx={{ minWidth: 180 }}>
+        <InputLabel>Ressource</InputLabel>
+        <Select
+          value={selectedResourceId || ''}
+          label="Ressource"
+          onChange={(e) => setSelectedResourceId(e.target.value)}
+        >
+          {resources.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
+        </Select>
+      </FormControl>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <IconButton size="small" onClick={() => setMonday((m) => addDays(m, -7))} aria-label="Semaine précédente">
+          <NavigateBeforeIcon />
+        </IconButton>
+        <Typography variant="body2" fontWeight={600} sx={{ minWidth: { xs: 0, md: 240 }, textAlign: 'center' }}>
+          {weekLabel}
+        </Typography>
+        <IconButton size="small" onClick={() => setMonday((m) => addDays(m, 7))} aria-label="Semaine suivante">
+          <NavigateNextIcon />
+        </IconButton>
+      </Box>
+      {weekBookingCount > 0 && (
+        <Chip label={`${weekBookingCount} réservation${weekBookingCount > 1 ? 's' : ''}`} size="small" color="primary" variant="outlined" />
+      )}
+    </Box>
+  );
+
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: { xs: 1, sm: 2, md: 3 }, overflow: 'hidden' }}>
-      <PageHeader title="Planning ressources" />
+    <Box>
+      <PageActionBar
+        title="Planning ressources"
+        titleOnXs
+        center={resources.length > 0 ? renderWeekControls() : undefined}
+        actionsBefore={resources.length > 0 ? [{
+          node: (
+            <Button
+              key="create-booking"
+              variant="contained"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => { setEditingBooking(null); setClickedDate(todayStr()); setClickedTime(selectedResource?.openTime || '08:00'); setDialogOpen(true); }}
+            >
+              Nouvelle réservation
+            </Button>
+          ),
+        }] : []}
+      />
+      {resources.length > 0 && (
+        // xs fallback for the bar's hidden `center` — same controls, compact strip.
+        <Box sx={{ display: { xs: 'flex', sm: 'none' }, justifyContent: 'center', mb: 2 }}>
+          {renderWeekControls()}
+        </Box>
+      )}
+
+      {loadError && (
+        <ErrorAlert
+          message="Impossible de charger le planning de la ressource."
+          onRetry={() => { loadResources(); loadBookings(); }}
+          sx={{ mb: 2 }}
+        />
+      )}
 
       {resources.length === 0 ? (
-        <Card sx={{ mt: 2 }}>
-          <CardContent>
-            <Typography color="text.secondary" align="center" sx={{ py: 3 }}>
-              Aucune ressource complexe configurée.<br />
-              Dans la page <strong>Ressources</strong>, activez l'option «&nbsp;Ressource à créneaux&nbsp;» sur une ressource.
-            </Typography>
-          </CardContent>
-        </Card>
+        !loadError && (
+          <EmptyState
+            message="Aucune ressource complexe configurée. Dans la page Ressources, activez l'option « Ressource à créneaux » sur une ressource."
+          />
+        )
       ) : (
         <>
-          {/* Controls */}
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', mb: 2, mt: 1 }}>
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Ressource</InputLabel>
-              <Select
-                value={selectedResourceId || ''}
-                label="Ressource"
-                onChange={(e) => setSelectedResourceId(e.target.value)}
-              >
-                {resources.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
-              </Select>
-            </FormControl>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <IconButton size="small" onClick={() => setMonday((m) => addDays(m, -7))}>
-                <NavigateBeforeIcon />
-              </IconButton>
-              <Typography variant="body2" fontWeight={600} sx={{ minWidth: 240, textAlign: 'center' }}>
-                {weekLabel}
-              </Typography>
-              <IconButton size="small" onClick={() => setMonday((m) => addDays(m, 7))}>
-                <NavigateNextIcon />
-              </IconButton>
-            </Box>
-
-            {weekBookingCount > 0 && (
-              <Chip label={`${weekBookingCount} réservation${weekBookingCount > 1 ? 's' : ''}`} size="small" color="primary" variant="outlined" />
-            )}
-
-            <Tooltip title="Nouvelle réservation">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => { setEditingBooking(null); setClickedDate(todayStr()); setClickedTime(selectedResource?.openTime || '08:00'); setDialogOpen(true); }}
-              >
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-
           {/* Legend */}
           <Box sx={{ display: 'flex', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -279,19 +319,19 @@ export default function ResourcePlanningPage() {
               <Typography variant="caption">Non payé</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 14, height: 14, bgcolor: '#388e3c', borderRadius: 0.5 }} />
+              <Box sx={{ width: 14, height: 14, bgcolor: 'success.main', borderRadius: 0.5 }} />
               <Typography variant="caption">Payé</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 14, height: 14, bgcolor: 'rgba(0,0,0,0.06)', border: '1px solid #ccc', borderRadius: 0.5 }} />
+              <Box sx={{ width: 14, height: 14, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', borderRadius: 0.5 }} />
               <Typography variant="caption">Fermé</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 14, height: 14, bgcolor: 'rgba(211, 47, 47, 0.35)', borderRadius: 0.5 }} />
+              <Box sx={(t) => ({ width: 14, height: 14, bgcolor: alpha(t.palette.error.main, 0.35), borderRadius: 0.5 })} />
               <Typography variant="caption">Remise en état</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 14, height: 14, bgcolor: '#00897b', borderRadius: 0.5 }} />
+              <Box sx={{ width: 14, height: 14, bgcolor: 'secondary.dark', borderRadius: 0.5 }} />
               <Typography variant="caption">Réservation</Typography>
             </Box>
             <Typography variant="caption" color="text.secondary">
@@ -299,8 +339,10 @@ export default function ResourcePlanningPage() {
             </Typography>
           </Box>
 
-          {/* Calendar grid */}
-          <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
+          {/* Calendar grid — intrinsically a wide+tall 2D panel: contained scroll is the documented
+              exemption (specs/ds-sweep-planning.md rule 7); the page itself flows normally so the
+              sticky bar survives. */}
+          <Box sx={{ maxHeight: { xs: '70vh', md: 'calc(100vh - 300px)' }, overflowY: 'auto', overflowX: 'auto' }}>
             <Box sx={{ display: 'flex', minWidth: 600 }}>
               {/* Hour label column */}
               <Box sx={{ width: HOUR_COL_WIDTH, flexShrink: 0, position: 'relative', pt: '40px' }}>
@@ -439,8 +481,8 @@ export default function ResourcePlanningPage() {
                                   right: 2,
                                   top,
                                   height,
-                                  bgcolor: (t) => (b.isReservationSession ? '#00897b' : (b.paid ? '#388e3c' : t.palette.info.main)),
-                                  color: 'white',
+                                  bgcolor: (t) => (b.isReservationSession ? t.palette.secondary.dark : (b.paid ? t.palette.success.main : t.palette.info.main)),
+                                  color: 'common.white',
                                   borderRadius: 0.75,
                                   px: 0.5,
                                   py: 0.25,
@@ -484,8 +526,8 @@ export default function ResourcePlanningPage() {
                                     top: turnoverTop,
                                     height: turnoverHeight,
                                     borderRadius: 0.5,
-                                    bgcolor: 'rgba(211, 47, 47, 0.35)',
-                                    border: '1px dashed rgba(183, 28, 28, 0.6)',
+                                    bgcolor: (t) => alpha(t.palette.error.main, 0.35),
+                                    border: (t) => `1px dashed ${alpha(t.palette.error.dark, 0.6)}`,
                                     zIndex: 1,
                                   }}
                                 >
