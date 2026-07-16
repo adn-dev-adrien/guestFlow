@@ -13,6 +13,9 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../../theme';
+import DialogProvider from '../../components/DialogProvider';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -64,10 +67,12 @@ const SAMPLE_SALES = {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/comptabilite?month=8&year=2026']}>
+      <ThemeProvider theme={theme}><DialogProvider>
       <Routes>
         <Route path="/comptabilite" element={<AccountingPage />} />
         <Route path="/reservations/:id" element={<div>RESERVATION_FILE_77</div>} />
       </Routes>
+      </DialogProvider></ThemeProvider>
     </MemoryRouter>,
   );
 }

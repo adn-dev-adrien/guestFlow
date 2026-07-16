@@ -2,7 +2,9 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
+import theme from '../../theme';
 
 // Regression guard against the legacy PageHeader → PageActionBar migration: the page used to pass
 // an `actions={<Button>}` prop that the old PageHeader silently dropped, so the "Nouveau devis"
@@ -35,6 +37,10 @@ vi.mock('../../components/DialogProvider', () => ({
     confirm: vi.fn().mockResolvedValue(false),
     alert: vi.fn().mockResolvedValue(undefined),
   }),
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+  }),
 }));
 
 import api from '../../api';
@@ -43,7 +49,9 @@ import DevisPage from '../DevisPage';
 function renderPage() {
   return render(
     <MemoryRouter>
-      <DevisPage />
+      <ThemeProvider theme={theme}>
+        <DevisPage />
+      </ThemeProvider>
     </MemoryRouter>
   );
 }

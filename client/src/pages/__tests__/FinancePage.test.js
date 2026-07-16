@@ -184,10 +184,10 @@ describe('FinancePage — total-de-séjour overview', () => {
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
     await screen.findByText('Tente');
-    // The footer renders amounts via eur() (« 100 € » with a separating space), distinct from the
-    // row cell « 100€ » — so this match pins the footer specifically.
-    expect(screen.getByText('100 €')).toBeInTheDocument(); // Σ acompte
-    expect(screen.getByText('200 €')).toBeInTheDocument(); // Σ solde
+    // Post-sweep the whole table (rows + footer) formats via formatCurrency, so the column totals
+    // render as « 100,00 € » / « 200,00 € » — appearing in both the row and the footer.
+    expect(screen.getAllByText('100,00 €').length).toBeGreaterThanOrEqual(1); // Σ acompte (footer + row)
+    expect(screen.getAllByText('200,00 €').length).toBeGreaterThanOrEqual(1); // Σ solde
   });
 
   test('pending tab shows a green « En attente de paiement » total box (Σ reste à payer)', async () => {

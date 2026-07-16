@@ -1,14 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Card, CardContent, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Alert, Grid, Checkbox, Tooltip
+  Box, Typography, Card, CardContent, Grid, Stack, Checkbox, Tooltip,
+  TableRow, TableCell,
 } from '@mui/material';
-import PageHeader from '../components/PageHeader';
+import PageActionBar from '../components/PageActionBar';
 import MonthYearPicker from '../components/MonthYearPicker';
+import ResponsiveTable from '../components/ResponsiveTable';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
+import { useToast } from '../components/DialogProvider';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
-import { displayDate } from '../utils/formatters';
+import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
+
+const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 
 function pad2(v) {
   return String(v).padStart(2, '0');
@@ -27,47 +34,45 @@ function getMaxSelectableMonth() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
-// « Dates réservation » = the reservation's stay dates (arrival → departure), exactly like the fiche
-// réservation. specs/tourist-tax-declared-checkbox.md §3 rule 1 — no day is subtracted (a 1-night stay
-// 20/06 → 21/06 shows « 20/06 au 21/06 »).
+// « Dates réservation » = the reservation's stay dates (arrival → departure), like the fiche.
 function formatReservationDates(startDate, endDate) {
   const start = displayDate(startDate);
   if (!endDate) return start;
   return `${start} au ${displayDate(endDate)}`;
 }
 
-// The declared marker is stored as a SQLite datetime string ("YYYY-MM-DD HH:MM:SS"); show the date only.
+// The declared marker is a SQLite datetime ("YYYY-MM-DD HH:MM:SS"); show the date only via the shared
+// formatter (slice off the time first).
 function formatDeclaredDate(declaredAt) {
-  const m = String(declaredAt || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+  if (!declaredAt || declaredAt === '__pending__') return '';
+  return displayDate(String(declaredAt).slice(0, 10));
 }
 
 export default function TouristTaxPage() {
   const navigate = useNavigate();
+  const { showError } = useToast();
   const [month, setMonth] = useState(getPreviousMonth);
   const [data, setData] = useState(null);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const maxSelectableMonth = useMemo(() => getMaxSelectableMonth(), []);
   const groupedByProperty = useMemo(() => {
     const properties = data?.byProperty || [];
     const rows = data?.reservations || [];
     const rowsByPropertyId = new Map();
-
     rows.forEach((row) => {
       const key = Number(row.propertyId);
       if (!rowsByPropertyId.has(key)) rowsByPropertyId.set(key, []);
       rowsByPropertyId.get(key).push(row);
     });
-
     return properties.map((property) => ({
       ...property,
       reservations: rowsByPropertyId.get(Number(property.propertyId)) || [],
     }));
   }, [data]);
 
-  // specs/tourist-tax-declared-checkbox.md §3 — tick / untick « Déclarée » for one reservation. Optimistic:
-  // reflect the toggle immediately, then reconcile with the server-authoritative declaredAt; revert on error.
+  // specs/tourist-tax-declared-checkbox.md §3 — optimistic « Déclarée » toggle; revert + toast on error.
   const patchDeclared = (reservationId, value) =>
     setData((prev) => (prev ? {
       ...prev,
@@ -83,99 +88,92 @@ export default function TouristTaxPage() {
       patchDeclared(row.reservationId, res.declaredAt);
     } catch (e) {
       patchDeclared(row.reservationId, row.touristTaxDeclaredAt);
-      setError(e.message || "Impossible de mettre à jour la déclaration");
+      showError(e.message || 'Impossible de mettre à jour la déclaration.');
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    setError('');
+    setLoadError(false);
+    setData(null);
     api.getTouristTaxExtraction(month)
-      .then((res) => {
-        if (isMounted) setData(res);
-      })
-      .catch((e) => {
-        if (!isMounted) return;
-        setData(null);
-        setError(e.message || "Impossible de charger l'extraction");
-      });
+      .then((res) => { if (isMounted) setData(res); })
+      .catch(() => { if (isMounted) { setData(null); setLoadError(true); } });
+    return () => { isMounted = false; };
+  }, [month, reloadNonce]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [month]);
+  const declaredTooltip = (row) => (row.touristTaxDeclaredAt
+    ? (formatDeclaredDate(row.touristTaxDeclaredAt) ? `Déclarée le ${formatDeclaredDate(row.touristTaxDeclaredAt)}` : 'Déclarée')
+    : 'Non déclarée');
+
+  const declaredCheckbox = (row) => (
+    <Tooltip title={declaredTooltip(row)}>
+      <Checkbox
+        size="small"
+        checked={!!row.touristTaxDeclaredAt}
+        onChange={() => handleToggleDeclared(row)}
+        slotProps={{ input: { 'aria-label': `Déclarée — ${row.reservationName || 'Réservation'}` } }}
+      />
+    </Tooltip>
+  );
+
+  // KPI cards — neutral « Maison » tiles (2026-07-16 decision).
+  const kpiCards = data ? [
+    { label: 'Réservations directes (mois)', value: String(data.totals.reservationsCount || 0), accent: 'info.main' },
+    { label: 'Adultes-nuits (mois)', value: String(data.totals.adultNights), accent: 'primary.main' },
+    { label: 'Taxe de séjour totale', value: formatCurrencyRounded(data.totals.taxAmount), accent: 'warning.main' },
+  ] : [];
 
   return (
     <Box>
-      <PageHeader title="Extraction taxe de séjour" />
-      {(() => {
-        const { month: m, year: y } = MonthYearPicker.fromYearMonth(month);
-        return (
-          <MonthYearPicker
-            month={m}
-            year={y}
-            onChange={({ month: nm, year: ny }) => setMonth(MonthYearPicker.toYearMonth({ month: nm, year: ny }))}
-            maxMonth={maxSelectableMonth}
-            helperText="Jusqu'au mois en cours inclus."
-          />
-        );
-      })()}
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-      {data && (
-        <>
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid
-              size={{
-                xs: 12,
-                md: 4
-              }}>
-              <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
-                <CardContent>
-                  <Typography variant="subtitle2">Réservations directes (mois)</Typography>
-                  <Typography variant="h4">{data.totals.reservationsCount || 0}</Typography>
-                </CardContent>
-              </Card>
+      <PageActionBar title="Extraction taxe de séjour" />
+      <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
+        {(() => {
+          const { month: m, year: y } = MonthYearPicker.fromYearMonth(month);
+          return (
+            <MonthYearPicker
+              month={m}
+              year={y}
+              onChange={({ month: nm, year: ny }) => setMonth(MonthYearPicker.toYearMonth({ month: nm, year: ny }))}
+              maxMonth={maxSelectableMonth}
+              helperText="Jusqu'au mois en cours inclus."
+            />
+          );
+        })()}
+        {loadError && <ErrorAlert message="Impossible de charger l'extraction." onRetry={() => setReloadNonce((n) => n + 1)} sx={{ mb: 3 }} />}
+        {!data && !loadError && <LoadingState label="Chargement de l'extraction…" />}
+        {data && (
+          <>
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              {kpiCards.map((c) => (
+                <Grid key={c.label} size={{ xs: 12, md: 4 }}>
+                  <Card sx={{ height: '100%', borderLeft: '3px solid', borderColor: c.accent }}>
+                    <CardContent>
+                      <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>{c.label}</Typography>
+                      <Typography variant="kpiValue">{c.value}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
             </Grid>
-            <Grid
-              size={{
-                xs: 12,
-                md: 4
-              }}>
-              <Card sx={{ bgcolor: '#00897b', color: 'white' }}>
-                <CardContent>
-                  <Typography variant="subtitle2">Adultes-nuits (mois)</Typography>
-                  <Typography variant="h4">{data.totals.adultNights}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid
-              size={{
-                xs: 12,
-                md: 4
-              }}>
-              <Card sx={{ bgcolor: '#ef6c00', color: 'white' }}>
-                <CardContent>
-                  <Typography variant="subtitle2">Taxe de séjour totale</Typography>
-                  <Typography variant="h4">{Number(data.totals.taxAmount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
 
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Par logement</Typography>
-              {groupedByProperty.map((property) => (
-                <Box key={property.propertyId} sx={{ mb: 2.5 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1, mb: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{property.propertyName}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Taxe logement: {Number(property.taxAmount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                    </Typography>
-                  </Box>
-                  <TableContainer>
-                    <Table size="small" sx={{ minWidth: 980 }}>
-                      <TableHead>
+            <Card>
+              <CardContent>
+                <Typography variant="sectionHeader" gutterBottom>Par logement</Typography>
+                {groupedByProperty.map((property) => (
+                  <Box key={property.propertyId} sx={{ mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                      <Typography variant="sectionHeader">{property.propertyName}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, ...TABULAR }}>
+                        Taxe logement : {formatCurrency(property.taxAmount)}
+                      </Typography>
+                    </Box>
+                    <ResponsiveTable
+                      items={property.reservations}
+                      getKey={(row) => row.reservationId}
+                      minWidth={980}
+                      emptyText="Aucune réservation directe sur ce logement pour le mois sélectionné."
+                      head={(
                         <TableRow>
                           <TableCell sx={{ fontWeight: 600 }} align="center" padding="checkbox">Déclarée</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Nom réservation</TableCell>
@@ -186,59 +184,57 @@ export default function TouristTaxPage() {
                           <TableCell sx={{ fontWeight: 600 }} align="right">Taxe séjour (client)</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Montant hébergement HT</TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {property.reservations.map((row) => (
-                          <TableRow
-                            key={row.reservationId}
-                            hover
-                            onClick={() => navigate(withFrom(`/reservations/${row.reservationId}`, '/finance/tourist-tax'))}
-                            sx={{ cursor: 'pointer' }}
-                          >
-                            <TableCell
-                              padding="checkbox"
-                              align="center"
-                              onClick={(e) => e.stopPropagation()}
-                              sx={{ cursor: 'default' }}
-                            >
-                              <Tooltip title={row.touristTaxDeclaredAt
-                                ? (formatDeclaredDate(row.touristTaxDeclaredAt) ? `Déclarée le ${formatDeclaredDate(row.touristTaxDeclaredAt)}` : 'Déclarée')
-                                : 'Non déclarée'}>
-                                <Checkbox
-                                  size="small"
-                                  checked={!!row.touristTaxDeclaredAt}
-                                  onChange={() => handleToggleDeclared(row)}
-                                  slotProps={{ input: { 'aria-label': `Déclarée — ${row.reservationName || 'Réservation'}` } }}
-                                />
-                              </Tooltip>
-                            </TableCell>
-                            <TableCell>{row.reservationName || 'Réservation'}</TableCell>
-                            <TableCell>{formatReservationDates(row.startDate, row.endDate)}</TableCell>
-                            <TableCell align="right">{row.nightsCount}</TableCell>
-                            <TableCell align="right">{row.adults}</TableCell>
-                            <TableCell align="right">{row.children ?? 0}</TableCell>
-                            <TableCell align="right">{Number(row.taxAmount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</TableCell>
-                            <TableCell align="right">{Number(row.accommodationAmount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</TableCell>
-                          </TableRow>
-                        ))}
-                        {property.reservations.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={8} align="center">Aucune réservation directe sur ce logement pour le mois sélectionné</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-              ))}
+                      )}
+                      renderRow={(row) => (
+                        <TableRow
+                          key={row.reservationId}
+                          hover
+                          onClick={() => navigate(withFrom(`/reservations/${row.reservationId}`, '/finance/tourist-tax'))}
+                          sx={{ cursor: 'pointer' }}
+                        >
+                          <TableCell padding="checkbox" align="center" onClick={(e) => e.stopPropagation()} sx={{ cursor: 'default' }}>
+                            {declaredCheckbox(row)}
+                          </TableCell>
+                          <TableCell>{row.reservationName || 'Réservation'}</TableCell>
+                          <TableCell>{formatReservationDates(row.startDate, row.endDate)}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{row.adults}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{row.children ?? 0}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{formatCurrency(row.taxAmount)}</TableCell>
+                          <TableCell align="right" sx={TABULAR}>{formatCurrency(row.accommodationAmount)}</TableCell>
+                        </TableRow>
+                      )}
+                      renderMobileCard={(row) => (
+                        <Stack onClick={() => navigate(withFrom(`/reservations/${row.reservationId}`, '/finance/tourist-tax'))} sx={{ cursor: 'pointer', gap: 0.5 }}>
+                          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.reservationName || 'Réservation'}</Typography>
+                            <Box onClick={(e) => e.stopPropagation()}>{declaredCheckbox(row)}</Box>
+                          </Stack>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatReservationDates(row.startDate, row.endDate)} · {row.nightsCount} nuit{row.nightsCount > 1 ? 's' : ''} · {row.adults} ad. · {row.children ?? 0} enf.
+                          </Typography>
+                          <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary">Taxe séjour (client)</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(row.taxAmount)}</Typography>
+                          </Stack>
+                          <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary">Hébergement HT</Typography>
+                            <Typography variant="body2" sx={{ ...TABULAR }}>{formatCurrency(row.accommodationAmount)}</Typography>
+                          </Stack>
+                        </Stack>
+                      )}
+                    />
+                  </Box>
+                ))}
 
-              {groupedByProperty.length === 0 && (
-                <Typography color="text.secondary">Aucune réservation directe sur le mois sélectionné.</Typography>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+                {groupedByProperty.length === 0 && (
+                  <EmptyState message="Aucune réservation directe sur le mois sélectionné." py={3} />
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </Box>
     </Box>
   );
 }

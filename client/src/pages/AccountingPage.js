@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link, Tooltip,
+  TableCell, TableBody, Stack, Chip, Link, Tooltip,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -16,17 +16,28 @@ import MonthYearPicker from '../components/MonthYearPicker';
 import { useAuth } from '../hooks/useAuth';
 import { userHasRole, ADMIN } from '../constants/roles';
 import { formatCurrency, displayDate } from '../utils/formatters';
+import { alpha } from '@mui/material/styles';
+import { useToast } from '../components/DialogProvider';
+import ErrorAlert from '../components/ErrorAlert';
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
+import StatusBadge from '../components/StatusBadge';
+import PlatformChip from '../components/PlatformChip';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
 // VAT (44571xxx) = blue, tourist-tax pass-through (46710000) = purple. Used to colour rows and
 // the per-line chip in the journal preview.
 const LINE_STYLES = {
-  client:  { label: 'Client',  color: 'warning', bg: 'rgba(255, 152, 0, 0.08)' },
-  revenue: { label: 'Produit', color: 'success', bg: 'rgba(76, 175, 80, 0.08)' },
-  vat:     { label: 'TVA',     color: 'info',    bg: 'rgba(33, 150, 243, 0.08)' },
-  tax_pass_through: { label: 'Taxe', color: 'secondary', bg: 'rgba(156, 39, 176, 0.08)' },
-  other:   { label: 'Autre',   color: 'default', bg: 'rgba(0, 0, 0, 0.04)' },
+  client:  { label: 'Client',  color: 'warning' },
+  revenue: { label: 'Produit', color: 'success' },
+  vat:     { label: 'TVA',     color: 'info' },
+  tax_pass_through: { label: 'Taxe', color: 'secondary' },
+  other:   { label: 'Autre',   color: 'default' },
 };
+// Soft tinted row background from the line's semantic color (specs/ds-sweep-finance.md §3.10).
+const lineBg = (color) => (t) => (color === 'default'
+  ? alpha(t.palette.grey[500], 0.08)
+  : alpha(t.palette[color].main, 0.08));
 
 /**
  * Comptabilité — read-only page for the accountant role (also accessible to admins).
@@ -76,25 +87,28 @@ export default function AccountingPage() {
   const [loading, setLoading] = useState(false);
   const [salesLoading, setSalesLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState(null);
+  // Load failures stay persistent (ErrorAlert + retry); the CSV-download failure toasts
+  // (specs/ds-sweep-finance.md §3.8).
+  const [loadError, setLoadError] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const { showError } = useToast();
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
     setSalesLoading(true);
-    setError(null);
+    setLoadError(false);
     Promise.all([
       api.getAccountingPlatforms(month, year).then((d) => { if (mounted) setPreview(d); }),
       api.getAccountingSales(month, year).then((d) => { if (mounted) setSales(d); }),
     ])
-      .catch((err) => { if (mounted) setError(err.message || 'Impossible de charger l’aperçu.'); })
+      .catch(() => { if (mounted) setLoadError(true); })
       .finally(() => { if (mounted) { setLoading(false); setSalesLoading(false); } });
     return () => { mounted = false; };
-  }, [month, year]);
+  }, [month, year, reloadNonce]);
 
   const handleDownload = async () => {
     setDownloading(true);
-    setError(null);
     try {
       const blob = await api.downloadAccountingSalesCsv(month, year);
       const url = URL.createObjectURL(blob);
@@ -107,7 +121,7 @@ export default function AccountingPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err.message || 'Téléchargement impossible.');
+      showError(err.message || 'Téléchargement impossible.');
     } finally {
       setDownloading(false);
     }
@@ -130,10 +144,8 @@ export default function AccountingPage() {
       />
 
       <Box sx={{ maxWidth: { xs: '100%', md: 960 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
+        {loadError && (
+          <ErrorAlert message="Impossible de charger l'aperçu comptable." onRetry={() => setReloadNonce((n) => n + 1)} sx={{ mb: 2 }} />
         )}
 
         <MonthYearPicker
@@ -147,7 +159,7 @@ export default function AccountingPage() {
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack direction="row" sx={{ mb: 2, flexWrap: 'wrap', gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Détail des écritures du mois</Typography>
+                <Typography variant="sectionHeader">Détail des écritures du mois</Typography>
                 <Typography variant="body2" color="text.secondary">
                   Aperçu exact du contenu du CSV : une carte par encaissement, partie double balancée.
                 </Typography>
@@ -155,9 +167,8 @@ export default function AccountingPage() {
               {sales && sales.totals.entriesCount > 0 && (
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Chip size="small" label={`${sales.totals.entriesCount} encaissement${sales.totals.entriesCount > 1 ? 's' : ''}`} />
-                  <Chip
-                    size="small"
-                    color={sales.totals.allBalanced ? 'success' : 'error'}
+                  <StatusBadge
+                    status={sales.totals.allBalanced ? 'success' : 'error'}
                     icon={sales.totals.allBalanced ? <CheckCircleIcon /> : <WarningAmberIcon />}
                     label={sales.totals.allBalanced ? 'Tout équilibré' : 'Déséquilibre détecté'}
                   />
@@ -166,19 +177,10 @@ export default function AccountingPage() {
               )}
             </Stack>
 
-            {salesLoading && (
-              <Stack direction="row" spacing={1} sx={{ py: 2, alignItems: 'center' }}>
-                <CircularProgress size={18} />
-                <Typography variant="body2" color="text.secondary">Chargement des écritures…</Typography>
-              </Stack>
-            )}
+            {salesLoading && <LoadingState label="Chargement des écritures…" py={2} />}
 
             {!salesLoading && sales && sales.entries.length === 0 && (
-              <Box sx={{ py: 3, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Aucun encaissement pour ce mois — rien à exporter.
-                </Typography>
-              </Box>
+              <EmptyState message="Aucun encaissement pour ce mois — rien à exporter." py={3} />
             )}
 
             {!salesLoading && sales && sales.entries.length > 0 && (
@@ -202,7 +204,7 @@ export default function AccountingPage() {
               spacing={1}
               sx={{ mb: 2, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
             >
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Encaissements du mois</Typography>
+              <Typography variant="sectionHeader">Encaissements du mois</Typography>
               <Stack spacing={0.5} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
                 {/* Inline legend for the A/S/C badges shown on each row. Discreet — small font
                     + the colour pastilles do the heavy lifting visually. */}
@@ -222,12 +224,10 @@ export default function AccountingPage() {
               </Stack>
             </Stack>
 
-            {loading && <Typography variant="body2" color="text.secondary">Chargement…</Typography>}
+            {loading && <LoadingState py={2} />}
 
             {!loading && preview && preview.rows.length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                Aucun encaissement ce mois-là.
-              </Typography>
+              <EmptyState message="Aucun encaissement ce mois-là." py={3} />
             )}
 
             {!loading && preview && preview.rows.length > 0 && (
@@ -241,9 +241,9 @@ export default function AccountingPage() {
                       <TableCell>Plateforme</TableCell>
                       {/* Small badge column with no header label (the badges speak for themselves). */}
                       <TableCell sx={{ width: 32, p: 0.5 }} />
-                      <TableCell>Revenu brut</TableCell>
-                      <TableCell>Commission</TableCell>
-                      <TableCell sx={{ fontWeight: 700, bgcolor: 'rgba(46,125,50,0.08)' }}>Net perçu (versement)</TableCell>
+                      <TableCell align="right">Revenu brut</TableCell>
+                      <TableCell align="right">Commission</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, bgcolor: (t) => alpha(t.palette.success.main, 0.08) }}>Net perçu (versement)</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -263,16 +263,16 @@ export default function AccountingPage() {
                           <TableCell>{displayDate(row.date)}</TableCell>
                           <TableCell>{row.propertyName || '—'}</TableCell>
                           <TableCell>{row.client}</TableCell>
-                          <TableCell>{row.platform}</TableCell>
+                          <TableCell><PlatformChip platform={row.platform} /></TableCell>
                           <TableCell sx={{ width: 32, p: 0.5 }}>
                             <KindBadge kind={row.kind} />
                           </TableCell>
                           {/* Revenu brut (CA) = what the guest paid the platform. */}
-                          <TableCell>{formatCurrency(row.encaissement)}</TableCell>
-                          <TableCell>{row.commission == null ? '—' : `− ${formatCurrency(row.commission)}`}</TableCell>
+                          <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(row.encaissement)}</TableCell>
+                          <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{row.commission == null ? '—' : `− ${formatCurrency(row.commission)}`}</TableCell>
                           {/* Net perçu (versement) — highlighted: it's the figure the operator reconciles
                               against the platform's bank transfer. */}
-                          <TableCell sx={{ fontWeight: 700, bgcolor: 'rgba(46,125,50,0.08)' }}>
+                          <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', bgcolor: (t) => alpha(t.palette.success.main, 0.08) }}>
                             {formatCurrency(row.net)}
                           </TableCell>
                         </TableRow>
@@ -348,7 +348,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
     <Card variant="outlined" sx={{ borderColor: entry.balanced ? 'divider' : 'error.main' }}>
       <Box
         sx={{
-          px: { xs: 2, sm: 2.5 }, py: 1.5,
+          px: { xs: 2, sm: 3 }, py: 1.5,
           bgcolor: 'grey.50',
           borderBottom: '1px solid', borderColor: 'divider',
           display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
@@ -362,7 +362,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
             label={`${String(entry.day).padStart(2, '0')}/${String(entry.month).padStart(2, '0')}/${entry.year}`}
           />
           <Chip size="small" label={KIND_LABELS[entry.kind] || entry.kind} />
-          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
             {clientNode}
           </Stack>
@@ -388,18 +388,16 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
               {Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour ({formatCurrency(entry.finalPrice)})
             </Typography>
           </Stack>
-          <Chip
-            size="small"
-            color={entry.balanced ? 'success' : 'error'}
+          <StatusBadge
+            status={entry.balanced ? 'success' : 'error'}
             icon={entry.balanced ? <CheckCircleIcon /> : <WarningAmberIcon />}
             label={entry.balanced ? 'Équilibré' : 'Déséquilibré'}
-            sx={{ fontWeight: 600 }}
           />
         </Stack>
       </Box>
 
       {isPlatform && (
-        <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 1, bgcolor: 'rgba(33, 150, 243, 0.04)', borderBottom: '1px dashed', borderColor: 'divider' }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, py: 1, bgcolor: (t) => alpha(t.palette.info.main, 0.04), borderBottom: '1px dashed', borderColor: 'divider' }}>
           <Stack direction="row" spacing={3} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Typography variant="caption" color="text.secondary">
               Revenu brut : <strong>{formatCurrency(entry.encaissementTtc)}</strong>
@@ -414,7 +412,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
         </Box>
       )}
 
-      <Table size="small" sx={{ '& td, & th': { borderColor: 'rgba(0,0,0,0.06)' } }}>
+      <Table size="small" sx={{ '& td, & th': { borderColor: (t) => alpha(t.palette.common.black, 0.06) } }}>
         <TableHead>
           <TableRow sx={{ bgcolor: 'grey.50' }}>
             <TableCell sx={{ width: 80 }}>Type</TableCell>
@@ -428,7 +426,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           {entry.lines.map((line, idx) => {
             const s = LINE_STYLES[line.type] || LINE_STYLES.other;
             return (
-              <TableRow key={idx} sx={{ bgcolor: s.bg }}>
+              <TableRow key={idx} sx={{ bgcolor: lineBg(s.color) }}>
                 <TableCell>
                   <Chip size="small" color={s.color} variant="filled" label={s.label} sx={{ height: 22 }} />
                 </TableCell>
@@ -441,10 +439,10 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
                   )}
                 </TableCell>
                 <TableCell sx={{ color: 'text.secondary' }}>{line.libelle}</TableCell>
-                <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.debit != null ? 700 : 400 }}>
+                <TableCell align="right" sx={{ fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums', fontWeight: line.debit != null ? 700 : 400 }}>
                   {line.debit != null ? formatCurrency(line.debit) : '—'}
                 </TableCell>
-                <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.credit != null ? 700 : 400 }}>
+                <TableCell align="right" sx={{ fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums', fontWeight: line.credit != null ? 700 : 400 }}>
                   {line.credit != null ? formatCurrency(line.credit) : '—'}
                 </TableCell>
               </TableRow>
@@ -452,8 +450,8 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           })}
           <TableRow sx={{ bgcolor: 'grey.100' }}>
             <TableCell colSpan={3} sx={{ fontWeight: 700 }}>Σ</TableCell>
-            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatCurrency(entry.sumDebits)}</TableCell>
-            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatCurrency(entry.sumCredits)}</TableCell>
+            <TableCell align="right" sx={{ fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{formatCurrency(entry.sumDebits)}</TableCell>
+            <TableCell align="right" sx={{ fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{formatCurrency(entry.sumCredits)}</TableCell>
           </TableRow>
         </TableBody>
       </Table>
