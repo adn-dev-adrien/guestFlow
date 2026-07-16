@@ -472,3 +472,25 @@ test('arrivalComplementDetailFromReservation: itemises in-complement lines + tax
   assert.equal(detail.detail.find((l) => l.label === "Complément d'arrivée").amount, 25);
   assert.equal(Math.round(detail.detail.reduce((s, l) => s + l.amount, 0) * 100) / 100, 64.8);
 });
+
+test('arrivalComplementDetailFromReservation: carries qty/unitPrice/kind for the SAS-style email list', () => {
+  // specs/j2-email-coffee-and-sas-complement.md — additive fields so the J-2 email can render
+  // « label : qté × prix = total » and localise the system labels (tax / remainder) per language.
+  const detail = arrivalComplementDetailFromReservation({
+    complementAmount: 50.8, complementPaid: 0, touristTaxInComplementAmount: 4.8,
+    options: [
+      { title: 'Ménage', totalPrice: 30, unitPrice: 30, quantity: 1, billedUnits: 1, inComplement: 1, offered: 0 },
+      { title: 'Petit déjeuner', totalPrice: 16, unitPrice: 8, quantity: 2, billedUnits: 2, inComplement: 1, offered: 0 },
+    ],
+    resources: [],
+  });
+  const byLabel = Object.fromEntries(detail.detail.map((l) => [l.label, l]));
+  assert.equal(byLabel['Ménage'].kind, 'option');
+  assert.equal(byLabel['Ménage'].qty, 1);
+  assert.equal(byLabel['Ménage'].unitPrice, 30);
+  assert.equal(byLabel['Petit déjeuner'].qty, 2);   // billedUnits wins → « 2 × 8 = 16 »
+  assert.equal(byLabel['Petit déjeuner'].unitPrice, 8);
+  assert.equal(byLabel['Taxe de séjour'].kind, 'tax');
+  // 30 + 16 + 4.80 = 50.80 = total → no remainder line.
+  assert.ok(!detail.detail.some((l) => l.kind === 'remainder'));
+});

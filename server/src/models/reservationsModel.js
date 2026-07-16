@@ -50,24 +50,34 @@ function arrivalComplementDetailFromReservation(r) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const lines = [];
+  // `qty`/`unitPrice`/`kind` (specs/j2-email-coffee-and-sas-complement.md) are additive: they let the
+  // J-2 email render the same « label : qté × prix = total » lines as the SAS recap, and localise the
+  // system labels (tax / remainder) per language. Existing consumers reading `label`/`amount` are
+  // unaffected. `qty` mirrors the SAS: billedUnits, else quantity, else 1.
   for (const o of (r.options || [])) {
     if (Number(o.inComplement || 0) === 1 && Number(o.offered || 0) !== 1) {
       const amt = round2(o.totalPrice != null ? o.totalPrice : o.originalTotalPrice);
-      if (amt > 0) lines.push({ label: String(o.title || o.description || 'Extra').trim(), amount: amt });
+      if (amt > 0) lines.push({
+        kind: 'option', label: String(o.title || o.description || 'Extra').trim(),
+        qty: Number(o.billedUnits || o.quantity || 1), unitPrice: round2(o.unitPrice), amount: amt,
+      });
     }
   }
   for (const res of (r.resources || [])) {
     if (Number(res.inComplement || 0) === 1 && Number(res.offered || 0) !== 1) {
       const amt = round2(res.totalPrice != null ? res.totalPrice : res.originalTotalPrice);
-      if (amt > 0) lines.push({ label: String(res.name || 'Ressource').trim(), amount: amt });
+      if (amt > 0) lines.push({
+        kind: 'resource', label: String(res.name || 'Ressource').trim(),
+        qty: Number(res.billedUnits || res.quantity || 1), unitPrice: round2(res.unitPrice), amount: amt,
+      });
     }
   }
   const tax = round2(r.touristTaxInComplementAmount || 0);
-  if (tax > 0) lines.push({ label: 'Taxe de séjour', amount: tax });
+  if (tax > 0) lines.push({ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: tax, amount: tax });
   const amount = round2(r.complementAmount || 0);
   const listed = round2(lines.reduce((s, l) => s + l.amount, 0));
   const remainder = round2(amount - listed);
-  if (remainder > 0.01) lines.push({ label: "Complément d'arrivée", amount: remainder });
+  if (remainder > 0.01) lines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: remainder, amount: remainder });
   return { amount, paid: Number(r.complementPaid || 0) === 1 ? 1 : 0, detail: lines };
 }
 

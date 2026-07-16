@@ -174,42 +174,55 @@ test('senderName uses the SMTP "Nom expéditeur" (smtpFromName)', () => {
   assert.equal(vars.senderName, 'Les Gîtes du Sud');
 });
 
-// ---- arrival complement line (specs/j2-email-arrival-complement-line.md) ----
+// ---- arrival complement line (specs/j2-email-coffee-and-sas-complement.md) ----
 
-test('complementNotice uses the arrival-SAS detail (complete breakdown) when provided', () => {
+test('complementNotice renders the arrival-SAS detail as an itemised list (« comme le SAS ») + Total', () => {
   const { vars, flags } = buildContext(baseInput({
     reservation: { complementAmount: 70, complementPaid: 0 },
     arrivalComplementDetail: { amount: 70, paid: 0, detail: [
-      { label: 'Ménage', amount: 50 },
-      { label: 'Taxe de séjour', amount: 12 },
-      { label: "Complément d'arrivée", amount: 8 },
+      { kind: 'option', label: 'Ménage', qty: 1, unitPrice: 50, amount: 50 },
+      { kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: 12, amount: 12 },
+      { kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: 8, amount: 8 },
     ] },
   }));
   assert.equal(flags.complementToCollect, true);
-  // Complete breakdown → « Il comprend : » (not « notamment ») and lists every SAS line.
-  assert.match(vars.complementNotice, /Il comprend :/);
-  assert.doesNotMatch(vars.complementNotice, /notamment/);
-  assert.match(vars.complementNotice, /Ménage/);
-  assert.match(vars.complementNotice, /Taxe de séjour/);
-  assert.match(vars.complementNotice, /Complément d'arrivée/);
+  assert.match(vars.complementNotice, /Un complément est à régler directement sur place à votre arrivée :/);
+  assert.match(vars.complementNotice, /- Ménage : 50,00 €/);
+  assert.match(vars.complementNotice, /- Taxe de séjour : 12,00 €/);
+  assert.match(vars.complementNotice, /- Complément d'arrivée : 8,00 €/);
+  assert.match(vars.complementNotice, /Total : 70,00 €/);
 });
 
-test('owner-collect tourist-tax-only complement: the SAS detail surfaces the « Taxe de séjour » line', () => {
+test('complementNotice renders « label : qté × prix = total » for a multi-quantity line', () => {
+  const { vars } = buildContext(baseInput({
+    reservation: { complementAmount: 46, complementPaid: 0 },
+    arrivalComplementDetail: { amount: 46, paid: 0, detail: [
+      { kind: 'option', label: 'Petit déjeuner', qty: 2, unitPrice: 8, amount: 16 },
+      { kind: 'option', label: 'Ménage', qty: 1, unitPrice: 30, amount: 30 },
+    ] },
+  }));
+  assert.match(vars.complementNotice, /- Petit déjeuner : 2 × 8,00 € = 16,00 €/);
+  assert.match(vars.complementNotice, /- Ménage : 30,00 €/);           // qty 1 → no « × »
+  assert.match(vars.complementNotice, /Total : 46,00 €/);
+});
+
+test('owner-collect tourist-tax-only complement: a single « Taxe de séjour » line + Total', () => {
   const { vars } = buildContext(baseInput({
     reservation: { complementAmount: 24, complementPaid: 0, touristTaxInComplement: 0 },
-    // The SAS detail carries the 3-way computed tax even though the forced flag is 0.
-    arrivalComplementDetail: { amount: 24, paid: 0, detail: [{ label: 'Taxe de séjour', amount: 24 }] },
+    arrivalComplementDetail: { amount: 24, paid: 0, detail: [{ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: 24, amount: 24 }] },
   }));
-  assert.match(vars.complementNotice, /Il comprend : Taxe de séjour/);
+  assert.match(vars.complementNotice, /- Taxe de séjour : 24,00 €/);
+  assert.match(vars.complementNotice, /Total : 24,00 €/);
 });
 
-test('without the SAS detail, complementNotice falls back to the inline « notamment » list', () => {
+test('without the SAS detail, complementNotice falls back to the same list format (+ remainder)', () => {
   const { vars } = buildContext(baseInput({
     reservation: { complementAmount: 50, complementPaid: 0 },
     options: [{ title: 'Ménage', inComplement: 1, offered: 0, totalPrice: 50 }],
     // no arrivalComplementDetail
   }));
-  assert.match(vars.complementNotice, /Il comprend notamment : Ménage/);
+  assert.match(vars.complementNotice, /- Ménage : 50,00 €/);
+  assert.match(vars.complementNotice, /Total : 50,00 €/);
 });
 
 test('no complement to collect → complementNotice stays empty even if a detail is passed', () => {
@@ -352,15 +365,17 @@ test('lang="en": nordic-bath scheduled slot recalled in English', () => {
   assert.match(vars.nordicBathReminder, /Your slot is reserved/);
 });
 
-test('lang="en": complement notice + tourist-tax label in English', () => {
+test('lang="en": complement list intro + localised labels (Tourist tax, Arrival balance)', () => {
   const { vars } = buildContext({
     ...baseInput({
       reservation: { complementAmount: 55, complementPaid: 0, touristTaxInComplement: 1, touristTaxTotal: 15 },
     }),
     lang: 'en',
   });
-  assert.match(vars.complementNotice, /A balance of .* will be payable directly on site on arrival/);
-  assert.match(vars.complementNotice, /Tourist tax/);
+  assert.match(vars.complementNotice, /A balance is payable directly on site on arrival:/);
+  assert.match(vars.complementNotice, /- Tourist tax: 15,00 €/);
+  assert.match(vars.complementNotice, /- Arrival balance: 40,00 €/);   // remainder localised
+  assert.match(vars.complementNotice, /Total: 55,00 €/);
 });
 
 test('default lang (fr) is unchanged — English path never leaks into French output', () => {
@@ -489,12 +504,12 @@ test('complementNotice lists in-complement options/resources/custom-options + to
     resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
     customOptions: [{ description: 'Panier garni', amount: 15, inComplement: 1, offered: 0 }],
   }));
-  assert.match(vars.complementNotice, /Un complément de 78,00 €/);
-  assert.match(vars.complementNotice, /Il comprend notamment/);
-  assert.match(vars.complementNotice, /Petit déjeuner \(15,00 €\)/);
-  assert.match(vars.complementNotice, /Bain nordique \(40,00 €\)/);
-  assert.match(vars.complementNotice, /Panier garni \(15,00 €\)/);
-  assert.match(vars.complementNotice, /Taxe de séjour \(8,00 €\)/);
+  assert.match(vars.complementNotice, /Un complément est à régler directement sur place à votre arrivée :/);
+  assert.match(vars.complementNotice, /- Petit déjeuner : 15,00 €/);
+  assert.match(vars.complementNotice, /- Bain nordique : 40,00 €/);
+  assert.match(vars.complementNotice, /- Panier garni : 15,00 €/);
+  assert.match(vars.complementNotice, /- Taxe de séjour : 8,00 €/);
+  assert.match(vars.complementNotice, /Total : 78,00 €/);
   assert.doesNotMatch(vars.complementNotice, /Linge de lit/);
 });
 

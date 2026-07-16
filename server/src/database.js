@@ -1421,11 +1421,13 @@ db.prepare(`
 // Content migration (specs/j1-arrival-reminder-email.md): the arrival reminder moved from J-1 to J-2
 // and was fully rewritten (stay date instead of « demain », GPS line, nordic-bath gear/schedule block,
 // cleaning matched by option NAME). Adrien explicitly asked to OVERWRITE the row even if it was
-// personalised — so this is a one-shot FORCE-sync of name/subject/body/dayOffset to the registry def
-// (sendMode + enabled are preserved). Runs once, AFTER the exact-match chain above so it has the final
-// say; guarded by the `migrations` table so a later operator edit is never clobbered again.
+// personalised — so this is a one-shot FORCE-sync of name/subject/body (+ subjectEn/bodyEn) / dayOffset
+// to the registry def (sendMode + enabled are preserved). Runs once per version tag, AFTER the exact-match
+// chain above so it has the final say; guarded by the `migrations` table so a later operator edit is never
+// clobbered again. specs/j2-email-coffee-and-sas-complement.md — bumped to `_v2` to re-propagate the new
+// coffee/capsule line + the now-synced English side to already-seeded rows.
 {
-  const migrationName = 'arrival_reminder_j2_overwrite_v1';
+  const migrationName = 'arrival_reminder_j2_overwrite_v2';
   const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
   if (!ran) {
     const { runArrivalReminderJ2Migration } = require('./utils/migrateArrivalReminderJ2');

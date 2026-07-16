@@ -232,33 +232,60 @@ function buildContext({ reservation, client, property, options = [], resources =
   if (Number(r.touristTaxInComplement || 0) === 1 && Number(r.touristTaxTotal || 0) > 0) {
     inComplementItems.push({ label: isEn ? 'Tourist tax' : 'Taxe de séjour', amount: Number(r.touristTaxTotal || 0) });
   }
-  // specs/j2-email-arrival-complement-line.md — when the caller passes the arrival-SAS breakdown
-  // (`arrivalComplementDetail` = the SAME source of truth as the SAS recap:
-  // reservationsModel.buildArrivalComplementDetail), use it: it's COMPLETE (options + resources +
-  // the 3-way tourist-tax-in-complement amount + a « Complément d'arrivée » remainder) and sums to
-  // the full complement — so the line always describes what the complement is for. The inline list
-  // above is kept as the fallback for callers that don't provide the detail (back-compat).
+  // specs/j2-email-coffee-and-sas-complement.md — render the complement like the SAS check-in recap:
+  // one itemised line per prestation (« label : qté × prix = total », or « label : total » without a
+  // meaningful quantity) + a Total. When the caller passes the arrival-SAS breakdown
+  // (`arrivalComplementDetail` = the SAME source of truth as the SAS: buildArrivalComplementDetail),
+  // it's COMPLETE (options + resources + tourist-tax-in-complement + a « Complément d'arrivée »
+  // remainder) and carries qty/unitPrice/kind. The inline `inComplementItems` list is the fallback for
+  // callers that don't provide the detail — topped up with a remainder line so it still sums to the total.
+  const round2c = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const sasDetailLines = Array.isArray(arrivalComplementDetail?.detail) ? arrivalComplementDetail.detail : null;
   const usingSasDetail = sasDetailLines && sasDetailLines.length > 0;
-  const complementBreakdown = usingSasDetail
-    ? sasDetailLines
-      .filter((it) => safeStr(it.label).trim() && Number(it.amount) > 0)
-      .map((it) => `${safeStr(it.label).trim()} (${formatCurrency(Number(it.amount))})`)
-      .join(', ')
-    : inComplementItems
+  let noticeLines;
+  if (usingSasDetail) {
+    noticeLines = sasDetailLines
+      .filter((it) => Number(it.amount) > 0)
+      .map((it) => ({ kind: it.kind, label: safeStr(it.label).trim(), qty: Number(it.qty || 1), unitPrice: Number(it.unitPrice || 0), amount: round2c(it.amount) }));
+  } else {
+    noticeLines = inComplementItems
       .filter((it) => it.label && it.amount > 0)
-      .map((it) => `${it.label} (${formatCurrency(it.amount)})`)
-      .join(', ');
+      .map((it) => ({ kind: 'option', label: it.label, qty: 1, unitPrice: 0, amount: round2c(it.amount) }));
+    const listed = round2c(noticeLines.reduce((s, l) => s + l.amount, 0));
+    const rem = round2c(complementAmountNum - listed);
+    if (rem > 0.01) noticeLines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: rem, amount: rem });
+  }
+  // System labels are localised per language; item titles pass through (EN option-title localisation
+  // is out of scope, spec §8).
+  const localizedComplementLabel = (l) => {
+    if (l.kind === 'tax') return isEn ? 'Tourist tax' : 'Taxe de séjour';
+    if (l.kind === 'remainder') return isEn ? 'Arrival balance' : "Complément d'arrivée";
+    return l.label;
+  };
+  const complementSep = isEn ? ': ' : ' : ';
+  const complementLineText = (l) => {
+    const label = localizedComplementLabel(l);
+    return (l.qty > 1 && l.unitPrice > 0)
+      ? `- ${label}${complementSep}${l.qty} × ${formatCurrency(l.unitPrice)} = ${formatCurrency(l.amount)}`
+      : `- ${label}${complementSep}${formatCurrency(l.amount)}`;
+  };
+  // Only itemise when there's at least one identifiable prestation (option / resource / tax). A pure
+  // accommodation auto-gap (a lone « remainder » line, or nothing) → the one-line amount sentence, which
+  // is also what the SAS recap shows (no line items then).
+  const hasRealItems = noticeLines.some((l) => l.kind !== 'remainder');
   let complementNotice = '';
-  if (complementToCollect) {
-    if (isEn) {
-      complementNotice = `A balance of ${formatCurrency(complementAmountNum)} will be payable directly on site on arrival.`;
-      // « includes » (complete, from the SAS detail) vs « notably includes » (partial inline list).
-      if (complementBreakdown) complementNotice += `${usingSasDetail ? ' It includes' : ' It notably includes'}: ${complementBreakdown}.`;
-    } else {
-      complementNotice = `Un complément de ${formatCurrency(complementAmountNum)} sera à régler directement sur place à votre arrivée.`;
-      if (complementBreakdown) complementNotice += `${usingSasDetail ? ' Il comprend' : ' Il comprend notamment'} : ${complementBreakdown}.`;
-    }
+  if (complementToCollect && hasRealItems) {
+    const intro = isEn
+      ? 'A balance is payable directly on site on arrival:'
+      : 'Un complément est à régler directement sur place à votre arrivée :';
+    const totalLine = isEn
+      ? `Total: ${formatCurrency(complementAmountNum)}`
+      : `Total : ${formatCurrency(complementAmountNum)}`;
+    complementNotice = [intro, ...noticeLines.map(complementLineText), totalLine].join('\n');
+  } else if (complementToCollect) {
+    complementNotice = isEn
+      ? `A balance of ${formatCurrency(complementAmountNum)} is payable directly on site on arrival.`
+      : `Un complément de ${formatCurrency(complementAmountNum)} est à régler directement sur place à votre arrivée.`;
   }
 
   // Spec §4.4: cautionNotBanked = cautionAmount > 0 AND depositPaid != 1. Pragmatic proxy

@@ -16,16 +16,16 @@ function freshDb() {
   db.exec(`
     CREATE TABLE email_templates (
       id INTEGER PRIMARY KEY AUTOINCREMENT, stableKey TEXT UNIQUE, name TEXT, subject TEXT,
-      body TEXT, dayOffset INTEGER, sendMode TEXT, enabled INTEGER, updatedAt TEXT
+      body TEXT, subjectEn TEXT, bodyEn TEXT, dayOffset INTEGER, sendMode TEXT, enabled INTEGER, updatedAt TEXT
     );
   `);
   return db;
 }
 
-test('forces name/subject/body/dayOffset to the registry def, even on a personalised row', () => {
+test('forces name/subject/body + EN subject/body + dayOffset to the registry def, even on a personalised row', () => {
   const db = freshDb();
-  db.prepare(`INSERT INTO email_templates (stableKey, name, subject, body, dayOffset, sendMode, enabled)
-              VALUES ('arrival_reminder_1d', 'Mon libellé', 'Sujet perso', 'Corps perso « demain »', -1, 'auto', 0)`).run();
+  db.prepare(`INSERT INTO email_templates (stableKey, name, subject, body, subjectEn, bodyEn, dayOffset, sendMode, enabled)
+              VALUES ('arrival_reminder_1d', 'Mon libellé', 'Sujet perso', 'Corps perso « demain »', 'EN perso', 'EN body perso', -1, 'auto', 0)`).run();
 
   const res = runArrivalReminderJ2Migration(db);
   assert.equal(res.action, 'updated');
@@ -34,10 +34,27 @@ test('forces name/subject/body/dayOffset to the registry def, even on a personal
   assert.equal(row.name, DEF.name);
   assert.equal(row.subject, DEF.subject);
   assert.equal(row.body, DEF.body);
+  // specs/j2-email-coffee-and-sas-complement.md — EN side is force-synced too (the coffee line must reach it).
+  assert.equal(row.subjectEn, DEF.subjectEn);
+  assert.equal(row.bodyEn, DEF.bodyEn);
   assert.equal(row.dayOffset, -2);
   // sendMode + enabled are the operator's choice → preserved.
   assert.equal(row.sendMode, 'auto');
   assert.equal(row.enabled, 0);
+});
+
+test('EN columns absent (pre-bilingual schema) → still force-syncs the FR side, no crash', () => {
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE email_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, stableKey TEXT UNIQUE, name TEXT, subject TEXT,
+    body TEXT, dayOffset INTEGER, sendMode TEXT, enabled INTEGER, updatedAt TEXT )`);
+  db.prepare(`INSERT INTO email_templates (stableKey, name, subject, body, dayOffset, sendMode, enabled)
+              VALUES ('arrival_reminder_1d', 'X', 'Y', 'Z', -1, 'manual', 1)`).run();
+  const res = runArrivalReminderJ2Migration(db);
+  assert.equal(res.action, 'updated');
+  const row = db.prepare("SELECT * FROM email_templates WHERE stableKey='arrival_reminder_1d'").get();
+  assert.equal(row.body, DEF.body);
+  assert.equal(row.dayOffset, -2);
 });
 
 test('is idempotent: a second run leaves the row identical', () => {
