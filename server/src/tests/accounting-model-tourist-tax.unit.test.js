@@ -33,16 +33,9 @@ function makeRow(overrides = {}) {
     ...overrides,
   };
 }
-function makeQuote(overrides = {}) {
-  return {
-    finalPrice: 200,
-    accommodationNetPrice: 181.82, accommodationVatAmount: 18.18, vatPercentageAccommodation: 10,
-    optionsNetPrice: 0, optionsVatAmount: 0, vatPercentageOptions: 20,
-    resourcesNetPrice: 0, resourcesVatAmount: 0, vatPercentageResources: 20,
-    touristTaxCollectedOnArrival: false,
-    ...overrides,
-  };
-}
+// buildEntry signature post specs/accounting-encaissement-effective-percent.md:
+// (row, kind, perLineData, commissionContext, taxContext) — the former quote is gone; the
+// tax-routing flag is injected via `taxContext.collectedOnArrival`.
 
 test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" entry)', () => {
   // Regression for the dev-server bug Adrien spotted 2026-06-02: a reservation appeared twice
@@ -52,12 +45,12 @@ test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" en
   // was still emitted. Same shape for an accidentally-flipped complementPaid with no
   // complement amount. Both code paths must return null when the kind's amount is 0.
   const row = makeRow({ depositAmount: 0, balanceAmount: 0, complementAmount: 0 });
-  const quote = makeQuote();
+  const taxContext = { collectedOnArrival: false };
 
   // Legacy path.
-  assert.equal(buildEntry(row, quote, 'deposit'),    null);
-  assert.equal(buildEntry(row, quote, 'balance'),    null);
-  assert.equal(buildEntry(row, quote, 'complement'), null);
+  assert.equal(buildEntry(row, 'deposit', null, null, taxContext),    null);
+  assert.equal(buildEntry(row, 'balance', null, null, taxContext),    null);
+  assert.equal(buildEntry(row, 'complement', null, null, taxContext), null);
 
   // Contrib-driven path (perLineData provided).
   const perLineData = {
@@ -65,9 +58,9 @@ test('zero-amount kind returns null on BOTH paths (no phantom "tout à zéro" en
     optionLines: [], customOptionLines: [], resourceLines: [],
     accommodationTtcCurrent: 0,
   };
-  assert.equal(buildEntry(row, quote, 'deposit', perLineData),    null);
-  assert.equal(buildEntry(row, quote, 'balance', perLineData),    null);
-  assert.equal(buildEntry(row, quote, 'complement', perLineData), null);
+  assert.equal(buildEntry(row, 'deposit', perLineData, null, taxContext),    null);
+  assert.equal(buildEntry(row, 'balance', perLineData, null, taxContext),    null);
+  assert.equal(buildEntry(row, 'complement', perLineData, null, taxContext), null);
 });
 
 test('every entry exposes propertyName, on BOTH the contrib-driven path AND the legacy fallback', () => {
@@ -76,10 +69,10 @@ test('every entry exposes propertyName, on BOTH the contrib-driven path AND the 
   // the second return path which was missing it — producing empty "Logement" cells in the
   // platforms-commission table on AccountingPage. Pin both code paths here.
   const row = makeRow({ propertyName: 'La Maison du Lac' });
-  const quote = makeQuote();
+  const taxContext = { collectedOnArrival: false };
 
   // Legacy path (no perLineData → hasContribs = false).
-  const legacy = buildEntry(row, quote, 'deposit');
+  const legacy = buildEntry(row, 'deposit', null, null, taxContext);
   assert.equal(legacy.propertyName, 'La Maison du Lac');
 
   // Contrib-driven path — feed a non-zero accommodation contrib so the entry isn't dropped
@@ -89,11 +82,11 @@ test('every entry exposes propertyName, on BOTH the contrib-driven path AND the 
     accommodationAcompteContribTtc: 60,
     accommodationSoldeContribTtc: 140,
   });
-  const contribDriven = buildEntry(contribRow, quote, 'deposit', {
+  const contribDriven = buildEntry(contribRow, 'deposit', {
     hasContribs: true,
     optionLines: [], customOptionLines: [], resourceLines: [],
     accommodationTtcCurrent: 200,
-  });
+  }, null, taxContext);
   assert.equal(contribDriven.propertyName, 'La Maison du Lac');
 });
 
@@ -103,10 +96,10 @@ test('direct booking (legacy path) — the tourist tax rides 100% on the solde, 
   // on the legacy fallback path: deposit taxTtc = 0, balance taxTtc = 4.80. Each entry stays bank-matched
   // — revenue (fraction × finalPrice) + tax = the encaissement.
   const row = makeRow({ platform: 'direct', depositAmount: 60, balanceAmount: 144.80 });
-  const quote = makeQuote();
+  const taxContext = { collectedOnArrival: false };
 
-  const dep = buildEntry(row, quote, 'deposit');
-  const bal = buildEntry(row, quote, 'balance');
+  const dep = buildEntry(row, 'deposit', null, null, taxContext);
+  const bal = buildEntry(row, 'balance', null, null, taxContext);
 
   assert.equal(dep.taxTtc, 0, 'no tourist tax on the acompte');
   assert.equal(bal.taxTtc, 4.80, 'the whole tourist tax is on the solde');
@@ -133,11 +126,11 @@ test('direct booking (contrib path) — a STALE acompte tax share is forced back
     accommodationAcompteContribTtc: 60.00, touristTaxAcompteContribTtc: 1.44,
     accommodationSoldeContribTtc: 140.00, touristTaxSoldeContribTtc: 3.36,
   });
-  const quote = makeQuote();
+  const taxContext = { collectedOnArrival: false };
   const perLineData = { hasContribs: true, optionLines: [], customOptionLines: [], resourceLines: [], accommodationTtcCurrent: 200 };
 
-  const dep = buildEntry(row, quote, 'deposit', perLineData);
-  const bal = buildEntry(row, quote, 'balance', perLineData);
+  const dep = buildEntry(row, 'deposit', perLineData, null, taxContext);
+  const bal = buildEntry(row, 'balance', perLineData, null, taxContext);
 
   assert.equal(dep.taxTtc, 0, 'no tourist tax on the acompte, despite the stale capture');
   assert.equal(bal.taxTtc, 4.80, 'the WHOLE tax (not just the 3.36 captured) rides the solde');
@@ -150,10 +143,10 @@ test('direct booking (contrib path) — a STALE acompte tax share is forced back
 
 test('platform-collect — tax = 0, schedule is identical to a no-tax stay', () => {
   const row = makeRow({ platform: 'airbnb', touristTaxTotal: 0, depositAmount: 60, balanceAmount: 140 });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: false });
+  const taxContext = { collectedOnArrival: false };
 
-  const dep = buildEntry(row, quote, 'deposit');
-  const bal = buildEntry(row, quote, 'balance');
+  const dep = buildEntry(row, 'deposit', null, null, taxContext);
+  const bal = buildEntry(row, 'balance', null, null, taxContext);
   // 60 / 200 = 0.30, 140 / 200 = 0.70.
   assert.equal(round4(dep.fraction), 0.3);
   assert.equal(round4(bal.fraction), 0.7);
@@ -168,23 +161,23 @@ test('platform-reversed (case 1) — the tax is a real charge in the balance, bo
     depositAmount: 0, depositPaid: 0, depositPaidDate: null,
     balanceAmount: 204.80, balancePaid: 1, balancePaidDate: '2026-08-15',
   });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: false });
+  const taxContext = { collectedOnArrival: false };
 
-  const bal = buildEntry(row, quote, 'balance');
+  const bal = buildEntry(row, 'balance', null, null, taxContext);
   assert.equal(bal.taxTtc, 4.80, 'the tax is surfaced (taxTtc)');
   assert.equal(bal.encaissementTtc, 204.80, 'encaissement = stay 200 + tax 4.80');
   // A platform-remits stay (case 2) stores touristTaxTotal = 0 → no tax in the books.
-  const noTax = buildEntry(makeRow({ platform: 'airbnb', touristTaxTotal: 0, depositAmount: 0, depositPaid: 0, balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15' }), makeQuote(), 'balance');
+  const noTax = buildEntry(makeRow({ platform: 'airbnb', touristTaxTotal: 0, depositAmount: 0, depositPaid: 0, balanceAmount: 200, balancePaid: 1, balancePaidDate: '2026-08-15' }), 'balance', null, null, taxContext);
   assert.equal(noTax.taxTtc, 0, 'platform-remits → no tax in the books');
   assert.equal(noTax.encaissementTtc, 200, 'platform-remits → encaissement is the stay only');
 });
 
 test('owner-collect non-direct — deposit + balance pro-rate against finalPrice (NOT totalStayTtc)', () => {
   const row = makeRow({ platform: 'gitedefrance', depositAmount: 60, balanceAmount: 140 });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: true });
+  const taxContext = { collectedOnArrival: true };
 
-  const dep = buildEntry(row, quote, 'deposit');
-  const bal = buildEntry(row, quote, 'balance');
+  const dep = buildEntry(row, 'deposit', null, null, taxContext);
+  const bal = buildEntry(row, 'balance', null, null, taxContext);
 
   // 60 / 200 = 0.30 (vs the buggy 60 / 204.80 = 0.293).
   assert.equal(round4(dep.fraction), 0.3);
@@ -201,9 +194,9 @@ test('owner-collect non-direct — complement that IS the tax → entry kept wit
     depositAmount: 60, balanceAmount: 140,
     complementAmount: 4.80, complementPaid: 1, complementPaidDate: '2026-08-20',
   });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: true });
+  const taxContext = { collectedOnArrival: true };
 
-  const c = buildEntry(row, quote, 'complement');
+  const c = buildEntry(row, 'complement', null, null, taxContext);
   assert.ok(c, 'pure-tax complement entry is kept, not dropped');
   assert.equal(c.encaissementTtc, 4.80);
   assert.equal(c.taxTtc, 4.80);
@@ -216,9 +209,9 @@ test('owner-collect non-direct — complement with tax + extras → emit BOTH re
     depositAmount: 60, balanceAmount: 140,
     complementAmount: 24.80, complementPaid: 1, complementPaidDate: '2026-08-20',
   });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: true });
+  const taxContext = { collectedOnArrival: true };
 
-  const c = buildEntry(row, quote, 'complement');
+  const c = buildEntry(row, 'complement', null, null, taxContext);
   assert.ok(c);
   // Full encaissement TTC; the tax portion rides on `46710000` in the export.
   assert.equal(c.encaissementTtc, 24.80);
@@ -236,9 +229,9 @@ test('direct complement (legacy options-added-late) — pure revenue, no tax (ta
     depositAmount: 60, balanceAmount: 144.80,
     complementAmount: 50, complementPaid: 1, complementPaidDate: '2026-08-20',
   });
-  const quote = makeQuote();
+  const taxContext = { collectedOnArrival: false };
 
-  const c = buildEntry(row, quote, 'complement');
+  const c = buildEntry(row, 'complement', null, null, taxContext);
   assert.ok(c);
   assert.equal(c.encaissementTtc, 50);
   assert.equal(c.taxTtc, 0, 'the tax is on the solde, never the complement, for a direct booking');
@@ -253,11 +246,11 @@ test('owner-collect non-direct + complement = pure tax — Σ emitted encaisseme
     depositAmount: 60, balanceAmount: 140,
     complementAmount: 4.80, complementPaid: 1, complementPaidDate: '2026-08-20',
   });
-  const quote = makeQuote({ touristTaxCollectedOnArrival: true });
+  const taxContext = { collectedOnArrival: true };
 
-  const dep = buildEntry(row, quote, 'deposit');
-  const bal = buildEntry(row, quote, 'balance');
-  const c = buildEntry(row, quote, 'complement');
+  const dep = buildEntry(row, 'deposit', null, null, taxContext);
+  const bal = buildEntry(row, 'balance', null, null, taxContext);
+  const c = buildEntry(row, 'complement', null, null, taxContext);
 
   assert.ok(c, 'pure-tax complement is kept with the new 46710000 line policy');
   assert.equal(round4(dep.encaissementTtc + bal.encaissementTtc + c.encaissementTtc), 204.80);

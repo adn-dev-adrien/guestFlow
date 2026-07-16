@@ -20,21 +20,9 @@ const { entryToRows, __test: { classifyLine } } = require('../utils/accountingEx
 //   CRÉDIT 445711    62,45      (TVA collectée 10 % on gross)
 //   Σ debits = Σ credits = 687
 
-const baseQuote = {
-  finalPrice: 626,
-  vatPercentageAccommodation: 10,
-  vatPercentageOptions: 10,
-  vatPercentageResources: 10,
-  // Pre-extracted HT + VAT on the NET (the engine recognises CA-on-net at quote time;
-  // `buildEntry` scales these up by grossRatio to recognise CA-on-gross post-spec).
-  accommodationNetPrice: 569.09,
-  accommodationVatAmount: 56.91,
-  optionsNetPrice: 0,
-  optionsVatAmount: 0,
-  resourcesNetPrice: 0,
-  resourcesVatAmount: 0,
-  touristTaxCollectedOnArrival: false,
-};
+// specs/accounting-encaissement-effective-percent.md — buildEntry no longer takes a quote:
+// revenue buckets derive from the stored row money (finalPrice + perLineData line totals) at
+// the global VAT rate (commissionContext.vatRate, defaulting to 10 when absent, as here).
 
 function rowForPlatform({ platform = 'Gîtes de France', gross = 687, deposit = 0, balance = 626, complement = 0 } = {}) {
   return {
@@ -62,7 +50,7 @@ function round2(n) { return Math.round(n * 100) / 100; }
 
 test('Case 1: Direct booking → no commission line, balanced as before', () => {
   const row = { ...rowForPlatform({ platform: 'direct', gross: 626, balance: 626 }), platform: 'direct' };
-  const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(entry.commission, null);
   assert.equal(entry.encaissementNetTtc, entry.encaissementTtc); // net === gross for direct
 });
@@ -70,7 +58,7 @@ test('Case 1: Direct booking → no commission line, balanced as before', () => 
 test('Case 2: Platform without VAT (Airbnb) → 1 commission HT debit only, no VAT debit', () => {
   // Airbnb: hasVatOnCommission = 0. The full commission TTC rides on the 6226xx line as HT.
   const row = rowForPlatform({ platform: 'Airbnb', gross: 687, balance: 626 });
-  const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(entry.commission.account, '62260300');
   assert.equal(entry.commission.hasVat, false);
   assert.equal(round2(entry.commission.ttc), 61);
@@ -84,7 +72,7 @@ test('Case 2: Platform without VAT (Airbnb) → 1 commission HT debit only, no V
 
 test('Case 3: Platform with VAT (Gîtes de France) → matches the accountant example to the cent', () => {
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626 });
-  const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
 
   // Commission HT/VAT match the accountant's email (50,83 + 10,17 = 61).
   assert.equal(round2(entry.commission.ttc), 61);
@@ -107,7 +95,7 @@ test('Case 3: Platform with VAT (Gîtes de France) → matches the accountant ex
 test('Case 4: Platform-row override beats the global default account', () => {
   // The Gîtes-de-France row has 62260500 set → wins over default 622600.
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626 });
-  const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(entry.commission.account, '62260500');
 });
 
@@ -116,11 +104,6 @@ test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount
   // commission is the operator-entered `platformCommissionAmount` (40), and the engine already stored the
   // NET in the solde (260). buildEntry grosses the net back up to the total séjour, books the commission,
   // and the net = the solde. Output: CA 300, commission 40, net perçu 260.
-  const newQuote = {
-    ...baseQuote,
-    finalPrice: 300,
-    accommodationNetPrice: 272.73, accommodationVatAmount: 27.27, // 300 TTC @ 10 %
-  };
   const row = {
     id: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Villa A',
     platform: 'Airbnb', finalPrice: 300, totalPrice: 300, touristTaxTotal: 0, touristTaxInComplement: 0,
@@ -131,7 +114,7 @@ test('Case 4bis: NEW model — operator-entered commission, no clientGrossAmount
     accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
     touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
   };
-  const entry = buildEntry(row, newQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(round2(entry.commission.ttc), 40, 'commission = the operator-entered field');
   assert.equal(round2(entry.encaissementTtc), 300, 'CA = total séjour');
   assert.equal(round2(entry.encaissementNetTtc), 260, 'net perçu = solde = total − commission');
@@ -147,11 +130,6 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
   // 102,50 € (= what the guest pays the platform), Booking kept 16,48 € commission, and wired 86,02 €.
   // The accounting MUST surface: CA (revenu brut) = 102,50 ; commission = 16,48 ; net (versement) = 86,02.
   // Booking is unknown to the commissionContext map → default account 622600, no VAT on the commission.
-  const bookingQuote = {
-    ...baseQuote,
-    finalPrice: 102.50,
-    accommodationNetPrice: 93.18, accommodationVatAmount: 9.32, // 102,50 TTC @ 10 %
-  };
   const row = {
     id: 1, firstName: 'Estelle', lastName: 'Zmyslowski', propertyName: 'Aventura lodge',
     platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50, touristTaxTotal: 0, touristTaxInComplement: 0,
@@ -162,7 +140,7 @@ test('Case 4ter: real Booking reservation (Estelle Z.) — revenu brut 102.50, c
     accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
     touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
   };
-  const entry = buildEntry(row, bookingQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(round2(entry.commission.ttc), 16.48, 'commission = the operator-entered field, NOT gross − net (0.01)');
   assert.equal(round2(entry.encaissementTtc), 102.50, 'revenu brut (CA) = total séjour');
   assert.equal(round2(entry.encaissementNetTtc), 86.02, 'versement (net banked) = solde');
@@ -179,11 +157,6 @@ test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved a
   // re-saved. The gross-up must derive its ratio from the ACTUAL stored sum, not from (finalPrice −
   // commission) — otherwise it double-grosses (CA 122,14 / net 105,66). Whatever the stored balance,
   // the books MUST read CA 102,50 / commission 16,48 / net 86,02.
-  const bookingQuote = {
-    ...baseQuote,
-    finalPrice: 102.50,
-    accommodationNetPrice: 93.18, accommodationVatAmount: 9.32,
-  };
   const row = {
     id: 1, firstName: 'Estelle', lastName: 'Zmyslowski', propertyName: 'Aventura lodge',
     platform: 'Booking', finalPrice: 102.50, totalPrice: 102.50, touristTaxTotal: 0, touristTaxInComplement: 0,
@@ -194,7 +167,7 @@ test('Case 4ter-bis: stored solde is the FULL total (older résa, not re-saved a
     accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
     touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
   };
-  const entry = buildEntry(row, bookingQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(round2(entry.commission.ttc), 16.48);
   assert.equal(round2(entry.encaissementTtc), 102.50, 'CA = total séjour, NOT 122,14');
   assert.equal(round2(entry.encaissementNetTtc), 86.02, 'net = 86,02, NOT 105,66');
@@ -211,11 +184,12 @@ test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW m
   // accountant's verbatim example, but stored in the NEW shape: finalPrice = 687 (total séjour),
   // platformCommissionAmount = 61, solde = 626 (net). The accounting must reproduce CA 687 (split
   // location 70600000 + options 70600010), commission 61 (HT/VAT), versement 626 — and balance.
-  const gdfQuote = {
-    ...baseQuote,
-    finalPrice: 687,
-    accommodationNetPrice: 551.82, accommodationVatAmount: 55.18, // 607 TTC @ 10 %
-    optionsNetPrice: 72.73, optionsVatAmount: 7.27,               //  80 TTC @ 10 %
+  // The location/options split comes from the STORED line totals (perLineData), not a quote:
+  // location 607 + options 80 TTC, both at the global 10 % rate.
+  const perLineData = {
+    hasContribs: false,
+    optionLines: [], customOptionLines: [], resourceLines: [],
+    optionsTtc: 80, resourcesTtc: 0, accommodationTtcCurrent: 607,
   };
   const row = {
     id: 1, firstName: 'Chloé', lastName: 'Le Lann', propertyName: 'Gite',
@@ -227,7 +201,7 @@ test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW m
     accommodationAcompteContribTtc: null, accommodationSoldeContribTtc: null,
     touristTaxAcompteContribTtc: null, touristTaxSoldeContribTtc: null,
   };
-  const entry = buildEntry(row, gdfQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', perLineData, commissionContext);
   // Commission 61 € TTC with 20 % VAT → 50,83 HT + 10,17 VAT, Gîtes-de-France account.
   assert.equal(round2(entry.commission.ttc), 61);
   assert.equal(round2(entry.commission.ht), 50.83);
@@ -251,7 +225,7 @@ test('Case 4quater: real Gîtes de France reservation (Chloé Le Lann) — NEW m
 
 test('Case 5: Unknown platform → falls back to default account; hasVat defaults to false', () => {
   const row = rowForPlatform({ platform: 'Booking.com', gross: 687, balance: 626 });
-  const entry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
+  const entry = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(entry.commission.account, '622600');
   assert.equal(entry.commission.hasVat, false);
 });
@@ -259,8 +233,8 @@ test('Case 5: Unknown platform → falls back to default account; hasVat default
 test('Case 6: Complement entry → 0 commission regardless of platform', () => {
   // On-site extras (complement) are host-billed: no platform commission.
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626, complement: 50 });
-  const balanceEntry = buildEntry(row, baseQuote, 'balance', null, commissionContext);
-  const complementEntry = buildEntry(row, baseQuote, 'complement', null, commissionContext);
+  const balanceEntry = buildEntry(row, 'balance', null, commissionContext);
+  const complementEntry = buildEntry(row, 'complement', null, commissionContext);
   assert.ok(balanceEntry.commission && balanceEntry.commission.ttc > 0);
   assert.equal(complementEntry.commission, null);
 });
@@ -271,6 +245,6 @@ test('Case 7: Deposit entry on a platform → 0 commission (deposit is 0 post-mi
   // that case (encaissementTtc = 0 → null), but if a legacy row still had deposit > 0,
   // the commission would only fire on the balance entry.
   const row = rowForPlatform({ platform: 'Gîtes de France', gross: 687, balance: 626, deposit: 0 });
-  const depositEntry = buildEntry(row, baseQuote, 'deposit', null, commissionContext);
+  const depositEntry = buildEntry(row, 'deposit', null, commissionContext);
   assert.equal(depositEntry, null);
 });

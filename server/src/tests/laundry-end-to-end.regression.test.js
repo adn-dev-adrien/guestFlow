@@ -68,7 +68,13 @@ function makeStack({ laundryWeekday = 2, skippedDates = [] } = {}) {
   // No `laundry_trip_skips` table in this fixture — inject an in-memory stub. Defaults to
   // an empty list so every legacy assertion stays byte-identical to the pre-skip baseline.
   const laundryTripSkipsModel = { listAll: () => [...skippedDates] };
-  const controller = buildController({ laundryModel: model, settingsModel, laundryTripSkipsModel });
+  // Same isolation for manual additions: without this stub the controller falls back to the
+  // model bound to the REAL server/guestflow.db, and any manual addition living there leaks
+  // into the fixture's windows (surfaced when a prod DB copy was imported into dev).
+  const laundryManualAdditionsModel = {
+    sumForWindow: () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
+  };
+  const controller = buildController({ laundryModel: model, settingsModel, laundryTripSkipsModel, laundryManualAdditionsModel });
   return { db, model, controller };
 }
 

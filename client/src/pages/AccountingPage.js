@@ -385,7 +385,7 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
               </Typography>
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {Math.round((entry.fraction || 0) * 100)} % du séjour ({formatCurrency(entry.finalPrice)})
+              {Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour ({formatCurrency(entry.finalPrice)})
             </Typography>
           </Stack>
           <Chip
