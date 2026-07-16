@@ -31,7 +31,13 @@ séjour − the sum of the per-échéance commissions.
    reservation's fiche. Direct reservations are unaffected (no platform commission).
 2. The acompte/solde **amounts are the gross guest-facing figures** (what the guest pays): `deposit =
    depositPercent × total`, `balance = total − deposit` (manual acompte override still allowed). The
-   commission is shown **separately**, not subtracted from the displayed amount.
+   commission is shown **separately**, not subtracted from the displayed amount. **PricingSummary
+   displays these gross amounts as-is** under the labels **« Montant acompte payé par le client » /
+   « Montant solde payé par le client »** (platform reservations); the commission + net « Versement
+   plateforme » are broken out in the cascade above. Clarified 2026-07-16 (Damien Nicolet): the earlier
+   « show the net (montant − commission) on the acompte/solde line » behaviour was removed — a figure
+   labelled « payé par le client » must be the gross, and the operator must enter the **gross** the
+   guest is charged (e.g. Lodgify charges 126,38 → the operator's 122,97 net take + 3,41 commission).
 3. `acompteCommissionAmount` (new) = the commission on the acompte; `platformCommissionAmount` (existing,
    reused) = the commission on the **solde**. Both ≥ 0, clamped to their échéance amount.
 4. **Net perçu = total séjour − (acompteCommissionAmount + platformCommissionAmount).** Shown in the
@@ -107,7 +113,9 @@ net to gross on platform reservations once re-saved; no money is lost (net perç
 - **Solde block:** the same « Commission » field bound to `platformCommissionAmount` (moved out of the
   « Paiement plateforme » block to sit with the solde it applies to).
 - **PricingSummary:** under « Total du séjour TTC », two lines « Commission acompte − X » / « Commission
-  solde − Y », then « Net perçu TTC = total − (X+Y) ».
+  solde − Y », then « Net perçu TTC = total − (X+Y) ». The **Acompte / Solde lines below show the GROSS**
+  (the stored amount) under « Montant acompte/solde payé par le client » for platform reservations;
+  direct reservations keep the plain « Acompte » / « Solde » labels (no commission → gross = net).
 - Responsive: the commission field stacks under the amount on `xs`.
 
 ## 7. Test plan
@@ -134,4 +142,11 @@ net to gross on platform reservations once re-saved; no money is lost (net perç
 ## 9. Open questions
 
 - Q: Displayed acompte/solde = **gross** (guest-facing) with commission shown separately?
-  - A: **Yes** — matches the operator's chosen model (« Acompte 200 € · commission 3,41 € »). Confirm.
+  - A: **Yes** — matches the operator's chosen model (« Acompte 200 € · commission 3,41 € »).
+- Q (Resolved 2026-07-16, Damien Nicolet): should the PricingSummary Acompte/Solde line show the gross
+  or the net-of-commission?
+  - A: **The GROSS**, under « Montant acompte/solde payé par le client ». The operator enters the gross
+    the guest is charged (Lodgify: net take + commission). Showing the net under an « Acompte » label
+    made a 122,97 € take-home display as 119,56 € and read like a bug. Locked by
+    `PricingSummary.commission.test.js` (client) + `accounting-effective-percent.unit.test.js` (server,
+    CA = gross, net perçu = gross − commission).

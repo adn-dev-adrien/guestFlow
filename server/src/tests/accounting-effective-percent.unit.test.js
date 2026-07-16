@@ -264,3 +264,34 @@ test('direct reservation with automatic deposit — effective % equals the prope
     assert.equal(s.balanced, true);
   }
 });
+
+test('BRUT convention (Damien Nicolet) — the entered deposit/balance is the client-paid GROSS → CA = gross, net perçu = gross − commission', () => {
+  // Resolved with Adrien 2026-07-16 (prod investigation on résa #22226, Lodgify). The amount the
+  // operator enters for a platform échéance is the GROSS (what the guest pays). The accounting CA =
+  // that stored amount; the « net perçu » (owner take = the fiche summary Acompte/Solde line) =
+  // gross − the échéance commission. Damien's guest pays 126,38 per échéance (= Adrien's 122,97 net
+  // take + 3,41 Lodgify commission), split evenly deposit = balance → CA 126,38 / net 122,97 each.
+  // This is the SAME convention as Thomas (deposit = gross): it locks that a per-échéance-commission
+  // reservation entered as gross never gets its CA grossed a second time.
+  const db = createDb();
+  insertThomas(db, {
+    finalPrice: 250.38, totalPrice: 110, touristTaxTotal: 2.38,
+    depositAmount: 126.38, depositPaid: 1, depositPaidDate: '2026-06-22',
+    balanceAmount: 126.38, balancePaid: 1, balancePaidDate: '2026-06-29',
+    acompteCommissionAmount: 3.41, platformCommissionAmount: 3.41,
+  });
+  const { deposit, balance } = thomasEntries(db);
+  assert.equal(round2(deposit.encaissementTtc), 126.38, 'deposit CA = entered gross');
+  assert.equal(round2(deposit.encaissementNetTtc), 122.97, 'deposit net = gross − commission');
+  assert.equal(round2(balance.encaissementTtc), 126.38, 'balance CA = entered gross');
+  assert.equal(round2(balance.encaissementNetTtc), 122.97, 'balance net = gross − commission');
+  assert.equal(round2(deposit.commission.ttc), 3.41);
+  assert.equal(round2(balance.commission.ttc), 3.41);
+  // Tourist tax rides the solde only (Lodgify reverses it to us).
+  assert.equal(deposit.taxTtc, 0);
+  assert.equal(round2(balance.taxTtc), 2.38);
+  for (const e of [deposit, balance]) {
+    const s = buildStructuredEntries([e])[0];
+    assert.equal(s.balanced, true, `${e.kind} entry must balance`);
+  }
+});
