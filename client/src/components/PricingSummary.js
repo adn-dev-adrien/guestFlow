@@ -713,21 +713,21 @@ export default function PricingSummary({
               summary stays consistent with FinanceSection. */}
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" color="text.secondary">Acompte</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {isPlatformReservation ? 'Montant acompte payé par le client' : 'Acompte'}
+            </Typography>
             {form.depositDisabled ? (
               <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.disabled' }}>
                 Désactivé (ajouté au solde)
               </Typography>
             ) : (
-              // specs/platform-per-echeance-commission.md — show the NET acompte (montant − commission acompte).
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency((Number(form.depositAmount || 0) - Number(quote?.acompteCommissionAmount || 0)))}</Typography>
+              // specs/platform-per-echeance-commission.md — the stored acompte is the GROSS the guest
+              // pays; the label says so, and the per-échéance commission + net « Versement plateforme »
+              // are already broken out in the cascade above. Showing the gross here avoids the confusion
+              // of a « payé par le client » figure that had the commission silently subtracted.
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(Number(form.depositAmount || 0))}</Typography>
             )}
           </Box>
-          {!form.depositDisabled && Number(quote?.acompteCommissionAmount || 0) > 0 && (
-            <Typography variant="caption" color="text.secondary">
-              net de la commission acompte ({formatCurrency(Number(quote.acompteCommissionAmount))})
-            </Typography>
-          )}
           {!form.depositDisabled && form.depositDueDate && (
             <Typography variant="caption" color="text.secondary">
               À payer avant : {displayDate(form.depositDueDate)}
@@ -747,19 +747,17 @@ export default function PricingSummary({
               specs/disable-deposit-per-reservation.md §6. */}
           <Divider />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" color="text.secondary">Solde</Typography>
-            {/* specs/platform-per-echeance-commission.md — show the NET solde (montant − commission solde). */}
+            <Typography variant="body2" color="text.secondary">
+              {isPlatformReservation ? 'Montant solde payé par le client' : 'Solde'}
+            </Typography>
+            {/* specs/platform-per-echeance-commission.md — the stored solde is the GROSS the guest pays;
+                the commission + net « Versement plateforme » are in the cascade above. */}
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {formatCurrency((form.depositDisabled
+              {formatCurrency(form.depositDisabled
                 ? (Number(form.depositAmount || 0) + Number(form.balanceAmount || 0))
-                : Number(form.balanceAmount || 0)) - Number(quote?.platformCommissionAmount || 0))}
+                : Number(form.balanceAmount || 0))}
             </Typography>
           </Box>
-          {Number(quote?.platformCommissionAmount || 0) > 0 && (
-            <Typography variant="caption" color="text.secondary">
-              net de la commission solde ({formatCurrency(Number(quote.platformCommissionAmount))})
-            </Typography>
-          )}
           {form.balanceDueDate && (
             <Typography variant="caption" color="text.secondary">
               À payer avant : {displayDate(form.balanceDueDate)}
