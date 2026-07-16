@@ -6,7 +6,7 @@
 | **Branch** | `fix/accounting-encaissement-effective-percent` |
 | **Created** | 2026-07-15 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#334](https://github.com/adn-dev-adrien/guestFlow/pull/334) |
 
 ---
 
