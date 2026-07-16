@@ -73,7 +73,7 @@ beforeEach(() => {
 
 test('existing property: loads via api.getProperty and populates the form', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  expect(await screen.findByText('Le Moulin')).toBeInTheDocument(); // name heading (read mode)
+  expect(await screen.findByDisplayValue('Le Moulin')).toBeInTheDocument(); // name field value (first form field)
   expect(api.getProperty).toHaveBeenCalledWith('5');
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
   expect(screen.getByLabelText(/Max adultes/)).toHaveValue(3);
@@ -86,7 +86,7 @@ test('existing property: loads via api.getProperty and populates the form', asyn
 
 test('editing a field reveals Save and persists via api.updateProperty (FormData)', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
 
   fireEvent.change(screen.getByLabelText(/Caution par défaut/), { target: { value: '750' } });
   const saveBtn = await screen.findByRole('button', { name: 'Enregistrer' });
@@ -102,7 +102,7 @@ test('editing a field reveals Save and persists via api.updateProperty (FormData
 
 test('Cancel reverts the edits and clears the dirty actions', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
 
   const caution = screen.getByLabelText(/Caution par défaut/);
   fireEvent.change(caution, { target: { value: '750' } });
@@ -139,7 +139,7 @@ test('new property: Create is disabled until a name is set, then posts a FormDat
 
 test('Plateformes & iCal: renders the merged platform list (built-ins incl. direct)', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
   await waitFor(() => expect(api.getPropertyPlatforms).toHaveBeenCalledWith('5'));
 
   expect(screen.getByText('Plateformes & iCal')).toBeInTheDocument();
@@ -151,7 +151,7 @@ test('Plateformes & iCal: renders the merged platform list (built-ins incl. dire
 
 test('Plateformes & iCal: inline-editing a platform URL upserts the source + reloads the list', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
   await screen.findByText('Airbnb');
 
   // The Airbnb row (only non-direct platform here) → enter inline edit, set a URL, save.
@@ -175,7 +175,7 @@ test('Plateformes & iCal: the « Taxe de séjour » Select persists the GLOBAL 3
   // specs/per-platform-tourist-tax-three-way.md — the tourist-tax mode is GLOBAL per platform;
   // choosing « Plateforme → vous » (platform_reversed) calls the global setter (applies everywhere).
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
   await screen.findByText('Airbnb');
 
   // Only the non-direct (Airbnb) row has the tax Select; direct shows "—".
@@ -191,7 +191,7 @@ test('Plateformes & iCal: the « Taxe de séjour » Select persists the GLOBAL 3
 
 test('Plateformes & iCal: clicking a platform name chip opens the colour palette', async () => {
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
   await screen.findByText('Airbnb');
 
   // The platform name chip is the colour trigger ("Changer la couleur"); clicking it opens the palette.
@@ -210,7 +210,7 @@ test('Plateformes & iCal: a configured DEFAULT platform cannot be deleted; a cus
     ],
   });
   render(<DialogProvider><PropertyDetail /></DialogProvider>);
-  await screen.findByText('Le Moulin');
+  await screen.findByDisplayValue('Le Moulin');
   await screen.findByText('Vrbo');
 
   // Exactly one delete affordance — the custom platform's. The built-in (Airbnb), though configured, has none.

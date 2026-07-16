@@ -6,6 +6,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import PageActionBar from '../components/PageActionBar';
 import FormDialog from '../components/FormDialog';
+import LoadingState from '../components/LoadingState';
+import ErrorAlert from '../components/ErrorAlert';
 import SchoolHolidayFormFields from '../components/SchoolHolidayFormFields';
 import SchoolHolidaysTimeline from '../components/SchoolHolidaysTimeline';
 import SchoolHolidaysSyncBanner from '../components/SchoolHolidaysSyncBanner';
@@ -32,11 +34,20 @@ export default function SchoolHolidaysPage({ barCenter }) {
   const [validationError, setValidationError] = useState('');
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
-    const data = await api.getSchoolHolidays();
-    setPeriods(data?.periods || []);
-    setSyncState(data?.syncState || null);
+    setLoadError(false);
+    try {
+      const data = await api.getSchoolHolidays();
+      setPeriods(data?.periods || []);
+      setSyncState(data?.syncState || null);
+    } catch (e) {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -149,7 +160,12 @@ export default function SchoolHolidaysPage({ barCenter }) {
           busy={syncing}
         />
 
-        <SchoolHolidaysTimeline periods={periods} onEdit={openEdit} />
+        {loadError && <ErrorAlert message="Impossible de charger les vacances scolaires." onRetry={reload} sx={{ mb: 2 }} />}
+        {loading && !loadError ? (
+          <LoadingState label="Chargement des vacances scolaires…" />
+        ) : (
+          <SchoolHolidaysTimeline periods={periods} onEdit={openEdit} />
+        )}
       </Box>
 
       <FormDialog
@@ -158,6 +174,18 @@ export default function SchoolHolidaysPage({ barCenter }) {
         title={editPeriod ? 'Modifier la période' : 'Ajouter une période'}
         onSubmit={handleSave}
         submitDisabled={!form.label?.trim()}
+        secondaryAction={editPeriod ? (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {editPeriod.externalRef && editPeriod.isLocked === 1 ? (
+              <Button size="small" startIcon={<LockOpenIcon />} onClick={handleUnlock} color="info" variant="outlined">
+                Réactiver la mise à jour automatique
+              </Button>
+            ) : null}
+            <Button size="small" startIcon={<DeleteIcon />} onClick={handleDelete} color="error" variant="outlined">
+              Supprimer
+            </Button>
+          </Box>
+        ) : null}
       >
         {editPeriod?.externalRef ? (
           <Alert severity="info" sx={{ mb: 2 }}>
@@ -169,32 +197,6 @@ export default function SchoolHolidaysPage({ barCenter }) {
         ) : null}
 
         <SchoolHolidayFormFields form={form} setField={setField} validationError={validationError} />
-
-        {editPeriod ? (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-            {editPeriod.externalRef && editPeriod.isLocked === 1 ? (
-              <Button
-                size="small"
-                startIcon={<LockOpenIcon />}
-                onClick={handleUnlock}
-                color="info"
-                variant="outlined"
-              >
-                Réactiver la mise à jour automatique
-              </Button>
-            ) : null}
-            <Button
-              size="small"
-              startIcon={<DeleteIcon />}
-              onClick={handleDelete}
-              color="error"
-              variant="outlined"
-              sx={{ ml: 'auto' }}
-            >
-              Supprimer
-            </Button>
-          </Box>
-        ) : null}
       </FormDialog>
 
       <SchoolHolidaysSyncSettingsDialog

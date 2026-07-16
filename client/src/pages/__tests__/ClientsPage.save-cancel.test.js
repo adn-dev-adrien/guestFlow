@@ -18,6 +18,8 @@ import { vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../../theme';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -39,6 +41,10 @@ vi.mock('../../components/DialogProvider', () => ({
   useAppDialogs: () => ({
     confirm: vi.fn().mockResolvedValue(false),
     alert: vi.fn().mockResolvedValue(),
+  }),
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
   }),
 }));
 
@@ -68,6 +74,7 @@ function UrlSentinel() {
 function renderAt(url) {
   return render(
     <MemoryRouter initialEntries={[url]}>
+      <ThemeProvider theme={theme}>
       <Routes>
         <Route
           path="/clients"
@@ -79,6 +86,7 @@ function renderAt(url) {
           )}
         />
       </Routes>
+      </ThemeProvider>
     </MemoryRouter>,
   );
 }

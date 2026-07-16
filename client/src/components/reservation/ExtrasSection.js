@@ -3,12 +3,14 @@ import {
   Box, Card, CardContent, Typography, Stack, Divider, Button, TextField, Chip,
   FormControlLabel, Switch, Tooltip, MenuItem, IconButton
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useReservationForm } from './ReservationFormContext';
 import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
 import { enumerateStayDates, timeOptions, toMinutes, minutesToTime } from '../../utils/resourceSessions';
+import { formatCurrency } from '../../utils/formatters';
 
 // French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
 function occurrenceDateLabel(iso) {
@@ -61,7 +63,7 @@ function OptionCardOccurrences({ opt }) {
   return (
     <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
       {/* Editable default hour(s) — shared across all days (specs/option-planning-card.md §3.2). */}
-      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 0.75 }}>
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1 }}>
         {multi ? 'Heures (par défaut)' : 'Heure (par défaut)'}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 1 }}>
@@ -95,7 +97,7 @@ function OptionCardOccurrences({ opt }) {
           créneaux within the guest's presence (the grid is already presence-filtered, §6.bis). */}
       <Stack spacing={0.5}>
         {days.map((date) => (
-          <Box key={date} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+          <Box key={date} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="body2" sx={{ minWidth: 104, textTransform: 'capitalize', color: 'text.secondary' }}>
               {occurrenceDateLabel(date)}
             </Typography>
@@ -153,7 +155,7 @@ function ResourceSessions({ resource }) {
 
   return (
     <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Séances</Typography>
         <Typography variant="caption" color="text.secondary">{resource.openTime}–{resource.closeTime} • pas {slot} min</Typography>
       </Stack>
@@ -314,7 +316,7 @@ export default function ExtrasSection() {
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Options et ressources</Typography>
+        <Typography variant="sectionHeader" sx={{ mb: 2 }}>Options et ressources</Typography>
         {isPlatformReservation && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontStyle: 'italic' }}>
             Réservation plateforme — les extras sont placés en paiement complémentaire par défaut (modifiable par ligne).
@@ -323,7 +325,7 @@ export default function ExtrasSection() {
         <Stack spacing={2}>
           {visiblePropertyOptions.length > 0 && (
             <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Options</Typography>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1.5 }}>Options</Typography>
               <Stack spacing={1.25}>
                 {visiblePropertyOptions.map((opt) => {
                   const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
@@ -349,12 +351,12 @@ export default function ExtrasSection() {
                     <Card
                       key={opt.id}
                       variant="outlined"
-                      sx={{
-                        borderColor: enabled ? '#2e7d32' : 'divider',
-                        bgcolor: '#fff',
-                        boxShadow: enabled ? '0 0 0 1px rgba(46, 125, 50, 0.12)' : 'none',
+                      sx={(t) => ({
+                        borderColor: enabled ? 'success.main' : 'divider',
+                        bgcolor: 'background.paper',
+                        boxShadow: enabled ? `0 0 0 1px ${alpha(t.palette.success.main, 0.12)}` : 'none',
                         transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-                      }}
+                      })}
                     >
                       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-start' }, justifyContent: 'space-between' }}>
@@ -362,8 +364,8 @@ export default function ExtrasSection() {
                             <Typography sx={{ fontWeight: 600 }}>{opt.title}</Typography>
                             <Typography variant="body2" color="text.secondary">
                               {isAutoTimedOption
-                                ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${opt.price}€ fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
-                                : `${opt.price}€ ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
+                                ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
+                                : `${formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
                             </Typography>
                           </Box>
                           <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
@@ -425,7 +427,7 @@ export default function ExtrasSection() {
                                 size="small"
                                 color="primary"
                                 variant="outlined"
-                                label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                label={`Total: ${formatCurrency(selected?.totalPrice || 0)}`}
                               />
                             </Stack>
                           </Stack>
@@ -496,7 +498,7 @@ export default function ExtrasSection() {
                                 size="small"
                                 color="primary"
                                 variant="outlined"
-                                label={`Total auto: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                label={`Total auto: ${formatCurrency(selected?.totalPrice || 0)}`}
                               />
                             </Stack>
                           </Stack>
@@ -513,7 +515,7 @@ export default function ExtrasSection() {
             {visiblePropertyOptions.length > 0 && <Divider />}
             <Box>
               <Stack direction="row" sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="subtitle2">Options personnalisées</Typography>
+                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }}>Options personnalisées</Typography>
                 <Button size="small" variant="outlined" onClick={addCustomOption} disabled={isReservationLocked}>
                   Ajouter une ligne
                 </Button>
@@ -525,7 +527,7 @@ export default function ExtrasSection() {
               ) : (
                 <Stack spacing={1.25}>
                   {(form.customOptions || []).map((line) => (
-                    <Card key={line.customKey} variant="outlined" sx={{ bgcolor: '#fff' }}>
+                    <Card key={line.customKey} variant="outlined" sx={{ bgcolor: 'background.paper' }}>
                       <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                         <Stack spacing={1.25}>
                           <TextField
@@ -582,7 +584,7 @@ export default function ExtrasSection() {
             <>
               {visiblePropertyOptions.length > 0 && <Divider />}
               <Box>
-                <Typography variant="subtitle2" gutterBottom>Ressources</Typography>
+                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }} gutterBottom>Ressources</Typography>
                 <Stack spacing={1.25}>
                   {displayableResources.map(resource => {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
@@ -601,19 +603,19 @@ export default function ExtrasSection() {
                       <Card
                         key={resource.id}
                         variant="outlined"
-                        sx={{
+                        sx={(t) => ({
                           borderColor: resourceConflict
                             ? 'error.main'
                             : unavailable
                               ? 'grey.400'
                               : enabled
-                                ? '#1565c0'
+                                ? 'info.main'
                                 : 'divider',
-                          bgcolor: '#fff',
+                          bgcolor: 'background.paper',
                           opacity: unavailable ? 0.72 : 1,
-                          boxShadow: enabled && !resourceConflict ? '0 0 0 1px rgba(21, 101, 192, 0.12)' : 'none',
+                          boxShadow: enabled && !resourceConflict ? `0 0 0 1px ${alpha(t.palette.info.main, 0.12)}` : 'none',
                           transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
-                        }}
+                        })}
                       >
                         <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'flex-start', sm: 'flex-start' }, justifyContent: 'space-between' }}>
@@ -622,7 +624,7 @@ export default function ExtrasSection() {
                               <Typography variant="body2" color={resourceConflict ? 'error.main' : 'text.secondary'}>
                                 {unavailable
                                   ? 'Déjà réservée'
-                                  : `${resource.price}€ ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}${!isPerHour ? ` • ${resource.available} dispo` : ''}`}
+                                  : `${formatCurrency(resource.price)} ${PRICE_TYPE_LABELS[resource.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}${!isPerHour ? ` • ${resource.available} dispo` : ''}`}
                               </Typography>
                               {hasFreeFirstHour && (
                                 <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
@@ -686,7 +688,7 @@ export default function ExtrasSection() {
                                   size="small"
                                   color="primary"
                                   variant="outlined"
-                                  label={`Total: ${(selected?.totalPrice || 0).toFixed(2)}€`}
+                                  label={`Total: ${formatCurrency(selected?.totalPrice || 0)}`}
                                 />
                               </Stack>
                             </Stack>

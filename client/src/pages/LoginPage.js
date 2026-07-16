@@ -47,8 +47,8 @@ export default function LoginPage() {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
       <Card variant="outlined" sx={{ width: '100%', maxWidth: 400 }}>
-        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>GuestFlow</Typography>
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Typography variant="pageTitle" component="h1" sx={{ color: 'primary.main', mb: 1 }}>GuestFlow</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>Connectez-vous pour continuer.</Typography>
           <Box component="form" onSubmit={submit}>
             <Stack spacing={2}>

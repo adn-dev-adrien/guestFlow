@@ -14,11 +14,14 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Card, CardContent, Box, Typography, Table, TableHead, TableBody, TableRow, TableCell,
-  TextField, InputAdornment, CircularProgress,
+  Card, CardContent, Box, Typography, TableHead, TableBody, TableRow, TableCell,
+  TextField, InputAdornment,
 } from '@mui/material';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
+import TableCard from './TableCard';
+import LoadingState from './LoadingState';
+import EmptyState from './EmptyState';
 import { formatCurrency } from '../utils/formatters';
 
 export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
@@ -64,35 +67,31 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
       <CardContent sx={{ p: { xs: 1.5, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <StorefrontIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-          <Typography variant="h6">Prix plateformes</Typography>
+          <Typography variant="sectionHeader">Prix plateformes</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Prix /nuit à afficher sur chaque plateforme pour <strong>nets</strong> les tarifs ci-dessous
           après commission. Le taux de commission est commun à tous les logements.
         </Typography>
 
-        {loading && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-            <CircularProgress size={18} />
-            <Typography variant="body2" color="text.secondary">Chargement…</Typography>
-          </Box>
-        )}
+        {loading && <LoadingState py={2} label="Chargement…" />}
 
         {!loading && platforms.length === 0 && (
-          <Typography variant="body2" color="text.secondary">
-            Aucune plateforme — configurez un import iCal sur un logement pour qu'elle apparaisse ici.
-          </Typography>
+          <EmptyState
+            py={3}
+            message="Aucune plateforme — configurez un import iCal sur un logement pour qu'elle apparaisse ici."
+          />
         )}
 
         {!loading && platforms.length > 0 && seasons.length === 0 && (
-          <Typography variant="body2" color="text.secondary">
-            Aucune saison tarifaire — ajoutez un tarif pour voir les prix plateformes.
-          </Typography>
+          <EmptyState
+            py={3}
+            message="Aucune saison tarifaire — ajoutez un tarif pour voir les prix plateformes."
+          />
         )}
 
         {!loading && platforms.length > 0 && seasons.length > 0 && (
-          <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small" sx={{ minWidth: 360 }}>
+          <TableCard minWidth={360}>
               <TableHead>
                 <TableRow>
                   <TableCell>Saison</TableCell>
@@ -129,8 +128,7 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          </Box>
+          </TableCard>
         )}
       </CardContent>
     </Card>

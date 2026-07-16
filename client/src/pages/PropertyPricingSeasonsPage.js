@@ -3,11 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 import {
-  Box, Typography, Card, CardContent, Button, Grid, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Table, TableHead, TableRow,
+  Box, Typography, Card, CardContent, Button, Grid, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
   MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -15,9 +15,15 @@ import { frFR } from '@mui/x-date-pickers/locales';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import PageHeader from '../components/PageHeader';
+import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FormDialog from '../components/FormDialog';
+import TableCard from '../components/TableCard';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 import PlatformPriceCard from '../components/PlatformPriceCard';
+import { useToast } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
@@ -121,7 +127,8 @@ export default function PropertyPricingSeasonsPage() {
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [applyTargetPropertyId, setApplyTargetPropertyId] = useState('');
   const [applyReplaceExisting, setApplyReplaceExisting] = useState(true);
-  const [applyFeedback, setApplyFeedback] = useState({ type: '', message: '' });
+  const [loadError, setLoadError] = useState(false);
+  const { showSuccess, showError } = useToast();
   const [basePriceInput, setBasePriceInput] = useState('');
   const [tierPriceInputs, setTierPriceInputs] = useState({});
 
@@ -146,11 +153,18 @@ export default function PropertyPricingSeasonsPage() {
   });
 
   const loadData = useCallback(async () => {
-    const [p, holidays, props] = await Promise.all([
-      api.getProperty(id),
-      api.getSchoolHolidays(),
-      api.getProperties(),
-    ]);
+    setLoadError(false);
+    let p; let holidays; let props;
+    try {
+      [p, holidays, props] = await Promise.all([
+        api.getProperty(id),
+        api.getSchoolHolidays(),
+        api.getProperties(),
+      ]);
+    } catch (e) {
+      setLoadError(true);
+      return;
+    }
     setProperty({
       ...p,
       pricingRules: (p.pricingRules || [])
@@ -470,7 +484,6 @@ export default function PropertyPricingSeasonsPage() {
   };
 
   const openApplyDialog = () => {
-    setApplyFeedback({ type: '', message: '' });
     setApplyTargetPropertyId(otherProperties[0]?.id || '');
     setApplyReplaceExisting(true);
     setApplyDialogOpen(true);
@@ -485,12 +498,9 @@ export default function PropertyPricingSeasonsPage() {
       });
       setApplyDialogOpen(false);
       const targetName = otherProperties.find((p) => Number(p.id) === Number(applyTargetPropertyId))?.name || 'logement cible';
-      setApplyFeedback({
-        type: 'success',
-        message: `${result.copiedRules || 0} saison(s) appliquée(s) vers "${targetName}".`,
-      });
+      showSuccess(`${result.copiedRules || 0} saison(s) appliquée(s) vers "${targetName}".`);
     } catch (error) {
-      setApplyFeedback({ type: 'error', message: error.message || 'Impossible d\'appliquer les saisons.' });
+      showError(error.message || 'Impossible d\'appliquer les saisons.');
     }
   };
 
@@ -522,33 +532,37 @@ export default function PropertyPricingSeasonsPage() {
     };
   }, [seasonDialogOpen, seasonForm.pricingMode, seasonForm.pricePerNight, seasonForm.progressiveTiers, refreshProgressivePreview]);
 
+  if (loadError) {
+    return <Box><PageActionBar title="Gestion tarifaire" backTo={`/properties/${id}`} /><ErrorAlert message="Impossible de charger la tarification du logement." onRetry={loadData} /></Box>;
+  }
   if (!property) {
-    return <Typography>Chargement…</Typography>;
+    return <Box><PageActionBar title="Gestion tarifaire" backTo={`/properties/${id}`} /><LoadingState label="Chargement de la tarification…" /></Box>;
   }
 
   return (
     <Box>
-      <PageHeader title={`Gestion tarifaire - ${property.name}`} />
+      <PageActionBar
+        title={`Gestion tarifaire - ${property.name}`}
+        titleOnXs
+        backTo={`/properties/${id}`}
+        actionsBefore={[{
+          node: (
+            <Button key="apply-other" variant="outlined" size="small" onClick={openApplyDialog} disabled={otherProperties.length === 0}>
+              Appliquer à un autre logement
+            </Button>
+          ),
+        }, {
+          node: (
+            <Button key="new-season" variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreateSeason}>
+              Nouvelle saison
+            </Button>
+          ),
+        }]}
+      />
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
-            <Typography variant="h6">Saisons</Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="outlined" onClick={openApplyDialog} disabled={otherProperties.length === 0}>
-                Appliquer à un autre logement
-              </Button>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateSeason}>
-                Nouvelle saison
-              </Button>
-            </Box>
-          </Box>
-          {applyFeedback.message && (
-            <Alert severity={applyFeedback.type || 'info'} sx={{ mb: 2 }} onClose={() => setApplyFeedback({ type: '', message: '' })}>
-              {applyFeedback.message}
-            </Alert>
-          )}
-          <TableContainer>
-            <Table size="small" sx={{ minWidth: 980 }}>
+          <Typography variant="sectionHeader" sx={{ mb: 2 }}>Saisons</Typography>
+          <TableCard minWidth={980}>
               <TableHead>
                 <TableRow>
                   <TableCell>Saison</TableCell>
@@ -588,12 +602,13 @@ export default function PropertyPricingSeasonsPage() {
                 ))}
                 {seasons.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} align="center">Aucune saison. Créez votre première saison.</TableCell>
+                    <TableCell colSpan={6} sx={{ p: 0, border: 0 }}>
+                      <EmptyState message="Aucune saison. Créez votre première saison." py={4} />
+                    </TableCell>
                   </TableRow>
                 )}
               </TableBody>
-            </Table>
-          </TableContainer>
+          </TableCard>
         </CardContent>
       </Card>
 
@@ -635,7 +650,7 @@ export default function PropertyPricingSeasonsPage() {
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
-                  <Typography variant="h6">{year}</Typography>
+                  <Typography variant="sectionHeader">{year}</Typography>
                   <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', color: 'text.secondary' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'error.main' }} />
@@ -730,9 +745,14 @@ export default function PropertyPricingSeasonsPage() {
           gross-up of each season net /nuit by each platform's commission %. */}
       <PlatformPriceCard propertyId={id} refreshKey={platformRefresh} />
 
-      <Dialog open={seasonDialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>{editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}</DialogTitle>
-        <DialogContent>
+      <FormDialog
+        open={seasonDialogOpen}
+        onClose={handleCloseDialog}
+        title={editingSeasonId ? 'Modifier la saison' : 'Nouvelle saison'}
+        maxWidth="md"
+        onSubmit={handleSaveSeason}
+        submitDisabled={!(seasonForm.dateRanges || []).some((range) => range.startDate && range.endDate) || !seasonForm.label || Boolean(localDateValidationError)}
+      >
           <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr" localeText={frFR.components.MuiLocalizationProvider.defaultProps.localeText}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             {seasonSaveError && <Alert severity="error">{seasonSaveError}</Alert>}
@@ -744,7 +764,7 @@ export default function PropertyPricingSeasonsPage() {
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle2">Plages de dates</Typography>
+                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }}>Plages de dates</Typography>
                 <Button size="small" startIcon={<AddIcon />} onClick={addDateRange}>Ajouter une plage</Button>
               </Box>
               {(seasonForm.dateRanges || []).map((range, index) => (
@@ -827,7 +847,7 @@ export default function PropertyPricingSeasonsPage() {
                 <TableContainer sx={{ overflowX: 'auto' }}>
                   <Table size="small" sx={{ width: '100%', tableLayout: 'auto' }}>
                     <TableHead>
-                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
                         <TableCell sx={{ fontWeight: 600, minWidth: { xs: 40, sm: 50 } }}>Nuit</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 600, minWidth: { xs: 100, sm: 130 } }}>Prix nuit €</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 600, minWidth: { xs: 100, sm: 130 } }}>Réduction %</TableCell>
@@ -840,8 +860,8 @@ export default function PropertyPricingSeasonsPage() {
                           <TableRow 
                             key={`tier-${t.nightNumber}`}
                             sx={{ 
-                              bgcolor: idx % 2 === 0 ? '#fafafa' : 'white',
-                              '&:hover': { bgcolor: '#f0f0f0' }
+                              bgcolor: idx % 2 === 0 ? 'grey.50' : 'background.paper',
+                              '&:hover': { bgcolor: 'action.hover' }
                             }}
                           >
                             <TableCell sx={{ fontWeight: 500, py: { xs: 0.75, sm: 1 } }}>{t.nightNumber}</TableCell>
@@ -893,7 +913,7 @@ export default function PropertyPricingSeasonsPage() {
                                   htmlInput: { min: 0, max: 100, step: 1 }
                                 }} />
                             </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 500, bgcolor: '#e3f2fd', py: { xs: 0.75, sm: 1 } }}>
+                            <TableCell align="right" sx={(t) => ({ fontWeight: 500, bgcolor: alpha(t.palette.info.main, 0.12), py: { xs: 1, sm: 1 } })}>
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                                 {formatCurrency(Number(t.cumulativePrice || 0))}
                               </Box>
@@ -911,21 +931,16 @@ export default function PropertyPricingSeasonsPage() {
             )}
             </Box>
           </LocalizationProvider>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Annuler</Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveSeason}
-            disabled={!(seasonForm.dateRanges || []).some((range) => range.startDate && range.endDate) || !seasonForm.label || Boolean(localDateValidationError)}
-          >
-            Enregistrer
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog open={applyDialogOpen} onClose={() => setApplyDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Appliquer les saisons à un autre logement</DialogTitle>
-        <DialogContent>
+      </FormDialog>
+      <FormDialog
+        open={applyDialogOpen}
+        onClose={() => setApplyDialogOpen(false)}
+        title="Appliquer les saisons à un autre logement"
+        maxWidth="sm"
+        submitLabel="Appliquer"
+        onSubmit={handleApplyToProperty}
+        submitDisabled={!applyTargetPropertyId}
+      >
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <FormControl fullWidth>
               <InputLabel>Logement cible</InputLabel>
@@ -951,14 +966,7 @@ export default function PropertyPricingSeasonsPage() {
               </Alert>
             )}
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setApplyDialogOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleApplyToProperty} disabled={!applyTargetPropertyId}>
-            Appliquer
-          </Button>
-        </DialogActions>
-      </Dialog>
+      </FormDialog>
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}

@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Typography, Card, CardContent, TextField, Button,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
+  TableBody, TableCell, TableHead, TableRow,
+  IconButton, Chip,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
   Tooltip, useMediaQuery, useTheme
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -27,11 +28,15 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import PlatformColorPicker from '../components/PlatformColorPicker';
 import { TIME_OPTIONS } from '../constants/timeOptions';
-import { PLATFORM_COLORS, normalizePlatformKey } from '../constants/platforms';
+import { PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR, normalizePlatformKey } from '../constants/platforms';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
+import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import TableCard from '../components/TableCard';
+import LoadingState from '../components/LoadingState';
+import ErrorAlert from '../components/ErrorAlert';
 import { useToast } from '../components/DialogProvider';
 import IcalExportCard from '../components/IcalExportCard';
 import api from '../api';
@@ -63,7 +68,7 @@ const NEW_DEFAULTS = {
   defaultCheckIn: '15:00', defaultCheckOut: '10:00', cleaningHours: 3,
 };
 
-const DEFAULT_ICAL_COLOR = '#757575';
+const DEFAULT_ICAL_COLOR = DEFAULT_PLATFORM_COLOR;
 
 // Visual breakdown of a sync result (specs/platforms-and-ical-rework.md §6): one icon + count per
 // category, mirroring the legacy free-text message so no info is lost. `always` items render even at 0
@@ -125,14 +130,14 @@ export default function PropertyDetail() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   // Saves used to succeed SILENTLY on this page — toast the outcome (specs/ds-components.md §3.2).
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
   const dirtyRef = useRef(false);
   const [navGuardOpen, setNavGuardOpen] = useState(false);
   const pendingNavRef = useRef(null);
   const [property, setProperty] = useState(isNew ? { name: 'Nouveau logement', pricingRules: [], documents: [] } : null);
+  const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [dirty, setDirty] = useState(isNew);
-  const [isNameEditing, setIsNameEditing] = useState(isNew);
   const [saving, setSaving] = useState(false);
   const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [docType, setDocType] = useState('contract');
@@ -162,7 +167,14 @@ export default function PropertyDetail() {
 
   const load = useCallback(async () => {
     if (isNew) return;
-    const [p, allOptions] = await Promise.all([api.getProperty(id), api.getOptions()]);
+    setLoadError(false);
+    let p; let allOptions;
+    try {
+      [p, allOptions] = await Promise.all([api.getProperty(id), api.getOptions()]);
+    } catch (e) {
+      setLoadError(true);
+      return;
+    }
     setProperty(p);
     const initial = {
       name: p.name, nameArticle: p.nameArticle || 'au', maxAdults: p.maxAdults, maxChildren: p.maxChildren, maxBabies: p.maxBabies,
@@ -434,15 +446,21 @@ export default function PropertyDetail() {
       await load();
       showSuccess('Logement enregistré.');
     } catch (err) {
-      setPhotoValidationError(err?.message || 'Impossible de mettre à jour la photo du logement.');
+      // Route the save failure to a toast — NOT the photo-validation field (which is reserved for
+      // the local file-format check). specs/ds-sweep-reservations.md rule 10.
+      showError(err?.message || "Impossible d'enregistrer le logement.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteProperty = async () => {
-    await api.deleteProperty(id);
-    navigateBackWithFrom(navigate, from);
+    try {
+      await api.deleteProperty(id);
+      navigateBackWithFrom(navigate, from);
+    } catch (err) {
+      showError(err?.message || 'Impossible de supprimer le logement.');
+    }
   };
 
   const handleUploadDoc = async () => {
@@ -609,7 +627,7 @@ export default function PropertyDetail() {
           sx={{
             fontWeight: 600,
             bgcolor: row.disabled ? 'action.disabledBackground' : (row.color || DEFAULT_ICAL_COLOR),
-            color: row.disabled ? 'text.disabled' : '#fff',
+            color: row.disabled ? 'text.disabled' : 'common.white',
           }}
         />
       )}
@@ -739,43 +757,32 @@ export default function PropertyDetail() {
     );
   };
 
-  if (!property) return <Typography>Chargement…</Typography>;
+  if (loadError) {
+    return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
+  }
+  if (!property) return <Box><PageActionBar title="Logement" /><LoadingState label="Chargement du logement…" /></Box>;
+
+  const showSaveCancel = isNew || pageDirty;
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          {isNameEditing ? (
-            <TextField
-              label="Nom du logement"
-              value={form.name || ''}
-              onChange={(e) => updateField('name', e.target.value)}
-              size="small"
-              autoFocus
-              sx={{ minWidth: { xs: '100%', sm: 320 } }}
-            />
-          ) : (
-            <Typography variant="h4">{form.name?.trim() || 'Nouveau logement'}</Typography>
-          )}
-          <IconButton
-            size="small"
-            onClick={() => setIsNameEditing((prev) => !prev)}
-            aria-label={isNameEditing ? 'Valider le nom' : 'Modifier le nom'}
-          >
-            {isNameEditing ? <CheckIcon fontSize="small" /> : <EditIcon fontSize="small" />}
-          </IconButton>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' }, flexDirection: { xs: 'column', sm: 'row' } }}>
-          {!isNew && <Button variant="outlined" color="error" onClick={() => setDeleteOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Supprimer le logement</Button>}
-          {(isNew || pageDirty) && (
-            <>
-              {!isNew && <Button variant="outlined" onClick={handleCancel} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
-              {isNew && <Button variant="outlined" onClick={() => navigateBackWithFrom(navigate, from)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
-              <Button variant="contained" onClick={handleSaveProperty} disabled={saving || !form.name?.trim()} sx={{ width: { xs: '100%', sm: 'auto' } }}>{saving ? 'Enregistrement…' : isNew ? 'Créer le logement' : 'Enregistrer'}</Button>
-            </>
-          )}
-        </Box>
-      </Box>
+      <PageActionBar
+        title={isNew ? 'Nouveau logement' : 'Logement'}
+        titleOnXs
+        {...(showSaveCancel ? {
+          onSave: handleSaveProperty,
+          saveTooltip: isNew ? 'Créer le logement' : 'Enregistrer',
+          saveDisabled: saving || !form.name?.trim(),
+          saveBusy: saving,
+          onCancel: isNew ? () => navigateBackWithFrom(navigate, from) : handleCancel,
+        } : {})}
+        actionsAfter={!isNew ? [{
+          icon: <DeleteIcon />,
+          tooltip: 'Supprimer le logement',
+          onClick: () => setDeleteOpen(true),
+          color: 'error',
+        }] : []}
+      />
       {/* Two explicit columns on md+ (1 on xs): left = Informations + Acompte,
           right = Horaires + Options horaires + Options par défaut. alignItems flex-start
           keeps each column at its own height. Wide / table cards go full-width below. */}
@@ -785,7 +792,18 @@ export default function PropertyDetail() {
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Informations</Typography>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Informations</Typography>
+              {/* Name is the first form field (specs/ds-sweep-reservations.md rule 9) — the bar shows
+                  a static title; this drives it. */}
+              <TextField
+                label="Nom du logement"
+                value={form.name || ''}
+                onChange={(e) => updateField('name', e.target.value)}
+                fullWidth
+                size="small"
+                autoFocus={isNew}
+                sx={{ mb: 2 }}
+              />
               {property.photo && <Box component="img" src={property.photo} alt={property.name} sx={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 2, mb: 2 }} />}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box>
@@ -868,7 +886,7 @@ export default function PropertyDetail() {
         <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Acompte & Solde</Typography>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Acompte & Solde</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField label="% acompte" type="number" value={form.depositPercent ?? 30} onChange={(e) => updateField('depositPercent', e.target.value)} onFocus={handleZeroFocus} fullWidth size="small" />
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -898,7 +916,7 @@ export default function PropertyDetail() {
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Horaires & Ménage</Typography>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Horaires & Ménage</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <FormControl fullWidth size="small">
@@ -925,7 +943,7 @@ export default function PropertyDetail() {
         <Box sx={{ breakInside: 'avoid', mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Options horaires automatiques</Typography>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Options horaires automatiques</Typography>
               {[
                 { key: 'early', title: 'Arrivée anticipée', hint: 'Ajoutée automatiquement si arrivée avant l\'heure par défaut.' },
                 { key: 'late', title: 'Départ tardif', hint: 'Ajoutée automatiquement si départ après l\'heure par défaut.' },
@@ -998,8 +1016,8 @@ export default function PropertyDetail() {
         <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Tarification</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 2 }}>Taxe de séjour</Typography>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Tarification</Typography>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', lineHeight: 2 }}>Taxe de séjour</Typography>
               
               <FormControl fullWidth size="small" sx={{ mt: 1.25, mb: 1.5 }}>
                 <InputLabel>Mode de calcul</InputLabel>
@@ -1106,14 +1124,14 @@ export default function PropertyDetail() {
                 )}
               </Box>
 
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 2 }}>TVA (tous les montants en TTC)</Typography>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', lineHeight: 2 }}>TVA (tous les montants en TTC)</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Les taux de TVA (hébergement et standard) sont communs à tous les logements et se règlent
                 dans <strong>Paramètres → Taux de TVA</strong>.
               </Typography>
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Gestion des saisons tarifaires</Typography>
+                <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }}>Gestion des saisons tarifaires</Typography>
                 <Button
                   size="small"
                   variant="contained"
@@ -1123,8 +1141,8 @@ export default function PropertyDetail() {
                   Gestion tarifaire
                 </Button>
               </Box>
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 700 }}>
+              <TableCard minWidth={700}>
+
                   <TableHead>
                     <TableRow>
                       <TableCell>Saison</TableCell>
@@ -1162,8 +1180,8 @@ export default function PropertyDetail() {
                       <TableRow><TableCell colSpan={6} align="center">Aucune saison tarifaire</TableCell></TableRow>
                     )}
                   </TableBody>
-                </Table>
-              </TableContainer>
+
+              </TableCard>
             </CardContent>
           </Card>
         </Box>
@@ -1172,7 +1190,7 @@ export default function PropertyDetail() {
         <Box sx={{ mb: 3 }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Documents</Typography>
+              <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Documents</Typography>
               <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                 {(property.documents || []).map((d) => (
                   <Chip
@@ -1216,7 +1234,7 @@ export default function PropertyDetail() {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                <Typography variant="h6">Plateformes &amp; iCal</Typography>
+                <Typography variant="sectionHeader">Plateformes &amp; iCal</Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button variant="text" startIcon={<AddIcon />} onClick={() => setAddingPlatform((v) => !v)} disabled={!canManageExtras}>
                     Ajouter une plateforme
@@ -1322,8 +1340,8 @@ export default function PropertyDetail() {
                 </Box>
               ) : (
                 /* Desktop / tablet: table. */
-                <TableContainer>
-                  <Table size="small" sx={{ minWidth: 760 }}>
+                <TableCard minWidth={760}>
+
                     <TableHead>
                       <TableRow>
                         <TableCell>Plateforme</TableCell>
@@ -1390,8 +1408,8 @@ export default function PropertyDetail() {
                         );
                       })}
                     </TableBody>
-                  </Table>
-                </TableContainer>
+
+                </TableCard>
               )}
             </CardContent>
           </Card>

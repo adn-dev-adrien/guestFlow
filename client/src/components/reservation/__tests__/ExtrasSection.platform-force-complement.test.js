@@ -90,8 +90,8 @@ test('platform reservation: a flagless operator extra defaults its Switch to ON'
 
 test('platform reservation: option totals (Chip) are unchanged — only the Compl. Switch disappears', () => {
   renderExtras({ form: { platform: 'GitesDeFrance' } });
-  // The "Total: 20.00€" chip on the property option is still visible.
-  expect(screen.getByText(/Total: 20\.00€/)).toBeInTheDocument();
+  // The "Total: 20,00 €" chip on the property option is still visible.
+  expect(screen.getByText(/Total: 20,00 €/)).toBeInTheDocument();
   // And the auto-option total chip too.
   expect(screen.getByText(/Total auto:/)).toBeInTheDocument();
 });

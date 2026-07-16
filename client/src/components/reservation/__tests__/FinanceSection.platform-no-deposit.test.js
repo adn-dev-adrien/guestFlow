@@ -133,7 +133,7 @@ test('platform: ✗ écart chip when the net perçu differs from the virement', 
     form: { platform: 'Gîtes de France', platformPayoutAmount: 600 },
     pricingQuote: { totalStayPrice: 687, finalPrice: 687, platformNetReceivedAmount: 626 },
   });
-  expect(screen.getByText(/écart : 26\.00€/i)).toBeInTheDocument();
+  expect(screen.getByText(/écart : 26,00 €/i)).toBeInTheDocument();
 });
 
 // specs/platform-payment-calculer-button.md — « Calculer la commission » deduces the solde commission
@@ -191,7 +191,7 @@ test('owner-collect platform, no commission: the on-arrival tax is excluded → 
     form: { platform: 'Gîtes de France', platformPayoutAmount: 200 },
     pricingQuote: { totalStayPrice: 204.80, finalPrice: 200, complementAmount: 4.80, balanceAmount: 200, platformNetReceivedAmount: null },
   });
-  expect(screen.getByText('200.00€')).toBeInTheDocument();           // net perçu = pre-arrival, tax excluded
+  expect(screen.getByText('200,00 €')).toBeInTheDocument();           // net perçu = pre-arrival, tax excluded
   expect(screen.getByText(/cohérent avec le virement/i)).toBeInTheDocument();
   expect(screen.queryByText(/écart/i)).not.toBeInTheDocument();
 });
