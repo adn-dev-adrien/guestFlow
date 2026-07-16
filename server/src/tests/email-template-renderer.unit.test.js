@@ -279,9 +279,10 @@ test('J-1 body: unpaid complement renders the notice with the matched items', ()
     options: [{ title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 }],
     resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
   }));
-  assert.match(out.body, /Un complément de 55,00 € sera à régler/);
-  assert.match(out.body, /Il comprend notamment : .*Petit déjeuner \(15,00 €\)/);
-  assert.match(out.body, /Bain nordique \(40,00 €\)/);
+  assert.match(out.body, /Un complément est à régler directement sur place à votre arrivée :/);
+  assert.match(out.body, /- Petit déjeuner : 15,00 €/);
+  assert.match(out.body, /- Bain nordique : 40,00 €/);
+  assert.match(out.body, /Total : 55,00 €/);
 });
 
 test('J-1 body: a paid complement renders no complement notice', () => {
@@ -295,6 +296,6 @@ test('J-1 body: complement with no itemised lines shows the amount only', () => 
   const out = renderTemplate({ subject: 'x', body: ARRIVAL_REMINDER_1D_BODY }, j1Input({
     reservation: { complementAmount: 30, complementPaid: 0 }, property: { defaultCautionAmount: 0 },
   }));
-  assert.match(out.body, /Un complément de 30,00 € sera à régler/);
-  assert.doesNotMatch(out.body, /Il comprend/);
+  assert.match(out.body, /Un complément de 30,00 € est à régler/);   // one-line sentence, no itemised list
+  assert.doesNotMatch(out.body, /Total :/);
 });

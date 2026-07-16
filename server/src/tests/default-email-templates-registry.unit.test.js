@@ -114,6 +114,9 @@ test('arrival_reminder_1d is shipped at J-2 with the GPS + nordic-bath copy (sta
   assert.ok(!def.body.includes('demain'), 'J-2 copy must not say « demain »');
   assert.ok(def.body.includes('le {{startDate}} {{propertyWithArticle}}'), 'opens with the stay date');
   assert.ok(def.body.includes('Domaine Solio'), 'GPS line present');
+  // specs/j2-email-coffee-and-sas-complement.md — the coffee/capsule line (FR + EN).
+  assert.ok(def.body.includes('machine à capsules (type Nespresso)'), 'FR coffee/capsule line present');
+  assert.ok(def.bodyEn.includes('capsule machine (Nespresso-compatible)'), 'EN coffee/capsule line present');
   // Conditional blocks the spec mentioned.
   assert.ok(def.body.includes('{{#if hasNordicBath}}{{nordicBathReminder}}'), 'nordic-bath block present');
   assert.ok(def.body.includes('{{#if hasCleaningOption}}{{else}}'), 'cleaning-by-default notice present');
