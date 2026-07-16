@@ -20,6 +20,9 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from '../../theme';
+import DialogProvider from '../../components/DialogProvider';
 
 // Mock the API + auth BEFORE importing AccountingPage so the page picks up the mocks.
 vi.mock('../../api', () => ({
@@ -75,7 +78,7 @@ const SAMPLE_PLATFORMS = { rows: [], totalCommission: 0 };
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/comptabilite?month=8&year=2026']}>
-      <AccountingPage />
+      <ThemeProvider theme={theme}><DialogProvider><AccountingPage /></DialogProvider></ThemeProvider>
     </MemoryRouter>,
   );
 }

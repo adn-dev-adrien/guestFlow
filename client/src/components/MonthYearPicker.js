@@ -63,7 +63,7 @@ export default function MonthYearPicker({
           spacing={2}
           // `flex-start` keeps the inputs themselves vertically aligned on sm+; any helperText hangs
           // naturally below "Mois" without offsetting "Année".
-          alignItems={{ xs: 'stretch', sm: 'flex-start' }}
+          sx={{ alignItems: { xs: 'stretch', sm: 'flex-start' } }}
         >
           {/* Both selectors share the same fixed width on sm+ so they stay visually aligned.
               On xs they stretch to full width naturally (Stack's `alignItems: 'stretch'`). */}
