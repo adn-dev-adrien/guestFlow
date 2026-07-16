@@ -26,8 +26,7 @@ import React from 'react';
 import {
   Box, Typography, Card, CardContent, Checkbox, Chip, Tooltip, IconButton, Link, useMediaQuery,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import { orange } from '@mui/material/colors';
+import { useTheme, alpha } from '@mui/material/styles';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import ChecklistIcon from '@mui/icons-material/Checklist';
@@ -42,13 +41,13 @@ import FlightLandIcon from '@mui/icons-material/FlightLand';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import BedIcon from './BedIcon';
 import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
-
-const ARRIVAL_BG = orange[50]; // #FFF3E0 — warm peach so arrival cards stand out.
+import { formatCurrency } from '../utils/formatters';
 
 // Private helper. Draws the {🛏 double / 🛏 simple / BÉBÉ ×N} bed chips. Single/double use the
-// coloured BedIcon (single narrower than double, per Adrien 2026-06-10) instead of a text label;
-// baby keeps a short text label. Returns null when every count is 0 — the parent gate keeps it
-// out of the DOM altogether in that case.
+// BedIcon (single narrower than double, per Adrien 2026-06-10) instead of a text label; baby keeps
+// a short text label. Neutral « Maison » chips (paper bg + divider border) — the bed SHAPES carry
+// the distinction, not decorative colors (ds-sweep-planning rule 16). Returns null when every
+// count is 0 — the parent gate keeps it out of the DOM altogether in that case.
 function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   const dbl = Number(doubleBeds || 0);
   const sgl = Number(singleBeds || 0);
@@ -56,21 +55,21 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   if (dbl === 0 && sgl === 0 && bby === 0) return null;
 
   const beds = [];
-  if (dbl > 0) beds.push({ type: 'double', count: dbl, color: '#1565c0', label: 'Lit double', bgColor: '#e3f2fd' });
-  if (sgl > 0) beds.push({ type: 'single', count: sgl, color: '#6a1b9a', label: 'Lit simple', bgColor: '#f3e5f5' });
-  if (bby > 0) beds.push({ type: 'baby', count: bby, color: '#e65100', label: 'Lit bébé', bgColor: '#fff8e1' });
+  if (dbl > 0) beds.push({ type: 'double', count: dbl, label: 'Lit double' });
+  if (sgl > 0) beds.push({ type: 'single', count: sgl, label: 'Lit simple' });
+  if (bby > 0) beds.push({ type: 'baby', count: bby, label: 'Lit bébé' });
 
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mt: 0.5 }}>
       {beds.map((bed, idx) => (
         <Tooltip key={idx} title={`${bed.label} ×${bed.count}`}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: bed.bgColor, borderRadius: 1, px: 1, py: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, px: 1, py: 0.5 }}>
             {bed.type === 'baby' ? (
-              <Typography variant="caption" sx={{ fontWeight: 900, color: bed.color, fontSize: '11px', letterSpacing: '0.5px' }}>BÉBÉ</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', fontSize: '11px', letterSpacing: '0.5px' }}>BÉBÉ</Typography>
             ) : (
               <BedIcon type={bed.type} height={18} title={bed.label} />
             )}
-            <Typography variant="caption" sx={{ fontWeight: 700, color: bed.color }}>×{bed.count}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>×{bed.count}</Typography>
           </Box>
         </Tooltip>
       ))}
@@ -98,15 +97,15 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
     return Number.isInteger(value) ? value : Number(value.toFixed(2));
   };
 
-  // Default bg = ARRIVAL_BG (warm peach so the arrival card stands out from the page).
-  // Alert overlays still override — kept identical for visual continuity with prior screenshots.
-  let alertBgColor = ARRIVAL_BG;
+  // Default bg = warm « Maison » tint (warning.soft) so the arrival card stands out from the page
+  // (was MUI orange[50]). Alert overlays still override.
+  let alertBgColor = theme.palette.warning.soft;
   if (alertInfo?.type === 'orange') {
-    alertBgColor = 'rgba(244, 67, 54, 0.10)';
+    alertBgColor = alpha(theme.palette.error.main, 0.10);
   } else if (alertInfo?.type === 'red') {
-    alertBgColor = 'rgba(244, 67, 54, 0.14)';
+    alertBgColor = alpha(theme.palette.error.main, 0.14);
   } else if (alertInfo?.type === 'blue') {
-    alertBgColor = 'rgba(33, 150, 243, 0.08)';
+    alertBgColor = alpha(theme.palette.info.main, 0.08);
   }
 
   const optionsText = (r.options || []).map((o) => `${o.title} ×${formatQty(o)}`);
@@ -137,7 +136,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
         mb: 1.5,
         borderRadius: 2,
         borderColor: done ? 'success.main' : 'divider',
-        bgcolor: done ? 'rgba(76,175,80,0.06)' : alertBgColor,
+        bgcolor: done ? alpha(theme.palette.success.main, 0.06) : alertBgColor,
         opacity: done ? 0.75 : 1,
         transition: 'all 0.2s',
         cursor: onOpenReservation ? 'pointer' : 'default',
@@ -147,7 +146,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
         {/* Top row: checkbox + ARRIVÉE badge vertically centred. The whole card opens the fiche; the
             checkbox + SAS button stop the click, so the badge/time area still opens the fiche. */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
             <Checkbox
               icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
@@ -161,17 +160,17 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
           {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal
               "arrival" semantic. Bigger height + solid bg + white text for max pop. */}
           <Chip
-            icon={<FlightLandIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<FlightLandIcon sx={{ fontSize: 18 }} />}
             label="ARRIVÉE"
             size="small"
             sx={{
               height: 26,
               fontSize: 12,
               fontWeight: 800,
-              color: 'white',
+              color: 'common.white',
               bgcolor: done ? 'success.main' : 'warning.main',
               px: 0.5,
-              '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
+              '& .MuiChip-icon': { ml: 1, mr: -0.25, color: 'common.white' },
             }}
           />
           {/* Time pill — promoted to the top row (Adrien 2026-06-06: "met moi l'heure
@@ -179,7 +178,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               que ce soit visible" + "rajoute ta petite horloge à gauche de l'heure").
               The duplicate clock + "Arrivée HH:MM" block on the line below is removed. */}
           <Chip
-            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
             label={r.checkInTime || '15:00'}
             size="small"
             sx={{
@@ -187,9 +186,9 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
               fontSize: 13,
               fontWeight: 800,
               borderRadius: 1.5,
-              color: 'white',
+              color: 'common.white',
               bgcolor: done ? 'success.main' : 'warning.main',
-              '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
+              '& .MuiChip-icon': { ml: 0.5, mr: -0.25, color: 'common.white' },
             }}
           />
           {done && <Chip label="Prêt" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
@@ -204,7 +203,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
         {/* Detail block indented to align with the left edge of the ARRIVÉE badge (checkbox 32px + gap 8px) */}
         <Box sx={{ pl: '40px' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
             <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
               {r.propertyName}
@@ -214,7 +213,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
                 component="span"
                 sx={{
                   px: 1,
-                  py: 0.375,
+                  py: 0.5,
                   border: '1.5px solid',
                   borderColor: getPlatformColor(r.platform),
                   color: getPlatformColor(r.platform),
@@ -269,7 +268,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
           {/* Famille row — only the non-zero categories surface (Adrien 2026-06-06). */}
           {(adults + children + teens + babies > 0) && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.5 }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
                 Famille:
               </Typography>
@@ -290,7 +289,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
           {/* Lits row — gated on (doubleBeds > 0 OR singleBeds > 0) per Adrien 2026-06-06. */}
           {(Number(r.doubleBeds || 0) > 0 || Number(r.singleBeds || 0) > 0) && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
                 Lits:
               </Typography>
@@ -345,7 +344,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
               <EuroIcon sx={{ fontSize: 16, color: r.complementPaid ? 'success.main' : 'error.main', flexShrink: 0 }} />
               <Chip
-                label={`Complément à percevoir : ${Number(r.complementAmount).toFixed(2)}€${r.complementPaid ? ' (perçu)' : ''}`}
+                label={`Complément à percevoir : ${formatCurrency(r.complementAmount)}${r.complementPaid ? ' (perçu)' : ''}`}
                 size="small"
                 color={r.complementPaid ? 'success' : 'error'}
                 variant={r.complementPaid ? 'outlined' : 'filled'}
@@ -362,7 +361,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
               <ShieldOutlinedIcon sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }} />
               <Chip
-                label={`Caution à percevoir : ${Number(r.cautionAmount).toFixed(2)}€`}
+                label={`Caution à percevoir : ${formatCurrency(r.cautionAmount)}`}
                 size="small"
                 color="warning"
                 variant="filled"

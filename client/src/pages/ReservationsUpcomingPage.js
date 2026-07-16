@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Chip, LinearProgress } from '@mui/material';
+import { Box, Typography, Chip } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import TodayIcon from '@mui/icons-material/Today';
-import PageHeader from '../components/PageHeader';
+import PageActionBar from '../components/PageActionBar';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 import ReservationCard from '../components/ReservationCard';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
+import { useToast } from '../components/DialogProvider';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
 
@@ -27,14 +32,17 @@ function frenchWeekday(dateStr) {
  */
 export default function ReservationsUpcomingPage() {
   const navigate = useNavigate();
+  const { showError } = useToast();
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [sas, setSas] = useState(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
   const loadUpcoming = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       // All future arrivals — no upper bound (decision 2026-06-17). The list endpoint is filtered by
       // a far `to`; we keep arrivals whose startDate ≥ today and fetch each one's full detail.
@@ -53,6 +61,7 @@ export default function ReservationsUpcomingPage() {
       setDays(grouped);
     } catch {
       setDays([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -66,21 +75,37 @@ export default function ReservationsUpcomingPage() {
 
   const handleToggleReady = useCallback(async (r) => {
     const newReady = !r.checkInReady;
-    await api.markPayment(r.id, { checkInReady: newReady });
-    setDays((prev) => prev.map((day) => ({
-      ...day,
-      reservations: day.reservations.map((res) => (res.id === r.id ? { ...res, checkInReady: newReady } : res)),
-    })));
-  }, []);
+    try {
+      await api.markPayment(r.id, { checkInReady: newReady });
+      setDays((prev) => prev.map((day) => ({
+        ...day,
+        reservations: day.reservations.map((res) => (res.id === r.id ? { ...res, checkInReady: newReady } : res)),
+      })));
+    } catch (e) {
+      showError(e.message || 'Impossible de mettre à jour le statut.');
+    }
+  }, [showError]);
 
   return (
     <Box>
-      <PageHeader title="Réservations à venir" subtitle="Toutes les arrivées à partir d'aujourd'hui" />
+      <PageActionBar
+        title="Réservations à venir"
+        titleOnXs
+        subtitle={(
+          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
+            Toutes les arrivées à partir d'aujourd'hui
+          </Typography>
+        )}
+      />
 
-      {loading && <LinearProgress sx={{ mb: 2 }} />}
+      {loading && <LoadingState label="Chargement des réservations…" />}
 
-      {!loading && days.length === 0 && (
-        <Typography color="text.secondary">Aucune réservation à venir.</Typography>
+      {!loading && loadError && (
+        <ErrorAlert message="Impossible de charger les réservations à venir." onRetry={loadUpcoming} sx={{ mb: 3 }} />
+      )}
+
+      {!loading && !loadError && days.length === 0 && (
+        <EmptyState message="Aucune réservation à venir." />
       )}
 
       {days.map(({ date, reservations }) => {
@@ -93,17 +118,17 @@ export default function ReservationsUpcomingPage() {
               <Box sx={{
                 display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1,
                 bgcolor: isToday ? 'primary.main' : allReady ? 'success.main' : 'grey.200',
-                color: isToday || allReady ? 'white' : 'text.primary',
-                borderRadius: 2, px: 2, py: 0.75,
+                color: isToday || allReady ? 'common.white' : 'text.primary',
+                borderRadius: 2, px: 2, py: 1,
               }}>
                 <TodayIcon sx={{ fontSize: 20 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                <Typography variant="sectionHeader" sx={{ textTransform: 'capitalize' }}>
                   {frenchWeekday(date)}{isToday && ' — Aujourd\'hui'}
                 </Typography>
                 <Chip
                   label={`${readyCount}/${reservations.length}`}
                   size="small"
-                  sx={{ ml: 'auto', bgcolor: 'rgba(255,255,255,0.25)', color: isToday || allReady ? 'white' : 'text.primary', fontWeight: 700, height: 22 }}
+                  sx={(t) => ({ ml: 'auto', bgcolor: alpha(t.palette.common.white, 0.25), color: isToday || allReady ? 'common.white' : 'text.primary', fontWeight: 700, height: 22 })}
                 />
               </Box>
             </Box>

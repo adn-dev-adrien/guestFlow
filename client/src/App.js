@@ -784,7 +784,7 @@ function AppShell() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'white', color: 'text.primary', borderBottom: '1px solid #e0e0e0' }}>
+      <AppBar position="fixed" elevation={0} sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Toolbar sx={{ gap: 1 }}>
           {isMobile && (
             <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ mr: 0.5 }}>
@@ -803,7 +803,9 @@ function AppShell() {
             </>
           ) : (
             <>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              {/* Wordmark in the « Maison » serif (specs/ds-sweep-planning.md rule 25) — same face
+                  as the page titles, keeps the primary green and the h6 size. */}
+              <Typography variant="h6" sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, color: 'primary.main' }}>
                 GuestFlow
               </Typography>
               {!isMobile && (
