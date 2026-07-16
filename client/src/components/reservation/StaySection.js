@@ -27,8 +27,8 @@ export default function StaySection() {
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Séjour</Typography>
-        <Stack spacing={2.25}>
+        <Typography variant="sectionHeader" sx={{ mb: 2 }}>Séjour</Typography>
+        <Stack spacing={2}>
           {/* Logement + Numéro de réservation share one row on md+ (specs/email-client-language-and-fiche-polish.md
               §3 rule 8); they stack on xs. Devis have no reservation number → Logement stays full-width. */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: isDevisMode ? '1fr' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>

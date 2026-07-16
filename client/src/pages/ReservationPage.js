@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Box, TextField, Autocomplete, Button, FormControl, InputLabel, Select,
-  MenuItem, Typography, CircularProgress, Chip, Stack, Card, CardContent,
-  Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery,
+  MenuItem, Typography, Chip, Stack, Card, CardContent,
+  useMediaQuery,
   ToggleButton, ToggleButtonGroup, Tooltip
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -40,7 +40,10 @@ import {
   toWireOccurrences as toWireCardOccurrences,
   isDailyCard,
 } from '../utils/cardOccurrences';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, displayDateTime } from '../utils/formatters';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -128,6 +131,8 @@ export default function ReservationPage() {
   const downLg = useMediaQuery(theme.breakpoints.down('lg'));
 
   const [loading, setLoading] = useState(true);
+  const [initError, setInitError] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [properties, setProperties] = useState([]);
   const [selectedProp, setSelectedProp] = useState('');
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -994,7 +999,7 @@ export default function ReservationPage() {
 
         setLoading(false);
       } catch (err) {
-        console.error('Init error:', err);
+        setInitError(true);
         setLoading(false);
       }
     };
@@ -2189,6 +2194,18 @@ export default function ReservationPage() {
     await handleSaveReservation(action);
   };
 
+  // Bar-button entry point: toggles the `saving` flag around the (recursive) save so the bar Save
+  // shows a spinner and can't be double-submitted. The internal recursion stays on
+  // handleSaveReservation (no nested toggle). specs/ds-sweep-reservations.md rule 1.
+  const handleSaveClick = async () => {
+    setSaving(true);
+    try {
+      await handleSaveReservation();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const buildBackUrlWithReservationFocus = useCallback(() => {
     if (!from) return from;
     if (!from.startsWith('/calendar')) return from;
@@ -2231,7 +2248,7 @@ export default function ReservationPage() {
     const utcIso = /Z$|[+-]\d{2}:?\d{2}$/.test(normalized) ? normalized : `${normalized}Z`;
     const date = new Date(utcIso);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleString('fr-FR');
+    return displayDateTime(utcIso);
   };
 
   const formatHistoryValue = (value) => {
@@ -2240,10 +2257,19 @@ export default function ReservationPage() {
     return String(value);
   };
 
+  if (initError) {
+    return (
+      <Box>
+        <PageActionBar title="Réservation" onBack={() => navigate(-1)} />
+        <ErrorAlert message="Impossible de charger la réservation." onRetry={() => window.location.reload()} />
+      </Box>
+    );
+  }
+
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <CircularProgress />
+      <Box sx={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <LoadingState label="Chargement de la réservation…" />
       </Box>
     );
   }
@@ -2475,7 +2501,7 @@ export default function ReservationPage() {
   const isHourlyResource = (resource) => Boolean(resource?.isComplex) || resource?.priceType === 'per_hour';
   const hasExtrasSection = true;
   const formSectionCardSx = {
-    bgcolor: '#fff',
+    bgcolor: 'background.paper',
     borderRadius: 2,
     overflow: 'hidden',
   };
@@ -2623,8 +2649,10 @@ export default function ReservationPage() {
           </>
         ) : null}
         actionsBefore={actionBarBefore}
-        onSave={handleSaveReservation}
+        onSave={handleSaveClick}
         saveTooltip={isDevisMode ? 'Enregistrer le devis' : 'Enregistrer'}
+        saveDisabled={saving}
+        saveBusy={saving}
         onCancel={goBackToOrigin}
         actionsAfter={actionBarAfter}
       />
@@ -2639,13 +2667,13 @@ export default function ReservationPage() {
           gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
           gap: 3,
           '& .MuiOutlinedInput-root': {
-            bgcolor: '#fff',
+            bgcolor: 'background.paper',
           },
           '& .MuiFilledInput-root': {
-            bgcolor: '#fff',
+            bgcolor: 'background.paper',
           },
           '& .MuiInputBase-root.Mui-disabled': {
-            bgcolor: '#fff',
+            bgcolor: 'background.paper',
           },
         }}
       >
@@ -2669,7 +2697,7 @@ export default function ReservationPage() {
 
           <Card variant="outlined" sx={formSectionCardSx}>
             <CardContent sx={formSectionContentSx}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Client</Typography>
+              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Client</Typography>
               <Stack spacing={1.25}>
                 {selectedClient && !clientSearchOpen ? (
                   <>
@@ -2739,7 +2767,7 @@ export default function ReservationPage() {
 
           <Card variant="outlined" sx={formSectionCardSx}>
             <CardContent sx={formSectionContentSx}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Canal</Typography>
+              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Canal</Typography>
               <FormControl fullWidth>
                 <InputLabel>Plateforme</InputLabel>
                 <Select value={form.platform} label="Plateforme" onChange={(e) => updateForm({ platform: e.target.value })}>
@@ -2755,7 +2783,7 @@ export default function ReservationPage() {
 
           <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
             <CardContent sx={formSectionContentSx}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Notes</Typography>
+              <Typography variant="sectionHeader" sx={{ mb: 2 }}>Notes</Typography>
               <TextField
                 label="Notes"
                 multiline
@@ -2802,10 +2830,10 @@ export default function ReservationPage() {
 
         {editingReservationId && (
           <Box sx={{ gridColumn: { xs: '1 / -1', md: '1 / 2' } }}>
-            <Card variant="outlined" sx={{ bgcolor: '#fff' }}>
+            <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
               <CardContent sx={{ py: 1.25 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="subtitle2">Historique des modifications</Typography>
+                  <Typography variant="sectionHeader">Historique des modifications</Typography>
                   <Button size="small" variant="outlined" onClick={toggleHistory}>
                     {historyOpen ? 'Masquer historique' : 'Voir historique'}
                   </Button>
@@ -2813,10 +2841,10 @@ export default function ReservationPage() {
 
                 {historyOpen && (
                   <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                    {historyLoading && <Typography variant="body2" color="text.secondary">Chargement...</Typography>}
+                    {historyLoading && <LoadingState py={2} />}
 
                     {!historyLoading && historyEntries.length === 0 && (
-                      <Typography variant="body2" color="text.secondary">Aucun historique disponible.</Typography>
+                      <EmptyState message="Aucun historique disponible." py={2} />
                     )}
 
                     {!historyLoading && historyEntries.map((entry) => {
@@ -2831,7 +2859,7 @@ export default function ReservationPage() {
                             borderRadius: 1,
                             px: 1,
                             py: 0.75,
-                            bgcolor: '#fafafa',
+                            bgcolor: 'grey.50',
                           }}
                         >
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>

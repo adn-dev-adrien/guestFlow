@@ -1,9 +1,12 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, Chip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
 import DateField from '../DateField';
+import StatusBadge from '../StatusBadge';
 import { useReservationForm } from './ReservationFormContext';
+import { formatCurrency } from '../../utils/formatters';
 
 function todayStr() {
   const d = new Date();
@@ -45,10 +48,10 @@ export default function FinanceSection() {
     <Card variant="outlined" sx={formSectionCardSx}>
       <CardContent sx={formSectionContentSx}>
         <Box sx={{ position: 'relative', zIndex: 10 }}>
-          <Stack spacing={2.5}>
+          <Stack spacing={2}>
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 700, mb: 0 }}>Finance</Typography>
+                <Typography variant="sectionHeader" sx={{ mb: 0 }}>Finance</Typography>
                 {(isDevisMode || reservationId) && (
                   <Button variant="outlined" color="warning" size="small" onClick={refreshToCurrentPricing} disabled={isReservationLocked}>
                     Actualiser tarifs
@@ -56,19 +59,19 @@ export default function FinanceSection() {
                 )}
               </Box>
 
-              <Grid container spacing={2} alignItems="stretch" sx={sectionGridSx}>
+              <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'stretch' }}>
                 <Grid
                   size={{
                     xs: 12,
                     md: 6
                   }}>
-                  <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
+                  <Card variant="outlined" sx={{ height: '100%', bgcolor: 'grey.50', borderColor: 'divider' }}>
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      <Typography variant="kpiLabel" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
                         Prix hébergement brut
                       </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
-                        {accommodationBasePriceDisplay ?? '—'}€
+                      <Typography variant="kpiValue" sx={{ display: 'block', fontSize: '1.25rem', mt: 0.5 }}>
+                        {accommodationBasePriceDisplay != null ? formatCurrency(accommodationBasePriceDisplay) : '—'}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Tarif calculé par le serveur
@@ -87,7 +90,7 @@ export default function FinanceSection() {
                     sx={{
                       height: '100%',
                       borderColor: form.customPrice !== '' ? 'info.main' : 'divider',
-                      bgcolor: form.customPrice !== '' ? 'rgba(33, 150, 243, 0.08)' : '#fff',
+                      bgcolor: form.customPrice !== '' ? alpha('#2196f3', 0.08) : 'background.paper',
                     }}
                   >
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -108,9 +111,9 @@ export default function FinanceSection() {
                         <Box sx={{ mt: 1 }}>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                             {pricingQuote?.accommodationDeltaType === 'reduction'
-                              ? `Réduction: ${Number(pricingQuote.accommodationDeltaAmount || 0).toFixed(2)}€`
+                              ? `Réduction: ${formatCurrency(pricingQuote.accommodationDeltaAmount || 0)}`
                               : pricingQuote?.accommodationDeltaType === 'increase'
-                                ? `Augmentation: ${Number(pricingQuote.accommodationDeltaAmount || 0).toFixed(2)}€`
+                                ? `Augmentation: ${formatCurrency(pricingQuote.accommodationDeltaAmount || 0)}`
                                 : 'Aucun écart'}
                           </Typography>
                         </Box>
@@ -183,8 +186,8 @@ export default function FinanceSection() {
                 <>
                   <Divider />
                   <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Paiement plateforme</Typography>
-                    <Grid container spacing={2} sx={sectionGridSx} alignItems="flex-start">
+                    <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1.5 }}>Paiement plateforme</Typography>
+                    <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'flex-start' }}>
                       <Grid size={{ xs: 12, md: 6 }}>
                         <ArithmeticTextField
                           label="Montant total payé par le client"
@@ -215,14 +218,12 @@ export default function FinanceSection() {
                         </span>
                       </Tooltip>
                       <Typography variant="body2">
-                        Net perçu : <strong>{netPercu.toFixed(2)}€</strong>
+                        Net perçu : <strong>{formatCurrency(netPercu)}</strong>
                       </Typography>
                       {virement != null && (
-                        <Chip
-                          size="small"
-                          color={reconcileOk ? 'success' : 'warning'}
-                          variant="outlined"
-                          label={reconcileOk ? '✓ cohérent avec le virement' : `écart : ${ecart.toFixed(2)}€`}
+                        <StatusBadge
+                          status={reconcileOk ? 'success' : 'warning'}
+                          label={reconcileOk ? '✓ cohérent avec le virement' : `écart : ${formatCurrency(ecart)}`}
                         />
                       )}
                     </Stack>
@@ -242,7 +243,7 @@ export default function FinanceSection() {
                 {showNoDepositMessage ? (
                   <Grid
                     size={{ xs: 12, md: 6 }}>
-                    <Typography variant="subtitle2" gutterBottom sx={{ mb: 1 }}>Acompte</Typography>
+                    <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>Acompte</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                       Pas d'acompte (réservation plateforme — virement unique). Le montant total est
                       encaissé en une fois via le Solde.
@@ -255,7 +256,7 @@ export default function FinanceSection() {
                     md: 6
                   }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom sx={{ mb: 0 }}>Acompte</Typography>
+                    <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 0 }}>Acompte</Typography>
                     <FormControlLabel
                       control={
                         <Switch
@@ -378,7 +379,7 @@ export default function FinanceSection() {
                     xs: 12,
                     md: 6
                   }}>
-                  <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>Solde</Typography>
+                  <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 2 }}>Solde</Typography>
                   {/* specs/platform-per-echeance-commission.md — commission on the solde (platform only),
                       booked on the platform's account on the balance entry. */}
                   {isPlatform && (
@@ -470,7 +471,7 @@ export default function FinanceSection() {
                         <Typography variant="body2">
                           Taxe de séjour en complément
                           <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                            ({Number(pricingQuote.touristTaxTotal).toFixed(2).replace('.', ',')} €)
+                            ({formatCurrency(pricingQuote.touristTaxTotal)})
                           </Typography>
                         </Typography>
                       }
@@ -500,10 +501,10 @@ export default function FinanceSection() {
                           p: form.complementPaid ? 0 : 1.5,
                         }}
                       >
-                        <Typography variant="subtitle2" sx={{ mb: 2 }} gutterBottom>
+                        <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 2 }}>
                           Complément à percevoir
                           <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-                            ({Number(pricingQuote.complementAmount).toFixed(2).replace('.', ',')} €)
+                            ({formatCurrency(pricingQuote.complementAmount)})
                           </Typography>
                         </Typography>
                         <Button
@@ -589,15 +590,15 @@ export default function FinanceSection() {
                           p: form.endOfStayComplementPaid ? 0 : 1.5,
                         }}
                       >
-                        <Typography variant="subtitle2" sx={{ mb: 1 }} gutterBottom>
+                        <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
                           Complément de fin de séjour
                           <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-                            ({Number(form.endOfStayComplementAmount).toFixed(2).replace('.', ',')} €)
+                            ({formatCurrency(form.endOfStayComplementAmount)})
                           </Typography>
                         </Typography>
                         {parseEndOfStayDetail(form.endOfStayComplementDetail).map((line, i) => (
                           <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
-                            {line.label} : {Number(line.amount || 0).toFixed(2).replace('.', ',')} €
+                            {line.label} : {formatCurrency(line.amount || 0)}
                           </Typography>
                         ))}
                         <Button
@@ -667,7 +668,7 @@ export default function FinanceSection() {
             <Divider />
 
             <Box>
-              <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5 }}>Caution</Typography>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1.5 }}>Caution</Typography>
               <Grid container spacing={1.5} sx={sectionGridSx}>
                 <Grid
                   size={{

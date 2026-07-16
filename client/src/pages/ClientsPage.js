@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Box, TextField, TableRow,
-  TableCell, IconButton, InputAdornment, Chip, Typography, Divider, CircularProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Tooltip
+  Box, TextField, TableRow, Stack,
+  TableCell, IconButton, InputAdornment, Chip, Typography, Divider, Button, Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
@@ -13,13 +12,26 @@ import HomeIcon from '@mui/icons-material/Home';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DataPageScaffold from '../components/DataPageScaffold';
 import FormDialog from '../components/FormDialog';
+import PlatformChip from '../components/PlatformChip';
+import StatusBadge from '../components/StatusBadge';
+import LoadingState from '../components/LoadingState';
+import EmptyState from '../components/EmptyState';
+import ErrorAlert from '../components/ErrorAlert';
 import ClientFormFields from '../components/ClientFormFields';
 import ClientCleanupDialog from '../components/ClientCleanupDialog';
 import useCrudResource from '../hooks/useCrudResource';
 import api from '../api';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
-import { useAppDialogs } from '../components/DialogProvider';
+import { formatCurrency } from '../utils/formatters';
+import { useToast } from '../components/DialogProvider';
+
+const DEVIS_STATUS = {
+  draft: { status: 'neutral', label: 'Brouillon' },
+  sent: { status: 'info', label: 'Envoyé' },
+  accepted: { status: 'success', label: 'Accepté' },
+  converted: { status: 'success', label: 'Converti' },
+};
 
 const emptyClient = {
   lastName: '',
@@ -46,10 +58,12 @@ function formatStayDates(startDate, endDate) {
 
 export default function ClientsPage() {
   const navigate = useNavigate();
-  const { confirm, alert } = useAppDialogs();
+  const { showSuccess, showError } = useToast();
   const [urlParams, setUrlParams] = useSearchParams();
   const {
     items: clients,
+    loading,
+    error: listError,
     reload,
     createItem,
     updateItem,
@@ -79,7 +93,9 @@ export default function ClientsPage() {
   const emailError = !isValidEmail(form.email);
   const phoneError = !isValidPhone(form.phone);
 
-  useEffect(() => { reload(search); }, [search, reload]);
+  // The failure is surfaced through the scaffold's error state (useCrudResource re-throws); swallow
+  // the rejection here so it doesn't bubble as an unhandled promise rejection.
+  useEffect(() => { reload(search).catch(() => {}); }, [search, reload]);
 
   const setClientParam = (clientId) => {
     const nextParams = new URLSearchParams(urlParams);
@@ -335,9 +351,9 @@ export default function ClientsPage() {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-                <Chip label={res.platform} size="small" variant="outlined" />
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {res.finalPrice ? `${res.finalPrice} €` : '—'}
+                <PlatformChip platform={res.platform} />
+                <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                  {res.finalPrice ? formatCurrency(res.finalPrice) : '—'}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <HomeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
@@ -380,9 +396,9 @@ export default function ClientsPage() {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-            <Chip label={d.status} size="small" variant="outlined" />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {d.finalPrice ? `${d.finalPrice} €` : '—'}
+            <StatusBadge {...(DEVIS_STATUS[d.status] || { status: 'neutral', label: d.status })} />
+            <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {d.finalPrice ? formatCurrency(d.finalPrice) : '—'}
             </Typography>
           </Box>
         </Box>
@@ -403,10 +419,7 @@ export default function ClientsPage() {
       setCleanupDialog({ open: true, orphans, loading: false, busy: false });
     } catch (error) {
       setCleanupDialog({ open: false, orphans: [], loading: false, busy: false });
-      await alert({
-        title: 'Erreur',
-        message: error?.message || 'Impossible de charger la liste des clients à supprimer.',
-      });
+      showError(error?.message || 'Impossible de charger la liste des clients à supprimer.');
     }
   };
 
@@ -426,16 +439,10 @@ export default function ClientsPage() {
       const skippedSuffix = skipped > 0
         ? ` · ${skipped} client(s) ignoré(s) car ils ont gagné une réservation entre-temps.`
         : '';
-      await alert({
-        title: 'Nettoyage terminé',
-        message: `${deleted} client(s) supprimé(s).${skippedSuffix}`,
-      });
+      showSuccess(`${deleted} client(s) supprimé(s).${skippedSuffix}`);
     } catch (error) {
       setCleanupDialog((prev) => ({ ...prev, busy: false }));
-      await alert({
-        title: 'Erreur',
-        message: error?.message || 'Impossible de supprimer les clients sélectionnés.',
-      });
+      showError(error?.message || 'Impossible de supprimer les clients sélectionnés.');
     }
   };
 
@@ -470,6 +477,9 @@ export default function ClientsPage() {
             </Button>
           </Box>
         )}
+        loading={loading}
+        error={listError}
+        onRetry={() => reload(search)}
         minWidth={860}
         head={(
           <TableRow>
@@ -483,11 +493,10 @@ export default function ClientsPage() {
             <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
           </TableRow>
         )}
-        hasItems={clients.length > 0}
-        emptyColSpan={8}
         emptyText="Aucun client trouvé"
-      >
-        {clients.map((c) => (
+        items={clients}
+        getKey={(c) => c.id}
+        renderRow={(c) => (
           <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpen(c)}>
             <TableCell>{c.lastName}</TableCell>
             <TableCell>{c.firstName}</TableCell>
@@ -507,8 +516,25 @@ export default function ClientsPage() {
               </Tooltip>
             </TableCell>
           </TableRow>
-        ))}
-      </DataPageScaffold>
+        )}
+        renderMobileCard={(c) => (
+          <Stack spacing={0.5} onClick={() => handleOpen(c)} sx={{ cursor: 'pointer' }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>{c.lastName} {c.firstName}</Typography>
+              <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>
+                <IconButton size="small" aria-label="Modifier" onClick={() => handleOpen(c)}><EditIcon fontSize="small" /></IconButton>
+                <IconButton size="small" color="error" aria-label="Supprimer" onClick={() => handleDelete(c.id)}><DeleteIcon fontSize="small" /></IconButton>
+              </Box>
+            </Stack>
+            {c.email && <Typography variant="caption" color="text.secondary">{c.email}</Typography>}
+            {c.phone && <Typography variant="caption" color="text.secondary">{c.phone}</Typography>}
+            {(c.postalCode || c.city) && (
+              <Typography variant="caption" color="text.secondary">{[c.postalCode, c.city].filter(Boolean).join(' ')}</Typography>
+            )}
+            {c.notes && <Chip label={c.notes.substring(0, 40)} size="small" variant="outlined" sx={{ alignSelf: 'flex-start', mt: 0.5 }} />}
+          </Stack>
+        )}
+      />
       {/* Dialog */}
       <FormDialog
         open={open}
@@ -530,65 +556,61 @@ export default function ClientsPage() {
         {editId && (
           <>
             <Divider sx={{ my: 3 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+            <Typography variant="sectionHeader" sx={{ mb: 1.5 }}>
               Réservations
             </Typography>
             {clientReservationsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={24} />
-              </Box>
+              <LoadingState py={2} />
             ) : clientReservations.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">Aucune réservation</Typography>
+              <EmptyState message="Aucune réservation." py={2} />
             ) : (
               renderReservationRows(clientReservations, handleOpenReservation)
             )}
           </>
         )}
       </FormDialog>
-      <Dialog open={deleteImpact.open} onClose={closeDeleteImpact} maxWidth="md" fullWidth>
-        <DialogTitle>Confirmer la suppression du client</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ mb: 1.5 }}>
-            Attention: la suppression du client <strong>{deleteImpact.clientName}</strong> supprimera aussi toutes ses réservations et devis associés.
-          </Typography>
-          {deleteImpact.loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-              <CircularProgress size={24} />
+      <FormDialog
+        open={deleteImpact.open}
+        onClose={closeDeleteImpact}
+        title="Confirmer la suppression du client"
+        maxWidth="md"
+        submitLabel="Confirmer la suppression"
+        submitColor="error"
+        onSubmit={handleForceDeleteClient}
+        submitDisabled={deleteImpact.loading || !!deleteImpact.error}
+      >
+        <Typography sx={{ mb: 1.5 }}>
+          Attention: la suppression du client <strong>{deleteImpact.clientName}</strong> supprimera aussi toutes ses réservations et devis associés.
+        </Typography>
+        {deleteImpact.loading ? (
+          <LoadingState py={2} />
+        ) : deleteImpact.error ? (
+          <ErrorAlert message={deleteImpact.error} />
+        ) : (
+          <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 0.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
+                Réservations qui seront supprimées ({deleteImpact.reservations.length})
+              </Typography>
+              {deleteImpact.reservations.length === 0 ? (
+                <EmptyState message="Aucune réservation associée." py={2} />
+              ) : (
+                renderReservationRows(deleteImpact.reservations, (reservation) => openReservationFromClients(reservation.id, reservation.clientId, 'delete'))
+              )}
             </Box>
-          ) : deleteImpact.error ? (
-            <Typography variant="body2" color="error.main">{deleteImpact.error}</Typography>
-          ) : (
-            <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 0.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Réservations qui seront supprimées ({deleteImpact.reservations.length})
-                </Typography>
-                {deleteImpact.reservations.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">Aucune réservation associée</Typography>
-                ) : (
-                  renderReservationRows(deleteImpact.reservations, (reservation) => openReservationFromClients(reservation.id, reservation.clientId, 'delete'))
-                )}
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Devis qui seront supprimés ({deleteImpact.devis.length})
-                </Typography>
-                {deleteImpact.devis.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">Aucun devis associé</Typography>
-                ) : (
-                  renderDevisRows(deleteImpact.devis)
-                )}
-              </Box>
+            <Box>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
+                Devis qui seront supprimés ({deleteImpact.devis.length})
+              </Typography>
+              {deleteImpact.devis.length === 0 ? (
+                <EmptyState message="Aucun devis associé." py={2} />
+              ) : (
+                renderDevisRows(deleteImpact.devis)
+              )}
             </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDeleteImpact}>Annuler</Button>
-          <Button color="error" variant="contained" onClick={handleForceDeleteClient} disabled={deleteImpact.loading || !!deleteImpact.error}>
-            Confirmer la suppression
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </Box>
+        )}
+      </FormDialog>
 
       <ClientCleanupDialog
         open={cleanupDialog.open}

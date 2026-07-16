@@ -30,8 +30,8 @@ export default function GuestsBedsSection() {
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
       <CardContent sx={formSectionContentSx}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2 }}>Voyageurs</Typography>
-        <Stack spacing={2.25}>
+        <Typography variant="sectionHeader" sx={{ mb: 2 }}>Voyageurs</Typography>
+        <Stack spacing={2}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
               <TextField
