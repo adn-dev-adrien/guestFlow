@@ -103,13 +103,8 @@ test('depositDisabled wins over a « Oui » platform (no acompte)', () => {
 });
 
 // ── Accounting ────────────────────────────────────────────────────────────────
-const acctQuote = {
-  finalPrice: 300,
-  vatPercentageAccommodation: 10, vatPercentageOptions: 10, vatPercentageResources: 10,
-  accommodationNetPrice: 272.73, accommodationVatAmount: 27.27, // 300 TTC @ 10 %
-  optionsNetPrice: 0, optionsVatAmount: 0, resourcesNetPrice: 0, resourcesVatAmount: 0,
-  touristTaxCollectedOnArrival: false,
-};
+// buildEntry(row, kind, perLineData, commissionContext, taxContext) — quote-free since
+// specs/accounting-encaissement-effective-percent.md (buckets from stored row money).
 const commissionContext = {
   defaultAccount: '622600', vatRateCommission: 20,
   platformByName: new Map([['airbnb', { name: 'Airbnb', commissionAccountNumber: '62260300', hasVatOnCommission: 0 }]]),
@@ -134,8 +129,8 @@ function sumCredits(rows) { return round2(rows.reduce((s, r) => s + (typeof r[8]
 
 test('accounting: explicit per-échéance commission — acompte on deposit, solde on balance; CA on gross', () => {
   const row = depositRow();
-  const dep = buildEntry(row, acctQuote, 'deposit', null, commissionContext);
-  const bal = buildEntry(row, acctQuote, 'balance', null, commissionContext);
+  const dep = buildEntry(row, 'deposit', null, commissionContext);
+  const bal = buildEntry(row, 'balance', null, commissionContext);
   // acompteCommissionAmount on the deposit entry, platformCommissionAmount on the balance entry.
   assert.equal(round2(dep.commission.ttc), 9);
   assert.equal(round2(bal.commission.ttc), 21);
@@ -155,8 +150,8 @@ test('accounting: explicit per-échéance commission — acompte on deposit, sol
 
 test('accounting backward-compat: a no-acompte platform books the whole commission on the solde', () => {
   const row = { ...depositRow(), depositAmount: 0, depositPaid: 0, depositPaidDate: null, balanceAmount: 300, platformCommissionAmount: 30, acompteCommissionAmount: 0 };
-  const dep = buildEntry(row, acctQuote, 'deposit', null, commissionContext);
-  const bal = buildEntry(row, acctQuote, 'balance', null, commissionContext);
+  const dep = buildEntry(row, 'deposit', null, commissionContext);
+  const bal = buildEntry(row, 'balance', null, commissionContext);
   assert.equal(dep, null); // no acompte encaissement
   assert.equal(round2(bal.commission.ttc), 30); // whole commission on the solde
   assert.equal(round2(bal.encaissementNetTtc), 270); // 300 − 30

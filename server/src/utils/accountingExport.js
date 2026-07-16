@@ -301,6 +301,14 @@ function entryToStructured(entry) {
   const sumCredits = round2(lines.reduce((s, l) => s + (l.credit || 0), 0));
   const balanced = sumDebits === sumCredits;
 
+  // Effective share of the séjour this encaissement covers (revenue TTC / finalPrice) — the
+  // « N % du séjour » caption. Distinct from `fraction`, which is the export-side bucket
+  // multiplier (1 on the contrib path where buckets are absolute).
+  const finalPrice = round2(entry.finalPrice);
+  const stayShare = finalPrice > 0
+    ? Math.max(0, (round2(entry.encaissementTtc) - round2(entry.taxTtc || 0)) / finalPrice)
+    : null;
+
   return {
     reservationId: entry.reservationId,
     kind: entry.kind,
@@ -310,8 +318,9 @@ function entryToStructured(entry) {
     libelle: rows[0][5],          // libellé column
     clientAccount: rows[0][6],    // compte column on the debit row
     encaissementTtc: round2(entry.encaissementTtc),
-    finalPrice: round2(entry.finalPrice),
+    finalPrice,
     fraction: entry.fraction,
+    stayShare,
     platform: platformInfo,
     lines,
     sumDebits,
