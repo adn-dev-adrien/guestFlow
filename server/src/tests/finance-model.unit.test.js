@@ -296,9 +296,14 @@ test('getSummary: yearToDate (Jan 1 → today) + yearTotal (full year), by endDa
   assert.equal(summary.yearTotal, 200);
 });
 
-test('getSummary: empty range → empty revenueByProperty (no crash)', () => {
+test('getSummary: empty range → revenueByProperty seeded at 0 € for every logement (no crash)', () => {
+  // specs/finance-per-property-revenue-cards.md rule 4 — the per-logement aggregates are seeded from
+  // the properties table so a logement with no reservation still gets its card.
   const { model } = freshModel();
-  assert.deepEqual(model.getSummary({ from: iso(0), to: iso(10) }).revenueByProperty, []);
+  assert.deepEqual(model.getSummary({ from: iso(0), to: iso(10) }).revenueByProperty, [
+    { propertyId: 1, propertyName: 'Gite', revenue: 0, revenueHt: 0 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0 },
+  ]);
 });
 
 test('getSummary: a kind=devis row never leaks into the revenue', () => {

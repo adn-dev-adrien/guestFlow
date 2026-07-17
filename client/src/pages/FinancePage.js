@@ -104,7 +104,9 @@ export default function FinancePage() {
     { name: 'En attente', value: summary.totalPending, fill: theme.palette.warning.main },
   ] : [];
 
-  const barData = summary?.revenueByProperty?.map((p) => ({ name: p.propertyName, revenue: p.revenue })) || [];
+  // revenueByProperty is zero-seeded server-side (per-logement cards) — the chart keeps only logements
+  // with actual revenue so the « Aucun revenu… » empty state still works.
+  const barData = summary?.revenueByProperty?.filter((p) => p.revenue > 0).map((p) => ({ name: p.propertyName, revenue: p.revenue })) || [];
 
   const overduePayments = operational?.overdue.reservations || [];
   const overdueReservationsCount = operational?.overdue.count || 0;
@@ -128,30 +130,46 @@ export default function FinancePage() {
     // specs/finance-pending-global-remaining.md — period-free figure (every finished stay's restant dû).
     { metric: 'totalPending', label: 'En attente de règlement', caption: 'séjours terminés', value: summary.totalPending, valueHt: summary.totalPendingHt, accent: 'warning.main' },
   ] : [];
+  // specs/finance-per-property-revenue-cards.md — one compact card per logement, same basis as the
+  // matching global card (year-to-date / period), fully server-computed. No `metric` → not clickable.
+  const yearPropertyCards = summary?.yearToDateByProperty?.map((p) => ({
+    id: p.propertyId, label: p.propertyName, caption: "depuis le début de l'année", value: p.revenue, valueHt: p.revenueHt, accent: 'info.main',
+  })) || [];
+  const periodPropertyCards = summary?.revenueByProperty?.map((p) => ({
+    id: p.propertyId, label: p.propertyName, caption: 'sur la période', value: p.revenue, valueHt: p.revenueHt, accent: 'primary.main',
+  })) || [];
 
-  const renderCard = (c, size) => (
-    <Grid key={c.label} size={size}>
-      <Card
-        onClick={() => setBreakdownMetric(c.metric)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBreakdownMetric(c.metric); } }}
-        role="button"
-        tabIndex={0}
-        aria-label={`Voir le détail : ${c.label}`}
-        sx={{ height: '100%', cursor: 'pointer', borderLeft: '3px solid', borderColor: c.accent, transition: 'transform .1s, box-shadow .1s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }}
-      >
-        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.5, '&:last-child': { pb: 1.5 } }}>
-          <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>
-            {c.label}
-            {c.caption && <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
-          </Typography>
-          <Typography variant="kpiValue" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', my: 1 }}>{formatCurrencyRounded(c.value)}</Typography>
-          {c.valueHt != null && (
-            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', ...TABULAR }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
-          )}
-        </CardContent>
-      </Card>
-    </Grid>
-  );
+  const renderCard = (c, size) => {
+    const clickable = Boolean(c.metric);
+    return (
+      <Grid key={c.metric || `p${c.id}`} size={size}>
+        <Card
+          {...(clickable && {
+            onClick: () => setBreakdownMetric(c.metric),
+            onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBreakdownMetric(c.metric); } },
+            role: 'button',
+            tabIndex: 0,
+            'aria-label': `Voir le détail : ${c.label}`,
+          })}
+          sx={{
+            height: '100%', borderLeft: '3px solid', borderColor: c.accent,
+            ...(clickable && { cursor: 'pointer', transition: 'transform .1s, box-shadow .1s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }),
+          }}
+        >
+          <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>
+              {c.label}
+              {c.caption && <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
+            </Typography>
+            <Typography variant="kpiValue" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', my: 1 }}>{formatCurrencyRounded(c.value)}</Typography>
+            {c.valueHt != null && (
+              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', ...TABULAR }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
+            )}
+          </CardContent>
+        </Card>
+      </Grid>
+    );
+  };
 
   const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider', ...TABULAR };
 
@@ -244,6 +262,12 @@ export default function FinancePage() {
             {yearCards.map((c) => renderCard(c, { xs: 12, sm: 6 }))}
           </Grid>
         )}
+        {/* Row 1b — year-to-date per logement (specs/finance-per-property-revenue-cards.md). */}
+        {summary && yearPropertyCards.length > 0 && (
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            {yearPropertyCards.map((c) => renderCard(c, { xs: 6, sm: 4, md: 3 }))}
+          </Grid>
+        )}
         {/* Period selector — drives the period cards + charts below it. */}
         <Card sx={{ mb: 2 }}>
           <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -253,8 +277,14 @@ export default function FinancePage() {
         </Card>
         {/* Row 2 — period cards (depend on the du/au range). */}
         {summary && (
-          <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid container spacing={2} sx={{ mb: 2 }}>
             {periodCards.map((c) => renderCard(c, { xs: 12, sm: 4 }))}
+          </Grid>
+        )}
+        {/* Row 2b — period revenue per logement (specs/finance-per-property-revenue-cards.md). */}
+        {summary && periodPropertyCards.length > 0 && (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {periodPropertyCards.map((c) => renderCard(c, { xs: 6, sm: 4, md: 3 }))}
           </Grid>
         )}
         {/* Charts */}

@@ -146,7 +146,11 @@ function createFinanceModel(database) {
     //
     // `revenueByProperty` (added 2026-06-02) aggregates per logement so the FinancePage's
     // overview chart can render "revenu par logement" instead of "revenu par réservation"
-    // (which was unreadable when many reservations stacked up). Sorted descending by revenue.
+    // (which was unreadable when many reservations stacked up).
+    // specs/finance-per-property-revenue-cards.md — `revenueByProperty` (period) and
+    // `yearToDateByProperty` (Jan 1 → today) also feed the per-logement KPI cards: both carry a
+    // `revenueHt`, are seeded from the properties table (a logement with no reservation appears at
+    // 0 €), and are sorted revenue desc with ties broken by name.
     // specs/finance-overview-rework.md §3.2 — every revenue figure is Σ « total de séjour », a reservation
     // counted by its DEPARTURE date (endDate). The period uses the du/au range; two extra figures cover
     // the calendar year (to-date + full). « Encaissé » = the accounting total (comptaCollected).
@@ -175,20 +179,30 @@ function createFinanceModel(database) {
       let totalCollected = 0;
       let revenueTotalHt = 0;
       let totalCollectedHt = 0;
-      const byProperty = new Map(); // propertyId → { propertyName, revenue }
+      // Both per-logement aggregates are seeded from the properties table so every logement gets a
+      // card, 0 € included (specs/finance-per-property-revenue-cards.md rule 4).
+      const emptyAgg = (p) => ({ propertyId: p.id, propertyName: p.name, revenue: 0, revenueHt: 0 });
+      const allProperties = database.prepare('SELECT id, name FROM properties').all();
+      const byProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
+      const yearByProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));
+      const finalizeByProperty = (map) => Array.from(map.values())
+        .map((p) => ({ propertyId: p.propertyId, propertyName: p.propertyName, revenue: round2(p.revenue), revenueHt: round2(p.revenueHt) }))
+        .sort((a, b) => (b.revenue - a.revenue) || a.propertyName.localeCompare(b.propertyName, 'fr'));
 
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
+        const stayHt = htAmount(r, stay, vatRate);
         const settled = isSettled(r);
         const collected = comptaCollected(r);
         revenueTotal += stay;
-        revenueTotalHt += htAmount(r, stay, vatRate);
+        revenueTotalHt += stayHt;
         totalCollected += collected;
         totalCollectedHt += htAmount(r, collected, vatRate);
 
         const agg = byProperty.get(r.propertyId)
-          || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0 };
+          || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0, revenueHt: 0 };
         agg.revenue += stay;
+        agg.revenueHt += stayHt;
         byProperty.set(r.propertyId, agg);
 
         const status = computePaymentStatus(r, today);
@@ -201,9 +215,7 @@ function createFinanceModel(database) {
         };
       });
 
-      const revenueByProperty = Array.from(byProperty.values())
-        .map((p) => ({ propertyId: p.propertyId, propertyName: p.propertyName, revenue: round2(p.revenue) }))
-        .sort((a, b) => b.revenue - a.revenue);
+      const revenueByProperty = finalizeByProperty(byProperty);
 
       // « En attente de règlement » — GLOBAL, period ignored (specs/finance-pending-global-remaining.md):
       // every finished stay (endDate < today) not yet settled, counted for its RESTANT DÛ only
@@ -225,8 +237,10 @@ function createFinanceModel(database) {
       const yearRows = database.prepare(`
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
                endOfStayComplementAmount, endOfStayComplementPaidCash, endDate,
-               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount
-        FROM reservations WHERE kind = 'reservation' AND endDate >= ? AND endDate <= ?
+               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
+               r.propertyId, p.name AS propertyName
+        FROM reservations r JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
       `).all(yearStart, yearEnd);
       let yearToDate = 0;
       let yearTotal = 0;
@@ -237,8 +251,17 @@ function createFinanceModel(database) {
         const stayHt = htAmount(r, stay, vatRate);
         yearTotal += stay;
         yearTotalHt += stayHt;
-        if (r.endDate <= today) { yearToDate += stay; yearToDateHt += stayHt; }
+        if (r.endDate <= today) {
+          yearToDate += stay;
+          yearToDateHt += stayHt;
+          const agg = yearByProperty.get(r.propertyId)
+            || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0, revenueHt: 0 };
+          agg.revenue += stay;
+          agg.revenueHt += stayHt;
+          yearByProperty.set(r.propertyId, agg);
+        }
       }
+      const yearToDateByProperty = finalizeByProperty(yearByProperty);
 
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by endDate)
@@ -252,7 +275,8 @@ function createFinanceModel(database) {
         yearTotal:      round2(yearTotal),       // Σ total-séjour, full calendar year
         yearTotalHt:    round2(yearTotalHt),
         reservations:   enriched,
-        revenueByProperty,
+        revenueByProperty,      // period, per logement (+ revenueHt, zero-seeded)
+        yearToDateByProperty,   // Jan 1 → today, per logement (same shape)
       };
     },
 
