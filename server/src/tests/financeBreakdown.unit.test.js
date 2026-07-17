@@ -120,6 +120,21 @@ test('getBreakdown(totalPending): only PAST + non-settled; total === summary.tot
   assert.equal(bd.data.total, 300);
 });
 
+// specs/finance-pending-global-remaining.md — the totalPending breakdown is PERIOD-FREE (window
+// 'global') and each row carries its RESTANT DÛ, mirroring the reworked getSummary figure.
+test('getBreakdown(totalPending): ignores from/to (global window) + rows carry the restant dû', () => {
+  const { db, model } = freshModel();
+  // Finished before the requested window, partially paid: deposit 100 paid, balance 200 unpaid.
+  insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-40), endDate: iso(-35), depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 0 });
+  const summary = model.getSummary({ from: iso(-10), to: iso(10) });
+  const bd = model.getBreakdown({ metric: 'totalPending', from: iso(-10), to: iso(10) });
+  assert.equal(bd.data.window.kind, 'global');
+  assert.deepEqual(bd.data.rows.map((r) => r.id), [1], 'finished stay outside the period still listed');
+  assert.equal(bd.data.rows[0].amount, 200, 'row amount = restant dû, not the whole stay');
+  assert.equal(bd.data.total, summary.totalPending);
+  assert.equal(bd.data.total, 200);
+});
+
 test('getBreakdown(yearToDate / yearTotal): year window, total === summary figure (from/to ignored)', () => {
   const { db, model } = freshModel();
   const Y = new Date().getFullYear();

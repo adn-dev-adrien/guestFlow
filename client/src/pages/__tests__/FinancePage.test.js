@@ -96,8 +96,11 @@ describe('FinancePage — total-de-séjour overview', () => {
     // Year cards split into a main label + a smaller qualifier (like the period card).
     expect(screen.getByText("depuis le début de l'année")).toBeInTheDocument();
     expect(screen.getByText("sur l'année")).toBeInTheDocument();
-    // « sur la période » qualifies both the period revenue card and the pending card.
+    // « sur la période » qualifies the period revenue card.
     expect(screen.getAllByText('sur la période').length).toBeGreaterThan(0);
+    // specs/finance-pending-global-remaining.md — the pending card is period-free: its caption
+    // says « séjours terminés », never « sur la période ».
+    expect(screen.getByText('séjours terminés')).toBeInTheDocument();
     expect(screen.getAllByText('Revenu total').length).toBeGreaterThan(0); // year card 2 + period card
     // « Encaissé » / « En attente » also appear in the pie legend, hence getAllByText.
     expect(screen.getAllByText('Encaissé').length).toBeGreaterThan(0);

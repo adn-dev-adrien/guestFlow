@@ -50,9 +50,13 @@ Rounded to cents. This is the per-reservation value summed everywhere below.
 4. **Encaissé** — total actually collected over the period = **accounting sum** of every paid component
    (acompte + solde + complément + fin de séjour) marked paid, **excluding caisse interne** (so it equals
    what the compta export shows). By `endDate` in range.
-5. **En attente de règlement** — Σ totalSejour of reservations whose `endDate` is in the range **AND in the past**
-   (`endDate < today`) **AND not fully settled**. The whole stay total counts (not just the unpaid part).
-   Carries a « sur la période » qualifier like the « Revenu total » card.
+5. **En attente de règlement** — *(redefined 2026-07-17, specs/finance-pending-global-remaining.md)*
+   Σ **remainingToPay** of **ALL** reservations with `endDate < today` AND not fully settled — the
+   selected du/au range is **ignored** (a finished unpaid stay from a previous month still counts),
+   and only the still-owed part counts (a paid deposit sits in « Encaissé », never here). Equals the
+   operational « Paiements en attente » chip by construction. Caption « séjours terminés ».
+   (Previous rule — Σ totalSejour bounded to the period — let finished unpaid stays fall out of the
+   card when the window moved, and double-counted the already-paid part.)
 
 Each card also shows, in **smaller text under the TTC figure**, the matching **HT** amount (§3.7).
 

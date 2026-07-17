@@ -129,7 +129,7 @@ function htAmount(r, ttcPortion, vatRate) {
 const BREAKDOWN_METRICS = {
   revenueTotal:   { label: 'Revenu total sur la période',         column: 'Total de séjour', window: 'period' },
   totalCollected: { label: 'Encaissé',                            column: 'Encaissé',        window: 'period' },
-  totalPending:   { label: 'En attente de règlement',             column: 'En attente',      window: 'period' },
+  totalPending:   { label: 'En attente de règlement',             column: 'En attente',      window: 'global' },
   yearToDate:     { label: "Revenus depuis le début de l'année",  column: 'Total de séjour', window: 'year' },
   yearTotal:      { label: "Revenu total sur l'année",            column: 'Total de séjour', window: 'year' },
 };
@@ -149,8 +149,10 @@ function createFinanceModel(database) {
     // (which was unreadable when many reservations stacked up). Sorted descending by revenue.
     // specs/finance-overview-rework.md §3.2 — every revenue figure is Σ « total de séjour », a reservation
     // counted by its DEPARTURE date (endDate). The period uses the du/au range; two extra figures cover
-    // the calendar year (to-date + full). « Encaissé » = the accounting total (comptaCollected). « En
-    // attente » = Σ total-séjour of PAST (endDate < today) + non-settled reservations of the period.
+    // the calendar year (to-date + full). « Encaissé » = the accounting total (comptaCollected).
+    // specs/finance-pending-global-remaining.md — « En attente de règlement » is GLOBAL (every finished
+    // stay, period ignored) and counts the RESTANT DÛ (Σ remainingToPay), so it equals the operational
+    // « Paiements en attente » chip and never double-counts what « Encaissé » already holds.
     getSummary({ from, to } = {}) {
       const today = todayIso();
       const start = from || today;
@@ -171,10 +173,8 @@ function createFinanceModel(database) {
       const vatRate = getVatRate(database);
       let revenueTotal = 0;
       let totalCollected = 0;
-      let totalPending = 0;
       let revenueTotalHt = 0;
       let totalCollectedHt = 0;
-      let totalPendingHt = 0;
       const byProperty = new Map(); // propertyId → { propertyName, revenue }
 
       const enriched = reservations.map((r) => {
@@ -185,7 +185,6 @@ function createFinanceModel(database) {
         revenueTotalHt += htAmount(r, stay, vatRate);
         totalCollected += collected;
         totalCollectedHt += htAmount(r, collected, vatRate);
-        if (r.endDate < today && !settled) { totalPending += stay; totalPendingHt += htAmount(r, stay, vatRate); }
 
         const agg = byProperty.get(r.propertyId)
           || { propertyId: r.propertyId, propertyName: r.propertyName, revenue: 0 };
@@ -205,6 +204,22 @@ function createFinanceModel(database) {
       const revenueByProperty = Array.from(byProperty.values())
         .map((p) => ({ propertyId: p.propertyId, propertyName: p.propertyName, revenue: round2(p.revenue) }))
         .sort((a, b) => b.revenue - a.revenue);
+
+      // « En attente de règlement » — GLOBAL, period ignored (specs/finance-pending-global-remaining.md):
+      // every finished stay (endDate < today) not yet settled, counted for its RESTANT DÛ only
+      // (Σ remainingToPay, net of the unpaid échéances' commissions). Same predicate + amount as
+      // getOperational().pending, so the card always equals the operational tab's chip.
+      let totalPending = 0;
+      let totalPendingHt = 0;
+      const pastRows = database.prepare(`
+        SELECT * FROM reservations WHERE kind = 'reservation' AND endDate < ?
+      `).all(today);
+      for (const r of pastRows) {
+        if (isSettled(r)) continue;
+        const remaining = remainingToPay(r);
+        totalPending += remaining;
+        totalPendingHt += htAmount(r, remaining, vatRate);
+      }
 
       // Year cards (by endDate), independent of the selected period.
       const yearRows = database.prepare(`
@@ -230,7 +245,7 @@ function createFinanceModel(database) {
         revenueTotalHt: round2(revenueTotalHt), // …its element-by-element HT (tax excluded, ÷ vat)
         totalCollected: round2(totalCollected), // accounting total (encaissé)
         totalCollectedHt: round2(totalCollectedHt),
-        totalPending:   round2(totalPending),   // Σ total-séjour of past + non-settled
+        totalPending:   round2(totalPending),   // Σ remainingToPay of ALL past + non-settled (global)
         totalPendingHt: round2(totalPendingHt),
         yearToDate:     round2(yearToDate),      // Σ total-séjour, Jan 1 → today
         yearToDateHt:   round2(yearToDateHt),
@@ -263,7 +278,12 @@ function createFinanceModel(database) {
 
       let rows;
       let windowMeta;
-      if (def.window === 'period') {
+      if (def.window === 'global') {
+        // specs/finance-pending-global-remaining.md — « En attente de règlement » ignores the du/au
+        // range entirely: every finished stay up to yesterday. The received from/to are unused here.
+        rows = selectRows('0000-01-01', today);
+        windowMeta = { kind: 'global', to: today };
+      } else if (def.window === 'period') {
         const start = from || today;
         const end = to || '2099-12-31';
         rows = selectRows(start, end);
@@ -281,7 +301,8 @@ function createFinanceModel(database) {
       const contribution = (r) => {
         switch (metric) {
           case 'totalCollected': { const amount = comptaCollected(r); return { include: amount > 0, amount }; }
-          case 'totalPending':   return { include: r.endDate < today && !isSettled(r), amount: totalSejour(r) };
+          // Restant dû of every finished, non-settled stay (period-free — spec above).
+          case 'totalPending':   return { include: r.endDate < today && !isSettled(r), amount: remainingToPay(r) };
           case 'yearToDate':     return { include: r.endDate <= today, amount: totalSejour(r) };
           case 'revenueTotal':
           case 'yearTotal':

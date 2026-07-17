@@ -125,7 +125,8 @@ export default function FinancePage() {
   const periodCards = summary ? [
     { metric: 'revenueTotal', label: 'Revenu total', caption: 'sur la période', value: summary.revenueTotal, valueHt: summary.revenueTotalHt, accent: 'primary.main' },
     { metric: 'totalCollected', label: 'Encaissé', value: summary.totalCollected, valueHt: summary.totalCollectedHt, accent: 'success.main' },
-    { metric: 'totalPending', label: 'En attente de règlement', caption: 'sur la période', value: summary.totalPending, valueHt: summary.totalPendingHt, accent: 'warning.main' },
+    // specs/finance-pending-global-remaining.md — period-free figure (every finished stay's restant dû).
+    { metric: 'totalPending', label: 'En attente de règlement', caption: 'séjours terminés', value: summary.totalPending, valueHt: summary.totalPendingHt, accent: 'warning.main' },
   ] : [];
 
   const renderCard = (c, size) => (
