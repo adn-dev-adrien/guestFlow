@@ -45,9 +45,13 @@ export default function FinanceBreakdownDialog({ open, metric, from, to, onClose
 
   const windowLabel = data?.window?.kind === 'year'
     ? `${data.window.year}`
-    : data?.window
-      ? `du ${displayDate(data.window.from)} au ${displayDate(data.window.to)}`
-      : '';
+    // specs/finance-pending-global-remaining.md — « En attente de règlement » is period-free:
+    // every finished stay counts, whatever the du/au selection.
+    : data?.window?.kind === 'global'
+      ? 'séjours terminés (toutes périodes)'
+      : data?.window
+        ? `du ${displayDate(data.window.from)} au ${displayDate(data.window.to)}`
+        : '';
 
   const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider', fontVariantNumeric: 'tabular-nums' };
 
