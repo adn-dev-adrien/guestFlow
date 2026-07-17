@@ -147,10 +147,10 @@ function createFinanceModel(database) {
     // `revenueByProperty` (added 2026-06-02) aggregates per logement so the FinancePage's
     // overview chart can render "revenu par logement" instead of "revenu par réservation"
     // (which was unreadable when many reservations stacked up).
-    // specs/finance-per-property-revenue-cards.md — `revenueByProperty` (period) and
-    // `yearToDateByProperty` (Jan 1 → today) also feed the per-logement KPI cards: both carry a
+    // specs/finance-per-property-revenue-chart.md — `revenueByProperty` (period) and
+    // `yearToDateByProperty` (Jan 1 → today) are the two windows of that chart's tabs: both carry a
     // `revenueHt`, are seeded from the properties table (a logement with no reservation appears at
-    // 0 €), and are sorted revenue desc with ties broken by name.
+    // 0), and are sorted revenue desc with ties broken by name.
     // specs/finance-overview-rework.md §3.2 — every revenue figure is Σ « total de séjour », a reservation
     // counted by its DEPARTURE date (endDate). The period uses the du/au range; two extra figures cover
     // the calendar year (to-date + full). « Encaissé » = the accounting total (comptaCollected).
@@ -179,8 +179,8 @@ function createFinanceModel(database) {
       let totalCollected = 0;
       let revenueTotalHt = 0;
       let totalCollectedHt = 0;
-      // Both per-logement aggregates are seeded from the properties table so every logement gets a
-      // card, 0 € included (specs/finance-per-property-revenue-cards.md rule 4).
+      // Both per-logement aggregates are seeded from the properties table so every logement is in
+      // the payload, 0 included (specs/finance-per-property-revenue-chart.md rule 6).
       const emptyAgg = (p) => ({ propertyId: p.id, propertyName: p.name, revenue: 0, revenueHt: 0 });
       const allProperties = database.prepare('SELECT id, name FROM properties').all();
       const byProperty = new Map(allProperties.map((p) => [p.id, emptyAgg(p)]));

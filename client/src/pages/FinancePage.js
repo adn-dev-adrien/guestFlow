@@ -57,6 +57,8 @@ export default function FinancePage() {
   const [operational, setOperational] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [financeViewTab, setFinanceViewTab] = useState('overdue');
+  // specs/finance-per-property-revenue-chart.md — window of the « Revenu par logement » chart.
+  const [chartTab, setChartTab] = useState('period');
   // specs/finance-card-breakdown.md — the card whose breakdown dialog is open (null = closed).
   const [breakdownMetric, setBreakdownMetric] = useState(null);
 
@@ -104,9 +106,37 @@ export default function FinancePage() {
     { name: 'En attente', value: summary.totalPending, fill: theme.palette.warning.main },
   ] : [];
 
-  // revenueByProperty is zero-seeded server-side (per-logement cards) — the chart keeps only logements
-  // with actual revenue so the « Aucun revenu… » empty state still works.
-  const barData = summary?.revenueByProperty?.filter((p) => p.revenue > 0).map((p) => ({ name: p.propertyName, revenue: p.revenue })) || [];
+  // specs/finance-per-property-revenue-chart.md — the chart windows: « Sur la période » (du/au) or
+  // « Depuis le début de l'année » (Jan 1 → today). Both arrays are zero-seeded server-side, so keep
+  // only logements with actual revenue for the bars (the « Aucun revenu… » empty state relies on it).
+  const chartSource = chartTab === 'year' ? summary?.yearToDateByProperty : summary?.revenueByProperty;
+  const barData = chartSource?.filter((p) => p.revenue > 0).map((p) => ({ name: p.propertyName, revenue: p.revenue, revenueHt: p.revenueHt })) || [];
+
+  // Two-line in-bar label: TTC bold + its HT beneath, discreet (mirrors the KPI cards' HT sub-line).
+  // Short bars fall back to the TTC line alone so nothing overflows.
+  const renderBarLabel = ({ x, y, width, height, index }) => {
+    const d = barData[index];
+    if (!d) return null;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    if (height < 40) {
+      return (
+        <text x={cx} y={cy} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+          {formatCurrencyRounded(d.revenue)}
+        </text>
+      );
+    }
+    return (
+      <g>
+        <text x={cx} y={cy - 8} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+          {formatCurrencyRounded(d.revenue)}
+        </text>
+        <text x={cx} y={cy + 10} fill="rgba(255,255,255,0.75)" textAnchor="middle" dominantBaseline="central" fontSize={10}>
+          {formatCurrencyRounded(d.revenueHt)} HT
+        </text>
+      </g>
+    );
+  };
 
   const overduePayments = operational?.overdue.reservations || [];
   const overdueReservationsCount = operational?.overdue.count || 0;
@@ -130,46 +160,30 @@ export default function FinancePage() {
     // specs/finance-pending-global-remaining.md — period-free figure (every finished stay's restant dû).
     { metric: 'totalPending', label: 'En attente de règlement', caption: 'séjours terminés', value: summary.totalPending, valueHt: summary.totalPendingHt, accent: 'warning.main' },
   ] : [];
-  // specs/finance-per-property-revenue-cards.md — one compact card per logement, same basis as the
-  // matching global card (year-to-date / period), fully server-computed. No `metric` → not clickable.
-  const yearPropertyCards = summary?.yearToDateByProperty?.map((p) => ({
-    id: p.propertyId, label: p.propertyName, caption: "depuis le début de l'année", value: p.revenue, valueHt: p.revenueHt, accent: 'info.main',
-  })) || [];
-  const periodPropertyCards = summary?.revenueByProperty?.map((p) => ({
-    id: p.propertyId, label: p.propertyName, caption: 'sur la période', value: p.revenue, valueHt: p.revenueHt, accent: 'primary.main',
-  })) || [];
 
-  const renderCard = (c, size) => {
-    const clickable = Boolean(c.metric);
-    return (
-      <Grid key={c.metric || `p${c.id}`} size={size}>
-        <Card
-          {...(clickable && {
-            onClick: () => setBreakdownMetric(c.metric),
-            onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBreakdownMetric(c.metric); } },
-            role: 'button',
-            tabIndex: 0,
-            'aria-label': `Voir le détail : ${c.label}`,
-          })}
-          sx={{
-            height: '100%', borderLeft: '3px solid', borderColor: c.accent,
-            ...(clickable && { cursor: 'pointer', transition: 'transform .1s, box-shadow .1s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }),
-          }}
-        >
-          <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>
-              {c.label}
-              {c.caption && <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
-            </Typography>
-            <Typography variant="kpiValue" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', my: 1 }}>{formatCurrencyRounded(c.value)}</Typography>
-            {c.valueHt != null && (
-              <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', ...TABULAR }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
-            )}
-          </CardContent>
-        </Card>
-      </Grid>
-    );
-  };
+  const renderCard = (c, size) => (
+    <Grid key={c.label} size={size}>
+      <Card
+        onClick={() => setBreakdownMetric(c.metric)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBreakdownMetric(c.metric); } }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Voir le détail : ${c.label}`}
+        sx={{ height: '100%', cursor: 'pointer', borderLeft: '3px solid', borderColor: c.accent, transition: 'transform .1s, box-shadow .1s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }}
+      >
+        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', py: 1.5, '&:last-child': { pb: 1.5 } }}>
+          <Typography variant="kpiLabel" sx={{ color: 'text.secondary' }}>
+            {c.label}
+            {c.caption && <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 400 }}>{c.caption}</Typography>}
+          </Typography>
+          <Typography variant="kpiValue" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', my: 1 }}>{formatCurrencyRounded(c.value)}</Typography>
+          {c.valueHt != null && (
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', ...TABULAR }}>{formatCurrencyRounded(c.valueHt)} HT</Typography>
+          )}
+        </CardContent>
+      </Card>
+    </Grid>
+  );
 
   const footerCellSx = { fontWeight: 700, borderTop: '2px solid', borderTopColor: 'divider', ...TABULAR };
 
@@ -262,12 +276,6 @@ export default function FinancePage() {
             {yearCards.map((c) => renderCard(c, { xs: 12, sm: 6 }))}
           </Grid>
         )}
-        {/* Row 1b — year-to-date per logement (specs/finance-per-property-revenue-cards.md). */}
-        {summary && yearPropertyCards.length > 0 && (
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            {yearPropertyCards.map((c) => renderCard(c, { xs: 6, sm: 4, md: 3 }))}
-          </Grid>
-        )}
         {/* Period selector — drives the period cards + charts below it. */}
         <Card sx={{ mb: 2 }}>
           <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -277,14 +285,8 @@ export default function FinancePage() {
         </Card>
         {/* Row 2 — period cards (depend on the du/au range). */}
         {summary && (
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            {periodCards.map((c) => renderCard(c, { xs: 12, sm: 4 }))}
-          </Grid>
-        )}
-        {/* Row 2b — period revenue per logement (specs/finance-per-property-revenue-cards.md). */}
-        {summary && periodPropertyCards.length > 0 && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            {periodPropertyCards.map((c) => renderCard(c, { xs: 6, sm: 4, md: 3 }))}
+            {periodCards.map((c) => renderCard(c, { xs: 12, sm: 4 }))}
           </Grid>
         )}
         {/* Charts */}
@@ -292,13 +294,22 @@ export default function FinancePage() {
           <Grid size={{ xs: 12, md: 7 }}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
-                <Typography variant="sectionHeader">Revenus par logement</Typography>
+                <Typography variant="sectionHeader">Revenu par logement</Typography>
+                <Tabs value={chartTab} onChange={(_, nextTab) => setChartTab(nextTab)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 1 }}>
+                  <Tab value="period" label="Sur la période" />
+                  <Tab value="year" label="Depuis le début de l'année" />
+                </Tabs>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  Période du {displayDate(from)} au {displayDate(to)}
+                  {chartTab === 'period'
+                    ? `Période du ${displayDate(from)} au ${displayDate(to)} · montants TTC`
+                    : "Du 1er janvier à aujourd'hui · montants TTC"}
                 </Typography>
                 {barData.length === 0 ? (
                   <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <EmptyState message="Aucun revenu sur la période sélectionnée." py={2} />
+                    <EmptyState
+                      message={chartTab === 'period' ? 'Aucun revenu sur la période sélectionnée.' : "Aucun revenu depuis le début de l'année."}
+                      py={2}
+                    />
                   </Box>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
@@ -306,9 +317,9 @@ export default function FinancePage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis />
-                      <RechartsTooltip formatter={(value) => formatCurrencyRounded(value)} />
+                      <RechartsTooltip formatter={(value, name, item) => `${formatCurrencyRounded(value)} (${formatCurrencyRounded(item?.payload?.revenueHt || 0)} HT)`} />
                       <Bar dataKey="revenue" fill={theme.palette.primary.main} name="Total de séjour" radius={[4, 4, 0, 0]}>
-                        <LabelList dataKey="revenue" position="center" formatter={(value) => formatCurrencyRounded(value)} fill="#fff" fontSize={12} fontWeight={600} />
+                        <LabelList dataKey="revenue" content={renderBarLabel} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>

@@ -60,9 +60,9 @@ Rounded to cents. This is the per-reservation value summed everywhere below.
 
 Each card also shows, in **smaller text under the TTC figure**, the matching **HT** amount (§3.7).
 
-> **Per-logement cards (2026-07-18):** cards 1 and 3 are also declined per property — a row of compact
-> per-logement cards under the annual row (year-to-date basis) and under the period row (period basis).
-> See specs/finance-per-property-revenue-cards.md.
+> **Per-logement chart tabs (2026-07-18):** the « Revenu par logement » chart declines cards 1 and 3
+> per property via two tabs — « Sur la période » and « Depuis le début de l'année » — with TTC + HT
+> on each bar. See specs/finance-per-property-revenue-chart.md.
 
 ### 3.3 « Settled » definition (drives En attente + operational)
 A reservation is **settled** when every applicable component is paid **or** marked caisse interne:

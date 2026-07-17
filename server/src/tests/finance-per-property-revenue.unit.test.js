@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-// specs/finance-per-property-revenue-cards.md — per-logement KPI cards: `yearToDateByProperty`
+// specs/finance-per-property-revenue-chart.md — per-logement chart windows: `yearToDateByProperty`
 // (Σ total de séjour, Jan 1 → today, filtered by property) plus `revenueByProperty` enriched with
 // `revenueHt`. Both are seeded from the properties table (a logement with no reservation appears at
-// 0 €) and sorted revenue desc, ties broken by name.
+// 0 in the payload) and sorted revenue desc, ties broken by name.
 const financeModel = require('../models/financeModel');
 
 const DDL = `

@@ -43,7 +43,7 @@ const SUMMARY = {
   totalPendingHt: 270,
   yearToDateHt: 3780,
   yearTotalHt: 7200,
-  // specs/finance-per-property-revenue-cards.md — both per-logement arrays are zero-seeded and carry
+  // specs/finance-per-property-revenue-chart.md — both per-logement arrays are zero-seeded and carry
   // an HT; the splits sum to the matching global figures (period 1500 = 1500 + 0, ytd 4200 = 2700 + 1500).
   revenueByProperty: [
     { propertyId: 1, propertyName: 'Gîte', revenue: 1500, revenueHt: 1350 },
@@ -102,9 +102,9 @@ describe('FinancePage — total-de-séjour overview', () => {
   test('renders the 5 top cards, year cards first', async () => {
     renderPage();
     await screen.findByText('Revenus');
-    // Year cards split into a main label + a smaller qualifier (like the period card); the caption
-    // also appears on each per-logement year card, hence getAllByText.
-    expect(screen.getAllByText("depuis le début de l'année").length).toBeGreaterThan(0);
+    // Year cards split into a main label + a smaller qualifier (like the period card). The chart tab
+    // label « Depuis le début de l'année » is capitalized, so this lowercase caption stays unique.
+    expect(screen.getByText("depuis le début de l'année")).toBeInTheDocument();
     expect(screen.getByText("sur l'année")).toBeInTheDocument();
     // « sur la période » qualifies the period revenue card.
     expect(screen.getAllByText('sur la période').length).toBeGreaterThan(0);
@@ -125,8 +125,7 @@ describe('FinancePage — total-de-séjour overview', () => {
     renderPage();
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
-    // « Tente » also labels per-logement cards, so target the row via the (unique) client name.
-    const cell = await screen.findByText('Marie Martin');
+    const cell = await screen.findByText('Tente');
     fireEvent.click(cell);
     expect(navigateSpy).toHaveBeenCalledWith('/reservations/42');
   });
@@ -165,12 +164,11 @@ describe('FinancePage — total-de-séjour overview', () => {
     expect(await screen.findByText(/En attente de paiement : 620,00\s*€/)).toBeInTheDocument();
     // the reservation row + no end-of-stay column header + no « Tout solder » action (read-only)
     expect(await screen.findByText('Léa Roux')).toBeInTheDocument();
-    // « Gîte » also labels the per-logement cards, hence getAllByText for the row cell.
-    expect(screen.getAllByText('Gîte').length).toBeGreaterThan(0);
+    expect(screen.getByText('Gîte')).toBeInTheDocument();
     expect(screen.queryByText('Compl. fin de séjour')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Tout solder')).not.toBeInTheDocument();
-    // a row click navigates to the fiche (target the row via the unique client name)
-    fireEvent.click(screen.getByText('Léa Roux'));
+    // a row click navigates to the fiche
+    fireEvent.click(screen.getByText('Gîte'));
     expect(navigateSpy).toHaveBeenCalledWith('/reservations/9');
     // the table is fed by the operational payload alone (no per-reservation detail fetch)
     expect(api.getReservation).not.toHaveBeenCalled();
@@ -179,29 +177,26 @@ describe('FinancePage — total-de-séjour overview', () => {
   test('period tab shows a « Période du … au … » chip above the table', async () => {
     renderPage();
     await screen.findByText('Revenus');
-    // The « Revenus par logement » chart caption already carries one « Période du … au … »; switching
+    // The « Revenu par logement » chart caption already carries one « Période du … au … »; switching
     // to the period tab adds the chip, so a second occurrence appears.
     const before = screen.getAllByText(/Période du .+ au .+/).length;
     fireEvent.click(screen.getByRole('tab', { name: 'Réservations période' }));
     await waitFor(() => expect(screen.getAllByText(/Période du .+ au .+/).length).toBe(before + 1));
   });
 
-  test('per-logement cards render under the year and period rows, 0 € included, not clickable', async () => {
-    // specs/finance-per-property-revenue-cards.md — one card per logement below the annual cards
-    // (year-to-date basis) and below the period cards (period basis), zero-revenue shown at 0 €.
+  test('« Revenu par logement » chart offers period/year tabs with a TTC caption', async () => {
+    // specs/finance-per-property-revenue-chart.md — same per-logement bars over two windows: the
+    // du/au period (default tab) and the year-to-date (Jan 1 → today). Amounts are TTC (caption).
     renderPage();
     await screen.findByText('Revenus');
-    // Captions: 1 global card + 2 per-logement cards on each row.
-    expect(screen.getAllByText("depuis le début de l'année").length).toBe(3);
-    expect(screen.getAllByText('sur la période').length).toBe(3);
-    // Gîte year-to-date (TTC + HT) and the zero-revenue Tente period card.
-    expect(screen.getByText('2 700 €')).toBeInTheDocument();
-    expect(screen.getByText('2 430 € HT')).toBeInTheDocument();
-    expect(screen.getByText('0 €')).toBeInTheDocument();
-    expect(screen.getByText('0 € HT')).toBeInTheDocument();
-    // Only the 5 global cards open the breakdown — per-logement cards are static.
-    expect(screen.getAllByRole('button', { name: /Voir le détail/ }).length).toBe(5);
-    expect(screen.queryByRole('button', { name: 'Voir le détail : Gîte' })).not.toBeInTheDocument();
+    expect(screen.getByText('Revenu par logement')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Sur la période' })).toBeInTheDocument();
+    // Default window: the du/au period, with its TTC caption.
+    expect(screen.getByText(/Période du .+ au .+ · montants TTC/)).toBeInTheDocument();
+    // Switch to the year-to-date window.
+    fireEvent.click(screen.getByRole('tab', { name: "Depuis le début de l'année" }));
+    expect(screen.getByText("Du 1er janvier à aujourd'hui · montants TTC")).toBeInTheDocument();
+    expect(screen.queryByText(/Période du .+ au .+ · montants TTC/)).not.toBeInTheDocument();
   });
 
   test('each card shows its element-by-element HT in smaller text', async () => {
@@ -209,15 +204,14 @@ describe('FinancePage — total-de-séjour overview', () => {
     await screen.findByText('Revenus');
     expect(screen.getByText('3 780 € HT')).toBeInTheDocument(); // yearToDateHt
     expect(screen.getByText('7 200 € HT')).toBeInTheDocument(); // yearTotalHt
-    // revenueTotalHt — the same amount also sits on per-logement cards (Gîte période, Tente année).
-    expect(screen.getAllByText('1 350 € HT').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 350 € HT')).toBeInTheDocument(); // revenueTotalHt
   });
 
   test('the pending table foots its columns (server-computed totals)', async () => {
     renderPage();
     await screen.findByText('Revenus');
     fireEvent.click(screen.getByRole('tab', { name: 'Paiements en attente' }));
-    await screen.findByText('Marie Martin');
+    await screen.findByText('Tente');
     // Post-sweep the whole table (rows + footer) formats via formatCurrency, so the column totals
     // render as « 100,00 € » / « 200,00 € » — appearing in both the row and the footer.
     expect(screen.getAllByText('100,00 €').length).toBeGreaterThanOrEqual(1); // Σ acompte (footer + row)

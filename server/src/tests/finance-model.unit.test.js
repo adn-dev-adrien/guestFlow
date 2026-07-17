@@ -297,8 +297,8 @@ test('getSummary: yearToDate (Jan 1 → today) + yearTotal (full year), by endDa
 });
 
 test('getSummary: empty range → revenueByProperty seeded at 0 € for every logement (no crash)', () => {
-  // specs/finance-per-property-revenue-cards.md rule 4 — the per-logement aggregates are seeded from
-  // the properties table so a logement with no reservation still gets its card.
+  // specs/finance-per-property-revenue-chart.md rule 6 — the per-logement aggregates are seeded from
+  // the properties table so a logement with no reservation stays in the payload at 0.
   const { model } = freshModel();
   assert.deepEqual(model.getSummary({ from: iso(0), to: iso(10) }).revenueByProperty, [
     { propertyId: 1, propertyName: 'Gite', revenue: 0, revenueHt: 0 },
