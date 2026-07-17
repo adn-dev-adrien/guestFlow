@@ -6,7 +6,7 @@
 | **Branch** | `fix/finance-pending-global-remaining` |
 | **Created** | 2026-07-17 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#340](https://github.com/adn-dev-adrien/guestFlow/pull/340) |
 | **Amends** | [finance-overview-rework.md](finance-overview-rework.md) §3.2 item 5 |
 
 ---
