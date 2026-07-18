@@ -8,6 +8,9 @@
 | **Author** | Adrien |
 | **Touches** | `utils/breakfastSeed.js`, `models/breakfastModel.js`, `models/planningOptionCardsModel.js`, `components/reservation/ExtrasSection.js`, `database.js` (one-time migration) |
 
+> **Extended by [[sas-breakfast-milk-and-food]] (2026-07-18):** planning breakfast items also
+> carry `milk`, `pastries`, `cereals`, rendered as extra chips on the planning card.
+
 ---
 
 ## 1. Context

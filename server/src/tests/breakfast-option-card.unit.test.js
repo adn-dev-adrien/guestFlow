@@ -16,7 +16,9 @@ const DDL = `
     propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT,
     adults INTEGER DEFAULT 0, teens INTEGER DEFAULT 0, children INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
     breakfastTime TEXT, breakfastCoffee INTEGER DEFAULT 0, breakfastTea INTEGER DEFAULT 0,
-    breakfastChocolate INTEGER DEFAULT 0, breakfastNote TEXT, icalOriginalSummary TEXT
+    breakfastChocolate INTEGER DEFAULT 0, breakfastMilk INTEGER DEFAULT 0,
+    breakfastPastries INTEGER DEFAULT 0, breakfastCereals INTEGER DEFAULT 0,
+    breakfastNote TEXT, icalOriginalSummary TEXT
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);

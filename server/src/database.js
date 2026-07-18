@@ -1580,6 +1580,11 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   if (!rcols.includes('breakfastTea')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastTea INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('breakfastChocolate')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastChocolate INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('breakfastNote')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastNote TEXT");
+  // 2026-07-18 — milk drink + food counters (specs/sas-breakfast-milk-and-food.md): a 4th hot-drink
+  // count and the number of pastries / cereal bowls to put on the tray.
+  if (!rcols.includes('breakfastMilk')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastMilk INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('breakfastPastries')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastPastries INTEGER NOT NULL DEFAULT 0");
+  if (!rcols.includes('breakfastCereals')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastCereals INTEGER NOT NULL DEFAULT 0");
   // Handover note authored at the end of the arrival SAS, shown read-only in the departure SAS and on
   // the departure planning card. Dedicated column — kept separate from reservations.notes.
   if (!rcols.includes('departureHandoverNote')) db.exec("ALTER TABLE reservations ADD COLUMN departureHandoverNote TEXT");

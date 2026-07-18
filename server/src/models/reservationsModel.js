@@ -1105,11 +1105,12 @@ function createReservationsModel(database) {
 
     commitArrivalSas(reservationId, {
       cautionReceived, complementItems = [],
-      breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
+      breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
+      breakfastPastries, breakfastCereals, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
     } = {}) {
-      // Clamp drink counts to non-negative integers (authoritative server-side validation).
+      // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
@@ -1125,12 +1126,16 @@ function createReservationsModel(database) {
           database.prepare('UPDATE reservations SET breakfastTime = ? WHERE id = ?').run(value, reservationId);
         }
         database.prepare(`UPDATE reservations SET
-            breakfastCoffee = ?, breakfastTea = ?, breakfastChocolate = ?, breakfastNote = ?,
+            breakfastCoffee = ?, breakfastTea = ?, breakfastChocolate = ?, breakfastMilk = ?,
+            breakfastPastries = ?, breakfastCereals = ?, breakfastNote = ?,
             updatedAt = datetime('now') WHERE id = ?`)
           .run(
             clampCount(breakfastCoffee) || 0,
             clampCount(breakfastTea) || 0,
             clampCount(breakfastChocolate) || 0,
+            clampCount(breakfastMilk) || 0,
+            clampCount(breakfastPastries) || 0,
+            clampCount(breakfastCereals) || 0,
             (breakfastNote && String(breakfastNote).trim()) || null,
             reservationId,
           );

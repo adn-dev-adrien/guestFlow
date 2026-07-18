@@ -28,6 +28,9 @@ const DDL = `
     breakfastCoffee INTEGER NOT NULL DEFAULT 0,
     breakfastTea INTEGER NOT NULL DEFAULT 0,
     breakfastChocolate INTEGER NOT NULL DEFAULT 0,
+    breakfastMilk INTEGER NOT NULL DEFAULT 0,
+    breakfastPastries INTEGER NOT NULL DEFAULT 0,
+    breakfastCereals INTEGER NOT NULL DEFAULT 0,
     breakfastNote TEXT
   );
   CREATE TABLE clients (
@@ -292,18 +295,21 @@ test('breakfast time: same-day items are sorted by time ascending', () => {
 
 // ---- breakfast composition (specs/sas-breakfast-and-handover-note.md) ----
 
-test('items carry coffee/tea/chocolate/note from the reservation (clamped, trimmed)', () => {
+test('items carry coffee/tea/chocolate/milk/pastries/cereals/note from the reservation (clamped, trimmed)', () => {
   const db = freshDb();
   insertProperty(db, 10, 'Gîte');
   insertClient(db, 100, 'Jean', 'Dupont');
   insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-10', adults: 2 });
   linkOption(db, 1, 1, 1.0);
-  db.prepare("UPDATE reservations SET breakfastCoffee = 2, breakfastTea = 0, breakfastChocolate = 1, breakfastNote = '  sans gluten  ' WHERE id = 1").run();
+  db.prepare("UPDATE reservations SET breakfastCoffee = 2, breakfastTea = 0, breakfastChocolate = 1, breakfastMilk = 1, breakfastPastries = 3, breakfastCereals = 1, breakfastNote = '  sans gluten  ' WHERE id = 1").run();
 
   const item = buildModel(db).breakfastByDate({ from: '2026-06-09', to: '2026-06-15' })['2026-06-10'].items[0];
   assert.equal(item.coffee, 2);
   assert.equal(item.tea, 0);
   assert.equal(item.chocolate, 1);
+  assert.equal(item.milk, 1);
+  assert.equal(item.pastries, 3);
+  assert.equal(item.cereals, 1);
   assert.equal(item.note, 'sans gluten');
 });
 
@@ -313,7 +319,7 @@ test('getForReservation: applicable via explicit option → persons + resolved t
   insertClient(db, 100, 'Jean', 'Dupont');
   insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-12', adults: 2, children: 1, babies: 1, breakfastTime: '09:30' });
   linkOption(db, 1, 1, 1.0);
-  db.prepare('UPDATE reservations SET breakfastCoffee = 3, breakfastChocolate = 1 WHERE id = 1').run();
+  db.prepare('UPDATE reservations SET breakfastCoffee = 3, breakfastChocolate = 1, breakfastMilk = 2, breakfastPastries = 4, breakfastCereals = 1 WHERE id = 1').run();
 
   const r = buildModel(db).getForReservation(1);
   assert.equal(r.applicable, true);
@@ -322,6 +328,9 @@ test('getForReservation: applicable via explicit option → persons + resolved t
   assert.equal(r.coffee, 3);
   assert.equal(r.tea, 0);
   assert.equal(r.chocolate, 1);
+  assert.equal(r.milk, 2);
+  assert.equal(r.pastries, 4);
+  assert.equal(r.cereals, 1);
 });
 
 test('getForReservation: applicable via property default (no explicit row) → time falls back to option default', () => {

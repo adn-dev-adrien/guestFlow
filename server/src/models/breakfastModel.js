@@ -91,6 +91,9 @@ function buildModel(database) {
       res.breakfastCoffee AS coffee,
       res.breakfastTea AS tea,
       res.breakfastChocolate AS chocolate,
+      res.breakfastMilk AS milk,
+      res.breakfastPastries AS pastries,
+      res.breakfastCereals AS cereals,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum
       ${occSelect}
@@ -141,6 +144,9 @@ function buildModel(database) {
       res.breakfastCoffee AS coffee,
       res.breakfastTea AS tea,
       res.breakfastChocolate AS chocolate,
+      res.breakfastMilk AS milk,
+      res.breakfastPastries AS pastries,
+      res.breakfastCereals AS cereals,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum
       ${occSelect}
@@ -188,7 +194,7 @@ function buildModel(database) {
   return {
     /**
      * Breakfast state for the arrival SAS breakfast page. Returns
-     * `{ applicable, persons, time, coffee, tea, chocolate, note }`.
+     * `{ applicable, persons, time, coffee, tea, chocolate, milk, pastries, cereals, note }`.
      * `applicable` is false when the reservation has no breakfast option (explicit or via property
      * default) — the SAS then skips the breakfast page. `persons` is the same resolved morning count
      * shown on the planning card; `time` is the effective hour (reservation override → option default
@@ -196,7 +202,7 @@ function buildModel(database) {
      */
     getForReservation(reservationId) {
       const r = forReservationStmt.get(Number(reservationId));
-      if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, note: '' };
+      if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, note: '' };
       const personsBase = (Number(r.adults) || 0) + (Number(r.teens) || 0) + (Number(r.children) || 0);
       const persons = Math.max(0, Math.round(personsBase * (Number(r.qtySum) || 0)));
       // Hour: the first selected occurrence wins (specs/breakfast-option-planning-card.md §6), else the
@@ -211,6 +217,9 @@ function buildModel(database) {
         coffee: Math.max(0, Number(r.coffee) || 0),
         tea: Math.max(0, Number(r.tea) || 0),
         chocolate: Math.max(0, Number(r.chocolate) || 0),
+        milk: Math.max(0, Number(r.milk) || 0),
+        pastries: Math.max(0, Number(r.pastries) || 0),
+        cereals: Math.max(0, Number(r.cereals) || 0),
         note: (r.note && String(r.note).trim()) || '',
       };
     },
@@ -256,6 +265,9 @@ function buildModel(database) {
             coffee: Math.max(0, Number(r.coffee) || 0),
             tea: Math.max(0, Number(r.tea) || 0),
             chocolate: Math.max(0, Number(r.chocolate) || 0),
+            milk: Math.max(0, Number(r.milk) || 0),
+            pastries: Math.max(0, Number(r.pastries) || 0),
+            cereals: Math.max(0, Number(r.cereals) || 0),
             note: (r.note && String(r.note).trim()) || '',
           });
           result[date].totalPersons += persons;

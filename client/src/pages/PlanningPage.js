@@ -811,10 +811,12 @@ export default function PlanningPage() {
                 onEditManual={setEditManualDate}
               />
 
-              {/* Breakfast card (specs/breakfast-option-planning-card.md): now rendered through the
-                  shared OptionDayCard in the « breakfast » theme (amber) so it matches the other option
-                  cards — title + time pill, property, person + the morning headcount + café/thé/chocolat
-                  — with the « fait » circle. Driven by the breakfast option's selected occurrences. */}
+              {/* Breakfast card (specs/breakfast-option-planning-card.md +
+                  sas-breakfast-milk-and-food.md): now rendered through the shared OptionDayCard in
+                  the « breakfast » theme (amber) so it matches the other option cards — title + time
+                  pill, property, person + the morning headcount + café/thé/chocolat/lait +
+                  viennoiseries/céréales — with the « fait » circle. Driven by the breakfast option's
+                  selected occurrences. */}
               <OptionDayCard
                 theme="breakfast"
                 data={breakfastByDate[date] ? {
@@ -831,6 +833,9 @@ export default function PlanningPage() {
                     coffee: i.coffee,
                     tea: i.tea,
                     chocolate: i.chocolate,
+                    milk: i.milk,
+                    pastries: i.pastries,
+                    cereals: i.cereals,
                     note: i.note,
                   })),
                 } : null}

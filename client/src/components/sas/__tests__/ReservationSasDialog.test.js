@@ -228,16 +228,19 @@ test('arrival SAS recap: the tourist tax collected at arrival is itemised as a �
   })();
 });
 
-// ---- breakfast page (specs/sas-breakfast-and-handover-note.md) ----
+// ---- breakfast page (specs/sas-breakfast-and-handover-note.md + sas-breakfast-milk-and-food.md) ----
 
 function breakfastPayload(over = {}) {
   return sasPayload({
     reservation: { cautionAmount: 0, ...(over.reservation || {}) }, // no caution page
     cleaning: { included: true, price: null },                      // cleaning = simple Suivant
-    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 0, tea: 0, chocolate: 0, note: '' },
+    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, note: '' },
     ...over,
   });
 }
+
+// Stepper « + » buttons, in render order: café, thé, chocolat, lait, viennoiseries, céréales.
+const PLUS = { coffee: 0, tea: 1, chocolate: 2, milk: 3, pastries: 4, cereals: 5 };
 
 test('arrival SAS: breakfast page hidden when not applicable', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({ reservation: { cautionReceived: 1 }, cleaning: { included: true, price: null } }));
@@ -256,13 +259,13 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
   await screen.findByText('Commencer');
   clickBtn('Commencer');
 
-  // breakfast page (persons 2)
+  // breakfast page (persons 2): drinks 1 ≠ 2 AND food 0 ≠ 2 → combined plural message
   await screen.findByText('Petit déjeuner');
-  fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]); // café → 1 (total 1 ≠ 2 persons)
+  fireEvent.click(screen.getAllByRole('button', { name: '+' })[PLUS.coffee]); // café → 1
   clickBtn('Suivant');
 
-  // coherence warning confirm
-  await screen.findByText(/ne correspond pas au nombre de personnes/);
+  // coherence warning confirm (both categories named)
+  await screen.findByText(/Le nombre de boissons \(1\) et le nombre d'aliments \(0\) ne correspondent pas au nombre de personnes \(2\)/);
   clickBtn('Continuer');
 
   // cleaning included is hidden → « Continuer » lands directly on the recap. findByRole retries until the
@@ -277,23 +280,53 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
   expect(arg.breakfastCoffee).toBe(1);
   expect(arg.breakfastTea).toBe(0);
   expect(arg.breakfastChocolate).toBe(0);
+  expect(arg.breakfastMilk).toBe(0);
+  expect(arg.breakfastPastries).toBe(0);
+  expect(arg.breakfastCereals).toBe(0);
   expect(arg.breakfastTime).toBe('09:00');
   expect(arg.departureHandoverNote).toBe('clé sous le pot');
 });
 
-test('arrival SAS: breakfast total matching persons advances with NO confirm', async () => {
+test('arrival SAS: milk and food counts reach the payload; food-only mismatch names only aliments', async () => {
   api.getReservationSas.mockResolvedValue(breakfastPayload());
   renderDialog({ mode: 'arrival' });
   await screen.findByText('Commencer');
   clickBtn('Commencer');
   await screen.findByText('Petit déjeuner');
   const plus = screen.getAllByRole('button', { name: '+' });
-  fireEvent.click(plus[0]); // café 1
-  fireEvent.click(plus[1]); // thé 1 → total 2 = persons 2
+  fireEvent.click(plus[PLUS.coffee]);   // café 1
+  fireEvent.click(plus[PLUS.milk]);     // lait 1 → drinks 2 = persons ✓
+  fireEvent.click(plus[PLUS.pastries]); // viennoiseries 1 → food 1 ≠ 2
+  clickBtn('Suivant');
+
+  // food-only mismatch → singular message, drinks not named
+  await screen.findByText(/Le nombre d'aliments \(1\) ne correspond pas au nombre de personnes \(2\)/);
+  clickBtn('Continuer');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.breakfastMilk).toBe(1);
+  expect(arg.breakfastPastries).toBe(1);
+  expect(arg.breakfastCereals).toBe(0);
+});
+
+test('arrival SAS: drinks AND food totals matching persons advance with NO confirm', async () => {
+  api.getReservationSas.mockResolvedValue(breakfastPayload());
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Petit déjeuner');
+  const plus = screen.getAllByRole('button', { name: '+' });
+  fireEvent.click(plus[PLUS.coffee]);   // café 1
+  fireEvent.click(plus[PLUS.tea]);      // thé 1 → drinks 2 = persons 2
+  fireEvent.click(plus[PLUS.pastries]); // viennoiseries 1
+  fireEvent.click(plus[PLUS.cereals]);  // céréales 1 → food 2 = persons 2
   clickBtn('Suivant');
   // no confirm — straight to recap (cleaning included is hidden)
   await screen.findByText('Récapitulatif — complément à percevoir');
-  expect(screen.queryByText(/ne correspond pas au nombre de personnes/)).toBeNull();
+  expect(screen.queryByText(/ne correspond(ent)? pas au nombre de personnes/)).toBeNull();
 });
 
 test('departure SAS: shows the read-only handover note left at arrival', async () => {

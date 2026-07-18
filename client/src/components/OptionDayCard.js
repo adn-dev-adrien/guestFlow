@@ -4,14 +4,15 @@
  * Renders ONE card per selected occurrence, in the arrival/departure layout (a « fait » circle, the
  * option title with the time in a pill, the property, then a person line). Themable so the breakfast
  * option reuses the EXACT same look while keeping its amber background + breakfast extras
- * (specs/breakfast-option-planning-card.md): the morning headcount + café/thé/chocolat + note.
+ * (specs/breakfast-option-planning-card.md + sas-breakfast-milk-and-food.md): the morning
+ * headcount + café/thé/chocolat/lait + viennoiseries/céréales + note.
  *
  * Returns `null` when `data` is missing or carries no items.
  *
  * Props:
  *   data — { items: [{ reservationId, optionId, title, clientName, propertyName, date, time, done,
  *            adults?, children?, teens?, babies?,          // generic option family chips
- *            breakfastPersons?, coffee?, tea?, chocolate?, note? }] }   // breakfast extras
+ *            breakfastPersons?, coffee?, tea?, chocolate?, milk?, pastries?, cereals?, note? }] }   // breakfast extras
  *   onItemClick   — `(reservationId) => void`. The detail block is clickable → fiche.
  *   onToggleDone  — `(item, nextDone) => void`. Fired when the circle is ticked.
  *   theme         — 'option' (default, deep-purple) | 'breakfast' (amber).
@@ -30,6 +31,8 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
+import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
+import RiceBowlIcon from '@mui/icons-material/RiceBowl';
 
 const THEMES = {
   option: { bg: deepPurple[50], border: deepPurple[100], accent: deepPurple[700], Icon: EventNoteIcon },
@@ -54,6 +57,11 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
     { key: 'coffee', icon: <LocalCafeIcon sx={{ fontSize: 16 }} />, label: 'Café', n: Number(item.coffee) || 0 },
     { key: 'tea', icon: <EmojiFoodBeverageIcon sx={{ fontSize: 16 }} />, label: 'Thé', n: Number(item.tea) || 0 },
     { key: 'chocolate', icon: <FreeBreakfastIcon sx={{ fontSize: 16 }} />, label: 'Chocolat', n: Number(item.chocolate) || 0 },
+    { key: 'milk', icon: <LocalDrinkIcon sx={{ fontSize: 16 }} />, label: 'Lait', n: Number(item.milk) || 0 },
+  ].filter((d) => d.n > 0);
+  const food = [
+    { key: 'pastries', icon: <BakeryDiningIcon sx={{ fontSize: 16 }} />, label: 'Viennoiseries', n: Number(item.pastries) || 0 },
+    { key: 'cereals', icon: <RiceBowlIcon sx={{ fontSize: 16 }} />, label: 'Céréales', n: Number(item.cereals) || 0 },
   ].filter((d) => d.n > 0);
   return (
     <Card
@@ -140,6 +148,14 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
           {drinks.length > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
               {drinks.map((d) => (
+                <Chip key={d.key} size="small" variant="outlined" icon={d.icon} label={`${d.label} ${d.n}`}
+                  sx={{ height: 22, fontWeight: 600, bgcolor: 'rgba(255,255,255,0.6)' }} />
+              ))}
+            </Box>
+          )}
+          {food.length > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+              {food.map((d) => (
                 <Chip key={d.key} size="small" variant="outlined" icon={d.icon} label={`${d.label} ${d.n}`}
                   sx={{ height: 22, fontWeight: 600, bgcolor: 'rgba(255,255,255,0.6)' }} />
               ))}
