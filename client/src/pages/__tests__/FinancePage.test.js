@@ -43,7 +43,16 @@ const SUMMARY = {
   totalPendingHt: 270,
   yearToDateHt: 3780,
   yearTotalHt: 7200,
-  revenueByProperty: [{ propertyId: 1, propertyName: 'Gîte', revenue: 1500 }],
+  // specs/finance-per-property-revenue-chart.md — both per-logement arrays are zero-seeded and carry
+  // an HT; the splits sum to the matching global figures (period 1500 = 1500 + 0, ytd 4200 = 2700 + 1500).
+  revenueByProperty: [
+    { propertyId: 1, propertyName: 'Gîte', revenue: 1500, revenueHt: 1350 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 0, revenueHt: 0 },
+  ],
+  yearToDateByProperty: [
+    { propertyId: 1, propertyName: 'Gîte', revenue: 2700, revenueHt: 2430 },
+    { propertyId: 2, propertyName: 'Tente', revenue: 1500, revenueHt: 1350 },
+  ],
   reservations: [
     {
       id: 7, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Gîte', platform: 'direct',
@@ -93,7 +102,8 @@ describe('FinancePage — total-de-séjour overview', () => {
   test('renders the 5 top cards, year cards first', async () => {
     renderPage();
     await screen.findByText('Revenus');
-    // Year cards split into a main label + a smaller qualifier (like the period card).
+    // Year cards split into a main label + a smaller qualifier (like the period card). The chart tab
+    // label « Depuis le début de l'année » is capitalized, so this lowercase caption stays unique.
     expect(screen.getByText("depuis le début de l'année")).toBeInTheDocument();
     expect(screen.getByText("sur l'année")).toBeInTheDocument();
     // « sur la période » qualifies the period revenue card.
@@ -167,11 +177,26 @@ describe('FinancePage — total-de-séjour overview', () => {
   test('period tab shows a « Période du … au … » chip above the table', async () => {
     renderPage();
     await screen.findByText('Revenus');
-    // The « Revenus par logement » chart caption already carries one « Période du … au … »; switching
+    // The « Revenu par logement » chart caption already carries one « Période du … au … »; switching
     // to the period tab adds the chip, so a second occurrence appears.
     const before = screen.getAllByText(/Période du .+ au .+/).length;
     fireEvent.click(screen.getByRole('tab', { name: 'Réservations période' }));
     await waitFor(() => expect(screen.getAllByText(/Période du .+ au .+/).length).toBe(before + 1));
+  });
+
+  test('« Revenu par logement » chart offers period/year tabs with a TTC caption', async () => {
+    // specs/finance-per-property-revenue-chart.md — same per-logement bars over two windows: the
+    // du/au period (default tab) and the year-to-date (Jan 1 → today). Amounts are TTC (caption).
+    renderPage();
+    await screen.findByText('Revenus');
+    expect(screen.getByText('Revenu par logement')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Sur la période' })).toBeInTheDocument();
+    // Default window: the du/au period, with its TTC caption.
+    expect(screen.getByText(/Période du .+ au .+ · montants TTC/)).toBeInTheDocument();
+    // Switch to the year-to-date window.
+    fireEvent.click(screen.getByRole('tab', { name: "Depuis le début de l'année" }));
+    expect(screen.getByText("Du 1er janvier à aujourd'hui · montants TTC")).toBeInTheDocument();
+    expect(screen.queryByText(/Période du .+ au .+ · montants TTC/)).not.toBeInTheDocument();
   });
 
   test('each card shows its element-by-element HT in smaller text', async () => {
