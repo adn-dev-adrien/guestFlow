@@ -7,19 +7,11 @@ const {
   validateTvaIntracom,
   validateIban,
   validateBic,
-  validatePrivateKey,
-  validateCalendarId,
   validateQuoteValidityDays,
   validateSmtpPort,
   validatePublicUrl,
   validateLaundryWeekday,
 } = require('../utils/settingsValidation');
-
-const SAMPLE_PEM = [
-  '-----BEGIN PRIVATE KEY-----',
-  'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj',
-  '-----END PRIVATE KEY-----',
-].join('\n');
 
 // --- email ---
 test('validateEmail: empty is valid', () => {
@@ -80,33 +72,8 @@ test('validateBic: 11-char passes', () => assert.equal(validateBic('BNPAFRPPXXX'
 test('validateBic: rejects 7-char', () => assert.match(validateBic('BNPAFRP'), /BIC/));
 test('validateBic: rejects 9-char', () => assert.match(validateBic('BNPAFRPPX'), /BIC/));
 
-// --- private key (PEM) ---
-test('validatePrivateKey: empty is valid', () => assert.equal(validatePrivateKey(''), null));
-test('validatePrivateKey: PKCS8 passes', () => assert.equal(validatePrivateKey(SAMPLE_PEM), null));
-test('validatePrivateKey: RSA passes', () => {
-  const rsa = '-----BEGIN RSA PRIVATE KEY-----\nABC\n-----END RSA PRIVATE KEY-----';
-  assert.equal(validatePrivateKey(rsa), null);
-});
-test('validatePrivateKey: EC passes', () => {
-  const ec = '-----BEGIN EC PRIVATE KEY-----\nABC\n-----END EC PRIVATE KEY-----';
-  assert.equal(validatePrivateKey(ec), null);
-});
-test('validatePrivateKey: rejects garbage', () => {
-  assert.match(validatePrivateKey('garbage'), /BEGIN/);
-});
-test('validatePrivateKey: rejects missing END', () => {
-  assert.match(validatePrivateKey('-----BEGIN PRIVATE KEY-----\nABC'), /END/);
-});
-
-// --- calendar ID ---
-test('validateCalendarId: empty is valid', () => assert.equal(validateCalendarId(''), null));
-test('validateCalendarId: typical IDs valid', () => {
-  assert.equal(validateCalendarId('mon.agenda@gmail.com'), null);
-  assert.equal(validateCalendarId('abc@group.calendar.google.com'), null);
-});
-test('validateCalendarId: rejects absurd length', () => {
-  assert.match(validateCalendarId('a'.repeat(501)), /trop long/);
-});
+// (validatePrivateKey / validateCalendarId removed with the Google OAuth rework —
+// specs/google-calendar-oauth-rework.md: no more manual service-account fields.)
 
 // --- quote validity ---
 test('validateQuoteValidityDays: empty / null is valid (controller defaults)', () => {

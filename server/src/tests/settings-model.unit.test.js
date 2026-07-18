@@ -12,8 +12,13 @@ const DDL = `
   CREATE TABLE app_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     googleCalendarId TEXT DEFAULT '',
-    googleServiceAccountEmail TEXT DEFAULT '',
-    googleServiceAccountPrivateKey TEXT DEFAULT '',
+    googleOAuthRefreshTokenEncrypted TEXT DEFAULT '',
+    googleOAuthConnectedEmail TEXT DEFAULT '',
+    googleOAuthConnectedAt TEXT DEFAULT '',
+    googleCalendarSummary TEXT DEFAULT '',
+    googleLastSyncAt TEXT DEFAULT '',
+    googleLastSyncOk INTEGER DEFAULT NULL,
+    googleLastSyncDetail TEXT DEFAULT '',
     companyName TEXT DEFAULT '',
     companyAddress TEXT DEFAULT '',
     companyEmail TEXT DEFAULT '',
@@ -90,10 +95,10 @@ test('settingsModel.upsert: subsequent calls preserve untouched columns', () => 
 
 test('settingsModel.upsert: clears a string field when set to ""', () => {
   const { model } = freshModel();
-  model.upsert({ googleServiceAccountPrivateKey: 'KEY' });
-  assert.equal(model.read().googleServiceAccountPrivateKey, 'KEY');
-  model.upsert({ googleServiceAccountPrivateKey: '' });
-  assert.equal(model.read().googleServiceAccountPrivateKey, '');
+  model.upsert({ googleCalendarId: 'agenda@group.calendar.google.com' });
+  assert.equal(model.read().googleCalendarId, 'agenda@group.calendar.google.com');
+  model.upsert({ googleCalendarId: '' });
+  assert.equal(model.read().googleCalendarId, '');
 });
 
 test('settingsModel.updateLogoPath: updates only that column', () => {

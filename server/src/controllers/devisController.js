@@ -21,7 +21,7 @@ function financeError(body) {
   });
 }
 
-function createController(model) {
+function createController(model, { googleCalendarSync = require('../utils/googleCalendarSync') } = {}) {
   // Maps a model result ({ ok, status?, data } | { error, status }) to an HTTP response.
   function respond(res, result) {
     if (result.error) return res.status(result.status || 400).json({ error: result.error });
@@ -65,7 +65,12 @@ function createController(model) {
   }
 
   function convertToReservation(req, res) {
-    return respond(res, model.convertToReservation(req.params.id));
+    const result = model.convertToReservation(req.params.id);
+    // Fire-and-forget Google push of the freshly created reservation (spec rules 19-20).
+    if (result && result.ok && result.data && result.data.reservationId) {
+      googleCalendarSync.schedulePush(result.data.reservationId);
+    }
+    return respond(res, result);
   }
 
   function convertFromReservation(req, res) {

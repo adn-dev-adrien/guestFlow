@@ -153,7 +153,8 @@ test('approve: applies narrow override, flips outcome, writes history, preserves
     newStartDate: '2026-07-15', newEndDate: '2026-07-18',
   });
   const result = model.approve(rec.id);
-  assert.deepEqual(result, { ok: true });
+  // reservationId feeds the Google Calendar push hook (specs/google-calendar-oauth-rework.md rule 20).
+  assert.deepEqual(result, { ok: true, reservationId: 10 });
   const r = db.prepare('SELECT * FROM reservations WHERE id = 10').get();
   assert.equal(r.startDate, '2026-07-15');
   assert.equal(r.endDate, '2026-07-18');

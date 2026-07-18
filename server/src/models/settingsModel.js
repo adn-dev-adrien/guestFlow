@@ -35,8 +35,9 @@ function warnDecryptFailure(col, reason) {
 // Columns encrypted at rest (AES-256-GCM). Google + SMTP + Qonto OAuth credentials.
 const ENCRYPTED_COLUMNS = [
   'googleCalendarId',
-  'googleServiceAccountEmail',
-  'googleServiceAccountPrivateKey',
+  // Google OAuth refresh token (specs/google-calendar-oauth-rework.md §5). Obtained via the
+  // connect flow, stored encrypted, never returned to the client (masked to a boolean below).
+  'googleOAuthRefreshTokenEncrypted',
   'smtpPasswordEncrypted',
   // Qonto OAuth tokens (specs/online-payments-qonto.md §3.1). The client id/secret live in
   // .env.local (app-level); these per-connection tokens are obtained via the OAuth flow and stored
@@ -49,9 +50,18 @@ const ENCRYPTED_COLUMNS = [
 ];
 
 const COLUMNS = [
+  // Google Calendar OAuth connection (specs/google-calendar-oauth-rework.md §5). The OAuth
+  // client id/secret live in .env.local; the refresh token is encrypted (above); the rest is
+  // non-secret connection metadata + last-sync state. `googleLastSyncOk` is tri-state
+  // (1/0/NULL = never ran) and is written via `recordGoogleSyncResult`, never via upsert.
   'googleCalendarId',
-  'googleServiceAccountEmail',
-  'googleServiceAccountPrivateKey',
+  'googleOAuthRefreshTokenEncrypted',
+  'googleOAuthConnectedEmail',
+  'googleOAuthConnectedAt',
+  'googleCalendarSummary',
+  'googleLastSyncAt',
+  'googleLastSyncOk',
+  'googleLastSyncDetail',
   'companyName',
   'companyAddress',
   'companyEmail',
@@ -177,6 +187,8 @@ const DEFAULTS = COLUMNS.reduce((acc, col) => {
 // Columns the client may NEVER see (encrypted blobs). We expose a `*Set` boolean mask instead so
 // the UI knows whether to show "Modifier" on a MaskedTextField vs. "Configurer".
 const HTTP_MASKED_COLUMNS = {
+  // Google OAuth refresh token is never exposed; the client only learns whether a connection exists.
+  googleOAuthRefreshTokenEncrypted: 'googleConnected',
   smtpPasswordEncrypted: 'smtpPasswordSet',
   // Qonto tokens are never exposed; the client only learns whether a connection exists.
   qontoAccessTokenEncrypted: 'qontoAccessTokenSet',
@@ -204,6 +216,19 @@ function createSettingsModel(databaseInstance) {
   const updateLogoStmt = databaseInstance.prepare(
     `UPDATE app_settings SET companyLogoPath = ?, updatedAt = datetime('now') WHERE id = 1`
   );
+
+  // Google-sync statements, hoisted like updateLogoStmt; null on schemas that predate the
+  // OAuth columns (test DBs) so the accessors degrade to no-ops instead of crashing.
+  const recordGoogleSyncStmt = actualCols.has('googleLastSyncAt')
+    ? databaseInstance.prepare(
+      `UPDATE app_settings SET googleLastSyncAt = ?, googleLastSyncOk = ?, googleLastSyncDetail = ?, updatedAt = datetime('now') WHERE id = 1`
+    )
+    : null;
+  const clearGoogleConnectionStmt = actualCols.has('googleOAuthRefreshTokenEncrypted') && actualCols.has('googleLastSyncAt')
+    ? databaseInstance.prepare(
+      `UPDATE app_settings SET googleOAuthRefreshTokenEncrypted = '', googleOAuthConnectedEmail = '', googleOAuthConnectedAt = '', googleCalendarId = '', googleCalendarSummary = '', googleLastSyncAt = '', googleLastSyncOk = NULL, googleLastSyncDetail = '', updatedAt = datetime('now') WHERE id = 1`
+    )
+    : null;
 
   function readRaw() {
     const row = readStmt.get();
@@ -379,6 +404,87 @@ function createSettingsModel(databaseInstance) {
     // True once the OAuth flow has stored a refresh token (the durable credential).
     qontoConnected() {
       return Boolean(readRaw().qontoRefreshTokenEncrypted);
+    },
+
+    // ----- Google Calendar OAuth connection (specs/google-calendar-oauth-rework.md) -----
+
+    // Persist the OAuth refresh token (encrypted via upsert's ENCRYPTED_COLUMNS handling) + the
+    // connected account email extracted from the id_token. Never logged.
+    storeGoogleTokens({ refreshToken, email }) {
+      this.upsert({
+        googleOAuthRefreshTokenEncrypted: refreshToken == null ? '' : String(refreshToken),
+        googleOAuthConnectedEmail: email == null ? '' : String(email),
+        googleOAuthConnectedAt: new Date().toISOString(),
+      });
+    },
+
+    // Decrypted refresh token for internal use (the sync engine / calendar API). NEVER exposed
+    // via HTTP. On key mismatch it decodes to '' and a marker fires — callers then treat the
+    // connection as missing rather than crashing.
+    googleTokens() {
+      const blob = readRaw().googleOAuthRefreshTokenEncrypted;
+      if (!blob) return { refreshToken: '' };
+      const r = safeDecrypt(blob);
+      if (r.ok) return { refreshToken: r.value };
+      warnDecryptFailure('googleOAuthRefreshTokenEncrypted', r.reason);
+      return { refreshToken: '' };
+    },
+
+    // True once the OAuth flow has stored a refresh token (the durable credential).
+    googleConnected() {
+      return Boolean(readRaw().googleOAuthRefreshTokenEncrypted);
+    },
+
+    // Raw encrypted token blob — cache key for the sync engine's calendar client (no decrypt
+    // on the fast path; the blob changes on every connect/disconnect). Never exposed via HTTP.
+    googleTokenBlob() {
+      return String(readRaw().googleOAuthRefreshTokenEncrypted || '');
+    },
+
+    // Target-calendar selection. The id rides upsert's encryption (ENCRYPTED_COLUMNS); the
+    // summary is non-secret display metadata.
+    storeGoogleCalendarSelection({ calendarId, summary }) {
+      this.upsert({
+        googleCalendarId: calendarId == null ? '' : String(calendarId),
+        googleCalendarSummary: summary == null ? '' : String(summary),
+      });
+    },
+
+    googleCalendarSelection() {
+      const row = this.read();
+      return {
+        calendarId: String(row.googleCalendarId || '').trim(),
+        summary: String(row.googleCalendarSummary || '').trim(),
+      };
+    },
+
+    // Last-sync state. Dedicated statement (NOT upsert): `googleLastSyncOk` is tri-state
+    // (1/0/NULL) and upsert's ''-coercion would destroy the NULL "never ran" case.
+    recordGoogleSyncResult({ ok, detail }) {
+      if (!recordGoogleSyncStmt) return;
+      recordGoogleSyncStmt.run(new Date().toISOString(), ok ? 1 : 0, String(detail || ''));
+    },
+
+    // Full disconnect: token, account metadata, calendar selection and sync state all reset.
+    // Dedicated statement for the same NULL-preservation reason as recordGoogleSyncResult.
+    clearGoogleConnection() {
+      if (!clearGoogleConnectionStmt) return;
+      clearGoogleConnectionStmt.run();
+    },
+
+    // Ready-to-serve connection/sync state for the status endpoint. Never contains the token.
+    googleStatus() {
+      const row = this.read();
+      return {
+        connected: Boolean(row.googleConnected),
+        connectedEmail: String(row.googleOAuthConnectedEmail || '').trim(),
+        connectedAt: String(row.googleOAuthConnectedAt || '').trim() || null,
+        calendarId: String(row.googleCalendarId || '').trim(),
+        calendarSummary: String(row.googleCalendarSummary || '').trim(),
+        lastSyncAt: String(row.googleLastSyncAt || '').trim() || null,
+        lastSyncOk: row.googleLastSyncOk == null || row.googleLastSyncOk === '' ? null : Number(row.googleLastSyncOk) === 1,
+        lastSyncDetail: String(row.googleLastSyncDetail || '').trim(),
+      };
     },
 
     // ----- Météo-France Vigilance (specs/checkin-weather-alerts.md) -----

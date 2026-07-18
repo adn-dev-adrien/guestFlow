@@ -14,8 +14,13 @@ function makeDb() {
     CREATE TABLE app_settings (
       id INTEGER PRIMARY KEY,
       googleCalendarId TEXT DEFAULT '',
-      googleServiceAccountEmail TEXT DEFAULT '',
-      googleServiceAccountPrivateKey TEXT DEFAULT '',
+      googleOAuthRefreshTokenEncrypted TEXT DEFAULT '',
+      googleOAuthConnectedEmail TEXT DEFAULT '',
+      googleOAuthConnectedAt TEXT DEFAULT '',
+      googleCalendarSummary TEXT DEFAULT '',
+      googleLastSyncAt TEXT DEFAULT '',
+      googleLastSyncOk INTEGER DEFAULT NULL,
+      googleLastSyncDetail TEXT DEFAULT '',
       companyName TEXT DEFAULT '',
       companyAddress TEXT DEFAULT '',
       companyEmail TEXT DEFAULT '',
@@ -55,44 +60,96 @@ function makeDb() {
   return db;
 }
 
-const KEY = '-----BEGIN PRIVATE KEY-----\nABC\n-----END PRIVATE KEY-----\n';
+const REFRESH_TOKEN = '1//0gRefreshTokenSampleValue-abcdef123456';
 
-test('Google private key is stored encrypted but read back in clear', () => {
+test('Google OAuth refresh token is stored encrypted and never read back in clear', () => {
   const db = makeDb();
   const model = settingsModel.create(db);
-  model.upsert({ googleServiceAccountPrivateKey: KEY, companyName: 'Acme' });
+  model.storeGoogleTokens({ refreshToken: REFRESH_TOKEN, email: 'adrien@example.com' });
 
-  const stored = db.prepare('SELECT googleServiceAccountPrivateKey, companyName FROM app_settings WHERE id = 1').get();
-  assert.ok(isEncrypted(stored.googleServiceAccountPrivateKey), 'stored value must be encrypted');
-  assert.equal(stored.companyName, 'Acme', 'non-credential columns stay plaintext');
+  const stored = db.prepare('SELECT googleOAuthRefreshTokenEncrypted AS t, googleOAuthConnectedEmail AS e FROM app_settings WHERE id = 1').get();
+  assert.ok(isEncrypted(stored.t), 'stored token must be encrypted');
+  assert.equal(stored.e, 'adrien@example.com', 'connection metadata stays plaintext');
 
-  assert.equal(model.read().googleServiceAccountPrivateKey, KEY, 'read decrypts');
+  // read() masks the blob to the googleConnected boolean — the token never leaves the model.
+  const row = model.read();
+  assert.equal(row.googleConnected, true);
+  assert.equal(row.googleOAuthRefreshTokenEncrypted, undefined);
+  assert.equal(JSON.stringify(row).includes(REFRESH_TOKEN), false);
+
+  // Internal accessor decrypts for the sync engine only.
+  assert.equal(model.googleTokens().refreshToken, REFRESH_TOKEN);
+  assert.equal(model.googleConnected(), true);
 });
 
-test('migrateEncryption encrypts a legacy cleartext row exactly once', () => {
+test('googleCalendarId round-trips encrypted at rest, clear on read', () => {
   const db = makeDb();
   const model = settingsModel.create(db);
-  // Simulate a legacy row written before encryption existed.
-  db.prepare('UPDATE app_settings SET googleServiceAccountPrivateKey = ?, googleServiceAccountEmail = ? WHERE id = 1')
-    .run(KEY, 'svc@example.com');
+  model.storeGoogleCalendarSelection({ calendarId: 'agenda@group.calendar.google.com', summary: 'Agenda pro' });
+
+  const stored = db.prepare('SELECT googleCalendarId AS c, googleCalendarSummary AS s FROM app_settings WHERE id = 1').get();
+  assert.ok(isEncrypted(stored.c), 'calendar id encrypted at rest');
+  assert.equal(stored.s, 'Agenda pro');
+
+  assert.deepEqual(model.googleCalendarSelection(), {
+    calendarId: 'agenda@group.calendar.google.com',
+    summary: 'Agenda pro',
+  });
+});
+
+test('migrateEncryption encrypts a legacy cleartext value exactly once', () => {
+  const db = makeDb();
+  const model = settingsModel.create(db);
+  // Simulate a value written before encryption existed.
+  db.prepare('UPDATE app_settings SET googleCalendarId = ? WHERE id = 1').run('legacy@calendar');
 
   model.migrateEncryption();
-  const afterFirst = db.prepare('SELECT googleServiceAccountPrivateKey AS k FROM app_settings WHERE id = 1').get().k;
+  const afterFirst = db.prepare('SELECT googleCalendarId AS c FROM app_settings WHERE id = 1').get().c;
   assert.ok(isEncrypted(afterFirst));
-  assert.equal(model.read().googleServiceAccountPrivateKey, KEY);
+  assert.equal(model.read().googleCalendarId, 'legacy@calendar');
 
   // Idempotent: a second run does not double-encrypt.
   model.migrateEncryption();
-  const afterSecond = db.prepare('SELECT googleServiceAccountPrivateKey AS k FROM app_settings WHERE id = 1').get().k;
+  const afterSecond = db.prepare('SELECT googleCalendarId AS c FROM app_settings WHERE id = 1').get().c;
   assert.equal(afterSecond, afterFirst);
-  assert.equal(model.read().googleServiceAccountPrivateKey, KEY);
+  assert.equal(model.read().googleCalendarId, 'legacy@calendar');
 });
 
 test('empty credential stays empty (no encryption of blank)', () => {
   const db = makeDb();
   const model = settingsModel.create(db);
-  model.upsert({ googleServiceAccountPrivateKey: '' });
-  const stored = db.prepare('SELECT googleServiceAccountPrivateKey AS k FROM app_settings WHERE id = 1').get().k;
+  model.upsert({ googleOAuthRefreshTokenEncrypted: '' });
+  const stored = db.prepare('SELECT googleOAuthRefreshTokenEncrypted AS t FROM app_settings WHERE id = 1').get().t;
   assert.equal(stored, '');
-  assert.equal(model.read().googleServiceAccountPrivateKey, '');
+  assert.equal(model.googleConnected(), false);
+  assert.equal(model.googleTokens().refreshToken, '');
+});
+
+test('recordGoogleSyncResult keeps the tri-state and clearGoogleConnection resets everything', () => {
+  const db = makeDb();
+  const model = settingsModel.create(db);
+
+  // Never ran → NULL.
+  assert.equal(model.googleStatus().lastSyncOk, null);
+
+  model.storeGoogleTokens({ refreshToken: REFRESH_TOKEN, email: 'adrien@example.com' });
+  model.storeGoogleCalendarSelection({ calendarId: 'cal-1', summary: 'Agenda pro' });
+  model.recordGoogleSyncResult({ ok: false, detail: '1 erreur' });
+  let s = model.googleStatus();
+  assert.equal(s.lastSyncOk, false);
+  assert.equal(s.lastSyncDetail, '1 erreur');
+  assert.ok(s.lastSyncAt);
+
+  model.recordGoogleSyncResult({ ok: true, detail: '3 envoyée(s)' });
+  assert.equal(model.googleStatus().lastSyncOk, true);
+
+  model.clearGoogleConnection();
+  s = model.googleStatus();
+  assert.equal(s.connected, false);
+  assert.equal(s.connectedEmail, '');
+  assert.equal(s.calendarId, '');
+  assert.equal(s.calendarSummary, '');
+  assert.equal(s.lastSyncAt, null);
+  assert.equal(s.lastSyncOk, null);
+  assert.equal(s.lastSyncDetail, '');
 });

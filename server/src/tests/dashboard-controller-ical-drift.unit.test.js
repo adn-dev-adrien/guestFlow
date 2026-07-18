@@ -57,6 +57,19 @@ test('POST approve: forwards the parsed id and returns { ok: true }', () => {
   assert.deepEqual(fakes.calls.approve, [42]);
 });
 
+test('POST approve: fires the Google Calendar push hook with the model-returned reservationId', () => {
+  const pushed = [];
+  const fakes = makeFake({ approveResult: { ok: true, reservationId: 10 } });
+  const c = buildController({
+    ...fakes,
+    googleCalendarSync: { schedulePush: (id) => pushed.push(id), scheduleDelete: () => {} },
+  });
+  const res = fakeRes();
+  c.approveIcalDateDrift({ params: { id: '42' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(pushed, [10]);
+});
+
 test('POST approve: invalid id → 400', () => {
   const fakes = makeFake();
   const c = buildController(fakes);

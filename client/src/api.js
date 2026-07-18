@@ -386,9 +386,13 @@ const api = {
   // current admin so they can verify the SMTP block before inviting anyone.
   sendSmtpTest: () => request('/settings/smtp-test', { method: 'POST' }),
 
-  // Google Calendar sync
+  // Google Calendar sync (specs/google-calendar-oauth-rework.md §4.3). The OAuth authorize
+  // redirect is a full-page navigation (window.location), not an XHR — no helper for it.
   getGoogleCalendarStatus: () => request('/google-calendar/status'),
-  syncGoogleCalendarReservations: (payload = {}) => request('/google-calendar/sync-reservations', { method: 'POST', body: payload }),
+  getGoogleCalendars: () => request('/google-calendar/calendars'),
+  setGoogleCalendar: (calendarId) => request('/google-calendar/calendar', { method: 'PUT', body: { calendarId } }),
+  disconnectGoogleCalendar: () => request('/google-calendar/oauth/disconnect', { method: 'POST' }),
+  googleCalendarSyncNow: () => request('/google-calendar/sync-now', { method: 'POST' }),
   testGoogleCalendarConnection: () => request('/google-calendar/test-connection', { method: 'POST' }),
 
   // Establishment closures

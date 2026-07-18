@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 
 const devisController = require('../controllers/devisController');
 
+// Stubbed Google sync so the conversion hook never touches the real singleton (and its DB).
+const googleSyncCalls = [];
+const googleCalendarSyncStub = { schedulePush: (id) => googleSyncCalls.push(id) };
+const buildController = (model) => devisController.buildController(model, { googleCalendarSync: googleCalendarSyncStub });
+
 function fakeModel(overrides = {}) {
   return {
     list: () => [{ id: 1 }],
@@ -30,7 +35,7 @@ function fakeRes() {
 
 test('create: invalid finance input → 400 (model not called)', () => {
   let called = false;
-  const c = devisController.buildController(fakeModel({ create: () => { called = true; return { ok: true, status: 201, data: {} }; } }));
+  const c = buildController(fakeModel({ create: () => { called = true; return { ok: true, status: 201, data: {} }; } }));
   const res = fakeRes();
   c.create({ body: { customPrice: -10, propertyId: 1, clientId: 1, startDate: 'a', endDate: 'b' } }, res);
   assert.equal(res.statusCode, 400);
@@ -38,7 +43,7 @@ test('create: invalid finance input → 400 (model not called)', () => {
 });
 
 test('create: valid → 201 with model data', () => {
-  const c = devisController.buildController(fakeModel());
+  const c = buildController(fakeModel());
   const res = fakeRes();
   c.create({ body: { propertyId: 1, clientId: 1, startDate: 'a', endDate: 'b' } }, res);
   assert.equal(res.statusCode, 201);
@@ -46,21 +51,30 @@ test('create: valid → 201 with model data', () => {
 });
 
 test('getOne: missing → 404', () => {
-  const c = devisController.buildController(fakeModel());
+  const c = buildController(fakeModel());
   const res = fakeRes();
   c.getOne({ params: { id: 999 } }, res);
   assert.equal(res.statusCode, 404);
 });
 
 test('history: missing devis → 404', () => {
-  const c = devisController.buildController(fakeModel());
+  const c = buildController(fakeModel());
   const res = fakeRes();
   c.history({ params: { id: 999 } }, res);
   assert.equal(res.statusCode, 404);
 });
 
+test('convertToReservation: success fires the Google Calendar push hook with the new reservation id', () => {
+  googleSyncCalls.length = 0;
+  const c = buildController(fakeModel());
+  const res = fakeRes();
+  c.convertToReservation({ params: { id: 1 } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(googleSyncCalls, [9]);
+});
+
 test('convertToReservation: already converted → 400 from model', () => {
-  const c = devisController.buildController(fakeModel({
+  const c = buildController(fakeModel({
     convertToReservation: () => ({ error: 'Ce devis a déjà été converti en réservation', status: 400 }),
   }));
   const res = fakeRes();
@@ -70,7 +84,7 @@ test('convertToReservation: already converted → 400 from model', () => {
 });
 
 test('pdf: missing devis → 404 (service not invoked)', async () => {
-  const c = devisController.buildController(fakeModel());
+  const c = buildController(fakeModel());
   const res = fakeRes();
   await c.pdf({ params: { id: 999 } }, res);
   assert.equal(res.statusCode, 404);

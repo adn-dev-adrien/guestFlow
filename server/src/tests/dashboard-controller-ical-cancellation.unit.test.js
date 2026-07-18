@@ -67,6 +67,20 @@ test('POST approve: idempotent shape when reservation already gone', () => {
   assert.deepEqual(res.body, { ok: true, outcome: 'reservation_gone' });
 });
 
+test('POST approve: fires the Google Calendar delete hook with the model-returned reservationId', () => {
+  const deleted = [];
+  const fakes = makeFake({ approveResult: { ok: true, outcome: 'approved', reservationId: 10 } });
+  const c = buildController({
+    ...fakes,
+    googleCalendarSync: { schedulePush: () => {}, scheduleDelete: (id) => deleted.push(id) },
+  });
+  const res = fakeRes();
+  c.approveIcalCancellation({ params: { id: '42' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { ok: true, outcome: 'approved' });
+  assert.deepEqual(deleted, [10]);
+});
+
 test('POST approve: invalid id → 400', () => {
   const fakes = makeFake();
   const c = buildController(fakes);

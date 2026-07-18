@@ -14,6 +14,7 @@ const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
+const googleCalendarSync = require('../utils/googleCalendarSync');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
@@ -439,6 +440,8 @@ function create(req, res) {
   }
 
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
+  // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
+  googleCalendarSync.schedulePush(reservationId);
 }
 
 function update(req, res) {
@@ -665,8 +668,11 @@ function update(req, res) {
   if (changes.length > 0) model.addHistoryEntry(id, 'update', changes);
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
+  googleCalendarSync.schedulePush(id);
 }
 
+// NOTE: updatePayment deliberately has no Google hook — payment/caution/SAS fields don't
+// appear in the calendar event (spec rule 21).
 function updatePayment(req, res) {
   const financeError = validateFinanceInputs({
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
@@ -795,6 +801,7 @@ function remove(req, res) {
   }
   model.remove(req.params.id);
   res.json({ ok: true });
+  googleCalendarSync.scheduleDelete(Number(req.params.id));
 }
 
 module.exports = {

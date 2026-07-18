@@ -9,6 +9,7 @@ const linenInventoryModel = require('../models/linenInventoryModel');
 const reservationsModel = require('../models/reservationsModel');
 const icalDateDriftModel = require('../models/icalDateDriftModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
+const googleCalendarSync = require('../utils/googleCalendarSync');
 
 const TYPE_LABELS = Object.freeze({
   single: 'Drap simple',
@@ -24,6 +25,7 @@ function buildController({
   reservationsModel: injectedReservationsModel = reservationsModel,
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
+  googleCalendarSync: injectedGoogleCalendarSync = googleCalendarSync,
 } = {}) {
   return {
     /**
@@ -108,7 +110,11 @@ function buildController({
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
       const result = injectedIcalDateDriftModel.approve(id);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
-      return res.json({ ok: true });
+      res.json({ ok: true });
+      // Approved date override → fire-and-forget Google push, after the response so the
+      // committed approval can never be turned into a 500 by the hook (spec rule 19-20).
+      if (result.reservationId) injectedGoogleCalendarSync.schedulePush(result.reservationId);
+      return undefined;
     },
 
     /**
@@ -149,7 +155,12 @@ function buildController({
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
       const result = injectedIcalCancellationModel.approve(id);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
-      return res.json({ ok: true, outcome: result.outcome });
+      res.json({ ok: true, outcome: result.outcome });
+      // Approved cancellation → fire-and-forget Google event delete, after the response
+      // (spec rule 19-20). Also fired on 'reservation_gone': the event may still exist as
+      // an orphan.
+      if (result.reservationId) injectedGoogleCalendarSync.scheduleDelete(result.reservationId);
+      return undefined;
     },
 
     /**

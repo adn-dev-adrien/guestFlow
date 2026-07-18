@@ -157,7 +157,8 @@ test('approve: deletes reservation + ical_import_events + history audit + flips 
   const { db, model } = freshModel();
   const rec = model.recordPending({ reservationId: 10, sourceId: 1, eventUid: 'E1' });
   const result = model.approve(rec.id);
-  assert.deepEqual(result, { ok: true, outcome: 'approved' });
+  // reservationId feeds the Google Calendar delete hook (specs/google-calendar-oauth-rework.md rule 20).
+  assert.deepEqual(result, { ok: true, outcome: 'approved', reservationId: 10 });
 
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations WHERE id = 10').get().c, 0, 'reservation deleted');
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE reservationId = 10').get().c, 0, 'mappings cleared');
@@ -174,7 +175,8 @@ test('approve: reservation already deleted → returns { ok, outcome: reservatio
   const rec = model.recordPending({ reservationId: 10, sourceId: 1, eventUid: 'E1' });
   db.prepare('DELETE FROM reservations WHERE id = 10').run();
   const result = model.approve(rec.id);
-  assert.deepEqual(result, { ok: true, outcome: 'reservation_gone' });
+  // reservationId still returned on reservation_gone so the orphan Google event gets cleaned up.
+  assert.deepEqual(result, { ok: true, outcome: 'reservation_gone', reservationId: 10 });
   const drift = db.prepare('SELECT outcome FROM ical_cancellation_alerts WHERE id = ?').get(rec.id);
   assert.equal(drift.outcome, 'reservation_gone');
 });

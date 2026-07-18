@@ -27,22 +27,13 @@ const EMPTY_FORM = {
   },
   quote: { footerText: '', footerTextEn: '', validityDays: 30 },
   vat: { rate: 10, rateCommission: 20 },
-  googleCalendar: {
-    calendarId: '',
-    serviceAccountEmail: '',
-    privateKeyMasked: '',
-    privateKeyFingerprint: null,
-    configured: false,
-    statusLabel: 'Synchronisation non configurée',
-    privateKeyDraft: undefined, // undefined = preserve; '' = clear; 'value' = store
-  },
   smtp: {
     host: '', port: 587, secure: false,
     username: '',
     passwordSet: false,
     fromEmail: '', fromName: 'GuestFlow',
     publicUrl: '',
-    passwordDraft: undefined, // same 3-way semantics as privateKeyDraft
+    passwordDraft: undefined, // undefined = preserve; '' = clear; 'value' = store
   },
   // Admin escape hatch (specs/admin-unlock-past-reservations.md). OFF by default.
   reservations: {
@@ -70,7 +61,6 @@ const EMPTY_FORM = {
 function diffFields(draftGroup, savedGroup) {
   const out = {};
   for (const key of Object.keys(draftGroup)) {
-    if (key === 'privateKeyDraft') continue;
     if (JSON.stringify(draftGroup[key]) !== JSON.stringify(savedGroup[key])) {
       out[key] = draftGroup[key];
     }
@@ -92,21 +82,8 @@ function buildPayloadFromDraft(draft, saved) {
   const vatDirty = diffFields(draft.vat, saved.vat);
   if (Object.keys(vatDirty).length > 0) payload.vat = vatDirty;
 
-  const gcDirty = {};
-  if (draft.googleCalendar.calendarId !== saved.googleCalendar.calendarId) {
-    gcDirty.calendarId = draft.googleCalendar.calendarId;
-  }
-  if (draft.googleCalendar.serviceAccountEmail !== saved.googleCalendar.serviceAccountEmail) {
-    gcDirty.serviceAccountEmail = draft.googleCalendar.serviceAccountEmail;
-  }
-  // privateKeyDraft: only include in payload when defined (= touched).
-  if (draft.googleCalendar.privateKeyDraft !== undefined) {
-    gcDirty.privateKey = draft.googleCalendar.privateKeyDraft;
-  }
-  if (Object.keys(gcDirty).length > 0) payload.googleCalendar = gcDirty;
-
-  // SMTP — same per-field 3-way pattern as the other groups, with passwordDraft mirroring
-  // privateKeyDraft (specs/admin-account-management.md M3).
+  // SMTP — same per-field 3-way pattern as the other groups, with passwordDraft as the
+  // masked secret (specs/admin-account-management.md M3).
   const smtpDirty = {};
   for (const key of ['host', 'port', 'secure', 'username', 'fromEmail', 'fromName', 'publicUrl']) {
     if (JSON.stringify(draft.smtp[key]) !== JSON.stringify(saved.smtp[key])) {
@@ -144,11 +121,6 @@ function fromServer(settings) {
     company: { ...EMPTY_FORM.company, ...(settings.company || {}) },
     quote: { ...EMPTY_FORM.quote, ...(settings.quote || {}) },
     vat: { ...EMPTY_FORM.vat, ...(settings.vat || {}) },
-    googleCalendar: {
-      ...EMPTY_FORM.googleCalendar,
-      ...(settings.googleCalendar || {}),
-      privateKeyDraft: undefined,
-    },
     smtp: {
       ...EMPTY_FORM.smtp,
       ...(settings.smtp || {}),
@@ -178,8 +150,6 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState(null);
   const [errors, setErrors] = useState({});
   // Load failures stay persistent (ErrorAlert); save feedback goes through the shared toasts
   // (specs/ds-components.md §3.2).
@@ -221,20 +191,6 @@ export default function SettingsPage() {
       setErrors((prev) => {
         const next = { ...prev };
         delete next[mapClientKeyToErrorKey(group, key)];
-        return next;
-      });
-    }
-  };
-
-  const updatePrivateKey = (value) => {
-    setDraft((prev) => ({
-      ...prev,
-      googleCalendar: { ...prev.googleCalendar, privateKeyDraft: value },
-    }));
-    if (errors.googleServiceAccountPrivateKey) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next.googleServiceAccountPrivateKey;
         return next;
       });
     }
@@ -307,19 +263,6 @@ export default function SettingsPage() {
   const handleCancel = () => {
     setDraft(savedForm);
     setErrors({});
-  };
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const out = await api.testGoogleCalendarConnection();
-      setTestResult({ severity: 'success', message: out.message });
-    } catch (err) {
-      setTestResult({ severity: 'error', message: err.error || err.message || 'Échec du test.' });
-    } finally {
-      setTesting(false);
-    }
   };
 
   const handleUploadLogo = async (file) => {
@@ -419,18 +362,10 @@ export default function SettingsPage() {
             />
           </Box>
 
+          {/* Google Calendar (self-contained — OAuth connect flow, not part of the global
+              settings form; specs/google-calendar-oauth-rework.md §6). */}
           <Box sx={{ breakInside: 'avoid' }}>
-            <SettingsGoogleCalendarSection
-              values={draft.googleCalendar}
-              errors={errors}
-              statusLabel={draft.googleCalendar.statusLabel}
-              onChange={updateGroup('googleCalendar')}
-              onChangePrivateKey={updatePrivateKey}
-              onTest={handleTest}
-              testing={testing}
-              testResult={testResult}
-              disabled={loading || saving}
-            />
+            <SettingsGoogleCalendarSection />
           </Box>
 
           <Box sx={{ breakInside: 'avoid' }}>
@@ -508,12 +443,6 @@ function mapClientKeyToErrorKey(group, key) {
   if (group === 'vat') {
     return ({
       rate: 'vatRate',
-    })[key];
-  }
-  if (group === 'googleCalendar') {
-    return ({
-      calendarId: 'googleCalendarId',
-      serviceAccountEmail: 'googleServiceAccountEmail',
     })[key];
   }
   if (group === 'smtp') {

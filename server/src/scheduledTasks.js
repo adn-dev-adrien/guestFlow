@@ -30,6 +30,9 @@ const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
 const { runBalanceRequestPass } = require('./utils/balanceRequestRunner');
 const paymentsController = require('./controllers/paymentsController');
 
+// Google Calendar reconcile pass (specs/google-calendar-oauth-rework.md §3 rule 22).
+const googleCalendarSync = require('./utils/googleCalendarSync');
+
 let syncInProgress = false;
 let schoolHolidaysSyncInProgress = false;
 let emailAutoSendInProgress = false;
@@ -51,13 +54,12 @@ async function performAutoSync() {
   }
 
   syncInProgress = true;
-  const startTime = new Date();
 
   try {
     // Get all active iCal sources
     const sources = db.prepare(`
-      SELECT * FROM ical_sources 
-      WHERE isActive = 1 
+      SELECT * FROM ical_sources
+      WHERE isActive = 1
       ORDER BY id
     `).all();
 
@@ -66,27 +68,16 @@ async function performAutoSync() {
       return;
     }
 
-    let totalCreated = 0;
-    let totalUpdated = 0;
-    let totalRemoved = 0;
-    let totalErrors = 0;
-
-    // Sync each source
+    // Sync each source. syncSourceAndRecord runs the sync engine, writes the source status
+    // row, and triggers the Google Calendar reconcile itself when bookings changed.
     for (const source of sources) {
       try {
-        // syncSourceAndRecord runs the sync engine + writes the source status row.
-        const result = await propertyIcalModel.syncSourceAndRecord(source);
-        totalCreated += result.createdCount;
-        totalUpdated += result.updatedCount;
-        totalRemoved += result.removedCount;
+        await propertyIcalModel.syncSourceAndRecord(source);
       } catch (error) {
-        totalErrors += 1;
         console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${source.name}":`, error.message);
       }
     }
 
-    const endTime = new Date();
-    const duration = ((endTime - startTime) / 1000).toFixed(2);
   } catch (error) {
     console.error('[iCal Sync] Erreur critique:', error);
   } finally {
@@ -254,6 +245,20 @@ function tickBalanceRequest() {
   runBalanceRequestJob('daily 08:00 pass').catch((err) => console.error('[balance-request] unhandled:', err));
 }
 
+// Google Calendar reconcile: overlap-guarded inside the sync engine (runReconcileGuarded);
+// silent no-op until the operator connects a Google account + picks a calendar.
+async function runGoogleSyncPass(reason = 'cron') {
+  if (!googleCalendarSync.isActive()) return;
+  try {
+    const result = await googleCalendarSync.runReconcileGuarded();
+    if (result && !result.alreadyRunning && (result.pushed || result.deleted || result.errors)) {
+      console.log(`[google-sync] ${reason}: ${result.pushed} pushed, ${result.deleted} deleted, ${result.skipped} unchanged, ${result.errors} error(s)`);
+    }
+  } catch (err) {
+    console.error('[google-sync] pass error:', err && err.message ? err.message : err);
+  }
+}
+
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -300,6 +305,12 @@ function startScheduledTasks() {
   const BALANCE_REQUEST_TICK = 60 * 1000;
   setInterval(tickBalanceRequest, BALANCE_REQUEST_TICK);
   setTimeout(tickBalanceRequest, 120 * 1000);
+
+  // Google Calendar reconcile: every 15 min (immediate pushes cover the realtime path; this
+  // pass catches missed hooks + purges orphans — specs/google-calendar-oauth-rework.md §3 rule 22).
+  const GOOGLE_SYNC_TICK = 15 * 60 * 1000;
+  setInterval(() => runGoogleSyncPass('cron').catch((err) => console.error('[google-sync] unhandled:', err)), GOOGLE_SYNC_TICK);
+  setTimeout(() => runGoogleSyncPass('boot').catch((err) => console.error('[google-sync] unhandled:', err)), 130 * 1000);
 }
 
 module.exports = {
@@ -315,4 +326,6 @@ module.exports = {
   // Balance-request pass — exposed for tests + ops trigger.
   runBalanceRequestJob,
   tickBalanceRequest,
+  // Google Calendar reconcile pass — exposed for tests + ops trigger.
+  runGoogleSyncPass,
 };
