@@ -54,8 +54,8 @@ Clicking a breakfast card opens a small popup summarizing exactly what to prepar
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing)** | MUI `Dialog` (ConfirmDialog-style compact layout), SAS pictogram set (`LocalCafe`, `EmojiFoodBeverage`, `FreeBreakfast`, `LocalDrink`, `BakeryDining`, `Grain` — wheat, user feedback 2026-07-18 —, `People`, `AccessTime`) | |
-| **Created (new generic)** | — | none |
+| **Consumed (existing)** | MUI `Dialog` (ConfirmDialog-style compact layout), SAS pictogram set (`LocalCafe`, `EmojiFoodBeverage`, `FreeBreakfast`, `LocalDrink`, `BakeryDining`, `WheatIcon`, `People`, `AccessTime`) | |
+| **Created (new generic)** | `WheatIcon` | Wheat-ear SvgIcon (mdi « barley » glyph, Apache-2.0) — Material Icons has no wheat ear; generic: same props as any MUI icon, shared by the SAS step, the planning card and this popup (user feedback 2026-07-18) |
 | **Specific (kept feature-local)** | `BreakfastPrepDialog` | 100 % breakfast-domain content (labels, ordering, empty-state copy) — not a generic pattern |
 
 ### 4.3 API contract — unchanged.

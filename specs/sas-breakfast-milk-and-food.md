@@ -86,7 +86,7 @@ During check-in, the guest can also ask for milk, and state how many viennoiseri
 **SAS — étape « Petit déjeuner »** (top to bottom):
 1. « Heure du petit déjeuner » — same time input, now prominent: large bold value (`≥ 1.5 rem`), full-width on `xs` (fixed comfortable width on `sm+`).
 2. Divider, then **Boissons**: Café, Thé, Chocolat chaud, **Lait** (icon `LocalDrink` or similar), each a `CountStepper`; drinks hint below.
-3. Divider, then **« À manger »**: Viennoiseries (icon `BakeryDining`), Céréales (icon `Grain` — wheat pictogram, user feedback 2026-07-18, replaced the initial `RiceBowl`); food hint below.
+3. Divider, then **« À manger »**: Viennoiseries (icon `BakeryDining`), Céréales (custom `WheatIcon` — a real wheat ear, mdi « barley » glyph wrapped in a MUI SvgIcon; user feedback 2026-07-18, replaced `RiceBowl` then `Grain`); food hint below.
 4. Note field (unchanged).
 Confirm dialog on « Suivant » when any hint mismatches — message names the mismatching category(ies), e.g. « Le nombre de boissons (2) et le nombre d'aliments (0) ne correspondent pas au nombre de personnes (3). Continuer quand même ? ».
 
