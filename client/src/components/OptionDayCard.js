@@ -13,7 +13,8 @@
  *   data — { items: [{ reservationId, optionId, title, clientName, propertyName, date, time, done,
  *            adults?, children?, teens?, babies?,          // generic option family chips
  *            breakfastPersons?, coffee?, tea?, chocolate?, milk?, pastries?, cereals?, note? }] }   // breakfast extras
- *   onItemClick   — `(reservationId) => void`. The detail block is clickable → fiche.
+ *   onItemClick   — `(reservationId, item) => void`. The detail block is clickable; option/
+ *                   resource cards open the fiche, the breakfast card opens the prep popup.
  *   onToggleDone  — `(item, nextDone) => void`. Fired when the circle is ticked.
  *   theme         — 'option' (default, deep-purple) | 'breakfast' (amber).
  */
@@ -32,7 +33,7 @@ import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
-import RiceBowlIcon from '@mui/icons-material/RiceBowl';
+import WheatIcon from './WheatIcon';
 
 const THEMES = {
   option: { bg: deepPurple[50], border: deepPurple[100], accent: deepPurple[700], Icon: EventNoteIcon },
@@ -52,7 +53,9 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   const hasFamily = adults + children + teens + babies > 0;
   const chipSx = { height: 22, fontSize: 12 };
   const stop = (e) => e.stopPropagation();
-  const openFiche = clickable ? () => onItemClick(item.reservationId) : undefined;
+  // The full item rides along as 2nd argument so breakfast-themed callers can open the
+  // preparation popup (specs/planning-breakfast-prep-popup.md); fiche callers ignore it.
+  const openFiche = clickable ? () => onItemClick(item.reservationId, item) : undefined;
   const drinks = [
     { key: 'coffee', icon: <LocalCafeIcon sx={{ fontSize: 16 }} />, label: 'Café', n: Number(item.coffee) || 0 },
     { key: 'tea', icon: <EmojiFoodBeverageIcon sx={{ fontSize: 16 }} />, label: 'Thé', n: Number(item.tea) || 0 },
@@ -61,7 +64,7 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   ].filter((d) => d.n > 0);
   const food = [
     { key: 'pastries', icon: <BakeryDiningIcon sx={{ fontSize: 16 }} />, label: 'Viennoiseries', n: Number(item.pastries) || 0 },
-    { key: 'cereals', icon: <RiceBowlIcon sx={{ fontSize: 16 }} />, label: 'Céréales', n: Number(item.cereals) || 0 },
+    { key: 'cereals', icon: <WheatIcon sx={{ fontSize: 16 }} />, label: 'Céréales', n: Number(item.cereals) || 0 },
   ].filter((d) => d.n > 0);
   return (
     <Card

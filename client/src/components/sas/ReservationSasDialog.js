@@ -20,7 +20,7 @@ import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
-import RiceBowlIcon from '@mui/icons-material/RiceBowl';
+import WheatIcon from '../WheatIcon';
 import CloseIcon from '@mui/icons-material/Close';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -619,7 +619,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="subtitle2">À manger</Typography>
             <Stack spacing={0.5} divider={<Divider />}>
               <CountStepper icon={<BakeryDiningIcon color="action" />} label="Viennoiseries" value={Number(breakfastFood.pastries)} onChange={(v) => setBreakfastFood((f) => ({ ...f, pastries: v }))} />
-              <CountStepper icon={<RiceBowlIcon color="action" />} label="Céréales" value={Number(breakfastFood.cereals)} onChange={(v) => setBreakfastFood((f) => ({ ...f, cereals: v }))} />
+              <CountStepper icon={<WheatIcon color="action" />} label="Céréales" value={Number(breakfastFood.cereals)} onChange={(v) => setBreakfastFood((f) => ({ ...f, cereals: v }))} />
             </Stack>
             <Typography variant="caption" sx={{ color: breakfastFoodMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastFoodMismatch ? 700 : 400 }}>
               {breakfastFoodTotal} à manger pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}

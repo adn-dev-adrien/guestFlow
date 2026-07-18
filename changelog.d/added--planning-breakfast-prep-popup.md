@@ -1,0 +1,1 @@
+- Planning breakfast card (specs/planning-breakfast-prep-popup.md): clicking the card now opens a « what to prepare » popup — serving time in the amber pill, headcount, then only the non-zero items (Café/Thé/Chocolat chaud/Lait/Viennoiseries/Céréales) with the check-in SAS pictograms, plus the note. The reservation fiche stays one tap away via the popup's « Fiche » button.

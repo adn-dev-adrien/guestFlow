@@ -17,6 +17,7 @@ import { useToast } from '../components/DialogProvider';
 import LaundryDayCard from '../components/LaundryDayCard';
 import LaundryManualAdditionsDialog from '../components/LaundryManualAdditionsDialog';
 import OptionDayCard from '../components/OptionDayCard';
+import BreakfastPrepDialog from '../components/BreakfastPrepDialog';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
@@ -254,6 +255,10 @@ export default function PlanningPage() {
   const [manualAdditionsByDate, setManualAdditionsByDate] = useState({});
   const [editManualDate, setEditManualDate] = useState(null);
   const [manualSaving, setManualSaving] = useState(false);
+
+  // specs/planning-breakfast-prep-popup.md — the breakfast card item whose preparation popup
+  // is open (null = closed). The fiche stays reachable from the popup's « Fiche » button.
+  const [breakfastPrepItem, setBreakfastPrepItem] = useState(null);
 
   const lastLoadedRef = useRef(null);
 
@@ -816,7 +821,8 @@ export default function PlanningPage() {
                   the « breakfast » theme (amber) so it matches the other option cards — title + time
                   pill, property, person + the morning headcount + café/thé/chocolat/lait +
                   viennoiseries/céréales — with the « fait » circle. Driven by the breakfast option's
-                  selected occurrences. */}
+                  selected occurrences. Clicking the card opens the preparation popup
+                  (specs/planning-breakfast-prep-popup.md); the fiche is reachable from it. */}
               <OptionDayCard
                 theme="breakfast"
                 data={breakfastByDate[date] ? {
@@ -839,7 +845,7 @@ export default function PlanningPage() {
                     note: i.note,
                   })),
                 } : null}
-                onItemClick={openReservation}
+                onItemClick={(reservationId, item) => setBreakfastPrepItem(item)}
                 onToggleDone={handleToggleBreakfastDone}
               />
 
@@ -917,6 +923,17 @@ export default function PlanningPage() {
         saving={manualSaving}
         onClose={() => setEditManualDate(null)}
         onSave={handleSaveManualAddition}
+      />
+
+      <BreakfastPrepDialog
+        open={!!breakfastPrepItem}
+        item={breakfastPrepItem}
+        onClose={() => setBreakfastPrepItem(null)}
+        onOpenFiche={() => {
+          const id = breakfastPrepItem?.reservationId;
+          setBreakfastPrepItem(null);
+          if (id) openReservation(id);
+        }}
       />
     </Box>
   );
