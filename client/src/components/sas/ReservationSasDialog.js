@@ -18,6 +18,9 @@ import { useTheme, alpha } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
+import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
+import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
+import RiceBowlIcon from '@mui/icons-material/RiceBowl';
 import CloseIcon from '@mui/icons-material/Close';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -168,8 +171,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [cautionReturned, setCautionReturned] = useState(null); // departure
   const [extinguisherOk, setExtinguisherOk] = useState(true);   // fire-extinguisher — default GOOD CONDITION
   const [extinguisherQty, setExtinguisherQty] = useState({});   // departure: { repairKey: qty } when not OK
-  // arrival breakfast page (specs/sas-breakfast-and-handover-note.md)
-  const [breakfast, setBreakfast] = useState({ coffee: 0, tea: 0, chocolate: 0 });
+  // arrival breakfast page (specs/sas-breakfast-and-handover-note.md + sas-breakfast-milk-and-food.md)
+  const [breakfast, setBreakfast] = useState({ coffee: 0, tea: 0, chocolate: 0, milk: 0 });
+  const [breakfastFood, setBreakfastFood] = useState({ pastries: 0, cereals: 0 });
   const [breakfastTime, setBreakfastTime] = useState('');
   const [breakfastNote, setBreakfastNote] = useState('');
   const [handoverNote, setHandoverNote] = useState(''); // arrival recap → shown at departure
@@ -196,7 +200,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setLoading(true); setError(''); setData(null); setStepKey(null);
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
-    setBreakfast({ coffee: 0, tea: 0, chocolate: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
+    setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
     setComplementSettled(false); setComplementPaidCash(false); setComplementsSettled(false); setComplementsPaidCash(false);
     setWeatherAlerts([]);
@@ -207,7 +211,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const res = d?.reservation || {};
         const b = d?.breakfast;
         if (b?.applicable) {
-          setBreakfast({ coffee: Number(b.coffee) || 0, tea: Number(b.tea) || 0, chocolate: Number(b.chocolate) || 0 });
+          setBreakfast({ coffee: Number(b.coffee) || 0, tea: Number(b.tea) || 0, chocolate: Number(b.chocolate) || 0, milk: Number(b.milk) || 0 });
+          setBreakfastFood({ pastries: Number(b.pastries) || 0, cereals: Number(b.cereals) || 0 });
           setBreakfastTime(b.time || '');
           setBreakfastNote(b.note || '');
         }
@@ -435,6 +440,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           payload.breakfastCoffee = breakfast.coffee;
           payload.breakfastTea = breakfast.tea;
           payload.breakfastChocolate = breakfast.chocolate;
+          payload.breakfastMilk = breakfast.milk;
+          payload.breakfastPastries = breakfastFood.pastries;
+          payload.breakfastCereals = breakfastFood.cereals;
           payload.breakfastNote = breakfastNote;
         }
         await api.commitArrivalSas(reservationId, payload);
@@ -484,10 +492,21 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     );
   };
 
-  // Breakfast coherence: total drinks vs the server-resolved morning person count (soft warning, rule 4b).
-  const breakfastTotal = Number(breakfast.coffee) + Number(breakfast.tea) + Number(breakfast.chocolate);
+  // Breakfast coherence: drink and food totals vs the server-resolved morning person count
+  // (soft warnings — specs/sas-breakfast-milk-and-food.md rule 3).
+  const breakfastTotal = Number(breakfast.coffee) + Number(breakfast.tea) + Number(breakfast.chocolate) + Number(breakfast.milk);
+  const breakfastFoodTotal = Number(breakfastFood.pastries) + Number(breakfastFood.cereals);
   const breakfastPersons = Number(data?.breakfast?.persons || 0);
   const breakfastMismatch = breakfastTotal !== breakfastPersons;
+  const breakfastFoodMismatch = breakfastFoodTotal !== breakfastPersons;
+  const breakfastAnyMismatch = breakfastMismatch || breakfastFoodMismatch;
+  // Confirm-dialog message names only the mismatching category(ies).
+  const breakfastWarnMessage = [
+    breakfastMismatch ? `le nombre de boissons (${breakfastTotal})` : null,
+    breakfastFoodMismatch ? `le nombre d'aliments (${breakfastFoodTotal})` : null,
+  ].filter(Boolean).join(' et ')
+    .replace(/^le/, 'Le')
+    + ` ne correspond${breakfastMismatch && breakfastFoodMismatch ? 'ent' : ''} pas au nombre de personnes (${breakfastPersons}). Continuer quand même ?`;
 
   // ---- page renderers ----
   function renderStepContent() {
@@ -574,23 +593,36 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'breakfast':
         return (
           <Stack spacing={1.5}>
+            {/* Big readable hour (specs/sas-breakfast-milk-and-food.md rule 4). */}
             <TextField
               label="Heure du petit déjeuner"
               type="time"
               value={breakfastTime}
               onChange={(e) => setBreakfastTime(e.target.value)}
-              size="small"
-              sx={{ maxWidth: 200 }}
-              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: { xs: '100%', sm: 260 } }}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { sx: { fontSize: '1.7rem', fontWeight: 700, textAlign: 'center' } },
+              }}
             />
             <Divider />
             <Stack spacing={0.5} divider={<Divider />}>
               <CountStepper icon={<LocalCafeIcon color="action" />} label="Café" value={Number(breakfast.coffee)} onChange={(v) => setBreakfast((b) => ({ ...b, coffee: v }))} />
               <CountStepper icon={<EmojiFoodBeverageIcon color="action" />} label="Thé" value={Number(breakfast.tea)} onChange={(v) => setBreakfast((b) => ({ ...b, tea: v }))} />
               <CountStepper icon={<FreeBreakfastIcon sx={{ color: 'secondary.dark' }} />} label="Chocolat chaud" value={Number(breakfast.chocolate)} onChange={(v) => setBreakfast((b) => ({ ...b, chocolate: v }))} />
+              <CountStepper icon={<LocalDrinkIcon color="action" />} label="Lait" value={Number(breakfast.milk)} onChange={(v) => setBreakfast((b) => ({ ...b, milk: v }))} />
             </Stack>
             <Typography variant="caption" sx={{ color: breakfastMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastMismatch ? 700 : 400 }}>
               {breakfastTotal} boisson{breakfastTotal > 1 ? 's' : ''} pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}
+            </Typography>
+            <Divider />
+            <Typography variant="subtitle2">À manger</Typography>
+            <Stack spacing={0.5} divider={<Divider />}>
+              <CountStepper icon={<BakeryDiningIcon color="action" />} label="Viennoiseries" value={Number(breakfastFood.pastries)} onChange={(v) => setBreakfastFood((f) => ({ ...f, pastries: v }))} />
+              <CountStepper icon={<RiceBowlIcon color="action" />} label="Céréales" value={Number(breakfastFood.cereals)} onChange={(v) => setBreakfastFood((f) => ({ ...f, cereals: v }))} />
+            </Stack>
+            <Typography variant="caption" sx={{ color: breakfastFoodMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastFoodMismatch ? 700 : 400 }}>
+              {breakfastFoodTotal} à manger pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}
             </Typography>
             <TextField
               label="Note petit déjeuner (optionnel)"
@@ -825,7 +857,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'options': return <>{quit}{next()}</>;
       case 'breakfast':
         return <>{quit}
-          <Button variant="contained" onClick={() => { if (breakfastMismatch) setBreakfastWarnOpen(true); else goNext(); }}>Suivant</Button>
+          <Button variant="contained" onClick={() => { if (breakfastAnyMismatch) setBreakfastWarnOpen(true); else goNext(); }}>Suivant</Button>
         </>;
       case 'linen':
         // « Pas OK » opens the conditional linen-items page — navigate to it explicitly (the activeKeys
@@ -957,8 +989,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       open={breakfastWarnOpen}
       onClose={() => setBreakfastWarnOpen(false)}
       onConfirm={() => { setBreakfastWarnOpen(false); goNext(); }}
-      title="Boissons ≠ personnes"
-      message={`Le nombre de boissons (${breakfastTotal}) ne correspond pas au nombre de personnes (${breakfastPersons}). Continuer quand même ?`}
+      title="Quantités ≠ personnes"
+      message={breakfastWarnMessage}
       confirmLabel="Continuer"
       cancelLabel="Modifier"
       confirmColor="warning"
