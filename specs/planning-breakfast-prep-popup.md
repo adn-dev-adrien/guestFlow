@@ -54,7 +54,7 @@ Clicking a breakfast card opens a small popup summarizing exactly what to prepar
 
 | Category | Components | Notes |
 |---|---|---|
-| **Consumed (existing)** | MUI `Dialog` (ConfirmDialog-style compact layout), SAS pictogram set (`LocalCafe`, `EmojiFoodBeverage`, `FreeBreakfast`, `LocalDrink`, `BakeryDining`, `RiceBowl`, `People`, `AccessTime`) | |
+| **Consumed (existing)** | MUI `Dialog` (ConfirmDialog-style compact layout), SAS pictogram set (`LocalCafe`, `EmojiFoodBeverage`, `FreeBreakfast`, `LocalDrink`, `BakeryDining`, `Grain` — wheat, user feedback 2026-07-18 —, `People`, `AccessTime`) | |
 | **Created (new generic)** | — | none |
 | **Specific (kept feature-local)** | `BreakfastPrepDialog` | 100 % breakfast-domain content (labels, ordering, empty-state copy) — not a generic pattern |
 

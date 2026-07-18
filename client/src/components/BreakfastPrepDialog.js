@@ -28,7 +28,7 @@ import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
-import RiceBowlIcon from '@mui/icons-material/RiceBowl';
+import GrainIcon from '@mui/icons-material/Grain';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 
 function formatDayLong(date) {
@@ -60,7 +60,7 @@ export default function BreakfastPrepDialog({ item, open, onClose, onOpenFiche }
     { key: 'chocolate', icon: <FreeBreakfastIcon color="action" />, label: 'Chocolat chaud', n: Number(it.chocolate) || 0 },
     { key: 'milk', icon: <LocalDrinkIcon color="action" />, label: 'Lait', n: Number(it.milk) || 0 },
     { key: 'pastries', icon: <BakeryDiningIcon color="action" />, label: 'Viennoiseries', n: Number(it.pastries) || 0 },
-    { key: 'cereals', icon: <RiceBowlIcon color="action" />, label: 'Céréales', n: Number(it.cereals) || 0 },
+    { key: 'cereals', icon: <GrainIcon color="action" />, label: 'Céréales', n: Number(it.cereals) || 0 },
   ].filter((l) => l.n > 0);
   const note = String(it.note || '').trim();
   const emptyComposition = lines.length === 0 && !note;

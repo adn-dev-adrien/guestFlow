@@ -33,7 +33,7 @@ import LocalCafeIcon from '@mui/icons-material/LocalCafe';
 import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
-import RiceBowlIcon from '@mui/icons-material/RiceBowl';
+import GrainIcon from '@mui/icons-material/Grain';
 
 const THEMES = {
   option: { bg: deepPurple[50], border: deepPurple[100], accent: deepPurple[700], Icon: EventNoteIcon },
@@ -64,7 +64,7 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   ].filter((d) => d.n > 0);
   const food = [
     { key: 'pastries', icon: <BakeryDiningIcon sx={{ fontSize: 16 }} />, label: 'Viennoiseries', n: Number(item.pastries) || 0 },
-    { key: 'cereals', icon: <RiceBowlIcon sx={{ fontSize: 16 }} />, label: 'Céréales', n: Number(item.cereals) || 0 },
+    { key: 'cereals', icon: <GrainIcon sx={{ fontSize: 16 }} />, label: 'Céréales', n: Number(item.cereals) || 0 },
   ].filter((d) => d.n > 0);
   return (
     <Card
