@@ -8,6 +8,10 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Extended by [[sas-breakfast-milk-and-food]] (2026-07-18):** a 4th drink « Lait », an
+> « À manger » section (Viennoiseries / Céréales counters with their own coherence hint),
+> and a bigger time display on the SAS step. That spec is the source of truth for those fields.
+
 ---
 
 ## 1. Context

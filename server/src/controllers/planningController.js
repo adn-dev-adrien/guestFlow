@@ -196,7 +196,8 @@ function buildController({
      * Payload shape:
      *   { breakfastByDate: {
      *       'YYYY-MM-DD': {
-     *         items: [{ reservationId, clientName, propertyName, persons }, ...],
+     *         items: [{ reservationId, clientName, propertyName, persons,
+     *                   coffee, tea, chocolate, milk, pastries, cereals, note }, ...],
      *         totalPersons: number,
      *       }, ...
      *     } }

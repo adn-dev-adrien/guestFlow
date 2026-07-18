@@ -56,7 +56,8 @@ function commitArrival(req, res) {
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
   const {
     cautionReceived, complementItems = [],
-    breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastNote,
+    breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
+    breakfastPastries, breakfastCereals, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
   } = req.body || {};
@@ -69,6 +70,9 @@ function commitArrival(req, res) {
     breakfastCoffee,
     breakfastTea,
     breakfastChocolate,
+    breakfastMilk,
+    breakfastPastries,
+    breakfastCereals,
     breakfastNote,
     departureHandoverNote,
     extinguisherSealOkAtArrival,
