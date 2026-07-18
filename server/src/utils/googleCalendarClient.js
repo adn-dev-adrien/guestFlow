@@ -1,85 +1,35 @@
 /**
- * Google Calendar client helpers — extracted from routes/googleCalendar.js so they
- * can be reused by both the legacy sync routes and the new test-connection action.
+ * Google Calendar connection-test helper + French error mapping
+ * (specs/google-calendar-oauth-rework.md §3 rule 25 / §4.3 test-connection).
  *
- * `googleapis` is required lazily inside getGoogleCalendarClient so unit tests
- * (which inject a fake `calendarApi`) and the rest of the app don't break when
- * the dependency isn't installed.
+ * The service-account JWT machinery that used to live here was removed by the OAuth
+ * rework — authentication now goes through utils/googleOAuthClient. The caller supplies
+ * the authenticated `calendarApi`, which keeps this module free of `googleapis` and
+ * fully unit-testable.
  *
  * Exports:
- *   sanitizePrivateKey(value)            → string with escaped \n turned into real newlines
- *   getGoogleCalendarConfig(overrides?)  → { calendarId, clientEmail, privateKey, configured }
- *   getGoogleCalendarClient(config)      → authenticated googleapis calendar client
- *   testConnection(config, opts?)        → { ok, message? } | { ok:false, code, error }
+ *   mapGoogleError(error)                  → { code, error } with a French message
+ *   testConnection(config, { calendarApi }) → { ok, message? } | { ok:false, code, error }
  */
-
-const settingsModel = require('../models/settingsModel');
-
-function sanitizePrivateKey(privateKey) {
-  return String(privateKey || '').replace(/\\n/g, '\n').trim();
-}
-
-function getGoogleCalendarConfig(overrides = {}) {
-  const settings = settingsModel.read();
-
-  const calendarId = String(
-    overrides.calendarId
-    || settings.googleCalendarId
-    || process.env.GOOGLE_CALENDAR_ID
-    || ''
-  ).trim();
-
-  const clientEmail = String(
-    overrides.clientEmail
-    || settings.googleServiceAccountEmail
-    || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-    || ''
-  ).trim();
-
-  const privateKey = sanitizePrivateKey(
-    overrides.privateKey
-    || settings.googleServiceAccountPrivateKey
-    || process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
-    || ''
-  );
-
-  return {
-    calendarId,
-    clientEmail,
-    privateKey,
-    configured: Boolean(calendarId && clientEmail && privateKey),
-  };
-}
-
-function getGoogleCalendarClient(config) {
-  // eslint-disable-next-line global-require
-  const { google } = require('googleapis');
-  const auth = new google.auth.JWT({
-    email: config.clientEmail,
-    key: config.privateKey,
-    scopes: ['https://www.googleapis.com/auth/calendar'],
-  });
-  return google.calendar({ version: 'v3', auth });
-}
 
 function mapGoogleError(error) {
   const status = Number((error && error.response && error.response.status) || (error && error.code) || 500);
   if (status === 401 || status === 400) {
     return {
       code: 'INVALID_CREDENTIALS',
-      error: 'Email du compte technique invalide ou clé non reconnue.',
+      error: 'Connexion Google expirée ou révoquée. Reconnectez votre compte.',
     };
   }
   if (status === 403) {
     return {
       code: 'FORBIDDEN',
-      error: "Le compte technique n'a pas la permission d'accéder à cet agenda. Partagez l'agenda avec lui depuis Google Agenda.",
+      error: "Votre compte Google n'a pas la permission d'écrire dans cet agenda.",
     };
   }
   if (status === 404) {
     return {
       code: 'CALENDAR_NOT_FOUND',
-      error: "Agenda introuvable. Vérifiez l'identifiant.",
+      error: "Agenda introuvable. Choisissez un autre agenda cible.",
     };
   }
   const message = (error && error.response && error.response.data && error.response.data.error && error.response.data.error.message)
@@ -89,27 +39,24 @@ function mapGoogleError(error) {
 }
 
 async function testConnection(config, { calendarApi } = {}) {
-  if (!config || !config.configured) {
+  if (!config || !config.configured || !config.calendarId) {
     return {
       ok: false,
       code: 'NOT_CONFIGURED',
-      error: "Configurez d'abord les identifiants avant de tester.",
+      error: "Connectez votre compte Google et choisissez un agenda avant de tester.",
     };
   }
 
-  let calendar;
-  try {
-    calendar = calendarApi || getGoogleCalendarClient(config);
-  } catch (initError) {
+  if (!calendarApi) {
     return {
       ok: false,
-      code: 'UNKNOWN',
-      error: `Erreur d'initialisation Google : ${initError.message}`,
+      code: 'NOT_CONFIGURED',
+      error: "Connexion Google absente. Reconnectez votre compte.",
     };
   }
 
   try {
-    const result = await calendar.calendars.get({ calendarId: config.calendarId });
+    const result = await calendarApi.calendars.get({ calendarId: config.calendarId });
     const summary = String(
       (result && result.data && result.data.summary)
       || (result && result.summary)
@@ -125,9 +72,7 @@ async function testConnection(config, { calendarApi } = {}) {
 }
 
 module.exports = {
-  sanitizePrivateKey,
-  getGoogleCalendarConfig,
-  getGoogleCalendarClient,
+  mapGoogleError,
   testConnection,
 };
 

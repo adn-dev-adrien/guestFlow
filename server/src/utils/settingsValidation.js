@@ -7,8 +7,6 @@
  */
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PEM_BEGIN_REGEX = /^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/m;
-const PEM_END_REGEX = /-----END [A-Z0-9 ]*PRIVATE KEY-----\s*$/m;
 const TVA_REGEX = /^[A-Z]{2}\d+$/;
 const BIC_REGEX = /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
 
@@ -70,25 +68,6 @@ function validateBic(value) {
   const v = stripWhitespace(value).toUpperCase();
   if (v === '') return null;
   if (!BIC_REGEX.test(v)) return 'BIC invalide (8 ou 11 caractères).';
-  return null;
-}
-
-function validatePrivateKey(value) {
-  const v = trimOrEmpty(value);
-  if (v === '') return null;
-  if (!PEM_BEGIN_REGEX.test(v)) {
-    return 'Clé d\'authentification invalide : marqueur de début "-----BEGIN ... PRIVATE KEY-----" introuvable.';
-  }
-  if (!PEM_END_REGEX.test(v)) {
-    return 'Clé d\'authentification invalide : marqueur de fin "-----END ... PRIVATE KEY-----" introuvable.';
-  }
-  return null;
-}
-
-function validateCalendarId(value) {
-  const v = trimOrEmpty(value);
-  if (v === '') return null;
-  if (v.length > 500) return 'Identifiant de calendrier trop long.';
   return null;
 }
 
@@ -157,8 +136,6 @@ module.exports = {
   validateTvaIntracom,
   validateIban,
   validateBic,
-  validatePrivateKey,
-  validateCalendarId,
   validateQuoteValidityDays,
   validateVatRate,
   validateSmtpPort,

@@ -25,6 +25,7 @@ const { assignReservationNumberIfMissing } = require('../utils/reservationNumber
 const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
 const notificationService = require('../utils/notificationService');
+const googleCalendarSync = require('../utils/googleCalendarSync');
 // Establishment closures (2026-06-06): every iCal event is checked against the
 // closure table BEFORE touching the local reservations table. Until this guard
 // landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
@@ -759,6 +760,12 @@ function createPropertyIcalModel(database) {
         // SMTP never delays or breaks the sync; the service swallows its own errors.
         for (const reservationId of result.createdReservationIds || []) {
           Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
+        }
+        // Bookings changed → debounced Google Calendar reconcile, triggered here so every
+        // caller (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) gets the same
+        // low-latency push (specs/google-calendar-oauth-rework.md rule 20). Fire-and-forget.
+        if (result.createdCount + result.updatedCount + result.removedCount > 0) {
+          googleCalendarSync.scheduleReconcile();
         }
         return result;
       } catch (error) {

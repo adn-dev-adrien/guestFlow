@@ -156,7 +156,8 @@ function buildModel(database) {
       reservation.startDate, reservation.endDate, drift.newStartDate, drift.newEndDate,
     ));
     ackApproved.run(id);
-    return { ok: true };
+    // reservationId feeds the controller's Google Calendar push hook (additive, spec rule 20).
+    return { ok: true, reservationId: drift.reservationId };
   });
 
   function approve(id) {

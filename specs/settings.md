@@ -8,6 +8,12 @@
 | **Author** | Adrien |
 | **Spec type** | Retro-spec + MVC refactor + UX humanization |
 
+> **⚠️ Google Calendar parts superseded (2026-07-18).** The service-account mechanism, the
+> 3-field Settings section, the `googleCalendar` group in `GET/PUT /api/settings` and rules
+> 12–17 below were replaced by an OAuth connect flow with its own endpoints — see
+> [[google-calendar-oauth-rework]] (`specs/google-calendar-oauth-rework.md`), now the source
+> of truth for everything Google Calendar. The sections below are kept as history.
+
 ---
 
 ## 1. Context
@@ -121,11 +127,11 @@ UX kept simple: **one page, three cards stacked, all fields editable inline**, w
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| GET | `/api/settings` | — | `{ company: { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath }, quote: { footerText, validityDays }, googleCalendar: { calendarId, serviceAccountEmail, serviceAccountEmailMasked, privateKeyMasked, privateKeyFingerprint, configured, statusLabel }, updatedAt, updatedAtLabel }` |
-| PUT | `/api/settings` | `{ company?: {...}, quote?: {...}, googleCalendar?: {...} }` (per-group; field omitted → preserved; for `googleCalendar.privateKey`: absent → preserve, `""` → clear, non-empty → validate+store) | Same shape as GET on success. `400 { code: 'SETTINGS_INVALID', errors: { fieldName: frenchMessage } }` on validation failure. |
+| GET | `/api/settings` | — | `{ company: { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath }, quote: { footerText, validityDays }, updatedAt, updatedAtLabel }` — the `googleCalendar` group was **removed 2026-07-18** ([[google-calendar-oauth-rework]]) |
+| PUT | `/api/settings` | `{ company?: {...}, quote?: {...} }` (per-group; field omitted → preserved) — `googleCalendar?` **no longer accepted** (2026-07-18) | Same shape as GET on success. `400 { code: 'SETTINGS_INVALID', errors: { fieldName: frenchMessage } }` on validation failure. |
 | POST | `/api/settings/logo` | multipart with `logo` file (≤ 2 MB, image MIME) | `{ company: { logoPath } }` |
 | DELETE | `/api/settings/logo` | — | `{ company: { logoPath: '' } }` |
-| POST | `/api/google-calendar/test-connection` | — | `{ ok: true, message }` or `{ ok: false, code, error }` |
+| POST | `/api/google-calendar/test-connection` | — | Reworked to the OAuth path — see [[google-calendar-oauth-rework]] §4.3 |
 
 Client + server move in the same session (no compat shim).
 

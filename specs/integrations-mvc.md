@@ -9,6 +9,12 @@
 | **Related PR** | (link once opened) |
 | **Bloc** | Bloc 6 — Integrations (last bloc). See `specs/ROADMAP.md`. |
 
+> **⚠️ Google Calendar parts superseded (2026-07-18).** The service-account auth, the
+> `POST /sync-reservations` endpoint and the `guestflow-r<id>` event-id scheme described in
+> this spec were replaced by the OAuth rework — see [[google-calendar-oauth-rework]]
+> (`specs/google-calendar-oauth-rework.md`), now the source of truth for everything Google
+> Calendar. The iCal export / calendar notes / options parts of this spec remain current.
+
 ---
 
 ## 1. Context

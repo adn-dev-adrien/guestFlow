@@ -161,15 +161,16 @@ function buildModel(database) {
     if (!r) {
       // Reservation was already deleted between sync and approve — treat as idempotent:
       // ack the row with a distinct outcome so the audit trail records what happened.
+      // reservationId still returned so the Google event (if any) gets cleaned up too.
       ackReservationGone.run(id);
-      return { ok: true, outcome: 'reservation_gone' };
+      return { ok: true, outcome: 'reservation_gone', reservationId: cancellation.reservationId };
     }
     // History BEFORE delete so the reservationId FK is still resolvable.
     insertHistoryStmt.run(cancellation.reservationId, HISTORY_PAYLOAD);
     deleteImportEvents.run(cancellation.reservationId);
     deleteReservation.run(cancellation.reservationId);
     ackApproved.run(id);
-    return { ok: true, outcome: 'approved' };
+    return { ok: true, outcome: 'approved', reservationId: cancellation.reservationId };
   });
 
   function approve(id) {

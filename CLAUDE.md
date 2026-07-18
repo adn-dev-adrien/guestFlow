@@ -403,7 +403,7 @@ Each action item:
 
 ### Encryption
 
-- Sensitive fields (Google credentials) should be AES-256-GCM encrypted (tracked as deferred tech debt — currently stored in clear despite README claims).
+- Sensitive fields (Google OAuth refresh token + calendar id, SMTP password, Qonto tokens, Météo-France key) are AES-256-GCM encrypted at rest via `settingsModel`'s `ENCRYPTED_COLUMNS` (shipped by Bloc S / security-auth-encryption). Any new stored secret must join that list.
 - Key auto-generated in `server/.env.local` on first run.
 - **Never** log or commit decrypted secrets. **Never** commit `.env.local`.
 
