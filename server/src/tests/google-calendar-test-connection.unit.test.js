@@ -5,10 +5,10 @@ const googleCalendarClient = require('../utils/googleCalendarClient');
 const { testConnection } = googleCalendarClient;
 const { mapGoogleError } = googleCalendarClient.__test;
 
+// OAuth rework (specs/google-calendar-oauth-rework.md): config is now just the selected
+// calendar + a configured flag; the caller supplies the authenticated calendarApi.
 const VALID_CONFIG = {
-  calendarId: 'mon-agenda@gmail.com',
-  clientEmail: 'robot@projet.iam.gserviceaccount.com',
-  privateKey: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----',
+  calendarId: 'mon-agenda@group.calendar.google.com',
   configured: true,
 };
 
@@ -24,10 +24,10 @@ function makeCalendarApi({ ok, error } = {}) {
 }
 
 // --- mapGoogleError ---
-test('mapGoogleError: 401 → INVALID_CREDENTIALS', () => {
+test('mapGoogleError: 401 → INVALID_CREDENTIALS (expired/revoked connection)', () => {
   const out = mapGoogleError({ response: { status: 401 } });
   assert.equal(out.code, 'INVALID_CREDENTIALS');
-  assert.match(out.error, /invalide/);
+  assert.match(out.error, /expirée|révoquée/);
 });
 test('mapGoogleError: 400 → INVALID_CREDENTIALS', () => {
   assert.equal(mapGoogleError({ response: { status: 400 } }).code, 'INVALID_CREDENTIALS');
@@ -51,9 +51,17 @@ test('mapGoogleError: 500 + nested message → UNKNOWN with message', () => {
 });
 
 // --- testConnection ---
-test('testConnection: NOT_CONFIGURED on missing config', async () => {
+test('testConnection: NOT_CONFIGURED on missing config / calendar', async () => {
   assert.equal((await testConnection(null)).code, 'NOT_CONFIGURED');
   assert.equal((await testConnection({ configured: false })).code, 'NOT_CONFIGURED');
+  assert.equal((await testConnection({ configured: true, calendarId: '' })).code, 'NOT_CONFIGURED');
+});
+
+test('testConnection: NOT_CONFIGURED when no calendarApi is supplied (no connection)', async () => {
+  const out = await testConnection(VALID_CONFIG, {});
+  assert.equal(out.ok, false);
+  assert.equal(out.code, 'NOT_CONFIGURED');
+  assert.match(out.error, /Reconnectez/);
 });
 
 test('testConnection: ok on successful Google response', async () => {
@@ -84,17 +92,4 @@ test('testConnection: maps 503 → UNKNOWN', async () => {
   const out = await testConnection(VALID_CONFIG, { calendarApi });
   assert.equal(out.code, 'UNKNOWN');
   assert.match(out.error, /busy/);
-});
-
-test('testConnection: returns UNKNOWN (no crash) when googleapis cannot be required', async () => {
-  // No calendarApi injected → testConnection will try to require('googleapis').
-  // If it's not installed, our try/catch returns UNKNOWN instead of throwing.
-  const out = await testConnection(VALID_CONFIG);
-  // We can't deterministically assert ok=false here (depends on whether the user
-  // has googleapis installed). We just assert no throw + proper shape.
-  assert.equal(typeof out.ok, 'boolean');
-  if (!out.ok) {
-    assert.ok(['UNKNOWN', 'INVALID_CREDENTIALS', 'CALENDAR_NOT_FOUND', 'FORBIDDEN'].includes(out.code));
-    assert.equal(typeof out.error, 'string');
-  }
 });

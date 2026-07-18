@@ -5,9 +5,12 @@
  * Owns:
  *  - Response shaping (delegated to utils/settingsResponse).
  *  - Input validation (delegated to utils/settingsValidation).
- *  - 3-way private key semantics (absent → preserve, "" → clear, non-empty → store).
+ *  - 3-way masked-secret semantics (absent → preserve, "" → clear, non-empty → store).
  *  - Per-group, per-field "absent → preserve" semantics for `company` and `quote`.
  *  - Logo file lifecycle (the file itself; multer writes/owns the bytes).
+ *
+ * Google Calendar moved to its own controller/endpoints with the OAuth rework
+ * (specs/google-calendar-oauth-rework.md) — no `googleCalendar` group here anymore.
  */
 
 const path = require('path');
@@ -41,12 +44,6 @@ const QUOTE_FIELDS = [
   // English-language footer for the bilingual devis PDF (specs/devis-english-language.md §3 rule 11).
   { input: 'footerTextEn', column: 'quoteFooterTextEn' },
   { input: 'validityDays', column: 'quoteValidityDays', validator: validation.validateQuoteValidityDays },
-];
-
-const GOOGLE_FIELDS = [
-  { input: 'calendarId', column: 'googleCalendarId', validator: validation.validateCalendarId },
-  { input: 'serviceAccountEmail', column: 'googleServiceAccountEmail', validator: validation.validateEmail },
-  // privateKey is handled separately (3-way semantics).
 ];
 
 // Single VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
@@ -130,7 +127,6 @@ function updateSettings(req, res) {
   const body = req.body || {};
   const company = pickGroup(body, 'company');
   const quote = pickGroup(body, 'quote');
-  const google = pickGroup(body, 'googleCalendar');
   const vat = pickGroup(body, 'vat');
   const smtp = pickGroup(body, 'smtp');
   const reservations = pickGroup(body, 'reservations');
@@ -171,7 +167,6 @@ function updateSettings(req, res) {
 
   applyGroup(company, COMPANY_FIELDS);
   applyGroup(quote, QUOTE_FIELDS);
-  applyGroup(google, GOOGLE_FIELDS);
   applyGroup(vat, VAT_FIELDS);
   applyGroup(smtp, SMTP_FIELDS);
   applyGroup(reservations, RESERVATIONS_FIELDS);
@@ -179,20 +174,7 @@ function updateSettings(req, res) {
   applyGroup(linenStock, LINEN_STOCK_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
 
-  // Google Calendar private key — 3-way semantics.
-  if (google && Object.prototype.hasOwnProperty.call(google, 'privateKey')) {
-    const raw = google.privateKey;
-    if (raw === '' || raw == null) {
-      // Explicit clear.
-      payload.googleServiceAccountPrivateKey = '';
-    } else {
-      const err = validation.validatePrivateKey(raw);
-      if (err) errors.googleServiceAccountPrivateKey = err;
-      payload.googleServiceAccountPrivateKey = String(raw);
-    }
-  }
-
-  // SMTP password — same 3-way semantics. Absent → preserve; '' → clear; non-empty → store.
+  // SMTP password — 3-way semantics. Absent → preserve; '' → clear; non-empty → store.
   // Strip ALL whitespace before storing. Google App Passwords are displayed as 4 groups of 4 chars
   // separated by spaces (`abcd efgh ijkl mnop`); copy-pasting that verbatim breaks SMTP auth
   // because the transport sends the literal string with spaces. Pre-cleaning saves the admin from

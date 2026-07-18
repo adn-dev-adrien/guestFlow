@@ -1,53 +1,9 @@
 /**
  * Settings response shaping — pure helpers that turn a flat DB row into the
- * wrapped { company, quote, googleCalendar } payload returned by the API.
+ * wrapped { company, quote, smtp, … } payload returned by the API.
+ * The Google Calendar block moved to its own endpoint (GET /api/google-calendar/status)
+ * with the OAuth rework — see specs/google-calendar-oauth-rework.md.
  */
-
-const crypto = require('crypto');
-
-const PRIVATE_KEY_MASK = '••••••••••';
-
-const STATUS_LABELS = Object.freeze({
-  ACTIVE: 'Synchronisation active',
-  IN_PROGRESS: 'Configuration en cours',
-  MISSING: 'Synchronisation non configurée',
-});
-
-function maskEmail(email) {
-  if (!email) return '';
-  const str = String(email);
-  if (str.length <= 20) return str;
-  const atIndex = str.indexOf('@');
-  if (atIndex === -1) return str;
-  const local = str.slice(0, atIndex);
-  const domain = str.slice(atIndex + 1);
-  const localPart = local.length > 8 ? `${local.slice(0, 5)}…` : local;
-  const domainPart = domain.length > 16 ? `${domain.slice(0, 6)}…${domain.slice(-8)}` : domain;
-  return `${localPart}@${domainPart}`;
-}
-
-function fingerprintPrivateKey(key) {
-  if (!key) return null;
-  return crypto.createHash('sha256').update(String(key)).digest('hex').slice(0, 6);
-}
-
-function computeConfigured(row) {
-  return Boolean(
-    String(row.googleCalendarId || '').trim()
-    && String(row.googleServiceAccountEmail || '').trim()
-    && String(row.googleServiceAccountPrivateKey || '').trim()
-  );
-}
-
-function computeStatusLabel(row) {
-  const hasId = Boolean(String(row.googleCalendarId || '').trim());
-  const hasEmail = Boolean(String(row.googleServiceAccountEmail || '').trim());
-  const hasKey = Boolean(String(row.googleServiceAccountPrivateKey || '').trim());
-  const count = [hasId, hasEmail, hasKey].filter(Boolean).length;
-  if (count === 3) return STATUS_LABELS.ACTIVE;
-  if (count === 0) return STATUS_LABELS.MISSING;
-  return STATUS_LABELS.IN_PROGRESS;
-}
 
 function formatUpdatedAtLabel(updatedAt) {
   if (!updatedAt) return null;
@@ -67,9 +23,6 @@ function formatUpdatedAtLabel(updatedAt) {
 
 function shapeResponse(row) {
   const safeStr = (v) => String(v == null ? '' : v);
-
-  const serviceAccountEmail = safeStr(row.googleServiceAccountEmail).trim();
-  const privateKey = safeStr(row.googleServiceAccountPrivateKey);
 
   return {
     company: {
@@ -95,15 +48,6 @@ function shapeResponse(row) {
     vat: {
       rate: row.vatRate == null ? 10 : Number(row.vatRate),
       rateCommission: row.vatRateCommission == null ? 20 : Number(row.vatRateCommission),
-    },
-    googleCalendar: {
-      calendarId: safeStr(row.googleCalendarId).trim(),
-      serviceAccountEmail,
-      serviceAccountEmailMasked: maskEmail(serviceAccountEmail),
-      privateKeyMasked: privateKey ? PRIVATE_KEY_MASK : '',
-      privateKeyFingerprint: fingerprintPrivateKey(privateKey),
-      configured: computeConfigured(row),
-      statusLabel: computeStatusLabel(row),
     },
     // SMTP block for the account-management flow (specs/admin-account-management.md). The password
     // is masked: the row already comes from settingsModel.read() which substitutes
@@ -162,13 +106,7 @@ function shapeResponse(row) {
 
 module.exports = {
   shapeResponse,
-  PRIVATE_KEY_MASK,
-  STATUS_LABELS,
   __test: {
-    maskEmail,
-    fingerprintPrivateKey,
-    computeConfigured,
-    computeStatusLabel,
     formatUpdatedAtLabel,
   },
 };

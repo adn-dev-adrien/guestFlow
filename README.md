@@ -48,11 +48,11 @@ A web application for managing tourist accommodations: property booking and fina
 - Pending payments list with checkboxes to mark payments as received
 
 ### Google Calendar Integration
-- Sync all reservations to a Google Calendar automatically
-- Event titles include property name and guest name for easy identification
+- Connect your Google account (OAuth) and sync all reservations to any calendar you own — private calendars included, no sharing setup
+- Automatic push on every reservation create/update/delete + 15-min reconcile pass (propagates deletions) + manual "Sync now"
+- Event titles include property name and guest name; one event color per property
 - Event descriptions contain guest count, bed allocations, and selected options
-- Manage credentials via Settings page (Paramètres) in the application UI
-- Automatic event creation/update with deterministic IDs for duplicate prevention
+- Deterministic event IDs for duplicate prevention; GuestFlow is the source of truth
 
 ## Tech Stack
 
@@ -235,8 +235,8 @@ you change it. **Change it immediately on first login**, ideally before exposing
 
 Secrets are auto-generated into `server/.env.local` on first run (`GUESTFLOW_ENCRYPTION_KEY` for
 credential encryption at rest, `GUESTFLOW_SESSION_SECRET` for sessions). This file is git-ignored and
-must never be committed or shared. Google service-account credentials are encrypted (AES-256-GCM) at
-rest using that key.
+must never be committed or shared. Stored credentials (Google OAuth refresh token, SMTP password,
+Qonto tokens) are encrypted (AES-256-GCM) at rest using that key.
 
 The admin password persists across restarts. If you ever lose it — or if you changed the admin's
 email and forgot the new address — recover access without touching the database by hand. Run, on
@@ -630,57 +630,52 @@ The full application is then available at `http://localhost:4000`.
 
 ### 3. Configuring Google Calendar Integration
 
-GuestFlow can sync all reservations to a Google Calendar automatically. This is useful for seeing your bookings across all platforms in a single calendar view.
+GuestFlow syncs all reservations to a Google Calendar of your choice — including a **private
+calendar** — by connecting your Google account with OAuth (no calendar sharing, no service
+account). Full spec: `specs/google-calendar-oauth-rework.md`.
 
-#### Setting up Google Calendar
+#### Setting up the OAuth client (one-time, Google Cloud Console)
 
-1. **Create a Google Service Account**
+1. **Enable the Calendar API**
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project (or select an existing one)
-   - Go to **APIs & Services** → **Credentials**
-   - Click **Create Credentials** → **Service Account**
-   - Fill in the service account details and click **Create**
-   - Under **Keys**, click **Add Key** → **Create new key** → **JSON**
-   - Save the downloaded JSON file (you'll need this)
+   - **APIs & Services** → **Library** → enable **Google Calendar API**
 
-2. **Share Your Google Calendar**
-   - Open your Google Calendar
-   - Copy your **Calendar ID** from settings (usually ends with `@gmail.com` or similar)
-   - Go back to Google Cloud Console and note the service account email
-   - In your Google Calendar settings, share the calendar with the service account email (with "Make changes to events" permission)
+2. **Configure the OAuth consent screen**
+   - **APIs & Services** → **OAuth consent screen**
+   - If your target account is on your own Google Workspace domain, choose **Internal**
+     (no verification, no warning screen, refresh tokens never expire)
+   - Otherwise choose **External** and publish the app to production (you'll see a
+     one-time "unverified app" warning at connect time)
 
-3. **Enter Credentials in GuestFlow**
-   - Open GuestFlow and navigate to **Paramètres** (Settings) in the menu
-   - Fill in the three fields:
-     - **Calendar ID**: Your Google Calendar ID
-     - **Service Account Email**: From the service account JSON file
-     - **Private Key**: From the service account JSON file (the entire `private_key` value)
-   - Click **Save Settings**
-   - Settings are persisted and survive server restarts
+3. **Create the OAuth client**
+   - **APIs & Services** → **Credentials** → **Create Credentials** → **OAuth client ID**
+   - Application type: **Web application**
+   - Authorized redirect URIs:
+     - Production: `https://<your-public-url>/api/google-calendar/oauth/callback`
+     - Development: `http://localhost:3000/api/google-calendar/oauth/callback`
+   - Copy the client id + secret into `server/.env.local`:
 
-4. **Sync Reservations**
-   - Go to the **Réservations** (Reservations) page
-   - Click the **Sync Google** button to sync all reservations to your calendar
-   - Events will be created with:
-     - **Title**: Property name − Guest name (e.g., "Villa Sunset − Jean Dupont")
-     - **Description**: Guest count, bed allocations, and selected options
-     - **Time**: Based on check-in and check-out times
+     ```
+     GOOGLE_OAUTH_CLIENT_ID=...
+     GOOGLE_OAUTH_CLIENT_SECRET=...
+     # Optional — overrides the redirect URI derived from the configured public URL:
+     # GOOGLE_OAUTH_REDIRECT_URI=https://example.com/api/google-calendar/oauth/callback
+     ```
 
-#### Environment Variables (Optional)
-
-For production deployments or automated setups, you can configure Google Calendar via environment variables instead of the Settings page. The application checks environment variables as a fallback if Settings are not configured in the database.
-
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_CALENDAR_ID` | Google Calendar target ID for reservation sync |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Service account email used to write events |
-| `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | Service account private key (use `\n` for line breaks) |
-
-**Priority:** Database settings (via Settings page) take precedence over environment variables. This allows you to update credentials without restarting the server.
+4. **Connect from GuestFlow**
+   - **Paramètres** → « Synchronisation Google Agenda » → **Connecter mon compte Google**
+   - Approve the consent screen, then pick the target calendar in the dropdown
+   - Reservations sync immediately on every create/update/delete, a reconcile pass runs
+     every 15 minutes (it also propagates deletions), and a « Synchroniser maintenant »
+     button forces a full pass
+   - Events carry: **Title** "Property name - Guest name", **Description** (guest count,
+     beds, options), **Time** from check-in/check-out, and one **color per property**
 
 #### Security: Automatic Encryption of Sensitive Data
 
-**All Google Calendar credentials are encrypted before storage in the SQLite database.** This provides protection against database compromise.
+**The Google OAuth refresh token and calendar id are encrypted before storage in the SQLite
+database.** This provides protection against database compromise.
 
 - **Automatic encryption key generation:**
   - On first startup, GuestFlow automatically generates a strong encryption key
@@ -689,7 +684,7 @@ For production deployments or automated setups, you can configure Google Calenda
   - **No manual setup required** — encryption is transparent and automatic
 
 - **How it works:**
-  - Sensitive fields (`googleCalendarId`, `googleServiceAccountEmail`, `googleServiceAccountPrivateKey`) are encrypted using AES-256-GCM
+  - Sensitive fields (`googleOAuthRefreshTokenEncrypted`, `googleCalendarId`, SMTP password, Qonto tokens) are encrypted using AES-256-GCM
   - Each field has its own random initialization vector (IV) and authentication tag
   - Data is automatically decrypted when retrieved by the application
   - Even if the database file (`guestflow.db`) is compromised, the encrypted credentials cannot be read without the encryption key

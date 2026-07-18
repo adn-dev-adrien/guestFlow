@@ -340,6 +340,28 @@ tryAddAppSettingsCol('qontoTokenExpiresAt',        "ALTER TABLE app_settings ADD
 tryAddAppSettingsCol('qontoConnectionId',          "ALTER TABLE app_settings ADD COLUMN qontoConnectionId          TEXT DEFAULT ''");
 tryAddAppSettingsCol('qontoConnectionStatus',      "ALTER TABLE app_settings ADD COLUMN qontoConnectionStatus      TEXT DEFAULT 'not_connected'");
 tryAddAppSettingsCol('qontoConnectedAt',           "ALTER TABLE app_settings ADD COLUMN qontoConnectedAt           TEXT DEFAULT ''");
+// 2026-07-18 — Google Calendar OAuth rework (specs/google-calendar-oauth-rework.md §5). The OAuth
+// client id/secret live in .env.local; these columns hold the per-connection refresh token
+// (AES-256-GCM, masked on read) + non-secret connection metadata and last-sync state.
+// `googleLastSyncOk` is tri-state: 1/0/NULL (never ran).
+tryAddAppSettingsCol('googleOAuthRefreshTokenEncrypted', "ALTER TABLE app_settings ADD COLUMN googleOAuthRefreshTokenEncrypted TEXT DEFAULT ''");
+tryAddAppSettingsCol('googleOAuthConnectedEmail',        "ALTER TABLE app_settings ADD COLUMN googleOAuthConnectedEmail        TEXT DEFAULT ''");
+tryAddAppSettingsCol('googleOAuthConnectedAt',           "ALTER TABLE app_settings ADD COLUMN googleOAuthConnectedAt           TEXT DEFAULT ''");
+tryAddAppSettingsCol('googleCalendarSummary',            "ALTER TABLE app_settings ADD COLUMN googleCalendarSummary            TEXT DEFAULT ''");
+tryAddAppSettingsCol('googleLastSyncAt',                 "ALTER TABLE app_settings ADD COLUMN googleLastSyncAt                 TEXT DEFAULT ''");
+tryAddAppSettingsCol('googleLastSyncOk',                 "ALTER TABLE app_settings ADD COLUMN googleLastSyncOk                 INTEGER DEFAULT NULL");
+tryAddAppSettingsCol('googleLastSyncDetail',             "ALTER TABLE app_settings ADD COLUMN googleLastSyncDetail             TEXT DEFAULT ''");
+// One-shot clear of the legacy service-account credentials: the SA auth mechanism is removed by
+// the OAuth rework (columns physically kept for schema parity; the model no longer reads them).
+// Idempotent — the WHERE clauses make re-runs no-ops; guarded so a future drop of the dead
+// columns from schema.sql doesn't crash fresh installs at boot.
+if (appSettingsCols.includes('googleServiceAccountEmail') && appSettingsCols.includes('googleServiceAccountPrivateKey')) {
+  db.prepare("UPDATE app_settings SET googleServiceAccountEmail = '', googleServiceAccountPrivateKey = '' WHERE id = 1 AND (googleServiceAccountEmail != '' OR googleServiceAccountPrivateKey != '')").run();
+}
+// A calendar id stored while NO OAuth connection exists is necessarily a leftover from the
+// service-account era (the new picker only writes it once connected). Clearing it forces the
+// post-connect « Configuration en cours » step instead of silently syncing to the old target.
+db.prepare("UPDATE app_settings SET googleCalendarId = '', googleCalendarSummary = '' WHERE id = 1 AND googleCalendarId != '' AND googleOAuthRefreshTokenEncrypted = ''").run();
 // Admin-only escape hatch for legitimate corrections on past reservations (typo in dates,
 // wrong property assigned). OFF by default; the existing server-side lock keeps holding.
 // See specs/admin-unlock-past-reservations.md (Approved 2026-06-01).
