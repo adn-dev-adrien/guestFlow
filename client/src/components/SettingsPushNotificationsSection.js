@@ -19,12 +19,14 @@ const PREF_LABELS = [
   ['newReservation', 'Nouvelle réservation'],
   ['arrivals', 'Arrivées'],
   ['departures', 'Départs'],
+  // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6).
+  ['breakfast', 'Petit déjeuner'],
 ];
 
 export default function SettingsPushNotificationsSection() {
   const supported = pushSupported();
   const [state, setState] = useState({ enabled: false, permission: 'default' });
-  const [prefs, setPrefs] = useState({ newReservation: true, arrivals: true, departures: true });
+  const [prefs, setPrefs] = useState({ newReservation: true, arrivals: true, departures: true, breakfast: true });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -35,7 +37,7 @@ export default function SettingsPushNotificationsSection() {
     try {
       const [st, pr] = await Promise.all([
         getPushState(),
-        api.getPushPreferences().catch(() => ({ newReservation: true, arrivals: true, departures: true })),
+        api.getPushPreferences().catch(() => ({ newReservation: true, arrivals: true, departures: true, breakfast: true })),
       ]);
       setState({ enabled: st.enabled, permission: st.permission });
       setPrefs(pr);

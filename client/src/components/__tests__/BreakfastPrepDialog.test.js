@@ -19,6 +19,7 @@ const FULL_ITEM = {
   milk: 2,
   pastries: 3,
   cereals: 1,
+  bread: 1.5,
   note: 'sans gluten',
 };
 
@@ -48,14 +49,16 @@ test('shows header (time, client · property, day), persons line and ONLY non-ze
   expect(screen.queryByText('Thé')).toBeNull();
   expect(screen.queryByText('Chocolat chaud')).toBeNull();
 
+  expect(screen.getByText('Pain')).toBeInTheDocument();
   expect(screen.getAllByText('× 2')).toHaveLength(2); // café + lait
   expect(screen.getByText('× 3')).toBeInTheDocument();
   expect(screen.getByText('× 1')).toBeInTheDocument();
+  expect(screen.getByText('× 1,5')).toBeInTheDocument(); // bread — French comma display
   expect(screen.getByText('sans gluten')).toBeInTheDocument();
 });
 
 test('empty composition → placeholder message, no item rows', () => {
-  renderDialog({ ...FULL_ITEM, coffee: 0, milk: 0, pastries: 0, cereals: 0, note: '' });
+  renderDialog({ ...FULL_ITEM, coffee: 0, milk: 0, pastries: 0, cereals: 0, bread: 0, note: '' });
   expect(screen.getByText('Composition non renseignée (à compléter au check-in).')).toBeInTheDocument();
   expect(screen.queryByText('Café')).toBeNull();
   // persons line stays

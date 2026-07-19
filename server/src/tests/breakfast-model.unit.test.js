@@ -31,6 +31,9 @@ const DDL = `
     breakfastMilk INTEGER NOT NULL DEFAULT 0,
     breakfastPastries INTEGER NOT NULL DEFAULT 0,
     breakfastCereals INTEGER NOT NULL DEFAULT 0,
+    breakfastBread REAL NOT NULL DEFAULT 0,
+    breakfastNotifiedDate TEXT,
+    arrivalSasDoneAt TEXT,
     breakfastNote TEXT
   );
   CREATE TABLE clients (
@@ -45,7 +48,8 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     autoOptionType TEXT,
-    breakfastTime TEXT
+    breakfastTime TEXT,
+    breakfastNotifyLeadMinutes INTEGER NOT NULL DEFAULT 30
   );
   CREATE TABLE reservation_options (
     reservationId INTEGER NOT NULL,
@@ -295,13 +299,13 @@ test('breakfast time: same-day items are sorted by time ascending', () => {
 
 // ---- breakfast composition (specs/sas-breakfast-and-handover-note.md) ----
 
-test('items carry coffee/tea/chocolate/milk/pastries/cereals/note from the reservation (clamped, trimmed)', () => {
+test('items carry coffee/tea/chocolate/milk/pastries/cereals/bread/note from the reservation (clamped, trimmed)', () => {
   const db = freshDb();
   insertProperty(db, 10, 'Gîte');
   insertClient(db, 100, 'Jean', 'Dupont');
   insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-10', adults: 2 });
   linkOption(db, 1, 1, 1.0);
-  db.prepare("UPDATE reservations SET breakfastCoffee = 2, breakfastTea = 0, breakfastChocolate = 1, breakfastMilk = 1, breakfastPastries = 3, breakfastCereals = 1, breakfastNote = '  sans gluten  ' WHERE id = 1").run();
+  db.prepare("UPDATE reservations SET breakfastCoffee = 2, breakfastTea = 0, breakfastChocolate = 1, breakfastMilk = 1, breakfastPastries = 3, breakfastCereals = 1, breakfastBread = 1.5, breakfastNotifiedDate = '2026-06-09', breakfastNote = '  sans gluten  ' WHERE id = 1").run();
 
   const item = buildModel(db).breakfastByDate({ from: '2026-06-09', to: '2026-06-15' })['2026-06-10'].items[0];
   assert.equal(item.coffee, 2);
@@ -310,16 +314,33 @@ test('items carry coffee/tea/chocolate/milk/pastries/cereals/note from the reser
   assert.equal(item.milk, 1);
   assert.equal(item.pastries, 3);
   assert.equal(item.cereals, 1);
+  assert.equal(item.bread, 1.5);
+  assert.equal(item.notifiedDate, '2026-06-09'); // feeds the breakfast push per-day guard
   assert.equal(item.note, 'sans gluten');
 });
 
-test('getForReservation: applicable via explicit option → persons + resolved time + stored counts', () => {
+test('a from=to=endDate window still carries the departure-day breakfast (push runner / deep-link)', () => {
+  // Regression: the window predicate used a strict `endDate > from`, silently dropping the
+  // departure-morning item when the window collapses to that very day — exactly what the
+  // breakfast push runner and the prep-popup deep-link query (from = to = today).
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-10', adults: 2 });
+  linkOption(db, 1, 1, 1.0);
+
+  const day = buildModel(db).breakfastByDate({ from: '2026-06-10', to: '2026-06-10' })['2026-06-10'];
+  assert.ok(day, 'departure-day window must not be empty');
+  assert.equal(day.items[0].reservationId, 1);
+});
+
+test('getForReservation: committed SAS → stored counts verbatim (an explicit 0 stays 0)', () => {
   const db = freshDb();
   insertProperty(db, 10, 'Gîte');
   insertClient(db, 100, 'Jean', 'Dupont');
   insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-12', adults: 2, children: 1, babies: 1, breakfastTime: '09:30' });
   linkOption(db, 1, 1, 1.0);
-  db.prepare('UPDATE reservations SET breakfastCoffee = 3, breakfastChocolate = 1, breakfastMilk = 2, breakfastPastries = 4, breakfastCereals = 1 WHERE id = 1').run();
+  db.prepare("UPDATE reservations SET breakfastCoffee = 3, breakfastChocolate = 1, breakfastMilk = 2, breakfastPastries = 4, breakfastCereals = 1, breakfastBread = 0, arrivalSasDoneAt = datetime('now') WHERE id = 1").run();
 
   const r = buildModel(db).getForReservation(1);
   assert.equal(r.applicable, true);
@@ -331,6 +352,35 @@ test('getForReservation: applicable via explicit option → persons + resolved t
   assert.equal(r.milk, 2);
   assert.equal(r.pastries, 4);
   assert.equal(r.cereals, 1);
+  assert.equal(r.bread, 0);            // explicit post-commit 0 is respected
+});
+
+test('getForReservation: SAS never committed → smart defaults (pastries = persons, bread = persons × 0.5)', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-06-09', endDate: '2026-06-12', adults: 2, children: 1, babies: 1 });
+  linkOption(db, 1, 1, 1.0);
+
+  const r = buildModel(db).getForReservation(1);
+  assert.equal(r.persons, 3);
+  assert.equal(r.pastries, 3);   // = persons
+  assert.equal(r.bread, 1.5);    // = persons × 0.5
+  assert.equal(r.cereals, 0);    // no default
+  assert.equal(r.coffee, 0);
+});
+
+test('notifyLeadMinutes: breakfast-option value clamped to [0, 240], default 30', () => {
+  const db = freshDb();
+  const model = buildModel(db);
+  assert.equal(model.notifyLeadMinutes(), 30); // option row has the column default
+
+  db.prepare("UPDATE options SET breakfastNotifyLeadMinutes = 15 WHERE autoOptionType = 'breakfast'").run();
+  assert.equal(model.notifyLeadMinutes(), 15);
+  db.prepare("UPDATE options SET breakfastNotifyLeadMinutes = 999 WHERE autoOptionType = 'breakfast'").run();
+  assert.equal(model.notifyLeadMinutes(), 240);
+  db.prepare("UPDATE options SET breakfastNotifyLeadMinutes = -5 WHERE autoOptionType = 'breakfast'").run();
+  assert.equal(model.notifyLeadMinutes(), 0);
 });
 
 test('getForReservation: applicable via property default (no explicit row) → time falls back to option default', () => {

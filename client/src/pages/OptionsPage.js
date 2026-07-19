@@ -62,6 +62,8 @@ const emptyOption = {
   // Breakfast default time (specs/breakfast-time.md). Only meaningful for the breakfast-typed
   // option; editable there. Pre-fills the desired time on each reservation that enables breakfast.
   breakfastTime: '09:00',
+  // Breakfast push notice, minutes before serving time (specs/sas-breakfast-bread-and-push.md rule 7).
+  breakfastNotifyLeadMinutes: 30,
   // Option-driven planning cards (specs/option-planning-card.md §3.1). When ON, a reservation
   // carrying this option shows a card on the Planning for each stay day. `cardRepeat` = 'once_per_day'
   // (one slot/day, a single editable heure) or 'multiple_per_day' (N slots/day, a list of heures).
@@ -102,9 +104,10 @@ function EnglishTitleField({ form, setForm, titleKey, titleLabel }) {
   );
 }
 
-// Breakfast default time (specs/breakfast-time.md). Rendered only for the breakfast-typed option.
-// The HH:MM value pre-fills the "Heure souhaitée" field on each reservation that enables breakfast,
-// and drives the planning sort/display when a reservation has no per-reservation override.
+// Breakfast default time (specs/breakfast-time.md) + push notice (specs/sas-breakfast-bread-and-
+// push.md rule 7). Rendered only for the breakfast-typed option. The HH:MM value pre-fills the
+// "Heure souhaitée" field on each reservation that enables breakfast, and drives the planning
+// sort/display when a reservation has no per-reservation override.
 function BreakfastTimeField({ form, setForm }) {
   return (
     <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
@@ -121,6 +124,18 @@ function BreakfastTimeField({ form, setForm }) {
         value={form.breakfastTime || '09:00'}
         onChange={(e) => setForm({ ...form, breakfastTime: e.target.value })}
         sx={{ width: { xs: '100%', sm: 160 } }}
+      />
+      <FormHelperText sx={{ mt: 2, mb: 1 }}>
+        La notification push « Petit déjeuner » part ce nombre de minutes avant l'heure de service (30 min par défaut).
+      </FormHelperText>
+      <TextField
+        label="Préavis de notification (minutes)"
+        type="number"
+        size="small"
+        value={form.breakfastNotifyLeadMinutes ?? 30}
+        onChange={(e) => setForm({ ...form, breakfastNotifyLeadMinutes: e.target.value })}
+        slotProps={{ htmlInput: { min: 0, max: 240, step: 5 } }}
+        sx={{ width: { xs: '100%', sm: 220 } }}
       />
     </Box>
   );
@@ -519,6 +534,7 @@ export default function OptionsPage({ barCenter }) {
         titleEn: item.titleEn || '',
         // Breakfast default time (specs/breakfast-time.md) — surfaced for the breakfast option.
         breakfastTime: item.breakfastTime || '09:00',
+        breakfastNotifyLeadMinutes: item.breakfastNotifyLeadMinutes == null ? 30 : Number(item.breakfastNotifyLeadMinutes),
         // Option-driven planning cards (specs/option-planning-card.md §3.1). SQLite stores an int +
         // a JSON string; normalise to a boolean + an array for the form.
         showsPlanningCard: Boolean(item.showsPlanningCard),
@@ -589,6 +605,8 @@ export default function OptionsPage({ barCenter }) {
         // Breakfast default time (specs/breakfast-time.md). Persisted only for the breakfast
         // option server-side; harmless for the others.
         breakfastTime: form.breakfastTime || '09:00',
+        // Push notice before serving time (specs/sas-breakfast-bread-and-push.md rule 7).
+        breakfastNotifyLeadMinutes: form.breakfastNotifyLeadMinutes,
         // Option-driven planning cards (specs/option-planning-card.md §3.1). The server normalises
         // the slots (clamps to 1 for « une fois par jour »); we pass the form state through.
         showsPlanningCard: Boolean(form.showsPlanningCard),

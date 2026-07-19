@@ -234,13 +234,13 @@ function breakfastPayload(over = {}) {
   return sasPayload({
     reservation: { cautionAmount: 0, ...(over.reservation || {}) }, // no caution page
     cleaning: { included: true, price: null },                      // cleaning = simple Suivant
-    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, note: '' },
+    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, bread: 0, note: '' },
     ...over,
   });
 }
 
-// Stepper « + » buttons, in render order: café, thé, chocolat, lait, viennoiseries, céréales.
-const PLUS = { coffee: 0, tea: 1, chocolate: 2, milk: 3, pastries: 4, cereals: 5 };
+// Stepper « + » buttons, in render order: café, thé, chocolat, lait, viennoiseries, céréales, pain.
+const PLUS = { coffee: 0, tea: 1, chocolate: 2, milk: 3, pastries: 4, cereals: 5, bread: 6 };
 
 test('arrival SAS: breakfast page hidden when not applicable', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({ reservation: { cautionReceived: 1 }, cleaning: { included: true, price: null } }));
@@ -283,6 +283,7 @@ test('arrival SAS: breakfast mismatch shows the confirm; after Continuer, counts
   expect(arg.breakfastMilk).toBe(0);
   expect(arg.breakfastPastries).toBe(0);
   expect(arg.breakfastCereals).toBe(0);
+  expect(arg.breakfastBread).toBe(0);
   expect(arg.breakfastTime).toBe('09:00');
   expect(arg.departureHandoverNote).toBe('clé sous le pot');
 });
@@ -327,6 +328,33 @@ test('arrival SAS: drinks AND food totals matching persons advance with NO confi
   // no confirm — straight to recap (cleaning included is hidden)
   await screen.findByText('Récapitulatif — complément à percevoir');
   expect(screen.queryByText(/ne correspond(ent)? pas au nombre de personnes/)).toBeNull();
+});
+
+test('arrival SAS: bread steps by 0,5 (French display), rides the payload; server defaults render as-is', async () => {
+  // The server pre-fills the smart defaults (pastries = persons, bread = persons × 0.5)
+  // while the SAS was never committed — the dialog renders them verbatim.
+  api.getReservationSas.mockResolvedValue(breakfastPayload({
+    breakfast: { applicable: true, persons: 2, time: '09:00', coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 2, cereals: 0, bread: 1, note: '' },
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Petit déjeuner');
+  expect(screen.getByText('Pain (baguette)')).toBeInTheDocument();
+
+  const plus = screen.getAllByRole('button', { name: '+' });
+  fireEvent.click(plus[PLUS.bread]); // 1 → 1,5
+  expect(screen.getByDisplayValue('1,5')).toBeInTheDocument();
+
+  fireEvent.click(plus[PLUS.coffee]);
+  fireEvent.click(plus[PLUS.tea]); // drinks 2 = persons; food 2 = persons (pastries default)
+  clickBtn('Suivant');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  fireEvent.click(await screen.findByRole('button', { name: 'Valider et terminer' }));
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.breakfastPastries).toBe(2); // server default kept
+  expect(arg.breakfastBread).toBe(1.5);
 });
 
 test('departure SAS: shows the read-only handover note left at arrival', async () => {

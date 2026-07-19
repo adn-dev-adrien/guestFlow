@@ -34,6 +34,7 @@ import EmojiFoodBeverageIcon from '@mui/icons-material/EmojiFoodBeverage';
 import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
 import WheatIcon from './WheatIcon';
+import BaguetteIcon from './BaguetteIcon';
 
 const THEMES = {
   option: { bg: deepPurple[50], border: deepPurple[100], accent: deepPurple[700], Icon: EventNoteIcon },
@@ -65,7 +66,10 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
   const food = [
     { key: 'pastries', icon: <BakeryDiningIcon sx={{ fontSize: 16 }} />, label: 'Viennoiseries', n: Number(item.pastries) || 0 },
     { key: 'cereals', icon: <WheatIcon sx={{ fontSize: 16 }} />, label: 'Céréales', n: Number(item.cereals) || 0 },
-  ].filter((d) => d.n > 0);
+    // Bread counts in baguettes with half steps — French comma display (« Pain 1,5 »).
+    { key: 'bread', icon: <BaguetteIcon sx={{ fontSize: 16 }} />, label: 'Pain', n: Number(item.bread) || 0 },
+  ].filter((d) => d.n > 0)
+    .map((d) => ({ ...d, display: Number.isInteger(d.n) ? String(d.n) : String(d.n).replace('.', ',') }));
   return (
     <Card
       variant="outlined"
@@ -159,7 +163,7 @@ function OccurrenceCard({ item, onItemClick, onToggleDone, theme }) {
           {food.length > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
               {food.map((d) => (
-                <Chip key={d.key} size="small" variant="outlined" icon={d.icon} label={`${d.label} ${d.n}`}
+                <Chip key={d.key} size="small" variant="outlined" icon={d.icon} label={`${d.label} ${d.display}`}
                   sx={{ height: 22, fontWeight: 600, bgcolor: 'rgba(255,255,255,0.6)' }} />
               ))}
             </Box>

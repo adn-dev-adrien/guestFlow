@@ -1,0 +1,1 @@
+- `reservations` gains `breakfastBread` (REAL, half-baguette steps) and `breakfastNotifiedDate` (push guard); `options` gains `breakfastNotifyLeadMinutes` (INTEGER DEFAULT 30) — and the previously schema.sql-only `breakfastTime` column is now backfilled on older DBs; `user_push_prefs` gains `breakfast` (INTEGER DEFAULT 1). All defaults safe for existing rows.

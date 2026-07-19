@@ -538,6 +538,12 @@ function migrateOptionsColumns() {
     // Client-visibility flag (specs/laundry-bath-mat.md §3 rule 11). Default 1 = shown on every
     // client/operator surface (no behaviour change). 0 = internal-only (laundry + stock only).
     ['displayToClient',         'INTEGER NOT NULL DEFAULT 1'],
+    // 2026-07-19 — backfill: breakfastTime lived only in schema.sql (fresh DBs); older DBs relied
+    // on the HAS_OPTION_BREAKFAST_TIME guards. Adding it here makes the column universal.
+    ['breakfastTime',           "TEXT DEFAULT '09:00'"],
+    // Breakfast push notice (specs/sas-breakfast-bread-and-push.md rule 7): the push fires
+    // `breakfastNotifyLeadMinutes` before the serving time. Configurable on the breakfast option.
+    ['breakfastNotifyLeadMinutes', 'INTEGER NOT NULL DEFAULT 30'],
   ];
   const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
   const added = [];
@@ -1585,6 +1591,10 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   if (!rcols.includes('breakfastMilk')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastMilk INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('breakfastPastries')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastPastries INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('breakfastCereals')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastCereals INTEGER NOT NULL DEFAULT 0");
+  // 2026-07-19 — bread in half-baguette steps + serving-time push guard (last notified day)
+  // (specs/sas-breakfast-bread-and-push.md rules 2 & 8).
+  if (!rcols.includes('breakfastBread')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastBread REAL NOT NULL DEFAULT 0");
+  if (!rcols.includes('breakfastNotifiedDate')) db.exec("ALTER TABLE reservations ADD COLUMN breakfastNotifiedDate TEXT");
   // Handover note authored at the end of the arrival SAS, shown read-only in the departure SAS and on
   // the departure planning card. Dedicated column — kept separate from reservations.notes.
   if (!rcols.includes('departureHandoverNote')) db.exec("ALTER TABLE reservations ADD COLUMN departureHandoverNote TEXT");
@@ -1633,6 +1643,12 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
+// Breakfast serving-time push preference (specs/sas-breakfast-bread-and-push.md rule 6). Default ON,
+// like the other channels.
+{
+  const pcols = db.prepare('PRAGMA table_info(user_push_prefs)').all().map((c) => c.name);
+  if (!pcols.includes('breakfast')) db.exec('ALTER TABLE user_push_prefs ADD COLUMN breakfast INTEGER NOT NULL DEFAULT 1');
+}
 // Domain gate/access code shown on the arrival SAS (global — one code for the whole domain).
 {
   const scols = db.prepare('PRAGMA table_info(app_settings)').all().map((c) => c.name);

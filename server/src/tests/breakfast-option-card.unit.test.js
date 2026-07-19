@@ -18,6 +18,7 @@ const DDL = `
     breakfastTime TEXT, breakfastCoffee INTEGER DEFAULT 0, breakfastTea INTEGER DEFAULT 0,
     breakfastChocolate INTEGER DEFAULT 0, breakfastMilk INTEGER DEFAULT 0,
     breakfastPastries INTEGER DEFAULT 0, breakfastCereals INTEGER DEFAULT 0,
+    breakfastBread REAL NOT NULL DEFAULT 0, breakfastNotifiedDate TEXT, arrivalSasDoneAt TEXT,
     breakfastNote TEXT, icalOriginalSummary TEXT
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT);

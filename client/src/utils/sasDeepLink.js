@@ -16,3 +16,22 @@ export function readSasDeepLink(searchParams) {
   }
   return null;
 }
+
+/**
+ * Breakfast deep-link parsing (specs/sas-breakfast-bread-and-push.md rule 10).
+ *
+ * A breakfast push targets `/planning?breakfast=:id&date=YYYY-MM-DD`; the Planning page opens the
+ * preparation popup for that reservation/day.
+ *
+ * @param {URLSearchParams} searchParams
+ * @returns {{ reservationId: number, date: string } | null} null when absent/invalid.
+ */
+export function readBreakfastDeepLink(searchParams) {
+  if (!searchParams || typeof searchParams.get !== 'function') return null;
+  const reservationId = Number(searchParams.get('breakfast'));
+  const date = String(searchParams.get('date') || '');
+  if (Number.isFinite(reservationId) && reservationId > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { reservationId, date };
+  }
+  return null;
+}

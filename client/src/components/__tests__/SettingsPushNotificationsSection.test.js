@@ -11,7 +11,7 @@ import * as push from '../../push/registerPush';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getPushPreferences: vi.fn().mockResolvedValue({ newReservation: true, arrivals: true, departures: true }),
+    getPushPreferences: vi.fn().mockResolvedValue({ newReservation: true, arrivals: true, departures: true, breakfast: true }),
     updatePushPreferences: vi.fn().mockResolvedValue({}),
     sendPushTest: vi.fn().mockResolvedValue({ sent: 1 }),
   },
@@ -62,7 +62,7 @@ test('test button is enabled when push is on and triggers the push test', async 
   await waitFor(() => expect(api.sendPushTest).toHaveBeenCalledTimes(1));
 });
 
-test('supported + enabled → shows « Désactiver » + the 3 preference switches; toggling persists', async () => {
+test('supported + enabled → shows « Désactiver » + the 4 preference switches; toggling persists', async () => {
   push.pushSupported.mockReturnValue(true);
   push.getPushState.mockResolvedValue({ enabled: true, permission: 'granted' });
   render(<SettingsPushNotificationsSection />);
@@ -70,7 +70,11 @@ test('supported + enabled → shows « Désactiver » + the 3 preference switche
   expect(screen.getByLabelText('Nouvelle réservation')).toBeChecked();
   expect(screen.getByLabelText('Arrivées')).toBeChecked();
   expect(screen.getByLabelText('Départs')).toBeChecked();
+  // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6) — default ON.
+  expect(screen.getByLabelText('Petit déjeuner')).toBeChecked();
 
   fireEvent.click(screen.getByLabelText('Arrivées'));
   await waitFor(() => expect(api.updatePushPreferences).toHaveBeenCalledWith({ arrivals: false }));
+  fireEvent.click(screen.getByLabelText('Petit déjeuner'));
+  await waitFor(() => expect(api.updatePushPreferences).toHaveBeenCalledWith({ breakfast: false }));
 });

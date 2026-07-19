@@ -1,0 +1,2 @@
+- Saving the « Petit déjeuner » option from the Options page no longer strips its system type (`autoOptionType`) — a single save used to silently kill the planning breakfast card, the SAS breakfast step and the (new) breakfast push.
+- The breakfast aggregation window now includes the departure-day morning when the window collapses to that very day (`endDate >= from` instead of a strict `>`), fixing the breakfast push runner and the preparation-popup deep-link for departure mornings.

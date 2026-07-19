@@ -1,4 +1,4 @@
-import { readSasDeepLink } from '../sasDeepLink';
+import { readSasDeepLink, readBreakfastDeepLink } from '../sasDeepLink';
 
 // specs/pwa-push-notifications.md §3.3 rule 10 — the arrival/departure push deep-link
 // `/planning?sas=arrival|departure&reservationId=:id` is parsed + validated here before the
@@ -34,4 +34,21 @@ test('ignores unrelated params + empty query', () => {
 test('is defensive against a bad argument', () => {
   expect(readSasDeepLink(null)).toBeNull();
   expect(readSasDeepLink({})).toBeNull();
+});
+
+// specs/sas-breakfast-bread-and-push.md rule 10 — the breakfast push deep-link
+// `/planning?breakfast=:id&date=YYYY-MM-DD` opens the preparation popup.
+
+test('readBreakfastDeepLink parses a valid link', () => {
+  expect(readBreakfastDeepLink(sp('breakfast=42&date=2026-07-19'))).toEqual({ reservationId: 42, date: '2026-07-19' });
+});
+
+test('readBreakfastDeepLink rejects bad id or date', () => {
+  expect(readBreakfastDeepLink(sp('breakfast=0&date=2026-07-19'))).toBeNull();
+  expect(readBreakfastDeepLink(sp('breakfast=abc&date=2026-07-19'))).toBeNull();
+  expect(readBreakfastDeepLink(sp('breakfast=42&date=19/07/2026'))).toBeNull();
+  expect(readBreakfastDeepLink(sp('breakfast=42'))).toBeNull();
+  expect(readBreakfastDeepLink(sp('date=2026-07-19'))).toBeNull();
+  expect(readBreakfastDeepLink(sp(''))).toBeNull();
+  expect(readBreakfastDeepLink(null)).toBeNull();
 });

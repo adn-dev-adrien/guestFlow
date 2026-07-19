@@ -18,6 +18,9 @@ const { performAutoEmailPass, isoToday } = require('./utils/emailAutoSendRunner'
 const reservationsModel = require('./models/reservationsModel');
 const pushService = require('./utils/pushService');
 const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner');
+// Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md §3 rules 7-9).
+const { runBreakfastPush } = require('./utils/breakfastPushRunner');
+const breakfastModel = require('./models/breakfastModel');
 
 // Online-payment polling (specs/online-payments-qonto.md §3.3): detect paid Qonto links → convert.
 const paymentLinksModel = require('./models/paymentLinksModel');
@@ -192,6 +195,25 @@ async function runArrivalDeparturePushPass(reason = 'tick') {
   }
 }
 
+// Per-minute breakfast push pass (specs/sas-breakfast-bread-and-push.md rules 7-8): notify
+// `lead` minutes before each breakfast's serving time; first pass after boot stamps without sending.
+let breakfastPushInProgress = false;
+let breakfastPushFirstRun = true;
+async function runBreakfastPushPass(reason = 'tick') {
+  if (breakfastPushInProgress) return;
+  breakfastPushInProgress = true;
+  const firstRun = breakfastPushFirstRun;
+  breakfastPushFirstRun = false;
+  try {
+    const { sent, stamped } = await runBreakfastPush({ breakfastModel, reservationsModel, pushService, firstRun });
+    if (sent > 0) console.log(`[push] ${reason}: ${sent} breakfast push(es) sent (${stamped} stamped)`);
+  } catch (err) {
+    console.error('[push] breakfast pass error:', err && err.message ? err.message : err);
+  } finally {
+    breakfastPushInProgress = false;
+  }
+}
+
 // Online payments: poll open Qonto links → mark paid → convert devis / flag deposit. Skips silently
 // when Qonto isn't connected (no token) so it's a no-op until the operator connects.
 let paymentPollInProgress = false;
@@ -296,6 +318,11 @@ function startScheduledTasks() {
   setInterval(() => runArrivalDeparturePushPass('tick').catch((err) => console.error('[push] unhandled:', err)), ARRIVAL_DEPARTURE_PUSH_TICK);
   setTimeout(() => runArrivalDeparturePushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 95 * 1000);
 
+  // Breakfast push: per-minute tick, boot pass 105 s after start (firstRun → stamps without sending).
+  const BREAKFAST_PUSH_TICK = 60 * 1000;
+  setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
+  setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
+
   // Online-payment polling: every 15 min (cheap; the manual "poll now" button covers on-demand checks).
   const PAYMENT_POLL_TICK = 15 * 60 * 1000;
   setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
@@ -323,6 +350,8 @@ module.exports = {
   tickEmailAutoSend,
   // Arrival/departure push — exposed for tests + ops trigger.
   runArrivalDeparturePushPass,
+  // Breakfast push — exposed for tests + ops trigger.
+  runBreakfastPushPass,
   // Balance-request pass — exposed for tests + ops trigger.
   runBalanceRequestJob,
   tickBalanceRequest,
