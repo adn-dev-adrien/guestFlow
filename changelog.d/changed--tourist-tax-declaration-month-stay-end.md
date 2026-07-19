@@ -1,0 +1,1 @@
+- Tourist-tax extraction: a stay is now declared in its **stay-end (last-night) month** — or in the payment month if the tax-carrying échéance is paid later — instead of the payment month unconditionally. Unpaid stays remain excluded (no tax remitted if never collected).
