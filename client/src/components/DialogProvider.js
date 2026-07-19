@@ -168,7 +168,15 @@ export default function DialogProvider({ children }) {
         onClose={closeToast}
         autoHideDuration={toast?.severity === 'error' ? 6000 : 4000}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        sx={{ bottom: { xs: 16 }, left: { xs: 16 }, right: { xs: 16 } }}
+        // xs: full-width bar (16px gutters, no centering transform). sm+: rebuild MUI's own
+        // bottom-center anchoring — the previous `left: { xs: 16 }` applied to EVERY width
+        // (mobile-first) while the -50% translate stayed, pushing long toasts off-screen left.
+        sx={{
+          bottom: 16,
+          left: { xs: 16, sm: '50%' },
+          right: { xs: 16, sm: 'auto' },
+          transform: { xs: 'none', sm: 'translateX(-50%)' },
+        }}
       >
         <Alert
           severity={toast?.severity || 'success'}

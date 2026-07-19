@@ -1,0 +1,1 @@
+- Toast notifications no longer slide half off-screen to the left on desktop (the mobile full-width override applied to every viewport while MUI's centering translate stayed) — long error toasts looked like an empty box with only a close cross.
