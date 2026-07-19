@@ -33,7 +33,8 @@ Two problems surface in real use:
 1. **Dates column = arrival → departure.** `Dates réservation` shows `startDate au endDate` — the same two
    dates as the fiche réservation. No day is subtracted. (A stay 20/06 → 21/06 shows « 20/06 au 21/06 ».)
 2. **« Déclarée » is per reservation, declared once.** A reservation appears in exactly one monthly
-   extraction (the month its tax-carrying échéance is collected — see `getTouristTaxExtraction`), so a
+   extraction (`max(last-night month, payment month)` of its tax-carrying échéance since
+   `specs/tourist-tax-declaration-month-stay-end.md` — see `getTouristTaxExtraction`), so a
    single per-reservation marker is sufficient; there is no per-month duplication to disambiguate.
 3. **Ticking records the date.** Ticking the checkbox sets `touristTaxDeclaredAt = now` (server clock).
    Unticking clears it back to `NULL`. The stored value is a date-time string; the UI shows the **date**.

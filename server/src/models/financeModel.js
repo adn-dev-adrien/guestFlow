@@ -582,15 +582,22 @@ function createFinanceModel(database) {
         JOIN properties p ON p.id = r.propertyId
         JOIN clients c ON c.id = r.clientId
         WHERE r.kind = 'reservation'
-          -- specs/tourist-tax-on-solde.md — the tax is declared the MONTH IT'S COLLECTED, i.e. when the
-          -- échéance that carries it is PAID. Normally the tax rides on the SOLDE → balancePaidDate. When
-          -- it's collected on arrival (forced to complement, or a platform mode where WE collect at
-          -- arrival) → complementPaidDate. A stay whose tax-carrying échéance isn't paid in/at the queried
-          -- month does NOT appear (operator's « déclarer quand encaissé » choice).
+          -- specs/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: a stay
+          -- is declared in the month of its LAST NIGHT (DATE(endDate,'-1 day')), unless its tax-carrying
+          -- échéance is paid LATER → then the payment month (never retroactively into an already-declared
+          -- past month). Payment stays a GATE: an unpaid stay never appears, so a never-collected tax is
+          -- never remitted. Attribution date = MAX(lastNight, paidDate); a NULL paid date (legacy rows
+          -- with the paid flag set) falls back to the last night. Normally the tax rides on the SOLDE →
+          -- balancePaidDate; collected on arrival (forced to complement, or a platform mode where WE
+          -- collect at arrival) → complementPaidDate.
           AND (
-            ( NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1 AND r.balancePaidDate >= ? AND r.balancePaidDate < ? )
+            ( NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) >= ?
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) < ? )
             OR
-            ( ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ? )
+            ( ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ? )
           )
           AND (
             -- specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every

@@ -62,7 +62,8 @@ function insertStay(db, { id, platform, year, m }) {
   // 2-night stay: arrival on the 14th, departure on the 16th → last night = 15th, inside the month.
   const start = `${year}-${pad2(m)}-14`;
   const end = `${year}-${pad2(m)}-16`;
-  // specs/tourist-tax-on-solde.md — the tax now appears in the month its échéance is PAID. Mark BOTH the
+  // specs/tourist-tax-declaration-month-stay-end.md — a stay is declared in its last-night month once
+  // its tax-carrying échéance is paid (a later payment shifts it to the payment month). Mark BOTH the
   // solde and the complement paid inside the month (the 15th) so the stay surfaces whether the tax rides
   // on the solde (direct / platform-reverses) or on the complement (we collect at arrival).
   const paid = `${year}-${pad2(m)}-15`;
@@ -129,37 +130,123 @@ test('Taxe de séjour: the CURRENT month is accepted (declarations run up to the
   assert.deepEqual(res.data.reservations.map((r) => r.reservationId).sort((a, b) => a - b), [1, 2]);
 });
 
-// specs/tourist-tax-on-solde.md — the declaration is driven by the month the tax is ENCASHED, not the
-// month of the last night. For a direct/platform-reverses stay that is the balancePaidDate; an unpaid
-// solde drops out of the declaration entirely.
-function insertStayDetailed(db, { id, platform, nightsYear, nightsM, balancePaid, balancePaidDate }) {
-  const start = `${nightsYear}-${pad2(nightsM)}-14`;
-  const end = `${nightsYear}-${pad2(nightsM)}-16`;
-  db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults, touristTaxRate, touristTaxTotal, finalPrice, totalPrice,
-                balanceAmount, balancePaid, balancePaidDate, complementAmount, complementPaid, complementPaidDate)
-              VALUES (?, 'reservation', 1, 1, ?, ?, ?, 2, 1.0, 4.0, 300, 300, 300, ?, ?, 0, 0, NULL)`)
-    .run(id, start, end, platform, balancePaid, balancePaidDate);
+// specs/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: last-night month,
+// unless the tax-carrying échéance is paid LATER (→ payment month). Payment stays a gate: an unpaid
+// stay never appears, so a never-collected tax is never remitted.
+function monthsAgo(n) {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - n, 1);
+  return { month: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`, year: d.getFullYear(), m: d.getMonth() + 1 };
 }
 
-test('Taxe de séjour: a direct stay surfaces in the month its SOLDE is paid, not the month of its last night', () => {
+function insertStayDetailed(db, {
+  id, platform, nightsYear, nightsM, startDate, endDate,
+  balancePaid = 0, balancePaidDate = null, complementPaid = 0, complementPaidDate = null,
+}) {
+  const start = startDate || `${nightsYear}-${pad2(nightsM)}-14`;
+  const end = endDate || `${nightsYear}-${pad2(nightsM)}-16`;
+  db.prepare(`INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, platform, adults, touristTaxRate, touristTaxTotal, finalPrice, totalPrice,
+                balanceAmount, balancePaid, balancePaidDate, complementAmount, complementPaid, complementPaidDate)
+              VALUES (?, 'reservation', 1, 1, ?, ?, ?, 2, 1.0, 4.0, 300, 300, 300, ?, ?, 4.0, ?, ?)`)
+    .run(id, start, end, platform, balancePaid, balancePaidDate, complementPaid, complementPaidDate);
+}
+
+test('Taxe de séjour: a solde paid BEFORE the stay ends → declared in the last-night month, not the payment month', () => {
   const { db, model } = seedTaxDb();
-  const nights = previousMonth();              // last night two-ish months back…
-  const paid = currentMonth();                 // …but the solde is encashed in the current month.
+  const nights = previousMonth();              // last night in the previous month…
+  const paid = monthsAgo(3);                   // …but the solde was encashed 3 months ago.
   insertStayDetailed(db, {
     id: 1, platform: 'direct',
     nightsYear: nights.year, nightsM: nights.m,
     balancePaid: 1, balancePaidDate: `${paid.year}-${pad2(paid.m)}-09`,
   });
 
-  // The month of the last night must NOT contain the stay (the tax isn't encashed yet there).
+  const atPaid = model.getTouristTaxExtraction({ month: paid.month });
+  assert.equal(atPaid.ok, true);
+  assert.deepEqual(atPaid.data.reservations.map((r) => r.reservationId), [], 'absent from the early payment month');
+
+  const atNights = model.getTouristTaxExtraction({ month: nights.month });
+  assert.equal(atNights.ok, true);
+  assert.deepEqual(atNights.data.reservations.map((r) => r.reservationId), [1], 'present in the last-night month');
+});
+
+test('Taxe de séjour: a LATE-paid solde moves the declaration to the payment month (never retroactive)', () => {
+  const { db, model } = seedTaxDb();
+  const nights = previousMonth();              // last night in the previous month…
+  const paid = currentMonth();                 // …but the solde is only encashed in the current month.
+  insertStayDetailed(db, {
+    id: 1, platform: 'direct',
+    nightsYear: nights.year, nightsM: nights.m,
+    balancePaid: 1, balancePaidDate: `${paid.year}-${pad2(paid.m)}-09`,
+  });
+
+  // The already-declarable last-night month must NOT contain the stay (its tax wasn't collected yet).
   const atNights = model.getTouristTaxExtraction({ month: nights.month });
   assert.equal(atNights.ok, true);
   assert.deepEqual(atNights.data.reservations.map((r) => r.reservationId), [], 'absent from the last-night month');
 
-  // The month the solde is paid DOES contain it.
   const atPaid = model.getTouristTaxExtraction({ month: paid.month });
   assert.equal(atPaid.ok, true);
-  assert.deepEqual(atPaid.data.reservations.map((r) => r.reservationId), [1], 'present in the solde-paid month');
+  assert.deepEqual(atPaid.data.reservations.map((r) => r.reservationId), [1], 'present in the late payment month');
+});
+
+test('Taxe de séjour: a checkout on the 1st belongs to the PREVIOUS month (all taxed nights are in it)', () => {
+  const { db, model } = seedTaxDb();
+  const prev = previousMonth();
+  const cur = currentMonth();
+  insertStayDetailed(db, {
+    id: 1, platform: 'direct',
+    startDate: `${prev.year}-${pad2(prev.m)}-27`,
+    endDate: `${cur.year}-${pad2(cur.m)}-01`,   // last night = last day of the previous month
+    balancePaid: 1, balancePaidDate: `${prev.year}-${pad2(prev.m)}-10`,
+  });
+
+  const atPrev = model.getTouristTaxExtraction({ month: prev.month });
+  assert.deepEqual(atPrev.data.reservations.map((r) => r.reservationId), [1], 'declared in the last-night month');
+  const atCur = model.getTouristTaxExtraction({ month: cur.month });
+  assert.deepEqual(atCur.data.reservations.map((r) => r.reservationId), [], 'absent from the checkout month');
+});
+
+test('Taxe de séjour: paid flag set but paid DATE missing (legacy row) → last-night month', () => {
+  const { db, model } = seedTaxDb();
+  const nights = previousMonth();
+  insertStayDetailed(db, {
+    id: 1, platform: 'direct',
+    nightsYear: nights.year, nightsM: nights.m,
+    balancePaid: 1, balancePaidDate: null,
+  });
+  const res = model.getTouristTaxExtraction({ month: nights.month });
+  assert.deepEqual(res.data.reservations.map((r) => r.reservationId), [1], 'a dateless paid solde falls back to the stay-end month');
+});
+
+test('Taxe de séjour: tax collected ON ARRIVAL follows the same rule against the COMPLEMENT payment', () => {
+  const { db, model } = seedTaxDb();
+  const nights = previousMonth();
+  const early = monthsAgo(3);
+  const late = currentMonth();
+  // Booking = « we collect at arrival » (complement carries the tax; the solde is irrelevant here).
+  insertStayDetailed(db, {
+    id: 1, platform: 'Booking',
+    nightsYear: nights.year, nightsM: nights.m,
+    complementPaid: 1, complementPaidDate: `${early.year}-${pad2(early.m)}-09`,
+  });
+  insertStayDetailed(db, {
+    id: 2, platform: 'Booking',
+    nightsYear: nights.year, nightsM: nights.m,
+    complementPaid: 1, complementPaidDate: `${late.year}-${pad2(late.m)}-09`,
+  });
+  insertStayDetailed(db, {
+    id: 3, platform: 'Booking',
+    nightsYear: nights.year, nightsM: nights.m,
+    complementPaid: 0, complementPaidDate: null,
+  });
+
+  const atNights = model.getTouristTaxExtraction({ month: nights.month });
+  assert.deepEqual(atNights.data.reservations.map((r) => r.reservationId), [1],
+    'early-paid complement → last-night month; late-paid + unpaid → absent');
+  const atLate = model.getTouristTaxExtraction({ month: late.month });
+  assert.deepEqual(atLate.data.reservations.map((r) => r.reservationId), [2],
+    'late-paid complement → payment month; unpaid still absent');
 });
 
 test('Taxe de séjour: a stay whose solde is UNPAID disappears from the declaration', () => {
