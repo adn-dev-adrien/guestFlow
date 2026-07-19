@@ -29,6 +29,7 @@ import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
 import WheatIcon from './WheatIcon';
+import BaguetteIcon from './BaguetteIcon';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 
 function formatDayLong(date) {
@@ -38,12 +39,17 @@ function formatDayLong(date) {
   return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+// French count display: integers as-is, halves with a comma (« 1,5 » — bread in baguettes).
+function formatCount(n) {
+  return Number.isInteger(n) ? String(n) : String(n).replace('.', ',');
+}
+
 function PrepRow({ icon, label, count }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minHeight: 40 }}>
       {icon}
       <Typography sx={{ flexGrow: 1 }}>{label}</Typography>
-      {count != null && <Typography sx={{ fontWeight: 800 }}>× {count}</Typography>}
+      {count != null && <Typography sx={{ fontWeight: 800 }}>× {formatCount(count)}</Typography>}
     </Box>
   );
 }
@@ -61,6 +67,7 @@ export default function BreakfastPrepDialog({ item, open, onClose, onOpenFiche }
     { key: 'milk', icon: <LocalDrinkIcon color="action" />, label: 'Lait', n: Number(it.milk) || 0 },
     { key: 'pastries', icon: <BakeryDiningIcon color="action" />, label: 'Viennoiseries', n: Number(it.pastries) || 0 },
     { key: 'cereals', icon: <WheatIcon color="action" />, label: 'Céréales', n: Number(it.cereals) || 0 },
+    { key: 'bread', icon: <BaguetteIcon color="action" />, label: 'Pain', n: Number(it.bread) || 0 },
   ].filter((l) => l.n > 0);
   const note = String(it.note || '').trim();
   const emptyComposition = lines.length === 0 && !note;

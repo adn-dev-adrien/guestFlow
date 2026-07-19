@@ -8,6 +8,9 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Extended by [[sas-breakfast-bread-and-push]] (2026-07-19):** the popup gains a « Pain × 1,5 »
+> line (BaguetteIcon) and opens via the breakfast push deep-link `/planning?breakfast=:id&date=D`.
+
 ---
 
 ## 1. Context

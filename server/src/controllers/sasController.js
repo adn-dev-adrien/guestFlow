@@ -57,7 +57,7 @@ function commitArrival(req, res) {
   const {
     cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
-    breakfastPastries, breakfastCereals, breakfastNote,
+    breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
   } = req.body || {};
@@ -73,6 +73,7 @@ function commitArrival(req, res) {
     breakfastMilk,
     breakfastPastries,
     breakfastCereals,
+    breakfastBread,
     breakfastNote,
     departureHandoverNote,
     extinguisherSealOkAtArrival,

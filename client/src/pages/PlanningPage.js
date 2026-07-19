@@ -21,7 +21,7 @@ import BreakfastPrepDialog from '../components/BreakfastPrepDialog';
 import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
-import { readSasDeepLink } from '../utils/sasDeepLink';
+import { readSasDeepLink, readBreakfastDeepLink } from '../utils/sasDeepLink';
 import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
@@ -63,6 +63,31 @@ function minutesToTime(minutes) {
 
 // `BedVisual` was inlined here until 2026-06-06; it now lives co-located with
 // `components/ReservationCard.js`, the only consumer.
+
+// Shared item shape for the breakfast card AND the preparation popup — the popup deep-link
+// (push notification) maps the API item exactly like the card does
+// (specs/planning-breakfast-prep-popup.md + sas-breakfast-bread-and-push.md rule 10).
+function mapBreakfastItem(i, date) {
+  return {
+    reservationId: i.reservationId,
+    optionId: i.optionId,
+    date: i.date || date,
+    title: 'Petit déjeuner',
+    time: i.breakfastTime,
+    propertyName: i.propertyName,
+    clientName: i.clientName,
+    breakfastPersons: i.persons,
+    done: i.done,
+    coffee: i.coffee,
+    tea: i.tea,
+    chocolate: i.chocolate,
+    milk: i.milk,
+    pastries: i.pastries,
+    cereals: i.cereals,
+    bread: i.bread,
+    note: i.note,
+  };
+}
 
 function ResourceBookingsSection({ bookings }) {
   if (!bookings || bookings.length === 0) return null;
@@ -259,6 +284,24 @@ export default function PlanningPage() {
   // specs/planning-breakfast-prep-popup.md — the breakfast card item whose preparation popup
   // is open (null = closed). The fiche stays reachable from the popup's « Fiche » button.
   const [breakfastPrepItem, setBreakfastPrepItem] = useState(null);
+
+  // Deep-link from a breakfast push (specs/sas-breakfast-bread-and-push.md rule 10):
+  // /planning?breakfast=:id&date=YYYY-MM-DD opens the preparation popup for that day's item,
+  // independent of the week shown; params cleaned first (history replace, SAS deep-link idiom).
+  useEffect(() => {
+    const link = readBreakfastDeepLink(searchParams);
+    if (!link) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('breakfast');
+    next.delete('date');
+    setSearchParams(next, { replace: true });
+    api.getBreakfastPlanningSummary({ from: link.date, to: link.date })
+      .then((r) => {
+        const item = r?.breakfastByDate?.[link.date]?.items?.find((i) => Number(i.reservationId) === link.reservationId);
+        if (item) setBreakfastPrepItem(mapBreakfastItem(item, link.date));
+      })
+      .catch(() => {});
+  }, [searchParams, setSearchParams]);
 
   const lastLoadedRef = useRef(null);
 
@@ -826,24 +869,7 @@ export default function PlanningPage() {
               <OptionDayCard
                 theme="breakfast"
                 data={breakfastByDate[date] ? {
-                  items: breakfastByDate[date].items.map((i) => ({
-                    reservationId: i.reservationId,
-                    optionId: i.optionId,
-                    date: i.date || date,
-                    title: 'Petit déjeuner',
-                    time: i.breakfastTime,
-                    propertyName: i.propertyName,
-                    clientName: i.clientName,
-                    breakfastPersons: i.persons,
-                    done: i.done,
-                    coffee: i.coffee,
-                    tea: i.tea,
-                    chocolate: i.chocolate,
-                    milk: i.milk,
-                    pastries: i.pastries,
-                    cereals: i.cereals,
-                    note: i.note,
-                  })),
+                  items: breakfastByDate[date].items.map((i) => mapBreakfastItem(i, date)),
                 } : null}
                 onItemClick={(reservationId, item) => setBreakfastPrepItem(item)}
                 onToggleDone={handleToggleBreakfastDone}

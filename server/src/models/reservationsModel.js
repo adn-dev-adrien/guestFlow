@@ -307,6 +307,11 @@ function createReservationsModel(database) {
     stampDepartureNotified(reservationId, dateIso) {
       database.prepare('UPDATE reservations SET departureNotifiedAt = ? WHERE id = ?').run(dateIso, Number(reservationId));
     },
+    // Breakfast push guard: the last day (YYYY-MM-DD) this reservation's breakfast was notified
+    // (specs/sas-breakfast-bread-and-push.md rule 8).
+    stampBreakfastNotified(reservationId, dateIso) {
+      database.prepare('UPDATE reservations SET breakfastNotifiedDate = ? WHERE id = ?').run(dateIso, Number(reservationId));
+    },
 
     getByIdWithDetails(id) {
       const reservation = database.prepare(`
@@ -1106,12 +1111,14 @@ function createReservationsModel(database) {
     commitArrivalSas(reservationId, {
       cautionReceived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
-      breakfastPastries, breakfastCereals, breakfastNote,
+      breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
+      // Bread is counted in baguettes with half steps (specs/sas-breakfast-bread-and-push.md rule 2).
+      const clampHalf = (v) => (v === undefined ? undefined : Math.max(0, Math.round((Number(v) || 0) * 2) / 2));
       const tx = database.transaction(() => {
         const today = new Date().toISOString().slice(0, 10);
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
@@ -1127,7 +1134,7 @@ function createReservationsModel(database) {
         }
         database.prepare(`UPDATE reservations SET
             breakfastCoffee = ?, breakfastTea = ?, breakfastChocolate = ?, breakfastMilk = ?,
-            breakfastPastries = ?, breakfastCereals = ?, breakfastNote = ?,
+            breakfastPastries = ?, breakfastCereals = ?, breakfastBread = ?, breakfastNote = ?,
             updatedAt = datetime('now') WHERE id = ?`)
           .run(
             clampCount(breakfastCoffee) || 0,
@@ -1136,6 +1143,7 @@ function createReservationsModel(database) {
             clampCount(breakfastMilk) || 0,
             clampCount(breakfastPastries) || 0,
             clampCount(breakfastCereals) || 0,
+            clampHalf(breakfastBread) || 0,
             (breakfastNote && String(breakfastNote).trim()) || null,
             reservationId,
           );

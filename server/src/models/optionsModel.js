@@ -57,6 +57,18 @@ function createOptionsModel(database) {
     const t = formatTimeShort(payload.breakfastTime) || '09:00';
     database.prepare('UPDATE options SET breakfastTime = ? WHERE id = ?').run(t, optionId);
   }
+  // Breakfast push notice in minutes (specs/sas-breakfast-bread-and-push.md rule 7). Same guarded
+  // idiom; clamped to [0, 240], default 30 on invalid input.
+  const HAS_OPTION_BREAKFAST_LEAD = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'breakfastNotifyLeadMinutes'); }
+    catch { return false; }
+  })();
+  function persistBreakfastNotifyLeadMinutes(optionId, payload) {
+    if (!HAS_OPTION_BREAKFAST_LEAD || payload.breakfastNotifyLeadMinutes === undefined) return;
+    const n = Number(payload.breakfastNotifyLeadMinutes);
+    const lead = Number.isFinite(n) ? Math.min(240, Math.max(0, Math.round(n))) : 30;
+    database.prepare('UPDATE options SET breakfastNotifyLeadMinutes = ? WHERE id = ?').run(lead, optionId);
+  }
   // Client-visibility flag (specs/laundry-bath-mat.md §3 rule 11). Generic per-option switch,
   // persisted via a guarded write so the big INSERT/UPDATE (and minimal test schemas) stay
   // untouched. `undefined` payload → leave as-is (back-compat); the column defaults to 1 = visible.
@@ -306,6 +318,7 @@ function createOptionsModel(database) {
         const id = result.lastInsertRowid;
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
+        persistBreakfastNotifyLeadMinutes(id, payload);
         persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);
@@ -338,13 +351,19 @@ function createOptionsModel(database) {
       const deleteLinks = database.prepare('DELETE FROM property_options WHERE optionId = ?');
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       database.transaction(() => {
+        // `autoOptionType` is a seeded system marker (breakfast / cleaning / linen…), not a form
+        // field: the Options edit form never sends it. An absent key must PRESERVE the stored
+        // type — writing `payload.autoOptionType || null` blindly stripped the breakfast type on
+        // every save of the option, killing the planning card / SAS step / push (bug found
+        // 2026-07-19 during specs/sas-breakfast-bread-and-push.md verification).
+        const existingAutoType = (database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id) || {}).autoOptionType || null;
         const args = [
           sentenceCase(payload.title),
           sentenceCase(payload.description),
           payload.priceType || 'per_stay',
           Number(payload.price || 0),
           JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
-          payload.autoOptionType || null,
+          payload.autoOptionType === undefined ? existingAutoType : (payload.autoOptionType || null),
           payload.autoEnabled ? 1 : 0,
           payload.autoPricingMode || 'fixed',
           payload.autoFullNightThreshold || null,
@@ -365,6 +384,7 @@ function createOptionsModel(database) {
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
+        persistBreakfastNotifyLeadMinutes(id, payload);
         persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
         persistPropertyDefaults(id, payload);

@@ -15,7 +15,8 @@ function freshModel() {
     );
     CREATE TABLE user_push_prefs (
       userId INTEGER PRIMARY KEY, newReservation INTEGER NOT NULL DEFAULT 1,
-      arrivals INTEGER NOT NULL DEFAULT 1, departures INTEGER NOT NULL DEFAULT 1
+      arrivals INTEGER NOT NULL DEFAULT 1, departures INTEGER NOT NULL DEFAULT 1,
+      breakfast INTEGER NOT NULL DEFAULT 1
     );
   `);
   return { db, model: createModel(db) };
@@ -50,11 +51,11 @@ test('unsubscribe / removeByEndpoint delete the row (idempotent)', () => {
 
 test('preferences default to all-ON with no row; setPreferences is a partial update', () => {
   const { model } = freshModel();
-  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: true, departures: true });
+  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: true, departures: true, breakfast: true });
   model.setPreferences(1, { arrivals: false });
-  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: false, departures: true });
-  model.setPreferences(1, { newReservation: false });
-  assert.deepEqual(model.getPreferences(1), { newReservation: false, arrivals: false, departures: true });
+  assert.deepEqual(model.getPreferences(1), { newReservation: true, arrivals: false, departures: true, breakfast: true });
+  model.setPreferences(1, { newReservation: false, breakfast: false });
+  assert.deepEqual(model.getPreferences(1), { newReservation: false, arrivals: false, departures: true, breakfast: false });
 });
 
 test('subscriptionsForPref returns subs of users whose pref is ON (default ON when no prefs row)', () => {
@@ -67,5 +68,9 @@ test('subscriptionsForPref returns subs of users whose pref is ON (default ON wh
   assert.deepEqual(arrivals, ['https://push/u1'], 'user 2 opted out of arrivals');
   const news = model.subscriptionsForPref('newReservation').map((s) => s.endpoint).sort();
   assert.deepEqual(news, ['https://push/u1', 'https://push/u2']);
+  // Breakfast pref: default ON, individually opt-out-able (specs/sas-breakfast-bread-and-push.md rule 6).
+  assert.deepEqual(model.subscriptionsForPref('breakfast').map((s) => s.endpoint).sort(), ['https://push/u1', 'https://push/u2']);
+  model.setPreferences(1, { breakfast: false });
+  assert.deepEqual(model.subscriptionsForPref('breakfast').map((s) => s.endpoint), ['https://push/u2']);
   assert.deepEqual(model.subscriptionsForPref('bogus'), []);
 });
