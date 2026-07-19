@@ -89,7 +89,9 @@ test('getAuthorizeUrl: offline access, forced consent, expected scopes, state pa
   assert.equal(oauth2.ctorArgs.clientSecret, 'client-secret-456');
   assert.equal(oauth2.ctorArgs.redirectUri, `https://guestflow.example.com${CALLBACK_PATH}`);
   assert.equal(oauth2.authOpts.access_type, 'offline');
-  assert.equal(oauth2.authOpts.prompt, 'consent');
+  // select_account forces the account picker (multi-account browsers used to silently
+  // connect the active — wrong — account); consent keeps the refresh-token guarantee.
+  assert.equal(oauth2.authOpts.prompt, 'select_account consent');
   assert.deepEqual(oauth2.authOpts.scope, SCOPES);
   assert.ok(SCOPES.includes('https://www.googleapis.com/auth/calendar.events'));
   assert.ok(SCOPES.includes('https://www.googleapis.com/auth/calendar.readonly'));

@@ -77,12 +77,15 @@ function buildGoogleOAuthClient({
     isConfigured,
     resolveRedirectUri,
 
-    // `prompt: 'consent'` + `access_type: 'offline'` guarantee a refresh token on every
-    // connect (Google only issues one on first consent otherwise).
+    // `consent` + `access_type: 'offline'` guarantee a refresh token on every connect
+    // (Google only issues one on first consent otherwise). `select_account` forces the
+    // account picker: without it Google silently uses the browser's active session, which
+    // on a multi-account browser connects the WRONG account (an Internal-app rejection at
+    // best) — hit during the 2026-07-19 production setup.
     getAuthorizeUrl({ state }) {
       return makeOAuth2().generateAuthUrl({
         access_type: 'offline',
-        prompt: 'consent',
+        prompt: 'select_account consent',
         scope: SCOPES,
         state,
       });
