@@ -8,6 +8,10 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Extended by [[sas-breakfast-bread-and-push]] (2026-07-19):** the « À manger » heading was
+> replaced by a strong divider, a « Pain (baguette) » 0,5-step counter joined the section,
+> pastries/bread get server-side smart defaults pre-commit, and a serving-time push was added.
+
 ---
 
 ## 1. Context

@@ -21,6 +21,7 @@ import FreeBreakfastIcon from '@mui/icons-material/FreeBreakfast';
 import LocalDrinkIcon from '@mui/icons-material/LocalDrink';
 import BakeryDiningIcon from '@mui/icons-material/BakeryDining';
 import WheatIcon from '../WheatIcon';
+import BaguetteIcon from '../BaguetteIcon';
 import CloseIcon from '@mui/icons-material/Close';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -49,10 +50,17 @@ import { useToast } from '../DialogProvider';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
 import { formatCurrency, displayDateLong } from '../../utils/formatters';
 
-// Integer stepper for a labelled breakfast drink (icon + label, no price). Module-level so it
-// keeps a stable identity across parent re-renders (an inline component would remount on every
-// keystroke/click and detach its DOM nodes mid-interaction).
-function CountStepper({ icon, label, value, onChange }) {
+// French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
+function formatStepperValue(value) {
+  return Number.isInteger(value) ? String(value) : String(value).replace('.', ',');
+}
+
+// Stepper for a labelled breakfast item (icon + label, no price). `step` defaults to 1
+// (integer counts); bread uses 0.5 (half-baguette steps — spec sas-breakfast-bread-and-push.md).
+// Module-level so it keeps a stable identity across parent re-renders (an inline component
+// would remount on every keystroke/click and detach its DOM nodes mid-interaction).
+function CountStepper({ icon, label, value, onChange, step = 1 }) {
+  const snap = (v) => Math.max(0, Math.round((Number(v) || 0) / step) * step);
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
@@ -60,9 +68,9 @@ function CountStepper({ icon, label, value, onChange }) {
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
       </Stack>
       <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-        <Button size="small" variant="outlined" onClick={() => onChange(Math.max(0, value - 1))} disabled={value <= 0} sx={{ minWidth: 36 }}>−</Button>
-        <TextField value={value} onChange={(e) => onChange(Math.max(0, Math.floor(Number(e.target.value) || 0)))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
-        <Button size="small" variant="outlined" onClick={() => onChange(value + 1)} sx={{ minWidth: 36 }}>+</Button>
+        <Button size="small" variant="outlined" onClick={() => onChange(snap(value - step))} disabled={value <= 0} sx={{ minWidth: 36 }}>−</Button>
+        <TextField value={formatStepperValue(value)} onChange={(e) => onChange(snap(String(e.target.value).replace(',', '.')))} size="small" sx={{ width: 56 }} slotProps={{ htmlInput: { style: { textAlign: 'center' } } }} />
+        <Button size="small" variant="outlined" onClick={() => onChange(snap(value + step))} sx={{ minWidth: 36 }}>+</Button>
       </Stack>
     </Stack>
   );
@@ -171,9 +179,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [cautionReturned, setCautionReturned] = useState(null); // departure
   const [extinguisherOk, setExtinguisherOk] = useState(true);   // fire-extinguisher — default GOOD CONDITION
   const [extinguisherQty, setExtinguisherQty] = useState({});   // departure: { repairKey: qty } when not OK
-  // arrival breakfast page (specs/sas-breakfast-and-handover-note.md + sas-breakfast-milk-and-food.md)
+  // arrival breakfast page (specs/sas-breakfast-and-handover-note.md + sas-breakfast-milk-and-food.md
+  // + sas-breakfast-bread-and-push.md — bread in half-baguette steps; the server pre-fills the
+  // defaults while the SAS was never committed)
   const [breakfast, setBreakfast] = useState({ coffee: 0, tea: 0, chocolate: 0, milk: 0 });
-  const [breakfastFood, setBreakfastFood] = useState({ pastries: 0, cereals: 0 });
+  const [breakfastFood, setBreakfastFood] = useState({ pastries: 0, cereals: 0, bread: 0 });
   const [breakfastTime, setBreakfastTime] = useState('');
   const [breakfastNote, setBreakfastNote] = useState('');
   const [handoverNote, setHandoverNote] = useState(''); // arrival recap → shown at departure
@@ -200,7 +210,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setLoading(true); setError(''); setData(null); setStepKey(null);
     setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
-    setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
+    setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
     setComplementSettled(false); setComplementPaidCash(false); setComplementsSettled(false); setComplementsPaidCash(false);
     setWeatherAlerts([]);
@@ -212,7 +222,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const b = d?.breakfast;
         if (b?.applicable) {
           setBreakfast({ coffee: Number(b.coffee) || 0, tea: Number(b.tea) || 0, chocolate: Number(b.chocolate) || 0, milk: Number(b.milk) || 0 });
-          setBreakfastFood({ pastries: Number(b.pastries) || 0, cereals: Number(b.cereals) || 0 });
+          setBreakfastFood({ pastries: Number(b.pastries) || 0, cereals: Number(b.cereals) || 0, bread: Number(b.bread) || 0 });
           setBreakfastTime(b.time || '');
           setBreakfastNote(b.note || '');
         }
@@ -443,6 +453,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           payload.breakfastMilk = breakfast.milk;
           payload.breakfastPastries = breakfastFood.pastries;
           payload.breakfastCereals = breakfastFood.cereals;
+          payload.breakfastBread = breakfastFood.bread;
           payload.breakfastNote = breakfastNote;
         }
         await api.commitArrivalSas(reservationId, payload);
@@ -615,11 +626,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="caption" sx={{ color: breakfastMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastMismatch ? 700 : 400 }}>
               {breakfastTotal} boisson{breakfastTotal > 1 ? 's' : ''} pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}
             </Typography>
-            <Divider />
-            <Typography variant="subtitle2">À manger</Typography>
+            {/* Stronger separator instead of an « À manger » heading (spec rule 1). */}
+            <Divider sx={{ borderBottomWidth: 3, borderColor: 'text.disabled' }} />
             <Stack spacing={0.5} divider={<Divider />}>
               <CountStepper icon={<BakeryDiningIcon color="action" />} label="Viennoiseries" value={Number(breakfastFood.pastries)} onChange={(v) => setBreakfastFood((f) => ({ ...f, pastries: v }))} />
               <CountStepper icon={<WheatIcon color="action" />} label="Céréales" value={Number(breakfastFood.cereals)} onChange={(v) => setBreakfastFood((f) => ({ ...f, cereals: v }))} />
+              <CountStepper icon={<BaguetteIcon color="action" />} label="Pain (baguette)" value={Number(breakfastFood.bread)} onChange={(v) => setBreakfastFood((f) => ({ ...f, bread: v }))} step={0.5} />
             </Stack>
             <Typography variant="caption" sx={{ color: breakfastFoodMismatch ? 'warning.main' : 'text.secondary', fontWeight: breakfastFoodMismatch ? 700 : 400 }}>
               {breakfastFoodTotal} à manger pour {breakfastPersons} personne{breakfastPersons > 1 ? 's' : ''}

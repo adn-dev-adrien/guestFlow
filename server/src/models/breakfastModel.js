@@ -94,6 +94,8 @@ function buildModel(database) {
       res.breakfastMilk AS milk,
       res.breakfastPastries AS pastries,
       res.breakfastCereals AS cereals,
+      res.breakfastBread AS bread,
+      res.breakfastNotifiedDate AS notifiedDate,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum
       ${occSelect}
@@ -131,7 +133,9 @@ function buildModel(database) {
     LEFT JOIN properties prop ON prop.id = res.propertyId
     WHERE res.kind = 'reservation'
       AND res.startDate < ?   -- to:   exclude reservations starting after the window
-      AND res.endDate   > ?   -- from: exclude reservations already over at window start
+      AND res.endDate   >= ?  -- from: departure-day morning included (rule 4: breakfast is served
+                              -- on endDate). Was a strict '>' — a from=to=endDate window (breakfast
+                              -- push runner, prep-popup deep-link) silently dropped the item.
   `);
 
   // Single-reservation variant of `stmt` (no date window) — drives the breakfast SAS page.
@@ -147,6 +151,8 @@ function buildModel(database) {
       res.breakfastMilk AS milk,
       res.breakfastPastries AS pastries,
       res.breakfastCereals AS cereals,
+      res.breakfastBread AS bread,
+      res.arrivalSasDoneAt AS arrivalSasDoneAt,
       res.breakfastNote AS note,
       sub.qtySum AS qtySum
       ${occSelect}
@@ -194,15 +200,17 @@ function buildModel(database) {
   return {
     /**
      * Breakfast state for the arrival SAS breakfast page. Returns
-     * `{ applicable, persons, time, coffee, tea, chocolate, milk, pastries, cereals, note }`.
+     * `{ applicable, persons, time, coffee, tea, chocolate, milk, pastries, cereals, bread, note }`.
      * `applicable` is false when the reservation has no breakfast option (explicit or via property
      * default) — the SAS then skips the breakfast page. `persons` is the same resolved morning count
      * shown on the planning card; `time` is the effective hour (reservation override → option default
-     * → fallback). Counts/note are the stored values (0 / '' before first capture).
+     * → fallback). Counts/note are the stored values, EXCEPT while the arrival SAS has never been
+     * committed: pastries then default to `persons` and bread to `persons × 0.5` (half baguette per
+     * person — specs/sas-breakfast-bread-and-push.md rule 3). An explicit post-commit 0 stays 0.
      */
     getForReservation(reservationId) {
       const r = forReservationStmt.get(Number(reservationId));
-      if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, note: '' };
+      if (!r) return { applicable: false, persons: 0, time: resolveOptionDefaultTime(), coffee: 0, tea: 0, chocolate: 0, milk: 0, pastries: 0, cereals: 0, bread: 0, note: '' };
       const personsBase = (Number(r.adults) || 0) + (Number(r.teens) || 0) + (Number(r.children) || 0);
       const persons = Math.max(0, Math.round(personsBase * (Number(r.qtySum) || 0)));
       // Hour: the first selected occurrence wins (specs/breakfast-option-planning-card.md §6), else the
@@ -210,6 +218,7 @@ function buildModel(database) {
       const firstOcc = parseBreakfastOccurrences(r.breakfastCardOccurrences)[0];
       const time = (firstOcc && firstOcc.time)
         || formatTimeShort(r.reservationBreakfastTime) || resolveOptionDefaultTime();
+      const neverCommitted = !r.arrivalSasDoneAt;
       return {
         applicable: true,
         persons,
@@ -218,10 +227,27 @@ function buildModel(database) {
         tea: Math.max(0, Number(r.tea) || 0),
         chocolate: Math.max(0, Number(r.chocolate) || 0),
         milk: Math.max(0, Number(r.milk) || 0),
-        pastries: Math.max(0, Number(r.pastries) || 0),
+        pastries: neverCommitted ? persons : Math.max(0, Number(r.pastries) || 0),
         cereals: Math.max(0, Number(r.cereals) || 0),
+        bread: neverCommitted ? persons * 0.5 : Math.max(0, Number(r.bread) || 0),
         note: (r.note && String(r.note).trim()) || '',
       };
+    },
+
+    // Push notice: minutes before the serving time (specs/sas-breakfast-bread-and-push.md rule 7),
+    // configured on the breakfast option, clamped to [0, 240], default 30. Guarded so minimal test
+    // schemas without the column keep working.
+    notifyLeadMinutes() {
+      try {
+        const row = database.prepare(
+          "SELECT breakfastNotifyLeadMinutes AS lead FROM options WHERE autoOptionType = 'breakfast' ORDER BY id LIMIT 1"
+        ).get();
+        const n = Number(row && row.lead);
+        if (!Number.isFinite(n)) return 30;
+        return Math.min(240, Math.max(0, Math.round(n)));
+      } catch {
+        return 30;
+      }
     },
 
     /**
@@ -268,6 +294,9 @@ function buildModel(database) {
             milk: Math.max(0, Number(r.milk) || 0),
             pastries: Math.max(0, Number(r.pastries) || 0),
             cereals: Math.max(0, Number(r.cereals) || 0),
+            bread: Math.max(0, Number(r.bread) || 0),
+            // Last notified day — feeds the breakfast push runner's per-day guard.
+            notifiedDate: (r.notifiedDate && String(r.notifiedDate).trim()) || null,
             note: (r.note && String(r.note).trim()) || '',
           });
           result[date].totalPersons += persons;
