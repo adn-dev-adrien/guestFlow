@@ -1,0 +1,1 @@
+- The « Agenda cible » label of the Google Calendar picker no longer overlaps the « Choisir un agenda… » placeholder before the first open (label now permanently shrunk).
