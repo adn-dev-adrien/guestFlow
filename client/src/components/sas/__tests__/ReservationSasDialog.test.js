@@ -436,11 +436,12 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   clickBtn('Oui');
 
   await screen.findByText('Récapitulatif fin de séjour');
-  // The recall section + its detail are shown.
-  expect(screen.getByText("Compléments d'arrivée non perçus")).toBeInTheDocument();
+  // With an end-of-stay complement present, the arrival lines are MERGED plainly (no « non perçus »
+  // warning header) but still counted in the total (2026-07-20 change).
+  expect(screen.queryByText("Compléments d'arrivée non perçus")).toBeNull();
   expect(screen.getByText(/Taxe de séjour : 4,80 €/)).toBeInTheDocument();
   expect(screen.getByText(/Lit bébé : 7,70 €/)).toBeInTheDocument();
-  // Combined total = 80 (ménage) + 12,50 (recalled arrival).
+  // Combined total = 80 (ménage) + 12,50 (recalled arrival) — still includes the arrival amount.
   expect(screen.getByText(/Total à percevoir : 92,50 €/)).toBeInTheDocument();
 
   // Settle « CB / Chèque » (specs/sas-recap-payment-buttons.md) then validate.
@@ -476,6 +477,30 @@ test('departure SAS: a PAID arrival complement is NOT recalled', async () => {
   await screen.findByText('Récapitulatif fin de séjour');
   expect(screen.queryByText("Compléments d'arrivée non perçus")).toBeNull();
   expect(screen.getByText(/Total à percevoir : 80,00 €/)).toBeInTheDocument(); // ménage only
+});
+
+test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay complement) keeps the « non perçus » warning', async () => {
+  // 2026-07-20 — the warning framing is kept only when the recalled arrival complement is the sole thing
+  // to collect (a genuinely forgotten arrival collection); with an end-of-stay complement it is merged.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0 },
+    cleaning: { included: true, price: 80 },
+    arrivalComplement: { amount: 12.5, paid: 0, detail: [{ label: 'Taxe de séjour', amount: 12.5 }] },
+  }));
+  renderDialog({ mode: 'departure' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/fait correctement/);
+  clickBtn('OK'); // ménage fait → NO end-of-stay charge
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+  await screen.findByText('Récapitulatif fin de séjour');
+  expect(screen.getByText("Compléments d'arrivée non perçus")).toBeInTheDocument();
+  expect(screen.getByText(/Total à percevoir : 12,50 €/)).toBeInTheDocument();
 });
 
 test('departure SAS: extinguisher not in good condition opens the tariff page; quantities ride to the payload as charges', async () => {

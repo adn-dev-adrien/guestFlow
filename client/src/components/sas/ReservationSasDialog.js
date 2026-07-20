@@ -890,8 +890,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {endOfStayLines.length === 0 && recalledArrivalAmount === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
             {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{lineText(l)}</Typography>)}
             {/* specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement was never
-                settled: recall it with its full detail, on top of the end-of-stay lines. */}
-            {arrivalRecall && (
+                settled: recall its full detail. When there is ALSO an end-of-stay complement (services
+                taken during the stay), the arrival lines are merged plainly into the same « à percevoir »
+                list — NOT flagged « non perçus » — since the amount is just part of what's collected at
+                check-out (2026-07-20). Alone (no end-of-stay complement) it keeps the warning framing, as it
+                then genuinely signals a forgotten arrival collection. */}
+            {arrivalRecall && endOfStayTotal > 0 && (arrivalRecall.detail || []).map((l, i) => (
+              <Typography key={`ar${i}`} variant="body2">{l.label} : {formatCurrency(l.amount)}</Typography>
+            ))}
+            {arrivalRecall && endOfStayTotal === 0 && (
               <>
                 <Divider />
                 <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', color: 'warning.main' }}>Compléments d'arrivée non perçus</Typography>

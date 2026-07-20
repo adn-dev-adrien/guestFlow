@@ -51,10 +51,18 @@ the complement), the arrival complement silently stays unpaid and is never recal
    `complementPaid = 1, complementPaidDate = today` (cash flag follows the same « caisse interne » choice as
    the fiche, default off). When OFF (or « Quitter »), the complement stays unpaid → eligible for recall.
 3. **Departure SAS — recall display.** When the arrival complement is unsettled, the departure SAS recap
-   shows a dedicated **« Compléments d'arrivée non perçus »** section listing the arrival complement detail
-   (its line items, see rule 6), and the recap's **« total à percevoir »** = `endOfStayComplementAmount +
-   complementAmount`. The end-of-stay detail (ménage / linge / extincteur) is shown as today, unchanged — the
-   two detail sets are both preserved and clearly labelled (arrivée vs départ).
+   recalls the arrival complement detail (its line items, see rule 6) and the recap's **« total à percevoir »**
+   = `endOfStayComplementAmount + complementAmount`. **Display depends on whether an end-of-stay complement is
+   also present (revised 2026-07-20):**
+   - **With an end-of-stay complement** (`endOfStayComplementAmount > 0`) → the arrival lines are **merged
+     plainly into the same « à percevoir » list** (normal colour, **no** « non perçus » warning header, no
+     « sous-total arrivée » line). Rationale: the amount to collect at check-out often includes services taken
+     during the stay, so flagging the arrival part as « non perçu » is misleading — it is just part of what is
+     collected now. The total still includes it.
+   - **Alone** (no end-of-stay complement) → keeps the dedicated **« Compléments d'arrivée non perçus »**
+     section (warning colour + « sous-total arrivée »), since it then genuinely signals a *forgotten arrival
+     collection*.
+   The end-of-stay detail (ménage / linge / extincteur) is shown as today, unchanged.
 4. **Departure SAS — collect both.** On the departure recap, a **« Compléments encaissés »** confirmation
    (shown when there is anything to collect) marks, at « Valider et terminer »:
    - `endOfStayComplementPaid = 1, endOfStayComplementPaidDate = today` when `endOfStayComplementAmount > 0`;
