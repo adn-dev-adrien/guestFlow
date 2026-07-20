@@ -93,6 +93,12 @@ confirmation — records the caution status and the complement(s) on the reserva
     - **Cleaning not included** → *« Le ménage n'a pas été pris. Tarif ménage pour ce logement : X €. »*
       Buttons **Ajouter le ménage** (→ accumulates the cleaning charge into the arrival complement + adds the
       cleaning option to the reservation) / **Non merci** (→ next).
+10.bis **Linge de toilette (only if the reservation did NOT take the `bathroom_linen` option).** Upsell,
+    priced **per person** by the engine (specs/sas-bath-linen-upsell.md). *« Le client n'a pas pris le linge
+    de toilette. Tarif : X € (N pers × Y €). »* Three buttons: **Réglé en fin de séjour** (→ end-of-stay
+    complement, shown + collected at check-out) / **Réglé maintenant** (→ arrival complement, settled via the
+    recap « Complément encaissé / Caisse interne ») / **Non merci**. Skipped when bath linen is already taken
+    or no priced `bathroom_linen` option exists.
 11. **Caution reportée (only if rule 6 = « Reporté »).** Re-shows the caution page once more before the recap.
 12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
     (before the SAS) **+** the items added during the SAS (linen elements + cleaning), **with the full detail
@@ -127,7 +133,10 @@ confirmation — records the caution status and the complement(s) on the reserva
 18. **End-of-stay complement** is a **separate, dedicated amount** (decision 2026-06-12), stored on the
     reservation (`endOfStayComplementAmount` + paid flag + detail). It does **not** touch the arrival
     `complementAmount`. The departure SAS sets it = **cleaning price** (ménage « Pas OK ») **+** the
-    **missing linen/towels** selected at rule 14.ter.
+    **missing linen/towels** selected at rule 14.ter. The **arrival** SAS can also add a line here — the
+    **bath-linen deferred to check-out** (rule 10.bis, `source='arrivalBathLinen'`, specs/sas-bath-linen-upsell.md).
+    Such arrival-added lines are **displayed + counted + preserved** by the departure recap/commit (they are
+    not silently dropped when the departure SAS rebuilds the detail).
 19. Both complements round to 2 decimals and never go negative.
 19.bis **Recap detail with quantities + prices (2026-06-18).** When there is a complement to settle, the
     recap lists **each line** — the pre-existing in-complément extras (options / resources / custom, with

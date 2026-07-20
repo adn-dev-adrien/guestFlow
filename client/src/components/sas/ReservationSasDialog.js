@@ -92,6 +92,7 @@ function stepMeta(key, mode) {
     case 'linen':
     case 'linenItems': return { title: 'Linge de lit', Icon: KingBedIcon };
     case 'cleaning': return { title: 'Ménage', Icon: CleaningServicesIcon };
+    case 'bathLinen': return { title: 'Linge de toilette', Icon: DryCleaningIcon };
     case 'missingAsk':
     case 'missingItems': return { title: 'Serviettes / draps', Icon: DryCleaningIcon };
     case 'keys': return { title: 'Clés', Icon: VpnKeyIcon };
@@ -172,6 +173,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [linenOk, setLinenOk] = useState(null);           // arrival linen verify: true | false
   const [missingBed, setMissingBed] = useState({});       // arrival: { itemId: qty }
   const [cleaningAdded, setCleaningAdded] = useState(false);
+  // specs/sas-bath-linen-upsell.md — arrival bath-linen upsell: null | 'now' | 'endOfStay'.
+  const [bathLinenChoice, setBathLinenChoice] = useState(null);
   const [cleaningOk, setCleaningOk] = useState(null);     // departure: true | false
   const [missingAsk, setMissingAsk] = useState(null);     // departure: true | false
   const [missingDep, setMissingDep] = useState({});       // departure: { itemId: qty }
@@ -238,16 +241,25 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
-          const nextBed = {}; let nextCleaning = false; const keep = [];
+          const nextBed = {}; let nextCleaning = false; let nextBathLinen = null; const keep = [];
+          const bathLinenLabel = String(d.bathLinen?.label || 'Linge de toilette');
           (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1).forEach((o) => {
             const label = String(o.description || o.title || '');
             const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
             if (label === 'Ménage') { nextCleaning = true; return; }
+            // specs/sas-bath-linen-upsell.md §3.2 rule 8 — the « réglé maintenant » bath-linen line.
+            if (label === bathLinenLabel) { nextBathLinen = 'now'; return; }
             const item = bedByLabel.get(label);
             if (item && Number(item.price) > 0) nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
             else keep.push({ label, amount });
           });
-          setMissingBed(nextBed); setCleaningAdded(nextCleaning); setPreservedArrival(keep);
+          // The « réglé en fin de séjour » bath-linen line lives in the end-of-stay complement detail.
+          if (!nextBathLinen) {
+            let eos = [];
+            try { eos = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { eos = []; }
+            if (eos.some((l) => l && l.source === 'arrivalBathLinen')) nextBathLinen = 'endOfStay';
+          }
+          setMissingBed(nextBed); setCleaningAdded(nextCleaning); setBathLinenChoice(nextBathLinen); setPreservedArrival(keep);
           if (res.bedLinenAlert) setLinenOk(Object.keys(nextBed).length === 0);
         } else {
           setCautionReturned(res.cautionReturned ? true : false);
@@ -260,6 +272,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           const nextDep = {}; const nextExtinguisher = {}; let charged = false; const keep = [];
           detail.forEach((line) => {
             const label = String(line.label || '');
+            // specs/sas-bath-linen-upsell.md §3.3 — arrival-origin lines (tagged `source`) are carried +
+            // displayed separately (carriedEndOfStayLines); skip them here so they aren't also duplicated
+            // into preservedDeparture.
+            if (line.source) return;
             // Extinguisher lines carry a repairKey → recomputed server-side from the quantities below.
             if (line.repairKey && String(line.repairKey).startsWith('extinguisher')) {
               nextExtinguisher[String(line.repairKey)] = Math.max(1, Number(line.qty) || 1);
@@ -319,6 +335,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Ménage step is hidden when the cleaning is already included (specs/sas-hide-settled-steps.md §3);
         // the vaisselle/poubelles reminder then moves to the recap.
         data.cleaning?.included ? null : 'cleaning',
+        // specs/sas-bath-linen-upsell.md §3.1 — offer bath linen when the guest didn't take it.
+        data.bathLinen?.available ? 'bathLinen' : null,
         (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
         // Weather alert (specs/checkin-weather-alerts.md): last page before the recap, only when a
         // qualifying alert overlaps the stay.
@@ -357,7 +375,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     .map((it) => ({ label: it.label, unitPrice: Number(it.price) || 0, amount: Math.round(Number(it.price) * Number(missingBed[it.id]) * 100) / 100, qty: Number(missingBed[it.id]) })), [bedItems, missingBed]);
   const cleaningLine = (mode === 'arrival' && cleaningAdded && data?.cleaning?.price)
     ? { label: 'Ménage', unitPrice: Math.round(Number(data.cleaning.price) * 100) / 100, amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
-  const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : [])];
+  // specs/sas-bath-linen-upsell.md §3.2 — « réglé maintenant » adds the bath linen to the arrival
+  // complement (« réglé en fin de séjour » is sent as endOfStayBathLinen, priced server-side).
+  const bathLinenNowLine = (mode === 'arrival' && bathLinenChoice === 'now' && data?.bathLinen?.available)
+    ? { label: data.bathLinen.label, unitPrice: Math.round(Number(data.bathLinen.unitPrice) * 100) / 100, amount: Math.round(Number(data.bathLinen.amount) * 100) / 100, qty: Number(data.bathLinen.persons) || 1 } : null;
+  const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : []), ...(bathLinenNowLine ? [bathLinenNowLine] : [])];
   const arrivalAdded = arrivalAddedLines.reduce((s, l) => s + l.amount, 0);
   // On re-edit, the SAS-origin complement lines from the prior commit are REPLACED, not added — so
   // the recap must exclude their amount from « déjà dû » (specs/reopen-completed-sas.md §4), else it
@@ -415,10 +437,23 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     .map((t) => ({ repairKey: t.repairKey, label: t.label, unitPrice: Number(t.price) || 0, qty: Number(extinguisherQty[t.repairKey]), amount: Math.round(Number(t.price) * Number(extinguisherQty[t.repairKey]) * 100) / 100 })), [extinguisherTariffs, extinguisherQty]);
   const extinguisherBilled = mode === 'departure' && extinguisherOk === false;
   const previewExtinguisherLines = extinguisherBilled ? extinguisherLines : [];
+  // specs/sas-bath-linen-upsell.md §3.3 — end-of-stay lines the ARRIVAL SAS wrote (tagged `source`,
+  // e.g. deferred bath linen). They must be DISPLAYED in the check-out recap AND counted in the total
+  // AND re-sent verbatim on the departure commit (which rebuilds the whole detail) — else running the
+  // departure SAS would silently drop them. Carried whether or not the departure SAS was already
+  // committed (a fresh departure SAS must preserve them too). Non-editable here.
+  const carriedEndOfStayLines = useMemo(() => {
+    if (mode !== 'departure') return [];
+    let detail = [];
+    try { detail = JSON.parse(r?.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
+    return detail
+      .filter((l) => l && l.source)
+      .map((l) => ({ label: l.label, unitPrice: Number(l.unitPrice) || 0, amount: Math.round(Number(l.amount || 0) * 100) / 100, qty: Number(l.qty) || 1, source: l.source }));
+  }, [mode, r]);
   // Lines billed by the laundry/cleaning flow (sent to the server verbatim). The extinguisher lines are
   // sent as quantities (extinguisherCharges) — the server prices them — so they're excluded here.
   const endOfStaySentLines = [...(depCleaningLine ? [depCleaningLine] : []), ...depMissingLines];
-  const endOfStayLines = [...endOfStaySentLines, ...previewExtinguisherLines];
+  const endOfStayLines = [...endOfStaySentLines, ...carriedEndOfStayLines, ...previewExtinguisherLines];
   const endOfStayTotal = endOfStayLines.reduce((s, l) => s + l.amount, 0);
   // specs/recall-unpaid-arrival-complement-at-checkout.md — at departure, recall the arrival complement
   // when it was never settled (amount > 0 AND not paid). The amount stays separate in the DB; here it's
@@ -444,6 +479,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // specs/recall-unpaid-arrival-complement-at-checkout.md — « Complément encaissé » confirmation.
           complementSettled,
           complementPaidCash,
+          // specs/sas-bath-linen-upsell.md §3.2 — tri-state: undefined when the bath-linen step isn't
+          // shown (server leaves the end-of-stay complement untouched); true = « réglé en fin de séjour »
+          // (server prices it per person); false = « réglé maintenant » / « Non merci » (drops any prior line).
+          endOfStayBathLinen: activeKeys.includes('bathLinen') ? (bathLinenChoice === 'endOfStay') : undefined,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
@@ -462,7 +501,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           cautionReturned: activeKeys.includes('cautionReturn') ? (cautionReturned === true) : undefined,
           // The extinguisher lines are NOT sent here — the server prices the quantities below and appends
           // them, then recomputes the authoritative total (specs/extinguisher-seal-and-repair-amounts.md §3.2).
-          endOfStayComplementDetail: [...endOfStaySentLines, ...preservedDeparture],
+          // Carried arrival-origin lines (e.g. deferred bath linen) are re-sent verbatim WITH their
+          // `source` tag so the departure commit (which rebuilds the whole detail) never drops them
+          // (specs/sas-bath-linen-upsell.md §3.3).
+          endOfStayComplementDetail: [...endOfStaySentLines, ...carriedEndOfStayLines, ...preservedDeparture],
           extinguisherSealOkAtDeparture: extinguisherOk ? 1 : 0,
           extinguisherCharges: extinguisherBilled
             ? extinguisherTariffs.map((t) => ({ repairKey: t.repairKey, qty: Number(extinguisherQty[t.repairKey]) || 0 }))
@@ -694,6 +736,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {cleaningAdded && <Chip label={`Ménage ajouté (${formatCurrency(data.cleaning.price)})`} color="info" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
+      case 'bathLinen': {
+        const bl = data.bathLinen || {};
+        const chip = bathLinenChoice === 'now' ? 'réglé maintenant'
+          : bathLinenChoice === 'endOfStay' ? 'réglé en fin de séjour' : null;
+        return (
+          <Stack spacing={1.5}>
+            <Typography variant="body1">Le client n'a pas pris le linge de toilette.</Typography>
+            <Typography variant="body2">Tarif : <strong>{formatCurrency(bl.amount)}</strong> ({bl.persons} pers × {formatCurrency(bl.unitPrice)}). Proposer au client ?</Typography>
+            {chip && <Chip label={`Linge ajouté (${formatCurrency(bl.amount)}) — ${chip}`} color="info" sx={{ alignSelf: 'flex-start' }} />}
+          </Stack>
+        );
+      }
       case 'missingAsk':
         return <Typography variant="body1">Des serviettes ou des draps sont-ils manquants ?</Typography>;
       case 'missingItems':
@@ -896,6 +950,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return <>{quit}
           <Button variant="outlined" disabled={data.cleaning.price == null} onClick={() => { setCleaningAdded(true); goNext(); }}>Ajouter le ménage</Button>
           <Button variant="contained" onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
+        </>;
+      case 'bathLinen':
+        // specs/sas-bath-linen-upsell.md §3.2 — neutral upsell (not a yes/no safety question): two add
+        // actions (defer / pay now) + a discreet decline.
+        return <>{quit}
+          <Button variant="contained" onClick={() => { setBathLinenChoice('endOfStay'); goNext(); }}>Réglé en fin de séjour</Button>
+          <Button variant="contained" onClick={() => { setBathLinenChoice('now'); goNext(); }}>Réglé maintenant</Button>
+          <Button variant="outlined" onClick={() => { setBathLinenChoice(null); goNext(); }}>Non merci</Button>
         </>;
       case 'missingAsk':
         // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.

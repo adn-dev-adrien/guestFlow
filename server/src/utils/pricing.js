@@ -1878,6 +1878,7 @@ module.exports = {
   calculateReservationQuote,
   isPlatformCollectingTouristTax,
   isTouristTaxRemittedByOwner,
+  getTypeMultiplier,
 };
 
 module.exports.__test = {

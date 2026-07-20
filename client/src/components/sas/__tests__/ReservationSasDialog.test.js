@@ -34,6 +34,7 @@ function sasPayload(over = {}) {
     reservation: { ...BASE_RES, ...(over.reservation || {}) },
     portalCode: over.portalCode || '',
     cleaning: over.cleaning || { included: false, price: 80 },
+    bathLinen: over.bathLinen || { available: false, unitPrice: 0, priceType: null, persons: 0, nights: 0, amount: 0, label: 'Linge de toilette' },
     linenItems: over.linenItems || [{ id: 1, label: 'Taie d\'oreiller', price: 5, category: 'bed' }],
     repairAmounts: over.repairAmounts || [],
     breakfast: over.breakfast, // undefined → breakfast page hidden
@@ -521,4 +522,104 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
     { repairKey: 'extinguisher_use', qty: 0 },
   ]);
   expect(arg.endOfStayComplementDetail.some((l) => String(l.repairKey || '').startsWith('extinguisher'))).toBe(false);
+});
+
+// ---- arrival bath-linen upsell (specs/sas-bath-linen-upsell.md) ----
+
+const BATH_LINEN_OFFER = { available: true, unitPrice: 4, priceType: 'per_person', persons: 3, nights: 2, amount: 12, label: 'Linge de toilette' };
+
+test('arrival SAS: bath-linen page — « Réglé en fin de séjour » sends endOfStayBathLinen and adds nothing to the arrival complement', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2, children: 1 },
+    cleaning: { included: true, price: null },
+    bathLinen: BATH_LINEN_OFFER,
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText(/n'a pas pris le linge de toilette/);
+  expect(screen.getByText(/3 pers/)).toBeInTheDocument();
+  clickBtn('Réglé en fin de séjour');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.endOfStayBathLinen).toBe(true);
+  expect(arg.complementItems).toEqual([]); // deferred → nothing in the arrival complement
+});
+
+test('arrival SAS: bath-linen page — « Réglé maintenant » adds the line to the arrival complement, endOfStayBathLinen false', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, adults: 2, children: 1 },
+    cleaning: { included: true, price: null },
+    bathLinen: BATH_LINEN_OFFER,
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/n'a pas pris le linge de toilette/);
+  clickBtn('Réglé maintenant');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/Total : 12,00 €/)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.endOfStayBathLinen).toBe(false);
+  expect(arg.complementItems).toEqual([{ label: 'Linge de toilette', amount: 12 }]);
+});
+
+test('arrival SAS: bath-linen page is skipped when the offer is unavailable', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1 },
+    cleaning: { included: true, price: null },
+    // bathLinen default = { available: false }
+  }));
+  renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.queryByText(/n'a pas pris le linge de toilette/)).toBeNull();
+});
+
+test('departure SAS: a bath-linen line deferred at arrival is shown, counted in the total, and re-sent on commit', async () => {
+  // specs/sas-bath-linen-upsell.md §3.3 — the arrival SAS wrote a `source:'arrivalBathLinen'` end-of-stay
+  // line; the check-out recap must display + count it, and the departure commit must preserve it.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      cautionAmount: 0,
+      endOfStayComplementDetail: JSON.stringify([{ label: 'Linge de toilette', amount: 12, qty: 3, unitPrice: 4, source: 'arrivalBathLinen' }]),
+    },
+    cleaning: { included: true, price: 80 },
+  }));
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/fait correctement/);
+  clickBtn('Pas OK'); // +80 end-of-stay
+  await screen.findByText(/serviettes ou des draps/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+
+  await screen.findByText('Récapitulatif fin de séjour');
+  expect(screen.getByText(/Linge de toilette/)).toBeInTheDocument();
+  expect(screen.getByText(/Total à percevoir : 92,00 €/)).toBeInTheDocument(); // 80 + 12
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitDepartureSas.mock.calls[0][1];
+  const carried = arg.endOfStayComplementDetail.find((l) => l.source === 'arrivalBathLinen');
+  expect(carried).toBeTruthy();
+  expect(carried.amount).toBe(12);
+  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
 });

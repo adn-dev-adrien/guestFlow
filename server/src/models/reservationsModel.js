@@ -16,7 +16,14 @@ const { getOptionsSignature, getResourcesSignature, enrichHistoryChanges } = req
 const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { generateReservationNumber } = require('../utils/reservationNumber');
-const { isPlatformCollectingTouristTax } = require('../utils/pricing');
+const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
+
+// Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
+// reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
+const BATH_LINEN_LABEL = 'Linge de toilette';
+// Marker on the end-of-stay complement detail line written by the arrival SAS when the guest
+// defers the bath-linen payment to check-out (specs/sas-bath-linen-upsell.md §3.2 rule 6).
+const BATH_LINEN_EOS_SOURCE = 'arrivalBathLinen';
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 
 // Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
@@ -1095,6 +1102,31 @@ function createReservationsModel(database) {
       return Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
     },
 
+    // Bath-linen upsell offer for the arrival SAS (specs/sas-bath-linen-upsell.md §3.1). Resolves the
+    // « Linge de toilette » option, applies the per-property price override, and prices it PER PERSON
+    // exactly as the reservation engine (getTypeMultiplier on the option's own priceType — `per_person`
+    // → persons). `persons = adults + teens + children` (babies excluded, like pricing.js). Not offered
+    // when the option is missing, already on the reservation, or the computed amount is ≤ 0.
+    getBathLinenOfferForReservation(reservation) {
+      const empty = { available: false, unitPrice: 0, priceType: null, persons: 0, nights: 0, amount: 0, label: BATH_LINEN_LABEL };
+      if (!reservation) return empty;
+      const alreadyTaken = (reservation.options || []).some((o) => o.autoOptionType === 'bathroom_linen');
+      if (alreadyTaken) return empty;
+      const opt = database.prepare("SELECT id, price, priceType FROM options WHERE autoOptionType = 'bathroom_linen' LIMIT 1").get();
+      if (!opt) return empty;
+      let override;
+      try {
+        override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
+          .get(opt.id, Number(reservation.propertyId));
+      } catch { override = undefined; }
+      const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
+      const priceType = opt.priceType || 'per_stay';
+      const persons = Number(reservation.adults || 0) + Number(reservation.teens || 0) + Number(reservation.children || 0);
+      const nights = Array.isArray(reservation.nights) ? reservation.nights.length : 0;
+      const amount = Math.round(unitPrice * getTypeMultiplier(priceType, persons, nights) * 100) / 100;
+      return { available: amount > 0, unitPrice, priceType, persons, nights, amount, label: BATH_LINEN_LABEL };
+    },
+
     // Single commit for the arrival SAS. `complementItems` = [{ label, amount }] (missing linen
     // elements + optionally the cleaning charge). Written as custom options inComplement=1 +
     // sasArrivalOrigin=1. Re-openable SAS: a re-commit REPLACES the SAS-origin complement lines
@@ -1114,6 +1146,7 @@ function createReservationsModel(database) {
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
+      endOfStayBathLinen,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
@@ -1211,6 +1244,42 @@ function createReservationsModel(database) {
               .run(reservationId);
           }
         }
+        // specs/sas-bath-linen-upsell.md §3.2 rule 6 — bath linen the guest takes but settles AT
+        // CHECK-OUT lands in the end-of-stay complement (a detail line tagged `source`). Tri-state:
+        //   - undefined → the bath-linen step wasn't shown (already taken / unavailable) → leave the
+        //     end-of-stay complement untouched;
+        //   - false → « réglé maintenant » or « Non merci » → drop any prior arrival bath-linen line;
+        //   - true → recompute the per-person offer server-side and (re)insert the line.
+        // On every re-commit the line is removed then re-added, so re-opening never double-charges. The
+        // amount is recomputed as Σ of all detail lines (departure-added lines are preserved untouched).
+        if (endOfStayBathLinen !== undefined) {
+          const eosRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
+          let detail = [];
+          try { detail = JSON.parse((eosRow && eosRow.endOfStayComplementDetail) || '[]') || []; } catch { detail = []; }
+          detail = detail.filter((l) => !(l && l.source === BATH_LINEN_EOS_SOURCE));
+          if (endOfStayBathLinen) {
+            // Light-weight reservation shape for the per-person price (avoids a full getByIdWithDetails
+            // inside the transaction): propertyId + party + nights count + whether bath linen is already
+            // taken. getBathLinenOfferForReservation resolves the option + per-property override + engine
+            // multiplier from these.
+            const base = database.prepare('SELECT propertyId, adults, teens, children FROM reservations WHERE id = ?').get(reservationId) || {};
+            const alreadyTaken = database.prepare("SELECT 1 FROM reservation_options ro JOIN options o ON ro.optionId = o.id WHERE ro.reservationId = ? AND o.autoOptionType = 'bathroom_linen' LIMIT 1").get(reservationId);
+            const nightsCount = database.prepare('SELECT COUNT(*) AS n FROM reservation_nights WHERE reservationId = ?').get(reservationId).n;
+            const offer = model.getBathLinenOfferForReservation({
+              propertyId: base.propertyId,
+              adults: base.adults, teens: base.teens, children: base.children,
+              options: alreadyTaken ? [{ autoOptionType: 'bathroom_linen' }] : [],
+              nights: new Array(Number(nightsCount) || 0).fill(0),
+            });
+            if (offer.available && offer.amount > 0) {
+              detail.push({ label: offer.label, amount: offer.amount, qty: offer.persons, unitPrice: offer.unitPrice, source: BATH_LINEN_EOS_SOURCE });
+            }
+          }
+          const eosAmount = Math.max(0, Math.round(detail.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 100) / 100);
+          database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
+            .run(eosAmount, detail.length ? JSON.stringify(detail) : null, reservationId);
+        }
+
         // specs/arrival-departure-sas.md §3.6 — going all the way through the arrival SAS validates the
         // planning coche AND the dashboard « Prêt » + « Arrivé » (checkInReady is both). Forward-only
         // convenience: completing the SAS means the guest is in; re-committing re-affirms it, and it's

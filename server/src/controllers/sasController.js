@@ -39,6 +39,8 @@ function getSas(req, res) {
     reservation,
     portalCode: String(settings.portalCode || '').trim(),
     cleaning: { included: cleaningIncluded, price: cleaningPrice },
+    // specs/sas-bath-linen-upsell.md §3.1 — bath-linen upsell (per-person price, mirrors the engine).
+    bathLinen: reservationsModel.getBathLinenOfferForReservation(reservation),
     linenItems: linenItemsModel.list(),
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement (amount + paid +
     // itemised detail) so the departure SAS can recall it when it was never settled.
@@ -60,6 +62,7 @@ function commitArrival(req, res) {
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
+    endOfStayBathLinen,
   } = req.body || {};
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
@@ -80,6 +83,9 @@ function commitArrival(req, res) {
     // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
     complementSettled: complementSettled === undefined ? undefined : Boolean(complementSettled),
     complementPaidCash: Boolean(complementPaidCash),
+    // specs/sas-bath-linen-upsell.md §3.2 — tri-state: undefined (step not shown) leaves the end-of-stay
+    // complement untouched; the model recomputes the offer server-side when true.
+    endOfStayBathLinen: endOfStayBathLinen === undefined ? undefined : Boolean(endOfStayBathLinen),
   });
   return res.json({ ok: true, complementAmount });
 }

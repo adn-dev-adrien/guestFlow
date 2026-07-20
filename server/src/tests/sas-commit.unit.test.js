@@ -14,6 +14,7 @@ function makeDb() {
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
       clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
+      adults INTEGER NOT NULL DEFAULT 0, teens INTEGER NOT NULL DEFAULT 0, children INTEGER NOT NULL DEFAULT 0, babies INTEGER NOT NULL DEFAULT 0,
       cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
@@ -37,7 +38,9 @@ function makeDb() {
       inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL, soldeContribTtc REAL,
       sasArrivalOrigin INTEGER NOT NULL DEFAULT 0
     );
-    CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, autoOptionType TEXT, price REAL DEFAULT 0);
+    CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, autoOptionType TEXT, price REAL DEFAULT 0, priceType TEXT DEFAULT 'per_stay');
+    CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL);
+    CREATE TABLE reservation_nights (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, date TEXT);
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE linen_priced_items (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, category TEXT NOT NULL DEFAULT 'bed', sortOrder INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE repair_amounts (id INTEGER PRIMARY KEY AUTOINCREMENT, repairKey TEXT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
@@ -45,7 +48,7 @@ function makeDb() {
   `);
   // specs/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
-  db.prepare("INSERT INTO reservations (id, propertyId, complementAmount, complementPaid, cautionAmount) VALUES (1, 7, 30, 0, 300)").run();
+  db.prepare("INSERT INTO reservations (id, propertyId, adults, teens, children, complementAmount, complementPaid, cautionAmount) VALUES (1, 7, 2, 0, 1, 30, 0, 300)").run();
   return db;
 }
 
@@ -203,6 +206,109 @@ test('commitArrivalSas: omitted breakfast fields default to 0 / null, breakfastT
   assert.equal(r.breakfastBread, 0);
   assert.equal(r.breakfastNote, null);
   assert.equal(r.departureHandoverNote, null);
+});
+
+// ---- arrival bath-linen upsell (specs/sas-bath-linen-upsell.md) ----
+
+// Reservation 1 = 2 adults + 1 child = 3 persons. Seed a per-person bath-linen option at 4 € → 12 €.
+function seedBathLinen(db, { price = 4, priceType = 'per_person' } = {}) {
+  db.prepare("INSERT INTO options (id, title, autoOptionType, price, priceType) VALUES (60, 'Linge de toilette', 'bathroom_linen', ?, ?)").run(price, priceType);
+  return 60;
+}
+
+test('commitArrivalSas endOfStayBathLinen=true: writes the per-person line into the end-of-stay complement, leaves the arrival complement untouched', () => {
+  const db = makeDb();
+  seedBathLinen(db);
+  const model = createReservationsModel(db);
+  const arrivalComplement = model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  assert.equal(arrivalComplement, 30, 'arrival complement unchanged');
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail, complementAmount FROM reservations WHERE id = 1').get();
+  assert.equal(r.complementAmount, 30);
+  assert.equal(r.endOfStayComplementAmount, 12); // 3 persons × 4
+  const detail = JSON.parse(r.endOfStayComplementDetail);
+  assert.equal(detail.length, 1);
+  assert.deepEqual(detail[0], { label: 'Linge de toilette', amount: 12, qty: 3, unitPrice: 4, source: 'arrivalBathLinen' });
+});
+
+test('commitArrivalSas endOfStayBathLinen: per-property price override wins', () => {
+  const db = makeDb();
+  const optId = seedBathLinen(db, { price: 4 });
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (7, ?, 5)').run(optId);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount FROM reservations WHERE id = 1').get().endOfStayComplementAmount, 15); // 3 × 5
+});
+
+test('commitArrivalSas endOfStayBathLinen re-commit: REPLACES the line (no double-charge)', () => {
+  const db = makeDb();
+  seedBathLinen(db);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 12);
+  assert.equal(JSON.parse(r.endOfStayComplementDetail).length, 1);
+});
+
+test('commitArrivalSas endOfStayBathLinen=false: drops any prior bath-linen line (switch to « réglé maintenant » / « Non merci »)', () => {
+  const db = makeDb();
+  seedBathLinen(db);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  model.commitArrivalSas(1, { endOfStayBathLinen: false });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 0);
+  assert.equal(r.endOfStayComplementDetail, null);
+});
+
+test('commitArrivalSas endOfStayBathLinen: preserves other end-of-stay lines, recomputes the sum', () => {
+  const db = makeDb();
+  seedBathLinen(db);
+  db.prepare("UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementDetail = ? WHERE id = 1")
+    .run(JSON.stringify([{ label: 'Ménage de fin de séjour', amount: 40 }]));
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 52); // 40 + 12
+  const labels = JSON.parse(r.endOfStayComplementDetail).map((l) => l.label);
+  assert.deepEqual(labels, ['Ménage de fin de séjour', 'Linge de toilette']);
+});
+
+test('commitArrivalSas endOfStayBathLinen omitted (step not shown): leaves the end-of-stay complement untouched', () => {
+  const db = makeDb();
+  seedBathLinen(db);
+  db.prepare("UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementDetail = ? WHERE id = 1")
+    .run(JSON.stringify([{ label: 'Ménage de fin de séjour', amount: 40 }]));
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, {});
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 40);
+  assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((l) => l.label), ['Ménage de fin de séjour']);
+});
+
+test('commitArrivalSas endOfStayBathLinen: no bath-linen line when the option is already on the reservation', () => {
+  const db = makeDb();
+  const optId = seedBathLinen(db);
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId) VALUES (1, ?)').run(optId);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount FROM reservations WHERE id = 1').get().endOfStayComplementAmount, 0);
+});
+
+test('commitDepartureSas: preserves an arrival-added bath-linen line (source tag) sent back in the detail', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [
+      { label: 'Ménage de fin de séjour', amount: 40 },
+      { label: 'Linge de toilette', amount: 12, qty: 3, unitPrice: 4, source: 'arrivalBathLinen' },
+    ],
+  });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 52); // 40 + 12, server sums all detail lines
+  const carried = JSON.parse(r.endOfStayComplementDetail).find((l) => l.source === 'arrivalBathLinen');
+  assert.ok(carried, 'bath-linen line preserved with its source tag');
+  assert.equal(carried.amount, 12);
 });
 
 // ---- departure commit ----
