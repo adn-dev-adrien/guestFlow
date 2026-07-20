@@ -1,0 +1,1 @@
+- SAS check-out : quand il y a un complément de fin de séjour, le complément d'arrivée impayé n'est plus signalé « non perçus » (bandeau orange) mais fusionné dans la liste « à percevoir » — le montant reste bien compté. Le libellé d'alerte n'apparaît plus que lorsqu'un complément d'arrivée impayé est seul à percevoir (oubli de check-in).
