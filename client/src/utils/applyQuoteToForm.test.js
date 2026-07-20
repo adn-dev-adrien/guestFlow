@@ -156,6 +156,59 @@ describe('applyQuoteToForm — inComplement preservation', () => {
   });
 });
 
+// Regression tests for the disappearing custom line (bug reported 2026-07-20): incomplete
+// lines (empty description or amount ≤ 0) are filtered out of the pricing payload, so the
+// quote never echoes them — the helper must keep them from `prev` instead of erasing them.
+// Typing a comma in the type="number" amount field zeroed the amount, the next recompute
+// dropped the line from the payload, and the rebuilt form lost the line entirely.
+describe('applyQuoteToForm — incomplete custom lines survive recomputes', () => {
+  test('keeps a prev custom line absent from the quote (incomplete → never sent)', () => {
+    const prev = {
+      ...basePrev,
+      customOptions: [{ customKey: 'custom_2', description: 'Ménage', amount: 0, inComplement: false }],
+    };
+    const next = applyQuoteToForm(prev, baseQuote); // quote has no custom lines
+    expect(next.customOptions).toHaveLength(1);
+    expect(next.customOptions[0]).toEqual(prev.customOptions[0]);
+  });
+
+  test('merges echoed lines and keeps unechoed ones, preserving the form order', () => {
+    const prev = {
+      ...basePrev,
+      customOptions: [
+        { customKey: 'custom_1', description: 'Ménage', amount: 40, inComplement: true },
+        { customKey: 'custom_2', description: '', amount: 12.5, inComplement: false }, // incomplete
+      ],
+    };
+    const quote = {
+      ...baseQuote,
+      optionLines: [{
+        isCustom: true, customKey: 'custom_1', title: 'Ménage',
+        totalPrice: 40, originalTotalPrice: 40, offered: 0, inComplement: 0,
+      }],
+    };
+    const next = applyQuoteToForm(prev, quote);
+    expect(next.customOptions.map((c) => c.customKey)).toEqual(['custom_1', 'custom_2']);
+    expect(next.customOptions[0].amount).toBe(40);
+    expect(next.customOptions[0].inComplement).toBe(true); // local toggle still wins
+    expect(next.customOptions[1]).toEqual(prev.customOptions[1]); // untouched
+  });
+
+  test('quote-only lines still appear when prev is empty (initial load case)', () => {
+    const quote = {
+      ...baseQuote,
+      optionLines: [{
+        isCustom: true, customKey: 'custom_1', title: 'Ménage',
+        totalPrice: 40, originalTotalPrice: 40, offered: 0, inComplement: 1,
+      }],
+    };
+    const next = applyQuoteToForm(basePrev, quote);
+    expect(next.customOptions).toHaveLength(1);
+    expect(next.customOptions[0].customKey).toBe('custom_1');
+    expect(next.customOptions[0].inComplement).toBe(true);
+  });
+});
+
 describe('applyQuoteToForm — basic shaping', () => {
   test('writes deposit/balance amounts and dates from the quote', () => {
     const next = applyQuoteToForm(basePrev, baseQuote);

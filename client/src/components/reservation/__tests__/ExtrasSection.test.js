@@ -48,6 +48,24 @@ test('"Ajouter une ligne" calls addCustomOption', async () => {
   expect(ctx.addCustomOption).toHaveBeenCalled();
 });
 
+// Bug 2026-07-20: « Prix TTC » was a type="number" input — typing a French comma (« 12,5 »)
+// blanked the value to 0 and the next live recompute dropped the whole line. The field is now
+// an ArithmeticTextField: comma accepted, value committed on blur/Enter only.
+test('typing a comma amount in a custom line commits the decimal on blur', async () => {
+  const user = userEvent.setup();
+  const ctx = renderExtras({
+    form: { customOptions: [{ customKey: 'custom_1', description: 'Ménage', amount: 0 }] },
+  });
+  const amountField = screen.getByLabelText('Prix TTC');
+  await user.click(amountField);
+  await user.clear(amountField);
+  await user.type(amountField, '12,5');
+  // No commit while typing — the comma must not zero the amount mid-edit.
+  expect(ctx.updateCustomOption).not.toHaveBeenCalled();
+  await user.tab();
+  expect(ctx.updateCustomOption).toHaveBeenCalledWith('custom_1', { amount: 12.5 });
+});
+
 test('an auto-timed option (autoEnabled=1) renders the "Ajout automatique" hint', () => {
   renderExtras({
     propertyOptions: [{ id: 11, title: 'Check-in anticipé', price: 20, priceType: 'per_stay', autoOptionType: 'early_check_in', autoEnabled: 1 }],
