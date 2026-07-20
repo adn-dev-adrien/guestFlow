@@ -1,0 +1,1 @@
+- SAS d'arrivée : propose le **linge de toilette** quand le client ne l'a pas pris, au **prix par personne** (même moteur que la réservation). Réglable **en fin de séjour** (complément de fin de séjour, affiché au check-out) ou **maintenant** (complément d'arrivée, encaissable en caisse interne).
