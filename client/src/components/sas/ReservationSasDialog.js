@@ -11,8 +11,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogActions, Button, Box, Typography, Stack,
-  CircularProgress, Checkbox, TextField, Link, Divider, Chip, useMediaQuery,
-  LinearProgress, IconButton, FormControlLabel,
+  CircularProgress, TextField, Link, Divider, Chip, useMediaQuery,
+  LinearProgress, IconButton,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import LocalCafeIcon from '@mui/icons-material/LocalCafe';
@@ -131,6 +131,32 @@ function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
   );
 }
 
+// Settlement mode on the recap page (specs/sas-recap-payment-buttons.md). A single-select set of
+// buttons replacing the former « encaissé » + « caisse interne » checkboxes:
+//   - 'card' → « CB / Chèque »   (encaissé, compta normale)
+//   - 'cash' → « Payé en liquide » (caisse interne, hors compta)
+//   - 'defer' → « En fin de séjour » (arrival only: leave unpaid → recalled at check-out)
+// Clicking the active mode again clears it. `value` is null when nothing is chosen.
+function PaymentModeButtons({ value, onChange, showDefer }) {
+  const optButton = (key, label) => (
+    <Button
+      variant={value === key ? 'contained' : 'outlined'}
+      color={key === 'defer' ? 'inherit' : 'primary'}
+      onClick={() => onChange(value === key ? null : key)}
+      sx={{ flex: 1, minHeight: 44 }}
+    >
+      {label}
+    </Button>
+  );
+  return (
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: '100%' }}>
+      {optButton('card', 'CB / Chèque')}
+      {optButton('cash', 'Payé en liquide')}
+      {showDefer && optButton('defer', 'En fin de séjour')}
+    </Stack>
+  );
+}
+
 // Arrival / departure line in the SAS intro — same visual language as the planning cards:
 // a coloured ARRIVÉE/DÉPART chip (FlightLand/FlightTakeoff) + the date + a time pill, left-aligned.
 function IntroDateRow({ kind, date, time }) {
@@ -199,10 +225,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « encaissé » confirmations on the
   // recaps (+ caisse-interne flag). Arrival: settles the arrival complement. Departure: settles every
   // positive complement (end-of-stay + recalled arrival).
-  const [complementSettled, setComplementSettled] = useState(false);
-  const [complementPaidCash, setComplementPaidCash] = useState(false);
-  const [complementsSettled, setComplementsSettled] = useState(false);
-  const [complementsPaidCash, setComplementsPaidCash] = useState(false);
+  // specs/sas-recap-payment-buttons.md — settlement mode on the recap page (single-select buttons).
+  // Arrival: null | 'card' | 'cash' | 'defer'. Departure: null | 'card' | 'cash' (no defer at check-out).
+  const [arrivalPayMode, setArrivalPayMode] = useState(null);
+  const [departurePayMode, setDeparturePayMode] = useState(null);
   // Weather alerts (specs/checkin-weather-alerts.md) — fetched in the background when the arrival SAS
   // opens; empty until (and unless) a qualifying Orange/Red vigilance overlaps the stay.
   const [weatherAlerts, setWeatherAlerts] = useState([]);
@@ -215,7 +241,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
-    setComplementSettled(false); setComplementPaidCash(false); setComplementsSettled(false); setComplementsPaidCash(false);
+    setArrivalPayMode(null); setDeparturePayMode(null);
     setWeatherAlerts([]);
     api.getReservationSas(reservationId)
       .then((d) => {
@@ -236,8 +262,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         const sealToBool = (v) => (v == null ? true : Number(v) === 1);
         if (mode === 'arrival') {
           setCaution(res.cautionReceived ? 'fait' : null);
-          setComplementSettled(Number(res.complementPaid) === 1);
-          setComplementPaidCash(Number(res.complementPaidCash) === 1);
+          // Reconstruct the settlement mode from the stored paid flags (specs/sas-recap-payment-buttons.md):
+          // paid + cash → 'cash' (caisse interne); paid non-cash → 'card'; unpaid → null (operator re-picks;
+          // « defer » can't be told apart from « not decided », both commit unpaid).
+          setArrivalPayMode(Number(res.complementPaid) === 1 ? (Number(res.complementPaidCash) === 1 ? 'cash' : 'card') : null);
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
@@ -263,8 +291,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           if (res.bedLinenAlert) setLinenOk(Object.keys(nextBed).length === 0);
         } else {
           setCautionReturned(res.cautionReturned ? true : false);
-          setComplementsSettled(Number(res.endOfStayComplementPaid) === 1);
-          setComplementsPaidCash(Number(res.endOfStayComplementPaidCash) === 1);
+          setDeparturePayMode(Number(res.endOfStayComplementPaid) === 1 ? (Number(res.endOfStayComplementPaidCash) === 1 ? 'cash' : 'card') : null);
           setExtinguisherOk(sealToBool(res.extinguisherSealOkAtDeparture));
           let detail = [];
           try { detail = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
@@ -476,9 +503,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           cautionReceived: activeKeys.includes('caution') ? (caution === 'fait') : undefined,
           complementItems: [...arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })), ...preservedArrival],
           departureHandoverNote: handoverNote,
-          // specs/recall-unpaid-arrival-complement-at-checkout.md — « Complément encaissé » confirmation.
-          complementSettled,
-          complementPaidCash,
+          // specs/sas-recap-payment-buttons.md — settlement mode → paid flags. 'card'/'cash' settle the
+          // arrival complement now ('cash' = caisse interne); 'defer'/null leave it unpaid → recalled at
+          // check-out (specs/recall-unpaid-arrival-complement-at-checkout.md).
+          complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
+          complementPaidCash: arrivalPayMode === 'cash',
           // specs/sas-bath-linen-upsell.md §3.2 — tri-state: undefined when the bath-linen step isn't
           // shown (server leaves the end-of-stay complement untouched); true = « réglé en fin de séjour »
           // (server prices it per person); false = « réglé maintenant » / « Non merci » (drops any prior line).
@@ -509,10 +538,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           extinguisherCharges: extinguisherBilled
             ? extinguisherTariffs.map((t) => ({ repairKey: t.repairKey, qty: Number(extinguisherQty[t.repairKey]) || 0 }))
             : [],
-          // specs/recall-unpaid-arrival-complement-at-checkout.md — « Compléments encaissés » → mark every
-          // positive complement paid (end-of-stay + recalled arrival).
-          complementsSettled,
-          complementsPaidCash,
+          // specs/sas-recap-payment-buttons.md — settlement mode → mark every positive complement paid
+          // (end-of-stay + recalled arrival); 'cash' = caisse interne. No « defer » at check-out.
+          complementsSettled: departurePayMode === 'card' || departurePayMode === 'cash',
+          complementsPaidCash: departurePayMode === 'cash',
         });
       }
       if (onCommitted) onCommitted();
@@ -834,16 +863,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               )}
               {total > 0 && Number(r.complementPaid || 0) !== 1 && (
                 <>
-                  <FormControlLabel
-                    control={<Checkbox checked={complementSettled} onChange={(e) => setComplementSettled(e.target.checked)} />}
-                    label="Complément encaissé"
-                  />
-                  {complementSettled && (
-                    <FormControlLabel
-                      sx={{ ml: 2 }}
-                      control={<Checkbox size="small" checked={complementPaidCash} onChange={(e) => setComplementPaidCash(e.target.checked)} />}
-                      label="Caisse interne"
-                    />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement du complément</Typography>
+                  <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer />
+                  {arrivalPayMode === 'defer' && (
+                    <Typography variant="body2" color="text.secondary">Reporté au check-out (rappelé dans le SAS de départ).</Typography>
                   )}
                 </>
               )}
@@ -881,17 +904,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             {departureGrandTotal > 0 && (<><Divider /><Typography variant="body1" sx={{ fontWeight: 700, fontSize: '1.15rem' }}>Total à percevoir : {formatCurrency(departureGrandTotal)}</Typography></>)}
             {departureGrandTotal > 0 && (
               <>
-                <FormControlLabel
-                  control={<Checkbox checked={complementsSettled} onChange={(e) => setComplementsSettled(e.target.checked)} />}
-                  label="Compléments encaissés"
-                />
-                {complementsSettled && (
-                  <FormControlLabel
-                    sx={{ ml: 2 }}
-                    control={<Checkbox size="small" checked={complementsPaidCash} onChange={(e) => setComplementsPaidCash(e.target.checked)} />}
-                    label="Caisse interne"
-                  />
-                )}
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
+                <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />
               </>
             )}
             {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
