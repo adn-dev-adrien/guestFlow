@@ -7,6 +7,7 @@ import { alpha } from '@mui/material/styles';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ArithmeticTextField from '../ArithmeticTextField';
 import { useReservationForm } from './ReservationFormContext';
 import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
 import { enumerateStayDates, timeOptions, toMinutes, minutesToTime } from '../../utils/resourceSessions';
@@ -537,17 +538,17 @@ export default function ExtrasSection() {
                             onChange={(e) => updateCustomOption(line.customKey, { description: e.target.value })}
                             fullWidth
                           />
-                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                            <TextField
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
+                            {/* ArithmeticTextField (specs/reservation-price-arithmetic.md): text input
+                                that accepts the French comma (« 12,5 ») and commits on Enter/blur. A
+                                type="number" here turned « 12, » into an empty value → amount 0 → the
+                                live recompute dropped the line entirely (bug 2026-07-20). */}
+                            <ArithmeticTextField
                               size="small"
-                              type="number"
                               label="Prix TTC"
                               value={line.amount ?? 0}
-                              onChange={(e) => updateCustomOption(line.customKey, { amount: Math.max(0, Number(e.target.value || 0)) })}
+                              onCommit={(v) => updateCustomOption(line.customKey, { amount: v === '' ? 0 : v })}
                               sx={{ width: { xs: '100%', sm: 180 } }}
-                              slotProps={{
-                                htmlInput: { min: 0, step: 0.01 }
-                              }}
                             />
                             {/* Force-to-complement override (spec force-item-to-complement.md §6.4).
                                 Small Switch + Tooltip pattern — see comment on the regular-option block

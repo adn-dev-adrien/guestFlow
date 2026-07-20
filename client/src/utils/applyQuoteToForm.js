@@ -72,22 +72,36 @@ function applyQuoteToForm(prev, quote, opts = {}) {
           : (Array.isArray(line.cardOccurrences) ? { cardOccurrences: line.cardOccurrences } : {})),
       };
     }),
-    customOptions: (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => {
-      const customKey = String(line.customKey || `custom_${index + 1}`);
-      const prevLine = (prev.customOptions || []).find((c) => String(c.customKey) === customKey);
-      return {
-        customKey,
-        customOptionId: prevLine?.customOptionId,
-        description: String(line.title || line.description || '').trim(),
-        amount: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
-        offered: Boolean(line.offered),
-        inComplement: prevLine && prevLine.inComplement !== undefined
-          ? Boolean(prevLine.inComplement)
-          : Boolean(line.inComplement),
-        acompteContribTtc: line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
-        soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
-      };
-    }),
+    // Custom lines the payload builder filtered out as incomplete (empty description or amount ≤ 0
+    // — e.g. a freshly-added line, or one mid-edit) are never sent to the engine, so the quote can't
+    // echo them back. They MUST survive the recompute untouched: rebuilding only from the quote
+    // erased the operator's in-progress line on every recompute (bug reported 2026-07-20).
+    customOptions: (() => {
+      const quoteLines = (quote.optionLines || []).filter((line) => line.isCustom).map((line, index) => {
+        const customKey = String(line.customKey || `custom_${index + 1}`);
+        const prevLine = (prev.customOptions || []).find((c) => String(c.customKey) === customKey);
+        return {
+          customKey,
+          customOptionId: prevLine?.customOptionId,
+          description: String(line.title || line.description || '').trim(),
+          amount: Number(line.originalTotalPrice ?? line.totalPrice ?? 0),
+          offered: Boolean(line.offered),
+          inComplement: prevLine && prevLine.inComplement !== undefined
+            ? Boolean(prevLine.inComplement)
+            : Boolean(line.inComplement),
+          acompteContribTtc: line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null,
+          soldeContribTtc: line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null,
+        };
+      });
+      const quoteByKey = new Map(quoteLines.map((l) => [l.customKey, l]));
+      const prevKeys = new Set((prev.customOptions || []).map((c) => String(c.customKey)));
+      // Keep the form's line order: prev lines first (merged with their quote echo when present,
+      // kept verbatim otherwise), then quote-only lines (initial-load case, prev empty).
+      return [
+        ...(prev.customOptions || []).map((c) => quoteByKey.get(String(c.customKey)) || c),
+        ...quoteLines.filter((l) => !prevKeys.has(l.customKey)),
+      ];
+    })(),
     selectedResources: (prev.selectedResources || []).map((item) => {
       const line = resourceLinesById.get(Number(item.resourceId));
       return {
