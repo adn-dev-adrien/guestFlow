@@ -238,10 +238,13 @@ export default function SettingsGoogleCalendarSection() {
               </Box>
 
               <FormControl fullWidth size="small" disabled={savingCalendar || calendars === null}>
-                <InputLabel id="google-calendar-picker-label">Agenda cible</InputLabel>
+                {/* shrink forced: with displayEmpty the renderValue text is always visible, so a
+                    resting (non-shrunk) label overlaps it until the first open. */}
+                <InputLabel id="google-calendar-picker-label" shrink>Agenda cible</InputLabel>
                 <Select
                   labelId="google-calendar-picker-label"
                   label="Agenda cible"
+                  notched
                   value={selectedCalendar ? selectedCalendar.id : ''}
                   onChange={(e) => { if (e.target.value) handlePickCalendar(e.target.value); }}
                   displayEmpty
