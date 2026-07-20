@@ -92,6 +92,19 @@ function toPublicOption(row) {
   return out;
 }
 
+// Display labels for resources, mirroring optionPriceLabels: the site renders these strings as-is,
+// so adding a resource needs NO website change (specs/wp-booking-widget-redesign.md).
+function resourcePriceLabels(priceType) {
+  const MAP = {
+    per_hour: { priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures" },
+    per_stay: { priceUnitLabel: 'pour le séjour', quantityLabel: null },
+    per_night: { priceUnitLabel: 'par nuit', quantityLabel: null },
+    per_person: { priceUnitLabel: 'par personne', quantityLabel: null },
+    per_person_per_night: { priceUnitLabel: 'par personne et par nuit', quantityLabel: null },
+  };
+  return MAP[String(priceType || '')] || { priceUnitLabel: null, quantityLabel: null };
+}
+
 /**
  * Public resource projection: only the fields a visitor needs to pick an add-on resource. `price` is
  * the EFFECTIVE per-property price (resolved by resourcesModel.list). Stock/quantity, opening hours,
@@ -99,12 +112,19 @@ function toPublicOption(row) {
  */
 function toPublicResource(row) {
   if (!row) return null;
+  const labels = resourcePriceLabels(row.priceType);
   return {
     id: Number(row.id),
     name: row.name,
     description: row.note || null,
     priceType: row.priceType,
     price: Number(row.price || 0),
+    // Backend-owned display labels (source of truth) — the site renders them as-is.
+    priceUnitLabel: labels.priceUnitLabel,
+    quantityLabel: labels.quantityLabel,
+    // Hourly resources (bain nordique) are allocated by the host on the planning: the site shows the
+    // « À planifier avec l'hôte » note for these, and ONLY these (spec §3.10).
+    showsSchedulingNote: String(row.priceType || '') === 'per_hour',
   };
 }
 
