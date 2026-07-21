@@ -78,6 +78,7 @@ Connect GuestFlow to a Google account in one click ("Connecter mon compte Google
 - Not connected / no calendar → every hook, scheduled pass and sync-now is a silent no-op (sync-now returns 400 with a French message).
 - Refresh token revoked upstream → rule 8.
 - Target calendar deleted on Google side → sync fails with « Agenda introuvable. Choisissez un autre agenda cible. » (404 mapping), status red; user picks another calendar.
+- Google Calendar API disabled in the Cloud project that owns the OAuth client → Google returns a 403 (`accessNotConfigured`); mapped to a dedicated `API_DISABLED` message naming the project number and pointing at « API et services → Bibliothèque », NOT the generic write-permission 403 message (added 2026-07-21 after the production setup hit exactly this and the generic message sent debugging toward calendar sharing).
 - Event manually deleted or edited in Google → recreated/overwritten at next push/reconcile (rule 15; GuestFlow is source of truth).
 - Reservation deleted while server was offline → orphan purge at next reconcile (rule 17c).
 - Two overlapping reconciles (manual + scheduled) → in-progress guard: second run is skipped.
