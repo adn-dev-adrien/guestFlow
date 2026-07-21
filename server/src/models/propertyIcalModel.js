@@ -12,6 +12,7 @@ const {
   parseGuestName,
   resolveIcalClientIdentity,
   parseIcsEvents,
+  isWellFormedIcs,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
   isLockedDateDrift,
@@ -215,12 +216,42 @@ function createPropertyIcalModel(database) {
           throw new Error('Logement introuvable pour cette source iCal.');
         }
 
-        const response = await fetch(source.url, { method: 'GET' });
-        if (!response.ok) {
-          throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
+        const setEmptyFeedStreak = database.prepare('UPDATE ical_sources SET emptyFeedStreak = ? WHERE id = ?');
+        let icsText;
+        try {
+          const response = await fetch(source.url, { method: 'GET' });
+          if (!response.ok) {
+            throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
+          }
+          icsText = await response.text();
+          if (!isWellFormedIcs(icsText)) {
+            throw new Error('Réponse iCal invalide (contenu non ICS).');
+          }
+        } catch (fetchError) {
+          // A fetch/parse failure is not an "empty feed" observation — reset the streak so two
+          // empties separated by an outage never confirm each other (§3 rule 4).
+          setEmptyFeedStreak.run(0, source.id);
+          throw fetchError;
         }
-        const icsText = await response.text();
         const events = parseIcsEvents(icsText);
+
+        // Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rules 3-4). A feed that
+        // suddenly parses to 0 events while this source still holds mappings would wipe the whole
+        // UID→reservation memory in one sweep (2026-07-21 GdF incident: one degenerate 200 →
+        // 11 duplicates on the next sync). Only trust the emptiness from the 2nd consecutive
+        // empty fetch; a non-empty parse resets the streak. The streak is read from the DB (not
+        // the in-memory source row: some callers load sources with a fixed column list).
+        if (events.length === 0) {
+          const prevStreak = Number(database.prepare('SELECT emptyFeedStreak FROM ical_sources WHERE id = ?').get(source.id)?.emptyFeedStreak || 0);
+          const streak = prevStreak + 1;
+          setEmptyFeedStreak.run(streak, source.id);
+          const mappingCount = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE sourceId = ?').get(source.id).c;
+          if (mappingCount > 0 && streak < 2) {
+            throw new Error('Flux vide inattendu — synchronisation ignorée en attente de confirmation.');
+          }
+        } else {
+          setEmptyFeedStreak.run(0, source.id);
+        }
 
         const getMapping = database.prepare('SELECT reservationId, eventHash FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const getFallbackMapping = database.prepare(`
@@ -273,6 +304,24 @@ function createPropertyIcalModel(database) {
         // (isLockedDateDrift / icalDateDriftModel) can compare the persisted dates against the
         // ones proposed by the source feed — see specs/ical-sync-override-locked-dates.md §3.
         const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?');
+        // Step ①bis (specs/ical-sync-mapping-resilience.md §3 rule 1) — the reservation row itself
+        // stores the feed UID. If the mapping table lost its memory (2026-07-21 incident: one
+        // degenerate empty fetch swept every mapping), this lookup re-claims the reservation
+        // directly and the mapping is rebuilt, instead of falling through to the summary
+        // heuristics (useless for pre-`icalOriginalSummary` rows) and inserting a duplicate.
+        const getReservationBySourceUid = database.prepare(`
+          SELECT id FROM reservations
+          WHERE sourceType = 'ical' AND sourceIcalSourceId = ? AND sourceIcalEventUid = ?
+          ORDER BY id DESC
+          LIMIT 1
+        `);
+        // Rule 5 — self-healing backfill: any matched reservation with an empty
+        // icalOriginalSummary (imported before the column existed) gets it filled from the feed,
+        // so the legacy content fallback works for it on the next incident.
+        const backfillOriginalSummary = database.prepare(`
+          UPDATE reservations SET icalOriginalSummary = ?
+          WHERE id = ? AND ifnull(icalOriginalSummary, '') = ''
+        `);
         const listSourceReservationsByDates = database.prepare(`
           SELECT id, sourceType, icalSyncLocked, sourceIcalEventUid, notes, icalOriginalSummary
           FROM reservations
@@ -456,6 +505,14 @@ function createPropertyIcalModel(database) {
             let mapping = getMapping.get(source.id, event.uid);
             let previousUid = event.uid;
 
+            // Step ①bis — direct UID match on the reservations table (mapping memory lost).
+            if (!mapping) {
+              const uidReservation = getReservationBySourceUid.get(source.id, event.uid);
+              if (uidReservation) {
+                mapping = { reservationId: Number(uidReservation.id), eventHash: null };
+              }
+            }
+
             if (!mapping && summaryNormalized) {
               const fallbackMapping = getFallbackMapping.get(source.id, event.startDate, event.endDate, summaryNormalized);
               if (fallbackMapping) {
@@ -591,6 +648,9 @@ function createPropertyIcalModel(database) {
             }
 
             markReservationUid.run(event.uid, mapping.reservationId);
+            if (event.summary) {
+              backfillOriginalSummary.run(event.summary, mapping.reservationId);
+            }
             if (previousUid && previousUid !== event.uid) {
               deleteMapping.run(source.id, previousUid);
             }

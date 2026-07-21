@@ -20,7 +20,7 @@ const DDL = `
     sourceType TEXT, sourcePlatformKey TEXT, sourceIcalSourceId INTEGER, sourceIcalEventUid TEXT, icalSyncLocked INTEGER,
     notes TEXT, cautionAmount REAL, icalOriginalSummary TEXT, updatedAt TEXT
   );
-  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, platformKey TEXT, platformLabel TEXT);
+  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, platformKey TEXT, platformLabel TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE ical_import_events (
     sourceId INTEGER, eventUid TEXT, reservationId INTEGER, eventHash TEXT,
     startDate TEXT, endDate TEXT, summaryNormalized TEXT, lastSeenAt TEXT,
@@ -83,6 +83,14 @@ const resCount = (db) => db.prepare('SELECT COUNT(*) c FROM reservations').get()
 
 const origFetch = global.fetch;
 test.afterEach(() => { global.fetch = origFetch; });
+
+// Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rule 3): a feed that suddenly
+// parses to 0 events while mappings exist is only trusted from the 2nd consecutive empty fetch.
+// Tests that legitimately empty a feed sync twice through this helper.
+async function syncEmptyConfirmed(model, source) {
+  await assert.rejects(() => model.syncSource(source), /Flux vide inattendu/);
+  return model.syncSource(source);
+}
 
 test('(a) re-importing the same feed does not overwrite — unchanged is a no-op', async () => {
   const { db, model } = fresh();
@@ -187,7 +195,7 @@ test('cross-platform shared reservation survives until BOTH feeds drop it', asyn
   // Source A drops the booking — but Booking still lists it → reservation survives,
   // and NO cancellation alert (cross-platform protection still holds).
   stubFetch([]);
-  await model.syncSource(SOURCE_A);
+  await syncEmptyConfirmed(model, SOURCE_A);
   assert.equal(resCount(db), 1, 'reservation still referenced by the other platform');
   assert.equal(
     db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c,
@@ -197,7 +205,7 @@ test('cross-platform shared reservation survives until BOTH feeds drop it', asyn
 
   // Now Booking drops it too → reservation stays + ONE pending cancellation raised.
   stubFetch([]);
-  await model.syncSource(SOURCE_B);
+  await syncEmptyConfirmed(model, SOURCE_B);
   assert.equal(resCount(db), 1, 'soft flow: reservation kept until user approves');
   assert.equal(
     db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c,
