@@ -634,43 +634,86 @@ GuestFlow syncs all reservations to a Google Calendar of your choice — includi
 calendar** — by connecting your Google account with OAuth (no calendar sharing, no service
 account). Full spec: `specs/google-calendar-oauth-rework.md`.
 
-#### Setting up the OAuth client (one-time, Google Cloud Console)
+> Procedure validated end-to-end on the production instance on 2026-07-21 (Google Workspace
+> domain, Internal consent screen). The ⚠️ notes mark the traps actually hit during that
+> setup — each one costs a cryptic Google error if skipped.
 
-1. **Enable the Calendar API**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project (or select an existing one)
-   - **APIs & Services** → **Library** → enable **Google Calendar API**
+#### Step 1 — Google Cloud Console (one-time)
 
-2. **Configure the OAuth consent screen**
+Sign in to the [Google Cloud Console](https://console.cloud.google.com/) with the account
+that owns the target calendar — on a Google Workspace domain, use the **domain admin
+account**.
+
+1. **Create a project** (top-bar project picker → **New project**, e.g. `GuestFlow`). On a
+   Workspace account the organization is attached automatically. All the following steps
+   happen **inside this one project** — keep an eye on the project shown in the top bar.
+
+2. **Enable the Google Calendar API**
+   - **APIs & Services** → **Library** → search **Google Calendar API** → **Enable**
+   - ⚠️ The API must be enabled **in the same project as the OAuth client** created below.
+     With several projects it is easy to enable the API in one and create the client in the
+     other — the connection then succeeds but the calendar list stays empty with a 403
+     toast naming the project number where the API is missing.
+
+3. **Configure the OAuth consent screen**
    - **APIs & Services** → **OAuth consent screen**
    - If your target account is on your own Google Workspace domain, choose **Internal**
-     (no verification, no warning screen, refresh tokens never expire)
+     (no verification, no warning screen, refresh tokens never expire). App name + support
+     email are the only required fields; scopes are requested at runtime.
    - Otherwise choose **External** and publish the app to production (you'll see a
      one-time "unverified app" warning at connect time)
 
-3. **Create the OAuth client**
+4. **Create the OAuth client**
    - **APIs & Services** → **Credentials** → **Create Credentials** → **OAuth client ID**
-   - Application type: **Web application**
-   - Authorized redirect URIs:
+   - Application type: **Web application** — ⚠️ NOT "Desktop app": that type has no
+     redirect-URI field and every connection then fails with
+     `Error 400: redirect_uri_mismatch`
+   - Authorized redirect URIs (exact paths):
      - Production: `https://<your-public-url>/api/google-calendar/oauth/callback`
      - Development: `http://localhost:3000/api/google-calendar/oauth/callback`
-   - Copy the client id + secret into `server/.env.local`:
+   - ⚠️ Copy the **client secret now** — Google shows it only at creation time. If lost,
+     open the client and add a new secret (the client id stays the same).
 
-     ```
-     GOOGLE_OAUTH_CLIENT_ID=...
-     GOOGLE_OAUTH_CLIENT_SECRET=...
-     # Optional — overrides the redirect URI derived from the configured public URL:
-     # GOOGLE_OAUTH_REDIRECT_URI=https://example.com/api/google-calendar/oauth/callback
-     ```
+#### Step 2 — Server configuration
 
-4. **Connect from GuestFlow**
-   - **Paramètres** → « Synchronisation Google Agenda » → **Connecter mon compte Google**
-   - Approve the consent screen, then pick the target calendar in the dropdown
-   - Reservations sync immediately on every create/update/delete, a reconcile pass runs
-     every 15 minutes (it also propagates deletions), and a « Synchroniser maintenant »
-     button forces a full pass
-   - Events carry: **Title** "Property name - Guest name", **Description** (guest count,
-     beds, options), **Time** from check-in/check-out, and one **color per property**
+Add the credentials to `server/.env.local` (production Pi: edit the persistent
+`~/guestflow/data/.env.local`, which the deploy symlinks to `current/server/.env.local`),
+then restart the server (`pm2 restart guestflow` in production):
+
+```
+GOOGLE_OAUTH_CLIENT_ID=…apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-…
+# Recommended in production — pins the callback instead of deriving it from the public
+# URL configured in Paramètres (which must then be the site ORIGIN, without any path):
+GOOGLE_OAUTH_REDIRECT_URI=https://<your-public-url>/api/google-calendar/oauth/callback
+```
+
+#### Step 3 — Connect from GuestFlow
+
+1. **Paramètres** → « Synchronisation Google Agenda » → **Connecter mon compte Google**
+2. Google shows an **account picker**: choose the account that owns the target calendar
+   (⚠️ with an **Internal** consent screen, only accounts of your Workspace domain are
+   accepted), then approve the requested permissions
+3. Back in Paramètres, pick the target calendar in **« Agenda cible »** — the first sync
+   starts immediately; **« Tester la connexion »** should report the calendar as accessible
+4. Reservations sync immediately on every create/update/delete, a reconcile pass runs
+   every 15 minutes (it also propagates deletions), and a « Synchroniser maintenant »
+   button forces a full pass
+5. Events carry: **Title** "Property name - Guest name", **Description** (guest count,
+   beds, options), **Time** from check-in/check-out, and one **color per property**
+
+#### Troubleshooting
+
+Every symptom below was hit for real during the 2026-07 production setup:
+
+| Symptom | Cause → fix |
+|---|---|
+| `Error 400: redirect_uri_mismatch` at connect time | OAuth client is a **Desktop** type (no redirect URIs), or the registered URI differs from the one the server sends → recreate the client as **Web application** with the exact callback URLs above |
+| Google connects an account without letting you choose | Fixed in 2026-07 (`prompt=select_account`, PR #347) → update GuestFlow and reconnect |
+| Calendar list empty; toast « L'API Google Calendar n'est pas activée dans le projet n° X » | Calendar API not enabled in the OAuth client's project → enable it there (the toast names the project number), wait ~2 minutes, reload the page |
+| `unauthorized_client` in the server logs | The stored refresh token was issued by a deleted/replaced OAuth client → « Déconnecter » then reconnect |
+| Toast « Connexion Google expirée ou révoquée » | Refresh token revoked upstream (password change, admin action, client deleted) → reconnect |
+| Anything else | `pm2 logs guestflow --lines 300 --nostream \| grep -i google` shows the raw Google error, including the full 403/401 response body |
 
 #### Security: Automatic Encryption of Sensitive Data
 
