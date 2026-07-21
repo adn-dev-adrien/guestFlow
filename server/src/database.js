@@ -868,6 +868,12 @@ db.exec(`
     db.exec('ALTER TABLE ical_sources ADD COLUMN touristTaxRemittedByPlatform INTEGER NOT NULL DEFAULT 1');
     db.exec('UPDATE ical_sources SET touristTaxRemittedByPlatform = 0 WHERE collectsTouristTax = 0');
   }
+  // specs/ical-sync-mapping-resilience.md §5 — consecutive-empty-fetch counter backing the
+  // empty-feed guard: a feed that suddenly parses to 0 events while mappings exist is only
+  // trusted (→ soft-cancellation sweep) from the 2nd consecutive empty fetch.
+  if (!icalSourceCols.includes('emptyFeedStreak')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN emptyFeedStreak INTEGER NOT NULL DEFAULT 0');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):

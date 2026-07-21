@@ -159,6 +159,12 @@ function isUnavailableIcalEvent(summary, description) {
   return /(blocked|closed[\s-]*period|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i.test(text);
 }
 
+// A 200 response whose body is not an iCalendar document (HTML error page, empty body…) must be
+// treated as a fetch failure, not as "zero events" — specs/ical-sync-mapping-resilience.md §3 rule 2.
+function isWellFormedIcs(icsText) {
+  return /BEGIN:VCALENDAR/i.test(String(icsText || ''));
+}
+
 function parseIcsEvents(icsText) {
   const lines = unfoldIcsLines(icsText);
   const events = [];
@@ -268,6 +274,7 @@ module.exports = {
   parseGuestName,
   resolveIcalClientIdentity,
   isUnavailableIcalEvent,
+  isWellFormedIcs,
   parseIcsEvents,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
