@@ -6,7 +6,8 @@
 | **Branch** | `feature/google-calendar-oauth-rework` |
 | **Created** | 2026-07-18 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | #342 (feature) · #347 (account picker) · #348 (picker label + toasts) · #355 (API-disabled message) |
+| **Production go-live** | 2026-07-21 — validated procedure documented in README « Configuring Google Calendar Integration » |
 
 ---
 
