@@ -88,3 +88,41 @@ test('admin flow (flag off): a planning-card option WITH occurrences prices by o
   assert.equal(line.billedUnits, 4); // 2 occurrences × 2 persons
   assert.equal(line.totalPrice, 32);
 });
+
+// ---- Hourly-scheduled RESOURCES in the public flow (specs/wp-booking-widget-redesign.md §3.10) ----
+// The site sells N hours as a bare quantity; the host schedules the sessions later. Without the
+// flag (admin/fiche), sessions stay the only pricing source (specs/resource-hourly-scheduling.md).
+
+function seedHourlyResource(db) {
+  db.prepare("INSERT INTO resources (id, name, quantity, price, priceType, showsPlanningCard, propertyIds, hourlyEveningStart, hourlyEveningRate) VALUES (3, 'Bain nordique', 1, 30, 'per_hour', 1, '[1]', '20:00', 50)").run();
+  return db;
+}
+
+test('public flow: hourly-scheduled resource billed by quantity (= hours) when unscheduled', () => {
+  const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 2 }], planningCardAsQuantity: true });
+  const line = q.resourceLines.find((l) => l.resourceId === 3);
+  assert.ok(line, 'the hourly resource is billed from the bare quantity, not dropped');
+  assert.equal(line.quantity, 2);
+  assert.equal(line.totalPrice, 60); // 2 h × 30 € (day rate)
+  assert.equal(q.resourcesTotal, 60);
+});
+
+test('public flow: hourly-scheduled resource quantity 0 → no line', () => {
+  const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 0 }], planningCardAsQuantity: true });
+  assert.equal(q.resourceLines.find((l) => l.resourceId === 3), undefined);
+});
+
+test('public flow: sessions still win over the bare quantity when provided', () => {
+  const q = quote(seedHourlyResource(seedDb()), {
+    selectedResources: [{ resourceId: 3, quantity: 5, sessions: [{ date: '2026-07-11', start: '20:00', end: '22:00' }] }],
+    planningCardAsQuantity: true,
+  });
+  const line = q.resourceLines.find((l) => l.resourceId === 3);
+  assert.equal(line.totalPrice, 100); // 2 h × 50 € evening grid — not 5 × 30
+  assert.equal(line.quantity, 1);    // 1 valid session
+});
+
+test('admin flow (flag off): an hourly-scheduled resource with NO sessions is still dropped (unchanged)', () => {
+  const q = quote(seedHourlyResource(seedDb()), { selectedResources: [{ resourceId: 3, quantity: 2 }] });
+  assert.equal(q.resourceLines.find((l) => l.resourceId === 3), undefined, 'admin still needs scheduled sessions');
+});

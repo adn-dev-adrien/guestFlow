@@ -4,36 +4,60 @@
 .gf-loading, .gf-error, .gf-empty { padding: 1rem; color: var(--gf-muted); font-style: italic; }
 .gf-error { color: #b3261e; font-style: normal; }
 
-/* Calendar */
+/* Calendar (shared by the standalone calendar block and the booking widget) */
 .gf-cal-wrap { display: flex; flex-wrap: wrap; gap: 1.25rem; }
 .gf-cal-month { flex: 1 1 280px; min-width: 260px; }
-.gf-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; font-weight: 600; }
-.gf-cal-nav { background: none; border: 1px solid var(--gf-border); border-radius: 6px; padding: .25rem .6rem; cursor: pointer; min-width: 44px; min-height: 36px; }
-.gf-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.gf-cal-head, .gf-cal-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; font-weight: 600; }
+.gf-cal-topbar strong { font-size: 1.05rem; }
+.gf-cal-title { text-align: center; font-weight: 600; margin-bottom: .35rem; text-transform: capitalize; }
+.gf-cal-nav { background: none; border: 1px solid var(--gf-border); border-radius: 8px; padding: .25rem .6rem; cursor: pointer; min-width: 44px; min-height: 44px; font-size: 1.1rem; }
+.gf-cal-nav:hover { background: #f5f6f4; }
+.gf-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
 .gf-cal-dow { text-align: center; font-size: .72rem; color: var(--gf-muted); padding: .25rem 0; text-transform: uppercase; }
-.gf-cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: .85rem; border-radius: 6px; }
+.gf-cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: .9rem; border-radius: 8px; }
 .gf-cal-day.gf-empty-cell { background: transparent; }
 .gf-cal-day.gf-free { background: #eef6ff; color: #0b3d66; }
 .gf-cal-day.gf-blocked { background: var(--gf-blocked); color: #b0b4bb; text-decoration: line-through; }
+/* Selectable days (booking widget: buttons) */
+button.gf-cal-day { border: 0; background: #f3f5ef; color: inherit; cursor: pointer; padding: 0; font: inherit; font-size: .9rem; }
+button.gf-cal-day:hover:not(:disabled) { background: #e6eae0; background: color-mix(in srgb, var(--gf-accent) 18%, #fff); }
+button.gf-cal-day:disabled { background: transparent; color: #c9cdc4; cursor: not-allowed; text-decoration: line-through; }
+button.gf-cal-day.gf-range { background: #e6eae0; background: color-mix(in srgb, var(--gf-accent) 18%, #fff); border-radius: 0; }
+button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weight: 700; }
+.gf-cal-box { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; background: #fff; }
+.gf-cal-hint { text-align: center; font-weight: 600; color: var(--gf-accent); margin-top: .6rem; min-height: 1.2em; }
+.gf-cal-hint-error { color: #b3261e; }
 
 /* Booking wizard */
-.gf-booking { border: 1px solid var(--gf-border); border-radius: 10px; padding: 1rem 1.25rem; }
-.gf-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .75rem; }
+.gf-booking { border: 1px solid var(--gf-border); border-radius: 12px; padding: 1.25rem 1.4rem; }
+.gf-booking-name { margin-top: 0; }
+.gf-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .9rem; }
 .gf-field { display: flex; flex-direction: column; flex: 1 1 160px; gap: .25rem; }
+.gf-field-time { flex: 0 1 130px; }
 .gf-field label { font-size: .8rem; color: var(--gf-muted); }
-.gf-field input, .gf-field select, .gf-field textarea { padding: .5rem; border: 1px solid var(--gf-border); border-radius: 6px; font: inherit; width: 100%; }
-.gf-options-list { display: flex; flex-direction: column; gap: .4rem; margin: .5rem 0; }
-.gf-option-line { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.gf-option-line input { width: 64px; }
-/* Planning-card / described options: stacked card (specs/public-planning-options.md). */
-.gf-option-rich { flex-direction: column; align-items: stretch; gap: .3rem; padding: .5rem .6rem; border: 1px solid var(--gf-border); border-radius: 6px; }
-.gf-option-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.gf-qty { display: inline-flex; flex-direction: column; align-items: flex-end; gap: .1rem; }
-.gf-qty label { font-size: .72rem; color: var(--gf-muted, #64748b); white-space: nowrap; }
-.gf-option-title { display: inline-flex; align-items: center; gap: .35rem; }
-.gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gf-primary, #1976d2); font-size: 1rem; line-height: 1; min-width: 44px; min-height: 44px; padding: 0; }
-.gf-option-note { font-size: .82rem; color: #92400e; background: #fffbeb; border-radius: 4px; padding: .25rem .4rem; }
-.gf-option-desc { font-size: .85rem; color: #475569; }
+.gf-field input, .gf-field select, .gf-field textarea { padding: .55rem; border: 1px solid var(--gf-border); border-radius: 8px; font: inherit; width: 100%; }
+.gf-field input.gf-ro { background: #f5f6f4; color: #333; font-weight: 600; pointer-events: none; }
+
+/* Sections (Voyageurs / Options & suppléments) */
+.gf-section { margin: 1.1rem 0; }
+.gf-section-title { font-weight: 700; font-size: 1.05rem; margin-bottom: .3rem; }
+.gf-lines { display: flex; flex-direction: column; }
+.gf-line { border-bottom: 1px solid #f0f1ec; padding: .55rem 0; }
+.gf-line:last-child { border-bottom: 0; }
+.gf-line-head { display: flex; align-items: center; gap: .75rem; }
+.gf-line-main { flex: 1; min-width: 0; }
+.gf-line-title { font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: .2rem; flex-wrap: wrap; }
+.gf-line-sub { font-size: .82rem; color: var(--gf-muted); font-style: italic; }
+.gf-line-price { font-style: italic; color: var(--gf-muted); font-size: .95rem; white-space: nowrap; }
+.gf-line-note { font-size: .82rem; color: #92400e; background: #fffbeb; border-radius: 6px; padding: .3rem .5rem; margin-top: .35rem; }
+.gf-line-desc { font-size: .85rem; color: #475569; margin-top: .3rem; }
+.gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gf-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
+
+/* Stepper (− n +) — the single quantity control */
+.gf-step { display: inline-flex; align-items: center; border: 1px solid var(--gf-border); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
+.gf-step-btn { width: 44px; height: 44px; border: 0; background: #f3f5ef; cursor: pointer; font-size: 1.2rem; line-height: 1; color: inherit; }
+.gf-step-btn:hover { background: #e6eae0; background: color-mix(in srgb, var(--gf-accent) 15%, #fff); }
+.gf-step-val { min-width: 40px; text-align: center; font-weight: 700; font-size: 1rem; }
 .gf-inline-info { font-size: .85rem; color: #075985; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
 .gf-summary { background: #f8fafc; border-radius: 8px; padding: .75rem 1rem; margin-top: .75rem; }
 .gf-summary-line { display: flex; justify-content: space-between; padding: .15rem 0; }
@@ -56,4 +80,11 @@
   .gf-cal-month { flex-basis: 100%; }
   .gf-props { grid-template-columns: 1fr; }
   .gf-field { flex-basis: 100%; }
+  .gf-field-time { flex: 1 1 40%; }
+  /* Stack each row on small screens: full-width title, then price (left) + stepper (right). */
+  .gf-line-head { gap: .35rem .5rem; flex-wrap: wrap; }
+  .gf-line-main { flex: 1 1 100%; }
+  .gf-line-price { font-size: .85rem; white-space: normal; text-align: left; margin-right: auto; }
+  .gf-step-btn { width: 40px; height: 40px; }
+  .gf-step-val { min-width: 32px; }
 }

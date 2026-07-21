@@ -102,7 +102,32 @@ test('toPublicResource keeps id/name/price/priceType; strips stock & slot intern
     // internals that must NOT leak:
     quantity: 2, isComplex: 1, freeMinutes: 90, openDays: '[1,2,3]', slotDuration: 60, basePrice: 50,
   });
-  assert.deepEqual(r, { id: 3, name: 'Bain nordique', description: 'Détente sous les étoiles', priceType: 'per_hour', price: 55 });
+  assert.deepEqual(r, {
+    id: 3, name: 'Bain nordique', description: 'Détente sous les étoiles', priceType: 'per_hour', price: 55,
+    priceUnitLabel: 'par heure', quantityLabel: "Nombre d'heures", showsSchedulingNote: true,
+  });
+});
+
+test('toPublicResource: hourly resource carries the scheduling note + hour labels (spec §3.10-11)', () => {
+  const r = toPublicResource({ id: 2, name: 'Bain nordique', priceType: 'per_hour', price: 30 });
+  assert.equal(r.showsSchedulingNote, true);
+  assert.equal(r.priceUnitLabel, 'par heure');
+  assert.equal(r.quantityLabel, "Nombre d'heures");
+});
+
+test('toPublicResource: per_stay free resource has stay label and NO scheduling note', () => {
+  const r = toPublicResource({ id: 1, name: 'Lit bébé', priceType: 'per_stay', price: 0 });
+  assert.equal(r.showsSchedulingNote, false);
+  assert.equal(r.priceUnitLabel, 'pour le séjour');
+  assert.equal(r.quantityLabel, null);
+  assert.equal(r.price, 0);
+});
+
+test('toPublicResource: unknown priceType yields null labels and no note', () => {
+  const r = toPublicResource({ id: 9, name: 'X', priceType: 'weird_unit', price: 5 });
+  assert.equal(r.showsSchedulingNote, false);
+  assert.equal(r.priceUnitLabel, null);
+  assert.equal(r.quantityLabel, null);
 });
 
 test('toPublicQuote maps engine output and leaks no VAT/accounting internals', () => {

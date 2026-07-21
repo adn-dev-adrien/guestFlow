@@ -128,6 +128,22 @@ final class GF_Blocks
                 // Planning-card options (specs/public-planning-options.md)
                 'toBeScheduled'   => __('À planifier avec l’hôte — nous vous contacterons pour convenir de l’horaire.', 'guestflow-booking'),
                 'moreInfo'        => __('Plus d’infos', 'guestflow-booking'),
+                // Unified widget (specs/wp-booking-widget-redesign.md)
+                'selectDates'     => __('Choisissez vos dates', 'guestflow-booking'),
+                'pickArrival'     => __('Sélectionnez votre date d’arrivée', 'guestflow-booking'),
+                'pickDeparture'   => __('Sélectionnez votre date de départ', 'guestflow-booking'),
+                'rangeBlocked'    => __('Ces dates incluent une nuit indisponible. Choisissez une autre période.', 'guestflow-booking'),
+                'travelers'       => __('Voyageurs', 'guestflow-booking'),
+                'supplements'     => __('Options & suppléments', 'guestflow-booking'),
+                'teensAges'       => __('12 à 18 ans', 'guestflow-booking'),
+                'childrenAges'    => __('2 à 12 ans', 'guestflow-booking'),
+                'babiesAges'      => __('0 à 2 ans', 'guestflow-booking'),
+                'babyBedsLabel'   => __('Lit(s) bébé souhaité(s) ?', 'guestflow-booking'),
+                'babyBedsSub'     => __('Gratuit, selon disponibilité', 'guestflow-booking'),
+                'offered'         => __('Offert', 'guestflow-booking'),
+                'checkInTime'     => __('Heure d’arrivée', 'guestflow-booking'),
+                'checkOutTime'    => __('Heure de départ', 'guestflow-booking'),
+                'participantsMax' => __('Nombre de participants', 'guestflow-booking'),
             ],
         ];
     }
