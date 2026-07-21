@@ -1346,7 +1346,10 @@ function calculateReservationQuote({
 
       // Hourly-scheduled resource: priced from the time-banded grid over the fiche sessions
       // (specs/resource-hourly-scheduling.md §3.3). Sessions are the source of truth — no quantity field.
-      if (hourlyScheduled) {
+      // PUBLIC/site flow exception (planningCardAsQuantity, specs/wp-booking-widget-redesign.md §3.10):
+      // the visitor can't schedule the sessions, so a bare QUANTITY (= hours) stands in and the line is
+      // priced by the generic hourly-quantity path below — unscheduled, « à planifier avec l'hôte ».
+      if (hourlyScheduled && !(planningCardAsQuantity && sessions.length === 0)) {
         const priced = priceSessions(
           sessions,
           {

@@ -1,18 +1,28 @@
 /**
- * Booking wizard frontend (build-free, plain ES). Loads property detail + options, lets the visitor
- * pick dates/guests/options, shows a LIVE quote (computed server-side via the plugin proxy → GuestFlow
- * pricing engine), then submits a booking request (a draft devis, never a confirmed reservation).
+ * Booking wizard frontend (build-free, plain ES) — unified widget (specs/wp-booking-widget-redesign.md).
+ * Embeds the availability calendar (the ONLY way to pick dates — the date fields are read-only),
+ * stepper controls for the party and every quantity, and one uniform list of options + resources.
+ * Loads property detail + options + resources, shows a LIVE quote (computed server-side via the
+ * plugin proxy → GuestFlow pricing engine), then submits a booking request (a draft devis, never a
+ * confirmed reservation).
  *
  * No pricing/availability logic lives here: the quote and the availability flag come from the server.
+ * The client-side blocked-range guard is a UX convenience; `/quote`'s `available` stays authoritative.
  */
 (function () {
   var GF = window.GFBooking;
   if (!GF) return;
 
-  function todayIso() {
-    var d = new Date();
-    return d.getFullYear() + '-' + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
-  }
+  var MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  var DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function isoOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayIso() { return isoOf(new Date()); }
+  function addDaysIso(s, n) { var d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return isoOf(d); }
+  function firstOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
+  function frDate(s) { var d = new Date(s + 'T00:00:00'); return d.getDate() + ' ' + MONTHS_FR[d.getMonth()] + ' ' + d.getFullYear(); }
 
   function queryParam(name) {
     try { return new URLSearchParams(window.location.search).get(name); } catch (e) { return null; }
@@ -42,13 +52,14 @@
     Promise.all([
       GF.api('GET', '/properties/' + propertyId),
       showOptions ? GF.api('GET', '/properties/' + propertyId + '/options') : Promise.resolve({ status: 200, body: { data: [] } }),
+      showOptions ? GF.api('GET', '/properties/' + propertyId + '/resources') : Promise.resolve({ status: 200, body: { data: [] } }),
     ]).then(function (r) {
       if (r[0].status < 200 || r[0].status >= 300 || !r[0].body || !r[0].body.data) {
         container.innerHTML = '';
         container.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(r[0])));
         return;
       }
-      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || [], payOnline);
+      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || [], (r[2].body && r[2].body.data) || [], payOnline);
     });
   }
 
@@ -105,72 +116,251 @@
     poll();
   }
 
-  function build(container, propertyId, detail, options, payOnline) {
+  function build(container, propertyId, detail, options, resources, payOnline) {
     var f = {}; // field refs
     var debounceTimer = null;
+    var lastQuote = null;
 
-    function numField(key, label, min, def) {
-      f[key] = GF.el('input', { type: 'number', min: String(min), value: String(def), onInput: scheduleQuote });
-      return GF.el('div', { class: 'gf-field' }, GF.el('label', {}, label), f[key]);
-    }
+    // ---- state (steppers render FROM this, never from input values) ----
+    var state = {
+      start: null, end: null,
+      checkInTime: detail.defaultCheckIn || '16:00',
+      checkOutTime: detail.defaultCheckOut || '10:00',
+      adults: 2, teens: 0, children: 0, babies: 0, babyBeds: 0,
+      opt: {}, res: {},
+    };
 
-    f.startDate = GF.el('input', { type: 'date', min: todayIso(), onInput: scheduleQuote });
-    f.endDate = GF.el('input', { type: 'date', min: todayIso(), onInput: scheduleQuote });
-
-    var datesRow = GF.el('div', { class: 'gf-row' },
-      GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('startDate')), f.startDate),
-      GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('endDate')), f.endDate)
-    );
-    var guestsRow = GF.el('div', { class: 'gf-row' },
-      numField('adults', GF.t('adults'), 1, 2),
-      numField('children', GF.t('children'), 0, 0),
-      numField('teens', GF.t('teens'), 0, 0),
-      numField('babies', GF.t('babies'), 0, 0)
-    );
+    // The « Lit bébé » resource is couchage, not a supplement line: it feeds the devis `babyBeds`
+    // field via the conditional baby-beds stepper (spec §3.12), exactly like the previous popup.
+    var babyRes = null;
+    var supplements = (resources || []).filter(function (x) {
+      var n = (x.name || '').toLowerCase();
+      if (n.indexOf('lit bébé') >= 0 || n.indexOf('lit bebe') >= 0) { babyRes = x; return false; }
+      return true;
+    });
 
     // Hide ONLY the time-derived auto-options (arrival/departure are driven by the date/time
     // fields, not a quantity). Paid add-ons (bed/bathroom linen, breakfast, …) stay selectable.
     // See specs/wordpress-plugin.md.
     var HIDDEN_AUTO = { early_check_in: 1, late_check_out: 1 };
-    f.optionInputs = {};
-    var optionsBox = null;
     var pickable = (options || []).filter(function (o) { return !HIDDEN_AUTO[o.autoOptionType]; });
-    if (pickable.length) {
-      var lines = pickable.map(function (o) {
-        var input = GF.el('input', { type: 'number', min: '0', value: '0', onInput: scheduleQuote });
-        f.optionInputs[o.id] = input;
-        // Price-basis label + quantity label come from the BACKEND (source of truth) — a new option
-        // renders correctly with NO change here (specs/public-planning-options.md).
-        var priceStr = o.price ? (' (' + GF.euro(o.price) + (o.priceUnitLabel ? ' · ' + o.priceUnitLabel : '') + ')') : '';
-        var label = (o.title || '') + priceStr;
-        // Plain row (label ↔ input) unless the option needs a description ⓘ, an « à planifier » note,
-        // or a quantity label — then it becomes a stacked card.
-        if (!o.description && !o.showsPlanningCard && !o.quantityLabel) {
-          return GF.el('div', { class: 'gf-option-line' }, GF.el('span', {}, label), input);
+
+    function persons() { return (state.adults || 0) + (state.teens || 0) + (state.children || 0); }
+
+    // ---- availability (blocked nights), loaded forward as the visitor navigates ----
+    var blocked = {};
+    var loadedTo = null; // ISO date up to which blockedDates are known
+    function isBlocked(d) { return !!blocked[d]; }
+    function rangeHasBlocked(a, b) { var c = a; while (c < b) { if (isBlocked(c)) return true; c = addDaysIso(c, 1); } return false; }
+
+    function ensureAvailability(untilIso) {
+      if (loadedTo && untilIso <= loadedTo) return Promise.resolve();
+      var from = loadedTo || todayIso();
+      return GF.api('GET', '/properties/' + propertyId + '/availability?from=' + from + '&to=' + untilIso).then(function (res) {
+        if (res.status >= 200 && res.status < 300 && res.body && res.body.data) {
+          (res.body.data.blockedDates || []).forEach(function (x) { blocked[x] = true; });
+          loadedTo = untilIso;
         }
-        var titleGroup = [GF.el('span', {}, label)];
-        var descBox = null;
-        if (o.description) {
-          descBox = GF.el('div', { class: 'gf-option-desc', style: 'display:none' }, o.description);
-          // ⓘ toggle: tap-to-expand (mobile) + native tooltip on hover (desktop). Responsive + ≥44px.
-          titleGroup.push(GF.el('button', {
-            type: 'button', class: 'gf-info-btn', title: o.description, 'aria-label': GF.t('moreInfo'),
-            onClick: function () { descBox.style.display = descBox.style.display === 'none' ? 'block' : 'none'; },
-          }, 'ⓘ'));
-        }
-        var qtyField = o.quantityLabel
-          ? GF.el('span', { class: 'gf-qty' }, GF.el('label', {}, o.quantityLabel), input)
-          : input;
-        var head = GF.el('div', { class: 'gf-option-head' }, GF.el('span', { class: 'gf-option-title' }, titleGroup), qtyField);
-        var body = [head];
-        if (o.showsPlanningCard) body.push(GF.el('div', { class: 'gf-option-note' }, GF.t('toBeScheduled')));
-        if (descBox) body.push(descBox);
-        return GF.el('div', { class: 'gf-option-line gf-option-rich' }, body);
       });
-      optionsBox = GF.el('div', {}, GF.el('strong', {}, GF.t('options')), GF.el('div', { class: 'gf-options-list' }, lines));
     }
 
-    var summary = GF.el('div', { class: 'gf-summary' }, GF.el('div', { class: 'gf-loading' }, GF.t('loading')));
+    // ---- calendar (range select — the ONLY way to set the dates, spec §3.1-4) ----
+    var calBase = firstOfMonth(new Date());
+    var calMonths = GF.el('div', { class: 'gf-cal-wrap' });
+    var calHint = GF.el('div', { class: 'gf-cal-hint' });
+    var calBox = GF.el('div', { class: 'gf-cal-box' },
+      GF.el('div', { class: 'gf-cal-topbar' },
+        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': 'Mois précédent', onClick: function () { navCal(-1); } }, '‹'),
+        GF.el('strong', {}, GF.t('selectDates')),
+        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': 'Mois suivant', onClick: function () { navCal(1); } }, '›')
+      ),
+      calMonths, calHint
+    );
+
+    function navCal(dir) {
+      var next = addMonths(calBase, dir);
+      if (next < firstOfMonth(new Date())) return; // past months hold nothing selectable
+      calBase = next;
+      renderCal();
+    }
+
+    function renderCal() {
+      var windowEnd = isoOf(addMonths(calBase, 2));
+      ensureAvailability(windowEnd).then(function () {
+        calMonths.innerHTML = '';
+        for (var i = 0; i < 2; i++) calMonths.appendChild(monthGrid(addMonths(calBase, i)));
+        setHint(state.start && !state.end ? GF.t('pickDeparture') : (!state.start ? GF.t('pickArrival') : ''));
+      });
+    }
+
+    function setHint(msg, isError) {
+      calHint.textContent = msg || '';
+      calHint.className = 'gf-cal-hint' + (isError ? ' gf-cal-hint-error' : '');
+    }
+
+    function monthGrid(monthDate) {
+      var year = monthDate.getFullYear();
+      var month = monthDate.getMonth();
+      var grid = GF.el('div', { class: 'gf-cal-grid' });
+      DOW.forEach(function (d) { grid.appendChild(GF.el('div', { class: 'gf-cal-dow' }, d)); });
+      var lead = (new Date(year, month, 1).getDay() + 6) % 7; // Monday-based
+      for (var i = 0; i < lead; i++) grid.appendChild(GF.el('div', { class: 'gf-cal-day gf-empty-cell' }));
+      var days = new Date(year, month + 1, 0).getDate();
+      var today = todayIso();
+      for (var d = 1; d <= days; d++) {
+        var ds = year + '-' + pad(month + 1) + '-' + pad(d);
+        var pickingStart = (!state.start || state.end);
+        var disabled = ds < today || (pickingStart ? isBlocked(ds) : (ds < state.start || rangeHasBlocked(state.start, ds)));
+        var cls = 'gf-cal-day';
+        if (state.start && ds === state.start) cls += ' gf-edge';
+        if (state.end && ds === state.end) cls += ' gf-edge';
+        if (state.start && state.end && ds > state.start && ds < state.end) cls += ' gf-range';
+        var btn = GF.el('button', {
+          type: 'button', class: cls, disabled: disabled ? 'disabled' : null,
+          onClick: (function (iso) { return function () { onPick(iso); }; })(ds),
+        }, String(d));
+        grid.appendChild(btn);
+      }
+      var label = MONTHS_FR[month] + ' ' + year;
+      return GF.el('div', { class: 'gf-cal-month' }, GF.el('div', { class: 'gf-cal-title' }, label), grid);
+    }
+
+    function onPick(ds) {
+      if (state.start && !state.end && ds === state.start) { state.start = null; afterDatesChange(); return; }
+      if (!state.start || state.end) { state.start = ds; state.end = null; afterDatesChange(); return; }
+      if (ds <= state.start) { state.start = ds; state.end = null; afterDatesChange(); return; }
+      if (rangeHasBlocked(state.start, ds)) { state.start = ds; state.end = null; afterDatesChange(); setHint(GF.t('rangeBlocked'), true); return; }
+      state.end = ds;
+      afterDatesChange();
+    }
+
+    function afterDatesChange() {
+      f.startDisplay.value = state.start ? frDate(state.start) : '—';
+      f.endDisplay.value = state.end ? frDate(state.end) : '—';
+      renderCal();
+      scheduleQuote();
+    }
+
+    // ---- read-only date recap + time selects (spec §3.3, §3.5) ----
+    f.startDisplay = GF.el('input', { type: 'text', class: 'gf-ro', readonly: 'readonly', tabindex: '-1', 'aria-readonly': 'true', value: '—' });
+    f.endDisplay = GF.el('input', { type: 'text', class: 'gf-ro', readonly: 'readonly', tabindex: '-1', 'aria-readonly': 'true', value: '—' });
+    f.checkInTime = GF.el('input', { type: 'time', value: state.checkInTime, onInput: function () { state.checkInTime = f.checkInTime.value; scheduleQuote(); } });
+    f.checkOutTime = GF.el('input', { type: 'time', value: state.checkOutTime, onInput: function () { state.checkOutTime = f.checkOutTime.value; scheduleQuote(); } });
+
+    var datesRow = GF.el('div', { class: 'gf-row' },
+      GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('startDate')), f.startDisplay),
+      GF.el('div', { class: 'gf-field' }, GF.el('label', {}, GF.t('endDate')), f.endDisplay),
+      GF.el('div', { class: 'gf-field gf-field-time' }, GF.el('label', {}, GF.t('checkInTime')), f.checkInTime),
+      GF.el('div', { class: 'gf-field gf-field-time' }, GF.el('label', {}, GF.t('checkOutTime')), f.checkOutTime)
+    );
+
+    // ---- stepper (− n +), the single quantity control of the widget (spec §3.6-7, ≥44px) ----
+    function stepper(get, set, min, max) {
+      var val = GF.el('span', { class: 'gf-step-val' }, String(get()));
+      function apply(v) { set(v); val.textContent = String(v); scheduleQuote(); }
+      var dec = GF.el('button', { type: 'button', class: 'gf-step-btn', 'aria-label': '−', onClick: function () { apply(Math.max(min, get() - 1)); } }, '−');
+      var inc = GF.el('button', {
+        type: 'button', class: 'gf-step-btn', 'aria-label': '+',
+        onClick: function () {
+          var mx = (typeof max === 'function') ? max() : (max == null ? 99 : max);
+          apply(Math.min(mx, get() + 1));
+        },
+      }, '+');
+      return GF.el('span', { class: 'gf-step' }, dec, val, inc);
+    }
+
+    // Uniform row: [title + subtitle] … [price italic] [stepper] — one layout for guests, options
+    // and resources (spec §3.7). `note`/`desc` render under the row when provided.
+    function line(title, subtitle, priceText, control, extras) {
+      var main = GF.el('div', { class: 'gf-line-main' },
+        GF.el('div', { class: 'gf-line-title' }, title),
+        subtitle ? GF.el('div', { class: 'gf-line-sub' }, subtitle) : null
+      );
+      var head = GF.el('div', { class: 'gf-line-head' },
+        main,
+        priceText ? GF.el('span', { class: 'gf-line-price' }, priceText) : null,
+        control
+      );
+      var wrap = GF.el('div', { class: 'gf-line' }, head);
+      (extras || []).forEach(function (x) { if (x) wrap.appendChild(x); });
+      return wrap;
+    }
+
+    // ---- Voyageurs (spec §3.6) ----
+    var babyBedsHolder = GF.el('div', {});
+    function renderBabyBeds() {
+      babyBedsHolder.innerHTML = '';
+      if (state.babies > 0 && babyRes) {
+        babyBedsHolder.appendChild(line(GF.t('babyBedsLabel'), GF.t('babyBedsSub'), null,
+          stepper(function () { return state.babyBeds; }, function (v) { state.babyBeds = Math.min(v, state.babies); }, 0, function () { return state.babies; })));
+      } else {
+        state.babyBeds = 0;
+      }
+    }
+
+    var guestsBox = GF.el('div', { class: 'gf-section' },
+      GF.el('div', { class: 'gf-section-title' }, GF.t('travelers')),
+      GF.el('div', { class: 'gf-lines' },
+        line(GF.t('adults'), null, null, stepper(function () { return state.adults; }, function (v) { state.adults = v; renderSupplements(); }, 1)),
+        line(GF.t('teens'), GF.t('teensAges'), null, stepper(function () { return state.teens; }, function (v) { state.teens = v; renderSupplements(); }, 0)),
+        line(GF.t('children'), GF.t('childrenAges'), null, stepper(function () { return state.children; }, function (v) { state.children = v; renderSupplements(); }, 0)),
+        line(GF.t('babies'), GF.t('babiesAges'), null, stepper(function () { return state.babies; }, function (v) { state.babies = v; if (state.babyBeds > v) state.babyBeds = v; renderBabyBeds(); }, 0)),
+        babyBedsHolder
+      )
+    );
+
+    // ---- Options & suppléments — ONE uniform list (spec §3.7-14) ----
+    var supplementsList = GF.el('div', { class: 'gf-lines' });
+    var supplementsBox = (pickable.length || supplements.length)
+      ? GF.el('div', { class: 'gf-section' }, GF.el('div', { class: 'gf-section-title' }, GF.t('supplements')), supplementsList)
+      : null;
+
+    function priceText(item) {
+      if (!item.price) return null;
+      return GF.euro(item.price) + (item.priceUnitLabel ? ' · ' + item.priceUnitLabel : '');
+    }
+
+    function renderSupplements() {
+      supplementsList.innerHTML = '';
+      pickable.forEach(function (o) {
+        if (!(o.id in state.opt)) state.opt[o.id] = 0;
+        var progressive = o.priceType === 'per_participant_progressive';
+        if (progressive && state.opt[o.id] > Math.max(1, persons())) state.opt[o.id] = Math.max(1, persons());
+        var titleGroup = [o.title || ''];
+        var extras = [];
+        if (o.description) {
+          var descBox = GF.el('div', { class: 'gf-line-desc', style: 'display:none' }, o.description);
+          extras.push(descBox);
+          titleGroup.push(GF.el('button', {
+            type: 'button', class: 'gf-info-btn', title: o.description, 'aria-label': GF.t('moreInfo'),
+            onClick: (function (box) { return function () { box.style.display = box.style.display === 'none' ? 'block' : 'none'; }; })(descBox),
+          }, 'ⓘ'));
+        }
+        // No « à planifier » note on options — it belongs to host-scheduled resources only (spec §3.9).
+        var max = progressive ? function () { return Math.max(1, persons()); } : null;
+        supplementsList.appendChild(line(
+          GF.el('span', {}, titleGroup),
+          o.quantityLabel || null,
+          priceText(o),
+          stepper(function () { return state.opt[o.id]; }, function (v) { state.opt[o.id] = v; }, 0, max),
+          extras
+        ));
+      });
+      supplements.forEach(function (r) {
+        if (!(r.id in state.res)) state.res[r.id] = 0;
+        var extras = [];
+        if (r.showsSchedulingNote) extras.push(GF.el('div', { class: 'gf-line-note' }, GF.t('toBeScheduled')));
+        supplementsList.appendChild(line(
+          r.name || '',
+          r.quantityLabel || null,
+          priceText(r),
+          stepper(function () { return state.res[r.id]; }, function (v) { state.res[r.id] = v; }, 0),
+          extras
+        ));
+      });
+    }
+
+    var summary = GF.el('div', { class: 'gf-summary' });
     var warn = GF.el('div', {});
 
     // Contact + message + honeypot
@@ -199,29 +389,34 @@
     var feedback = GF.el('div', {});
 
     var form = GF.el('div', { class: 'gf-booking' },
-      GF.el('h3', { style: { marginTop: 0 } }, detail.name || ''),
-      datesRow, guestsRow, optionsBox, summary, warn, contact, f.submit, feedback
+      GF.el('h3', { class: 'gf-booking-name' }, detail.name || ''),
+      calBox, datesRow, guestsBox, supplementsBox, summary, warn, contact, f.submit, feedback
     );
     container.innerHTML = '';
     container.appendChild(form);
 
-    var lastQuote = null;
-
     function gatherStay() {
       var opts = [];
-      Object.keys(f.optionInputs).forEach(function (id) {
-        var q = parseInt(f.optionInputs[id].value, 10) || 0;
-        if (q > 0) opts.push({ optionId: parseInt(id, 10), quantity: q });
+      Object.keys(state.opt).forEach(function (id) {
+        if (state.opt[id] > 0) opts.push({ optionId: parseInt(id, 10), quantity: state.opt[id] });
+      });
+      var ress = [];
+      Object.keys(state.res).forEach(function (id) {
+        if (state.res[id] > 0) ress.push({ resourceId: parseInt(id, 10), quantity: state.res[id] });
       });
       return {
         propertyId: propertyId,
-        startDate: f.startDate.value,
-        endDate: f.endDate.value,
-        adults: parseInt(f.adults.value, 10) || 1,
-        children: parseInt(f.children.value, 10) || 0,
-        teens: parseInt(f.teens.value, 10) || 0,
-        babies: parseInt(f.babies.value, 10) || 0,
+        startDate: state.start,
+        endDate: state.end,
+        checkInTime: state.checkInTime,
+        checkOutTime: state.checkOutTime,
+        adults: state.adults,
+        children: state.children,
+        teens: state.teens,
+        babies: state.babies,
+        babyBeds: state.babyBeds,
         options: opts,
+        resources: ress,
       };
     }
 
@@ -232,9 +427,9 @@
 
     function recompute() {
       var stay = gatherStay();
-      if (!stay.startDate || !stay.endDate || stay.endDate <= stay.startDate) {
+      if (!stay.startDate || !stay.endDate) {
         summary.innerHTML = '';
-        summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('startDate') + ' / ' + GF.t('endDate')));
+        summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('pickArrival')));
         warn.innerHTML = '';
         f.submit.disabled = true;
         lastQuote = null;
@@ -250,30 +445,47 @@
           lastQuote = null;
           return;
         }
-        lastQuote = res.body.data;
-        drawSummary(lastQuote);
+        var q = res.body.data;
+        // Min-nights breach: clear the departure and steer back to the calendar (spec §3.4).
+        if (q.minNightsBreached) {
+          state.end = null;
+          f.endDisplay.value = '—';
+          renderCal();
+          setHint(GF.t('minNights', q.minNights), true);
+          summary.innerHTML = '';
+          summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('pickDeparture')));
+          warn.innerHTML = '';
+          f.submit.disabled = true;
+          lastQuote = null;
+          return;
+        }
+        lastQuote = q;
+        drawSummary(q);
       });
     }
 
     function drawSummary(q) {
       summary.innerHTML = '';
-      function line(label, value, cls) { return GF.el('div', { class: 'gf-summary-line ' + (cls || '') }, GF.el('span', {}, label), GF.el('span', {}, value)); }
-      summary.appendChild(line(q.nights + ' ' + GF.t('nights'), GF.euro(q.accommodationTotal)));
+      function sline(label, value, cls) { return GF.el('div', { class: 'gf-summary-line ' + (cls || '') }, GF.el('span', {}, label), GF.el('span', {}, value)); }
+      summary.appendChild(sline(q.nights + ' ' + GF.t('nights'), GF.euro(q.accommodationTotal)));
       (q.options || []).forEach(function (o) {
-        summary.appendChild(line(o.title + ' ×' + o.quantity, o.offered ? GF.euro(0) : GF.euro(o.total)));
+        summary.appendChild(sline(o.title + ' ×' + o.quantity, o.offered ? GF.t('offered') : GF.euro(o.total)));
       });
-      if (q.touristTax && q.touristTax.total) summary.appendChild(line(GF.t('touristTax'), GF.euro(q.touristTax.total)));
+      (q.resources || []).forEach(function (r) {
+        summary.appendChild(sline((r.name || '') + ' ×' + r.quantity, r.offered ? GF.t('offered') : GF.euro(r.total)));
+      });
+      if (q.touristTax && q.touristTax.total) summary.appendChild(sline(GF.t('touristTax'), GF.euro(q.touristTax.total)));
       // Headline total = totalStayPrice (tax-INCLUSIVE) — what the guest actually pays online.
       // finalPrice is tax-exclusive; showing it as "Total" under a tax line understated the charge.
-      summary.appendChild(line(GF.t('total'), GF.euro(q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice), 'gf-summary-total'));
+      summary.appendChild(sline(GF.t('total'), GF.euro(q.totalStayPrice != null ? q.totalStayPrice : q.finalPrice), 'gf-summary-total'));
       // Deposit mode (server-decided): the site charges the acompte now, the solde is emailed later. The
       // server OMITS the deposit/balance blocks in full mode, so these lines only appear when relevant.
       var depositMode = q.payment && q.payment.mode === 'deposit';
       if (depositMode && q.deposit && q.deposit.amount) {
-        summary.appendChild(line(GF.t('depositNow'), GF.euro(q.deposit.amount)));
+        summary.appendChild(sline(GF.t('depositNow'), GF.euro(q.deposit.amount)));
         if (q.balance && q.balance.amount) {
           var balLabel = q.balance.dueDate ? GF.t('balanceDueBefore', q.balance.dueDate) : GF.t('balance');
-          summary.appendChild(line(balLabel, GF.euro(q.balance.amount)));
+          summary.appendChild(sline(balLabel, GF.euro(q.balance.amount)));
         }
       }
       // Button reflects what the guest pays now (« Payer l'acompte » vs « Payer en ligne »).
@@ -282,7 +494,6 @@
       warn.innerHTML = '';
       var ok = true;
       if (q.available === false) { warn.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('datesUnavailable'))); ok = false; }
-      if (q.minNightsBreached) { warn.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('minNights', q.minNights))); ok = false; }
       f.submit.disabled = !ok;
     }
 
@@ -339,6 +550,9 @@
       feedback.appendChild(GF.el('div', { class: 'gf-inline-warn' }, res ? GF.errorMessage(res) : GF.t('genericError')));
     }
 
+    renderBabyBeds();
+    renderSupplements();
+    renderCal();
     recompute();
   }
 

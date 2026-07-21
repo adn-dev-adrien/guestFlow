@@ -48,6 +48,11 @@ final class GF_Rest_Proxy
             'permission_callback' => $public,
             'callback'            => [$this, 'get_options'],
         ]);
+        register_rest_route(self::NS, '/properties/(?P<id>\d+)/resources', [
+            'methods'             => 'GET',
+            'permission_callback' => $public,
+            'callback'            => [$this, 'get_resources'],
+        ]);
         register_rest_route(self::NS, '/properties/(?P<id>\d+)/availability', [
             'methods'             => 'GET',
             'permission_callback' => $public,
@@ -101,6 +106,12 @@ final class GF_Rest_Proxy
     {
         $id = (int) $request['id'];
         return $this->proxy_get("/properties/{$id}/options", [], (int) GF_Settings::instance()->get('cache_ttl', 600));
+    }
+
+    public function get_resources(WP_REST_Request $request): WP_REST_Response
+    {
+        $id = (int) $request['id'];
+        return $this->proxy_get("/properties/{$id}/resources", [], (int) GF_Settings::instance()->get('cache_ttl', 600));
     }
 
     public function get_availability(WP_REST_Request $request): WP_REST_Response
