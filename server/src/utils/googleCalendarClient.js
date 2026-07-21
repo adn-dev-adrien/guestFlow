@@ -21,6 +21,23 @@ function mapGoogleError(error) {
     };
   }
   if (status === 403) {
+    // "Calendar API not enabled in this Cloud project" is also a 403 — the generic
+    // write-permission message below would point the user at calendar sharing instead
+    // of the API library (cost a debugging detour during the 2026-07-21 prod setup).
+    const data = (error && error.response && error.response.data && error.response.data.error) || {};
+    const reasons = []
+      .concat(Array.isArray(data.errors) ? data.errors : [], Array.isArray(error && error.errors) ? error.errors : [])
+      .map((e) => String((e && e.reason) || ''));
+    const rawMessage = String(data.message || (error && error.message) || '');
+    if (reasons.includes('accessNotConfigured') || /has not been used in project|it is disabled/i.test(rawMessage)) {
+      const project = (rawMessage.match(/project\s+(\d+)/) || [])[1];
+      return {
+        code: 'API_DISABLED',
+        error: `L'API Google Calendar n'est pas activée dans le projet Google Cloud${project ? ` n° ${project}` : ''}. `
+          + 'Activez-la (console Google → API et services → Bibliothèque → Google Calendar API), '
+          + 'patientez quelques minutes, puis réessayez.',
+      };
+    }
     return {
       code: 'FORBIDDEN',
       error: "Votre compte Google n'a pas la permission d'écrire dans cet agenda.",
