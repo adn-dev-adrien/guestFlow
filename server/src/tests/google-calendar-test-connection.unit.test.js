@@ -37,6 +37,36 @@ test('mapGoogleError: 403 → FORBIDDEN', () => {
   assert.equal(out.code, 'FORBIDDEN');
   assert.match(out.error, /permission/);
 });
+test('mapGoogleError: 403 accessNotConfigured → API_DISABLED naming the Cloud project', () => {
+  // Real shape returned by googleapis when the Calendar API is disabled in the project
+  // that owns the OAuth client (2026-07-21 production setup).
+  const out = mapGoogleError({
+    response: {
+      status: 403,
+      data: {
+        error: {
+          code: 403,
+          status: 'PERMISSION_DENIED',
+          message: 'Google Calendar API has not been used in project 368709445905 before or it is disabled. '
+            + 'Enable it by visiting https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=368709445905 then retry.',
+          errors: [{ reason: 'accessNotConfigured', domain: 'usageLimits' }],
+        },
+      },
+    },
+  });
+  assert.equal(out.code, 'API_DISABLED');
+  assert.match(out.error, /n'est pas activée/);
+  assert.match(out.error, /368709445905/);
+  assert.match(out.error, /Bibliothèque/);
+});
+test('mapGoogleError: 403 API-disabled detected from the message alone (no errors array)', () => {
+  const out = mapGoogleError({
+    code: 403,
+    message: 'Calendar API has not been used in project 12345 before or it is disabled.',
+  });
+  assert.equal(out.code, 'API_DISABLED');
+  assert.match(out.error, /12345/);
+});
 test('mapGoogleError: 404 → CALENDAR_NOT_FOUND', () => {
   const out = mapGoogleError({ response: { status: 404 } });
   assert.equal(out.code, 'CALENDAR_NOT_FOUND');
