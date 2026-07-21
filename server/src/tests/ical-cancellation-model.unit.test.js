@@ -10,7 +10,7 @@ const icalCancellationModel = require('../models/icalCancellationModel');
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT);
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT);
-  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, name TEXT);
+  CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, name TEXT, emptyFeedStreak INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE ical_import_events (
     sourceId INTEGER, eventUid TEXT, reservationId INTEGER, eventHash TEXT,
     startDate TEXT, endDate TEXT, summaryNormalized TEXT, lastSeenAt TEXT,

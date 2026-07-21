@@ -23,7 +23,7 @@ const DDL = `
   CREATE TABLE ical_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT, propertyId INTEGER, name TEXT, url TEXT, platformKey TEXT,
     platformLabel TEXT, platformColor TEXT, isActive INTEGER DEFAULT 1,
-    lastSyncAt TEXT, lastSyncStatus TEXT, lastSyncMessage TEXT, lastSyncCounts TEXT, lastImportedCount INTEGER, createdAt TEXT, updatedAt TEXT
+    lastSyncAt TEXT, lastSyncStatus TEXT, lastSyncMessage TEXT, lastSyncCounts TEXT, lastImportedCount INTEGER, emptyFeedStreak INTEGER NOT NULL DEFAULT 0, createdAt TEXT, updatedAt TEXT
   );
   CREATE TABLE ical_import_events (
     sourceId INTEGER, eventUid TEXT, reservationId INTEGER, eventHash TEXT,
@@ -84,9 +84,19 @@ function freshModel() {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, '15:00', '10:00', 500)").run();
+  // The empty-feed guard persists its streak on the ical_sources row — the source must exist in DB.
+  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb')").run();
   const model = propertyIcalModel.buildModel(db);
   const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'airbnb', platformLabel: 'Airbnb', name: 'Airbnb' };
   return { db, model, source };
+}
+
+// Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rule 3): a feed that suddenly
+// parses to 0 events while mappings exist is only trusted from the 2nd consecutive empty fetch.
+// Tests that legitimately empty a feed sync twice through this helper.
+async function syncEmptyConfirmed(model, source) {
+  await assert.rejects(() => model.syncSource(source), /Flux vide inattendu/);
+  return model.syncSource(source);
 }
 
 // A date `days` away from today, in both the ICS compact (YYYYMMDD) and the stored
@@ -248,7 +258,7 @@ test('cancellation: an event no longer in the feed records a pending alert (soft
   stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
-  const result = await model.syncSource(source);
+  const result = await syncEmptyConfirmed(model, source);
   assert.equal(result.removedCount, 1, 'removedCount counts pending cancellation alerts');
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1, 'reservation kept (soft flow)');
   const pending = db.prepare("SELECT reservationId, sourceId, eventUid FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL").all();
@@ -266,7 +276,7 @@ test('cancellation: locked reservation falls out of feed → still soft-cancelle
   await model.syncSource(source);
   db.prepare("UPDATE reservations SET icalSyncLocked = 1 WHERE sourceIcalEventUid = 'E1'").run();
   stubFetch([]);
-  await model.syncSource(source);
+  await syncEmptyConfirmed(model, source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
 });
@@ -279,7 +289,7 @@ test('cancellation: repeated empty-feed sync keeps ONE pending row (UPSERT)', as
   stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
-  await model.syncSource(source);
+  await syncEmptyConfirmed(model, source);
   await model.syncSource(source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts').get().c, 1);
 });
@@ -293,7 +303,7 @@ test('cancellation: auto-resolve when the UID reappears in the feed before the u
   stubFetch([{ uid: 'E1', start: stay.start, end: stay.end, summary: 'Jean Dupont' }]);
   await model.syncSource(source);
   stubFetch([]);
-  await model.syncSource(source);
+  await syncEmptyConfirmed(model, source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
 
   // The platform un-cancels: same UID is back in the feed.
@@ -314,7 +324,7 @@ test('cancellation: a PAST stay dropped from the feed is NOT flagged (platforms 
   await model.syncSource(source);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1, 'past stay created on first sync');
   stubFetch([]);
-  const result = await model.syncSource(source);
+  const result = await syncEmptyConfirmed(model, source);
   assert.equal(result.removedCount, 0, 'no cancellation alert for a past stay');
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 0, 'no pending alert recorded');
   assert.equal(db.prepare('SELECT COUNT(*) c FROM reservations').get().c, 1, 'reservation kept (real past stay)');
@@ -329,7 +339,7 @@ test('cancellation: a stay ending TODAY dropped from the feed IS still flagged (
   stubFetch([{ uid: 'TODAY1', start: start.compact, end: end.compact, summary: 'Marie Martin' }]);
   await model.syncSource(source);
   stubFetch([]);
-  const result = await model.syncSource(source);
+  const result = await syncEmptyConfirmed(model, source);
   assert.equal(result.removedCount, 1, 'a same-day checkout is not past → alert raised');
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
 });
@@ -460,7 +470,6 @@ test('summary fallback (step 3.5): empty/unavailable-summary new event still wor
 
 test('syncSourceAndRecord writes the source status row', async () => {
   const { db, model, source } = freshModel();
-  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel, isActive) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb', 1)").run();
   stubFetch([{ uid: 'E1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
   await model.syncSourceAndRecord(source);
   const row = db.prepare('SELECT lastSyncStatus, lastImportedCount FROM ical_sources WHERE id = 1').get();
