@@ -182,7 +182,7 @@ function IntroDateRow({ kind, date, time }) {
   );
 }
 
-export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted }) {
+export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted, canOpenReservation = true }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -1057,7 +1057,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             <Typography variant="sectionHeader" sx={{ display: 'block', lineHeight: 1.2, textTransform: 'uppercase', letterSpacing: 0.5, color: 'inherit' }}>{bandTitle}</Typography>
             {r && <Typography variant="caption" noWrap sx={{ display: 'block', opacity: 0.9 }}>{r.firstName} {r.lastName} · {r.propertyName}</Typography>}
           </Box>
-          {r && (
+          {/* specs/reception-role-checkin-only.md §3.4 — hidden for the reception role (no reservation
+              sheet access); the SAS itself stays fully usable. */}
+          {r && canOpenReservation && (
             <Link component="button" type="button" variant="caption" underline="hover"
               sx={{ color: 'common.white', whiteSpace: 'nowrap' }}
               onClick={() => navigate(`/reservations/${reservationId}`)}>Fiche</Link>

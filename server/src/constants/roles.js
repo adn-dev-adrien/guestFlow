@@ -4,8 +4,12 @@
 
 const ADMIN = 'admin';
 const ACCOUNTANT = 'accountant';
+// specs/reception-role-checkin-only.md — on-site check-in/out staff; sees only the day's
+// arrivals/departures + the Planning + the SAS, never any financial figure beyond the caution /
+// complement to collect at the door.
+const RECEPTION = 'reception';
 
-const ROLES = Object.freeze([ADMIN, ACCOUNTANT]);
+const ROLES = Object.freeze([ADMIN, ACCOUNTANT, RECEPTION]);
 
 function isKnownRole(role) {
   return ROLES.includes(role);
@@ -24,6 +28,7 @@ function userHasRole(user, role) {
 module.exports = {
   ADMIN,
   ACCOUNTANT,
+  RECEPTION,
   ROLES,
   isKnownRole,
   userHasRole,

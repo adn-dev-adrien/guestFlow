@@ -720,3 +720,18 @@ test('departure recap: « Payé en liquide » settles into caisse interne; no «
   expect(arg.complementsSettled).toBe(true);
   expect(arg.complementsPaidCash).toBe(true);
 });
+
+// specs/reception-role-checkin-only.md §3.4 — the reception role runs the SAS but has no reservation
+// sheet access, so the header « Fiche » link is hidden when canOpenReservation is false.
+test('canOpenReservation gates the « Fiche » link (shown by default, hidden for reception)', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload());
+  const { unmount } = renderDialog({ mode: 'arrival' });
+  await screen.findByText('Commencer');
+  expect(screen.getByRole('button', { name: 'Fiche' })).toBeInTheDocument();
+  unmount();
+
+  api.getReservationSas.mockResolvedValue(sasPayload());
+  renderDialog({ mode: 'arrival', canOpenReservation: false });
+  await screen.findByText('Commencer');
+  expect(screen.queryByRole('button', { name: 'Fiche' })).not.toBeInTheDocument();
+});

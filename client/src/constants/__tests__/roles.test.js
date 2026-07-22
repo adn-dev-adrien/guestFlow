@@ -1,5 +1,5 @@
 import {
-  ADMIN, ACCOUNTANT, ROLES, ROLE_LABELS, userHasRole, roleLabel,
+  ADMIN, ACCOUNTANT, RECEPTION, ROLES, ROLE_LABELS, userHasRole, roleLabel,
   ROUTE_ROLES, canSeeRoute, canSeeAnyRoute,
 } from '../roles';
 
@@ -7,13 +7,15 @@ describe('roles constants', () => {
   test('exports the frozen taxonomy', () => {
     expect(ADMIN).toBe('admin');
     expect(ACCOUNTANT).toBe('accountant');
-    expect([...ROLES]).toEqual(['admin', 'accountant']);
+    expect(RECEPTION).toBe('reception');
+    expect([...ROLES]).toEqual(['admin', 'accountant', 'reception']);
     expect(() => ROLES.push('hacker')).toThrow();
   });
 
   test('roleLabel returns the French label, or echoes back unknown roles', () => {
     expect(roleLabel(ADMIN)).toBe('Admin');
     expect(roleLabel(ACCOUNTANT)).toBe('Comptable');
+    expect(roleLabel(RECEPTION)).toBe('Accueil');
     expect(roleLabel('unknown-role')).toBe('unknown-role');
     expect(ROLE_LABELS[ADMIN]).toBe('Admin');
   });
@@ -79,6 +81,23 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   test('multi-role admin+accountant: admin scope (everything) wins', () => {
     for (const path of Object.keys(ROUTE_ROLES)) {
       expect(canSeeRoute(both, path)).toBe(true);
+    }
+  });
+
+  test('reception sees ONLY /, /planning and /account (specs/reception-role-checkin-only.md)', () => {
+    const reception = { roles: ['reception'] };
+    const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(reception, p));
+    expect(visible.sort()).toEqual(['/', '/account', '/planning']);
+    // Never the finance / clients / settings surfaces.
+    for (const path of ['/finance', '/clients', '/comptabilite', '/settings', '/devis', '/emails', '/calendar']) {
+      expect(canSeeRoute(reception, path)).toBe(false);
+    }
+  });
+
+  test('multi-role admin+reception: admin scope (everything) wins', () => {
+    const adminReception = { roles: ['admin', 'reception'] };
+    for (const path of Object.keys(ROUTE_ROLES)) {
+      expect(canSeeRoute(adminReception, path)).toBe(true);
     }
   });
 

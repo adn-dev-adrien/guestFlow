@@ -19,6 +19,14 @@ const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const platformsModel = require('../models/platformsModel');
+const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
+const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
+
+// specs/reception-role-checkin-only.md §3.2 — a reception-only user (holds `reception`, not `admin`)
+// receives finance-stripped reservation payloads and may write only the check-in/out status flags.
+function isReceptionOnly(req) {
+  return userHasRole(req.user, RECEPTION) && !userHasRole(req.user, ADMIN);
+}
 
 // specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
 // platform name, to feed the pricing engine. Direct / unknown → 0 (no acompte).
@@ -174,7 +182,8 @@ function suggestBeds(req, res) {
 
 function list(req, res) {
   const { propertyId, clientId, from, to } = req.query;
-  res.json(model.list({ propertyId, clientId, from, to }));
+  const rows = model.list({ propertyId, clientId, from, to });
+  res.json(isReceptionOnly(req) ? toReceptionReservationList(rows) : rows);
 }
 
 // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3). Matching + shaping
@@ -200,7 +209,7 @@ function occupiedDates(req, res) {
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
-  res.json(reservation);
+  res.json(isReceptionOnly(req) ? toReceptionReservationView(reservation) : reservation);
 }
 
 function getHistory(req, res) {
@@ -674,6 +683,12 @@ function update(req, res) {
 // NOTE: updatePayment deliberately has no Google hook — payment/caution/SAS fields don't
 // appear in the calendar event (spec rule 21).
 function updatePayment(req, res) {
+  // specs/reception-role-checkin-only.md §3.5 rule 10 — a reception-only user may flip ONLY the
+  // check-in/out status flags through this endpoint; every financial field in the same payload is
+  // dropped before any processing (fail-closed field guard).
+  if (isReceptionOnly(req)) {
+    req.body = toReceptionPaymentPatch(req.body);
+  }
   const financeError = validateFinanceInputs({
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
     balanceAmount: { value: req.body.balanceAmount, kind: 'money' },
