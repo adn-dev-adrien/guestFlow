@@ -2,6 +2,8 @@
 
 const model = require('../models/propertiesModel');
 const { buildProgressivePreview } = require('../utils/pricing');
+const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
+const { toReceptionPropertyList } = require('../utils/receptionView');
 
 // Map a model result ({ data } | { error, status, conflictingRule?, code? }) to an HTTP response.
 function respond(res, result) {
@@ -15,7 +17,11 @@ function respond(res, result) {
 }
 
 function list(req, res) {
-  res.json(model.list());
+  // specs/reception-role-checkin-only.md §3.2 — a reception-only user gets the pricing-stripped
+  // property view (id + name + photo) for the Planning columns; everyone else the full list.
+  const properties = model.list();
+  const receptionOnly = userHasRole(req.user, RECEPTION) && !userHasRole(req.user, ADMIN);
+  res.json(receptionOnly ? toReceptionPropertyList(properties) : properties);
 }
 
 function getOne(req, res) {

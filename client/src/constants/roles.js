@@ -4,12 +4,15 @@
 
 export const ADMIN = 'admin';
 export const ACCOUNTANT = 'accountant';
+// specs/reception-role-checkin-only.md — on-site check-in/out staff, no financial access.
+export const RECEPTION = 'reception';
 
-export const ROLES = Object.freeze([ADMIN, ACCOUNTANT]);
+export const ROLES = Object.freeze([ADMIN, ACCOUNTANT, RECEPTION]);
 
 export const ROLE_LABELS = Object.freeze({
   [ADMIN]: 'Admin',
   [ACCOUNTANT]: 'Comptable',
+  [RECEPTION]: 'Accueil',
 });
 
 export function userHasRole(user, role) {
@@ -34,8 +37,10 @@ export function roleLabel(role) {
 // only controls UI visibility. A user that hits a hidden route directly via URL still gets the
 // server's 403 (and the client-side AccountantConfinement guard sends them home).
 export const ROUTE_ROLES = Object.freeze({
-  '/':                       [ADMIN],
-  '/planning':               [ADMIN],
+  // specs/reception-role-checkin-only.md — the reception role sees only the finance-free home
+  // (arrivals/departures), the Planning (+ SAS), and its own account page.
+  '/':                       [ADMIN, RECEPTION],
+  '/planning':               [ADMIN, RECEPTION],
   '/calendar':               [ADMIN],
   '/resource-planning':      [ADMIN],
   '/reservations/upcoming':  [ADMIN],
@@ -64,7 +69,7 @@ export const ROUTE_ROLES = Object.freeze({
   '/parametres/tarifs':      [ADMIN],
   // specs/online-payments-qonto.md — dedicated payments page (Qonto connection + timings).
   '/parametres/paiements':   [ADMIN],
-  '/account':                [ADMIN, ACCOUNTANT],
+  '/account':                [ADMIN, ACCOUNTANT, RECEPTION],
   // specs/design-system.md §3.8 — living design-system showcase (tokens, typography, formats).
   '/design':                 [ADMIN],
 });

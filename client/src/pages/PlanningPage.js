@@ -25,6 +25,8 @@ import { readSasDeepLink, readBreakfastDeepLink } from '../utils/sasDeepLink';
 import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
+import { useAuth } from '../hooks/useAuth';
+import { ADMIN, RECEPTION, userHasRole } from '../constants/roles';
 import api from '../api';
 
 const DAYS_AHEAD = 14;
@@ -147,13 +149,18 @@ export default function PlanningPage() {
   // Post-action failures surface through the shared toasts — the page used raw window.alert
   // (specs/ds-components.md §3.2).
   const { showError } = useToast();
+  const { user } = useAuth();
+  // specs/reception-role-checkin-only.md §3.4 — a reception-only user runs the SAS on the Planning
+  // but has no client / reservation sheet access: the card body + client-name links are inert and
+  // the SAS « Fiche » link is hidden. Everything else (SAS, caution/complement) is unchanged.
+  const receptionMode = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN);
   // Reused by every "card / row click → open reservation" handler below (arrivals,
   // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
-  // back button return here.
+  // back button return here. No-op in reception mode (no reservation sheet access).
   const openReservation = useCallback((reservationId) => {
-    if (!reservationId) return;
+    if (!reservationId || receptionMode) return;
     navigate(withFrom(`/reservations/${reservationId}`, '/planning'));
-  }, [navigate]);
+  }, [navigate, receptionMode]);
 
   // Option-driven planning card « préparé » toggle (specs/option-planning-card.md §3.5). Optimistic:
   // flip the matching occurrence in state, persist, revert on failure.
@@ -243,7 +250,7 @@ export default function PlanningPage() {
     next.delete('reservationId');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, openArrivalSas, openDepartureSas]);
-  const openClient = useCallback((clientId) => { if (clientId) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate]);
+  const openClient = useCallback((clientId) => { if (clientId && !receptionMode) navigate(withFrom(`/clients?clientId=${clientId}`, '/planning')); }, [navigate, receptionMode]);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -904,9 +911,9 @@ export default function PlanningPage() {
                         key={`dep-${r.id}`}
                         reservation={r}
                         onToggleDone={handleToggleDepartureDone}
-                        onOpenReservation={openReservation}
+                        onOpenReservation={receptionMode ? undefined : openReservation}
                         onOpenSas={openDepartureSas}
-                        onOpenClient={openClient}
+                        onOpenClient={receptionMode ? undefined : openClient}
                         alertInfo={alertMap[r.id]}
                       />
                     ))}
@@ -920,9 +927,9 @@ export default function PlanningPage() {
                   reservation={r}
                   onToggleReady={handleToggleReady}
                   alertInfo={alertMap[r.id]}
-                  onOpenReservation={openReservation}
+                  onOpenReservation={receptionMode ? undefined : openReservation}
                   onOpenSas={openArrivalSas}
-                  onOpenClient={openClient}
+                  onOpenClient={receptionMode ? undefined : openClient}
                 />
               ))}
 
@@ -940,6 +947,7 @@ export default function PlanningPage() {
         mode={sas?.mode || 'arrival'}
         onClose={() => setSas(null)}
         onCommitted={() => { setSas(null); loadPlanning(startDate); }}
+        canOpenReservation={!receptionMode}
       />
 
       <LaundryManualAdditionsDialog

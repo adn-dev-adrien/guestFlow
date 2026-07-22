@@ -25,6 +25,18 @@ vi.mock('../../api', () => ({
   },
 }));
 
+// specs/reception-role-checkin-only.md — Dashboard branches on the current user's roles. Mock the
+// auth hook (mutable so a test can flip to a reception-only session).
+const { mockAuth, navigateSpy } = vi.hoisted(() => ({
+  mockAuth: { user: { roles: ['admin'] } },
+  navigateSpy: vi.fn(),
+}));
+vi.mock('../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => mockAuth }));
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, useNavigate: () => navigateSpy };
+});
+
 // Self-contained dashboard widgets (each self-fetches; covered by their own suites).
 vi.mock('../../components/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
 vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
@@ -48,6 +60,8 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  mockAuth.user = { roles: ['admin'] };
+  navigateSpy.mockReset();
   api.getProperties.mockReset().mockResolvedValue([{ id: 1, name: 'Gîte' }, { id: 2, name: 'Lodge' }]);
   api.getReservations.mockReset().mockResolvedValue([]);
   api.getReservation.mockReset().mockResolvedValue(null);
@@ -80,4 +94,40 @@ test('the initial load shows the shared LoadingState (aria-busy)', async () => {
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   resolveProps([]);
   await screen.findByText('Logements');
+});
+
+describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () => {
+  const today = new Date().toISOString().split('T')[0];
+  const arrival = {
+    id: 42, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
+    firstName: 'Marie', lastName: 'Durand', propertyName: 'Gîte du Lac',
+    cautionAmount: 300, cautionReceived: 0, options: [], resources: [],
+    doubleBeds: 1, singleBeds: 0, babyBeds: 0,
+  };
+
+  beforeEach(() => {
+    mockAuth.user = { roles: ['reception'] };
+    api.getReservations.mockReset()
+      .mockResolvedValueOnce([])          // 30-day window (KPI count — unused for reception)
+      .mockResolvedValueOnce([arrival]);  // upcoming (drives arrivals/departures)
+    api.getReservation.mockReset().mockResolvedValue(arrival);
+  });
+
+  test('shows the arrivals list but drops KPI tiles, the Paiements column and the month calendar', async () => {
+    renderPage();
+    await screen.findByText('Marie Durand');
+    // Caution column stays (door money the reception collects).
+    expect(screen.getByText('Caution')).toBeInTheDocument();
+    // Finance + admin chrome are gone.
+    expect(screen.queryByText('Logements')).not.toBeInTheDocument();
+    expect(screen.queryByText('Paiements')).not.toBeInTheDocument();
+    expect(screen.queryByText('CUMULATIVE_CALENDAR')).not.toBeInTheDocument();
+  });
+
+  test('tapping an arrival row opens the arrival SAS on the Planning via the deep-link', async () => {
+    renderPage();
+    const nameCell = await screen.findByText('Marie Durand');
+    nameCell.closest('tr').click();
+    expect(navigateSpy).toHaveBeenCalledWith('/planning?sas=arrival&reservationId=42');
+  });
 });
