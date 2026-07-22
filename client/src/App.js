@@ -17,7 +17,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PaletteIcon from '@mui/icons-material/Palette';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useDynamicFavicon } from './hooks/useDynamicFavicon';
-import { ADMIN, ACCOUNTANT, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
+import { ADMIN, ACCOUNTANT, RECEPTION, userHasRole, canSeeRoute, canSeeAnyRoute } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
 import UserManagementPage from './pages/UserManagementPage';
@@ -688,13 +688,21 @@ function AppShell() {
   // browser's aggressive favicon cache via a version-keyed buster.
   useDynamicFavicon({ refreshKey: user && user.id });
 
-  // Accountants are confined to /comptabilite and /account (the server already 403s every other
-  // endpoint, but we redirect at the client so they don't see empty shells). Multi-role users who
-  // also hold admin keep the full app.
+  // Non-admin roles are confined client-side to their allowed surface (the server already 403s every
+  // other endpoint, but we redirect so they don't see empty shells). A user who also holds admin
+  // keeps the full app. Combined non-admin roles get the union of their allowed paths.
+  // - Accountant → /comptabilite* + /account (specs/admin-account-management.md).
+  // - Reception  → / + /planning + /account (specs/reception-role-checkin-only.md).
   useEffect(() => {
-    if (!user || !userHasRole(user, ACCOUNTANT) || userHasRole(user, ADMIN)) return;
-    const allowed = location.pathname.startsWith('/comptabilite') || location.pathname === '/account';
-    if (!allowed) navigate('/comptabilite', { replace: true });
+    if (!user || userHasRole(user, ADMIN)) return;
+    const isAccountant = userHasRole(user, ACCOUNTANT);
+    const isReception = userHasRole(user, RECEPTION);
+    if (!isAccountant && !isReception) return;
+    const path = location.pathname;
+    const allowed = (isAccountant && (path.startsWith('/comptabilite') || path === '/account'))
+      || (isReception && (path === '/' || path === '/planning' || path === '/account'));
+    if (allowed) return;
+    navigate(isReception ? '/' : '/comptabilite', { replace: true });
   }, [user, location.pathname, navigate]);
 
   useEffect(() => {

@@ -24,6 +24,8 @@ import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import { useToast } from '../components/DialogProvider';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
+import { useAuth } from '../hooks/useAuth';
+import { ADMIN, RECEPTION, userHasRole } from '../constants/roles';
 import api from '../api';
 
 function addDays(dateStr, n) {
@@ -58,6 +60,11 @@ const arrivalPaymentText = (r) => (r.paymentComplete
 export default function Dashboard() {
   const navigate = useNavigate();
   const { showError } = useToast();
+  const { user } = useAuth();
+  // specs/reception-role-checkin-only.md §3.3 — a reception-only user gets a reduced, finance-free
+  // home: arrivals/departures lists only (no Paiements column, no KPI tiles, no admin alert banners,
+  // no month calendar). A row tap opens the SAS on the Planning via the deep-link.
+  const isReceptionOnly = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN);
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -139,6 +146,13 @@ export default function Dashboard() {
   const todayStr = new Date().toISOString().split('T')[0];
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
+  // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
+  const openArrival = (r) => (isReceptionOnly
+    ? navigate(`/planning?sas=arrival&reservationId=${r.id}`)
+    : openReservation(r));
+  const openDeparture = (r) => (isReceptionOnly
+    ? navigate(`/planning?sas=departure&reservationId=${r.id}`)
+    : openReservation(r));
 
   // Date cluster — rendered in the bar `center` on sm+ and as a compact strip under the bar on xs
   // (PageActionBar hides `center` on xs). specs/ds-sweep-planning.md rule 1.
@@ -189,7 +203,7 @@ export default function Dashboard() {
       <TableCell sx={{ fontWeight: 600 }}>Lits à préparer</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
+      {!isReceptionOnly && <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>}
       <TableCell sx={{ fontWeight: 600 }}>Caution</TableCell>
     </TableRow>
   );
@@ -202,7 +216,7 @@ export default function Dashboard() {
         key={r.id}
         hover
         sx={(t) => ({ ...statusBgSx(t, r.checkInDone, r.checkInReady), cursor: 'pointer' })}
-        onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openReservation(r); }}
+        onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openArrival(r); }}
       >
         <TableCell padding="checkbox">
           {checkboxCell('Logement prêt', !!r.checkInReady, () => handleToggleStatus(r, 'checkInReady', setArrivalsToday), { color: 'success.main', '&.Mui-checked': { color: 'success.main' } })}
@@ -218,9 +232,11 @@ export default function Dashboard() {
         </TableCell>
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
-        <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-          {arrivalPaymentText(r)}
-        </TableCell>
+        {!isReceptionOnly && (
+          <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+            {arrivalPaymentText(r)}
+          </TableCell>
+        )}
         <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
           {Number(r.cautionAmount || 0) > 0
             ? (cautionOk ? `OK (${formatCurrency(r.cautionAmount)})` : `NON (${formatCurrency(r.cautionAmount)})`)
@@ -254,9 +270,11 @@ export default function Dashboard() {
             <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
           )}
           {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
-          <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-            {arrivalPaymentText(r)}
-          </Typography>
+          {!isReceptionOnly && (
+            <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+              {arrivalPaymentText(r)}
+            </Typography>
+          )}
           {Number(r.cautionAmount || 0) > 0 && (
             <Typography variant="caption" sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
               Caution {cautionOk ? 'OK' : 'NON'} ({formatCurrency(r.cautionAmount)})
@@ -275,7 +293,7 @@ export default function Dashboard() {
       <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>
+      {!isReceptionOnly && <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>}
     </TableRow>
   );
 
@@ -286,7 +304,7 @@ export default function Dashboard() {
         key={r.id}
         hover
         sx={(t) => ({ ...statusBgSx(t, r.checkOutDone), cursor: 'pointer' })}
-        onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openReservation(r); }}
+        onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openDeparture(r); }}
       >
         <TableCell padding="checkbox">
           {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
@@ -296,9 +314,11 @@ export default function Dashboard() {
         <TableCell>{r.firstName} {r.lastName}</TableCell>
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
-        <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-          {paymentOk ? 'OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
-        </TableCell>
+        {!isReceptionOnly && (
+          <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+            {paymentOk ? 'OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
+          </TableCell>
+        )}
       </TableRow>
     );
   };
@@ -321,9 +341,11 @@ export default function Dashboard() {
             <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
           )}
           {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
-          <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-            {paymentOk ? 'Paiements OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
-          </Typography>
+          {!isReceptionOnly && (
+            <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
+              {paymentOk ? 'Paiements OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
+            </Typography>
+          )}
         </Stack>
       </Box>
     );
@@ -337,24 +359,30 @@ export default function Dashboard() {
         {renderDateNav()}
       </Box>
 
-      {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
-          contained: renders nothing when no shortage is projected. */}
-      <LinenShortageAlert />
-      {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
-          Self-contained: renders nothing when no pending drift exists. */}
-      <IcalDateDriftAlert />
-      {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
-          contained: renders nothing when no pending cancellation exists. */}
-      <IcalCancellationAlert />
-      {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
-          notification; renders nothing when nothing was imported today. */}
-      <IcalNewReservationsAlert />
-      {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
-          nothing when no manual email is pending. */}
-      <EmailPendingAlert />
-      {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
-          Self-contained: renders nothing when there is no pending website request. */}
-      <DevisPublicRequestAlert />
+      {/* Admin operational banners — hidden for the reception role (they drive admin-only workflows
+          like iCal approvals, the manual email queue, and website booking requests). */}
+      {!isReceptionOnly && (
+        <>
+          {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
+              contained: renders nothing when no shortage is projected. */}
+          <LinenShortageAlert />
+          {/* iCal locked-date drift approvals (specs/ical-sync-override-locked-dates.md §6.1).
+              Self-contained: renders nothing when no pending drift exists. */}
+          <IcalDateDriftAlert />
+          {/* iCal cancellation approvals (specs/ical-cancellation-approval.md §6.1). Self-
+              contained: renders nothing when no pending cancellation exists. */}
+          <IcalCancellationAlert />
+          {/* New iCal reservations imported today (specs/dashboard-ical-new-reservations.md). Read-only
+              notification; renders nothing when nothing was imported today. */}
+          <IcalNewReservationsAlert />
+          {/* Manual email queue (specs/email-automation.md §6.2). Self-contained: renders
+              nothing when no manual email is pending. */}
+          <EmailPendingAlert />
+          {/* Site-origin devis pending handling (specs/site-booking-notifications.md §3 rule 5).
+              Self-contained: renders nothing when there is no pending website request. */}
+          <DevisPublicRequestAlert />
+        </>
+      )}
 
       {loadError ? (
         <ErrorAlert message="Impossible de charger le tableau de bord." onRetry={() => setReloadNonce((n) => n + 1)} sx={{ mb: 3 }} />
@@ -362,7 +390,8 @@ export default function Dashboard() {
         <LoadingState label="Chargement du tableau de bord…" />
       ) : (
         <>
-          {/* Summary cards — neutral « Maison » KPI tiles */}
+          {/* Summary cards — neutral « Maison » KPI tiles (admin only; reception sees just the lists) */}
+          {!isReceptionOnly && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {kpiCards.map((c) => {
               const Icon = c.icon;
@@ -391,6 +420,7 @@ export default function Dashboard() {
               );
             })}
           </Grid>
+          )}
 
           {/* Daily arrivals / departures */}
           <Stack spacing={3} sx={{ mb: 3 }}>
@@ -404,7 +434,7 @@ export default function Dashboard() {
                 head={arrivalsHead}
                 renderRow={renderArrivalRow}
                 renderMobileCard={renderArrivalCard}
-                onItemClick={openReservation}
+                onItemClick={openArrival}
               />
             </Box>
 
@@ -418,17 +448,22 @@ export default function Dashboard() {
                 head={departuresHead}
                 renderRow={renderDepartureRow}
                 renderMobileCard={renderDepartureCard}
-                onItemClick={openReservation}
+                onItemClick={openDeparture}
               />
             </Box>
           </Stack>
 
-          {/* Cumulative month calendar — the SAME component as the Calendrier page (no duplication). */}
-          <Divider sx={{ my: 3 }} />
-          <CumulativeMonthCalendar
-            onReservationClick={(id) => navigate(withFrom(`/reservations/${id}`, '/'))}
-            onCreateReservation={(startDate) => navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/'))}
-          />
+          {/* Cumulative month calendar — the SAME component as the Calendrier page (no duplication).
+              Hidden for reception (finance-free home is arrivals/departures only, §3.3). */}
+          {!isReceptionOnly && (
+            <>
+              <Divider sx={{ my: 3 }} />
+              <CumulativeMonthCalendar
+                onReservationClick={(id) => navigate(withFrom(`/reservations/${id}`, '/'))}
+                onCreateReservation={(startDate) => navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/'))}
+              />
+            </>
+          )}
         </>
       )}
     </Box>
