@@ -427,6 +427,9 @@ export default function CalendarDayCell({
         height: 64, boxSizing: 'border-box',
         cursor: 'pointer', fontSize: 14, fontWeight: 600,
         background: gradient || 'grey.100',
+        // Clip the gradient to the padding box so the colored fill never bleeds under the
+        // translucent divider border and shows through it as a colored rim.
+        backgroundClip: 'padding-box',
         border: (t) => (dateStr === today ? `3px solid ${t.palette.primary.main}` : `1px solid ${t.palette.divider}`),
         color: 'text.primary', overflow: 'hidden',
         opacity: isPast ? 0.5 : 1,
