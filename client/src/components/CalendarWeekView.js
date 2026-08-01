@@ -153,7 +153,7 @@ export default function CalendarWeekView({
           {summary.departure && (
             <EventLine
               color={getReservationColor(summary.departure.platform)}
-              icon="↓"
+              icon="↑"
               primary={`Départ — ${compactName(summary.departure.firstName, summary.departure.lastName)}`}
               secondary={`${summary.departure.checkOutTime || '10:00'} · ${summary.departure.platform || ''}`}
               onClick={() => onReservationClick(summary.departure.id)}
@@ -162,7 +162,7 @@ export default function CalendarWeekView({
           {summary.arrival && (
             <EventLine
               color={getReservationColor(summary.arrival.platform)}
-              icon="↑"
+              icon="↓"
               primary={`Arrivée — ${compactName(summary.arrival.firstName, summary.arrival.lastName)}`}
               secondary={`${summary.arrival.checkInTime || '15:00'} · ${summary.arrival.platform || ''}`}
               onClick={() => onReservationClick(summary.arrival.id)}
@@ -182,7 +182,7 @@ export default function CalendarWeekView({
               key={`devis-${devis.id}-${kind}`}
               color="grey.400"
               faded
-              icon={kind === 'arrival' ? '↑' : kind === 'departure' ? '↓' : '•'}
+              icon={kind === 'arrival' ? '↓' : kind === 'departure' ? '↑' : '•'}
               primary={`Devis — ${compactName(devis.firstName, devis.lastName)}`}
               secondary={devis.platform || ''}
               onClick={() => onDevisClick(devis.id)}
