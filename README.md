@@ -776,14 +776,64 @@ database.** This provides protection against database compromise.
     - Copy the `.env.local` from the first instance to others, **OR**
     - Set the same `ENCRYPTION_KEY` environment variable on all instances
 
-### 4. Environment Variables
+### 4. Email deliverability — SPF / DKIM / DMARC (Google Workspace)
+
+GuestFlow sends transactional email (quotes, payment requests, notifications) through the SMTP
+relay configured in **Settings**. In production the `From` address is on **your Workspace domain**
+(e.g. `domainesolio.com`) and the mail is relayed by Google. Strict receivers — **Yahoo, and Gmail
+for bulk senders** — reject mail that is **not DKIM-signed, even when SPF passes**:
+
+```
+550 5.7.9 This mail has been blocked because the sender is unauthenticated.
+Yahoo requires this sender to authenticate with DKIM. SPF alone is not sufficient.
+```
+
+This is **not** an application bug — the app signs nothing itself. It's a **one-time DNS setup on
+the sending domain**: Google Workspace only DKIM-signs outgoing mail once you generate the key in
+the Admin Console **and** publish the matching DNS record.
+
+**Check the current state** (replace the domain):
+
+```bash
+dig +short google._domainkey.domainesolio.com TXT   # DKIM  — empty = NOT set up (cause of the Yahoo block)
+dig +short domainesolio.com TXT | grep -i spf       # SPF   — should include _spf.google.com
+dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
+```
+
+**Step 1 — Enable DKIM (this is what unblocks Yahoo):**
+1. **Google Admin Console** (admin.google.com) → **Apps → Google Workspace → Gmail → Authenticate email**
+2. Select the domain → **Generate new record** — key length **2048**, selector prefix `google`
+3. Copy the TXT record shown: host `google._domainkey`, value `v=DKIM1; k=rsa; p=…`
+4. Publish it in DNS (Squarespace steps below), wait for propagation
+5. Return to the Admin Console → **Start authentication** (the button activates once the record is visible)
+
+**Step 2 — Publish DMARC** (required by Gmail/Yahoo sender rules; start in monitor mode):
+- Host `_dmarc`, TXT value: `v=DMARC1; p=none; rua=mailto:postmaster@domainesolio.com`
+- Later tighten `p=none` → `p=quarantine` → `p=reject` once DKIM + SPF are confirmed aligned.
+
+**Publishing a TXT record at Squarespace (ex-Google Domains):**
+1. **Squarespace Domains** dashboard → select the domain → **DNS** / **DNS Settings**
+2. **Add record** → Type **TXT**
+3. **Host / Name**: `google._domainkey` (Squarespace appends the domain automatically — do **not** type the full FQDN)
+4. **Value / Data**: paste the full `v=DKIM1; …` string from the Admin Console
+5. Save. Repeat for the `_dmarc` record.
+
+**Verify after propagation** (usually minutes):
+
+```bash
+dig +short google._domainkey.domainesolio.com TXT   # now returns the v=DKIM1 key
+```
+
+Send a test to a Yahoo address — the `550 5.7.9` block disappears as soon as DKIM signs the mail.
+
+### 5. Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|----------|
 | `PORT`   | Express server port | `4000` |
 | `REACT_APP_API_URL` | API URL (client build) | `/api` |
 
-### 5. Deployment with a Process Manager (Optional)
+### 6. Deployment with a Process Manager (Optional)
 
 For a robust production setup, use PM2:
 
