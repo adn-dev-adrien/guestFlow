@@ -9,10 +9,12 @@ import {
   Select, MenuItem, Button, TextField, IconButton, Tooltip,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import ReplayIcon from '@mui/icons-material/Replay';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DataPageScaffold from '../components/DataPageScaffold';
 import StatusBadge from '../components/StatusBadge';
 import EmailLogViewDialog from '../components/EmailLogViewDialog';
+import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import api from '../api';
 import { displayDateTime } from '../utils/formatters';
 
@@ -41,6 +43,7 @@ export default function EmailHistoryPage() {
   const [templateFilter, setTemplateFilter] = useState('');
   const [reservationIdFilter, setReservationIdFilter] = useState('');
   const [viewing, setViewing] = useState(null);
+  const [resending, setResending] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -143,6 +146,18 @@ export default function EmailHistoryPage() {
                   <VisibilityIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
+              <Tooltip title={r.templateId ? 'Renvoyer cet email' : 'Modèle supprimé — renvoi impossible'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    aria-label="Renvoyer cet email"
+                    disabled={!r.templateId}
+                    onClick={() => setResending(r)}
+                  >
+                    <ReplayIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
             </TableCell>
           </TableRow>
         ))}
@@ -162,6 +177,15 @@ export default function EmailHistoryPage() {
         open={!!viewing}
         row={viewing}
         onClose={() => setViewing(null)}
+      />
+
+      <EmailManualSendDialog
+        open={!!resending}
+        reservationId={resending?.reservationId}
+        reservationStartDate={resending?.reservationStartDate}
+        defaultTemplateId={resending?.templateId}
+        onClose={() => setResending(null)}
+        onSent={() => { setResending(null); reload(); }}
       />
     </Box>
   );
