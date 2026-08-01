@@ -8,7 +8,7 @@ const reservationsModel = require('../models/reservationsModel');
 // Matching + shaping + cap are all server-side (fat backend).
 
 const DDL = `
-  CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT);
+  CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, email TEXT);
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
@@ -20,8 +20,8 @@ function freshModel() {
   const db = new Database(':memory:');
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte du Lac')").run();
-  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Dupont')").run();
-  db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (2, 'Marie', 'Martin')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Jean', 'Dupont', 'jean.dupont@example.com')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (2, 'Marie', 'Martin', 'marie.martin@example.com')").run();
   return { db, model: reservationsModel.create(db) };
 }
 
@@ -58,6 +58,15 @@ test('matches by first name, last name, and both orders (case-insensitive)', () 
   assert.equal(model.search({ q: 'DUPONT' })[0].id, id);
   assert.equal(model.search({ q: 'jean dupont' })[0].id, id);
   assert.equal(model.search({ q: 'dupont jean' })[0].id, id);
+});
+
+test('matches by email (fragment, case-insensitive)', () => {
+  const { db, model } = freshModel();
+  const id = addRes(db, { reservationNumber: '2026-07-001', clientId: 1 }); // jean.dupont@example.com
+  assert.equal(model.search({ q: 'jean.dupont@example.com' })[0].id, id);
+  assert.equal(model.search({ q: 'JEAN.DUPONT@EXAMPLE' })[0].id, id);
+  assert.equal(model.search({ q: '@example.com' }).length, 1); // only client 1 has a reservation
+  assert.equal(model.search({ q: 'marie.martin' }).length, 0); // client 2 has no reservation
 });
 
 test('does not match an unrelated client', () => {
