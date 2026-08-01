@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Card, CardContent, Typography, Stack, TextField } from '@mui/material';
+import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
 
 /**
@@ -23,6 +24,7 @@ export default function GuestsBedsSection() {
     exceedsAdultsCapacity, exceedsChildrenCapacity, exceedsBabiesCapacity, exceedsTotalCapacity,
     totalGuestsCount, totalGuestsMax,
     maxBabyBedsByRule, remainingBabyBeds,
+    isReservationLocked,
   } = useReservationForm();
 
   const showBabyBed = Number(form.babies || 0) > 0;
@@ -89,19 +91,16 @@ export default function GuestsBedsSection() {
 
           {showBabyBed && (
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-              <TextField
+              <QuantityField
                 label="Lits bébé"
-                type="number"
+                min={0}
+                max={maxBabyBedsByRule}
+                allowEmpty
                 value={form.babyBeds}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '') { updateForm({ babyBeds: '' }); return; }
-                  const n = Math.max(0, Number(val));
-                  updateForm({ babyBeds: Math.min(n, maxBabyBedsByRule) });
-                }}
+                onCommit={(v) => updateForm({ babyBeds: v })}
                 fullWidth
                 helperText={`Dispo restante: ${remainingBabyBeds === null ? '...' : remainingBabyBeds}`}
-                slotProps={{ htmlInput: { min: 0, max: maxBabyBedsByRule } }}
+                disabled={isReservationLocked}
               />
             </Box>
           )}

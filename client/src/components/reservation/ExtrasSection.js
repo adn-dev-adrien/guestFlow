@@ -8,6 +8,7 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArithmeticTextField from '../ArithmeticTextField';
+import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
 import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences';
 import { enumerateStayDates, timeOptions, toMinutes, minutesToTime } from '../../utils/resourceSessions';
@@ -228,25 +229,29 @@ function BedLinenInputsBlock() {
         {/* "Lits bébé" lives in the Voyageurs card (shown whenever babies > 0), not here —
             specs/bed-config-in-linen-card.md §10 follow-up (2026-06-08). */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-          <TextField
+          <QuantityField
             label="Lits doubles"
-            type="number"
+            min={0}
+            max={maxDoubleBeds ?? undefined}
+            allowEmpty
             value={form.doubleBeds}
-            onChange={(e) => updateForm({ doubleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+            onCommit={(v) => updateForm({ doubleBeds: v })}
             fullWidth
             error={bedsCapacityMismatch || exceedsDoubleBedsLimit}
             helperText={exceedsDoubleBedsLimit ? `Maximum logement: ${maxDoubleBeds}` : ''}
-            slotProps={{ htmlInput: { min: 0, max: maxDoubleBeds ?? undefined } }}
+            disabled={isReservationLocked}
           />
-          <TextField
+          <QuantityField
             label="Lits simples"
-            type="number"
+            min={0}
+            max={maxSingleBeds ?? undefined}
+            allowEmpty
             value={form.singleBeds}
-            onChange={(e) => updateForm({ singleBeds: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+            onCommit={(v) => updateForm({ singleBeds: v })}
             fullWidth
             error={bedsCapacityMismatch || exceedsSingleBedsLimit}
             helperText={exceedsSingleBedsLimit ? `Maximum logement: ${maxSingleBeds}` : ''}
-            slotProps={{ htmlInput: { min: 0, max: maxSingleBeds ?? undefined } }}
+            disabled={isReservationLocked}
           />
         </Box>
         <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
@@ -391,16 +396,14 @@ export default function ExtrasSection() {
                             {opt.showsPlanningCard ? (
                               <Box sx={{ flex: 1 }} />
                             ) : (
-                              <TextField
+                              <QuantityField
                                 size="small"
-                                type="number"
                                 label="Qté"
+                                min={1}
                                 value={selected ? toDisplayedQuantity(selected.quantity, opt.priceType) : getQuantityMultiplier(opt.priceType)}
-                                onChange={(e) => setOptionQuantity(opt.id, toBaseQuantity(e.target.value, opt.priceType))}
-                                sx={{ width: { xs: '100%', sm: 'auto' } }}
-                                slotProps={{
-                                  htmlInput: { min: 1 }
-                                }}
+                                onCommit={(v) => setOptionQuantity(opt.id, toBaseQuantity(v, opt.priceType))}
+                                disabled={isReservationLocked}
+                                sx={{ width: { xs: '100%', sm: 180 } }}
                               />
                             )}
                             <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -650,20 +653,17 @@ export default function ExtrasSection() {
                               {isHourlyScheduled ? (
                                 <Box sx={{ flex: 1 }} />
                               ) : (
-                                <TextField
+                                <QuantityField
                                   size="small"
-                                  type="number"
                                   label={isPerHour ? 'Heures' : 'Qté'}
+                                  min={1}
+                                  max={isPerHour ? undefined : (resource.available || 0) * getQuantityMultiplier(resource.priceType)}
                                   value={selected ? toDisplayedQuantity(selected.quantity, resource.priceType) : getQuantityMultiplier(resource.priceType)}
-                                  onChange={(e) => setResourceQuantity(resource.id, toBaseQuantity(e.target.value, resource.priceType))}
+                                  onCommit={(v) => setResourceQuantity(resource.id, toBaseQuantity(v, resource.priceType))}
                                   error={resourceConflict}
                                   helperText={resourceConflict ? 'Ressource non dispo sur ces dates' : (isPerHour ? 'La quantité correspond au nombre d\'heures.' : '')}
-                                  sx={{ width: { xs: '100%', sm: 'auto' } }}
-                                  slotProps={{
-                                    htmlInput: isPerHour
-                                      ? { min: 1, step: 1 }
-                                      : { min: 1, max: (resource.available || 0) * getQuantityMultiplier(resource.priceType) }
-                                  }}
+                                  disabled={isReservationLocked}
+                                  sx={{ width: { xs: '100%', sm: 200 } }}
                                 />
                               )}
                               <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, alignItems: 'center', justifyContent: 'flex-end' }}>
