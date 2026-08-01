@@ -35,12 +35,23 @@ test('matches the accent-less "Menage" title too', () => {
   assert.equal(db.prepare("SELECT autoOptionType FROM options WHERE title='Menage'").get().autoOptionType, 'cleaning');
 });
 
-test('idempotent: a second run is a no-op once a cleaning option exists', () => {
+test('idempotent: a second run is a no-op once everything is tagged', () => {
   const db = freshDb();
   db.prepare("INSERT INTO options (title, autoOptionType) VALUES ('Ménage', NULL)").run();
   ensureCleaningOptionTagged(db, { logger: SILENT });
   const r2 = ensureCleaningOptionTagged(db, { logger: SILENT });
-  assert.equal(r2.action, 'skipped-already-tagged');
+  assert.equal(r2.action, 'noop-no-match');
+});
+
+test('tags a duplicate "Ménage" created after a first one was already tagged', () => {
+  const db = freshDb();
+  db.prepare("INSERT INTO options (title, autoOptionType) VALUES ('Ménage', 'cleaning')").run();
+  db.prepare("INSERT INTO options (title, autoOptionType) VALUES ('Ménage', '')").run();
+  const r = ensureCleaningOptionTagged(db, { logger: SILENT });
+  assert.equal(r.action, 'tagged');
+  assert.equal(r.count, 1);
+  const untyped = db.prepare("SELECT COUNT(*) AS n FROM options WHERE title='Ménage' AND (autoOptionType IS NULL OR autoOptionType='')").get().n;
+  assert.equal(untyped, 0);
 });
 
 test('leaves an already-typed Ménage untouched (does not overwrite)', () => {
