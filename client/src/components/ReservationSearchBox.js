@@ -35,7 +35,7 @@ function formatStayRange(startIso, endIso) {
   return `${start} → ${end}`;
 }
 
-export default function ReservationSearchBox({ onSelect, placeholder = 'Rechercher une réservation (n°, nom, prénom)…', sx, autoFocus = false }) {
+export default function ReservationSearchBox({ onSelect, placeholder = 'Rechercher une réservation (n°, nom, prénom, email)…', sx, autoFocus = false }) {
   const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
