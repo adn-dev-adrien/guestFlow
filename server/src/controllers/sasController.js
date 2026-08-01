@@ -8,6 +8,7 @@
 
 const db = require('../database');
 const reservationsModel = require('../models/reservationsModel');
+const { isCleaningOption } = require('../utils/cleaningOption');
 const linenItemsModel = require('../models/linenItemsModel');
 const settingsModel = require('../models/settingsModel');
 const breakfastModel = require('../models/breakfastModel');
@@ -30,7 +31,11 @@ function getSas(req, res) {
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
 
   const options = reservation.options || [];
-  const cleaningIncluded = options.some((o) => o.autoOptionType === 'cleaning')
+  // Cleaning is "included" when a booked option is the cleaning (by `autoOptionType='cleaning'` tag
+  // OR by name « ménage » — same rule as the J-1 email, see utils/cleaningOption.js), OR the property
+  // offers cleaning by default. Name-matching also covers hand-created / custom "Ménage" options that
+  // carry no tag — otherwise the SAS would re-ask for cleaning the guest already booked.
+  const cleaningIncluded = options.some(isCleaningOption)
     || propertyHasDefault(reservation.propertyId, 'cleaning');
   const cleaningPrice = reservationsModel.getCleaningPriceForProperty(reservation.propertyId);
   const settings = settingsModel.read();

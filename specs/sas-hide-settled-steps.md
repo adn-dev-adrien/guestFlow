@@ -23,9 +23,10 @@ single-purpose pages. Two of them stay visible even when there is nothing left t
   pre-ticked — noise, since the caution is already settled.
 - **Ménage.** The cleaning page is **always** in the arrival key list
   ([`ReservationSasDialog.js:306`](../client/src/components/sas/ReservationSasDialog.js#L306)).
-  When the cleaning is already included (a `autoOptionType='cleaning'` option on the reservation, or
-  a property default), the page only shows an informational *« ✅ Le ménage est inclus »* screen with
-  no action — pure noise in the flow.
+  When the cleaning is already included (a cleaning option on the reservation — detected the same way
+  as the J-1 email, by `autoOptionType='cleaning'` tag **or** by the option name containing « ménage »,
+  see [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js) — or a property default), the
+  page only shows an informational *« ✅ Le ménage est inclus »* screen with no action — pure noise.
 
 There is no online caution payment: `cautionReceived` is set only by the SAS itself or by the
 reservation fiche. So « caution déjà payée » always means `cautionReceived = 1`.
@@ -49,8 +50,9 @@ lost.
    so the server **leaves the received marker untouched**. No value is changed by hiding the page;
    a received caution stays received.
 3. **Arrival ménage page — hidden whenever included.** The arrival `cleaning` step is dropped from
-   the key list when `cleaning.included` is true (reservation carries a `autoOptionType='cleaning'`
-   option, or the property offers cleaning as a default). When cleaning is **not** included, the page
+   the key list when `cleaning.included` is true (reservation carries a cleaning option — matched by
+   `autoOptionType='cleaning'` tag **or** by name « ménage », see [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js)
+   — or the property offers cleaning as a default). When cleaning is **not** included, the page
    still appears so the operator can offer / add the ménage (unchanged).
 4. **Client reminder moves to the recap.** The reminder previously shown on the included-ménage page
    (*« Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées. »*) is
@@ -87,7 +89,10 @@ lost.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| — | — | — | **No server change.** `getSas` already returns `cleaning.included` and `reservation.cautionReceived`; the commit tri-state already handles a hidden caution page. |
+| — | — | — | Original change: no server change — `getSas` already returned `cleaning.included` and `reservation.cautionReceived`. |
+| controllers | `controllers/sasController.js` | T | **2026-08-01 fix.** `getSas` computes `cleaning.included` via the shared `isCleaningOption` helper (tag or name « ménage »), replacing the tag-only `some(o => o.autoOptionType === 'cleaning')`. |
+| utils | `utils/cleaningOption.js` | C | **2026-08-01 fix.** New shared helper — single source of truth for "is this option the cleaning?", consumed by both `sasController` and `emailContextBuilder`. |
+| utils | `utils/cleaningOptionSeed.js` | T | **2026-08-01 fix.** Dropped the `alreadyTagged` early-return so a duplicate untyped « Ménage » is promoted too (idempotent UPDATE). |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -165,3 +170,10 @@ No schema change. No migration. No data impact.
   arrival caution.
 - **Resolved 2026-07-03 (AskUserQuestion):** the included-ménage client reminder (vaisselle/poubelles)
   is **kept, moved to the recap** rather than dropped with the page.
+- **Resolved 2026-08-01 (bug fix):** the ménage page reappeared even when the guest had booked cleaning.
+  Root cause = detection relied solely on the `autoOptionType='cleaning'` tag, and a second operator
+  « Ménage » option (untagged) was never promoted by the boot seed (a stale `alreadyTagged` early-return
+  bailed once the first « Ménage » was tagged). Fix (server): (1) `getSas` now detects cleaning via the
+  shared [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js) helper — tag **or** name
+  « ménage », same rule as the J-1 email; (2) [`cleaningOptionSeed.js`](../server/src/utils/cleaningOptionSeed.js)
+  dropped the early-return so it tags **every** untyped « Ménage » on each boot (still idempotent).
