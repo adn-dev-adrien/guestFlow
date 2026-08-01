@@ -8,6 +8,7 @@ const {
   normalizeDateRanges,
   getBoundsFromDateRanges,
   parseRuleDateRanges,
+  addDaysToIsoDate,
   normalizeProgressiveTiers,
   grossFromNet,
 } = require('../utils/pricing');
@@ -28,6 +29,120 @@ const VALID_NAME_ARTICLES = ['au', 'à la', "à l'", 'aux'];
 function normalizeNameArticle(value) {
   const v = String(value || '').trim();
   return VALID_NAME_ARTICLES.includes(v) ? v : 'au';
+}
+
+// A per-range `minNights` is only stored when it OVERRIDES the season default; a value equal to the
+// season-level `minNights` is dropped so the range simply inherits (specs/pricing-min-nights-per-range.md).
+function stripRangeMinEqualToDefault(ranges, seasonMinNights) {
+  const seasonMin = Math.max(1, Number(seasonMinNights || 1));
+  return (ranges || []).map((range) => {
+    if (Number(range?.minNights) === seasonMin) {
+      const { minNights, ...rest } = range;
+      return rest;
+    }
+    return range;
+  });
+}
+
+// Carve a selected period [selStart, selEnd] out of every season's date ranges and (re)attach it to a
+// target season with its own `minNights` — the engine of the "calendar season painting" feature
+// (specs/pricing-min-nights-per-range.md). PURE (no DB) so it is unit-testable.
+//
+//   rules     : raw pricing_rules rows (id, label, pricePerNight, pricingMode, progressiveTiers,
+//               dateRanges JSON, color, minNights, …)
+//   selection : { startDate, endDate, minNights, target } where target is
+//               { mode:'existing', ruleId } | { mode:'new', label, color, pricePerNight, pricingMode }
+//
+// Returns { updatedRules:[{id,dateRanges,startDate,endDate}], deletedRuleIds:[id], newRule|null }.
+// A range fully containing the period is split into the two surrounding sub-ranges (kept on the same
+// season, each preserving its own min); a season emptied by the carve is flagged for deletion. Seasons
+// with no explicit ranges (legacy catch-all) are left untouched. Disjointness across seasons is
+// preserved because the period is removed from every season before being re-attached to the target.
+function computeDateRangeAssignment(rules, selection) {
+  const { startDate: selStart, endDate: selEnd, minNights, target } = selection;
+  const dayBefore = (iso) => addDaysToIsoDate(iso, -1);
+  const dayAfter = (iso) => addDaysToIsoDate(iso, 1);
+  const rangeKeyMin = (range) => (range && range.minNights != null ? Number(range.minNights) : null);
+
+  // Merge overlapping/adjacent ranges that carry the SAME per-range min (absent === absent).
+  const mergeRanges = (ranges) => {
+    const sorted = ranges
+      .filter((r) => r.startDate && r.endDate)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    const out = [];
+    for (const r of sorted) {
+      const prev = out[out.length - 1];
+      if (prev && rangeKeyMin(prev) === rangeKeyMin(r) && r.startDate <= dayAfter(prev.endDate)) {
+        if (r.endDate > prev.endDate) prev.endDate = r.endDate;
+      } else {
+        out.push({ ...r });
+      }
+    }
+    return out;
+  };
+
+  // Remove [selStart, selEnd] from a single range, keeping the surrounding parts (with their own min).
+  const carveRange = (r) => {
+    if (r.endDate < selStart || r.startDate > selEnd) return [r];
+    const parts = [];
+    const carryMin = r.minNights != null ? { minNights: Number(r.minNights) } : {};
+    if (r.startDate <= dayBefore(selStart)) {
+      parts.push({ startDate: r.startDate, endDate: dayBefore(selStart), ...carryMin });
+    }
+    if (dayAfter(selEnd) <= r.endDate) {
+      parts.push({ startDate: dayAfter(selEnd), endDate: r.endDate, ...carryMin });
+    }
+    return parts;
+  };
+
+  const targetRuleId = target.mode === 'existing' ? Number(target.ruleId) : null;
+  const updatedRules = [];
+  const deletedRuleIds = [];
+  let newRule = null;
+
+  for (const rule of rules) {
+    const originalRanges = parseRuleDateRanges(rule);
+    if (!originalRanges.length) continue; // legacy catch-all season — never carved nor deleted
+
+    const isTarget = targetRuleId != null && Number(rule.id) === targetRuleId;
+    let ranges = originalRanges.flatMap(carveRange);
+    if (isTarget) {
+      const seasonDefaultMin = Math.max(1, Number(rule.minNights || 1));
+      const attached = { startDate: selStart, endDate: selEnd };
+      if (Number(minNights) !== seasonDefaultMin) attached.minNights = Number(minNights);
+      ranges.push(attached);
+    }
+    ranges = mergeRanges(ranges);
+
+    if (!ranges.length) {
+      deletedRuleIds.push(Number(rule.id));
+      continue;
+    }
+    const normalized = normalizeDateRanges(ranges);
+    if (!isTarget && JSON.stringify(normalized) === JSON.stringify(normalizeDateRanges(originalRanges))) {
+      continue; // carve did not touch this season
+    }
+    const bounds = getBoundsFromDateRanges(normalized);
+    updatedRules.push({ id: Number(rule.id), dateRanges: normalized, startDate: bounds.startDate, endDate: bounds.endDate });
+  }
+
+  if (target.mode === 'new') {
+    const normalized = normalizeDateRanges([{ startDate: selStart, endDate: selEnd }]);
+    const bounds = getBoundsFromDateRanges(normalized);
+    newRule = {
+      label: target.label,
+      color: target.color,
+      pricePerNight: Number(target.pricePerNight || 0),
+      pricingMode: target.pricingMode || 'fixed',
+      progressiveTiers: target.progressiveTiers || [],
+      dateRanges: normalized,
+      startDate: bounds.startDate,
+      endDate: bounds.endDate,
+      minNights: Math.max(1, Number(minNights || 1)),
+    };
+  }
+
+  return { updatedRules, deletedRuleIds, newRule };
 }
 
 function createPropertiesModel(database) {
@@ -303,7 +418,7 @@ function createPropertiesModel(database) {
 
     addPricingRule(propertyId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
-      const normalizedDateRanges = normalizeDateRanges(dateRanges, startDate, endDate);
+      const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
       const normalizedProgressiveTiers = pricingMode === 'progressive'
         ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
         : [];
@@ -336,7 +451,7 @@ function createPropertiesModel(database) {
 
     updatePricingRule(propertyId, ruleId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
-      const normalizedDateRanges = normalizeDateRanges(dateRanges, startDate, endDate);
+      const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
       const normalizedProgressiveTiers = pricingMode === 'progressive'
         ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
         : [];
@@ -449,6 +564,77 @@ function createPropertiesModel(database) {
       return { data: { ok: true, copiedRules: normalizedSourceRules.length, replaceExisting } };
     },
 
+    // Calendar season painting (specs/pricing-min-nights-per-range.md): carve a selected period out of
+    // every season and (re)attach it to a target season (existing or new) with its own minimum nights.
+    // All the date-range algebra is the pure `computeDateRangeAssignment`; here we validate + persist.
+    assignDateRangeToSeason(propertyId, body = {}) {
+      const pid = Number(propertyId);
+      const startDate = String(body.startDate || '');
+      const endDate = String(body.endDate || '');
+      const minNights = Math.floor(Number(body.minNights));
+      const target = body.target || {};
+      const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+      if (!ISO.test(startDate) || !ISO.test(endDate)) return { error: 'Dates invalides.', status: 400 };
+      if (startDate > endDate) return { error: 'La date de début doit précéder la date de fin.', status: 400 };
+      if (!Number.isFinite(minNights) || minNights < 1) return { error: 'Le minimum de nuits doit être un entier ≥ 1.', status: 400 };
+      if (target.mode !== 'existing' && target.mode !== 'new') return { error: 'Cible invalide.', status: 400 };
+
+      const rules = database.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(pid);
+
+      let targetRuleId = null;
+      if (target.mode === 'existing') {
+        targetRuleId = Number(target.ruleId);
+        if (!rules.some((r) => Number(r.id) === targetRuleId)) return { error: 'Saison cible introuvable.', status: 404 };
+      }
+
+      const plan = computeDateRangeAssignment(rules, {
+        startDate, endDate, minNights, target: { ...target, ruleId: targetRuleId },
+      });
+
+      const deletedLabels = plan.deletedRuleIds
+        .map((id) => rules.find((r) => Number(r.id) === id)?.label)
+        .filter(Boolean);
+
+      const updateStmt = database.prepare('UPDATE pricing_rules SET dateRanges=?, startDate=?, endDate=? WHERE id=? AND propertyId=?');
+      const deleteStmt = database.prepare('DELETE FROM pricing_rules WHERE id=? AND propertyId=?');
+      const insertStmt = database.prepare(`
+        INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      let createdRuleId = null;
+      database.transaction(() => {
+        for (const u of plan.updatedRules) {
+          updateStmt.run(JSON.stringify(u.dateRanges), u.startDate, u.endDate, u.id, pid);
+        }
+        for (const id of plan.deletedRuleIds) {
+          deleteStmt.run(id, pid);
+        }
+        if (plan.newRule) {
+          const nr = plan.newRule;
+          const tiers = nr.pricingMode === 'progressive'
+            ? normalizeProgressiveTiers(Number(nr.pricePerNight || 0), nr.progressiveTiers)
+            : [];
+          const res = insertStmt.run(
+            pid,
+            sentenceCase(nr.label || 'Standard'),
+            Number(nr.pricePerNight || 0),
+            nr.pricingMode || 'fixed',
+            JSON.stringify(tiers),
+            JSON.stringify(nr.dateRanges),
+            nr.color || '#1976d2',
+            nr.startDate,
+            nr.endDate,
+            Math.max(1, Number(nr.minNights || 1)),
+          );
+          createdRuleId = res.lastInsertRowid;
+        }
+      })();
+
+      return { data: { ok: true, deletedLabels, createdRuleId } };
+    },
+
     addDocument(propertyId, file, body = {}) {
       if (!file) return { error: 'Fichier requis', status: 400 };
       const filePath = `/uploads/${file.filename}`;
@@ -482,6 +668,6 @@ function createPropertiesModel(database) {
 const defaultModel = createPropertiesModel(db);
 defaultModel.buildModel = createPropertiesModel;
 // Exposed for unit tests.
-defaultModel.__test = { normalizeNameArticle, VALID_NAME_ARTICLES };
+defaultModel.__test = { normalizeNameArticle, VALID_NAME_ARTICLES, computeDateRangeAssignment, stripRangeMinEqualToDefault };
 
 module.exports = defaultModel;

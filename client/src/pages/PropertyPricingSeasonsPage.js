@@ -5,7 +5,7 @@ import 'dayjs/locale/fr';
 import {
   Box, Typography, Card, CardContent, Button, Grid, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, FormControl, InputLabel, Select,
-  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch
+  MenuItem, Chip, Alert, InputAdornment, FormControlLabel, Switch, RadioGroup, Radio, FormLabel
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -15,6 +15,7 @@ import { frFR } from '@mui/x-date-pickers/locales';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import DateRangeIcon from '@mui/icons-material/DateRange';
 import PageActionBar from '../components/PageActionBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FormDialog from '../components/FormDialog';
@@ -131,6 +132,21 @@ export default function PropertyPricingSeasonsPage() {
   const { showSuccess, showError } = useToast();
   const [basePriceInput, setBasePriceInput] = useState('');
   const [tierPriceInputs, setTierPriceInputs] = useState({});
+
+  // Calendar season painting (specs/pricing-min-nights-per-range.md): drag-select a period, then a
+  // dialog (re)assigns it to a season with a minimum-nights. Anchor/hover drive the highlight; the
+  // refs distinguish a real drag from a plain click (which keeps the "open season for edit" behaviour).
+  const [selectionAnchor, setSelectionAnchor] = useState(null);
+  const [selectionHover, setSelectionHover] = useState(null);
+  const isSelectingRef = useRef(false);
+  const dragMovedRef = useRef(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignError, setAssignError] = useState('');
+  const [assignForm, setAssignForm] = useState({
+    startDate: '', endDate: '', minNights: 1,
+    targetMode: 'existing', targetRuleId: '',
+    newLabel: '', newColor: DEFAULT_COLORS[0], newPrice: 100, newMode: 'fixed',
+  });
 
   const [seasonForm, setSeasonForm] = useState({
     label: '',
@@ -267,6 +283,95 @@ export default function PropertyPricingSeasonsPage() {
   const getSeasonForDate = (dateStr) => {
     return seasons.find((s) => (s.dateRanges || []).some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) || null;
   };
+
+  // Effective minimum nights for a day = its covering range's own min, else the season default, else 1.
+  // Display-only (mirrors getSeasonForDate); the authoritative check lives in the server pricing engine.
+  const getMinNightsForDate = (dateStr) => {
+    for (const s of seasons) {
+      const range = (s.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate);
+      if (range) return Number(range.minNights ?? s.minNights ?? 1);
+    }
+    return 1;
+  };
+
+  const openAssignDialog = ({ startDate = '', endDate = '' } = {}) => {
+    const covering = startDate ? getSeasonForDate(startDate) : null;
+    setAssignForm({
+      startDate,
+      endDate,
+      minNights: covering ? Number(covering.minNights || 1) : 1,
+      targetMode: covering || seasons.length ? 'existing' : 'new',
+      targetRuleId: covering ? covering.id : (seasons[0]?.id || ''),
+      newLabel: `Période ${seasons.length + 1}`,
+      newColor: DEFAULT_COLORS[seasons.length % DEFAULT_COLORS.length],
+      newPrice: covering ? Number(covering.pricePerNight || 100) : 100,
+      newMode: 'fixed',
+    });
+    setAssignError('');
+    setAssignDialogOpen(true);
+  };
+
+  const handleAssignSubmit = async () => {
+    const { startDate, endDate, minNights, targetMode, targetRuleId, newLabel, newColor, newPrice, newMode } = assignForm;
+    if (!startDate || !endDate) return;
+    const target = targetMode === 'existing'
+      ? { mode: 'existing', ruleId: Number(targetRuleId) }
+      : { mode: 'new', label: newLabel, color: newColor, pricePerNight: Number(newPrice || 0), pricingMode: newMode };
+    try {
+      setAssignError('');
+      const result = await api.assignPricingDateRange(id, {
+        startDate, endDate, minNights: Number(minNights || 1), target,
+      });
+      setAssignDialogOpen(false);
+      await loadData();
+      setPlatformRefresh((n) => n + 1);
+      showSuccess(`Minimum de ${Number(minNights || 1)} nuit(s) appliqué du ${displayDate(startDate)} au ${displayDate(endDate)}.`);
+      (result?.deletedLabels || []).forEach((lbl) => showSuccess(`Saison « ${lbl} » supprimée (dates réattribuées).`));
+    } catch (error) {
+      setAssignError(error.message || "Impossible d'affecter la période.");
+    }
+  };
+
+  const handleDayMouseDown = (event, dateStr) => {
+    if (event.button !== 0) return;
+    isSelectingRef.current = true;
+    dragMovedRef.current = false;
+    setSelectionAnchor(dateStr);
+    setSelectionHover(dateStr);
+  };
+
+  const handleDayMouseEnter = (dateStr) => {
+    if (!isSelectingRef.current) return;
+    if (dateStr !== selectionAnchor) dragMovedRef.current = true;
+    setSelectionHover(dateStr);
+  };
+
+  const handleDayClick = (cell) => {
+    // A plain click (no drag) opens the covering season for edit; a drag is handled on mouse-up.
+    if (dragMovedRef.current) { dragMovedRef.current = false; return; }
+    if (cell.inMonth && cell.season) openEditSeason(cell.season);
+  };
+
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!isSelectingRef.current) return;
+      isSelectingRef.current = false;
+      const a = selectionAnchor;
+      const b = selectionHover;
+      if (dragMovedRef.current && a && b) {
+        openAssignDialog({ startDate: a <= b ? a : b, endDate: a <= b ? b : a });
+      }
+      setSelectionAnchor(null);
+      setSelectionHover(null);
+    };
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionAnchor, selectionHover]);
+
+  const selectionStart = selectionAnchor && selectionHover ? (selectionAnchor <= selectionHover ? selectionAnchor : selectionHover) : null;
+  const selectionEnd = selectionAnchor && selectionHover ? (selectionAnchor <= selectionHover ? selectionHover : selectionAnchor) : null;
+  const isInSelection = (dateStr) => Boolean(selectionStart && dateStr >= selectionStart && dateStr <= selectionEnd);
 
   const openCreateSeason = () => {
     const nextColor = DEFAULT_COLORS[seasons.length % DEFAULT_COLORS.length];
@@ -553,6 +658,12 @@ export default function PropertyPricingSeasonsPage() {
           ),
         }, {
           node: (
+            <Button key="assign-period" variant="outlined" size="small" startIcon={<DateRangeIcon />} onClick={() => openAssignDialog({})}>
+              Affecter une période
+            </Button>
+          ),
+        }, {
+          node: (
             <Button key="new-season" variant="contained" size="small" startIcon={<AddIcon />} onClick={openCreateSeason}>
               Nouvelle saison
             </Button>
@@ -585,9 +696,14 @@ export default function PropertyPricingSeasonsPage() {
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                         {getSortedDateRanges(s.dateRanges).map((range, index) => (
-                          <Typography key={`${s.id}-range-${index}`} variant="body2" sx={{ lineHeight: 1.25 }}>
-                            {displayDate(range.startDate)} → {displayDate(range.endDate)}
-                          </Typography>
+                          <Box key={`${s.id}-range-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            <Typography variant="body2" sx={{ lineHeight: 1.25 }}>
+                              {displayDate(range.startDate)} → {displayDate(range.endDate)}
+                            </Typography>
+                            {range.minNights != null && (
+                              <Chip size="small" label={`min ${range.minNights}`} color="warning" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }} />
+                            )}
+                          </Box>
                         ))}
                       </Box>
                     </TableCell>
@@ -676,7 +792,10 @@ export default function PropertyPricingSeasonsPage() {
                       const season = getSeasonForDate(dateStr);
                       const isPublicHoliday = publicHolidays.has(dateStr);
                       const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo });
+                      const coveringRange = season ? (season.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate) : null;
+                      const seasonDefaultMin = season ? Number(season.minNights || 1) : 1;
+                      const dayMin = coveringRange ? Number(coveringRange.minNights ?? seasonDefaultMin) : seasonDefaultMin;
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin });
                     }
 
                     return (
@@ -697,30 +816,43 @@ export default function PropertyPricingSeasonsPage() {
                             {cells.map((c, idx) => (
                               <Box
                                 key={`${c.dateStr}-${idx}`}
-                                onClick={() => {
-                                  if (c.inMonth && c.season) {
-                                    openEditSeason(c.season);
-                                  }
-                                }}
+                                onMouseDown={(e) => { if (c.inMonth) handleDayMouseDown(e, c.dateStr); }}
+                                onMouseEnter={() => { if (c.inMonth) handleDayMouseEnter(c.dateStr); }}
+                                onClick={() => handleDayClick(c)}
                                 sx={{
                                   height: 20,
                                   borderRadius: 0.8,
+                                  userSelect: 'none',
                                   borderTop: (t) => (c.inMonth && c.season ? `3px solid ${c.season.color || t.palette.primary.main}` : '3px solid transparent'),
-                                  bgcolor: (t) => (c.inMonth ? (c.season ? `${c.season.color || t.palette.primary.main}22` : t.palette.background.paper) : 'transparent'),
+                                  bgcolor: (t) => {
+                                    if (!c.inMonth) return 'transparent';
+                                    if (isInSelection(c.dateStr)) return alpha(t.palette.primary.main, 0.28);
+                                    return c.season ? `${c.season.color || t.palette.primary.main}22` : t.palette.background.paper;
+                                  },
                                   color: c.inMonth ? 'text.primary' : 'transparent',
                                   fontSize: 10,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   position: 'relative',
-                                  cursor: c.inMonth && c.season ? 'pointer' : 'default',
-                                  '&:hover': c.inMonth && c.season ? {
-                                    outline: (t) => `1px solid ${c.season.color || t.palette.primary.main}`,
+                                  cursor: c.inMonth ? 'pointer' : 'default',
+                                  outline: (t) => (isInSelection(c.dateStr) ? `2px solid ${t.palette.primary.main}` : 'none'),
+                                  outlineOffset: '-2px',
+                                  '&:hover': c.inMonth && !isInSelection(c.dateStr) ? {
+                                    outline: (t) => `1px solid ${c.season ? (c.season.color || t.palette.primary.main) : t.palette.divider}`,
                                   } : undefined,
                                 }}
-                                title={c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : ''}
+                                title={[
+                                  c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : '',
+                                  c.inMonth && c.dayMin > 1 ? `min ${c.dayMin} nuits` : '',
+                                ].filter(Boolean).join(' · ')}
                               >
                                 {c.inMonth ? c.day : ''}
+                                {c.inMonth && c.dayMin > c.seasonDefaultMin && (
+                                  <Box sx={{ position: 'absolute', top: -1, right: 1, fontSize: 8, fontWeight: 700, color: 'warning.dark', lineHeight: 1 }}>
+                                    {c.dayMin}
+                                  </Box>
+                                )}
                                 {c.inMonth && c.isPublicHoliday && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'error.main', position: 'absolute', bottom: 1, left: 1 }} />
                                 )}
@@ -784,6 +916,15 @@ export default function PropertyPricingSeasonsPage() {
                     referenceDate={isoToDayjs(range.endDate || range.startDate) || dayjs()}
                     format="DD/MM/YYYY"
                     slotProps={{ textField: { fullWidth: true } }}
+                  />
+                  <TextField
+                    label="Min nuits"
+                    type="number"
+                    value={range.minNights ?? ''}
+                    onChange={(e) => updateDateRange(index, 'minNights', e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder={String(seasonForm.minNights || 1)}
+                    sx={{ width: { xs: '100%', sm: 130 } }}
+                    slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }}
                   />
                   <Button color="error" disabled={(seasonForm.dateRanges || []).length === 1} onClick={() => removeDateRange(index)}>
                     Supprimer
@@ -966,6 +1107,88 @@ export default function PropertyPricingSeasonsPage() {
               </Alert>
             )}
           </Box>
+      </FormDialog>
+      <FormDialog
+        open={assignDialogOpen}
+        onClose={() => setAssignDialogOpen(false)}
+        title="Affecter une période à une saison"
+        maxWidth="sm"
+        submitLabel="Appliquer"
+        onSubmit={handleAssignSubmit}
+        submitDisabled={
+          !assignForm.startDate || !assignForm.endDate
+          || assignForm.startDate > assignForm.endDate
+          || (assignForm.targetMode === 'existing' && !assignForm.targetRuleId)
+          || (assignForm.targetMode === 'new' && !assignForm.newLabel)
+        }
+      >
+        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="fr" localeText={frFR.components.MuiLocalizationProvider.defaultProps.localeText}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            {assignError && <Alert severity="error">{assignError}</Alert>}
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <DatePicker
+                label="Début"
+                value={isoToDayjs(assignForm.startDate)}
+                onChange={(value) => setAssignForm((prev) => ({ ...prev, startDate: dayjsToIso(value) }))}
+                format="DD/MM/YYYY"
+                slotProps={{ textField: { fullWidth: true } }}
+              />
+              <DatePicker
+                label="Fin"
+                value={isoToDayjs(assignForm.endDate)}
+                onChange={(value) => setAssignForm((prev) => ({ ...prev, endDate: dayjsToIso(value) }))}
+                format="DD/MM/YYYY"
+                slotProps={{ textField: { fullWidth: true } }}
+              />
+            </Box>
+
+            <FormControl>
+              <FormLabel sx={{ fontSize: '0.85rem', mb: 0.5 }}>Rattacher à</FormLabel>
+              <RadioGroup
+                row
+                value={assignForm.targetMode}
+                onChange={(e) => setAssignForm((prev) => ({ ...prev, targetMode: e.target.value }))}
+              >
+                <FormControlLabel value="existing" control={<Radio size="small" />} label="Une saison existante" />
+                <FormControlLabel value="new" control={<Radio size="small" />} label="Une nouvelle saison" />
+              </RadioGroup>
+            </FormControl>
+
+            {assignForm.targetMode === 'existing' ? (
+              <FormControl fullWidth>
+                <InputLabel>Saison</InputLabel>
+                <Select
+                  value={assignForm.targetRuleId}
+                  label="Saison"
+                  onChange={(e) => setAssignForm((prev) => ({ ...prev, targetRuleId: e.target.value }))}
+                >
+                  {seasons.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : (
+              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <TextField label="Nom de la saison" value={assignForm.newLabel} onChange={(e) => setAssignForm((prev) => ({ ...prev, newLabel: e.target.value }))} fullWidth />
+                <TextField label="Couleur" type="color" value={assignForm.newColor} onChange={(e) => setAssignForm((prev) => ({ ...prev, newColor: e.target.value }))} sx={{ width: 120 }} />
+                <TextField label="Tarif base (1 nuit)" type="number" value={assignForm.newPrice} onChange={(e) => setAssignForm((prev) => ({ ...prev, newPrice: Number(e.target.value || 0) }))} sx={{ width: { xs: '100%', sm: 160 } }} slotProps={{ htmlInput: { min: 0, step: 1, inputMode: 'decimal' } }} />
+              </Box>
+            )}
+
+            <TextField
+              label="Nuits minimum sur cette période"
+              type="number"
+              value={assignForm.minNights}
+              onChange={(e) => setAssignForm((prev) => ({ ...prev, minNights: Number(e.target.value || 1) }))}
+              fullWidth
+              slotProps={{ htmlInput: { min: 1 } }}
+            />
+
+            <Alert severity="info">
+              La ou les saisons couvrant cette période seront découpées autour d'elle ; une saison entièrement recouverte sera supprimée. Le tarif du reste de la saison n'est pas modifié.
+            </Alert>
+          </Box>
+        </LocalizationProvider>
       </FormDialog>
       <ConfirmDialog
         open={Boolean(deleteTarget)}

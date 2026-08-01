@@ -18,6 +18,7 @@ router.post('/:id/pricing', ctrl.addPricing);
 router.put('/:id/pricing/:ruleId', ctrl.updatePricing);
 router.delete('/:id/pricing/:ruleId', ctrl.deletePricing);
 router.post('/:id/pricing/apply-to', ctrl.applyPricing);
+router.post('/:id/pricing/assign-dates', ctrl.assignPricingDateRange);
 router.get('/:id/platform-prices', ctrl.platformPrices);
 
 // Documents

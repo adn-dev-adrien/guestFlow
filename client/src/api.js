@@ -78,6 +78,9 @@ const api = {
   updatePricingRule: (propId, ruleId, data) => request(`/properties/${propId}/pricing/${ruleId}`, { method: 'PUT', body: data }),
   deletePricingRule: (propId, ruleId) => request(`/properties/${propId}/pricing/${ruleId}`, { method: 'DELETE' }),
   applyPricingRulesToProperty: (sourcePropId, data) => request(`/properties/${sourcePropId}/pricing/apply-to`, { method: 'POST', body: data }),
+  // specs/pricing-min-nights-per-range.md — calendar season painting: (re)assign a selected period to
+  // a season (existing/new) with a minimum-nights; the server carves/splits the covering season(s).
+  assignPricingDateRange: (propId, data) => request(`/properties/${propId}/pricing/assign-dates`, { method: 'POST', body: data }),
   previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data }),
   // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up)
   // + the per-platform commission % editor (global per platform).

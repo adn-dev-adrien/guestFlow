@@ -11,6 +11,11 @@
 
 ---
 
+> **See also (2026-08-01):** minimum-nights is now resolved **per date range** — a season's `dateRanges`
+> entry can carry its own `minNights`, and `requiredMinNights` is the max of the effective minimum over
+> the nights the stay touches (range override ⇒ season default ⇒ 1). The `requiredMinNights` /
+> `minNightsBreached` / `minNightsRules` shapes are unchanged. See `specs/pricing-min-nights-per-range.md`.
+
 ## 1. Context
 
 The server already owns a complete pricing engine. `POST /api/reservations/calculate-price`

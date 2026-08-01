@@ -86,6 +86,12 @@ function applyPricing(req, res) {
   respond(res, model.applyPricingTo(Number(req.params.id), req.body));
 }
 
+// Calendar season painting (specs/pricing-min-nights-per-range.md): (re)assign a selected period to a
+// season with a minimum-nights, carving/splitting the covering season(s) server-side.
+function assignPricingDateRange(req, res) {
+  respond(res, model.assignDateRangeToSeason(req.params.id, req.body));
+}
+
 function addDocument(req, res) {
   respond(res, model.addDocument(req.params.id, req.file, req.body));
 }
@@ -101,6 +107,6 @@ function setOptions(req, res) {
 module.exports = {
   list, getOne, platformColors, progressivePreview,
   create, update, remove,
-  addPricing, updatePricing, deletePricing, applyPricing, platformPrices,
+  addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
   addDocument, deleteDocument, setOptions,
 };
