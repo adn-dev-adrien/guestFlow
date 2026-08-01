@@ -9,7 +9,10 @@
  * Contract:
  *   - Idempotent: only touches rows whose `autoOptionType` is currently NULL/empty.
  *   - Matched by exact (case-insensitive) title "Ménage" / "Menage".
- *   - No-op once any option already carries `autoOptionType = 'cleaning'`.
+ *   - Tags EVERY matching untyped "Ménage" on every run — so a duplicate "Ménage" created
+ *     after a first one was already tagged still gets promoted (a stale early-return here used
+ *     to leave such duplicates untyped, which broke SAS cleaning detection: the guest was asked
+ *     to add cleaning they had already booked via the second option).
  *   - Side effect: a typed option becomes undeletable in OptionsPage
  *     (`isDeleteDisabled={(item) => Boolean(item.autoOptionType)}`) — intended, it now drives
  *     email logic.
@@ -22,13 +25,6 @@ function ensureCleaningOptionTagged(database, { logger = console } = {}) {
     const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
     if (!cols.includes('autoOptionType')) {
       return { action: 'skipped-schema' };
-    }
-
-    const alreadyTagged = database.prepare(
-      "SELECT COUNT(*) AS n FROM options WHERE autoOptionType = 'cleaning'"
-    ).get().n > 0;
-    if (alreadyTagged) {
-      return { action: 'skipped-already-tagged' };
     }
 
     const aliasPlaceholders = KNOWN_TITLE_ALIASES.map(() => '?').join(', ');

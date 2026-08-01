@@ -75,7 +75,9 @@ charge, and/or to bring their nordic-bath gear (with the scheduled slot when set
 9. `hasCleaningOption` is matched by **option NAME**: at least one booked option whose name contains
    « ménage » (accent- and case-insensitive), OR whose linked option carries `autoOptionType = 'cleaning'`
    (fallback). This is the bug fix — operator-created "Ménage" options carry no `autoOptionType`, so the
-   name match is what makes the detection reliable.
+   name match is what makes the detection reliable. Since 2026-08-01 this rule lives in the shared
+   [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js) helper (`isCleaningOption`), also
+   consumed by the arrival SAS (`sasController`) so the email and the SAS can never disagree.
 10. **Nordic-bath reminder** appears only when the *Bain nordique* resource was booked —
     `{{#if hasNordicBath}}{{nordicBathReminder}}{{/if}}`. `hasNordicBath` is matched by **resource NAME**
     (name contains « nordique », accent/case-insensitive). `{{nordicBathReminder}}` is composed
@@ -111,7 +113,7 @@ charge, and/or to bring their nordic-bath gear (with the scheduled slot when set
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `controllers/` | `controllers/emailsController.js` | T | `loadReservationGraph` also loads `reservation_resources` joined with `resources.name`; passes `resources` into `buildContext`. Shared by preview + send + cron, so all stay in sync. |
-| `utils/` | `utils/emailContextBuilder.js` | T | New `vars.resourcesList`; flags `hasResources`, `cautionNotReceived` (`cautionAmount>0 && cautionReceived!=1`). `hasCleaningOption` matched by option **NAME** (`normalizeName(title).includes('menage')`) OR `autoOptionType==='cleaning'` fallback. New `hasNordicBath` flag (resource name contains « nordique ») + `vars.nordicBathReminder` (composed gear + optional slot sentence) + `vars.nordicBathSchedule` (from `reservation_resources.sessions`). Accepts a `resources` input array (rows carry `name` + `sessions`). |
+| `utils/` | `utils/emailContextBuilder.js` | T | New `vars.resourcesList`; flags `hasResources`, `cautionNotReceived` (`cautionAmount>0 && cautionReceived!=1`). `hasCleaningOption` via the shared `isCleaningOption` helper (`utils/cleaningOption.js`, 2026-08-01): option **NAME** contains « menage » OR `autoOptionType==='cleaning'` fallback — same helper the arrival SAS uses. New `hasNordicBath` flag (resource name contains « nordique ») + `vars.nordicBathReminder` (composed gear + optional slot sentence) + `vars.nordicBathSchedule` (from `reservation_resources.sessions`). Accepts a `resources` input array (rows carry `name` + `sessions`). |
 | `utils/` | `utils/defaultEmailTemplatesRegistry.js` | T | `arrival_reminder_1d` def reworked: name "Rappel arrivée — J-2", new subject, `dayOffset = -2`, body with the stay date, GPS line, nordic-bath block. |
 | `utils/` | `utils/migrateArrivalReminderJ2.js` | C | One-shot **force-sync** of the `arrival_reminder_1d` row to the registry def: overwrites `name`/`subject`/`body`/`dayOffset`, **preserves** `sendMode`/`enabled`. Idempotent, schema-guarded. |
 | `database.js` | `database.js` | T | Run `migrateArrivalReminderJ2` once at boot (guarded by the `migrations` table, key `arrival_reminder_j2_overwrite_v1`), AFTER the exact-match J-1 content-migration chain so it has the final say. |

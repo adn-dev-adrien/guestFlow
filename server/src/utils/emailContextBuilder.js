@@ -12,6 +12,7 @@
 const { formatDateLong, formatTimeShort } = require('./dateFr');
 const { formatCurrency } = require('./devisHelpers');
 const { isClientVisibleOption } = require('./optionVisibility');
+const { isCleaningOption } = require('./cleaningOption');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -134,11 +135,10 @@ function buildContext({ reservation, client, property, options = [], resources =
 
   const hasOptions = optionsTitles.length > 0;
   const hasBedLinenOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'bed_linen');
-  // Cleaning ("Ménage") option — matched on the option NAME ("menage") with the `autoOptionType`
-  // tag as a fallback. Name-matching fixes the bug where a hand-created « Ménage » option (no tag)
-  // left the "cleaning at your charge" else-branch showing even when cleaning WAS booked.
-  const hasCleaningOption = (options || []).some((o) =>
-    safeStr(o.autoOptionType) === 'cleaning' || normalizeName(o.title).includes('menage'));
+  // Cleaning ("Ménage") option — shared rule (tag OR name « ménage »), see utils/cleaningOption.js.
+  // Name-matching fixes the bug where a hand-created « Ménage » option (no tag) left the "cleaning at
+  // your charge" else-branch showing even when cleaning WAS booked; the SAS uses the same helper.
+  const hasCleaningOption = (options || []).some(isCleaningOption);
 
   // "Linge fourni par défaut" — the reservation's PROPERTY includes bed linen as a default-offered
   // option (specs/j1-linen-default-message.md §3). When so, the J-1 reminder reassures the guest the
