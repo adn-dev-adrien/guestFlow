@@ -78,10 +78,18 @@ function normalizeDateRanges(dateRanges, startDate, endDate) {
     : [{ startDate, endDate }];
 
   return source
-    .map((range) => ({
-      startDate: range?.startDate || '',
-      endDate: range?.endDate || '',
-    }))
+    .map((range) => {
+      const normalized = {
+        startDate: range?.startDate || '',
+        endDate: range?.endDate || '',
+      };
+      // A per-range minimum-nights override travels inside the dateRanges JSON
+      // (specs/pricing-min-nights-per-range.md). Keep it only when it's a real integer ≥ 1; a blank /
+      // absent value means "inherit the season-level minNights", so we drop the key entirely.
+      const minNights = Math.floor(Number(range?.minNights));
+      if (Number.isFinite(minNights) && minNights >= 1) normalized.minNights = minNights;
+      return normalized;
+    })
     .filter((range) => range.startDate && range.endDate)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
@@ -784,12 +792,17 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
 
   let totalPrice = 0;
   const nightlyBreakdown = [];
-  const minNightsByRule = new Map();
+  // Minimum-nights is resolved PER NIGHT: a night takes its covering range's own `minNights` when set,
+  // otherwise the season-level `minNights` (specs/pricing-min-nights-per-range.md). We keep the max over
+  // the nights the stay actually touches, plus a per-label view so the message can name the season(s).
+  const perNightMinNights = [];
+  const minNightsByLabel = new Map();
   let currentDateStr = startDate;
 
   for (let nightIndex = 0; nightIndex < nights; nightIndex += 1) {
     const dateStr = currentDateStr;
     let matchedRule = null;
+    let matchedRange = null;
     let nightlyBase = 100;
 
     for (const rule of rules) {
@@ -797,15 +810,25 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
       if (!ranges.length) {
         matchedRule = rule;
         nightlyBase = Number(rule.pricePerNight || 0);
-        minNightsByRule.set(String(rule.label || 'Standard'), Number(rule.minNights || 1));
         break;
       }
-      if (ranges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
+      const hitRange = ranges.find((range) => dateStr >= range.startDate && dateStr <= range.endDate);
+      if (hitRange) {
         matchedRule = rule;
+        matchedRange = hitRange;
         nightlyBase = Number(rule.pricePerNight || 0);
-        minNightsByRule.set(String(rule.label || 'Standard'), Number(rule.minNights || 1));
         break;
       }
+    }
+
+    if (matchedRule) {
+      const label = String(matchedRule.label || 'Standard');
+      // A per-range override wins over the season default; both default to 1.
+      const effectiveMin = Number(matchedRange?.minNights) >= 1
+        ? Number(matchedRange.minNights)
+        : Math.max(1, Number(matchedRule.minNights || 1));
+      perNightMinNights.push(effectiveMin);
+      minNightsByLabel.set(label, Math.max(minNightsByLabel.get(label) || 1, effectiveMin));
     }
 
     if ((matchedRule?.pricingMode || 'fixed') === 'progressive') {
@@ -835,16 +858,17 @@ function calculateBaseStayPrice(rules, startDate, endDate) {
     currentDateStr = addDaysToIsoDate(currentDateStr, 1);
   }
 
+  const requiredMinNights = Math.max(1, ...perNightMinNights);
   return {
     nights,
     totalPrice: roundMoney(totalPrice),
     nightlyBreakdown,
-    requiredMinNights: Math.max(1, ...Array.from(minNightsByRule.values()).map((v) => Number(v || 1))),
-    minNightsRules: Array.from(minNightsByRule.entries()).map(([label, minNights]) => ({
+    requiredMinNights,
+    minNightsRules: Array.from(minNightsByLabel.entries()).map(([label, minNights]) => ({
       label,
       minNights: Number(minNights || 1),
     })),
-    minNightsBreached: nights < Math.max(1, ...Array.from(minNightsByRule.values()).map((v) => Number(v || 1))),
+    minNightsBreached: nights < requiredMinNights,
   };
 }
 
@@ -1875,6 +1899,7 @@ module.exports = {
   normalizeDateRanges,
   getBoundsFromDateRanges,
   parseRuleDateRanges,
+  addDaysToIsoDate,
   buildDefaultProgressiveTiers,
   normalizeProgressiveTiers,
   buildProgressivePreview,

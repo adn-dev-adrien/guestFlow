@@ -10,6 +10,10 @@
 
 ---
 
+> **See also (2026-08-01):** this tarif page now also hosts **calendar season painting** — select a
+> period on the season calendar to (re)assign it to a season (existing or new) with a per-range minimum
+> nights, splitting the covering season server-side. See `specs/pricing-min-nights-per-range.md`.
+
 ## 1. Context
 
 The property « tarif » page ([PropertyPricingSeasonsPage.js](../client/src/pages/PropertyPricingSeasonsPage.js))
