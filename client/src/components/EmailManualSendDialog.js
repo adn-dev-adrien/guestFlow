@@ -53,8 +53,14 @@ export default function EmailManualSendDialog({
     api.getEmailTemplates()
       .then((rows) => {
         const enabled = rows.filter((r) => r.enabled !== 0);
-        setTemplates(enabled);
-        if (!templateId && enabled.length > 0) {
+        // When resending from the history, the original template may be disabled: keep it
+        // selectable so the resend uses the exact template it was sent with, never a silent
+        // fallback to the first enabled one.
+        const forced = defaultTemplateId
+          ? rows.find((r) => Number(r.id) === Number(defaultTemplateId) && r.enabled === 0)
+          : null;
+        setTemplates(forced ? [...enabled, forced] : enabled);
+        if (!templateId && (enabled.length > 0 || forced)) {
           setTemplateId(defaultTemplateId || enabled[0].id);
         }
       })

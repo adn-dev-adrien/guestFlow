@@ -13,6 +13,8 @@ vi.mock('../../api', () => ({
   default: {
     getEmailHistory: vi.fn(),
     getEmailTemplates: vi.fn(),
+    previewEmail: vi.fn(),
+    sendEmail: vi.fn(),
   },
 }));
 
@@ -23,6 +25,9 @@ import EmailHistoryPage from '../EmailHistoryPage';
 
 const ROW = {
   id: 1,
+  templateId: 10,
+  reservationId: 42,
+  reservationStartDate: '2026-07-10',
   sentAt: '2026-07-03 08:00:00',
   templateName: 'J-7',
   clientFullName: 'Jane S.',
@@ -37,6 +42,8 @@ beforeEach(() => {
   Object.values(api).forEach((m) => m?.mockReset?.());
   api.getEmailTemplates.mockResolvedValue([{ id: 10, name: 'J-7' }]);
   api.getEmailHistory.mockResolvedValue({ rows: [ROW], total: 1 });
+  api.previewEmail?.mockResolvedValue({ to: 'jane@s.com', subject: 'S', body: 'B', missingVariables: [] });
+  api.sendEmail?.mockResolvedValue({ ok: true });
 });
 
 test('loads the history and renders a row with its status badge + subject', async () => {
@@ -108,7 +115,25 @@ test('clicking the view icon opens the log detail dialog', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
   const row = (await screen.findByText('jane@s.com')).closest('tr');
-  await user.click(within(row).getByRole('button'));
+  await user.click(within(row).getByRole('button', { name: "Voir l'email" }));
 
   expect(await screen.findByText('Bonjour Jane,')).toBeInTheDocument();
+});
+
+test('the resend icon opens the send dialog prefilled with the row template', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
+  const row = (await screen.findByText('jane@s.com')).closest('tr');
+  await user.click(within(row).getByRole('button', { name: 'Renvoyer cet email' }));
+
+  // EmailManualSendDialog opens and previews the (reservation, template) pair.
+  await waitFor(() => expect(api.previewEmail).toHaveBeenCalledWith({ reservationId: 42, templateId: 10 }));
+  expect(await screen.findByRole('button', { name: /Envoyer/ })).toBeInTheDocument();
+});
+
+test('the resend icon is disabled when the template was deleted', async () => {
+  api.getEmailHistory.mockResolvedValue({ rows: [{ ...ROW, templateId: null, templateName: '' }], total: 1 });
+  render(<MemoryRouter><DialogProvider><EmailHistoryPage /></DialogProvider></MemoryRouter>);
+  const row = (await screen.findByText('jane@s.com')).closest('tr');
+  expect(within(row).getByRole('button', { name: 'Renvoyer cet email' })).toBeDisabled();
 });
