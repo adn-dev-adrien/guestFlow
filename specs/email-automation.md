@@ -583,8 +583,21 @@ Filtres : [Modèle ▾] [Statut ▾] [Réservation 🔍]
                                                   Prev / Next
 ```
 
-Click on a row → `EmailLogViewDialog` (read-only preview with rendered subject + body +
-the error message if status=`failed`).
+Each row exposes two icon actions (Actions column, right-aligned):
+
+- **👁 Voir l'email** → `EmailLogViewDialog` (read-only preview with rendered subject +
+  body + the error message if status=`failed`).
+- **↻ Renvoyer cet email** (all statuses — `sent`, `failed`, `acknowledged-skip`) → opens
+  the existing `EmailManualSendDialog` pre-filled with the row's `reservationId`,
+  `reservationStartDate` and `defaultTemplateId` (the row's `templateId`). The content is
+  **re-generated from the template with the current reservation/client data** and stays
+  fully editable (recipient, subject, body) before sending. Sending goes through the
+  standard `POST /emails/send` path, which logs a **new** `email_log` row (`status: 'sent'`,
+  `channel: 'smtp'`) — the original row is never mutated. On success the history reloads so
+  the fresh send appears at the top. The action is **disabled when the template was deleted**
+  (`templateId` null → nothing to re-render); tooltip explains why. If the original template
+  is merely *disabled*, `EmailManualSendDialog` keeps it selectable so the resend uses the
+  exact template it was sent with, never a silent fallback to the first enabled one.
 
 ### 6.6 `ReservationPage` action bar (reservation mode only)
 
@@ -731,9 +744,10 @@ inline property form just above the capacity fields. The value is stored on
       **navigates to `/emails`** (no longer opens a popup).
 - [x] `client/src/components/__tests__/EmailLogViewDialog.test.js` (4) — read-only log
       preview: subject/body/recipient; failure error message.
-- [x] `client/src/pages/__tests__/EmailHistoryPage.test.js` (7) — history loads with status
+- [x] `client/src/pages/__tests__/EmailHistoryPage.test.js` (9) — history loads with status
       badge + subject; empty state; status + reservation filters re-query; pagination
-      boundaries + next-page offset; view icon opens the detail dialog.
+      boundaries + next-page offset; view icon opens the detail dialog; resend icon opens the
+      send dialog prefilled with the row template; resend disabled when the template is deleted.
 - [x] `client/src/components/__tests__/SettingsSmtpSection.test.js` (11) — fields render;
       onChange forwarding; server validation errors; test button enable/disable rules
       (host + fromEmail + saved-or-drafted password); spinner while testing; result alert;
