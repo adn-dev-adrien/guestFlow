@@ -33,8 +33,8 @@ changing the desktop experience**.
    between weeks: swipe left/right moves to the previous/next week. A header shows the
    centered week's range + prev/next chevrons + an « Aujourd'hui » button.
 3. **Per-day content** (for the selected property), as plain labels:
-   - `↓ Départ — <nom> <heure> · <plateforme>` (reservation ending that day),
-   - `↑ Arrivée — <nom> <heure> · <plateforme>` (reservation starting that day),
+   - `↑ Départ — <nom> <heure> · <plateforme>` (reservation ending that day — arrow points *out*/up),
+   - `↓ Arrivée — <nom> <heure> · <plateforme>` (reservation starting that day — arrow points *in*/down),
    - `• Séjour — <nom> · <plateforme>` (mid-stay day),
    - `Devis — <nom>` (greyed, only where no reservation occupies the slot),
    - a `Fermé` chip for an establishment closure, the calendar note, and public-holiday /
