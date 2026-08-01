@@ -54,17 +54,20 @@ test('all baby beds taken by other reservations → field shown but capped at 0 
   }));
   const input = screen.getByLabelText(/Lits bébé/i);
   expect(input).toBeInTheDocument();
-  expect(input).toHaveAttribute('max', '0');
+  // QuantityField clamps in JS (no native `max` attr): the ＋ stepper is disabled at the cap.
+  expect(screen.getByRole('button', { name: /Augmenter/i })).toBeDisabled();
   expect(screen.getByText(/Dispo restante: 0/)).toBeInTheDocument();
 });
 
-test('typing above the available count clamps the value to maxBabyBedsByRule', () => {
+test('typing above the available count clamps the value to maxBabyBedsByRule on blur', () => {
   const updateForm = vi.fn();
   renderWithContext(ctx({
     form: { adults: 2, children: 0, teens: 0, babies: 2, babyBeds: 0 },
     maxBabyBedsByRule: 1, remainingBabyBeds: 1, updateForm,
   }));
   const input = screen.getByLabelText(/Lits bébé/i);
+  fireEvent.focus(input);
   fireEvent.change(input, { target: { value: '5' } });
+  fireEvent.blur(input);
   expect(updateForm).toHaveBeenCalledWith({ babyBeds: 1 }); // clamped to the 1 available
 });
