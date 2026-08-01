@@ -33,11 +33,15 @@ test('toggling an option switch calls setOptionEnabled', async () => {
   expect(ctx.setOptionEnabled).toHaveBeenCalledWith(10, true);
 });
 
-test('editing an enabled option quantity calls setOptionQuantity', () => {
+test('editing an enabled option quantity calls setOptionQuantity on blur', () => {
   const ctx = renderExtras({
     form: { selectedOptions: [{ optionId: 10, quantity: 2, totalPrice: 20 }] },
   });
-  fireEvent.change(screen.getByLabelText('Qté'), { target: { value: '5' } });
+  // QuantityField commits on blur (local draft), not per keystroke.
+  const input = screen.getByLabelText('Qté');
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: '5' } });
+  fireEvent.blur(input);
   expect(ctx.setOptionQuantity).toHaveBeenCalledWith(10, 5);
 });
 
