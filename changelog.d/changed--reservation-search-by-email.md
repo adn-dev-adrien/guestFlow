@@ -1,0 +1,1 @@
+- Reservation search bar now also matches by client email, in addition to number, first name and last name.

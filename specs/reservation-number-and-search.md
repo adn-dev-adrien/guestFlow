@@ -25,8 +25,8 @@ already exists server-side for emails (`/emails/eligible-reservations?q=` matche
 which we can mirror.
 
 The operator wants, on the reservation fiche, a **human-readable reservation number** (auto-generated,
-overridable), and a **search box** to jump straight to a fiche by typing a number, a name, a first name, or
-"last + first" — with results shown live as characters are typed.
+overridable), and a **search box** to jump straight to a fiche by typing a number, a name, a first name,
+"last + first", or an email — with results shown live as characters are typed.
 
 ## 2. Goal
 
@@ -63,7 +63,7 @@ The number is also **recalled to the guest in the J-7 and J-2 reminder emails**.
 
 8. A search matches `kind = 'reservation'` rows by, case-insensitively, ANY of:
    `reservationNumber`, `firstName`, `lastName`, `firstName || ' ' || lastName`,
-   `lastName || ' ' || firstName` — each as a substring (`LIKE %q%`).
+   `lastName || ' ' || firstName`, `email` — each as a substring (`LIKE %q%`).
 9. Search results are **shaped server-side** (fat backend): `{ id, reservationNumber, clientFullName,
    propertyName, startDate, endDate, status }`, ordered by `startDate DESC`, capped at 20 rows.
 10. The search is **live**: the client queries the server as the operator types (debounced ~250 ms); the
@@ -197,7 +197,7 @@ numbers, never a value that would collide). Devis rows are never touched.
 ### Search box (`ReservationSearchBox`) — global, in the top bar (2026-06-19)
 
 - A single-line Autocomplete with a search icon and placeholder *« Rechercher une réservation (n°, nom,
-  prénom)… »*, mounted in the top `AppBar` next to the « GuestFlow » wordmark, so it's reachable from **every**
+  prénom, email)… »*, mounted in the top `AppBar` next to the « GuestFlow » wordmark, so it's reachable from **every**
   page (was previously duplicated on Calendrier + Dashboard).
 - As the operator types (≥1 char, debounced 250 ms), the dropdown lists up to 20 matches, each rendered as:
   **`N° · Nom Prénom · Logement · 10 → 13 juil. 2026`**. `noOptionsText` = *« Aucune réservation »*; while
@@ -221,8 +221,8 @@ numbers, never a value that would collide). Devis rows are never touched.
 - [x] `tests/reservation-number.unit.test.js` (+8) — `monthPrefix`; `generateReservationNumber` first→`001`,
   increments, month reset, independent from `devisNumber`, >9 padding; `backfillReservationNumbers` per-month
   ordered by `createdAt,id`, leaves numbered rows, ignores devis, idempotent.
-- [x] `tests/reservations-search.unit.test.js` (+7, model) — matches by number, firstName, lastName,
-  "first last", "last first"; case-insensitive; reservations only; capped at 20; blank `q` → `[]`; shape.
+- [x] `tests/reservations-search.unit.test.js` (+8, model) — matches by number, firstName, lastName,
+  "first last", "last first", email; case-insensitive; reservations only; capped at 20; blank `q` → `[]`; shape.
 - [x] `tests/reservations-number-assignment.unit.test.js` (+7, model on the real schema) — insert generates;
   per-month increment; override stored verbatim; blank update keeps; override update replaces; devis→reservation
   conversion generates; `isReservationNumberTaken` true/self/unknown.

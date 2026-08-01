@@ -219,7 +219,7 @@ function createReservationsModel(database) {
     },
 
     // Live "jump to a reservation" search (specs/reservation-number-and-search.md §3 rule 8-9).
-    // Matches kind='reservation' rows by number, firstName, lastName, "first last" or "last first"
+    // Matches kind='reservation' rows by number, firstName, lastName, "first last", "last first" or email
     // (case-insensitive substring). Result is shaped + capped server-side (fat backend). Blank q → [].
     search({ q } = {}) {
       const term = String(q || '').trim().toLowerCase();
@@ -237,10 +237,11 @@ function createReservationsModel(database) {
           OR LOWER(COALESCE(c.lastName, '')) LIKE ?
           OR LOWER(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) LIKE ?
           OR LOWER(COALESCE(c.lastName, '') || ' ' || COALESCE(c.firstName, '')) LIKE ?
+          OR LOWER(COALESCE(c.email, '')) LIKE ?
         )
         ORDER BY r.startDate DESC, r.id DESC
         LIMIT 20
-      `).all(like, like, like, like, like);
+      `).all(like, like, like, like, like, like);
       return rows.map((row) => ({
         id: row.id,
         reservationNumber: row.reservationNumber || '',
