@@ -1,0 +1,1 @@
+- **Planning:** each day's cards (arrivals, departures, meals/options, breakfast, resource sessions, resource bookings) are now interleaved into a single stream ordered by time — an arrival at 10:00 shows before a meal at 19:00. Cards without a set time (laundry, undated options) sort to the bottom of the day.
