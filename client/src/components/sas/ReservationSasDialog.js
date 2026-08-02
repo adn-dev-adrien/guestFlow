@@ -199,8 +199,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [linenOk, setLinenOk] = useState(null);           // arrival linen verify: true | false
   const [missingBed, setMissingBed] = useState({});       // arrival: { itemId: qty }
   const [cleaningAdded, setCleaningAdded] = useState(false);
-  // specs/sas-bath-linen-upsell.md — arrival bath-linen upsell: null | 'now' | 'endOfStay'.
-  const [bathLinenChoice, setBathLinenChoice] = useState(null);
+  // specs/sas-bath-linen-upsell.md — arrival bath-linen upsell: add it or not. Settlement (incl. « en
+  // fin de séjour ») is chosen once, for the whole complement, on the recap — never at option selection.
+  const [bathLinenAdded, setBathLinenAdded] = useState(false);
   const [cleaningOk, setCleaningOk] = useState(null);     // departure: true | false
   const [missingAsk, setMissingAsk] = useState(null);     // departure: true | false
   const [missingDep, setMissingDep] = useState({});       // departure: { itemId: qty }
@@ -237,7 +238,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (!open || !reservationId) return undefined;
     let cancelled = false;
     setLoading(true); setError(''); setData(null); setStepKey(null);
-    setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false);
+    setCaution(null); setLinenOk(null); setMissingBed({}); setCleaningAdded(false); setBathLinenAdded(false);
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
@@ -269,25 +270,27 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
-          const nextBed = {}; let nextCleaning = false; let nextBathLinen = null; const keep = [];
+          const nextBed = {}; let nextCleaning = false; let nextBathLinen = false; const keep = [];
           const bathLinenLabel = String(d.bathLinen?.label || 'Linge de toilette');
           (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1).forEach((o) => {
             const label = String(o.description || o.title || '');
             const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
             if (label === 'Ménage') { nextCleaning = true; return; }
-            // specs/sas-bath-linen-upsell.md §3.2 rule 8 — the « réglé maintenant » bath-linen line.
-            if (label === bathLinenLabel) { nextBathLinen = 'now'; return; }
+            // specs/sas-bath-linen-upsell.md §3.2 — the bath-linen line (settled with the arrival complement).
+            if (label === bathLinenLabel) { nextBathLinen = true; return; }
             const item = bedByLabel.get(label);
             if (item && Number(item.price) > 0) nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
             else keep.push({ label, amount });
           });
-          // The « réglé en fin de séjour » bath-linen line lives in the end-of-stay complement detail.
+          // A bath-linen line deferred by an OLD commit still lives in the end-of-stay complement detail
+          // (legacy « réglé en fin de séjour »). Re-opening now treats it as « added » too: the re-commit
+          // moves it into the arrival complement and drops the legacy end-of-stay line (endOfStayBathLinen=false).
           if (!nextBathLinen) {
             let eos = [];
             try { eos = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { eos = []; }
-            if (eos.some((l) => l && l.source === 'arrivalBathLinen')) nextBathLinen = 'endOfStay';
+            if (eos.some((l) => l && l.source === 'arrivalBathLinen')) nextBathLinen = true;
           }
-          setMissingBed(nextBed); setCleaningAdded(nextCleaning); setBathLinenChoice(nextBathLinen); setPreservedArrival(keep);
+          setMissingBed(nextBed); setCleaningAdded(nextCleaning); setBathLinenAdded(nextBathLinen); setPreservedArrival(keep);
           if (res.bedLinenAlert) setLinenOk(Object.keys(nextBed).length === 0);
         } else {
           setCautionReturned(res.cautionReturned ? true : false);
@@ -402,11 +405,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     .map((it) => ({ label: it.label, unitPrice: Number(it.price) || 0, amount: Math.round(Number(it.price) * Number(missingBed[it.id]) * 100) / 100, qty: Number(missingBed[it.id]) })), [bedItems, missingBed]);
   const cleaningLine = (mode === 'arrival' && cleaningAdded && data?.cleaning?.price)
     ? { label: 'Ménage', unitPrice: Math.round(Number(data.cleaning.price) * 100) / 100, amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
-  // specs/sas-bath-linen-upsell.md §3.2 — « réglé maintenant » adds the bath linen to the arrival
-  // complement (« réglé en fin de séjour » is sent as endOfStayBathLinen, priced server-side).
-  const bathLinenNowLine = (mode === 'arrival' && bathLinenChoice === 'now' && data?.bathLinen?.available)
+  // specs/sas-bath-linen-upsell.md §3.2 — adding the bath linen puts it in the arrival complement, like
+  // the cleaning charge. Its settlement (incl. « en fin de séjour ») is chosen on the recap, not here.
+  const bathLinenLine = (mode === 'arrival' && bathLinenAdded && data?.bathLinen?.available)
     ? { label: data.bathLinen.label, unitPrice: Math.round(Number(data.bathLinen.unitPrice) * 100) / 100, amount: Math.round(Number(data.bathLinen.amount) * 100) / 100, qty: Number(data.bathLinen.persons) || 1 } : null;
-  const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : []), ...(bathLinenNowLine ? [bathLinenNowLine] : [])];
+  const arrivalAddedLines = [...bedLines, ...(cleaningLine ? [cleaningLine] : []), ...(bathLinenLine ? [bathLinenLine] : [])];
   const arrivalAdded = arrivalAddedLines.reduce((s, l) => s + l.amount, 0);
   // On re-edit, the SAS-origin complement lines from the prior commit are REPLACED, not added — so
   // the recap must exclude their amount from « déjà dû » (specs/reopen-completed-sas.md §4), else it
@@ -508,10 +511,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // check-out (specs/recall-unpaid-arrival-complement-at-checkout.md).
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
-          // specs/sas-bath-linen-upsell.md §3.2 — tri-state: undefined when the bath-linen step isn't
-          // shown (server leaves the end-of-stay complement untouched); true = « réglé en fin de séjour »
-          // (server prices it per person); false = « réglé maintenant » / « Non merci » (drops any prior line).
-          endOfStayBathLinen: activeKeys.includes('bathLinen') ? (bathLinenChoice === 'endOfStay') : undefined,
+          // specs/sas-bath-linen-upsell.md §3.2 — the bath linen (when added) rides `complementItems` into
+          // the arrival complement; settlement is chosen on the recap. So this is always `false` when the
+          // step is shown, which drops any legacy « réglé en fin de séjour » line from an old commit
+          // (undefined when the step isn't shown → leave the end-of-stay complement untouched).
+          endOfStayBathLinen: activeKeys.includes('bathLinen') ? false : undefined,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
@@ -767,13 +771,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         );
       case 'bathLinen': {
         const bl = data.bathLinen || {};
-        const chip = bathLinenChoice === 'now' ? 'réglé maintenant'
-          : bathLinenChoice === 'endOfStay' ? 'réglé en fin de séjour' : null;
         return (
           <Stack spacing={1.5}>
             <Typography variant="body1">Le client n'a pas pris le linge de toilette.</Typography>
             <Typography variant="body2">Tarif : <strong>{formatCurrency(bl.amount)}</strong> ({bl.persons} pers × {formatCurrency(bl.unitPrice)}). Proposer au client ?</Typography>
-            {chip && <Chip label={`Linge ajouté (${formatCurrency(bl.amount)}) — ${chip}`} color="info" sx={{ alignSelf: 'flex-start' }} />}
+            {bathLinenAdded && <Chip label={`Linge ajouté (${formatCurrency(bl.amount)})`} color="info" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
       }
@@ -973,12 +975,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           <Button variant="contained" onClick={() => { setCleaningAdded(false); goNext(); }}>Non merci</Button>
         </>;
       case 'bathLinen':
-        // specs/sas-bath-linen-upsell.md §3.2 — neutral upsell (not a yes/no safety question): two add
-        // actions (defer / pay now) + a discreet decline.
+        // specs/sas-bath-linen-upsell.md §3.2 — neutral upsell, mirroring the « Ménage » step: add it or
+        // decline. No payment question here — settlement is chosen once, for the whole complement, on the recap.
         return <>{quit}
-          <Button variant="contained" onClick={() => { setBathLinenChoice('endOfStay'); goNext(); }}>Réglé en fin de séjour</Button>
-          <Button variant="contained" onClick={() => { setBathLinenChoice('now'); goNext(); }}>Réglé maintenant</Button>
-          <Button variant="outlined" onClick={() => { setBathLinenChoice(null); goNext(); }}>Non merci</Button>
+          <Button variant="outlined" onClick={() => { setBathLinenAdded(true); goNext(); }}>Ajouter le linge de toilette</Button>
+          <Button variant="contained" onClick={() => { setBathLinenAdded(false); goNext(); }}>Non merci</Button>
         </>;
       case 'missingAsk':
         // « Non » = nothing missing → clear any (re-edit) pre-filled items so they aren't billed.

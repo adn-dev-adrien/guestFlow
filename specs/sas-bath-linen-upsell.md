@@ -25,9 +25,21 @@ guest books it, the reservation pricing engine bills `persons × unitPrice`
 per-property price override applied ([property_option_prices](per-property-option-prices.md)).
 
 Today, if the guest **did not** take bath linen, nothing in the SAS lets the operator propose it on the spot.
-The operator wants the same upsell as for cleaning, but priced **per person like the reservation engine**, and
-with a **payment choice**: settle it now (into the normal arrival complement, optionally recorded in the
-**caisse interne**) or defer it to the **end-of-stay complement** shown at check-out.
+The operator wants the same upsell as for cleaning: **offer it or not**, priced **per person like the
+reservation engine**, and — like every other SAS charge — **let the operator settle it at the very end of the
+check-in** on the recap, never at the moment the option is selected.
+
+> **2026-08-02 update — règlement moves to the recap.** The original design forced the operator to pick the
+> settlement timing (« réglé maintenant » vs « réglé en fin de séjour ») **on the bath-linen step itself**.
+> That is wrong: no other SAS charge asks for payment at selection time — the ménage step only adds/declines,
+> and the recap's `PaymentModeButtons` (**CB/Chèque · Payé en liquide · En fin de séjour**) settle the whole
+> arrival complement in one place. The bath-linen step now mirrors the ménage: **« Ajouter le linge de
+> toilette » / « Non merci »**. When added, the line joins the **arrival complement** and is settled on the
+> recap like everything else; choosing **« En fin de séjour »** there defers the whole complement to check-out
+> via the existing unpaid-arrival-complement recall
+> ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)). The
+> dedicated end-of-stay bath-linen routing is retired (§3.2). The check-out display of any **legacy** deferred
+> line already written by an old commit is preserved (§3.3).
 
 The reservation already has two distinct complements (spec
 [cash-complement-and-endofstay-finance.md](cash-complement-and-endofstay-finance.md),
@@ -42,9 +54,10 @@ The reservation already has two distinct complements (spec
 ## 2. Goal
 
 In the **arrival SAS**, when the guest didn't take bath linen, the operator can **offer it** at a price
-computed **per person** (mirroring the reservation engine), then either **add it — settle at end of stay**
-(→ end-of-stay complement, displayed and collected at check-out) or **add it — settle now** (→ normal arrival
-complement, recordable in the caisse interne on the arrival recap). If declined, nothing is written.
+computed **per person** (mirroring the reservation engine): **« Ajouter le linge de toilette »** adds it to the
+**arrival complement** (like the ménage charge), **« Non merci »** writes nothing. The **settlement is chosen
+once, for the whole complement, on the recap** (CB/Chèque · Payé en liquide · En fin de séjour) — never on the
+option step.
 
 ## 3. Functional rules
 
@@ -71,47 +84,43 @@ complement, recordable in the caisse interne on the arrival recap). If declined,
 ### 3.2 Operator choice on the page
 
 5. The page shows: « Le client n'a pas pris le linge de toilette. » + « Tarif : {amount} ({persons} pers ×
-   {unitPrice}). » and **three explicit buttons** (mobile-first, ≥ 48 px):
-   - **« Ajouter — réglé en fin de séjour »** → the amount joins the **end-of-stay complement** (rule 6).
-   - **« Ajouter — réglé maintenant »** → the amount joins the **normal arrival complement** (rule 7).
-   - **« Non merci »** → nothing added; advance.
-   The two « Ajouter » actions are a neutral upsell (not a yes/no safety question), styled like the
-   « Ajouter le ménage » action — primary for the add actions, discreet for « Non merci ».
-6. **Settle at end of stay.** On commit, the arrival SAS writes a **bath-linen line into
-   `endOfStayComplementDetail`** tagged `source = 'arrivalBathLinen'` and recomputes
-   `endOfStayComplementAmount` = Σ of all detail lines. This line is **displayed and collected at check-out**
-   (rule 9). It does **not** touch `complementAmount`.
-7. **Settle now.** The amount is added to the **arrival complement** as an ordinary SAS complement item
-   (`reservation_custom_options`, `inComplement = 1`, `sasArrivalOrigin = 1`, label « Linge de toilette »),
+   {unitPrice}). » and **two buttons** (mobile-first, ≥ 48 px), mirroring the « Ménage » step exactly:
+   - **« Ajouter le linge de toilette »** (outlined) → the amount joins the **arrival complement** (rule 6).
+   - **« Non merci »** (contained) → nothing added; advance.
+   When added, a confirmation `Chip` « Linge ajouté ({amount}) » (color `info`) shows on the page. **No payment
+   question is asked here** — settlement is decided on the recap (rule 7).
+6. **Adding the bath linen.** The amount is added to the **arrival complement** as an ordinary SAS complement
+   item (`reservation_custom_options`, `inComplement = 1`, `sasArrivalOrigin = 1`, label « Linge de toilette »),
    exactly like the cleaning charge — it flows through the existing `complementItems` path of
-   `commitArrivalSas`. The operator records the cash-register settlement with the **existing arrival-recap
-   checkbox** « Complément encaissé » → « Caisse interne » (`complementSettled` + `complementPaidCash`); no
-   new payment control is added. Choosing « réglé maintenant » does **not** auto-tick that box — the operator
-   confirms collection on the recap as today.
-8. **Mutual exclusivity & idempotency.** At most one of the two buckets holds the bath-linen line for a given
-   SAS run. Re-opening the arrival SAS (spec [reopen-completed-sas.md](reopen-completed-sas.md)) pre-selects
-   the prior choice and **replaces** the prior line rather than duplicating it:
-   - the « settle now » line is a `sasArrivalOrigin = 1` custom option → already replaced wholesale by the
-     existing re-commit logic;
-   - the « settle at end of stay » line (`source = 'arrivalBathLinen'`) is **removed then re-inserted** by
-     `commitArrivalSas` on every re-commit, so the end-of-stay amount is recomputed without double-charging.
-   - Switching the choice between two runs (now → end of stay, or the reverse, or → « Non merci ») removes the
-     line from the previous bucket.
+   `commitArrivalSas`. It appears in the recap « à percevoir » total with the other complement lines.
+7. **Règlement on the recap (not on the step).** The operator settles the whole arrival complement — bath
+   linen included — with the recap's `PaymentModeButtons` (**CB/Chèque · Payé en liquide · En fin de séjour**,
+   spec [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)). **« En fin de séjour »** leaves the
+   complement unpaid so it is recalled at check-out
+   ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)) — this
+   is how bath linen is now deferred, without a dedicated end-of-stay routing.
+8. **Retired end-of-stay routing + idempotency.** The arrival SAS **no longer writes** a
+   `source='arrivalBathLinen'` line into `endOfStayComplementDetail`. `commitArrivalSas` still receives
+   `endOfStayBathLinen`, but the client always sends **`false`** when the step is shown, so any **legacy**
+   deferred line from an old commit is **removed** on re-commit and the end-of-stay amount recomputed. The
+   « added » line is a `sasArrivalOrigin = 1` custom option → already replaced wholesale by the existing
+   re-commit logic (no double-charge). Re-opening a SAS whose old commit had deferred the bath linen pre-checks
+   « added » and moves the line into the arrival complement on re-commit.
 
-### 3.3 Check-out display (the crux)
+### 3.3 Check-out display of a LEGACY deferred line (backward compat)
 
-9. **The deferred bath-linen line MUST appear in the departure (check-out) SAS recap and count in its total.**
-   Today the departure recap renders `endOfStayLines` (cleaning + missing items + extinguisher preview) but
-   **omits `preservedDeparture`** — the bucket into which unrecognised end-of-stay detail lines are read back.
-   This is invisible today because nothing ever writes an unrecognised end-of-stay line; **this feature is the
-   first to do so.** The departure SAS must therefore:
+9. **A legacy `source = 'arrivalBathLinen'` line — written by an OLD commit before the 2026-08-02 change — MUST
+   still appear in the departure (check-out) SAS recap and count in its total** (for reservations whose arrival
+   SAS is not re-run). New arrival commits never write this line anymore (§3.2 rule 8), but the departure SAS
+   keeps handling any pre-existing one:
    - reconstruct the `source = 'arrivalBathLinen'` line into a **displayed, non-editable** recap line (its own
-     bucket, e.g. `carriedEndOfStayLines`), **not** the silent `preservedDeparture`;
+     bucket, `carriedEndOfStayLines`), **not** the silent `preservedDeparture`;
    - **include it in `endOfStayTotal`** and in « Total à percevoir » at check-out;
    - **preserve it on the departure commit** (re-send it verbatim in `endOfStayComplementDetail`, keeping the
-     `source` tag) so running the departure SAS never drops the arrival-added line.
+     `source` tag) so running the departure SAS never drops the line.
    « Compléments encaissés » / « Caisse interne » at check-out then settle it with the rest of the end-of-stay
-   complement, unchanged (`commitDepartureSas`).
+   complement, unchanged (`commitDepartureSas`). Re-running the **arrival** SAS instead migrates the line into
+   the arrival complement (§3.2 rule 8).
 
 ### 3.4 Spec sync
 
@@ -122,9 +131,9 @@ complement, recordable in the caisse interne on the arrival recap). If declined,
 **Edge cases:**
 - No `bathroom_linen` option in the catalogue, or `amount ≤ 0` → `available = false` → page skipped.
 - Bath linen already on the reservation → page skipped.
-- `complementPaid = 1` (arrival complement already settled) + « réglé maintenant » → the item is still
-  recorded (existing frozen-complement behaviour warns the operator to collect the delta manually); prefer
-  « réglé en fin de séjour » in that situation (documented, not enforced).
+- `complementPaid = 1` (arrival complement already settled) + « Ajouter » → the recap keeps its existing
+  frozen-complement warning (« encaisser le supplément manuellement »); the operator collects the delta by
+  hand, as for any other line added after the complement was marked paid.
 - Re-open arrival SAS after the departure SAS already ran: the `source` tag is preserved through the departure
   commit (rule 9), so the arrival re-open still recognises and replaces its own line.
 - Quitter at any point → nothing written (in-memory state only), unchanged.
@@ -156,7 +165,7 @@ complement, recordable in the caisse interne on the arrival recap). If declined,
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/` | `components/sas/ReservationSasDialog.js` | T | New `bathLinen` step in `activeKeys` (arrival, after `cleaning`, when `data.bathLinen?.available`); page render + 3 buttons; in-memory `bathLinenChoice ∈ {null,'now','endOfStay'}`; « now » pushes a line into `arrivalAddedLines`, « endOfStay » sends `endOfStayBathLinen` in the arrival commit; **departure recap fix** (rule 9): read `source='arrivalBathLinen'` into a displayed `carriedEndOfStayLines` bucket, add to `endOfStayTotal`, re-send on commit; re-open pre-fill for both buckets. |
+| `components/` | `components/sas/ReservationSasDialog.js` | T | `bathLinen` step in `activeKeys` (arrival, after `cleaning`, when `data.bathLinen?.available`); page render + **2 buttons** (« Ajouter le linge de toilette » / « Non merci »); in-memory `bathLinenAdded` boolean; when added, pushes a line into `arrivalAddedLines` (arrival complement); the arrival commit always sends `endOfStayBathLinen: false` when the step is shown (drops legacy deferred lines). **Departure recap** (rule 9, legacy): read `source='arrivalBathLinen'` into a displayed `carriedEndOfStayLines` bucket, add to `endOfStayTotal`, re-send on commit. Re-open pre-fill: « added » is set from the `sasArrivalOrigin` line OR a legacy deferred line. |
 | `services/` | `services/api.js` | — | `commitArrivalSas` already passes the whole payload object through; the new field rides along. |
 
 **Component reuse declaration (mandatory):**
@@ -172,7 +181,7 @@ complement, recordable in the caisse interne on the arrival recap). If declined,
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/reservations/:id/sas?mode=arrival` | — | adds `bathLinen: { available, unitPrice, priceType, persons, nights, amount, label }` | Server decides availability + price. |
-| POST | `/api/reservations/:id/sas/arrival` | adds `endOfStayBathLinen: { label, amount } \| null` (the « settle at end of stay » line; `null`/omitted when the choice is « now » or « Non merci ») | `{ ok, complementAmount }` | The « settle now » line rides the existing `complementItems`. |
+| POST | `/api/reservations/:id/sas/arrival` | `endOfStayBathLinen: false` whenever the bath-linen step is shown (drops any legacy deferred line); `undefined` when the step isn't shown | `{ ok, complementAmount }` | The added bath-linen line rides the existing `complementItems` (arrival complement); settlement is on the recap. |
 | POST | `/api/reservations/:id/sas/departure` | `endOfStayComplementDetail` now carries the preserved `{ label, amount, source:'arrivalBathLinen' }` line verbatim | `{ ok }` | Server recomputes the authoritative total from all detail lines (unchanged). |
 
 ---
@@ -195,16 +204,16 @@ reservations.
 - **New arrival-SAS page « Linge de toilette »** (icon: `DryCleaning` — the towel/laundry icon already used
   for the departure « serviettes manquantes » step):
   - Body: « Le client n'a pas pris le linge de toilette. » then « Tarif : **{amount}** ({persons} pers ×
-    {unitPrice}). » When a choice is made, a confirmation `Chip` (« Linge ajouté — {amount}, réglé
-    {maintenant|en fin de séjour} », color `info`).
-  - Footer buttons (stacked full-width on `xs`, side-by-side `sm+`, ≥ 48 px): **« Réglé en fin de séjour »**
-    (primary), **« Réglé maintenant »** (primary), **« Non merci »** (discreet/outlined). Tapping any of them
-    advances immediately.
-- **Arrival recap:** the « settle now » line appears in the added-lines detail (« Linge de toilette :
-  {persons} × {unitPrice} = {amount} »), included in « à percevoir ». The existing « Complément encaissé » →
-  « Caisse interne » checkbox settles it (no change).
-- **Departure (check-out) recap:** the deferred bath-linen line is listed (« Linge de toilette : … ») and
-  counted in « Total à percevoir » (rule 9 fix). « Compléments encaissés » / « Caisse interne » settle it.
+    {unitPrice}). » When added, a confirmation `Chip` « Linge ajouté ({amount}) » (color `info`).
+  - Footer buttons (stacked full-width on `xs`, side-by-side `sm+`, ≥ 48 px), mirroring the « Ménage » step:
+    **« Ajouter le linge de toilette »** (outlined) and **« Non merci »** (contained). Tapping either advances
+    immediately. **No payment question on this step.**
+- **Arrival recap:** the added line appears in the added-lines detail (« Linge de toilette : {persons} ×
+  {unitPrice} = {amount} »), included in « à percevoir », and is settled by the recap's `PaymentModeButtons`
+  (CB/Chèque · Payé en liquide · En fin de séjour) with the rest of the complement.
+- **Departure (check-out) recap:** only a **legacy** deferred line (old commits) is listed (« Linge de
+  toilette : … ») and counted in « Total à percevoir » (rule 9). New commits route bath linen through the
+  arrival complement instead.
 - **Responsive:** inherits the SAS shell — `fullScreen` on `xs`, full-width stacked buttons on mobile,
   centered dialog on `md+`, touch targets ≥ 48 px. No new layout.
 - **States:** loading/error inherit the dialog. `available=false` → the page never renders (skipped).
@@ -227,21 +236,21 @@ reservations.
       operator runs the departure SAS.
 
 ### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`)
-- [ ] Arrival: bath-linen page shows when `bathLinen.available`; « Réglé en fin de séjour » sends
-      `endOfStayBathLinen` in `commitArrivalSas` and adds nothing to `complementItems`.
-- [ ] Arrival: « Réglé maintenant » adds the « Linge de toilette » line to `complementItems`, recap total
-      includes it, `endOfStayBathLinen` is null.
-- [ ] Arrival: page skipped when `bathLinen.available === false`.
-- [ ] Departure: a reservation whose `endOfStayComplementDetail` carries a `source='arrivalBathLinen'` line
-      shows it in the recap, includes it in « Total à percevoir », and re-sends it on commit.
+- [x] Arrival: bath-linen page shows when `bathLinen.available`; « Ajouter le linge de toilette » adds the
+      « Linge de toilette » line to `complementItems`, the recap total includes it, the recap règlement buttons
+      (incl. « En fin de séjour ») are present, and `endOfStayBathLinen` is `false`.
+- [x] Arrival: « Non merci » adds nothing (`complementItems` empty), `endOfStayBathLinen` is `false`.
+- [x] Arrival: page skipped when `bathLinen.available === false`.
+- [x] Departure (legacy): a reservation whose `endOfStayComplementDetail` carries a `source='arrivalBathLinen'`
+      line shows it in the recap, includes it in « Total à percevoir », and re-sends it on commit.
 
 ### Manual UI verification
-- [ ] Arrival happy path: guest without bath linen → page appears, per-person price correct → « Réglé en fin
-      de séjour » → line visible in the departure SAS recap + total; then « Compléments encaissés / Caisse
-      interne » at check-out.
-- [ ] « Réglé maintenant » → line in the arrival complement → « Complément encaissé / Caisse interne » on the
-      arrival recap.
-- [ ] Re-open the arrival SAS: prior choice pre-selected, no double-charge; switch now ↔ end of stay.
+- [ ] Arrival happy path: guest without bath linen → page appears, per-person price correct → « Ajouter le
+      linge de toilette » → line visible in the arrival recap + total → règlement chosen on the recap
+      (CB/Chèque · Liquide · En fin de séjour).
+- [ ] « En fin de séjour » on the recap → the whole complement (bath linen included) is recalled at check-out.
+- [ ] Re-open the arrival SAS: prior « added » pre-selected, no double-charge; a legacy deferred line migrates
+      into the arrival complement.
 - [ ] Regression: cleaning upsell and the departure end-of-stay complement still behave as before.
 - [ ] Mobile (`xs`): full-screen stepper, buttons stacked.
 
@@ -256,14 +265,18 @@ reservations.
 
 ## 9. Open questions
 
-Resolved during scoping (2026-07-20, via questionnaire):
-- **Deferred bucket** → the **end-of-stay complement** (`endOfStayComplementAmount/Detail`), shown at
-  check-out. (Alternative « unpaid arrival complement recalled at check-out » rejected — the user wants the
-  dedicated end-of-stay complement.)
-- **Page interaction** → **three explicit buttons** (réglé en fin de séjour / réglé maintenant / Non merci).
-- **Caisse interne for immediate payment** → **reuse the existing arrival-recap checkbox**
-  (`complementSettled` + `complementPaidCash`); no per-line payment control.
+**Superseded 2026-08-02 — règlement moved to the recap (via questionnaire).** The payment timing is no longer
+asked on the bath-linen step; the step only adds/declines and the recap settles the whole complement. The
+original 2026-07-20 resolutions below are kept for history but no longer describe the shipped behaviour:
+- **Page interaction** → now **two buttons** (« Ajouter le linge de toilette » / « Non merci »), mirroring the
+  ménage step. (Was: three buttons réglé en fin de séjour / réglé maintenant / Non merci.)
+- **Deferred bucket** → deferral is now the recap's **« En fin de séjour »**, i.e. the unpaid arrival
+  complement recalled at check-out. (Was: the dedicated end-of-stay complement — now retired for bath linen;
+  the departure SAS still displays legacy lines, §3.3.)
 
-- **Accounting routing of the deferred bath linen** (resolved 2026-07-20) → **accept the 70600010
-  « prestation complémentaire » bucket**, consistent with the other end-of-stay lines (ménage non fait, linge
-  manquant, extincteur). No option-revenue routing.
+Resolved during original scoping (2026-07-20, via questionnaire) — still valid:
+- **Caisse interne for settlement** → **reuse the existing arrival-recap** payment control
+  (`complementSettled` + `complementPaidCash`); no per-line payment control.
+- **Accounting routing of the bath linen** → **accept the 70600010 « prestation complémentaire » bucket**,
+  consistent with the other complement lines (ménage non fait, linge manquant, extincteur). No option-revenue
+  routing.
