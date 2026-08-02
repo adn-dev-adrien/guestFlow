@@ -22,6 +22,7 @@ import ReservationCard from '../components/ReservationCard';
 import DepartureMiniRow from '../components/DepartureMiniRow';
 import ReservationSasDialog from '../components/sas/ReservationSasDialog';
 import { readSasDeepLink, readBreakfastDeepLink } from '../utils/sasDeepLink';
+import { orderDayEntries } from '../utils/planningDayOrder';
 import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
@@ -812,6 +813,111 @@ export default function PlanningPage() {
           const reservations = day ? day.reservations : [];
           const isToday = date === todayStr;
           const allReady = reservations.length > 0 && reservations.every((r) => r.checkInReady);
+
+          // Build every card of the day as an orderable entry `{ key, time, node }`, then sort them
+          // into a single chronological stream (specs/planning-chronological-day-ordering.md).
+          // `time` is the card's HH:MM sort key; a null time sends the card to the bottom.
+          const entries = [];
+          // Departures (checkOutTime, fallback 11:00).
+          dayDepartures.forEach((r) => entries.push({
+            key: `dep-${r.id}`,
+            time: r.checkOutTime || '11:00',
+            node: (
+              <DepartureMiniRow
+                reservation={r}
+                onToggleDone={handleToggleDepartureDone}
+                onOpenReservation={receptionMode ? undefined : openReservation}
+                onOpenSas={openDepartureSas}
+                onOpenClient={receptionMode ? undefined : openClient}
+                alertInfo={alertMap[r.id]}
+              />
+            ),
+          }));
+          // Arrivals (checkInTime, fallback 15:00).
+          reservations.forEach((r) => entries.push({
+            key: `arr-${r.id}`,
+            time: r.checkInTime || '15:00',
+            node: (
+              <ReservationCard
+                reservation={r}
+                onToggleReady={handleToggleReady}
+                alertInfo={alertMap[r.id]}
+                onOpenReservation={receptionMode ? undefined : openReservation}
+                onOpenSas={openArrivalSas}
+                onOpenClient={receptionMode ? undefined : openClient}
+              />
+            ),
+          }));
+          // Breakfast cards (breakfastTime) — one card per morning item.
+          (breakfastByDate[date]?.items || []).forEach((i) => {
+            const item = mapBreakfastItem(i, date);
+            entries.push({
+              key: `bf-${item.reservationId}-${item.time || ''}`,
+              time: item.time,
+              node: (
+                <OptionDayCard
+                  theme="breakfast"
+                  data={{ items: [item] }}
+                  onItemClick={(reservationId, it) => setBreakfastPrepItem(it)}
+                  onToggleDone={handleToggleBreakfastDone}
+                />
+              ),
+            });
+          });
+          // Option / meal cards (item.time; null → time-less → bottom).
+          (optionCardsByDate[date]?.items || []).forEach((i) => entries.push({
+            key: `opt-${i.reservationId}-${i.optionId}-${i.time || ''}`,
+            time: i.time,
+            node: (
+              <OptionDayCard
+                data={{ items: [i] }}
+                onItemClick={openReservation}
+                onToggleDone={handleToggleOptionCardDone}
+              />
+            ),
+          }));
+          // Resource session cards — sort by the range start; display the full start–end range.
+          (resourceCardsByDate[date]?.items || []).forEach((i) => entries.push({
+            key: `res-${i.reservationId}-${i.resourceId}-${i.start || ''}`,
+            time: i.start,
+            node: (
+              <OptionDayCard
+                theme="resource"
+                data={{ items: [{ ...i, optionId: i.resourceId, title: i.name, time: i.end ? `${i.start}–${i.end}` : i.start }] }}
+                onItemClick={openReservation}
+                onToggleDone={handleToggleResourceCardDone}
+              />
+            ),
+          }));
+          // Resource bookings (startTime) — one section per booking so each is orderable.
+          dayResourceBookings.forEach((b) => entries.push({
+            key: `rb-${b.id}`,
+            time: b.startTime,
+            node: <ResourceBookingsSection bookings={[b]} />,
+          }));
+          // Weekly bed-linen card (specs/weekly-bed-linen-tracking.md) — time-less → bottom. Same
+          // placeholder logic as before: a skipped date with no payload still renders so the toggle
+          // stays revertable (specs/skip-laundry-trip.md §3.3 rule 11).
+          const laundryData = laundryByDate[date] || (skippedLaundryDates.has(date) ? { dropOff: {}, pickUp: {} } : null);
+          if (laundryData) {
+            entries.push({
+              key: `laundry-${date}`,
+              time: null,
+              node: (
+                <LaundryDayCard
+                  data={laundryData}
+                  inventoryAfter={inventoryByDate[date]}
+                  date={date}
+                  isSkipped={skippedLaundryDates.has(date)}
+                  onToggleSkip={handleToggleLaundrySkip}
+                  manualAddition={manualAdditionsByDate[date]}
+                  onEditManual={setEditManualDate}
+                />
+              ),
+            });
+          }
+          const orderedEntries = orderDayEntries(entries);
+
           return (
             <Box key={date} sx={{ mb: 3 }}>
               {/* Day header */}
@@ -848,92 +954,13 @@ export default function PlanningPage() {
                 </Box>
               </Box>
 
-              {/* Weekly bed-linen card (specs/weekly-bed-linen-tracking.md). Renders only on
-                  laundry days that actually have something to bring or pick up — unless the
-                  operator marked it as skipped (specs/skip-laundry-trip.md §3.3 rule 11), in
-                  which case it's always shown so the toggle can be reverted. */}
-              <LaundryDayCard
-                // Skipped date with no underlying laundry payload (e.g. a Tuesday with no
-                // arrivals + no reservation ending in the prior week): pass an empty-shape
-                // placeholder so the card renders, the IconButton appears, and the operator
-                // can un-skip from the same place. The card's body shows the muted caption.
-                data={laundryByDate[date] || (skippedLaundryDates.has(date) ? { dropOff: {}, pickUp: {} } : null)}
-                inventoryAfter={inventoryByDate[date]}
-                date={date}
-                isSkipped={skippedLaundryDates.has(date)}
-                onToggleSkip={handleToggleLaundrySkip}
-                manualAddition={manualAdditionsByDate[date]}
-                onEditManual={setEditManualDate}
-              />
-
-              {/* Breakfast card (specs/breakfast-option-planning-card.md +
-                  sas-breakfast-milk-and-food.md): now rendered through the shared OptionDayCard in
-                  the « breakfast » theme (amber) so it matches the other option cards — title + time
-                  pill, property, person + the morning headcount + café/thé/chocolat/lait +
-                  viennoiseries/céréales — with the « fait » circle. Driven by the breakfast option's
-                  selected occurrences. Clicking the card opens the preparation popup
-                  (specs/planning-breakfast-prep-popup.md); the fiche is reachable from it. */}
-              <OptionDayCard
-                theme="breakfast"
-                data={breakfastByDate[date] ? {
-                  items: breakfastByDate[date].items.map((i) => mapBreakfastItem(i, date)),
-                } : null}
-                onItemClick={(reservationId, item) => setBreakfastPrepItem(item)}
-                onToggleDone={handleToggleBreakfastDone}
-              />
-
-              {/* Option-driven planning cards (specs/option-planning-card.md §3.3). Sits with the
-                  other day cards; hides itself when no occurrence falls on this date. Each row is
-                  clickable and opens the corresponding reservation fiche. */}
-              <OptionDayCard data={optionCardsByDate[date]} onItemClick={openReservation} onToggleDone={handleToggleOptionCardDone} />
-
-              {/* Resource session cards (specs/resource-hourly-scheduling.md §3.4) — one per session,
-                  teal theme, time range pill. Maps the resource fields onto the shared card shape. */}
-              <OptionDayCard
-                theme="resource"
-                data={resourceCardsByDate[date] ? {
-                  items: resourceCardsByDate[date].items.map((i) => ({
-                    ...i,
-                    optionId: i.resourceId,
-                    title: i.name,
-                    time: i.end ? `${i.start}–${i.end}` : i.start,
-                  })),
-                } : null}
-                onItemClick={openReservation}
-                onToggleDone={handleToggleResourceCardDone}
-              />
-
-              {dayDepartures.length > 0 && (
-                <Box sx={{ mb: 1.5 }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {dayDepartures.map((r) => (
-                      <DepartureMiniRow
-                        key={`dep-${r.id}`}
-                        reservation={r}
-                        onToggleDone={handleToggleDepartureDone}
-                        onOpenReservation={receptionMode ? undefined : openReservation}
-                        onOpenSas={openDepartureSas}
-                        onOpenClient={receptionMode ? undefined : openClient}
-                        alertInfo={alertMap[r.id]}
-                      />
-                    ))}
-                  </Box>
-                </Box>
-              )}
-
-              {reservations.map((r) => (
-                <ReservationCard
-                  key={r.id}
-                  reservation={r}
-                  onToggleReady={handleToggleReady}
-                  alertInfo={alertMap[r.id]}
-                  onOpenReservation={receptionMode ? undefined : openReservation}
-                  onOpenSas={openArrivalSas}
-                  onOpenClient={receptionMode ? undefined : openClient}
-                />
+              {/* All of the day's cards, interleaved into one chronological stream by time
+                  (specs/planning-chronological-day-ordering.md). Each card keeps its own component
+                  and behavior; only the vertical order changes. Departures stay grouped as a
+                  vertical strip only implicitly, through their shared 11:00-ish checkout times. */}
+              {orderedEntries.map((entry) => (
+                <React.Fragment key={entry.key}>{entry.node}</React.Fragment>
               ))}
-
-              <ResourceBookingsSection bookings={dayResourceBookings} />
 
               {idx < arr.length - 1 && <Divider sx={{ mt: 2 }} />}
             </Box>
