@@ -95,10 +95,11 @@ confirmation — records the caution status and the complement(s) on the reserva
       cleaning option to the reservation) / **Non merci** (→ next).
 10.bis **Linge de toilette (only if the reservation did NOT take the `bathroom_linen` option).** Upsell,
     priced **per person** by the engine (specs/sas-bath-linen-upsell.md). *« Le client n'a pas pris le linge
-    de toilette. Tarif : X € (N pers × Y €). »* Three buttons: **Réglé en fin de séjour** (→ end-of-stay
-    complement, shown + collected at check-out) / **Réglé maintenant** (→ arrival complement, settled via the
-    recap « Complément encaissé / Caisse interne ») / **Non merci**. Skipped when bath linen is already taken
-    or no priced `bathroom_linen` option exists.
+    de toilette. Tarif : X € (N pers × Y €). »* Two buttons, mirroring the ménage step: **Ajouter le linge de
+    toilette** (→ accumulates the charge into the arrival complement) / **Non merci** (→ next). **No payment
+    question here** — the whole complement (bath linen included) is settled on the recap
+    (CB/Chèque · Payé en liquide · En fin de séjour). Skipped when bath linen is already taken or no priced
+    `bathroom_linen` option exists.
 11. **Caution reportée (only if rule 6 = « Reporté »).** Re-shows the caution page once more before the recap.
 12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
     (before the SAS) **+** the items added during the SAS (linen elements + cleaning), **with the full detail

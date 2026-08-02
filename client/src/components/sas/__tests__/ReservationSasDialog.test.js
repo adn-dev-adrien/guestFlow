@@ -554,7 +554,7 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
 
 const BATH_LINEN_OFFER = { available: true, unitPrice: 4, priceType: 'per_person', persons: 3, nights: 2, amount: 12, label: 'Linge de toilette' };
 
-test('arrival SAS: bath-linen page — « Réglé en fin de séjour » sends endOfStayBathLinen and adds nothing to the arrival complement', async () => {
+test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds the line to the arrival complement; règlement is on the recap', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
     cleaning: { included: true, price: null },
@@ -567,18 +567,23 @@ test('arrival SAS: bath-linen page — « Réglé en fin de séjour » sends end
 
   await screen.findByText(/n'a pas pris le linge de toilette/);
   expect(screen.getByText(/3 pers/)).toBeInTheDocument();
-  clickBtn('Réglé en fin de séjour');
+  clickBtn('Ajouter le linge de toilette');
 
   await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.getByText(/Total : 12,00 €/)).toBeInTheDocument();
+  // Settlement is chosen once for the whole complement on the recap (no payment question at the step).
+  expect(screen.getByRole('button', { name: 'En fin de séjour' })).toBeInTheDocument();
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  expect(arg.endOfStayBathLinen).toBe(true);
-  expect(arg.complementItems).toEqual([]); // deferred → nothing in the arrival complement
+  // The line rides the arrival complement; endOfStayBathLinen is always false when the step is shown
+  // (drops any legacy « en fin de séjour » line from an old commit).
+  expect(arg.endOfStayBathLinen).toBe(false);
+  expect(arg.complementItems).toEqual([{ label: 'Linge de toilette', amount: 12 }]);
 });
 
-test('arrival SAS: bath-linen page — « Réglé maintenant » adds the line to the arrival complement, endOfStayBathLinen false', async () => {
+test('arrival SAS: bath-linen page — « Non merci » adds nothing, endOfStayBathLinen false', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
     cleaning: { included: true, price: null },
@@ -589,16 +594,15 @@ test('arrival SAS: bath-linen page — « Réglé maintenant » adds the line to
   await screen.findByText('Commencer');
   clickBtn('Commencer');
   await screen.findByText(/n'a pas pris le linge de toilette/);
-  clickBtn('Réglé maintenant');
+  clickBtn('Non merci');
 
   await screen.findByText('Récapitulatif — complément à percevoir');
-  expect(screen.getByText(/Total : 12,00 €/)).toBeInTheDocument();
   clickBtn('Valider et terminer');
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
   expect(arg.endOfStayBathLinen).toBe(false);
-  expect(arg.complementItems).toEqual([{ label: 'Linge de toilette', amount: 12 }]);
+  expect(arg.complementItems).toEqual([]);
 });
 
 test('arrival SAS: bath-linen page is skipped when the offer is unavailable', async () => {
