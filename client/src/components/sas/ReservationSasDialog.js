@@ -320,7 +320,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             else keep.push({ label, amount: Number(line.amount) || 0 });
           });
           setMissingDep(nextDep); setExtinguisherQty(nextExtinguisher); setPreservedDeparture(keep);
-          setCleaningOk(!charged);
+          // A stored « Ménage de fin de séjour » line billed before the cleaning was sold must not be
+          // re-sent: with the page hidden the answer is forced back to « fait »
+          // (specs/defer-arrival-complement-to-checkout.md §3.1 rule 4 — re-running the SAS is how an
+          // over-billed stay is corrected).
+          setCleaningOk(d.cleaning?.included ? true : !charged);
           setMissingAsk(Object.keys(nextDep).length > 0 ? true : null);
         }
       })
@@ -380,7 +384,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     const cautionReturnStep = Number(r.cautionAmount || 0) > 0 && r.cautionReceived && (!r.cautionReturned || isEditing);
     return [
       'intro',
-      'cleaning',
+      // specs/defer-arrival-complement-to-checkout.md §3.1 rule 1 — the end-of-stay ménage page is
+      // dropped when the cleaning is already sold (booked option, « Ménage » added at check-in, or
+      // property default), exactly like the arrival one: the host does it, so there is nothing to
+      // assess and nothing to bill. Otherwise a « Non » would charge the cleaning a second time.
+      data.cleaning?.included ? null : 'cleaning',
       'missingAsk',
       missingAsk === true ? 'missingItems' : null,
       'keys',
@@ -456,7 +464,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const depMissingLines = useMemo(() => allItems
     .filter((it) => Number(missingDep[it.id]) > 0)
     .map((it) => ({ label: it.label, unitPrice: Number(it.price) || 0, amount: Math.round(Number(it.price) * Number(missingDep[it.id]) * 100) / 100, qty: Number(missingDep[it.id]) })), [allItems, missingDep]);
-  const depCleaningLine = (cleaningOk === false && data?.cleaning?.price)
+  // Never billable when the cleaning is already sold (specs/defer-arrival-complement-to-checkout.md
+  // §3.1 rule 1) — the page is hidden, and a line stored by an earlier commit is dropped on re-commit.
+  const depCleaningLine = (cleaningOk === false && !data?.cleaning?.included && data?.cleaning?.price)
     ? { label: 'Ménage de fin de séjour', unitPrice: Math.round(Number(data.cleaning.price) * 100) / 100, amount: Math.round(Number(data.cleaning.price) * 100) / 100, qty: 1 } : null;
   // Fire-extinguisher tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): at DEPARTURE, if the
   // extinguisher is not in good condition, the operator enters a quantity for each extinguisher_* tariff.
@@ -892,6 +902,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return (
           <Stack spacing={1}>
             <Typography variant="sectionHeader">Récapitulatif fin de séjour</Typography>
+            {/* specs/defer-arrival-complement-to-checkout.md §3.1 rule 2 — the ménage page is hidden
+                when the cleaning is already sold; say so instead of leaving a silent gap. */}
+            {data.cleaning?.included && (
+              <Typography variant="body2" color="text.secondary">Ménage déjà réglé — aucune facturation de fin de séjour.</Typography>
+            )}
             {endOfStayLines.length === 0 && recalledArrivalAmount === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
             {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{lineText(l)}</Typography>)}
             {/* specs/recall-unpaid-arrival-complement-at-checkout.md — the arrival complement was never

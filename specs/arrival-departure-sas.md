@@ -109,9 +109,14 @@ confirmation — records the caution status and the complement(s) on the reserva
 
 ### 3.2 Departure SAS — pages (in order, each conditional)
 13. **Récap séjour (intro, always).** Client, logement, dates, heure de départ. Button **Commencer**.
-14. **Ménage de fin de séjour (always).** *« Le ménage de fin de séjour a-t-il été fait correctement ? »*
-    Buttons **OK** / **Pas OK**. **Pas OK** → the **end-of-stay complement** gets the property's cleaning
-    price added (§3.3).
+14. **Ménage de fin de séjour (only if the cleaning is NOT already sold).** *« Le ménage de fin de séjour
+    a-t-il été fait correctement ? »* Buttons **OK** / **Pas OK**. **Pas OK** → the **end-of-stay
+    complement** gets the property's cleaning price added (§3.3).
+    **Hidden (2026-08-03) when `cleaning.included` is true** — booked cleaning option, « Ménage » line
+    added at check-in, or property default: the host does the cleaning, so there is nothing to assess and
+    **nothing can be billed** (the server drops the line whatever the client sends). The recap then reads
+    « Ménage déjà réglé — aucune facturation de fin de séjour. » See
+    [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.1.
 14.bis **Serviettes / draps manquants (always).** *« Des serviettes ou des draps sont-ils manquants ? »*
     Buttons **Non** (→ next) / **Oui** (→ rule 14.ter).
 14.ter **Éléments manquants (only when 14.bis = « Oui »).** Lists **all** priced Blanchisserie items (bed +
@@ -138,6 +143,11 @@ confirmation — records the caution status and the complement(s) on the reserva
     **bath-linen deferred to check-out** (rule 10.bis, `source='arrivalBathLinen'`, specs/sas-bath-linen-upsell.md).
     Such arrival-added lines are **displayed + counted + preserved** by the departure recap/commit (they are
     not silently dropped when the departure SAS rebuilds the detail).
+18.bis **Deferred arrival complement (2026-08-03).** Choosing **« En fin de séjour »** on the arrival
+    recap records `complementDeferredToCheckout = 1`. The two amounts stay separate in the DB, but every
+    operator view then presents **one single « Complément de fin de séjour »** = arrival complement +
+    end-of-stay complement, with one detail list, one total and one « payé » action (which settles both).
+    See [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.2.
 19. Both complements round to 2 decimals and never go negative.
 19.bis **Recap detail with quantities + prices (2026-06-18).** When there is a complement to settle, the
     recap lists **each line** — the pre-existing in-complément extras (options / resources / custom, with
