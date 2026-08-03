@@ -99,3 +99,75 @@ test('updatePayment — toggling caisse interne OFF on a paid complement keeps i
   assert.equal(call.args[0], 1, 'stays paid (compta) after un-flagging cash');
   assert.equal(call.args[2], 0, 'cash cleared');
 });
+
+// ── specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 ─────────────────────────────────────
+// The fiche shows ONE card for ONE collection when the complement was deferred to check-out, so the
+// single « payé » / « caisse interne » action must settle BOTH buckets server-side (the client sends
+// only the arrival fields). Guards against the card marking half the money collected.
+
+const DEFERRED = { complementDeferredToCheckout: 1, endOfStayComplementAmount: 40 };
+
+test('updatePayment — deferred: marking the complement paid also settles the end-of-stay bucket (same date)', () => {
+  const captures = { calls: [] };
+  const controller = buildController({ captures, prev: DEFERRED });
+  const res = fakeRes();
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true, complementPaidDate: '2026-08-03' } }, res);
+
+  assert.equal(res.statusCode, 200);
+  const arrival = captures.calls.find((c) => /SET complementPaid/.test(c.sql));
+  const endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
+  assert.ok(arrival, 'the arrival complement was marked');
+  assert.ok(endOfStay, 'the end-of-stay complement was marked too');
+  assert.equal(endOfStay.args[0], 1, 'paid = 1');
+  assert.equal(endOfStay.args[1], '2026-08-03', 'same collection date as the arrival part');
+});
+
+test('updatePayment — deferred: « caisse interne » flags both buckets; un-marking clears both', () => {
+  let captures = { calls: [] };
+  let controller = buildController({ captures, prev: DEFERRED });
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaidCash: true } }, fakeRes());
+  let endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
+  assert.ok(endOfStay, 'the end-of-stay bucket follows the caisse-interne choice');
+  assert.equal(endOfStay.args[0], 1, 'paid = 1');
+  assert.equal(endOfStay.args[2], 1, 'cash = 1');
+
+  captures = { calls: [] };
+  controller = buildController({ captures, prev: { ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03' } });
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: false } }, fakeRes());
+  endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
+  assert.ok(endOfStay, 'un-marking the merged card reverts both buckets');
+  assert.equal(endOfStay.args[0], 0);
+  assert.equal(endOfStay.args[1], null, 'date cleared');
+});
+
+test('updatePayment — deferred with NO end-of-stay amount: only the arrival bucket is touched', () => {
+  const captures = { calls: [] };
+  const controller = buildController({ captures, prev: { complementDeferredToCheckout: 1, endOfStayComplementAmount: 0 } });
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true } }, fakeRes());
+
+  assert.ok(captures.calls.find((c) => /SET complementPaid/.test(c.sql)), 'arrival marked');
+  assert.equal(captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql)), undefined,
+    'nothing to settle on the end-of-stay side → no write');
+});
+
+test('updatePayment — NOT deferred: the two complements stay independent (no cross-marking)', () => {
+  const captures = { calls: [] };
+  const controller = buildController({ captures, prev: { complementDeferredToCheckout: 0, endOfStayComplementAmount: 40 } });
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true } }, fakeRes());
+
+  assert.ok(captures.calls.find((c) => /SET complementPaid/.test(c.sql)), 'arrival marked');
+  assert.equal(captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql)), undefined,
+    'the end-of-stay complement keeps its own toggle');
+});
+
+test('updatePayment — deferred: an explicit end-of-stay field in the SAME payload wins over the mirror', () => {
+  // The fiche's non-merged card (or a script) can still address the end-of-stay bucket directly; the
+  // mirror must not double-write or fight it.
+  const captures = { calls: [] };
+  const controller = buildController({ captures, prev: DEFERRED });
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true, endOfStayComplementPaid: false } }, fakeRes());
+
+  const endOfStayWrites = captures.calls.filter((c) => /SET endOfStayComplementPaid/.test(c.sql));
+  assert.equal(endOfStayWrites.length, 1, 'a single end-of-stay write');
+  assert.equal(endOfStayWrites[0].args[0], 0, 'the explicit value wins');
+});
