@@ -257,7 +257,12 @@ mobile and simply loses one page. Verified at `xs` / `md` / `lg`.
 - [x] `buildCheckoutComplement` — amount = arrival + end-of-stay, lines concatenated in order with the
       right `origin`, tourist-tax line present, `deferred = false` when the marker is 0 or the arrival
       part is already paid, `paid` only when both buckets are settled, broken JSON tolerated (rules 6-7).
-- [x] Full server suite green (2160), incl. the untouched accounting + finance arithmetic (rules 9-10).
+- [x] `updatePayment` on a deferred reservation (`reservations-controller-payment-cash.unit.test.js`):
+      marking paid / « caisse interne » settles **both** buckets with the same date, un-marking reverts
+      both, a zero end-of-stay bucket is left alone, a NON-deferred reservation keeps the two toggles
+      independent, and an explicit `endOfStayComplementPaid` in the same payload wins over the mirror
+      (rule 8).
+- [x] Full server suite green (2157), incl. the untouched accounting + finance arithmetic (rules 9-10).
 
 ### Client tests (vitest)
 - [x] `ReservationSasDialog` departure: no `cleaning` page when `cleaning.included`; recap shows the
@@ -266,7 +271,7 @@ mobile and simply loses one page. Verified at `xs` / `md` / `lg`.
 - [x] `FinanceSection.deferred-complement.test.js`: deferred → one merged card with all lines + combined
       total, no « Complément à percevoir » card; paid / caisse-interne settle both buckets;
       non-deferred → today's two cards.
-- [x] Full client suite green (719) + Playwright E2E (32).
+- [x] Full client suite green (715) + Playwright E2E (32).
 
 ### Manual UI verification (dev, 2026-08-03)
 - [x] Deferred reservation (arrival complement 64 € + end-of-stay 40 €) → **one** « Complément de fin de
