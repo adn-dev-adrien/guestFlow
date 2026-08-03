@@ -39,7 +39,10 @@ stage to defer to).
 
 1. **Arrival recap** (shown only when there is a complement to collect: `total > 0` and the arrival complement
    isn't already `complementPaid = 1`): three mutually-exclusive buttons — **CB / Chèque**, **Payé en liquide**,
-   **En fin de séjour**. Clicking the active one again clears the choice (nothing selected).
+   **En fin de séjour**. **« En fin de séjour » is pre-selected** (revised 2026-08-03): not choosing anything
+   already commits « non réglé → encaissé au check-out », so the default selection makes that visible instead
+   of leaving the operator in front of three unlit buttons. Clicking the active mode again therefore falls
+   **back to « En fin de séjour »**, never to « nothing selected ».
 2. **Departure recap** (shown only when `departureGrandTotal > 0`): two buttons — **CB / Chèque**, **Payé en
    liquide**. No « En fin de séjour ».
 3. **Mapping to the existing paid flags** (no new fields; the commit contract is unchanged):
@@ -53,11 +56,14 @@ stage to defer to).
      [recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md). **No
      amount is moved between complements** (the tourist tax keeps its 46710000 routing, extras keep revenue —
      accounting-safe, decision 2026-07-20).
-   - **Nothing selected** → same as « En fin de séjour » (unpaid → recalled). No button is highlighted.
+   - **Arrival, nothing selected** → can no longer happen since 2026-08-03 (« En fin de séjour » is the
+     default and the fallback). The mapping would be identical anyway: unpaid → recalled.
+   - **Departure, nothing selected** → complements stay unpaid (no later stage to defer to; the buttons stay
+     unlit by default at check-out).
 4. **Re-open pre-fill** (specs/reopen-completed-sas.md): the button state is reconstructed from the stored
-   flags — `paid + cash → « Payé en liquide »`, `paid non-cash → « CB / Chèque »`, `unpaid → nothing selected`
-   (a deferred complement can't be told apart from « not yet decided »; both commit unpaid, so this is lossless
-   in effect).
+   flags — `paid + cash → « Payé en liquide »`, `paid non-cash → « CB / Chèque »`, `unpaid → « En fin de
+   séjour »` on arrival (an unpaid complement *is* collected at check-out, so it reopens on the same default
+   as a fresh SAS) and `nothing selected` on departure.
 
 **Edge cases:**
 - Arrival complement already `complementPaid = 1` → the settle buttons are hidden (the existing « déjà marqué
@@ -110,11 +116,12 @@ No change. Reuses `complementPaid` / `complementPaidCash` (arrival) and `endOfSt
   Selected button is **filled** (`contained`), the others **outlined**; « En fin de séjour » is neutral
   (`inherit` colour). Buttons are **full-width stacked on `xs`**, side-by-side on `sm+`, touch targets ≥ 44 px.
 - **« En fin de séjour » selected** shows a caption « Reporté au check-out (rappelé dans le SAS de départ). ».
+  On arrival this is the **initial state** of the recap, so the caption is visible as soon as the page opens.
 - No loading/empty/error states beyond the existing recap. Inherits the SAS dialog shell (fullscreen on `xs`).
 
 ## 7. Test plan
 
-### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`, +4)
+### Client IHM tests (vitest, `components/sas/__tests__/ReservationSasDialog.test.js`, +6)
 - [x] Arrival recap « CB / Chèque » → `complementSettled = true`, `complementPaidCash = false`.
 - [x] Arrival recap « Payé en liquide » → `complementSettled = true`, `complementPaidCash = true`.
 - [x] Arrival recap « En fin de séjour » → shows the « Reporté au check-out » caption; commit
@@ -123,6 +130,10 @@ No change. Reuses `complementPaid` / `complementPaidCash` (arrival) and `endOfSt
       « En fin de séjour » button is rendered.
 - [x] Existing departure-recall test updated to click « CB / Chèque » (was the « Compléments encaissés »
       checkbox). Full SAS suite (20) + full client suite (676) green.
+- [x] *(2026-08-03)* Arrival recap opens with « En fin de séjour » `contained` + the « Reporté au check-out »
+      caption; validating without touching the buttons commits `complementSettled = false`.
+- [x] *(2026-08-03)* Clicking an active « CB / Chèque » again falls back to « En fin de séjour » (never to
+      « nothing selected »). SAS suite 28 ✅.
 
 ### Manual UI verification
 - [x] Arrival recap: the three buttons render; each maps to the right paid flags (verified live + in the DB).
