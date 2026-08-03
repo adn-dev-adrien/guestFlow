@@ -136,13 +136,14 @@ function AnswerButtons({ goodLabel, onGood, badLabel, onBad }) {
 //   - 'card' → « CB / Chèque »   (encaissé, compta normale)
 //   - 'cash' → « Payé en liquide » (caisse interne, hors compta)
 //   - 'defer' → « En fin de séjour » (arrival only: leave unpaid → recalled at check-out)
-// Clicking the active mode again clears it. `value` is null when nothing is chosen.
+// Clicking the active mode again clears it — on the arrival recap that falls back to 'defer' (the
+// default) rather than to nothing, since an unsettled complement is collected at check-out anyway.
 function PaymentModeButtons({ value, onChange, showDefer }) {
   const optButton = (key, label) => (
     <Button
       variant={value === key ? 'contained' : 'outlined'}
       color={key === 'defer' ? 'inherit' : 'primary'}
-      onClick={() => onChange(value === key ? null : key)}
+      onClick={() => onChange(value === key ? (showDefer ? 'defer' : null) : key)}
       sx={{ flex: 1, minHeight: 44 }}
     >
       {label}
@@ -227,8 +228,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // recaps (+ caisse-interne flag). Arrival: settles the arrival complement. Departure: settles every
   // positive complement (end-of-stay + recalled arrival).
   // specs/sas-recap-payment-buttons.md — settlement mode on the recap page (single-select buttons).
-  // Arrival: null | 'card' | 'cash' | 'defer'. Departure: null | 'card' | 'cash' (no defer at check-out).
-  const [arrivalPayMode, setArrivalPayMode] = useState(null);
+  // Arrival: 'card' | 'cash' | 'defer', pre-selected on 'defer' (« En fin de séjour ») so not choosing
+  // anything reads as « encaissé au check-out », which is what the commit already does.
+  // Departure: null | 'card' | 'cash' (no defer at check-out).
+  const [arrivalPayMode, setArrivalPayMode] = useState('defer');
   const [departurePayMode, setDeparturePayMode] = useState(null);
   // Weather alerts (specs/checkin-weather-alerts.md) — fetched in the background when the arrival SAS
   // opens; empty until (and unless) a qualifying Orange/Red vigilance overlaps the stay.
@@ -242,7 +245,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setCleaningOk(null); setMissingAsk(null); setMissingDep({}); setKeysReceived(null); setCautionReturned(null); setExtinguisherOk(true); setExtinguisherQty({});
     setBreakfast({ coffee: 0, tea: 0, chocolate: 0, milk: 0 }); setBreakfastFood({ pastries: 0, cereals: 0, bread: 0 }); setBreakfastTime(''); setBreakfastNote(''); setHandoverNote(''); setBreakfastWarnOpen(false);
     setPreservedArrival([]); setPreservedDeparture([]);
-    setArrivalPayMode(null); setDeparturePayMode(null);
+    setArrivalPayMode('defer'); setDeparturePayMode(null);
     setWeatherAlerts([]);
     api.getReservationSas(reservationId)
       .then((d) => {
@@ -264,9 +267,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (mode === 'arrival') {
           setCaution(res.cautionReceived ? 'fait' : null);
           // Reconstruct the settlement mode from the stored paid flags (specs/sas-recap-payment-buttons.md):
-          // paid + cash → 'cash' (caisse interne); paid non-cash → 'card'; unpaid → null (operator re-picks;
-          // « defer » can't be told apart from « not decided », both commit unpaid).
-          setArrivalPayMode(Number(res.complementPaid) === 1 ? (Number(res.complementPaidCash) === 1 ? 'cash' : 'card') : null);
+          // paid + cash → 'cash' (caisse interne); paid non-cash → 'card'; unpaid → 'defer' (an unpaid
+          // complement IS collected at check-out, so it reopens on the same default as a fresh SAS).
+          setArrivalPayMode(Number(res.complementPaid) === 1 ? (Number(res.complementPaidCash) === 1 ? 'cash' : 'card') : 'defer');
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));

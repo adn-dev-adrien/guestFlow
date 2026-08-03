@@ -697,6 +697,28 @@ test('arrival recap: « En fin de séjour » leaves the complement unpaid (recal
   expect(arg.complementPaidCash).toBe(false);
 });
 
+test('arrival recap: « En fin de séjour » is pre-selected — validating without choosing defers to check-out', async () => {
+  await openArrivalRecapWithComplement();
+  expect(screen.getByRole('button', { name: 'En fin de séjour' })).toHaveClass('MuiButton-contained');
+  expect(screen.getByText(/Reporté au check-out/)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitArrivalSas.mock.calls[0][1];
+  expect(arg.complementSettled).toBe(false);
+  expect(arg.complementPaidCash).toBe(false);
+});
+
+test('arrival recap: unselecting a settled mode falls back to « En fin de séjour »', async () => {
+  await openArrivalRecapWithComplement();
+  clickBtn('CB / Chèque');
+  expect(screen.queryByText(/Reporté au check-out/)).toBeNull();
+  clickBtn('CB / Chèque'); // click the active mode again → back to the default
+  expect(screen.getByRole('button', { name: 'En fin de séjour' })).toHaveClass('MuiButton-contained');
+  clickBtn('Valider et terminer');
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].complementSettled).toBe(false);
+});
+
 test('departure recap: « Payé en liquide » settles into caisse interne; no « En fin de séjour » button', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },

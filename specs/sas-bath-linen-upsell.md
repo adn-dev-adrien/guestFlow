@@ -95,8 +95,8 @@ option step.
    `commitArrivalSas`. It appears in the recap « à percevoir » total with the other complement lines.
 7. **Règlement on the recap (not on the step).** The operator settles the whole arrival complement — bath
    linen included — with the recap's `PaymentModeButtons` (**CB/Chèque · Payé en liquide · En fin de séjour**,
-   spec [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)). **« En fin de séjour »** leaves the
-   complement unpaid so it is recalled at check-out
+   spec [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)), which opens **pre-selected on
+   « En fin de séjour »**. **« En fin de séjour »** leaves the complement unpaid so it is recalled at check-out
    ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md)) — this
    is how bath linen is now deferred, without a dedicated end-of-stay routing.
 8. **Retired end-of-stay routing + idempotency.** The arrival SAS **no longer writes** a

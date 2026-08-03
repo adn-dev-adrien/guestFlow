@@ -323,8 +323,9 @@ existing reservations needed.
   the total to collect, distinguishing **« déjà dû »** (pre-existing complement) from **« ajouté »** (SAS).
 - **Settlement (recap)**: the complement is settled via a single-select set of **buttons** (not checkboxes) —
   **CB / Chèque** (encaissé, compta), **Payé en liquide** (caisse interne, hors compta), and — arrival only —
-  **En fin de séjour** (leave unpaid → recalled at check-out). The departure recap shows the same buttons
-  without « En fin de séjour ». See specs/sas-recap-payment-buttons.md.
+  **En fin de séjour** (leave unpaid → recalled at check-out), **pre-selected on arrival** so validating the
+  SAS without touching the buttons visibly means « encaissé au check-out ». The departure recap shows the same
+  buttons without « En fin de séjour », none pre-selected. See specs/sas-recap-payment-buttons.md.
 - **Blanchisserie page**: existing stock fields kept; a new « Tarifs des éléments de linge » table below,
   with add-row / edit / delete / drag-reorder, saved with the page.
 - **States**: loading while fetching the SAS payload; error → retry; empty linen-items list → the « Pas OK »
