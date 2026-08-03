@@ -17,6 +17,8 @@ const { computeBedLinenAlert } = require('../utils/bedLinenAdequacy');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
+const { isCleaningOption } = require('../utils/cleaningOption');
+const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
@@ -111,6 +113,17 @@ function createReservationsModel(database) {
     if (!HAS_EMAIL_LANGUAGE || !payload || payload.emailLanguage === undefined) return;
     const value = String(payload.emailLanguage || '').toLowerCase() === 'en' ? 'en' : 'fr';
     database.prepare('UPDATE reservations SET emailLanguage = ? WHERE id = ?').run(value, reservationId);
+  }
+  // « En fin de séjour » marker (specs/defer-arrival-complement-to-checkout.md §3.2 rule 5). Guarded
+  // so minimal test schemas without the column simply skip the write.
+  const HAS_COMPLEMENT_DEFERRED = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementDeferredToCheckout'); }
+    catch { return false; }
+  })();
+  function persistComplementDeferred(reservationId, deferred) {
+    if (!HAS_COMPLEMENT_DEFERRED) return;
+    database.prepare("UPDATE reservations SET complementDeferredToCheckout = ?, updatedAt = datetime('now') WHERE id = ?")
+      .run(deferred ? 1 : 0, reservationId);
   }
   // Human-readable reservation number (specs/reservation-number-and-search.md §3). Guarded so minimal
   // test schemas without the column simply skip it.
@@ -212,6 +225,9 @@ function createReservationsModel(database) {
           complementAmount: Number(row.complementAmount || 0),
           complementPaid: Number(row.complementPaid || 0),
           complementPaidDate: row.complementPaidDate || null,
+          // specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — lets the lists label a
+          // deferred complement as collected at check-out (values unchanged).
+          complementDeferredToCheckout: Number(row.complementDeferredToCheckout || 0),
           remainingDue: payment.remainingDue,
           paymentComplete: payment.paymentComplete,
         };
@@ -456,6 +472,13 @@ function createReservationsModel(database) {
       reservation.touristTaxInComplementAmount = (
         Number(reservation.touristTaxInComplement || 0) === 1 || weCollectAtArrival
       ) ? Number(reservation.touristTaxTotal || 0) : 0;
+      // specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-7 — the single « complément de fin
+      // de séjour » the fiche renders when the operator deferred the arrival complement to check-out.
+      // Server-built (amount + detail lines + paid state) so the client only renders it.
+      reservation.checkoutComplement = buildCheckoutComplement(
+        reservation,
+        arrivalComplementDetailFromReservation(reservation),
+      );
       return reservation;
     },
 
@@ -1089,6 +1112,31 @@ function createReservationsModel(database) {
     },
 
     // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────
+    // « Is the cleaning already sold on this reservation? » — single source of truth for both SAS
+    // ends (specs/defer-arrival-complement-to-checkout.md §3.1 rule 1): a booked cleaning option, a
+    // « Ménage » line added by the arrival SAS (custom option, no tag → matched by name), or a
+    // property offering cleaning as a default. When true the guest is not responsible for the
+    // end-of-stay cleaning: the arrival ménage page is hidden AND the departure one never bills.
+    isCleaningSoldForReservation(reservationId) {
+      const booked = database.prepare(`
+        SELECT o.title AS title, o.autoOptionType AS autoOptionType
+        FROM reservation_options ro JOIN options o ON ro.optionId = o.id
+        WHERE ro.reservationId = ?
+      `).all(reservationId);
+      if (booked.some(isCleaningOption)) return true;
+      const customs = database.prepare('SELECT description AS title FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      if (customs.some(isCleaningOption)) return true;
+      const row = database.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return false;
+      try {
+        return Boolean(database.prepare(`
+          SELECT 1 FROM property_option_defaults d
+          JOIN options o ON o.id = d.optionId
+          WHERE d.propertyId = ? AND o.autoOptionType = 'cleaning' AND d.offered = 1 LIMIT 1
+        `).get(Number(row.propertyId)));
+      } catch { return false; }
+    },
+
     // Effective price of the cleaning option (autoOptionType='cleaning') for a property:
     // per-property override (property_option_prices) wins over the option's base price.
     // null when there is no cleaning option configured.
@@ -1236,6 +1284,10 @@ function createReservationsModel(database) {
         // marker untouched; true marks the arrival complement paid (first date kept via COALESCE); false
         // clears it. A normally-collected complement is thus NOT recalled at departure; a forgotten one
         // stays unpaid and IS recalled.
+        // specs/defer-arrival-complement-to-checkout.md §3.2 rule 5 — the same answer also records
+        // WHERE the complement will be collected: « En fin de séjour » (not settled) marks the
+        // reservation deferred so every view presents a single end-of-stay complement; settling on
+        // the spot clears the marker (fully reversible on a re-open).
         if (complementSettled !== undefined) {
           if (complementSettled) {
             database.prepare("UPDATE reservations SET complementPaid = 1, complementPaidDate = COALESCE(complementPaidDate, ?), complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
@@ -1244,6 +1296,7 @@ function createReservationsModel(database) {
             database.prepare("UPDATE reservations SET complementPaid = 0, complementPaidDate = NULL, complementPaidCash = 0, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
           }
+          persistComplementDeferred(reservationId, !complementSettled);
         }
         // specs/sas-bath-linen-upsell.md §3.2 rule 6 — bath linen the guest takes but settles AT
         // CHECK-OUT lands in the end-of-stay complement (a detail line tagged `source`). Tri-state:
@@ -1317,7 +1370,14 @@ function createReservationsModel(database) {
         // Server-built extinguisher lines: only when the extinguisher is NOT in good condition and a
         // quantity is requested. Price is read from repair_amounts (authoritative); a 0 € or 0-qty
         // tariff produces no line.
-        const baseDetail = Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail.slice() : [];
+        // specs/defer-arrival-complement-to-checkout.md §3.1 rule 3 — authoritative guard: when the
+        // cleaning is ALREADY sold on the reservation (booked option, « Ménage » line added by the
+        // arrival SAS, or property default), the end-of-stay cleaning can never be billed. Drops the
+        // line whatever the client sends, and drops a line stored by an earlier commit on re-run
+        // (rule 4: re-running the departure SAS is how an over-billed stay is corrected).
+        const cleaningSold = model.isCleaningSoldForReservation(reservationId);
+        const baseDetail = (Array.isArray(endOfStayComplementDetail) ? endOfStayComplementDetail : [])
+          .filter((l) => !(cleaningSold && String((l && l.label) || '').trim() === END_OF_STAY_CLEANING_LABEL));
         const extinguisherLines = [];
         if (extinguisherSealOkAtDeparture !== undefined && !extinguisherSealOkAtDeparture && Array.isArray(extinguisherCharges)) {
           const priceStmt = database.prepare('SELECT label, price FROM repair_amounts WHERE repairKey = ?');

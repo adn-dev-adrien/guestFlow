@@ -754,6 +754,10 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
             endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
             endOfStayComplementDetail: res.endOfStayComplementDetail || null,
+            // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
+            // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
+            complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
+            checkoutComplement: res.checkoutComplement || null,
             platformCommissionAmount: res.platformCommissionAmount == null || res.platformCommissionAmount === '' ? '' : res.platformCommissionAmount,
             acompteCommissionAmount: res.acompteCommissionAmount == null || res.acompteCommissionAmount === '' ? '' : res.acompteCommissionAmount,
             platformGrossAmount: res.platformGrossAmount == null || res.platformGrossAmount === '' ? '' : res.platformGrossAmount,
@@ -883,6 +887,8 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: '',
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
+            complementDeferredToCheckout: false,
+            checkoutComplement: null,
             platformCommissionAmount: '',
             acompteCommissionAmount: '',
             platformGrossAmount: '',
@@ -984,6 +990,8 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: '',
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
+            complementDeferredToCheckout: false,
+            checkoutComplement: null,
             platformCommissionAmount: '',
             acompteCommissionAmount: '',
             platformGrossAmount: '',

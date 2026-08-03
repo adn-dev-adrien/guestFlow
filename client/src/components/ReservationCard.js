@@ -344,7 +344,9 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
               <EuroIcon sx={{ fontSize: 16, color: r.complementPaid ? 'success.main' : 'error.main', flexShrink: 0 }} />
               <Chip
-                label={`Complément à percevoir : ${formatCurrency(r.complementAmount)}${r.complementPaid ? ' (perçu)' : ''}`}
+                /* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — deferred at check-in
+                   → collected at the door, with the end-of-stay complement. */
+                label={`${r.complementDeferredToCheckout && !r.complementPaid ? 'Complément (fin de séjour)' : 'Complément à percevoir'} : ${formatCurrency(r.complementAmount)}${r.complementPaid ? ' (perçu)' : ''}`}
                 size="small"
                 color={r.complementPaid ? 'success' : 'error'}
                 variant={r.complementPaid ? 'outlined' : 'filled'}

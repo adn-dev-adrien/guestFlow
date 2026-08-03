@@ -19,6 +19,7 @@ function makeDb() {
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,
+      complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
@@ -517,6 +518,74 @@ test('commitArrivalSas: complementSettled marks the arrival complement paid (+ d
   r = db.prepare('SELECT complementPaid, complementPaidDate FROM reservations WHERE id = 1').get();
   assert.equal(r.complementPaid, 0);
   assert.equal(r.complementPaidDate, null);
+});
+
+// ── specs/defer-arrival-complement-to-checkout.md ─────────────────────────────────────────────────
+
+test('commitArrivalSas: « En fin de séjour » sets the deferral marker; settling on the spot clears it', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { complementSettled: false });
+  assert.equal(db.prepare('SELECT complementDeferredToCheckout d FROM reservations WHERE id = 1').get().d, 1);
+  model.commitArrivalSas(1, { complementSettled: true });
+  assert.equal(db.prepare('SELECT complementDeferredToCheckout d FROM reservations WHERE id = 1').get().d, 0);
+});
+
+test('commitArrivalSas: omitting complementSettled leaves the deferral marker untouched', () => {
+  const db = makeDb();
+  db.prepare('UPDATE reservations SET complementDeferredToCheckout = 1 WHERE id = 1').run();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cautionReceived: true });
+  assert.equal(db.prepare('SELECT complementDeferredToCheckout d FROM reservations WHERE id = 1').get().d, 1);
+});
+
+test('isCleaningSoldForReservation: booked option (tag), custom « Ménage » line, property default, else false', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  assert.equal(model.isCleaningSoldForReservation(1), false);
+  // Tagged catalogue option.
+  db.prepare("INSERT INTO options (id, title, autoOptionType, price) VALUES (50, 'Ménage', 'cleaning', 40)").run();
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId) VALUES (1, 50)').run();
+  assert.equal(model.isCleaningSoldForReservation(1), true);
+  // Untagged custom line added by the arrival SAS → matched by name.
+  const db2 = makeDb();
+  const model2 = createReservationsModel(db2);
+  db2.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin) VALUES (1, 'Ménage', 40, 1, 1)").run();
+  assert.equal(model2.isCleaningSoldForReservation(1), true);
+});
+
+test('commitDepartureSas: never bills the cleaning when it is already sold (double-charge guard)', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  db.prepare("INSERT INTO options (id, title, autoOptionType, price) VALUES (50, 'Ménage', 'cleaning', 40)").run();
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId) VALUES (1, 50)').run();
+  model.commitDepartureSas(1, {
+    endOfStayComplementDetail: [{ label: 'Ménage de fin de séjour', amount: 40 }, { label: 'Serviette', amount: 8 }],
+  });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 8, 'only the linen line is billed');
+  assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((l) => l.label), ['Serviette']);
+});
+
+test('commitDepartureSas: bills the cleaning normally when it is NOT sold', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ label: 'Ménage de fin de séjour', amount: 40 }] });
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount a FROM reservations WHERE id = 1').get().a, 40);
+});
+
+test('commitDepartureSas: re-running on an over-billed stay drops the duplicate cleaning line', () => {
+  // specs/defer-arrival-complement-to-checkout.md §3.1 rule 4 — self-healing, no data migration.
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ label: 'Ménage de fin de séjour', amount: 40 }] });
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount a FROM reservations WHERE id = 1').get().a, 40);
+  // The cleaning is sold afterwards (arrival SAS re-run / option added), then the departure SAS re-runs.
+  db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement, sasArrivalOrigin) VALUES (1, 'Ménage', 40, 1, 1)").run();
+  model.commitDepartureSas(1, { endOfStayComplementDetail: [{ label: 'Ménage de fin de séjour', amount: 40 }] });
+  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
+  assert.equal(r.endOfStayComplementAmount, 0);
+  assert.equal(r.endOfStayComplementDetail, null);
 });
 
 test('commitArrivalSas: omitting complementSettled leaves the paid marker untouched', () => {

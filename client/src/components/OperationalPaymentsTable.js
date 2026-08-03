@@ -115,7 +115,11 @@ export default function OperationalPaymentsTable({
                     <ScheduledBucketAmount amount={r.balanceAmount} paid={!!r.balancePaid} dueDate={r.balanceDueDate} overdue={r.balanceOverdue} />
                   </Box>
                 </Line>
-                <Line label="Complément"><PaymentBucketAmount amount={r.complementAmount} settled={complementSettled} cash={!!r.complementPaidCash} /></Line>
+                {/* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — a deferred complement
+                    is collected at the door, not at check-in: label it as such (amount unchanged). */}
+                <Line label={r.complementDeferredToCheckout && !complementSettled ? 'Complément (fin de séjour)' : 'Complément'}>
+                  <PaymentBucketAmount amount={r.complementAmount} settled={complementSettled} cash={!!r.complementPaidCash} />
+                </Line>
                 {showEndOfStayComplement && <Line label="Compl. fin de séjour"><PaymentBucketAmount amount={r.endOfStayComplementAmount} settled={endOfStaySettled} cash={!!r.endOfStayComplementPaidCash} /></Line>}
                 <Line label="Reste à payer">
                   <Typography variant="body2" sx={{ color: r.remainingToPay > 0 ? 'error.main' : 'success.main', fontWeight: 700, ...TABULAR }}>{formatCurrency(r.remainingToPay)}</Typography>
