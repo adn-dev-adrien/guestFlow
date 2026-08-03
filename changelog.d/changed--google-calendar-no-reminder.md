@@ -1,0 +1,1 @@
+- Google Calendar sync: synced reservation events no longer carry the calendar's default reminder (no more "10 minutes before" popup). Existing events are opted out at the next reconcile.

@@ -68,6 +68,9 @@ function buildGoogleEventPayload(reservation, options) {
     // Explicit so an update on a Google-side-cancelled event resurrects it — GuestFlow is
     // the source of truth (spec rule 15).
     status: 'confirmed',
+    // No reminder: opt out of the calendar's default notification so guests-side events
+    // don't fire an alert (e.g. the default "10 minutes before" popup).
+    reminders: { useDefault: false, overrides: [] },
     extendedProperties: {
       private: {
         guestflowSource: 'guestflow',
@@ -136,6 +139,18 @@ function sameLocalDateTime(remoteDateTime, desiredDateTime) {
   return String(remoteDateTime || '').slice(0, 19) === String(desiredDateTime || '').slice(0, 19);
 }
 
+// Google echoes reminders as `{ useDefault, overrides? }` (overrides omitted when empty).
+// We push `useDefault: false` + no overrides, so an event still on the calendar default
+// (useDefault true) or carrying any override differs and must be re-pushed.
+function remindersDiffer(remoteReminders, desiredReminders) {
+  const remote = remoteReminders || {};
+  const desired = desiredReminders || {};
+  return (
+    Boolean(remote.useDefault) !== Boolean(desired.useDefault)
+    || (remote.overrides || []).length !== (desired.overrides || []).length
+  );
+}
+
 // True when the remote event no longer matches what we would push (reconcile skips
 // unchanged events to stay quota-friendly — spec rule 17b).
 function eventDiffers(remoteEvent, desiredPayload) {
@@ -147,6 +162,7 @@ function eventDiffers(remoteEvent, desiredPayload) {
     || String(remote.status || 'confirmed') !== desiredPayload.status
     || !sameLocalDateTime(remote.start && remote.start.dateTime, desiredPayload.start.dateTime)
     || !sameLocalDateTime(remote.end && remote.end.dateTime, desiredPayload.end.dateTime)
+    || remindersDiffer(remote.reminders, desiredPayload.reminders)
   );
 }
 
