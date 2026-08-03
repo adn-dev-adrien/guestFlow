@@ -53,6 +53,9 @@ const RESERVATION_KEEP = [
   'complementPaid',
   'endOfStayComplementAmount',
   'endOfStayComplementPaid',
+  // « En fin de séjour » marker: labels the complement as collected at check-out, no amount added
+  // (specs/defer-arrival-complement-to-checkout.md §3.2 rule 10).
+  'complementDeferredToCheckout',
   // Operational status flags.
   'checkInReady',
   'checkInDone',

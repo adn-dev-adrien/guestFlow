@@ -765,6 +765,18 @@ function updatePayment(req, res) {
       "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, complementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
       paid, date, cash, id,
     );
+    // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
+    // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
+    // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate
+    // in the DB — only the payment marking is shared.
+    if (Number(before?.complementDeferredToCheckout || 0) === 1
+      && Number(before?.endOfStayComplementAmount || 0) > 0
+      && endOfStayComplementPaid === undefined && endOfStayComplementPaidCash === undefined) {
+      model.updatePaymentField(
+        "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
+        paid, date, cash, id,
+      );
+    }
   }
   if (endOfStayComplementPaid !== undefined || endOfStayComplementPaidCash !== undefined) {
     // End-of-stay complement (departure SAS): same paid / cash model as the arrival complement (§3.1).

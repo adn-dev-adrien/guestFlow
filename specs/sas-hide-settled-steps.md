@@ -58,11 +58,16 @@ lost.
    (*« Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées. »*) is
    shown on the **arrival recap** page instead, and only when `cleaning.included` is true (i.e. exactly
    the case where the dedicated page was removed).
-5. **Scope = arrival only.** The **departure** « Retour caution » page (`cautionReturn`) and the
-   **departure** « Ménage de fin de séjour » page are **unchanged** — they are different actions
-   (returning the caution / checking the end-of-stay cleaning quality), not « already settled » states.
-   In particular, the departure caution-return step stays reachable in re-edit to correct a
-   mis-marked return.
+5. **Scope = arrival only.** The **departure** « Retour caution » page (`cautionReturn`) is
+   **unchanged** — it is a different action (returning the caution), not an « already settled » state,
+   and it stays reachable in re-edit to correct a mis-marked return.
+   > **Revised 2026-08-03** — the **departure** « Ménage de fin de séjour » page is **no longer
+   > unconditional**: it is dropped when `cleaning.included` is true, exactly like the arrival one.
+   > Rationale: when the cleaning is already sold (booked option, « Ménage » added at check-in, or
+   > property default) the *host* does it, so there is nothing to assess — and answering « Pas OK »
+   > billed the cleaning a **second time** on top of the arrival complement. See
+   > [defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.1, which
+   > also adds the authoritative server-side guard.
 
 **Edge cases:**
 - Caution received → reopen a completed arrival SAS → **no** caution page; the caution stays received
