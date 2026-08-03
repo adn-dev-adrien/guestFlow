@@ -54,6 +54,11 @@ lost.
    `autoOptionType='cleaning'` tag **or** by name « ménage », see [`utils/cleaningOption.js`](../server/src/utils/cleaningOption.js)
    — or the property offers cleaning as a default). When cleaning is **not** included, the page
    still appears so the operator can offer / add the ménage (unchanged).
+   > **Nuance added 2026-08-03** — the ménage sold *by the SAS itself* (`sasArrivalOrigin = 1`) does **not**
+   > hide the page: it reopens **pre-selected « ajouté »** so the operator can undo it. Otherwise adding the
+   > ménage would make its own undo button disappear. A cleaning taken at booking or added from the fiche
+   > still hides it. See [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)
+   > §3.2 rule 7 (the *departure* billing guard keeps the raw « is it sold? » answer, rule 8).
 4. **Client reminder moves to the recap.** The reminder previously shown on the included-ménage page
    (*« Rappeler au client : la vaisselle doit être faite et rangée, et les poubelles vidées. »*) is
    shown on the **arrival recap** page instead, and only when `cleaning.included` is true (i.e. exactly

@@ -89,10 +89,15 @@ option step.
    - **« Non merci »** (contained) → nothing added; advance.
    When added, a confirmation `Chip` « Linge ajouté ({amount}) » (color `info`) shows on the page. **No payment
    question is asked here** — settlement is decided on the recap (rule 7).
-6. **Adding the bath linen.** The amount is added to the **arrival complement** as an ordinary SAS complement
-   item (`reservation_custom_options`, `inComplement = 1`, `sasArrivalOrigin = 1`, label « Linge de toilette »),
-   exactly like the cleaning charge — it flows through the existing `complementItems` path of
-   `commitArrivalSas`. It appears in the recap « à percevoir » total with the other complement lines.
+6. **Adding the bath linen.** The amount is added to the **arrival complement**, exactly like the cleaning
+   charge. It appears in the recap « à percevoir » total with the other complement lines.
+   > **Revised 2026-08-03** — it is no longer a `reservation_custom_options` line: adding the bath linen
+   > **activates the CATALOGUE option** (`autoOptionType='bathroom_linen'`, `inComplement = 1`,
+   > `sasArrivalOrigin = 1`), priced by the engine. A custom line was invisible to the laundry + linen-stock
+   > aggregators (they join `reservation_options → options WHERE countsAsBathroomLinen = 1`), so the towels
+   > sold at check-in were never prepared nor deducted from the stock. The client now sends the intent
+   > (`bathLinenAdded`) instead of a `complementItems` line. See
+   > [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md).
 7. **Règlement on the recap (not on the step).** The operator settles the whole arrival complement — bath
    linen included — with the recap's `PaymentModeButtons` (**CB/Chèque · Payé en liquide · En fin de séjour**,
    spec [sas-recap-payment-buttons.md](sas-recap-payment-buttons.md)), which opens **pre-selected on
