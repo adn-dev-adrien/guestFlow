@@ -159,6 +159,12 @@ function createReservationsModel(database) {
     try { return database.prepare("PRAGMA table_info(reservation_options)").all().some((c) => c.name === 'cardOccurrences'); }
     catch { return false; }
   })();
+  // « This option row was added by the arrival SAS » (specs/sas-upsells-activate-catalogue-option.md
+  // §3.2 rule 5). Guarded so minimal test schemas without the column simply behave as legacy.
+  const HAS_RO_SAS_ARRIVAL_ORIGIN = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'sasArrivalOrigin'); }
+    catch { return false; }
+  })();
   // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored on
   // reservation_resources.sessions (JSON). Guarded for minimal test schemas.
   const HAS_RESERVATION_RESOURCE_SESSIONS = (() => {
@@ -1006,14 +1012,28 @@ function createReservationsModel(database) {
     // them by passing through the values the engine returned. Lines in Complément (`inComplement = 1`)
     // always get NULL contribs — they live 100 % in the Complément entry, never in Acompte/Solde.
     replaceOptions(reservationId, optionLines) {
+      // specs/sas-upsells-activate-catalogue-option.md §3.2 rule 9 — a fiche save is a DELETE + INSERT,
+      // so the SAS-origin marker must be carried over per optionId; otherwise the arrival SAS loses the
+      // right to remove its own upsell at the first save (exactly what already happens to the custom
+      // lines, see §8). Guarded: absent column → nothing to carry.
+      let sasOriginIds = [];
+      if (HAS_RO_SAS_ARRIVAL_ORIGIN) {
+        sasOriginIds = database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+          .all(reservationId).map((r) => Number(r.optionId));
+      }
       database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(reservationId);
-      this.insertOptions(reservationId, optionLines);
+      this.insertOptions(reservationId, optionLines, sasOriginIds);
     },
 
-    insertOptions(reservationId, optionLines) {
+    insertOptions(reservationId, optionLines, sasOriginIds = []) {
+      const sasOriginSet = new Set((sasOriginIds || []).map((id) => Number(id)));
+      const carrySasOrigin = HAS_RO_SAS_ARRIVAL_ORIGIN && sasOriginSet.size > 0;
       const cols = 'reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, acompteContribTtc, soldeContribTtc'
-        + (HAS_RO_CARD_OCCURRENCES ? ', cardOccurrences' : '');
-      const placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?' + (HAS_RO_CARD_OCCURRENCES ? ', ?' : '');
+        + (HAS_RO_CARD_OCCURRENCES ? ', cardOccurrences' : '')
+        + (carrySasOrigin ? ', sasArrivalOrigin' : '');
+      const placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?'
+        + (HAS_RO_CARD_OCCURRENCES ? ', ?' : '')
+        + (carrySasOrigin ? ', ?' : '');
       const insertOpt = database.prepare(`INSERT INTO reservation_options (${cols}) VALUES (${placeholders})`);
       // Internal LINEN options (specs/laundry-bath-mat.md §3 rule 11, e.g. the bath-mat option) are
       // NEVER persisted as a reservation line — they're counted via the laundry/stock property-default
@@ -1038,6 +1058,7 @@ function createReservationsModel(database) {
           forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
           forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null)];
         if (HAS_RO_CARD_OCCURRENCES) args.push(serializeCardOccurrences(opt));
+        if (carrySasOrigin) args.push(sasOriginSet.has(Number(opt.optionId)) ? 1 : 0);
         insertOpt.run(...args);
       }
     },
@@ -1112,6 +1133,60 @@ function createReservationsModel(database) {
     },
 
     // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────
+    // The two catalogue options the ARRIVAL SAS can sell (specs/sas-upsells-activate-catalogue-option.md
+    // §3.1): « Ménage » and « Linge de toilette ». Resolves, for each, the option id, the engine price
+    // for THIS reservation (per-property override → `getTypeMultiplier` on the option's own priceType)
+    // and whether the reservation already carries it — distinguishing a row the SAS itself added
+    // (`sasOrigin`, removable by re-running the SAS) from one the operator sold on the fiche.
+    // Single source of truth for the SAS payload, the commit and the tests.
+    getSasUpsellOptions(reservationId) {
+      const res = database.prepare(`
+        SELECT id, propertyId, adults, teens, children,
+               (SELECT COUNT(*) FROM reservation_nights rn WHERE rn.reservationId = reservations.id) AS nights
+          FROM reservations WHERE id = ?
+      `).get(reservationId);
+      const empty = { optionId: null, unitPrice: 0, priceType: null, billedUnits: 0, totalPrice: 0, persons: 0, present: false, sasOrigin: false };
+      if (!res) return { cleaning: { ...empty }, bathLinen: { ...empty } };
+
+      const persons = (Number(res.adults) || 0) + (Number(res.teens) || 0) + (Number(res.children) || 0);
+      const nights = Number(res.nights) || 0;
+      const linked = database.prepare(
+        `SELECT optionId, ${HAS_RO_SAS_ARRIVAL_ORIGIN ? 'COALESCE(sasArrivalOrigin, 0)' : '0'} AS sasArrivalOrigin FROM reservation_options WHERE reservationId = ?`,
+      ).all(reservationId);
+
+      const resolve = (autoOptionType) => {
+        const opt = database.prepare('SELECT id, price, priceType FROM options WHERE autoOptionType = ? LIMIT 1').get(autoOptionType);
+        if (!opt) return { ...empty, persons };
+        let override;
+        try {
+          override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
+            .get(opt.id, Number(res.propertyId));
+        } catch { override = undefined; }
+        const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
+        const priceType = opt.priceType || 'per_stay';
+        const billedUnits = getTypeMultiplier(priceType, persons, nights);
+        const row = linked.find((l) => Number(l.optionId) === Number(opt.id));
+        return {
+          optionId: opt.id,
+          unitPrice,
+          priceType,
+          billedUnits,
+          totalPrice: Math.round(unitPrice * billedUnits * 100) / 100,
+          persons,
+          present: Boolean(row),
+          sasOrigin: Boolean(row && Number(row.sasArrivalOrigin) === 1),
+        };
+      };
+      return { cleaning: resolve('cleaning'), bathLinen: resolve('bathroom_linen') };
+    },
+
+    // The custom lines a previous arrival SAS wrote (the billed linen elements). Feeds the SAS history
+    // snapshot (specs/arrival-departure-sas.md §3.7).
+    listSasArrivalCustomLines(reservationId) {
+      return database.prepare('SELECT description, amount FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id')
+        .all(reservationId);
+    },
+
     // « Is the cleaning already sold on this reservation? » — single source of truth for both SAS
     // ends (specs/defer-arrival-complement-to-checkout.md §3.1 rule 1): a booked cleaning option, a
     // « Ménage » line added by the arrival SAS (custom option, no tag → matched by name), or a
@@ -1196,6 +1271,9 @@ function createReservationsModel(database) {
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
       endOfStayBathLinen,
+      // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — the two upsells are sent as
+      // INTENT (booleans); the server resolves the option + its price. Tri-state, like the caution.
+      cleaningAdded, bathLinenAdded,
     } = {}) {
       // Clamp drink/food counts to non-negative integers (authoritative server-side validation).
       const clampCount = (v) => (v === undefined ? undefined : Math.max(0, Math.round(Number(v) || 0)));
@@ -1263,9 +1341,14 @@ function createReservationsModel(database) {
         const items = (complementItems || []).filter((i) => i && String(i.label || '').trim() && Number(i.amount) > 0);
         const compRow = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
         if (compRow && Number(compRow.complementPaid || 0) !== 1) {
-          const priorSum = Math.round(Number(database.prepare(
+          const sasOptionSum = () => (HAS_RO_SAS_ARRIVAL_ORIGIN ? Math.round(Number(database.prepare(
+            'SELECT COALESCE(SUM(totalPrice), 0) AS s FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1',
+          ).get(reservationId).s) * 100) / 100 : 0);
+          // specs/sas-upsells-activate-catalogue-option.md §3.3 rule 10 — the delta now spans BOTH the
+          // custom lines (linen elements) and the catalogue options the SAS sells.
+          const priorSum = Math.round((Number(database.prepare(
             'SELECT COALESCE(SUM(amount), 0) AS s FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1',
-          ).get(reservationId).s) * 100) / 100;
+          ).get(reservationId).s) + sasOptionSum()) * 100) / 100;
           database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').run(reservationId);
           let added = 0;
           if (items.length > 0) {
@@ -1275,6 +1358,36 @@ function createReservationsModel(database) {
             for (const it of items) { insert.run(reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, sort); sort += 1; }
             added = Math.round(items.reduce((s, it) => s + Number(it.amount), 0) * 100) / 100;
           }
+
+          // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
+          // toilette activate their CATALOGUE option (so the laundry + linen stock finally count them),
+          // priced by the engine, routed to the complement, tagged `sasArrivalOrigin` so a re-run may
+          // remove them. Tri-state: `undefined` = step not shown → leave the reservation alone. An
+          // option the operator sold from the fiche (`sasArrivalOrigin = 0`) is NEVER touched.
+          const upsells = model.getSasUpsellOptions(reservationId);
+          const applyUpsell = (offer, wanted) => {
+            if (!HAS_RO_SAS_ARRIVAL_ORIGIN || wanted === undefined || !offer || !offer.optionId) return;
+            if (offer.present && !offer.sasOrigin) return;
+            if (wanted) {
+              if (offer.totalPrice <= 0) return;
+              database.prepare(`
+                INSERT INTO reservation_options
+                  (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
+                VALUES (?, ?, 1, ?, ?, ?, ?, 0, 1, 1)
+                ON CONFLICT(reservationId, optionId) DO UPDATE SET
+                  quantity = 1, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
+                  priceType = excluded.priceType, totalPrice = excluded.totalPrice,
+                  inComplement = 1, sasArrivalOrigin = 1
+              `).run(reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType, offer.totalPrice);
+            } else if (offer.sasOrigin) {
+              database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+                .run(reservationId, offer.optionId);
+            }
+          };
+          applyUpsell(upsells.cleaning, cleaningAdded);
+          applyUpsell(upsells.bathLinen, bathLinenAdded);
+          added = Math.round((added + sasOptionSum()) * 100) / 100;
+
           const next = Math.max(0, Math.round((Number(compRow.complementAmount || 0) - priorSum + added) * 100) / 100);
           database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
         }

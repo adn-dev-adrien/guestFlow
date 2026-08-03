@@ -90,13 +90,19 @@ confirmation — records the caution status and the complement(s) on the reserva
     - **Cleaning included** (reservation has the cleaning option `autoOptionType='cleaning'`, or it's a
       property default) → **no ménage page**; the client reminder (« vaisselle faite et rangée, poubelles
       vidées ») is carried to the recap instead (rule 12, specs/sas-hide-settled-steps.md §3).
+      **Exception (2026-08-03):** when the only reason it is « included » is the SAS's own row
+      (`sasArrivalOrigin = 1`), the page **stays visible, pre-selected « ajouté »**, so the operator can undo
+      it — see [sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md) §3.2.
     - **Cleaning not included** → *« Le ménage n'a pas été pris. Tarif ménage pour ce logement : X €. »*
-      Buttons **Ajouter le ménage** (→ accumulates the cleaning charge into the arrival complement + adds the
-      cleaning option to the reservation) / **Non merci** (→ next).
+      Buttons **Ajouter le ménage** / **Non merci** (→ next). **« Ajouter le ménage » activates the
+      CATALOGUE option** (`autoOptionType='cleaning'`, `inComplement = 1`, `sasArrivalOrigin = 1`), priced by
+      the engine — **not** a custom line (revised 2026-08-03, same spec).
 10.bis **Linge de toilette (only if the reservation did NOT take the `bathroom_linen` option).** Upsell,
     priced **per person** by the engine (specs/sas-bath-linen-upsell.md). *« Le client n'a pas pris le linge
     de toilette. Tarif : X € (N pers × Y €). »* Two buttons, mirroring the ménage step: **Ajouter le linge de
-    toilette** (→ accumulates the charge into the arrival complement) / **Non merci** (→ next). **No payment
+    toilette** (→ activates the **catalogue** `bathroom_linen` option, `inComplement = 1`,
+    `sasArrivalOrigin = 1`, priced by the engine — so the laundry and the linen stock finally count the
+    towels, revised 2026-08-03) / **Non merci** (→ next). **No payment
     question here** — the whole complement (bath linen included) is settled on the recap
     (CB/Chèque · Payé en liquide · En fin de séjour). Skipped when bath linen is already taken or no priced
     `bathroom_linen` option exists.
@@ -133,7 +139,11 @@ confirmation — records the caution status and the complement(s) on the reserva
 
 ### 3.3 Complements
 17. **Arrival complement** = the reservation's existing `complementAmount` **plus** the SAS-added items
-    (linen elements + cleaning). On commit, the added items are written as `reservation_custom_options` with
+    (linen elements + ménage + linge de toilette). **Two storages since 2026-08-03**
+    ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)): the ménage and
+    the linge de toilette activate their **catalogue option** (`reservation_options`, `inComplement = 1`,
+    `sasArrivalOrigin = 1`) so the laundry/stock aggregators see them; the **linen elements** — which come
+    from Blanchisserie, not from the catalogue — stay `reservation_custom_options` with
     `inComplement=1` and the reservation is re-priced (the engine recomputes `complementAmount`), so the
     detail is durable + visible on the reservation and in the J-1 email breakdown.
 18. **End-of-stay complement** is a **separate, dedicated amount** (decision 2026-06-12), stored on the
@@ -199,6 +209,22 @@ confirmation — records the caution status and the complement(s) on the reserva
 - Quitter at any point → no DB change (state was in memory only).
 - A property with no cleaning option / no price configured → the « ajouter le ménage » action is disabled
   with a hint to set the price in the options.
+
+### 3.7 A SAS commit feeds the reservation history (2026-08-03)
+
+24. **Both SAS write into « Historique des modifications ».** A check-in / check-out is a reservation edit
+    like any other — and the one where the most money changes hands — so it must leave a trace. The
+    controller snapshots the reservation **before** and **after** the commit and stores the labeled diff
+    through the existing `model.addHistoryEntry`, with a dedicated `eventType`:
+    `sas_arrival` (« SAS arrivée ») and `sas_departure` (« SAS départ »).
+25. **What is tracked** (`utils/sasAudit.js`, French texts resolved server-side): caution reçue /
+    restituée, ménage et linge de toilette pris ou retirés, éléments de linge facturés, complément à
+    percevoir + encaissement + report en fin de séjour, complément de fin de séjour + son détail,
+    composition et heure du petit déjeuner, note pour le départ, état de l'extincteur à l'arrivée et au
+    départ. Only fields that actually moved appear — a step the operator skipped writes nothing.
+26. **Never blocks the commit.** The history is written after the money is committed and inside a
+    try/catch: a failure there is logged, never surfaced as a failed check-in.
+27. **A commit that changed nothing writes no entry** (same contract as the fiche's `update`).
 
 ---
 

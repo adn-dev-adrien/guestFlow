@@ -51,6 +51,15 @@ const DEVIS_STATUS_OPTIONS = [
   { value: 'accepted', label: 'Accepté' },
 ];
 
+// Title of a « Historique des modifications » entry, per event type. Anything unknown reads
+// « Modification » (the historical default). specs/arrival-departure-sas.md §3.7 adds the two SAS ones.
+const HISTORY_EVENT_TITLES = {
+  create: 'Création',
+  update: 'Modification',
+  sas_arrival: 'SAS arrivée',
+  sas_departure: 'SAS départ',
+};
+
 function formatDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
@@ -2858,6 +2867,8 @@ export default function ReservationPage() {
                     {!historyLoading && historyEntries.map((entry) => {
                       const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
                       const emptyText = entry.eventType === 'create' ? 'Réservation créée' : 'Mise à jour sans changement détecté';
+                      // specs/arrival-departure-sas.md §3.7 — the SAS commits write their own entries.
+                      const eventTitle = HISTORY_EVENT_TITLES[entry.eventType] || 'Modification';
                       return (
                         <Box
                           key={entry.id}
@@ -2872,7 +2883,7 @@ export default function ReservationPage() {
                         >
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                              {entry.eventType === 'create' ? 'Création' : 'Modification'}
+                              {eventTitle}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {formatHistoryDate(entry.createdAt)}

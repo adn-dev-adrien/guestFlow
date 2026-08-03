@@ -40,7 +40,14 @@ function makeDb() {
       sasArrivalOrigin INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, autoOptionType TEXT, price REAL DEFAULT 0, priceType TEXT DEFAULT 'per_stay');
-    CREATE TABLE reservation_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL);
+    CREATE TABLE reservation_options (
+      reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL,
+      quantity REAL DEFAULT 1, unitPrice REAL NOT NULL DEFAULT 0, billedUnits REAL NOT NULL DEFAULT 0,
+      priceType TEXT NOT NULL DEFAULT 'per_stay', totalPrice REAL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0,
+      inComplement INTEGER NOT NULL DEFAULT 0, acompteContribTtc REAL, soldeContribTtc REAL,
+      sasArrivalOrigin INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (reservationId, optionId)
+    );
     CREATE TABLE reservation_nights (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, date TEXT);
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE linen_priced_items (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, category TEXT NOT NULL DEFAULT 'bed', sortOrder INTEGER NOT NULL DEFAULT 0);
@@ -683,4 +690,144 @@ test('arrivalComplementDetailFromReservation: carries qty/unitPrice/kind for the
   assert.equal(byLabel['Taxe de séjour'].kind, 'tax');
   // 30 + 16 + 4.80 = 50.80 = total → no remainder line.
   assert.ok(!detail.detail.some((l) => l.kind === 'remainder'));
+});
+
+// ── specs/sas-upsells-activate-catalogue-option.md ────────────────────────────────────────────────
+// The ménage and the linge de toilette activate the CATALOGUE option instead of writing a custom
+// line — otherwise the laundry + linen stock (which join `reservation_options → options`) never see
+// the towels sold at check-in.
+
+function seedCleaning(db, price = 40) {
+  db.prepare("INSERT INTO options (id, title, autoOptionType, price, priceType) VALUES (50, 'Ménage', 'cleaning', ?, 'per_stay')").run(price);
+  return 50;
+}
+function seedBathLinenOption(db, price = 8) {
+  db.prepare("INSERT INTO options (id, title, autoOptionType, price, priceType) VALUES (60, 'Linge de toilette', 'bathroom_linen', ?, 'per_person')").run(price);
+  return 60;
+}
+
+test('commitArrivalSas: « Ajouter le ménage » activates the catalogue option (no custom line)', () => {
+  const db = makeDb();
+  const optId = seedCleaning(db, 40);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true });
+
+  const row = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId);
+  assert.ok(row, 'the catalogue option is attached');
+  assert.equal(row.inComplement, 1, 'collected in the arrival complement');
+  assert.equal(row.sasArrivalOrigin, 1, 'tagged as the SAS own line');
+  assert.equal(row.totalPrice, 40);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM reservation_custom_options WHERE reservationId = 1 AND description = 'Ménage'").get().n, 0);
+  // 30 (pre-existing complement) + 40
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 70);
+});
+
+test('commitArrivalSas: bath linen is billed per person by the engine (2 adults + 1 child × 8 €)', () => {
+  const db = makeDb();
+  const optId = seedBathLinenOption(db, 8);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { bathLinenAdded: true });
+
+  const row = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId);
+  assert.equal(row.billedUnits, 3, '3 persons (babies excluded)');
+  assert.equal(row.unitPrice, 8);
+  assert.equal(row.totalPrice, 24);
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 54); // 30 + 24
+});
+
+test('commitArrivalSas: the per-property price override wins', () => {
+  const db = makeDb();
+  const optId = seedCleaning(db, 40);
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (7, ?, 55)').run(optId);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true });
+  assert.equal(db.prepare('SELECT totalPrice t FROM reservation_options WHERE reservationId = 1').get().t, 55);
+});
+
+test('commitArrivalSas: « Non merci » on a re-run removes the SAS option and its amount', () => {
+  const db = makeDb();
+  const optId = seedCleaning(db, 40);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true });
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 70);
+
+  model.commitArrivalSas(1, { cleaningAdded: false });
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId).n, 0);
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 30, 'back to the pre-SAS complement');
+});
+
+test('commitArrivalSas: re-running with the same answer never double-counts', () => {
+  const db = makeDb();
+  seedCleaning(db, 40);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true });
+  model.commitArrivalSas(1, { cleaningAdded: true });
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 70);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM reservation_options WHERE reservationId = 1').get().n, 1);
+});
+
+test('commitArrivalSas: an option the OPERATOR sold from the fiche is never removed by the SAS', () => {
+  const db = makeDb();
+  const optId = seedCleaning(db, 40);
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, inComplement, sasArrivalOrigin) VALUES (1, ?, 1, 40, 1, ?, 40, 0, 0)')
+    .run(optId, 'per_stay');
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: false });
+
+  const row = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId);
+  assert.ok(row, 'operator line untouched');
+  assert.equal(row.inComplement, 0, 'and its routing is untouched too');
+});
+
+test('commitArrivalSas: linen elements still ride the custom lines', () => {
+  const db = makeDb();
+  seedCleaning(db, 40);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true, complementItems: [{ label: "Taie d'oreiller", amount: 5 }] });
+  const customs = db.prepare('SELECT description, amount FROM reservation_custom_options WHERE reservationId = 1').all();
+  assert.deepEqual(customs, [{ description: "Taie d'oreiller", amount: 5 }]);
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 75); // 30 + 40 + 5
+});
+
+test('commitArrivalSas: a PAID complement freezes the upsell writes', () => {
+  const db = makeDb();
+  const optId = seedCleaning(db, 40);
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true });
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId).n, 0);
+  assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 30);
+});
+
+test('getSasUpsellOptions: resolves both offers, their engine price and where the row comes from', () => {
+  const db = makeDb();
+  seedCleaning(db, 40);
+  const bathId = seedBathLinenOption(db, 8);
+  const model = createReservationsModel(db);
+
+  let out = model.getSasUpsellOptions(1);
+  assert.equal(out.cleaning.totalPrice, 40);
+  assert.equal(out.bathLinen.totalPrice, 24);
+  assert.equal(out.bathLinen.present, false);
+  assert.equal(out.bathLinen.sasOrigin, false);
+
+  model.commitArrivalSas(1, { bathLinenAdded: true });
+  out = model.getSasUpsellOptions(1);
+  assert.equal(out.bathLinen.present, true);
+  assert.equal(out.bathLinen.sasOrigin, true, 'ours → the step stays visible so it can be undone');
+
+  db.prepare('UPDATE reservation_options SET sasArrivalOrigin = 0 WHERE reservationId = 1 AND optionId = ?').run(bathId);
+  assert.equal(model.getSasUpsellOptions(1).bathLinen.sasOrigin, false, 'operator line → the step hides');
+});
+
+test('replaceOptions: the SAS marker survives a fiche save (delete + re-insert)', () => {
+  const db = makeDb();
+  const optId = seedCleaning(db, 40);
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { cleaningAdded: true });
+
+  // A fiche save re-writes every option line from the engine quote.
+  model.replaceOptions(1, [{ optionId: optId, quantity: 1, unitPrice: 40, billedUnits: 1, priceType: 'per_stay', totalPrice: 40, inComplement: 1 }]);
+  const row = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId);
+  assert.equal(row.sasArrivalOrigin, 1, 'still removable from the SAS after a save');
 });

@@ -992,6 +992,39 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- SAS ARRIVAL UPSELLS → CATALOGUE OPTION ----------
+// specs/sas-upsells-activate-catalogue-option.md §5. The arrival SAS used to write « Ménage » and
+// « Linge de toilette » as CUSTOM lines, which the laundry + linen-stock aggregators (they join
+// `reservation_options → options WHERE countsAsBathroomLinen = 1`) never see. They now activate the
+// catalogue option instead, tagged `sasArrivalOrigin` so the SAS may remove what it added — and only
+// what it added (an option sold from the fiche is never touched).
+{
+  const roCols = db.prepare('PRAGMA table_info(reservation_options)').all().map((c) => c.name);
+  if (!roCols.includes('sasArrivalOrigin')) {
+    db.exec('ALTER TABLE reservation_options ADD COLUMN sasArrivalOrigin INTEGER NOT NULL DEFAULT 0');
+  }
+}
+// One-shot data migration: move the existing SAS-origin custom lines onto their catalogue option, at
+// the SAME amount (a past stay is never re-quoted). A reservation already carrying the option is
+// skipped — deleting its custom line would silently lower what the guest owes — and logged for review.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'sas_upsell_custom_to_option_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runSasUpsellOptionMigration } = require('./utils/sasUpsellOptionMigration');
+    const tx = db.transaction(() => {
+      const { migrated, skipped } = runSasUpsellOptionMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      if (migrated > 0 || skipped.length > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`[migration:sas-upsell-custom-to-option] moved ${migrated} line(s) onto their catalogue option`
+          + (skipped.length > 0 ? `; skipped (option already present, review by hand): ${skipped.join(', ')}` : ''));
+      }
+    });
+    tx();
+  }
+}
+
 // One-shot migration (specs/breakfast-option-planning-card.md §3 rule 7): the breakfast option gained
 // the per-day occurrence selection. Seed `cardOccurrences` on every existing reservation that carries
 // the breakfast option but has none yet — one entry per served morning (startDate, endDate] at the
