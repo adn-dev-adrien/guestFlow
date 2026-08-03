@@ -41,6 +41,7 @@ function remoteEcho(r) {
     description: p.description,
     colorId: p.colorId,
     status: 'confirmed',
+    reminders: { useDefault: false },
     start: { dateTime: `${p.start.dateTime}+02:00` },
     end: { dateTime: `${p.end.dateTime}+02:00` },
     extendedProperties: { private: { guestflowSource: 'guestflow', guestflowReservationId: String(r.id) } },
@@ -152,6 +153,19 @@ test('reconcile: skips unchanged, pushes changed/missing, purges orphans, record
   assert.equal(settings.records.length, 1);
   assert.equal(settings.records[0].ok, true);
   assert.match(settings.records[0].detail, /2 envoyée\(s\), 1 supprimée\(s\), 1 inchangée\(s\)/);
+});
+
+test('reconcile: a remote event still on the default reminder is re-pushed with reminders opted out', async () => {
+  const r1 = reservation(1);
+  const legacy = { ...remoteEcho(r1), reminders: { useDefault: true } };
+  const settings = fakeSettings();
+  const calendar = fakeCalendar({ pages: [[legacy]] });
+  const engine = makeEngine({ settings, calendar, reservations: [r1] });
+
+  const out = await engine.reconcile();
+  assert.equal(out.skipped, 0, 'default-reminder event is not treated as unchanged');
+  assert.equal(out.pushed, 1, 'the event is re-pushed');
+  assert.deepEqual(calendar.calls.update[0].requestBody.reminders, { useDefault: false, overrides: [] });
 });
 
 test('reconcile: a guestflow-stamped event under a non-canonical id is purged as a stray copy', async () => {
