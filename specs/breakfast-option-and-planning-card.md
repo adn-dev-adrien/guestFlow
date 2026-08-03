@@ -67,13 +67,31 @@ of breakfasts to prepare.
    is included (the customer slept the night before and is still here
    for breakfast). This is the half-open `(startDate, endDate]` window
    matching the user's choice 2026-06-05.
-5. **Breakfast count per reservation** — `ROUND((adults + teens +
-   children) × COALESCE(reservation_options.quantity, 1))`. Babies
-   excluded (same convention as the bathroom-linen aggregator). The
-   `quantity` multiplier follows Adrien's sub-occupation pattern (e.g.
-   `0.6667` = 2 of 3 want breakfast). When the contribution comes from
-   a property default fallback, `quantity = 1.0` (the whole eligible
-   party gets breakfast).
+5. **Breakfast count per reservation** — the number of people served
+   **each morning**. Babies excluded (same convention as the
+   bathroom-linen aggregator). `reservation_options.quantity` no longer
+   has a single meaning, so the count has two regimes
+   (**revised 2026-08-03**, see the ⚠ note below):
+   - **Occurrence-driven option** (`options.showsPlanningCard = 1` — the
+     case since [breakfast-option-planning-card.md](breakfast-option-planning-card.md)):
+     the pricing engine stores `quantity = number of scheduled mornings`
+     and `billedUnits = mornings × persons`. The count is then the
+     **party itself**: `adults + teens + children`.
+   - **Legacy / property-default option** (no planning card):
+     `ROUND((adults + teens + children) × COALESCE(quantity, 1))`, where
+     `quantity` follows Adrien's sub-occupation pattern (e.g. `0.6667` =
+     2 of 3 want breakfast). The property-default fallback injects
+     `quantity = 1.0` (the whole eligible party gets breakfast).
+
+   > ⚠ **Regression fixed 2026-08-03.** The rule used to multiply the
+   > party by `quantity` unconditionally. Once breakfast became
+   > occurrence-driven, `quantity` started counting *mornings*, so a
+   > 2-guest / 2-night stay was announced as **« 4 personnes »** on the
+   > check-in SAS, on the planning card and in the breakfast push — and
+   > the SAS's smart defaults (viennoiseries = persons, pain =
+   > persons × 0.5) inherited the inflated count. The head count is a
+   > *per-morning* figure: it must never be multiplied by a number of
+   > days.
 6. **Per-day card content** — the `BreakfastDayCard` on date D shows:
    - Title `Petit déjeuner` with a `BreakfastDining` icon.
    - One row per contributing reservation, format

@@ -7,7 +7,9 @@ const { buildModel } = require('../models/breakfastModel');
 // specs/breakfast-option-and-planning-card.md §3 + §7.1. Pins:
 //   - rule 4: half-open `(startDate, endDate]` window — startDate morning excluded,
 //     endDate morning included.
-//   - rule 5: persons = ROUND((adults + teens + children) × qtySum), babies excluded.
+//   - rule 5: people served EACH morning, babies excluded — the party itself when the breakfast
+//     option is occurrence-driven (`showsPlanningCard`, where `quantity` counts mornings), else
+//     ROUND(party × qtySum) with `quantity` as the sub-occupation factor.
 //   - rule 3 + edge cases: explicit option ∪ property default fallback.
 //
 // Plain :memory: fixture covering exactly the tables the model joins.
@@ -49,12 +51,14 @@ const DDL = `
     title TEXT,
     autoOptionType TEXT,
     breakfastTime TEXT,
-    breakfastNotifyLeadMinutes INTEGER NOT NULL DEFAULT 30
+    breakfastNotifyLeadMinutes INTEGER NOT NULL DEFAULT 30,
+    showsPlanningCard INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE reservation_options (
     reservationId INTEGER NOT NULL,
     optionId INTEGER NOT NULL,
     quantity REAL DEFAULT 1,
+    cardOccurrences TEXT,
     PRIMARY KEY (reservationId, optionId)
   );
   CREATE TABLE property_option_defaults (
@@ -91,6 +95,13 @@ function insertReservation(db, props) {
 }
 function linkOption(db, reservationId, optionId, quantity = 1) {
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, ?)').run(reservationId, optionId, quantity);
+}
+// Occurrence-driven breakfast (specs/breakfast-option-planning-card.md): the option shows a planning
+// card, so the pricing engine stores `quantity = number of scheduled mornings` + the occurrence list.
+function linkScheduledBreakfast(db, reservationId, dates, time = '09:00') {
+  db.prepare('UPDATE options SET showsPlanningCard = 1 WHERE id = 1').run();
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, cardOccurrences) VALUES (?, 1, ?, ?)')
+    .run(reservationId, dates.length, JSON.stringify(dates.map((date) => ({ date, time, done: false }))));
 }
 function addPropertyDefault(db, propertyId, optionId) {
   db.prepare('INSERT INTO property_option_defaults (propertyId, optionId) VALUES (?, ?)').run(propertyId, optionId);
@@ -406,4 +417,57 @@ test('getForReservation: NOT applicable when reservation has no breakfast option
   const r = buildModel(db).getForReservation(1);
   assert.equal(r.applicable, false);
   assert.equal(r.persons, 0);
+});
+
+// ── Occurrence-driven breakfast: `quantity` = mornings, NOT a share of the party ──────────────────
+// Regression (2026-08-03): 2 guests × 2 nights showed « 4 personnes » on the check-in SAS and on the
+// planning card. specs/breakfast-option-planning-card.md made the pricing engine store
+// `quantity = number of scheduled mornings`, but rule 5 kept multiplying the party by it.
+
+test('getForReservation: 2 guests × 2 scheduled mornings → 2 persons (not 4)', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-08-03', endDate: '2026-08-05', adults: 2 });
+  linkScheduledBreakfast(db, 1, ['2026-08-04', '2026-08-05']);
+
+  const r = buildModel(db).getForReservation(1);
+  assert.equal(r.applicable, true);
+  assert.equal(r.persons, 2, 'people served each morning = the party, not party × mornings');
+  // The smart defaults ride the corrected count (specs/sas-breakfast-bread-and-push.md rule 3).
+  assert.equal(r.pastries, 2);
+  assert.equal(r.bread, 1);
+});
+
+test('breakfastByDate: an occurrence-driven breakfast counts the party on EACH morning', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertClient(db, 100, 'Jean', 'Dupont');
+  insertReservation(db, { id: 1, propertyId: 10, clientId: 100, startDate: '2026-08-03', endDate: '2026-08-05', adults: 2 });
+  linkScheduledBreakfast(db, 1, ['2026-08-04', '2026-08-05']);
+
+  const out = buildModel(db).breakfastByDate({ from: '2026-08-01', to: '2026-08-10' });
+  assert.deepEqual(Object.keys(out).sort(), ['2026-08-04', '2026-08-05']);
+  assert.equal(out['2026-08-04'].totalPersons, 2);
+  assert.equal(out['2026-08-05'].totalPersons, 2);
+});
+
+test('occurrence-driven: a single scheduled morning for 4 guests still counts 4', () => {
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertReservation(db, { id: 1, propertyId: 10, startDate: '2026-08-03', endDate: '2026-08-04', adults: 3, children: 1 });
+  linkScheduledBreakfast(db, 1, ['2026-08-04']);
+
+  assert.equal(buildModel(db).getForReservation(1).persons, 4);
+  assert.equal(buildModel(db).breakfastByDate({ from: '2026-08-01', to: '2026-08-10' })['2026-08-04'].totalPersons, 4);
+});
+
+test('legacy (no planning card): quantity keeps its sub-occupation meaning', () => {
+  // The option does NOT show a planning card → `quantity` is Adrien's fraction of the party.
+  const db = freshDb();
+  insertProperty(db, 10, 'Gîte');
+  insertReservation(db, { id: 1, propertyId: 10, startDate: '2026-06-09', endDate: '2026-06-11', adults: 3 });
+  linkOption(db, 1, 1, 0.6667);        // 2 of 3 want breakfast
+
+  assert.equal(buildModel(db).getForReservation(1).persons, 2);
 });

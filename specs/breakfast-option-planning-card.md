@@ -44,6 +44,13 @@ while its **planning rendering remains the rich BreakfastDayCard**, now fed by t
 3. **Pricing**: unchanged mechanism — as a card-option, `billedUnits = selected occurrences × guests`
    (per-person). With every served morning selected (the default), this equals the previous
    `persons × nights`, so amounts are unchanged by default.
+   3.bis **`quantity` now counts MORNINGS, not guests (added 2026-08-03).** The engine stores
+   `quantity = occurrences.length` on a card-option ([pricing.js](../server/src/utils/pricing.js),
+   `showsPlanningCard` branch) — it is **no longer** the sub-occupation factor it is on a plain option.
+   Any consumer reading `reservation_options.quantity` for a breakfast head count must therefore NOT
+   multiply the party by it: the people served each morning are the party itself. This bit us in
+   `breakfastModel` (2 guests × 2 nights announced as « 4 personnes » on the SAS, the planning card and
+   the push) — see [breakfast-option-and-planning-card.md](breakfast-option-and-planning-card.md) rule 5.
 4. **Planning**: the **BreakfastDayCard** is built from the breakfast option's **`cardOccurrences`** — one
    entry per checked occurrence whose date ∈ window, at the occurrence's hour, carrying persons + drinks +
    note. If a reservation has the breakfast option but **no** `cardOccurrences` (legacy/edge), fall back to
