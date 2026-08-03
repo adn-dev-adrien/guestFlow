@@ -92,10 +92,13 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   expect(api.commitArrivalSas).toHaveBeenCalledWith(1, {
     cautionReceived: true,
+    // specs/sas-upsells-activate-catalogue-option.md §3.1 — only the LINEN elements are custom lines;
+    // the ménage rides its boolean and lands on the catalogue option, priced server-side.
     complementItems: [
       { label: 'Taie d\'oreiller', amount: 5 },
-      { label: 'Ménage', amount: 80 },
     ],
+    cleaningAdded: true,
+    bathLinenAdded: undefined,      // step not shown (no offer in this fixture)
     departureHandoverNote: '',
     // specs/recall-unpaid-arrival-complement-at-checkout.md — the « Complément encaissé » box was not
     // ticked in this flow, so the complement stays unsettled (→ recalled at checkout).
@@ -580,7 +583,10 @@ test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds t
   // The line rides the arrival complement; endOfStayBathLinen is always false when the step is shown
   // (drops any legacy « en fin de séjour » line from an old commit).
   expect(arg.endOfStayBathLinen).toBe(false);
-  expect(arg.complementItems).toEqual([{ label: 'Linge de toilette', amount: 12 }]);
+  // specs/sas-upsells-activate-catalogue-option.md §3.1 — the upsell is sent as INTENT; the server
+  // activates the catalogue option and prices it. `complementItems` keeps only the linen elements.
+  expect(arg.bathLinenAdded).toBe(true);
+  expect(arg.complementItems).toEqual([]);
 });
 
 test('arrival SAS: bath-linen page — « Non merci » adds nothing, endOfStayBathLinen false', async () => {
@@ -602,6 +608,7 @@ test('arrival SAS: bath-linen page — « Non merci » adds nothing, endOfStayBa
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
   expect(arg.endOfStayBathLinen).toBe(false);
+  expect(arg.bathLinenAdded).toBe(false);
   expect(arg.complementItems).toEqual([]);
 });
 
@@ -821,4 +828,69 @@ test('canOpenReservation gates the « Fiche » link (shown by default, hidden fo
   renderDialog({ mode: 'arrival', canOpenReservation: false });
   await screen.findByText('Commencer');
   expect(screen.queryByRole('button', { name: 'Fiche' })).not.toBeInTheDocument();
+});
+
+// ── specs/sas-upsells-activate-catalogue-option.md §3.2 rule 7 ────────────────────────────────────
+// The upsells are catalogue options now: while the row is the SAS's OWN (`sasOrigin`), the step stays
+// visible and pre-selected so the operator can undo it. An option taken at booking still hides it.
+
+test('arrival SAS re-open: a SAS-added ménage keeps its page, pre-selected, and can be removed', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, arrivalSasDoneAt: '2026-08-03 10:00:00' },
+    cleaning: { included: false, price: 80, sasOrigin: true },
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  // The page is there, and the « ajouté » chip reflects the stored option.
+  await screen.findByText(/Le ménage n'a pas été pris/);
+  expect(screen.getByText(/Ménage ajouté/)).toBeInTheDocument();
+  clickBtn('Non merci');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].cleaningAdded).toBe(false);
+});
+
+test('arrival SAS: a cleaning taken at booking hides the page and is never touched', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1 },
+    cleaning: { included: true, price: 80, sasOrigin: false },
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  expect(screen.queryByText(/Le ménage n'a pas été pris/)).toBeNull();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].cleaningAdded).toBeUndefined();
+});
+
+test('arrival SAS re-open: a SAS-added bath linen reopens pre-selected « ajouté »', async () => {
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionReceived: 1, arrivalSasDoneAt: '2026-08-03 10:00:00' },
+    cleaning: { included: true, price: null },
+    bathLinen: { ...BATH_LINEN_OFFER, sasOrigin: true },
+  }));
+  renderDialog({ mode: 'arrival' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  await screen.findByText(/n'a pas pris le linge de toilette/);
+  expect(screen.getByText(/Linge ajouté/)).toBeInTheDocument();
+  clickBtn('Ajouter le linge de toilette');
+  await screen.findByText('Récapitulatif — complément à percevoir');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
+  expect(api.commitArrivalSas.mock.calls[0][1].bathLinenAdded).toBe(true);
 });

@@ -273,14 +273,15 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           setHandoverNote(res.departureHandoverNote || '');
           // Reconstruct the bed-linen complement + cleaning charge from the SAS-origin lines (§5).
           const bedByLabel = new Map((d.linenItems || []).filter((i) => i.category === 'bed').map((i) => [String(i.label), i]));
-          const nextBed = {}; let nextCleaning = false; let nextBathLinen = false; const keep = [];
-          const bathLinenLabel = String(d.bathLinen?.label || 'Linge de toilette');
+          const nextBed = {}; const keep = [];
+          // specs/sas-upsells-activate-catalogue-option.md §3.2 rule 7 — the ménage and the linge de
+          // toilette are now CATALOGUE options; the server says whether the row is the SAS's own, so
+          // the step reopens pre-selected « ajouté » (and « Non merci » removes it).
+          let nextCleaning = Boolean(d.cleaning?.sasOrigin);
+          let nextBathLinen = Boolean(d.bathLinen?.sasOrigin);
           (res.options || []).filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1).forEach((o) => {
             const label = String(o.description || o.title || '');
             const amount = Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0);
-            if (label === 'Ménage') { nextCleaning = true; return; }
-            // specs/sas-bath-linen-upsell.md §3.2 — the bath-linen line (settled with the arrival complement).
-            if (label === bathLinenLabel) { nextBathLinen = true; return; }
             const item = bedByLabel.get(label);
             if (item && Number(item.price) > 0) nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
             else keep.push({ label, amount });
@@ -425,9 +426,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // On re-edit, the SAS-origin complement lines from the prior commit are REPLACED, not added — so
   // the recap must exclude their amount from « déjà dû » (specs/reopen-completed-sas.md §4), else it
   // would double-count the very lines we re-show. 0 on a fresh SAS (no SAS-origin lines yet).
+  // Covers BOTH kinds of SAS-origin line: the custom ones (linen elements) and, since
+  // specs/sas-upsells-activate-catalogue-option.md, the catalogue options the SAS sells.
   const sasOriginSum = useMemo(() => (r?.options || [])
-    .filter((o) => o.isCustom && Number(o.sasArrivalOrigin) === 1)
-    .reduce((s, o) => s + Number(o.unitPrice ?? o.amount ?? o.totalPrice ?? 0), 0), [r]);
+    .filter((o) => Number(o.sasArrivalOrigin) === 1)
+    .reduce((s, o) => s + Number(o.isCustom ? (o.unitPrice ?? o.amount ?? o.totalPrice ?? 0) : (o.totalPrice ?? 0)), 0), [r]);
   const preservedArrivalSum = preservedArrival.reduce((s, l) => s + Number(l.amount || 0), 0);
 
   // Detail of the PRE-EXISTING complement (the « déjà dû »): every extra routed to the complément
@@ -517,7 +520,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // undefined when the caution step isn't shown → server leaves the marker untouched
           // (specs/reopen-completed-sas.md §6); otherwise faithful set/clear from the answer.
           cautionReceived: activeKeys.includes('caution') ? (caution === 'fait') : undefined,
-          complementItems: [...arrivalAddedLines.map((l) => ({ label: l.label, amount: l.amount })), ...preservedArrival],
+          // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 3 — only the LINEN elements stay
+          // custom lines (they come from Blanchisserie, not from the catalogue). The ménage and the
+          // linge de toilette ride the two booleans below and land on their catalogue option.
+          complementItems: [...bedLines.map((l) => ({ label: l.label, amount: l.amount })), ...preservedArrival],
+          // Intent only — the server resolves the option + its price (tri-state: undefined = step not shown).
+          cleaningAdded: activeKeys.includes('cleaning') ? cleaningAdded : undefined,
+          bathLinenAdded: activeKeys.includes('bathLinen') ? bathLinenAdded : undefined,
           departureHandoverNote: handoverNote,
           // specs/sas-recap-payment-buttons.md — settlement mode → paid flags. 'card'/'cash' settle the
           // arrival complement now ('cash' = caisse interne); 'defer'/null leave it unpaid → recalled at
