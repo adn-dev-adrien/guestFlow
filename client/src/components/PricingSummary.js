@@ -691,8 +691,13 @@ export default function PricingSummary({
                   complement > 0 && (
                     <>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {/* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — when the
+                            complement was deferred at check-in it is collected at the door with the
+                            end-of-stay complement; say so (the amount is unchanged). */}
                         <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
-                          dont complément à percevoir sur place
+                          {form.complementDeferredToCheckout && !form.complementPaid
+                            ? 'dont complément perçu en fin de séjour'
+                            : 'dont complément à percevoir sur place'}
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(complement)}</Typography>
                       </Box>

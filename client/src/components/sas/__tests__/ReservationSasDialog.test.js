@@ -361,7 +361,7 @@ test('arrival SAS: bread steps by 0,5 (French display), rides the payload; serve
 test('departure SAS: shows the read-only handover note left at arrival', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0, departureHandoverNote: 'Récupérer la 2e clé' },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
   }));
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');
@@ -372,7 +372,7 @@ test('departure SAS: shows the read-only handover note left at arrival', async (
 test('departure SAS: cleaning page asks « fait correctement » (not the arrival UI) and commits the end-of-stay complement', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
   }));
   renderDialog({ mode: 'departure' });
 
@@ -419,7 +419,7 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
   // shows the combined total, and ticking « Compléments encaissés » sends complementsSettled to the server.
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
     arrivalComplement: { amount: 12.5, paid: 0, detail: [{ label: 'Taxe de séjour', amount: 4.8 }, { label: 'Lit bébé', amount: 7.7 }] },
   }));
   renderDialog({ mode: 'departure' });
@@ -460,7 +460,7 @@ test('departure SAS: an UNSETTLED arrival complement is recalled — detail + co
 test('departure SAS: a PAID arrival complement is NOT recalled', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
     arrivalComplement: { amount: 12.5, paid: 1, detail: [{ label: 'Taxe de séjour', amount: 12.5 }] },
   }));
   renderDialog({ mode: 'departure' });
@@ -484,7 +484,7 @@ test('departure SAS: an unpaid arrival complement ALONE (no end-of-stay compleme
   // to collect (a genuinely forgotten arrival collection); with an end-of-stay complement it is merged.
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
     arrivalComplement: { amount: 12.5, paid: 0, detail: [{ label: 'Taxe de séjour', amount: 12.5 }] },
   }));
   renderDialog({ mode: 'departure' });
@@ -508,7 +508,7 @@ test('departure SAS: extinguisher not in good condition opens the tariff page; q
   // extinguisher tariff page; the per-tariff quantity is sent as extinguisherCharges (priced server-side).
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
     repairAmounts: [
       { id: 1, repairKey: 'extinguisher_seal', label: 'Plomb manquant', price: 30 },
       { id: 2, repairKey: 'extinguisher_use', label: 'Utilisation', price: 15 },
@@ -626,7 +626,7 @@ test('departure SAS: a bath-linen line deferred at arrival is shown, counted in 
       cautionAmount: 0,
       endOfStayComplementDetail: JSON.stringify([{ label: 'Linge de toilette', amount: 12, qty: 3, unitPrice: 4, source: 'arrivalBathLinen' }]),
     },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
   }));
   renderDialog({ mode: 'departure' });
 
@@ -651,6 +651,67 @@ test('departure SAS: a bath-linen line deferred at arrival is shown, counted in 
   expect(carried).toBeTruthy();
   expect(carried.amount).toBe(12);
   expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour' && l.amount === 80)).toBe(true);
+});
+
+test('departure SAS: the ménage page is dropped when the cleaning is already sold — nothing is billed', async () => {
+  // specs/defer-arrival-complement-to-checkout.md §3.1 — the guest bought the cleaning (or it was
+  // added at check-in): the host does it, so the departure SAS must not ask, and must not bill it a
+  // second time on top of the arrival complement.
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: { cautionAmount: 0 },
+    cleaning: { included: true, price: 80 },
+  }));
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+
+  // Straight to the « éléments manquants » question — no ménage page.
+  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
+  expect(screen.queryByText(/fait correctement/)).toBeNull();
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+
+  await screen.findByText('Récapitulatif fin de séjour');
+  expect(screen.getByText(/Ménage déjà réglé/)).toBeInTheDocument();
+  expect(screen.getByText(/Aucun complément de fin de séjour/)).toBeInTheDocument();
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitDepartureSas.mock.calls[0][1];
+  expect(arg.endOfStayComplementDetail.some((l) => l.label === 'Ménage de fin de séjour')).toBe(false);
+});
+
+test('departure SAS re-open: a cleaning line billed before the ménage was sold is dropped on re-commit', async () => {
+  // specs/defer-arrival-complement-to-checkout.md §3.1 rule 4 — re-running the departure SAS is how
+  // an already over-billed stay is corrected (no data migration).
+  api.getReservationSas.mockResolvedValue(sasPayload({
+    reservation: {
+      cautionAmount: 0,
+      departureSasDoneAt: '2026-08-02 10:00:00',
+      endOfStayComplementDetail: JSON.stringify([{ label: 'Ménage de fin de séjour', amount: 80 }]),
+    },
+    cleaning: { included: true, price: 80 },
+  }));
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText('Commencer');
+  clickBtn('Commencer');
+  await screen.findByText(/serviettes ou des draps sont-ils manquants/);
+  clickBtn('Non');
+  await screen.findByText(/récupéré les clés/);
+  clickBtn('Oui');
+  await screen.findByText(/bon état/i);
+  clickBtn('Oui');
+  await screen.findByText('Récapitulatif fin de séjour');
+  clickBtn('Valider et terminer');
+
+  await waitFor(() => expect(api.commitDepartureSas).toHaveBeenCalledTimes(1));
+  const arg = api.commitDepartureSas.mock.calls[0][1];
+  expect(arg.endOfStayComplementDetail).toEqual([]);
 });
 
 // ---- recap settlement buttons (specs/sas-recap-payment-buttons.md) ----
@@ -722,7 +783,7 @@ test('arrival recap: unselecting a settled mode falls back to « En fin de séjo
 test('departure recap: « Payé en liquide » settles into caisse interne; no « En fin de séjour » button', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionAmount: 0 },
-    cleaning: { included: true, price: 80 },
+    cleaning: { included: false, price: 80 },
   }));
   renderDialog({ mode: 'departure' });
   await screen.findByText('Commencer');

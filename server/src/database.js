@@ -1574,6 +1574,18 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // accounting (compta) + the accounting export. Independent per complement.
   if (!rcols.includes('complementPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN complementPaidCash INTEGER NOT NULL DEFAULT 0");
   if (!rcols.includes('endOfStayComplementPaidCash')) db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0");
+  // « En fin de séjour » on the arrival recap (specs/defer-arrival-complement-to-checkout.md §3.2
+  // rule 5): the arrival complement is not collected at check-in but at the door, together with the
+  // end-of-stay complement — presented as ONE complement everywhere. Backfilled once, on creation,
+  // for the stays the departure recall already treats as deferred (arrival SAS done, complement
+  // still to collect). Display/collection only: no amount is moved or recomputed.
+  if (!rcols.includes('complementDeferredToCheckout')) {
+    db.exec("ALTER TABLE reservations ADD COLUMN complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0");
+    db.exec(`UPDATE reservations SET complementDeferredToCheckout = 1
+             WHERE arrivalSasDoneAt IS NOT NULL
+               AND COALESCE(complementAmount, 0) > 0
+               AND COALESCE(complementPaid, 0) = 0`);
+  }
   // Tourist-tax declaration marker (specs/tourist-tax-declared-checkbox.md): set to the server time-stamp
   // when the operator ticks « Déclarée » on the extraction page, NULL = not yet declared.
   if (!rcols.includes('touristTaxDeclaredAt')) db.exec("ALTER TABLE reservations ADD COLUMN touristTaxDeclaredAt TEXT");

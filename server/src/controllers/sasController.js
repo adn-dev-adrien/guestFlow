@@ -6,37 +6,23 @@
  * commits the operator's decisions in a single call per SAS (no per-step writes).
  */
 
-const db = require('../database');
 const reservationsModel = require('../models/reservationsModel');
-const { isCleaningOption } = require('../utils/cleaningOption');
 const linenItemsModel = require('../models/linenItemsModel');
 const settingsModel = require('../models/settingsModel');
 const breakfastModel = require('../models/breakfastModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
 
-// Is bed linen / cleaning "included" for this reservation? = an option of that autoOptionType is on
-// the reservation, OR the property has it as a default-offered option.
-function propertyHasDefault(propertyId, autoOptionType) {
-  try {
-    return Boolean(db.prepare(`
-      SELECT 1 FROM property_option_defaults d
-      JOIN options o ON o.id = d.optionId
-      WHERE d.propertyId = ? AND o.autoOptionType = ? AND d.offered = 1 LIMIT 1
-    `).get(Number(propertyId), autoOptionType));
-  } catch { return false; }
-}
-
 function getSas(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
 
-  const options = reservation.options || [];
-  // Cleaning is "included" when a booked option is the cleaning (by `autoOptionType='cleaning'` tag
-  // OR by name « ménage » — same rule as the J-1 email, see utils/cleaningOption.js), OR the property
-  // offers cleaning by default. Name-matching also covers hand-created / custom "Ménage" options that
-  // carry no tag — otherwise the SAS would re-ask for cleaning the guest already booked.
-  const cleaningIncluded = options.some(isCleaningOption)
-    || propertyHasDefault(reservation.propertyId, 'cleaning');
+  // Cleaning is "included" when the reservation already carries it: a booked option (by
+  // `autoOptionType='cleaning'` tag OR by name « ménage » — same rule as the J-1 email, see
+  // utils/cleaningOption.js), a « Ménage » line added by the arrival SAS, or a property default.
+  // Single source of truth shared with the departure billing guard
+  // (specs/defer-arrival-complement-to-checkout.md §3.1 rule 1): BOTH SAS ends then hide their
+  // ménage page — the guest is never asked about a cleaning the host was paid to do.
+  const cleaningIncluded = reservationsModel.isCleaningSoldForReservation(reservation.id);
   const cleaningPrice = reservationsModel.getCleaningPriceForProperty(reservation.propertyId);
   const settings = settingsModel.read();
 
