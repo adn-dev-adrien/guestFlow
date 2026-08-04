@@ -25,7 +25,7 @@ import { useToast } from '../components/DialogProvider';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
-import { ADMIN, RECEPTION, userHasRole } from '../constants/roles';
+import { isReceptionOnly } from '../constants/roles';
 import api from '../api';
 
 function addDays(dateStr, n) {
@@ -64,7 +64,7 @@ export default function Dashboard() {
   // specs/reception-role-checkin-only.md §3.3 — a reception-only user gets a reduced, finance-free
   // home: arrivals/departures lists only (no Paiements column, no KPI tiles, no admin alert banners,
   // no month calendar). A row tap opens the SAS on the Planning via the deep-link.
-  const isReceptionOnly = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN);
+  const receptionMode = isReceptionOnly(user);
   const [properties, setProperties] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -147,10 +147,10 @@ export default function Dashboard() {
 
   const openReservation = (r) => navigate(withFrom(`/reservations/${r.id}`, '/'));
   // Reception has no reservation sheet — a row tap jumps to the Planning with the matching SAS open.
-  const openArrival = (r) => (isReceptionOnly
+  const openArrival = (r) => (receptionMode
     ? navigate(`/planning?sas=arrival&reservationId=${r.id}`)
     : openReservation(r));
-  const openDeparture = (r) => (isReceptionOnly
+  const openDeparture = (r) => (receptionMode
     ? navigate(`/planning?sas=departure&reservationId=${r.id}`)
     : openReservation(r));
 
@@ -203,7 +203,7 @@ export default function Dashboard() {
       <TableCell sx={{ fontWeight: 600 }}>Lits à préparer</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
-      {!isReceptionOnly && <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>}
+      {!receptionMode && <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>}
       <TableCell sx={{ fontWeight: 600 }}>Caution</TableCell>
     </TableRow>
   );
@@ -232,7 +232,7 @@ export default function Dashboard() {
         </TableCell>
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
-        {!isReceptionOnly && (
+        {!receptionMode && (
           <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
             {arrivalPaymentText(r)}
           </TableCell>
@@ -270,7 +270,7 @@ export default function Dashboard() {
             <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
           )}
           {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
-          {!isReceptionOnly && (
+          {!receptionMode && (
             <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
               {arrivalPaymentText(r)}
             </Typography>
@@ -293,7 +293,7 @@ export default function Dashboard() {
       <TableCell sx={{ fontWeight: 600 }}>Client</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Options / Ressources</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Note</TableCell>
-      {!isReceptionOnly && <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>}
+      {!receptionMode && <TableCell sx={{ fontWeight: 600 }}>Paiements</TableCell>}
     </TableRow>
   );
 
@@ -314,7 +314,7 @@ export default function Dashboard() {
         <TableCell>{r.firstName} {r.lastName}</TableCell>
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
-        {!isReceptionOnly && (
+        {!receptionMode && (
           <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
             {paymentOk ? 'OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
           </TableCell>
@@ -341,7 +341,7 @@ export default function Dashboard() {
             <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
           )}
           {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
-          {!isReceptionOnly && (
+          {!receptionMode && (
             <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
               {paymentOk ? 'Paiements OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
             </Typography>
@@ -361,7 +361,7 @@ export default function Dashboard() {
 
       {/* Admin operational banners — hidden for the reception role (they drive admin-only workflows
           like iCal approvals, the manual email queue, and website booking requests). */}
-      {!isReceptionOnly && (
+      {!receptionMode && (
         <>
           {/* §3.7 linen shortage alert (specs/linen-inventory-shortage-tracking.md §6.3). Self-
               contained: renders nothing when no shortage is projected. */}
@@ -391,7 +391,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Summary cards — neutral « Maison » KPI tiles (admin only; reception sees just the lists) */}
-          {!isReceptionOnly && (
+          {!receptionMode && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {kpiCards.map((c) => {
               const Icon = c.icon;
@@ -455,7 +455,7 @@ export default function Dashboard() {
 
           {/* Cumulative month calendar — the SAME component as the Calendrier page (no duplication).
               Hidden for reception (finance-free home is arrivals/departures only, §3.3). */}
-          {!isReceptionOnly && (
+          {!receptionMode && (
             <>
               <Divider sx={{ my: 3 }} />
               <CumulativeMonthCalendar

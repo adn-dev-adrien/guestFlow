@@ -25,6 +25,13 @@ function userHasRole(user, role) {
   return false;
 }
 
+// specs/reception-role-checkin-only.md §3.2 — every reception restriction (finance stripping, the
+// payment-field allowlist, the SAS re-edit lock) keys on the SAME predicate: holds `reception` and
+// NOT `admin`. A combined reception+admin account is a full admin.
+function isReceptionOnly(user) {
+  return userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN);
+}
+
 module.exports = {
   ADMIN,
   ACCOUNTANT,
@@ -32,4 +39,5 @@ module.exports = {
   ROLES,
   isKnownRole,
   userHasRole,
+  isReceptionOnly,
 };

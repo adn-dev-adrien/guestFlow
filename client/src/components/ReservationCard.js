@@ -77,7 +77,7 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   );
 }
 
-export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
+export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpenReservation, onOpenSas, onOpenClient, canReopenSas = true }) {
   const r = reservation;
   const theme = useTheme();
   // On mobile the two action buttons move to a dedicated bottom row (rendered once, not duplicated).
@@ -113,13 +113,21 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
   // The card action is the check-in (SAS) launcher — a LARGE icon so it's an easy tap target on mobile.
   // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
+  // specs/reception-sas-lock-after-commit.md §3.2 rule 7 — a committed check-in is read-only for the
+  // reception role: the ✓ stays green but inert (the server refuses the commit too).
+  const sasLocked = sasDone && !canReopenSas;
+  const sasLabel = (() => {
+    if (sasLocked) return 'Check-in déjà effectué — modification réservée à l\'administrateur';
+    return sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)';
+  })();
   const actionButtons = onOpenSas ? (
-    <Tooltip title={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}>
+    <Tooltip title={sasLabel}>
       <span>
         <IconButton
           color={sasDone ? 'success' : 'primary'}
+          disabled={sasLocked}
           onClick={(e) => { stop(e); onOpenSas(r.id); }}
-          aria-label={sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)'}
+          aria-label={sasLabel}
           sx={{ p: 1 }}
         >
           {sasDone ? <CheckCircleIcon sx={{ fontSize: 40 }} /> : <ChecklistIcon sx={{ fontSize: 40 }} />}

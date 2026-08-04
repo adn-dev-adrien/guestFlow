@@ -1,6 +1,6 @@
 import {
   ADMIN, ACCOUNTANT, RECEPTION, ROLES, ROLE_LABELS, userHasRole, roleLabel,
-  ROUTE_ROLES, canSeeRoute, canSeeAnyRoute,
+  ROUTE_ROLES, canSeeRoute, canSeeAnyRoute, isReceptionOnly,
 } from '../roles';
 
 describe('roles constants', () => {
@@ -127,5 +127,30 @@ describe('canSeeAnyRoute', () => {
 
   test('admin sees the full group', () => {
     expect(canSeeAnyRoute(admin, ['/calendar', '/resource-planning'])).toBe(true);
+  });
+});
+
+// specs/reception-sas-lock-after-commit.md §4.2 — mirror of the server predicate; every reception
+// restriction (reduced home, inert fiche links, SAS re-edit lock) keys on it.
+describe('isReceptionOnly', () => {
+  test('reception alone (or with accountant) → true', () => {
+    expect(isReceptionOnly({ roles: ['reception'] })).toBe(true);
+    expect(isReceptionOnly({ roles: ['reception', 'accountant'] })).toBe(true);
+  });
+
+  test('admin always wins → false', () => {
+    expect(isReceptionOnly({ roles: ['reception', 'admin'] })).toBe(false);
+    expect(isReceptionOnly({ roles: ['admin'] })).toBe(false);
+  });
+
+  test('no reception role / no user → false', () => {
+    expect(isReceptionOnly({ roles: ['accountant'] })).toBe(false);
+    expect(isReceptionOnly({ roles: [] })).toBe(false);
+    expect(isReceptionOnly(null)).toBe(false);
+  });
+
+  test('legacy single-role session shape still resolves', () => {
+    expect(isReceptionOnly({ role: 'reception' })).toBe(true);
+    expect(isReceptionOnly({ role: 'admin' })).toBe(false);
   });
 });

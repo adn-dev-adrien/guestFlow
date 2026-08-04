@@ -130,6 +130,27 @@ test('SAS button — once the arrival SAS is done it stays a clickable ✓ for r
   expect(onOpenSas).toHaveBeenCalledWith(100);
 });
 
+test('SAS button — canReopenSas=false locks the ✓ once the arrival SAS is done (reception)', () => {
+  // specs/reception-sas-lock-after-commit.md §3.2 rule 7 — the reception role never re-edits a
+  // committed check-in: the ✓ stays green but inert.
+  const onOpenSas = vi.fn();
+  const r = { ...BASE, arrivalSasDoneAt: '2026-08-04 15:12:00' };
+  render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} canReopenSas={false} />);
+  const sasBtn = screen.getByRole('button', { name: "Check-in déjà effectué — modification réservée à l'administrateur" });
+  expect(sasBtn).toBeDisabled();
+  fireEvent.click(sasBtn);
+  expect(onOpenSas).not.toHaveBeenCalled();
+});
+
+test('SAS button — canReopenSas=false leaves a PENDING arrival fully clickable (reception)', () => {
+  const onOpenSas = vi.fn();
+  render(<ReservationCard reservation={BASE} onToggleReady={noop} onOpenSas={onOpenSas} canReopenSas={false} />);
+  const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
+  expect(sasBtn).not.toBeDisabled();
+  fireEvent.click(sasBtn);
+  expect(onOpenSas).toHaveBeenCalledWith(100);
+});
+
 test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {
   const onOpenClient = vi.fn();
   render(
