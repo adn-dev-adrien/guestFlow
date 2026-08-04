@@ -12,6 +12,16 @@ const settingsModel = require('../models/settingsModel');
 const breakfastModel = require('../models/breakfastModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
 const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
+const { isReceptionOnly } = require('../constants/roles');
+
+// specs/reception-sas-lock-after-commit.md §3.1 rule 1 — the reception role runs the SAS that is still
+// pending and NEVER re-edits one already committed (the re-edit power of specs/reopen-completed-sas.md
+// stays admin-only). The lock is state-based, so it can't live in the path allowlist of
+// middleware/enforceRoleAccess.js — it belongs here, before any write.
+function sasAlreadyCommitted(req, reservation, mode) {
+  if (!isReceptionOnly(req.user)) return false;
+  return Boolean(mode === 'arrival' ? reservation.arrivalSasDoneAt : reservation.departureSasDoneAt);
+}
 
 // specs/arrival-departure-sas.md §3.7 — a SAS commit is a reservation edit like any other and must
 // leave a trace in the fiche's « Historique des modifications ». Snapshot before, snapshot after,
@@ -101,6 +111,7 @@ function getSas(req, res) {
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (sasAlreadyCommitted(req, reservation, 'arrival')) return res.status(403).json({ error: 'SAS_ALREADY_COMMITTED' });
   const {
     cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
@@ -145,6 +156,7 @@ function commitArrival(req, res) {
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
+  if (sasAlreadyCommitted(req, reservation, 'departure')) return res.status(403).json({ error: 'SAS_ALREADY_COMMITTED' });
   const { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, complementsSettled, complementsPaidCash } = req.body || {};
   const beforeSas = snapshotSas(Number(req.params.id));
   reservationsModel.commitDepartureSas(Number(req.params.id), {

@@ -27,7 +27,7 @@ import { displayDate } from '../utils/formatters';
 import { cleaningTurnoverConflict } from '../utils/reservationConflicts';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
-import { ADMIN, RECEPTION, userHasRole } from '../constants/roles';
+import { isReceptionOnly } from '../constants/roles';
 import api from '../api';
 
 const DAYS_AHEAD = 14;
@@ -154,7 +154,9 @@ export default function PlanningPage() {
   // specs/reception-role-checkin-only.md §3.4 — a reception-only user runs the SAS on the Planning
   // but has no client / reservation sheet access: the card body + client-name links are inert and
   // the SAS « Fiche » link is hidden. Everything else (SAS, caution/complement) is unchanged.
-  const receptionMode = userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN);
+  // specs/reception-sas-lock-after-commit.md §3.2 — reception also loses the SAS re-edit: a committed
+  // check-in / check-out is locked for them (the server refuses the commit anyway).
+  const receptionMode = isReceptionOnly(user);
   // Reused by every "card / row click → open reservation" handler below (arrivals,
   // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
   // back button return here. No-op in reception mode (no reservation sheet access).
@@ -829,6 +831,7 @@ export default function PlanningPage() {
                 onOpenReservation={receptionMode ? undefined : openReservation}
                 onOpenSas={openDepartureSas}
                 onOpenClient={receptionMode ? undefined : openClient}
+                canReopenSas={!receptionMode}
                 alertInfo={alertMap[r.id]}
               />
             ),
@@ -845,6 +848,7 @@ export default function PlanningPage() {
                 onOpenReservation={receptionMode ? undefined : openReservation}
                 onOpenSas={openArrivalSas}
                 onOpenClient={receptionMode ? undefined : openClient}
+                canReopenSas={!receptionMode}
               />
             ),
           }));
@@ -975,6 +979,7 @@ export default function PlanningPage() {
         onClose={() => setSas(null)}
         onCommitted={() => { setSas(null); loadPlanning(startDate); }}
         canOpenReservation={!receptionMode}
+        canReopenSas={!receptionMode}
       />
 
       <LaundryManualAdditionsDialog
