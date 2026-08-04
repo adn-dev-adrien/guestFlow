@@ -124,6 +124,11 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
    line items, settlement buttons) and commits, exactly like an admin. The SAS payload
    (`GET /reservations/:id/sas`) is already finance-free (caution / options / cleaning price /
    complement / repair prices) — it is served to reception unchanged.
+   **Narrowed 2026-08-04 by [reception-sas-lock-after-commit.md](reception-sas-lock-after-commit.md):**
+   only a SAS that has **never been committed**. Once `arrivalSasDoneAt` (resp. `departureSasDoneAt`)
+   is set, the planning ✓ is disabled for reception and the commit endpoint answers **403
+   `SAS_ALREADY_COMMITTED`** — the re-edit of [reopen-completed-sas.md](reopen-completed-sas.md)
+   stays admin-only.
 9. Completing a SAS still validates the status flags per specs/arrival-departure-sas.md §3.6
    (arrival → `checkInReady=1` + `checkInDone=1`; departure → `checkOutDone=1`). Reception commits
    set them identically.

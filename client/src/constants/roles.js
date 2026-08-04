@@ -29,6 +29,13 @@ export function roleLabel(role) {
   return ROLE_LABELS[role] || role;
 }
 
+// Mirror of the server helper (server/src/constants/roles.js). Every reception restriction — the
+// reduced home page, the inert client/reservation links, the SAS re-edit lock — keys on the same
+// predicate: holds `reception` and NOT `admin` (a combined account is a full admin).
+export function isReceptionOnly(user) {
+  return userHasRole(user, RECEPTION) && !userHasRole(user, ADMIN);
+}
+
 // Per-route role allowlist used by the sidebar to filter items without forking the render path.
 // Single source of truth so every "is X visible to Y?" decision answers consistently. New routes
 // MUST be registered here (defaults to "hidden for everyone").

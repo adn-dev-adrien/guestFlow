@@ -39,7 +39,7 @@ import ChecklistIcon from '@mui/icons-material/Checklist';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
 
-export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
+export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo, onOpenReservation, onOpenSas, onOpenClient, canReopenSas = true }) {
   const done = Boolean(reservation.checkOutDone);
   const sasDone = !!reservation.departureSasDoneAt;
   const theme = useTheme();
@@ -55,13 +55,21 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   const checkOutTime = reservation.checkOutTime || '10:00';
   // The card action is the check-out (SAS) launcher — a LARGE icon for an easy tap target on mobile.
   // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
+  // specs/reception-sas-lock-after-commit.md §3.2 rule 8 — a committed check-out is read-only for the
+  // reception role: the ✓ stays green but inert (the server refuses the commit too).
+  const sasLocked = sasDone && !canReopenSas;
+  const sasLabel = (() => {
+    if (sasLocked) return 'Check-out déjà effectué — modification réservée à l\'administrateur';
+    return sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)';
+  })();
   const actionButtons = onOpenSas ? (
-    <Tooltip title={sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)'}>
+    <Tooltip title={sasLabel}>
       <span>
         <IconButton
           color={sasDone ? 'success' : 'primary'}
+          disabled={sasLocked}
           onClick={(e) => { stop(e); onOpenSas(reservation.id); }}
-          aria-label={sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)'}
+          aria-label={sasLabel}
           sx={{ p: 1 }}
         >
           {sasDone ? <CheckCircleIcon sx={{ fontSize: 40 }} /> : <ChecklistIcon sx={{ fontSize: 40 }} />}
