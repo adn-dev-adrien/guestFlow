@@ -48,6 +48,10 @@ flags follow the checkbox faithfully. A SAS never reverts to "not done".
    longer `disabled`**. Tooltip becomes « Revoir / modifier le check-in » (resp. « … le
    check-out »). Clicking reopens the wizard in the same mode. (Reverses
    [arrival-departure-sas.md](arrival-departure-sas.md) §3.0 lock.)
+   **Restricted for the reception role
+   ([reception-sas-lock-after-commit.md](reception-sas-lock-after-commit.md), 2026-08-04):** this
+   whole re-edit is **admin-only**. For a reception-only user the ✓ stays green but **disabled**, and
+   the server refuses any commit on a committed SAS (403 `SAS_ALREADY_COMMITTED`).
 
 2. **Pre-fill on reopen.** When the wizard opens on a reservation that already has the relevant
    `…SasDoneAt`, every decision is seeded from the persisted state (instead of starting blank):

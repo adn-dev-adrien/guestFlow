@@ -40,6 +40,7 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import LockIcon from '@mui/icons-material/Lock';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
@@ -48,7 +49,7 @@ import LoadingState from '../LoadingState';
 import ErrorAlert from '../ErrorAlert';
 import { useToast } from '../DialogProvider';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
-import { formatCurrency, displayDateLong } from '../../utils/formatters';
+import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
 
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
@@ -183,7 +184,7 @@ function IntroDateRow({ kind, date, time }) {
   );
 }
 
-export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted, canOpenReservation = true }) {
+export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted, canOpenReservation = true, canReopenSas = true }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -349,12 +350,28 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
 
   const r = data?.reservation;
   const modeColor = modeColorFor(theme, mode);
+  // specs/reception-sas-lock-after-commit.md §3.2 rule 9 — the reception role reaches this dialog on a
+  // committed SAS only through a deep-link (Dashboard row / push notification), since the planning ✓
+  // is disabled for them. It then renders a short locked panel instead of the wizard; the server
+  // refuses the commit regardless (403 SAS_ALREADY_COMMITTED).
+  const sasDoneAt = r ? (mode === 'arrival' ? r.arrivalSasDoneAt : r.departureSasDoneAt) : null;
+  const sasLocked = !canReopenSas && Boolean(sasDoneAt);
+  const lockedTitle = mode === 'arrival' ? 'Check-in déjà effectué' : 'Check-out déjà effectué';
+  const lockedMessage = (() => {
+    const label = mode === 'arrival' ? 'Ce check-in' : 'Ce check-out';
+    const day = displayDate(String(sasDoneAt || '').slice(0, 10));
+    const when = day === '—' ? '' : ` le ${day}`;
+    return `${label} a déjà été validé${when}. Sa modification est réservée à l'administrateur.`;
+  })();
   const bedItems = useMemo(() => (data?.linenItems || []).filter((i) => i.category === 'bed'), [data]);
   const allItems = useMemo(() => (data?.linenItems || []), [data]);
 
   // Ordered list of active page keys, given the data + current decisions.
   const activeKeys = useMemo(() => {
     if (!data) return [];
+    // Locked (reception on a committed SAS): no page at all — the body renders the locked panel and
+    // the header drops its progress bar / « Précédent ».
+    if (sasLocked) return [];
     // On departure, the caution-RETURN step stays reachable when re-editing a completed SAS
     // (specs/reopen-completed-sas.md §3 rule 3), so a mis-marked return can be corrected.
     const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
@@ -398,7 +415,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean);
-  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts]);
+  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLocked]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -573,9 +590,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       if (onCommitted) onCommitted();
       if (onClose) onClose();
     } catch (e) {
+      // specs/reception-sas-lock-after-commit.md §3.2 — the SAS was committed elsewhere while this
+      // wizard was open: the server refuses (403) and the raw code would surface as-is.
+      const message = e?.error === 'SAS_ALREADY_COMMITTED'
+        ? `${mode === 'arrival' ? 'Ce check-in' : 'Ce check-out'} a déjà été validé — modification réservée à l'administrateur.`
+        : e?.message;
       // Inline (visible in the fullscreen dialog) + toast (app-wide feedback channel).
-      setError(e?.message || "Échec de l'enregistrement.");
-      showError(e?.message || "Échec de l'enregistrement du SAS.");
+      setError(message || "Échec de l'enregistrement.");
+      showError(message || "Échec de l'enregistrement du SAS.");
     } finally {
       setCommitting(false);
     }
@@ -956,6 +978,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // ---- footer (page-specific forward actions) ----
   function renderActions() {
     if (loading || !data) return null;
+    if (sasLocked) return <Button variant="contained" onClick={onClose}>Fermer</Button>;
     const quit = null;
     const next = (label = 'Suivant') => <Button variant="contained" onClick={goNext}>{label}</Button>;
 
@@ -1055,15 +1078,23 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (loading) return <LoadingState />;
     if (error && !data) return <ErrorAlert message={error} />;
     if (!data) return null;
+    if (sasLocked) {
+      return (
+        <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center', py: 2 }}>
+          <LockIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
+          <Typography variant="body1">{lockedMessage}</Typography>
+        </Stack>
+      );
+    }
     // Intro leads with the property photo, so suppress the big centred step icon there.
     const bodyIcon = stepKey === 'intro' ? null : stepMeta(stepKey, mode).Icon;
     return <StepLayout Icon={bodyIcon} color={modeColor}>{renderStepContent()}</StepLayout>;
   }
 
   const meta = stepMeta(stepKey, mode);
-  const StepIcon = meta.Icon;
+  const StepIcon = sasLocked ? LockIcon : meta.Icon;
   const stepIdx = activeKeys.indexOf(stepKey);
-  const bandTitle = meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ');
+  const bandTitle = sasLocked ? lockedTitle : (meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ'));
   return (
     <>
     {/* Focus trap fully relinquished (disableAutoFocus + disableEnforceFocus + disableRestoreFocus):
