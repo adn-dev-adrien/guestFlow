@@ -13,6 +13,8 @@
  * Pure functions — unit-tested in tests/reception-view.unit.test.js.
  */
 
+const { isWithinSasWindow, sasLockReason } = require('./sasEditWindow');
+
 // Operational reservation fields the reception UI (Dashboard rows, ReservationCard,
 // DepartureMiniRow) needs. Money kept: cautionAmount / complementAmount / endOfStayComplement — the
 // door money. Money dropped: total/deposit/balance/remainingDue/commission/tourist-tax/contribs.
@@ -96,10 +98,17 @@ function pick(source, keys) {
 
 /**
  * Finance-free, PII-free view of one reservation (list row or detailed object).
+ *
+ * Also carries the resolved edit locks (specs/reception-sas-today-only.md §3.2 rule 9) so the client
+ * never does date math: `arrivalSasLock` / `departureSasLock` (null | 'done' | 'future' | 'past')
+ * and the two status-toggle flags. Admin payloads never go through here, hence never carry them —
+ * every consumer reads an absent field as "no lock".
+ *
  * @param {object} reservation - a row from reservationsModel.list() or getByIdWithDetails().
+ * @param {Date} [now] - reference instant for the day window (server clock).
  * @returns {object} the reception-safe projection.
  */
-function toReceptionReservationView(reservation) {
+function toReceptionReservationView(reservation, now = new Date()) {
   if (!reservation) return reservation;
   const view = pick(reservation, RESERVATION_KEEP);
   if (Array.isArray(reservation.options)) {
@@ -108,11 +117,17 @@ function toReceptionReservationView(reservation) {
   if (Array.isArray(reservation.resources)) {
     view.resources = reservation.resources.map(receptionResourceLine);
   }
+  view.arrivalSasLock = sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now });
+  view.departureSasLock = sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });
+  // The toggles follow the DAY window only — a committed SAS still leaves them editable until the
+  // window closes (§3.2 rule 6).
+  view.checkInStatusEditable = isWithinSasWindow(reservation.startDate, now);
+  view.checkOutStatusEditable = isWithinSasWindow(reservation.endDate, now);
   return view;
 }
 
-function toReceptionReservationList(reservations) {
-  return (reservations || []).map(toReceptionReservationView);
+function toReceptionReservationList(reservations, now = new Date()) {
+  return (reservations || []).map((r) => toReceptionReservationView(r, now));
 }
 
 // Property display fields the reception Planning needs (name + photo for the columns). Pricing,

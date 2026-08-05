@@ -1,10 +1,12 @@
-// specs/reception-sas-lock-after-commit.md — the « Accueil » role runs the SAS that is still pending
-// and can NEVER re-edit one already committed (the re-edit power of specs/reopen-completed-sas.md
-// stays admin-only). The guard is state-based (it reads `arrivalSasDoneAt` / `departureSasDoneAt`),
-// so it lives in the controller, not in the path allowlist of enforceRoleAccess.
+// specs/reception-sas-today-only.md §3.2 rule 5 — the « Accueil » role only commits the SAS of the DAY
+// that has never been committed: a past, future or already-committed SAS is refused. The rule depends
+// on the reservation's dates + markers, so it lives in the controller, not in the path allowlist of
+// enforceRoleAccess.
 //
 // These tests call commitArrival / commitDeparture directly and assert BOTH the HTTP answer and the
-// absence of any model write on a refusal.
+// absence of any model write on a refusal. Dates are built from the real clock (the controller reads
+// `new Date()`), with a 2-day margin so a run at 02:00 — still inside yesterday's 04:00 tail — can't
+// flip a « past » case.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -30,7 +32,15 @@ function fakeRes() {
   };
 }
 
-// `reservation` = what getByIdWithDetails returns (only the SAS done markers matter here).
+function isoDay(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const TODAY = isoDay(0);
+const PAST = isoDay(-2);
+const FUTURE = isoDay(2);
+
 function buildController({ captures, reservation }) {
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
     if (k === 'getByIdWithDetails') return () => reservation;
@@ -45,8 +55,8 @@ function buildController({ captures, reservation }) {
 
   const controllerModule = '../controllers/sasController';
   return withMocks({
-    // constants/roles is deliberately NOT mocked → the real isReceptionOnly runs, so this test
-    // guards the actual role predicate wiring.
+    // constants/roles + utils/sasEditWindow are deliberately NOT mocked → the real predicate and the
+    // real window arithmetic run, so this test guards the actual wiring.
     '../models/reservationsModel': reservationsModelMock,
     '../models/linenItemsModel': { list: () => [] },
     '../models/settingsModel': { read: () => ({}) },
@@ -63,6 +73,11 @@ const RECEPTION_USER = { id: 2, roles: ['reception'] };
 const ADMIN_USER = { id: 1, roles: ['admin'] };
 const BOTH_USER = { id: 3, roles: ['reception', 'admin'] };
 
+// A stay whose arrival and departure dates are set independently, so each SAS can be tested alone.
+function stay({ start = TODAY, end = TODAY, arrivalDoneAt = null, departureDoneAt = null } = {}) {
+  return { id: 1, startDate: start, endDate: end, arrivalSasDoneAt: arrivalDoneAt, departureSasDoneAt: departureDoneAt };
+}
+
 function commit(mode, { user, reservation }) {
   const captures = { writes: [] };
   const controller = buildController({ captures, reservation });
@@ -73,86 +88,91 @@ function commit(mode, { user, reservation }) {
   return { res, captures };
 }
 
-// ---- rule 1: reception is refused on an already-committed SAS, before any write ----
+// ---- rule 5: reception is refused outside the window, before any write ----
 
-test('commitArrival — reception-only + arrivalSasDoneAt set → 403 SAS_ALREADY_COMMITTED, no write', () => {
+test('commitArrival — reception + already committed → 403 SAS_LOCKED/done, no write', () => {
   const { res, captures } = commit('arrival', {
     user: RECEPTION_USER,
-    reservation: { id: 1, arrivalSasDoneAt: '2026-08-04 15:12:00', departureSasDoneAt: null },
+    reservation: stay({ arrivalDoneAt: `${TODAY} 15:12:00` }),
   });
   assert.equal(res.statusCode, 403);
-  assert.deepEqual(res.body, { error: 'SAS_ALREADY_COMMITTED' });
+  assert.deepEqual(res.body, { error: 'SAS_LOCKED', reason: 'done' });
   assert.deepEqual(captures.writes, []);
 });
 
-test('commitDeparture — reception-only + departureSasDoneAt set → 403 SAS_ALREADY_COMMITTED, no write', () => {
-  const { res, captures } = commit('departure', {
-    user: RECEPTION_USER,
-    reservation: { id: 1, arrivalSasDoneAt: null, departureSasDoneAt: '2026-08-04 10:30:00' },
-  });
+test('commitArrival — reception + arrival in the past → 403 SAS_LOCKED/past, no write', () => {
+  const { res, captures } = commit('arrival', { user: RECEPTION_USER, reservation: stay({ start: PAST }) });
   assert.equal(res.statusCode, 403);
-  assert.deepEqual(res.body, { error: 'SAS_ALREADY_COMMITTED' });
+  assert.deepEqual(res.body, { error: 'SAS_LOCKED', reason: 'past' });
   assert.deepEqual(captures.writes, []);
 });
 
-// ---- rules 1 & 5: a pending SAS stays fully committable by reception ----
+test('commitArrival — reception + arrival in the future → 403 SAS_LOCKED/future, no write', () => {
+  const { res, captures } = commit('arrival', { user: RECEPTION_USER, reservation: stay({ start: FUTURE }) });
+  assert.equal(res.statusCode, 403);
+  assert.deepEqual(res.body, { error: 'SAS_LOCKED', reason: 'future' });
+  assert.deepEqual(captures.writes, []);
+});
 
-test('commitArrival — reception-only on a pending SAS → 200 + the commit runs', () => {
-  const { res, captures } = commit('arrival', {
-    user: RECEPTION_USER,
-    reservation: { id: 1, arrivalSasDoneAt: null, departureSasDoneAt: null },
-  });
+test('commitDeparture — reception + departure in the past / future / done → 403, no write', () => {
+  for (const [reservation, reason] of [
+    [stay({ end: PAST }), 'past'],
+    [stay({ end: FUTURE }), 'future'],
+    [stay({ departureDoneAt: `${TODAY} 10:30:00` }), 'done'],
+  ]) {
+    const { res, captures } = commit('departure', { user: RECEPTION_USER, reservation });
+    assert.equal(res.statusCode, 403);
+    assert.deepEqual(res.body, { error: 'SAS_LOCKED', reason });
+    assert.deepEqual(captures.writes, []);
+  }
+});
+
+// ---- rule 5 (happy path): today's pending SAS stays fully committable ----
+
+test("commitArrival — reception on today's pending arrival → 200 + the commit runs", () => {
+  const { res, captures } = commit('arrival', { user: RECEPTION_USER, reservation: stay() });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
   assert.ok(captures.writes.some((w) => w.fn === 'commitArrivalSas'));
 });
 
-test('commitDeparture — reception-only on a pending SAS → 200 + the commit runs', () => {
-  const { res, captures } = commit('departure', {
-    user: RECEPTION_USER,
-    reservation: { id: 1, arrivalSasDoneAt: null, departureSasDoneAt: null },
-  });
+test("commitDeparture — reception on today's pending departure → 200 + the commit runs", () => {
+  const { res, captures } = commit('departure', { user: RECEPTION_USER, reservation: stay() });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
   assert.ok(captures.writes.some((w) => w.fn === 'commitDepartureSas'));
 });
 
-// ---- rule 6: the two SAS are independent ----
+// ---- rule 4: the two SAS are independent ----
 
-test('commitDeparture — reception-only with only the ARRIVAL done → 200 (the arrival lock does not spill)', () => {
-  const { res, captures } = commit('departure', {
+test('a locked arrival never locks the departure (and vice versa)', () => {
+  // Arrived 2 days ago (arrival past + done), departs today → the departure SAS is still open.
+  const leaving = commit('departure', {
     user: RECEPTION_USER,
-    reservation: { id: 1, arrivalSasDoneAt: '2026-08-04 15:12:00', departureSasDoneAt: null },
+    reservation: stay({ start: PAST, end: TODAY, arrivalDoneAt: `${PAST} 16:00:00` }),
   });
-  assert.equal(res.statusCode, 200);
-  assert.ok(captures.writes.some((w) => w.fn === 'commitDepartureSas'));
+  assert.equal(leaving.res.statusCode, 200);
+  assert.ok(leaving.captures.writes.some((w) => w.fn === 'commitDepartureSas'));
+
+  // Arrives today, leaves in 2 days → the arrival SAS is open even though the departure is future.
+  const arriving = commit('arrival', { user: RECEPTION_USER, reservation: stay({ start: TODAY, end: FUTURE }) });
+  assert.equal(arriving.res.statusCode, 200);
+  assert.ok(arriving.captures.writes.some((w) => w.fn === 'commitArrivalSas'));
 });
 
-test('commitArrival — reception-only with only the DEPARTURE done → 200 (the departure lock does not spill)', () => {
-  const { res, captures } = commit('arrival', {
-    user: RECEPTION_USER,
-    reservation: { id: 1, arrivalSasDoneAt: null, departureSasDoneAt: '2026-08-04 10:30:00' },
-  });
-  assert.equal(res.statusCode, 200);
-  assert.ok(captures.writes.some((w) => w.fn === 'commitArrivalSas'));
-});
+// ---- rule 7: admin keeps the full re-edit, any date ----
 
-// ---- rule 2: admin keeps the full re-edit (specs/reopen-completed-sas.md) ----
-
-test('commitArrival — admin on a committed SAS → 200, the re-edit still works', () => {
+test('commitArrival — admin on a past, committed SAS → 200, the re-edit still works', () => {
   const { res, captures } = commit('arrival', {
     user: ADMIN_USER,
-    reservation: { id: 1, arrivalSasDoneAt: '2026-08-04 15:12:00', departureSasDoneAt: null },
+    reservation: stay({ start: PAST, arrivalDoneAt: `${PAST} 15:12:00` }),
   });
   assert.equal(res.statusCode, 200);
   assert.ok(captures.writes.some((w) => w.fn === 'commitArrivalSas'));
 });
 
-test('commitDeparture — reception + admin on a committed SAS → 200 (admin wins)', () => {
-  const { res, captures } = commit('departure', {
-    user: BOTH_USER,
-    reservation: { id: 1, arrivalSasDoneAt: null, departureSasDoneAt: '2026-08-04 10:30:00' },
-  });
+test('commitDeparture — reception + admin on a future SAS → 200 (admin wins)', () => {
+  const { res, captures } = commit('departure', { user: BOTH_USER, reservation: stay({ end: FUTURE }) });
   assert.equal(res.statusCode, 200);
   assert.ok(captures.writes.some((w) => w.fn === 'commitDepartureSas'));
 });

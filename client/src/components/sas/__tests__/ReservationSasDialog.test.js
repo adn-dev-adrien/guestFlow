@@ -895,13 +895,15 @@ test('arrival SAS re-open: a SAS-added bath linen reopens pre-selected « ajout�
   expect(api.commitArrivalSas.mock.calls[0][1].bathLinenAdded).toBe(true);
 });
 
-// specs/reception-sas-lock-after-commit.md §3.2 rule 9 — reception reaches a committed SAS only via a
-// deep-link (Dashboard row / push); the dialog then renders a locked panel instead of the wizard.
-test('reception lock: canReopenSas=false on a committed arrival renders the locked panel, no wizard', async () => {
-  api.getReservationSas.mockResolvedValue(sasPayload({
-    reservation: { cautionReceived: 1, arrivalSasDoneAt: '2026-08-04 15:12:00' },
-  }));
-  renderDialog({ mode: 'arrival', canReopenSas: false });
+// specs/reception-sas-today-only.md §3.3 rule 13 — reception reaches a locked SAS only via a deep-link
+// (Dashboard row / push); the dialog then renders a locked panel instead of the wizard. `receptionLock`
+// is resolved server-side and is null for an admin.
+test('reception lock: a « done » arrival renders the locked panel, no wizard', async () => {
+  api.getReservationSas.mockResolvedValue({
+    ...sasPayload({ reservation: { cautionReceived: 1, startDate: '2026-08-04', arrivalSasDoneAt: '2026-08-04 15:12:00' } }),
+    receptionLock: { arrival: 'done', departure: null },
+  });
+  renderDialog({ mode: 'arrival' });
 
   await screen.findByText(/Ce check-in a déjà été validé le 04\/08\/2026\. Sa modification est réservée à l'administrateur\./);
   expect(screen.getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
@@ -909,32 +911,47 @@ test('reception lock: canReopenSas=false on a committed arrival renders the lock
   expect(screen.queryByText(/Étape 1\//)).toBeNull();
 });
 
-test('reception lock: canReopenSas=false on a committed departure renders the locked panel', async () => {
-  api.getReservationSas.mockResolvedValue(sasPayload({
-    reservation: { cautionReceived: 1, departureSasDoneAt: '2026-08-04 10:30:00' },
-  }));
-  renderDialog({ mode: 'departure', canReopenSas: false });
+test('reception lock: a « past » arrival names the arrival day, not a commit date', async () => {
+  api.getReservationSas.mockResolvedValue({
+    ...sasPayload({ reservation: { cautionReceived: 1, startDate: '2026-07-30' } }),
+    receptionLock: { arrival: 'past', departure: null },
+  });
+  renderDialog({ mode: 'arrival' });
 
-  await screen.findByText(/Ce check-out a déjà été validé le 04\/08\/2026\./);
+  await screen.findByText(/Ce check-in datait du 30\/07\/2026\. Seuls les check-in du jour sont modifiables/);
   expect(screen.getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
+});
+
+test('reception lock: a « future » departure points at the departure day', async () => {
+  api.getReservationSas.mockResolvedValue({
+    ...sasPayload({ reservation: { cautionReceived: 1, endDate: '2026-08-09' } }),
+    receptionLock: { arrival: null, departure: 'future' },
+  });
+  renderDialog({ mode: 'departure' });
+
+  await screen.findByText(/Ce check-out n'est possible que le 09\/08\/2026, le jour du départ\./);
   expect(screen.queryByText('Commencer')).toBeNull();
 });
 
-test('reception lock: canReopenSas=false on a PENDING SAS runs the normal wizard', async () => {
-  api.getReservationSas.mockResolvedValue(sasPayload({ reservation: { cautionReceived: 1 } }));
-  renderDialog({ mode: 'arrival', canReopenSas: false });
+test('reception lock: an unlocked SAS runs the normal wizard', async () => {
+  api.getReservationSas.mockResolvedValue({
+    ...sasPayload({ reservation: { cautionReceived: 1 } }),
+    receptionLock: { arrival: null, departure: null },
+  });
+  renderDialog({ mode: 'arrival' });
 
   await screen.findByText('Commencer');
   expect(screen.queryByRole('button', { name: 'Fermer' })).toBeNull();
 });
 
-test('reception lock: a 403 SAS_ALREADY_COMMITTED at commit surfaces the French message', async () => {
+test('reception lock: a 403 SAS_LOCKED at commit surfaces the French message', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1 },
     cleaning: { included: true, price: 80 },
   }));
-  const apiError = new Error('SAS_ALREADY_COMMITTED');
-  apiError.error = 'SAS_ALREADY_COMMITTED';
+  const apiError = new Error('SAS_LOCKED');
+  apiError.error = 'SAS_LOCKED';
+  apiError.reason = 'done';
   apiError.status = 403;
   api.commitArrivalSas.mockRejectedValueOnce(apiError);
   renderDialog({ mode: 'arrival' });
@@ -945,6 +962,6 @@ test('reception lock: a 403 SAS_ALREADY_COMMITTED at commit surfaces the French 
   clickBtn('Valider et terminer');
 
   // Surfaced twice on purpose: inline in the dialog + as the app-wide toast.
-  const shown = await screen.findAllByText(/Ce check-in a déjà été validé — modification réservée à l'administrateur\./);
+  const shown = await screen.findAllByText(/Ce check-in a déjà été validé\. Sa modification est réservée à l'administrateur\./);
   expect(shown.length).toBeGreaterThan(0);
 });
