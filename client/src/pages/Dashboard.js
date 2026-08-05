@@ -22,6 +22,7 @@ import IcalNewReservationsAlert from '../components/IcalNewReservationsAlert';
 import EmailPendingAlert from '../components/EmailPendingAlert';
 import DevisPublicRequestAlert from '../components/DevisPublicRequestAlert';
 import { useToast } from '../components/DialogProvider';
+import CollectionStatusCell from '../components/CollectionStatusCell';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
@@ -49,13 +50,6 @@ const optionsResourcesText = (r) => {
   ].join(', ');
   return [optionsText, resourcesText].filter(Boolean).join(' | ') || '—';
 };
-
-/* Per-reservation depositDisabled (specs/disable-deposit-per-reservation.md): when the deposit is
-   opted out for this reservation, "Acompte NON" would be misleading — there is literally nothing to
-   collect. Render the row as if the deposit was already OK so only the Solde line drives the alert. */
-const arrivalPaymentText = (r) => (r.paymentComplete
-  ? 'OK'
-  : `Manquant ${formatCurrency(r.remainingDue)} • Acompte ${r.depositPaid || r.depositDisabled ? 'OK' : 'NON'} • Solde ${r.balancePaid ? 'OK' : 'NON'}`);
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -209,7 +203,6 @@ export default function Dashboard() {
   );
 
   const renderArrivalRow = (r) => {
-    const paymentOk = r.paymentComplete;
     const cautionOk = Number(r.cautionAmount || 0) <= 0 || !!r.cautionReceived;
     return (
       <TableRow
@@ -233,8 +226,8 @@ export default function Dashboard() {
         <TableCell>{optionsResourcesText(r)}</TableCell>
         <TableCell>{r.notes || '—'}</TableCell>
         {!receptionMode && (
-          <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-            {arrivalPaymentText(r)}
+          <TableCell>
+            <CollectionStatusCell collection={r.operationalCollection} side="arrival" />
           </TableCell>
         )}
         <TableCell sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
@@ -248,7 +241,6 @@ export default function Dashboard() {
 
   // The -m/+p box paints the status tint edge-to-edge inside ResponsiveTable's padded card.
   const renderArrivalCard = (r) => {
-    const paymentOk = r.paymentComplete;
     const cautionOk = Number(r.cautionAmount || 0) <= 0 || !!r.cautionReceived;
     return (
       <Box sx={(t) => ({ m: -1.5, p: 1.5, ...statusBgSx(t, r.checkInDone, r.checkInReady) })}>
@@ -271,9 +263,7 @@ export default function Dashboard() {
           )}
           {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
           {!receptionMode && (
-            <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-              {arrivalPaymentText(r)}
-            </Typography>
+            <CollectionStatusCell collection={r.operationalCollection} side="arrival" variant="card" />
           )}
           {Number(r.cautionAmount || 0) > 0 && (
             <Typography variant="caption" sx={{ color: cautionOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
@@ -297,59 +287,51 @@ export default function Dashboard() {
     </TableRow>
   );
 
-  const renderDepartureRow = (r) => {
-    const paymentOk = r.paymentComplete;
-    return (
-      <TableRow
-        key={r.id}
-        hover
-        sx={(t) => ({ ...statusBgSx(t, r.checkOutDone), cursor: 'pointer' })}
-        onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openDeparture(r); }}
-      >
-        <TableCell padding="checkbox">
-          {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
+  const renderDepartureRow = (r) => (
+    <TableRow
+      key={r.id}
+      hover
+      sx={(t) => ({ ...statusBgSx(t, r.checkOutDone), cursor: 'pointer' })}
+      onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openDeparture(r); }}
+    >
+      <TableCell padding="checkbox">
+        {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
+      </TableCell>
+      <TableCell>{r.checkOutTime || '10:00'}</TableCell>
+      <TableCell>{r.propertyName}</TableCell>
+      <TableCell>{r.firstName} {r.lastName}</TableCell>
+      <TableCell>{optionsResourcesText(r)}</TableCell>
+      <TableCell>{r.notes || '—'}</TableCell>
+      {!receptionMode && (
+        <TableCell>
+          <CollectionStatusCell collection={r.operationalCollection} side="departure" />
         </TableCell>
-        <TableCell>{r.checkOutTime || '10:00'}</TableCell>
-        <TableCell>{r.propertyName}</TableCell>
-        <TableCell>{r.firstName} {r.lastName}</TableCell>
-        <TableCell>{optionsResourcesText(r)}</TableCell>
-        <TableCell>{r.notes || '—'}</TableCell>
-        {!receptionMode && (
-          <TableCell sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-            {paymentOk ? 'OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
-          </TableCell>
-        )}
-      </TableRow>
-    );
-  };
+      )}
+    </TableRow>
+  );
 
-  const renderDepartureCard = (r) => {
-    const paymentOk = r.paymentComplete;
-    return (
-      <Box sx={(t) => ({ m: -1.5, p: 1.5, ...statusBgSx(t, r.checkOutDone) })}>
-        <Stack spacing={0.5}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 0 }}>
-              {r.checkOutTime || '10:00'} · {r.propertyName}
-            </Typography>
-            <Box onClick={(e) => e.stopPropagation()}>
-              {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
-            </Box>
-          </Stack>
-          <Typography variant="body2">{r.firstName} {r.lastName}</Typography>
-          {optionsResourcesText(r) !== '—' && (
-            <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
-          )}
-          {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
-          {!receptionMode && (
-            <Typography variant="caption" sx={{ color: paymentOk ? 'success.main' : 'error.main', fontWeight: 700 }}>
-              {paymentOk ? 'Paiements OK' : `En attente: ${formatCurrency(r.remainingDue)}`}
-            </Typography>
-          )}
+  const renderDepartureCard = (r) => (
+    <Box sx={(t) => ({ m: -1.5, p: 1.5, ...statusBgSx(t, r.checkOutDone) })}>
+      <Stack spacing={0.5}>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 0 }}>
+            {r.checkOutTime || '10:00'} · {r.propertyName}
+          </Typography>
+          <Box onClick={(e) => e.stopPropagation()}>
+            {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
+          </Box>
         </Stack>
-      </Box>
-    );
-  };
+        <Typography variant="body2">{r.firstName} {r.lastName}</Typography>
+        {optionsResourcesText(r) !== '—' && (
+          <Typography variant="caption" color="text.secondary">{optionsResourcesText(r)}</Typography>
+        )}
+        {r.notes && <Typography variant="caption" color="text.secondary">Note : {r.notes}</Typography>}
+        {!receptionMode && (
+          <CollectionStatusCell collection={r.operationalCollection} side="departure" variant="card" />
+        )}
+      </Stack>
+    </Box>
+  );
 
   return (
     <Box>
