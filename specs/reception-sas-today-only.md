@@ -283,6 +283,32 @@ dialog).
       `PATCH …/payment` out of window → 403; both 200 inside the window.
 - [x] `npm run test:e2e` green.
 
+### E2E (Playwright)
+
+New infrastructure, reusable by any future reception spec: `server/scripts/seed-e2e.js` also seeds an
+**« Accueil »** account, `e2e/global-setup.js` captures a second storage state
+(`e2e/.auth/reception.json`), and `e2e/fixtures/authState.js` exposes both paths so a spec opts in
+with `test.use({ storageState: RECEPTION_STORAGE_STATE })`. The API seed helpers keep using the admin
+session — reception may not create anything.
+
+- [x] `reception/sas-day-window.spec.js` — browser: today's ✓ is live while a future one is disabled
+      with « Check-in à venir — modifiable le jour de l'arrivée », its status checkbox is disabled,
+      clicking the locked ✓ opens no dialog, the deep-link lands on the locked panel (« Fermer », no
+      « Valider »), and today's deep-link still opens the wizard at « Commencer ».
+- [x] `reception/sas-day-window.spec.js` — API as reception: a past SAS → 403 `SAS_LOCKED/past` on
+      both commits, `STATUS_LOCKED/past` on the status write, while `GET …/sas` stays 200 and carries
+      `receptionLock`. A past stay is seeded through the real API in the future then back-dated with
+      `dbSeed.setReservationDates` (`POST /reservations` refuses a stay in the past).
+- [x] `reception/sas-day-window.spec.js` — today's SAS commits, then immediately re-locks as `done`
+      (no grace period) while its status toggle stays open (rule 6), and the list payload reports
+      `arrivalSasLock: 'done'` + `checkInStatusEditable: true`.
+- [x] `reception/role-confinement.spec.js` — the confinement of
+      [reception-role-checkin-only.md](reception-role-checkin-only.md), which had shipped without any
+      E2E cover (see its §7).
+- [x] **Mutation-checked**: removing the controller guard fails the two API tests; blanking
+      `arrivalSasLock` in the reception view fails the browser test — each layer is guarded by its own
+      assertion, neither test is vacuous.
+
 ## 8. Out of scope
 
 - Any read-only *consultation* of a locked SAS by reception (decision 2026-08-04: hard lock, not a
