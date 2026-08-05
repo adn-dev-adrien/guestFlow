@@ -154,8 +154,8 @@ export default function PlanningPage() {
   // specs/reception-role-checkin-only.md §3.4 — a reception-only user runs the SAS on the Planning
   // but has no client / reservation sheet access: the card body + client-name links are inert and
   // the SAS « Fiche » link is hidden. Everything else (SAS, caution/complement) is unchanged.
-  // specs/reception-sas-lock-after-commit.md §3.2 — reception also loses the SAS re-edit: a committed
-  // check-in / check-out is locked for them (the server refuses the commit anyway).
+  // The SAS locks themselves (specs/reception-sas-today-only.md) ride along in the reservation
+  // payload — the cards read them directly, nothing to pass down from here.
   const receptionMode = isReceptionOnly(user);
   // Reused by every "card / row click → open reservation" handler below (arrivals,
   // departures, breakfast items). `withFrom('/planning')` makes the reservation page's
@@ -831,7 +831,6 @@ export default function PlanningPage() {
                 onOpenReservation={receptionMode ? undefined : openReservation}
                 onOpenSas={openDepartureSas}
                 onOpenClient={receptionMode ? undefined : openClient}
-                canReopenSas={!receptionMode}
                 alertInfo={alertMap[r.id]}
               />
             ),
@@ -848,7 +847,6 @@ export default function PlanningPage() {
                 onOpenReservation={receptionMode ? undefined : openReservation}
                 onOpenSas={openArrivalSas}
                 onOpenClient={receptionMode ? undefined : openClient}
-                canReopenSas={!receptionMode}
               />
             ),
           }));
@@ -979,7 +977,6 @@ export default function PlanningPage() {
         onClose={() => setSas(null)}
         onCommitted={() => { setSas(null); loadPlanning(startDate); }}
         canOpenReservation={!receptionMode}
-        canReopenSas={!receptionMode}
       />
 
       <LaundryManualAdditionsDialog

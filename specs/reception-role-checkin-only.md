@@ -345,8 +345,20 @@ added, no migration, no backfill.
       "open handlers omitted → read-only, plain-text client name" cases already pin that behaviour.
 
 ### E2E (Playwright)
-- [ ] `auth/sidebar-navigation.spec.js` (extended) — a reception account sees only Tableau de bord
-      + Planning + Gestion utilisateur; typing `/finance` redirects to `/`.
+- [x] `reception/role-confinement.spec.js` — **delivered 2026-08-05** (with
+      [reception-sas-today-only.md](reception-sas-today-only.md), which added the reception E2E
+      infrastructure: a seeded « Accueil » account in `server/scripts/seed-e2e.js` + a second
+      storageState `e2e/.auth/reception.json` written by `global-setup.js` and exposed through
+      `e2e/fixtures/authState.js`). Runs as the reception account and asserts:
+      `/finance`, `/clients`, `/reservations/upcoming`, `/settings` all redirect to `/`; the reduced
+      home offers « Planning » and never names a forbidden surface; `GET /reservations/:id` carries
+      the door money but none of `{totalPrice, customPrice, deposit*, balance*, remainingDue,
+      paymentComplete, touristTax, commissionAmount, contribs}` nor the client's
+      `{email, phone, address}`; `GET /properties` drops the pricing config; and crafted calls
+      (`GET /clients`, `POST /reservations`, `GET /finance/overview`) fail closed with 403.
+      *(Shipped as its own spec file rather than as an extension of `auth/sidebar-navigation.spec.js`
+      — that suite runs under the admin storageState, and mixing sessions in one file is not
+      possible with Playwright's per-file `test.use`.)*
 
 ### Manual UI verification
 - [ ] Create an **Accueil** account (admin → Gestion des comptes → rôle Accueil), receive the temp

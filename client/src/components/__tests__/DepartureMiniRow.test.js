@@ -120,25 +120,46 @@ test('SAS button — once the departure SAS is done it stays a clickable ✓ for
   expect(onOpenSas).toHaveBeenCalledWith(200);
 });
 
-test('SAS button — canReopenSas=false locks the ✓ once the departure SAS is done (reception)', () => {
-  // specs/reception-sas-lock-after-commit.md §3.2 rule 8 — the reception role never re-edits a
-  // committed check-out.
+// specs/reception-sas-today-only.md §3.3 — server-resolved lock reason, rendered as a disabled ✓.
+test.each([
+  ['done', "Check-out déjà effectué — modification réservée à l'administrateur"],
+  ['past', 'Check-out passé — seuls les check-out du jour sont modifiables'],
+  ['future', 'Check-out à venir — modifiable le jour du départ'],
+])('SAS button — departureSasLock=%s disables the ✓ with its tooltip', (reason, label) => {
   const onOpenSas = vi.fn();
-  const r = { ...BASE, departureSasDoneAt: '2026-08-04 10:30:00' };
-  render(<DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={onOpenSas} canReopenSas={false} />);
-  const sasBtn = screen.getByRole('button', { name: "Check-out déjà effectué — modification réservée à l'administrateur" });
+  const r = { ...BASE, departureSasLock: reason, departureSasDoneAt: reason === 'done' ? '2026-08-04 10:30:00' : null };
+  render(<DepartureMiniRow reservation={r} onToggleDone={noop} onOpenSas={onOpenSas} />);
+  const sasBtn = screen.getByRole('button', { name: label });
   expect(sasBtn).toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).not.toHaveBeenCalled();
 });
 
-test('SAS button — canReopenSas=false leaves a PENDING departure fully clickable (reception)', () => {
+test('SAS button — no lock field (admin payload) leaves the ✓ clickable', () => {
   const onOpenSas = vi.fn();
-  render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenSas={onOpenSas} canReopenSas={false} />);
+  render(<DepartureMiniRow reservation={BASE} onToggleDone={noop} onOpenSas={onOpenSas} />);
   const sasBtn = screen.getByRole('button', { name: 'Check-out (SAS départ)' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(200);
+});
+
+test('« Parti » checkbox — checkOutStatusEditable=false disables it with the day tooltip', () => {
+  const onToggleDone = vi.fn();
+  const r = { ...BASE, checkOutStatusEditable: false };
+  render(<DepartureMiniRow reservation={r} onToggleDone={onToggleDone} />);
+  // Same as the arrival card: assert the `disabled` attribute, not a jsdom click no-op.
+  const box = screen.getByRole('checkbox', { name: 'Statut modifiable uniquement le jour du départ' });
+  expect(box).toBeDisabled();
+});
+
+test('« Parti » checkbox — editable inside the window', () => {
+  const onToggleDone = vi.fn();
+  render(<DepartureMiniRow reservation={{ ...BASE, checkOutStatusEditable: true }} onToggleDone={onToggleDone} />);
+  const box = screen.getByRole('checkbox');
+  expect(box).not.toBeDisabled();
+  fireEvent.click(box);
+  expect(onToggleDone).toHaveBeenCalled();
 });
 
 test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {

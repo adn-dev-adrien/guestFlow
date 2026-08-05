@@ -20,6 +20,7 @@ const settingsModel = require('../models/settingsModel');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const platformsModel = require('../models/platformsModel');
 const { isReceptionOnly } = require('../constants/roles');
+const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
 
 // specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
@@ -674,6 +675,24 @@ function update(req, res) {
   googleCalendarSync.schedulePush(id);
 }
 
+// specs/reception-sas-today-only.md §3.2 rule 6 — reception may flip the status toggles only on the
+// DAY concerned: « Prêt » / « Arrivé » follow the arrival window, « Parti » the departure one. Unlike
+// the SAS itself, a committed SAS does NOT lock them (fixing a mis-tick is not a re-edit). Returns
+// the blocking reason ('past' | 'future') or null when the write is allowed.
+function receptionStatusLock(reservationId, body, now = new Date()) {
+  const row = model.getRow(reservationId);
+  if (!row) return null; // unknown reservation → let the regular 404 answer.
+  const touchesArrival = body.checkInReady !== undefined || body.checkInDone !== undefined;
+  const touchesDeparture = body.checkOutDone !== undefined;
+  if (touchesArrival && !isWithinSasWindow(row.startDate, now)) {
+    return sasLockReason({ dateIso: row.startDate, doneAt: null, now });
+  }
+  if (touchesDeparture && !isWithinSasWindow(row.endDate, now)) {
+    return sasLockReason({ dateIso: row.endDate, doneAt: null, now });
+  }
+  return null;
+}
+
 // NOTE: updatePayment deliberately has no Google hook — payment/caution/SAS fields don't
 // appear in the calendar event (spec rule 21).
 function updatePayment(req, res) {
@@ -682,6 +701,8 @@ function updatePayment(req, res) {
   // dropped before any processing (fail-closed field guard).
   if (isReceptionOnly(req.user)) {
     req.body = toReceptionPaymentPatch(req.body);
+    const statusLock = receptionStatusLock(Number(req.params.id), req.body);
+    if (statusLock) return res.status(403).json({ error: 'STATUS_LOCKED', reason: statusLock });
   }
   const financeError = validateFinanceInputs({
     depositAmount: { value: req.body.depositAmount, kind: 'money' },
