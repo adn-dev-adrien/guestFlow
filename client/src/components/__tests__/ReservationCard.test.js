@@ -130,25 +130,48 @@ test('SAS button — once the arrival SAS is done it stays a clickable ✓ for r
   expect(onOpenSas).toHaveBeenCalledWith(100);
 });
 
-test('SAS button — canReopenSas=false locks the ✓ once the arrival SAS is done (reception)', () => {
-  // specs/reception-sas-lock-after-commit.md §3.2 rule 7 — the reception role never re-edits a
-  // committed check-in: the ✓ stays green but inert.
+// specs/reception-sas-today-only.md §3.3 — the server resolves the lock reason and ships it in the
+// reception payload; the card only disables the control and prints the matching tooltip.
+test.each([
+  ['done', "Check-in déjà effectué — modification réservée à l'administrateur"],
+  ['past', 'Check-in passé — seuls les check-in du jour sont modifiables'],
+  ['future', "Check-in à venir — modifiable le jour de l'arrivée"],
+])('SAS button — arrivalSasLock=%s disables the ✓ with its tooltip', (reason, label) => {
   const onOpenSas = vi.fn();
-  const r = { ...BASE, arrivalSasDoneAt: '2026-08-04 15:12:00' };
-  render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} canReopenSas={false} />);
-  const sasBtn = screen.getByRole('button', { name: "Check-in déjà effectué — modification réservée à l'administrateur" });
+  const r = { ...BASE, arrivalSasLock: reason, arrivalSasDoneAt: reason === 'done' ? '2026-08-04 15:12:00' : null };
+  render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} />);
+  const sasBtn = screen.getByRole('button', { name: label });
   expect(sasBtn).toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).not.toHaveBeenCalled();
 });
 
-test('SAS button — canReopenSas=false leaves a PENDING arrival fully clickable (reception)', () => {
+test('SAS button — no lock field (admin payload) leaves the ✓ clickable', () => {
   const onOpenSas = vi.fn();
-  render(<ReservationCard reservation={BASE} onToggleReady={noop} onOpenSas={onOpenSas} canReopenSas={false} />);
+  render(<ReservationCard reservation={BASE} onToggleReady={noop} onOpenSas={onOpenSas} />);
   const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(100);
+});
+
+test('« Prêt » checkbox — checkInStatusEditable=false disables it with the day tooltip', () => {
+  const onToggleReady = vi.fn();
+  const r = { ...BASE, checkInStatusEditable: false };
+  render(<ReservationCard reservation={r} onToggleReady={onToggleReady} />);
+  // jsdom still dispatches a programmatic click on a disabled input, so the contract asserted here is
+  // the `disabled` attribute (what a real browser honours) — the server refusal is the real guard.
+  const box = screen.getByRole('checkbox', { name: "Statut modifiable uniquement le jour de l'arrivée" });
+  expect(box).toBeDisabled();
+});
+
+test('« Prêt » checkbox — editable by default (no flag) and inside the window', () => {
+  const onToggleReady = vi.fn();
+  render(<ReservationCard reservation={{ ...BASE, checkInStatusEditable: true }} onToggleReady={onToggleReady} />);
+  const box = screen.getByRole('checkbox');
+  expect(box).not.toBeDisabled();
+  fireEvent.click(box);
+  expect(onToggleReady).toHaveBeenCalled();
 });
 
 test('client name — clicking it opens the client fiche via onOpenClient(clientId)', () => {

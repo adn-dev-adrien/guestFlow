@@ -13,14 +13,17 @@ const breakfastModel = require('../models/breakfastModel');
 const repairAmountsModel = require('../models/repairAmountsModel');
 const { buildSasSnapshot, computeSasChanges } = require('../utils/sasAudit');
 const { isReceptionOnly } = require('../constants/roles');
+const { sasLockReason } = require('../utils/sasEditWindow');
 
-// specs/reception-sas-lock-after-commit.md §3.1 rule 1 — the reception role runs the SAS that is still
-// pending and NEVER re-edits one already committed (the re-edit power of specs/reopen-completed-sas.md
-// stays admin-only). The lock is state-based, so it can't live in the path allowlist of
-// middleware/enforceRoleAccess.js — it belongs here, before any write.
-function sasAlreadyCommitted(req, reservation, mode) {
-  if (!isReceptionOnly(req.user)) return false;
-  return Boolean(mode === 'arrival' ? reservation.arrivalSasDoneAt : reservation.departureSasDoneAt);
+// specs/reception-sas-today-only.md §3.2 rule 5 — the reception role only runs the SAS of the DAY that
+// has never been committed: a past, future or already-committed SAS is refused. The rule depends on
+// the reservation's dates + markers, so it can't live in the path allowlist of
+// middleware/enforceRoleAccess.js — it belongs here, before any write. `null` = editable.
+function receptionSasLock(req, reservation, mode, now = new Date()) {
+  if (!isReceptionOnly(req.user)) return null;
+  return mode === 'arrival'
+    ? sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now })
+    : sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });
 }
 
 // specs/arrival-departure-sas.md §3.7 — a SAS commit is a reservation edit like any other and must
@@ -74,8 +77,15 @@ function getSas(req, res) {
   const cleaningPrice = reservationsModel.getCleaningPriceForProperty(reservation.propertyId);
   const settings = settingsModel.read();
 
+  // specs/reception-sas-today-only.md §3.2 rule 9 — the read stays open on a locked SAS; the resolved
+  // reasons are what let the wizard render its locked panel instead of the steps. `null` for an admin.
+  const receptionLock = isReceptionOnly(req.user)
+    ? { arrival: receptionSasLock(req, reservation, 'arrival'), departure: receptionSasLock(req, reservation, 'departure') }
+    : null;
+
   return res.json({
     reservation,
+    receptionLock,
     portalCode: String(settings.portalCode || '').trim(),
     // `sasOrigin` = this row is the arrival SAS's own upsell → the step stays visible, pre-selected
     // « ajouté », and « Non merci » removes it (specs/sas-upsells-activate-catalogue-option.md §3.2).
@@ -111,7 +121,8 @@ function getSas(req, res) {
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-  if (sasAlreadyCommitted(req, reservation, 'arrival')) return res.status(403).json({ error: 'SAS_ALREADY_COMMITTED' });
+  const arrivalLock = receptionSasLock(req, reservation, 'arrival');
+  if (arrivalLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: arrivalLock });
   const {
     cautionReceived, complementItems = [],
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
@@ -156,7 +167,8 @@ function commitArrival(req, res) {
 function commitDeparture(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND' });
-  if (sasAlreadyCommitted(req, reservation, 'departure')) return res.status(403).json({ error: 'SAS_ALREADY_COMMITTED' });
+  const departureLock = receptionSasLock(req, reservation, 'departure');
+  if (departureLock) return res.status(403).json({ error: 'SAS_LOCKED', reason: departureLock });
   const { cautionReturned, endOfStayComplementDetail = null, extinguisherSealOkAtDeparture, extinguisherCharges, complementsSettled, complementsPaidCash } = req.body || {};
   const beforeSas = snapshotSas(Number(req.params.id));
   reservationsModel.commitDepartureSas(Number(req.params.id), {
