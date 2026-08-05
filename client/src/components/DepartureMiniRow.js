@@ -36,10 +36,11 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import ChecklistIcon from '@mui/icons-material/Checklist';
+import { sasLockTooltip, statusLockTooltip } from '../constants/receptionSasLock';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
 
-export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo, onOpenReservation, onOpenSas, onOpenClient, canReopenSas = true }) {
+export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
   const done = Boolean(reservation.checkOutDone);
   const sasDone = !!reservation.departureSasDoneAt;
   const theme = useTheme();
@@ -55,19 +56,23 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   const checkOutTime = reservation.checkOutTime || '10:00';
   // The card action is the check-out (SAS) launcher — a LARGE icon for an easy tap target on mobile.
   // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
-  // specs/reception-sas-lock-after-commit.md §3.2 rule 8 — a committed check-out is read-only for the
-  // reception role: the ✓ stays green but inert (the server refuses the commit too).
-  const sasLocked = sasDone && !canReopenSas;
+  // specs/reception-sas-today-only.md §3.3 rule 11 — server-resolved lock ('done' | 'past' | 'future')
+  // shipped in the reception payload; absent for an admin, which reads as "no lock".
+  const sasLock = reservation.departureSasLock || null;
   const sasLabel = (() => {
-    if (sasLocked) return 'Check-out déjà effectué — modification réservée à l\'administrateur';
+    if (sasLock) return sasLockTooltip('departure', sasLock);
     return sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)';
   })();
+  const statusLocked = reservation.checkOutStatusEditable === false;
+  const statusLabel = statusLocked
+    ? statusLockTooltip('departure')
+    : (done ? 'Départ validé' : 'Valider le départ');
   const actionButtons = onOpenSas ? (
     <Tooltip title={sasLabel}>
       <span>
         <IconButton
           color={sasDone ? 'success' : 'primary'}
-          disabled={sasLocked}
+          disabled={Boolean(sasLock)}
           onClick={(e) => { stop(e); onOpenSas(reservation.id); }}
           aria-label={sasLabel}
           sx={{ p: 1 }}
@@ -96,15 +101,21 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
         {/* Top row: checkbox + DÉPART badge vertically centred. The whole card opens the fiche; the
             checkbox + SAS button stop the click. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-          <Tooltip title={done ? 'Départ validé' : 'Valider le départ'}>
-            <Checkbox
-              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
-              checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
-              checked={done}
-              onChange={() => onToggleDone(reservation)}
-              onClick={stop}
-              sx={{ p: 0, flexShrink: 0 }}
-            />
+          <Tooltip title={statusLabel}>
+            {/* The <span> keeps the tooltip reachable once the checkbox is disabled by the day
+                window (a disabled control receives no pointer event). */}
+            <span>
+              <Checkbox
+                icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
+                checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
+                checked={done}
+                disabled={statusLocked}
+                onChange={() => onToggleDone(reservation)}
+                onClick={stop}
+                slotProps={{ input: { 'aria-label': statusLabel } }}
+                sx={{ p: 0, flexShrink: 0 }}
+              />
+            </span>
           </Tooltip>
           {/* DÉPART badge — FlightTakeoff (plane lifting off) = symmetric counterpart
               to the ARRIVÉE Land icon. Same airport-board family, distinct silhouette. */}

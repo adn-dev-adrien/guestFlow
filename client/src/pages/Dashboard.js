@@ -26,6 +26,7 @@ import { displayDate, formatCurrency } from '../utils/formatters';
 import { withFrom } from '../utils/navigation';
 import { useAuth } from '../hooks/useAuth';
 import { isReceptionOnly } from '../constants/roles';
+import { statusLockTooltip } from '../constants/receptionSasLock';
 import api from '../api';
 
 function addDays(dateStr, n) {
@@ -187,11 +188,20 @@ export default function Dashboard() {
     { label: 'Arrivées (date sélectionnée)', value: arrivalsToday.length, icon: TodayIcon, accent: 'warning.main', to: '/planning' },
   ];
 
-  const checkboxCell = (title, checked, onChange, checkboxSx) => (
+  const checkboxCell = (title, checked, onChange, checkboxSx, disabled = false) => (
     <Tooltip title={title}>
-      <Checkbox size="small" checked={checked} onChange={onChange} sx={checkboxSx} />
+      <span>
+        <Checkbox size="small" checked={checked} onChange={onChange} sx={checkboxSx} disabled={disabled} />
+      </span>
     </Tooltip>
   );
+
+  // specs/reception-sas-today-only.md §3.3 rule 12 — the day window is resolved server-side and rides
+  // in the reception payload; the flags are absent for an admin, which reads as "always editable".
+  const arrivalStatusLocked = (r) => r.checkInStatusEditable === false;
+  const departureStatusLocked = (r) => r.checkOutStatusEditable === false;
+  const arrivalStatusTitle = (r, label) => (arrivalStatusLocked(r) ? statusLockTooltip('arrival') : label);
+  const departureStatusTitle = (r, label) => (departureStatusLocked(r) ? statusLockTooltip('departure') : label);
 
   const arrivalsHead = (
     <TableRow>
@@ -219,10 +229,10 @@ export default function Dashboard() {
         onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openArrival(r); }}
       >
         <TableCell padding="checkbox">
-          {checkboxCell('Logement prêt', !!r.checkInReady, () => handleToggleStatus(r, 'checkInReady', setArrivalsToday), { color: 'success.main', '&.Mui-checked': { color: 'success.main' } })}
+          {checkboxCell(arrivalStatusTitle(r, 'Logement prêt'), !!r.checkInReady, () => handleToggleStatus(r, 'checkInReady', setArrivalsToday), { color: 'success.main', '&.Mui-checked': { color: 'success.main' } }, arrivalStatusLocked(r))}
         </TableCell>
         <TableCell padding="checkbox">
-          {checkboxCell('Locataires arrivés', !!r.checkInDone, () => handleCheckInDone(r))}
+          {checkboxCell(arrivalStatusTitle(r, 'Locataires arrivés'), !!r.checkInDone, () => handleCheckInDone(r), undefined, arrivalStatusLocked(r))}
         </TableCell>
         <TableCell>{r.checkInTime || '15:00'}</TableCell>
         <TableCell>{r.propertyName}</TableCell>
@@ -258,8 +268,8 @@ export default function Dashboard() {
               {r.checkInTime || '15:00'} · {r.propertyName}
             </Typography>
             <Box onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>
-              {checkboxCell('Logement prêt', !!r.checkInReady, () => handleToggleStatus(r, 'checkInReady', setArrivalsToday), { color: 'success.main', '&.Mui-checked': { color: 'success.main' } })}
-              {checkboxCell('Locataires arrivés', !!r.checkInDone, () => handleCheckInDone(r))}
+              {checkboxCell(arrivalStatusTitle(r, 'Logement prêt'), !!r.checkInReady, () => handleToggleStatus(r, 'checkInReady', setArrivalsToday), { color: 'success.main', '&.Mui-checked': { color: 'success.main' } }, arrivalStatusLocked(r))}
+              {checkboxCell(arrivalStatusTitle(r, 'Locataires arrivés'), !!r.checkInDone, () => handleCheckInDone(r), undefined, arrivalStatusLocked(r))}
             </Box>
           </Stack>
           <Typography variant="body2">{r.firstName} {r.lastName}</Typography>
@@ -307,7 +317,7 @@ export default function Dashboard() {
         onClick={(e) => { if (e.target.closest('input[type="checkbox"]') || e.target.closest('.MuiCheckbox-root')) return; openDeparture(r); }}
       >
         <TableCell padding="checkbox">
-          {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
+          {checkboxCell(departureStatusTitle(r, 'Départ effectué'), !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday), undefined, departureStatusLocked(r))}
         </TableCell>
         <TableCell>{r.checkOutTime || '10:00'}</TableCell>
         <TableCell>{r.propertyName}</TableCell>
@@ -333,7 +343,7 @@ export default function Dashboard() {
               {r.checkOutTime || '10:00'} · {r.propertyName}
             </Typography>
             <Box onClick={(e) => e.stopPropagation()}>
-              {checkboxCell('Départ effectué', !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday))}
+              {checkboxCell(departureStatusTitle(r, 'Départ effectué'), !!r.checkOutDone, () => handleToggleStatus(r, 'checkOutDone', setDeparturesToday), undefined, departureStatusLocked(r))}
             </Box>
           </Stack>
           <Typography variant="body2">{r.firstName} {r.lastName}</Typography>

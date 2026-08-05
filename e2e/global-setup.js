@@ -19,6 +19,10 @@ const { spawnSync } = require('child_process');
 const E2E_DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e.db';
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'e2e@guestflow.test';
 const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-secret-1234';
+// « Accueil » account for the reception specs (specs/reception-sas-today-only.md §7). They opt into
+// this session with their own `test.use({ storageState })` — the default stays the admin.
+const E2E_RECEPTION_EMAIL = process.env.E2E_RECEPTION_EMAIL || 'e2e-reception@guestflow.test';
+const E2E_RECEPTION_PASSWORD = process.env.E2E_RECEPTION_PASSWORD || 'e2e-reception-1234';
 const BACKEND_URL = 'http://127.0.0.1:4000';     // direct probe for readiness check
 const FRONTEND_URL = 'http://localhost:3000';     // CRA dev — proxies /api/* to the backend.
 // We log in through the FRONTEND so the session cookie is scoped to `localhost:3000`, the
@@ -26,6 +30,7 @@ const FRONTEND_URL = 'http://localhost:3000';     // CRA dev — proxies /api/* 
 // :4000 binds the cookie to `127.0.0.1:4000` and the browser drops it on every nav.
 const AUTH_DIR = path.join(__dirname, '.auth');
 const STORAGE_STATE = path.join(AUTH_DIR, 'admin.json');
+const RECEPTION_STORAGE_STATE = path.join(AUTH_DIR, 'reception.json');
 
 async function waitFor(url, label, timeoutMs = 90_000) {
   const start = Date.now();
@@ -59,6 +64,8 @@ module.exports = async () => {
       DB_PATH: E2E_DB_PATH,
       E2E_ADMIN_EMAIL,
       E2E_ADMIN_PASSWORD,
+      E2E_RECEPTION_EMAIL,
+      E2E_RECEPTION_PASSWORD,
     },
     encoding: 'utf8',
     cwd: path.join(__dirname, '..'),
@@ -80,4 +87,17 @@ module.exports = async () => {
   // (5) Persist Playwright's storageState (cookies + localStorage). All specs inherit this.
   await ctx.storageState({ path: STORAGE_STATE });
   await ctx.dispose();
+
+  // (6) Same round-trip for the « Accueil » account → e2e/.auth/reception.json. Only the reception
+  // specs opt into it; every other spec keeps the admin session.
+  const receptionCtx = await request.newContext({ baseURL: FRONTEND_URL });
+  const receptionLogin = await receptionCtx.post('/api/auth/login', {
+    data: { email: E2E_RECEPTION_EMAIL, password: E2E_RECEPTION_PASSWORD },
+  });
+  if (!receptionLogin.ok()) {
+    const body = await receptionLogin.text().catch(() => '');
+    throw new Error(`[global-setup] reception /api/auth/login returned ${receptionLogin.status()}: ${body.slice(0, 200)}`);
+  }
+  await receptionCtx.storageState({ path: RECEPTION_STORAGE_STATE });
+  await receptionCtx.dispose();
 };
