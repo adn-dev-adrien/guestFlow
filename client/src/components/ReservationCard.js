@@ -20,6 +20,11 @@
  *     When set, recolors the card bg + shows the explanation next to the property name.
  *   onOpen — `(reservationId) => void`. Optional. When provided, the whole Card body
  *     becomes clickable with cursor + hover affordance.
+ *
+ * Reception locks (specs/reception-sas-today-only.md): `reservation.arrivalSasLock`
+ * ('done'|'past'|'future') disables the SAS ✓ with the matching tooltip, and
+ * `reservation.checkInStatusEditable === false` disables the « Prêt » checkbox. Both fields are
+ * absent from admin payloads, which reads as "no lock".
  */
 
 import React from 'react';
@@ -42,6 +47,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import BedIcon from './BedIcon';
 import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 import { formatCurrency } from '../utils/formatters';
+import { sasLockTooltip, statusLockTooltip } from '../constants/receptionSasLock';
 
 // Private helper. Draws the {🛏 double / 🛏 simple / BÉBÉ ×N} bed chips. Single/double use the
 // BedIcon (single narrower than double, per Adrien 2026-06-10) instead of a text label; baby keeps
@@ -77,7 +83,7 @@ function BedVisual({ doubleBeds, singleBeds, babyBeds }) {
   );
 }
 
-export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpenReservation, onOpenSas, onOpenClient, canReopenSas = true }) {
+export default function ReservationCard({ reservation, onToggleReady, alertInfo, onOpenReservation, onOpenSas, onOpenClient }) {
   const r = reservation;
   const theme = useTheme();
   // On mobile the two action buttons move to a dedicated bottom row (rendered once, not duplicated).
@@ -113,19 +119,24 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
 
   // The card action is the check-in (SAS) launcher — a LARGE icon so it's an easy tap target on mobile.
   // The whole card opens the reservation fiche (no separate « open » icon); this button stops the click.
-  // specs/reception-sas-lock-after-commit.md §3.2 rule 7 — a committed check-in is read-only for the
-  // reception role: the ✓ stays green but inert (the server refuses the commit too).
-  const sasLocked = sasDone && !canReopenSas;
+  // specs/reception-sas-today-only.md §3.3 rule 10 — the server resolves the lock ('done' | 'past' |
+  // 'future') and ships it in the reception payload; an admin payload carries no such field, so the
+  // ✓ stays clickable for them. Same for the « Prêt » checkbox and its own day window (rule 12).
+  const sasLock = r.arrivalSasLock || null;
   const sasLabel = (() => {
-    if (sasLocked) return 'Check-in déjà effectué — modification réservée à l\'administrateur';
+    if (sasLock) return sasLockTooltip('arrival', sasLock);
     return sasDone ? 'Revoir / modifier le check-in' : 'Check-in (SAS arrivée)';
   })();
+  const statusLocked = r.checkInStatusEditable === false;
+  const statusLabel = statusLocked
+    ? statusLockTooltip('arrival')
+    : (done ? 'Logement prêt ✓' : 'Marquer comme prêt');
   const actionButtons = onOpenSas ? (
     <Tooltip title={sasLabel}>
       <span>
         <IconButton
           color={sasDone ? 'success' : 'primary'}
-          disabled={sasLocked}
+          disabled={Boolean(sasLock)}
           onClick={(e) => { stop(e); onOpenSas(r.id); }}
           aria-label={sasLabel}
           sx={{ p: 1 }}
@@ -155,15 +166,21 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
         {/* Top row: checkbox + ARRIVÉE badge vertically centred. The whole card opens the fiche; the
             checkbox + SAS button stop the click, so the badge/time area still opens the fiche. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Tooltip title={done ? 'Logement prêt ✓' : 'Marquer comme prêt'}>
-            <Checkbox
-              icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
-              checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
-              checked={done}
-              onChange={() => onToggleReady(r)}
-              onClick={stop}
-              sx={{ p: 0, flexShrink: 0 }}
-            />
+          <Tooltip title={statusLabel}>
+            {/* The <span> keeps the tooltip reachable once the checkbox is disabled by the day
+                window (a disabled control receives no pointer event). */}
+            <span>
+              <Checkbox
+                icon={<RadioButtonUncheckedIcon sx={{ fontSize: 32, color: 'text.disabled' }} />}
+                checkedIcon={<CheckCircleIcon sx={{ fontSize: 32, color: 'success.main' }} />}
+                checked={done}
+                disabled={statusLocked}
+                onChange={() => onToggleReady(r)}
+                onClick={stop}
+                slotProps={{ input: { 'aria-label': statusLabel } }}
+                sx={{ p: 0, flexShrink: 0 }}
+              />
+            </span>
           </Tooltip>
           {/* ARRIVÉE badge — FlightLand (plane touching down) for the universal
               "arrival" semantic. Bigger height + solid bg + white text for max pop. */}

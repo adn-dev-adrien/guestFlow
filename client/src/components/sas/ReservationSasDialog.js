@@ -50,6 +50,7 @@ import ErrorAlert from '../ErrorAlert';
 import { useToast } from '../DialogProvider';
 import SasWeatherAlertPage from './SasWeatherAlertPage';
 import { formatCurrency, displayDate, displayDateLong } from '../../utils/formatters';
+import { sasLockTitle, sasLockMessage } from '../../constants/receptionSasLock';
 
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
@@ -184,7 +185,7 @@ function IntroDateRow({ kind, date, time }) {
   );
 }
 
-export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted, canOpenReservation = true, canReopenSas = true }) {
+export default function ReservationSasDialog({ open, reservationId, mode = 'arrival', onClose, onCommitted, canOpenReservation = true }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -350,19 +351,24 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
 
   const r = data?.reservation;
   const modeColor = modeColorFor(theme, mode);
-  // specs/reception-sas-lock-after-commit.md §3.2 rule 9 — the reception role reaches this dialog on a
-  // committed SAS only through a deep-link (Dashboard row / push notification), since the planning ✓
-  // is disabled for them. It then renders a short locked panel instead of the wizard; the server
-  // refuses the commit regardless (403 SAS_ALREADY_COMMITTED).
-  const sasDoneAt = r ? (mode === 'arrival' ? r.arrivalSasDoneAt : r.departureSasDoneAt) : null;
-  const sasLocked = !canReopenSas && Boolean(sasDoneAt);
-  const lockedTitle = mode === 'arrival' ? 'Check-in déjà effectué' : 'Check-out déjà effectué';
-  const lockedMessage = (() => {
-    const label = mode === 'arrival' ? 'Ce check-in' : 'Ce check-out';
-    const day = displayDate(String(sasDoneAt || '').slice(0, 10));
-    const when = day === '—' ? '' : ` le ${day}`;
-    return `${label} a déjà été validé${when}. Sa modification est réservée à l'administrateur.`;
+  // specs/reception-sas-today-only.md §3.3 rule 13 — the reception role reaches this dialog on a locked
+  // SAS only through a deep-link (Dashboard row / push notification), since the planning ✓ is disabled
+  // for them. The server resolves the reason and ships it in `receptionLock` (null for an admin); the
+  // wizard then renders a short locked panel instead of the steps. The commit is refused server-side
+  // regardless (403 SAS_LOCKED).
+  const sasLock = data?.receptionLock ? data.receptionLock[mode] || null : null;
+  // The date the sentence refers to: when the SAS was committed for 'done', the SAS day otherwise.
+  const lockDateSource = (() => {
+    if (!r) return null;
+    if (sasLock === 'done') return mode === 'arrival' ? r.arrivalSasDoneAt : r.departureSasDoneAt;
+    return mode === 'arrival' ? r.startDate : r.endDate;
   })();
+  const lockDateLabel = (() => {
+    const label = displayDate(String(lockDateSource || '').slice(0, 10));
+    return label === '—' ? '' : label;
+  })();
+  const lockedTitle = sasLockTitle(mode, sasLock);
+  const lockedMessage = sasLockMessage(mode, sasLock, lockDateLabel);
   const bedItems = useMemo(() => (data?.linenItems || []).filter((i) => i.category === 'bed'), [data]);
   const allItems = useMemo(() => (data?.linenItems || []), [data]);
 
@@ -371,7 +377,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (!data) return [];
     // Locked (reception on a committed SAS): no page at all — the body renders the locked panel and
     // the header drops its progress bar / « Précédent ».
-    if (sasLocked) return [];
+    if (sasLock) return [];
     // On departure, the caution-RETURN step stays reachable when re-editing a completed SAS
     // (specs/reopen-completed-sas.md §3 rule 3), so a mis-marked return can be corrected.
     const isEditing = mode === 'arrival' ? !!r.arrivalSasDoneAt : !!r.departureSasDoneAt;
@@ -415,7 +421,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean);
-  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLocked]);
+  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, weatherAlerts, sasLock]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -590,10 +596,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       if (onCommitted) onCommitted();
       if (onClose) onClose();
     } catch (e) {
-      // specs/reception-sas-lock-after-commit.md §3.2 — the SAS was committed elsewhere while this
-      // wizard was open: the server refuses (403) and the raw code would surface as-is.
-      const message = e?.error === 'SAS_ALREADY_COMMITTED'
-        ? `${mode === 'arrival' ? 'Ce check-in' : 'Ce check-out'} a déjà été validé — modification réservée à l'administrateur.`
+      // specs/reception-sas-today-only.md §3.3 rule 14 — the SAS left the reception edit window while
+      // this wizard was open (committed elsewhere, or the 04:00 boundary crossed): the server refuses
+      // with a reason and the raw code would otherwise surface as-is.
+      const message = e?.error === 'SAS_LOCKED'
+        ? sasLockMessage(mode, e.reason)
         : e?.message;
       // Inline (visible in the fullscreen dialog) + toast (app-wide feedback channel).
       setError(message || "Échec de l'enregistrement.");
@@ -978,7 +985,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // ---- footer (page-specific forward actions) ----
   function renderActions() {
     if (loading || !data) return null;
-    if (sasLocked) return <Button variant="contained" onClick={onClose}>Fermer</Button>;
+    if (sasLock) return <Button variant="contained" onClick={onClose}>Fermer</Button>;
     const quit = null;
     const next = (label = 'Suivant') => <Button variant="contained" onClick={goNext}>{label}</Button>;
 
@@ -1078,7 +1085,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (loading) return <LoadingState />;
     if (error && !data) return <ErrorAlert message={error} />;
     if (!data) return null;
-    if (sasLocked) {
+    if (sasLock) {
       return (
         <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center', py: 2 }}>
           <LockIcon sx={{ fontSize: 56, color: 'text.disabled' }} />
@@ -1092,9 +1099,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   }
 
   const meta = stepMeta(stepKey, mode);
-  const StepIcon = sasLocked ? LockIcon : meta.Icon;
+  const StepIcon = sasLock ? LockIcon : meta.Icon;
   const stepIdx = activeKeys.indexOf(stepKey);
-  const bandTitle = sasLocked ? lockedTitle : (meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ'));
+  const bandTitle = sasLock ? lockedTitle : (meta.title || (mode === 'arrival' ? 'Arrivée' : 'Départ'));
   return (
     <>
     {/* Focus trap fully relinquished (disableAutoFocus + disableEnforceFocus + disableRestoreFocus):

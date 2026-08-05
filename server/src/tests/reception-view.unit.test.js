@@ -152,3 +152,43 @@ test('toReceptionPropertyView keeps display fields, drops pricing', () => {
     assert.ok(!(key in view), `${key} leaked`);
   }
 });
+
+// specs/reception-sas-today-only.md §3.2 rule 9 — the view also carries the SERVER-resolved locks, so
+// the client never does date math. `now` is injected here to pin every branch.
+const at = (y, m, d, h = 0) => new Date(y, m - 1, d, h);
+const STAY = { id: 7, startDate: '2026-08-04', endDate: '2026-08-06', arrivalSasDoneAt: null, departureSasDoneAt: null };
+
+test('reception view — on the arrival day: arrival editable, departure still future', () => {
+  const view = toReceptionReservationView(STAY, at(2026, 8, 4, 16));
+  assert.equal(view.arrivalSasLock, null);
+  assert.equal(view.departureSasLock, 'future');
+  assert.equal(view.checkInStatusEditable, true);
+  assert.equal(view.checkOutStatusEditable, false);
+});
+
+test('reception view — on the departure day: arrival past, departure editable', () => {
+  const view = toReceptionReservationView(STAY, at(2026, 8, 6, 9));
+  assert.equal(view.arrivalSasLock, 'past');
+  assert.equal(view.departureSasLock, null);
+  assert.equal(view.checkInStatusEditable, false);
+  assert.equal(view.checkOutStatusEditable, true);
+});
+
+test('reception view — a committed SAS reads « done » but keeps its status toggle open in-window', () => {
+  const view = toReceptionReservationView({ ...STAY, arrivalSasDoneAt: '2026-08-04 15:12:00' }, at(2026, 8, 4, 18));
+  assert.equal(view.arrivalSasLock, 'done');
+  assert.equal(view.checkInStatusEditable, true);
+});
+
+test('reception view — inside the 04:00 tail the arrival is still editable', () => {
+  const view = toReceptionReservationView(STAY, at(2026, 8, 5, 2));
+  assert.equal(view.arrivalSasLock, null);
+  assert.equal(view.checkInStatusEditable, true);
+  assert.equal(toReceptionReservationView(STAY, at(2026, 8, 5, 4)).arrivalSasLock, 'past');
+});
+
+test('toReceptionReservationList resolves the locks against the same instant', () => {
+  const [view] = toReceptionReservationList([STAY], at(2026, 8, 4, 16));
+  assert.equal(view.arrivalSasLock, null);
+  assert.equal(view.departureSasLock, 'future');
+});
