@@ -19,6 +19,7 @@ const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
+const { buildOperationalCollection } = require('../utils/operationalCollection');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
@@ -484,6 +485,13 @@ function createReservationsModel(database) {
       reservation.checkoutComplement = buildCheckoutComplement(
         reservation,
         arrivalComplementDetailFromReservation(reservation),
+      );
+      // specs/dashboard-collection-alert.md §4.3 — the day-of-operations « what's left to collect at
+      // the door » block the Dashboard rows render. Deliberately NOT in the reception payload: the
+      // receptionView whitelist drops it (it carries the acompte/solde states).
+      reservation.operationalCollection = buildOperationalCollection(
+        reservation,
+        reservation.checkoutComplement,
       );
       return reservation;
     },
