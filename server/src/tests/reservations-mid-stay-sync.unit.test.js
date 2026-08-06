@@ -24,7 +24,7 @@ function makeDb({ startDate = '2026-07-10' } = {}) {
       complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
-      arrivalExtrasBaseline TEXT DEFAULT NULL,
+      arrivalExtrasBaseline TEXT DEFAULT NULL, midStaySettledNotes TEXT DEFAULT NULL,
       arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
       checkInReady INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0, checkOutDone INTEGER DEFAULT 0,
       extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER,
@@ -173,4 +173,118 @@ test('base absente (résa antérieure à la spec) — le SAS ne crée pas de bas
   const model = createReservationsModel(db);
   model.commitArrivalSas(1, { complementItems: [{ label: 'Taie d\'oreiller', amount: 5 }] });
   assert.equal(baselineOf(db), null, 'la capture reste paresseuse : à la prochaine sauvegarde de fiche');
+});
+
+// ── Notes en séjour (specs/mid-stay-notes.md §3.1-§3.2 + §3.5) ───────────────
+
+const notesOf = (db) => JSON.parse(db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = 1').get().midStaySettledNotes || '[]');
+const midLines = (db) => JSON.parse(eosOf(db).detail || '[]').filter((l) => l.source === MID_STAY_SOURCE);
+
+// Two prestations sold during the stay and still to collect: 24 € of breakfast + 6 € of coke.
+function withRemainder(db) {
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 90, endOfStayComplementDetail = ? WHERE id = 1')
+    .run(JSON.stringify([
+      { label: 'Ménage de fin de séjour', amount: 60 },
+      { label: 'Petit-déjeuner', qty: 2, unitPrice: 12, amount: 24, source: MID_STAY_SOURCE, key: 'opt:9' },
+      { label: 'Coca', qty: 2, unitPrice: 3, amount: 6, source: MID_STAY_SOURCE, key: 'opt:14' },
+    ]));
+  return createReservationsModel(db);
+}
+
+test('settle — une note multi-lignes déplace les montants stockés vers le registre', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  const note = model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 24 }, { key: 'opt:14', amount: 6 }], cash: false });
+
+  assert.equal(note.id, 1);
+  assert.equal(note.total, 30, 'le total est resommé par le serveur, jamais repris du client');
+  assert.equal(note.paidCash, 0);
+  assert.deepEqual(note.lines.map((l) => [l.label, l.amount]), [['Petit-déjeuner', 24], ['Coca', 6]]);
+  assert.deepEqual(notesOf(db).map((n) => n.total), [30]);
+  // Le reste à percevoir ne contient plus que la ligne du SAS.
+  assert.equal(eosOf(db).amount, 60);
+  assert.deepEqual(midLines(db), []);
+});
+
+test('settle — règlement PARTIEL d\'une clé : la ligne est scindée (cas du bar)', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  // Le client ne paie qu'un seul des deux petits-déjeuners.
+  model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 12 }], cash: true });
+
+  assert.equal(notesOf(db)[0].paidCash, 1);
+  assert.equal(notesOf(db)[0].total, 12);
+  const rest = midLines(db).find((l) => l.key === 'opt:9');
+  assert.equal(rest.amount, 12, 'l\'autre petit-déjeuner reste à percevoir');
+  assert.equal(rest.qty, 1, 'la ligne restante est reconstruite proprement');
+  assert.equal(eosOf(db).amount, 78, '60 ménage + 12 restant + 6 coca');
+});
+
+test('settle — refus quand la clé n\'a plus rien à percevoir ou que le montant dépasse', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  assert.throws(() => model.settleMidStayNote(1, { items: [{ key: 'opt:99', amount: 5 }] }), /NOTE_AMOUNT_INVALID|Montant/);
+  assert.throws(() => model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 25 }] }), (e) => e.code === 'NOTE_AMOUNT_INVALID');
+  assert.deepEqual(notesOf(db), [], 'aucun effet de bord après un refus');
+  assert.equal(eosOf(db).amount, 90);
+});
+
+test('settle — refus quand le complément de fin de séjour est déjà encaissé globalement', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1 WHERE id = 1').run();
+  assert.throws(() => model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 24 }] }), (e) => e.code === 'END_OF_STAY_SETTLED');
+});
+
+test('cancel — les lignes de la note reviennent à percevoir, fusionnées par clé', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  model.settleMidStayNote(1, { items: [{ key: 'opt:9', amount: 12 }] });
+  // Entre-temps le client reprend un petit-déjeuner : la clé a de nouveau un reste.
+  assert.equal(midLines(db).find((l) => l.key === 'opt:9').amount, 12);
+
+  model.cancelMidStayNote(1, 1);
+  assert.deepEqual(notesOf(db), []);
+  const merged = midLines(db).filter((l) => l.key === 'opt:9');
+  assert.equal(merged.length, 1, 'une seule ligne par clé après fusion');
+  assert.equal(merged[0].amount, 24);
+  assert.equal(eosOf(db).amount, 90, 'retour à l\'état initial');
+});
+
+test('cancel — note inconnue → NOTE_NOT_FOUND ; complément encaissé → refus', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  model.settleMidStayNote(1, { items: [{ key: 'opt:14', amount: 6 }] });
+  assert.throws(() => model.cancelMidStayNote(1, 42), (e) => e.code === 'NOTE_NOT_FOUND');
+  db.prepare('UPDATE reservations SET endOfStayComplementPaidCash = 1 WHERE id = 1').run();
+  assert.throws(() => model.cancelMidStayNote(1, 1), (e) => e.code === 'END_OF_STAY_SETTLED');
+});
+
+test('sync — la resynchronisation du reste ne touche jamais au registre', () => {
+  const db = makeDb();
+  const model = withRemainder(db);
+  model.settleMidStayNote(1, { items: [{ key: 'opt:14', amount: 6 }] });
+  model.syncMidStayComplement(1, [{ label: 'Petit-déjeuner', qty: 2, unitPrice: 12, amount: 24, source: MID_STAY_SOURCE, key: 'opt:9' }]);
+  assert.deepEqual(notesOf(db).map((n) => n.total), [6], 'la note survit à une sauvegarde de fiche');
+  assert.equal(eosOf(db).amount, 84, '60 ménage + 24 restant');
+});
+
+test('resolveArrivalExtrasBaseline — base synthétisée pour l\'aperçu tant que rien n\'a été sauvegardé', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  // Séjour commencé, jamais re-sauvegardé : la base n'existe pas encore en base de données…
+  assert.equal(baselineOf(db), null);
+  // …mais l'aperçu doit déjà voir ce que la prochaine sauvegarde figera.
+  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 12 });
+  assert.equal(baselineOf(db), null, 'le chemin de lecture n\'écrit jamais');
+
+  // Une fois capturée, c'est elle qui fait foi (même si les extras ont bougé depuis).
+  model.captureArrivalExtrasBaselineIfDue(1, TODAY);
+  db.prepare('UPDATE reservation_options SET quantity = 3, totalPrice = 36 WHERE reservationId = 1').run();
+  assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1, TODAY)), { 'opt:9': 12 });
+});
+
+test('resolveArrivalExtrasBaseline — séjour à venir → aucune base (aperçu inchangé)', () => {
+  const db = makeDb({ startDate: '2026-08-01' });
+  assert.equal(createReservationsModel(db).resolveArrivalExtrasBaseline(1, TODAY), null);
 });

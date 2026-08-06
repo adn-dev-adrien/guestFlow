@@ -148,3 +148,64 @@ test('sejourNetTotal — plateforme avec commission : versement net + complémen
   assert.equal(q.platformNetReceivedAmount, 180, '200 pré-arrivée − 20 de commission');
   assert.equal(q.sejourNetTotal, 192, '180 + 12 vendus sur place');
 });
+
+// ── Notes en séjour (specs/mid-stay-notes.md §3.3) ───────────────────────────
+// L'invariant devient : acompte + solde + complément + RESTE fin de séjour + notes = total du séjour.
+
+const noteOf = (amount, key, label = 'Petit-déjeuner') => ([{
+  id: 1, paidDate: '2026-07-11', paidCash: 0, total: amount, lines: [{ label, amount, key }],
+}]);
+
+const collectedWithNotes = (q) => Math.round(
+  (q.depositAmount + q.balanceAmount + q.complementAmount + q.endOfStayComplementTotal + q.midStaySettledTotal) * 100,
+) / 100;
+
+test('note réglée — sort du reste à percevoir, jamais des échéances gelées', () => {
+  const q = calculateReservationQuote({
+    ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 2 }],
+    depositAmount: 63.6, balanceAmount: 148.4,
+    arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 12 }),
+    midStaySettledNotes: noteOf(12, 'opt:9'),
+  });
+  assert.equal(q.totalStayPrice, 224);
+  assert.equal(q.midStayExtrasTotal, 12, 'ce qui a été vendu en cours de séjour');
+  assert.equal(q.midStaySettledTotal, 12, '…et déjà encaissé');
+  assert.equal(q.midStayRemainingTotal, 0);
+  assert.equal(q.endOfStayComplementTotal, 0, 'plus rien à percevoir au départ');
+  assert.equal(q.depositAmount, 63.6, 'les échéances gelées ne récupèrent jamais cet argent');
+  assert.equal(q.balanceAmount, 148.4);
+  assert.equal(collectedWithNotes(q), 224);
+});
+
+test('note partielle — le reste part au complément de fin de séjour', () => {
+  const q = calculateReservationQuote({
+    ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 3 }],
+    depositAmount: 63.6, balanceAmount: 148.4,
+    arrivalExtrasBaseline: JSON.stringify({ 'opt:9': 12 }),
+    midStaySettledNotes: noteOf(12, 'opt:9'),
+  });
+  assert.equal(q.midStayExtrasTotal, 24);
+  assert.equal(q.midStaySettledTotal, 12);
+  assert.equal(q.endOfStayComplementTotal, 12);
+  assert.equal(collectedWithNotes(q), 236);
+});
+
+test('note + facturation du SAS de départ cohabitent dans le total du séjour', () => {
+  const q = calculateReservationQuote({
+    ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 1 }],
+    arrivalExtrasBaseline: '{}', endOfStaySasAmount: 60,
+    midStaySettledNotes: noteOf(12, 'opt:9'),
+  });
+  assert.equal(q.midStaySettledTotal, 12);
+  assert.equal(q.endOfStayComplementTotal, 60, 'le ménage du départ, sans la prestation déjà réglée');
+  assert.equal(q.sejourNetTotal, 272, '200 pré-arrivée + 60 ménage + 12 encaissés en séjour');
+});
+
+test('aucune note — comportement strictement identique (non-régression)', () => {
+  const base = { ...DIRECT, db: createDb(), selectedOptions: [{ optionId: 9, quantity: 1 }], arrivalExtrasBaseline: '{}' };
+  const withEmpty = calculateReservationQuote({ ...base, midStaySettledNotes: [] });
+  const without = calculateReservationQuote(base);
+  assert.equal(withEmpty.midStaySettledTotal, 0);
+  assert.equal(withEmpty.endOfStayComplementTotal, without.endOfStayComplementTotal);
+  assert.equal(withEmpty.sejourNetTotal, without.sejourNetTotal);
+});

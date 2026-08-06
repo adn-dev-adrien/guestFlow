@@ -1681,6 +1681,10 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // baseline was sold during the stay and is billed in the end-of-stay complement instead of the
   // (frozen) arrival buckets. NULL until the stay starts — existing rows are never requalified.
   if (!rcols.includes('arrivalExtrasBaseline')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalExtrasBaseline TEXT DEFAULT NULL");
+  // « Notes en séjour » (specs/mid-stay-notes.md §3.1): history of what was actually COLLECTED during
+  // the stay — JSON array of `{ id, paidDate, paidCash, total, lines[] }`. A note exists only once
+  // settled; a sale left for check-out simply stays in the end-of-stay remainder. NULL = no note yet.
+  if (!rcols.includes('midStaySettledNotes')) db.exec("ALTER TABLE reservations ADD COLUMN midStaySettledNotes TEXT DEFAULT NULL");
   // Tourist-tax declaration marker (specs/tourist-tax-declared-checkbox.md): set to the server time-stamp
   // when the operator ticks « Déclarée » on the extraction page, NULL = not yet declared.
   if (!rcols.includes('touristTaxDeclaredAt')) db.exec("ALTER TABLE reservations ADD COLUMN touristTaxDeclaredAt TEXT");

@@ -19,7 +19,10 @@ const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
-const { buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey } = require('../utils/midStayExtras');
+const {
+  buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey,
+  buildMidStayLine, parseNotes, nextNoteId, MID_STAY_SOURCE,
+} = require('../utils/midStayExtras');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
@@ -29,6 +32,25 @@ const BATH_LINEN_LABEL = 'Linge de toilette';
 // defers the bath-linen payment to check-out (specs/sas-bath-linen-upsell.md §3.2 rule 6).
 const BATH_LINEN_EOS_SOURCE = 'arrivalBathLinen';
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+// End-of-stay complement detail (JSON array) → lines, tolerant to NULL / legacy garbage.
+function parseDetailLines(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+// Business error the controller maps to a 409 with its code (specs/mid-stay-notes.md §4.3).
+function midStayError(code, message) {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+}
 
 // Platform-sourced reservations carry `clientGrossAmount` (what the guest paid the platform, TTC).
 // The owner's net stays in `finalPrice`. Commission = gross − net (clipped to 0). Null on direct bookings
@@ -174,6 +196,27 @@ function createReservationsModel(database) {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'arrivalExtrasBaseline'); }
     catch { return false; }
   })();
+  // « Notes en séjour » register (specs/mid-stay-notes.md §3.1). Same guard rationale.
+  const HAS_MID_STAY_NOTES = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'midStaySettledNotes'); }
+    catch { return false; }
+  })();
+
+  // Single write point for « the end-of-stay complement + its register »: the detail, the re-summed
+  // amount and the notes always move together, so the remainder + register invariant can't drift.
+  const writeEndOfStayDetail = (reservationId, detailLines, notes) => {
+    const lines = (detailLines || []).filter((l) => round2(l && l.amount) > 0);
+    const amount = round2(lines.reduce((s, l) => s + Number(l.amount || 0), 0));
+    const detailJson = lines.length ? JSON.stringify(lines) : null;
+    if (!HAS_MID_STAY_NOTES) {
+      database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(amount, detailJson, reservationId);
+      return;
+    }
+    database.prepare(`UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?,
+                             midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?`)
+      .run(amount, detailJson, (notes && notes.length) ? JSON.stringify(notes) : null, reservationId);
+  };
   // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored on
   // reservation_resources.sessions (JSON). Guarded for minimal test schemas.
   const HAS_RESERVATION_RESOURCE_SESSIONS = (() => {
@@ -1304,6 +1347,20 @@ function createReservationsModel(database) {
       ];
     },
 
+    // The baseline the ENGINE should use right now. It is captured lazily, on the first save at/after
+    // `startDate`, so a stay that started but was never re-saved has none yet — and the live preview
+    // would then show a mid-stay sale as nothing at all. Synthesize the very baseline the next save
+    // WOULD store (the extras currently stored), so the preview matches the post-save reality
+    // without the read path ever writing (specs/mid-stay-notes.md §4.1).
+    resolveArrivalExtrasBaseline(reservationId, todayIso) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
+      const row = database.prepare('SELECT startDate, arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+      if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
+      if (!row.startDate || String(row.startDate) > String(todayIso)) return null;
+      return JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+    },
+
     getArrivalExtrasBaseline(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
       const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
@@ -1343,8 +1400,152 @@ function createReservationsModel(database) {
         .run(JSON.stringify(baseline), reservationId);
     },
 
+    // ── Notes en séjour (specs/mid-stay-notes.md) ─────────────────────────────
+    // A note is ONE punctual collection during the stay. Settling MOVES stored amounts from the
+    // end-of-stay remainder into the register, inside a single transaction: the invariant
+    // « remainder + register = everything sold mid-stay » holds at every step, and no money is ever
+    // re-priced here (the engine reconverges on the next save because remaining = midStay − settled).
+
+    getMidStaySettledNotes(reservationId) {
+      if (!HAS_MID_STAY_NOTES) return [];
+      const row = database.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(reservationId);
+      return parseNotes(row && row.midStaySettledNotes);
+    },
+
+    /**
+     * @param {Array} items `[{ key, amount }]` — what the operator put on the note. Each amount is
+     *        validated against the STORED remainder of its key (never against a recomputed price).
+     * @param {boolean} cash « Caisse interne » → collected, but off the books.
+     * @returns {object} the stored note.
+     * @throws {Error} `code` = END_OF_STAY_SETTLED | NOTE_EMPTY | NOTE_AMOUNT_INVALID
+     */
+    settleMidStayNote(reservationId, { items = [], cash = false } = {}) {
+      if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_EMPTY', 'Notes en séjour indisponibles.');
+      const tx = database.transaction(() => {
+        const row = database.prepare(`SELECT endOfStayComplementDetail, endOfStayComplementPaid,
+                                             endOfStayComplementPaidCash, midStaySettledNotes
+                                        FROM reservations WHERE id = ?`).get(reservationId);
+        if (!row) throw midStayError('NOTE_NOT_FOUND', 'Réservation introuvable.');
+        if (Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1) {
+          throw midStayError('END_OF_STAY_SETTLED', 'Le complément de fin de séjour est déjà encaissé.');
+        }
+        const detail = parseDetailLines(row.endOfStayComplementDetail);
+        const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);
+        // Remaining lines per key, in stored order — an amount is consumed across them.
+        const midByKey = new Map();
+        for (const line of detail.filter((l) => l.source === MID_STAY_SOURCE)) {
+          const key = line.key || extraLineKey(line);
+          if (!midByKey.has(key)) midByKey.set(key, []);
+          midByKey.get(key).push({ ...line, key });
+        }
+
+        const noteLines = [];
+        for (const item of (items || [])) {
+          const key = item && String(item.key || '');
+          const asked = round2(item && item.amount);
+          const lines = midByKey.get(key) || [];
+          const remaining = round2(lines.reduce((s, l) => s + Number(l.amount || 0), 0));
+          if (!key || asked <= 0) throw midStayError('NOTE_AMOUNT_INVALID', 'Montant de note invalide.');
+          // 0.005 tolerance: the client's amount comes from the engine, rounded to the cent.
+          if (asked > round2(remaining + 0.005)) {
+            throw midStayError('NOTE_AMOUNT_INVALID', `Montant supérieur au reste à percevoir (${remaining} €).`);
+          }
+          let left = Math.min(asked, remaining);
+          const taken = { label: lines[0].label, unitPrice: Number(lines[0].unitPrice || 0), amount: 0 };
+          for (const line of lines) {
+            if (left <= 0) break;
+            const part = round2(Math.min(Number(line.amount || 0), left));
+            taken.amount = round2(taken.amount + part);
+            line.amount = round2(Number(line.amount || 0) - part);
+            left = round2(left - part);
+          }
+          const { source, ...noteLine } = buildMidStayLine({ ...taken, key });
+          noteLines.push(noteLine);
+        }
+        if (noteLines.length === 0) throw midStayError('NOTE_EMPTY', 'La note est vide.');
+
+        // Partially consumed lines are rebuilt so their qty/unitPrice stay coherent with the amount.
+        const nextMidLines = [];
+        for (const lines of midByKey.values()) {
+          for (const line of lines) {
+            if (round2(line.amount) <= 0) continue;
+            nextMidLines.push(buildMidStayLine({
+              label: line.label, unitPrice: Number(line.unitPrice || 0), amount: line.amount, key: line.key,
+            }));
+          }
+        }
+
+        const notes = parseNotes(row.midStaySettledNotes);
+        const note = {
+          id: nextNoteId(notes),
+          paidDate: new Date().toISOString().slice(0, 10),
+          paidCash: cash ? 1 : 0,
+          total: round2(noteLines.reduce((s, l) => s + Number(l.amount || 0), 0)),
+          lines: noteLines,
+        };
+        notes.push(note);
+        writeEndOfStayDetail(reservationId, [...sasLines, ...nextMidLines], notes);
+        return note;
+      });
+      return tx();
+    },
+
+    // Inverse move: the note's lines go back to « à percevoir », merged into the remainder line of
+    // their key. Cancelling an encaissement never un-sells the prestations (§3.1 rule 3).
+    cancelMidStayNote(reservationId, noteId) {
+      if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+      const tx = database.transaction(() => {
+        const row = database.prepare(`SELECT endOfStayComplementDetail, endOfStayComplementPaid,
+                                             endOfStayComplementPaidCash, midStaySettledNotes
+                                        FROM reservations WHERE id = ?`).get(reservationId);
+        if (!row) throw midStayError('NOTE_NOT_FOUND', 'Réservation introuvable.');
+        if (Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1) {
+          throw midStayError('END_OF_STAY_SETTLED', 'Le complément de fin de séjour est déjà encaissé.');
+        }
+        const notes = parseNotes(row.midStaySettledNotes);
+        const note = notes.find((n) => Number(n.id) === Number(noteId));
+        if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+
+        const detail = parseDetailLines(row.endOfStayComplementDetail);
+        const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);
+        const midByKey = new Map();
+        for (const line of detail.filter((l) => l.source === MID_STAY_SOURCE)) {
+          const key = line.key || extraLineKey(line);
+          const prev = midByKey.get(key);
+          midByKey.set(key, {
+            label: (prev && prev.label) || line.label,
+            unitPrice: Number((prev && prev.unitPrice) || line.unitPrice || 0),
+            amount: round2((prev ? prev.amount : 0) + Number(line.amount || 0)),
+            key,
+          });
+        }
+        for (const line of (note.lines || [])) {
+          const key = line.key || extraLineKey(line);
+          const prev = midByKey.get(key);
+          midByKey.set(key, {
+            label: (prev && prev.label) || line.label,
+            unitPrice: Number((prev && prev.unitPrice) || line.unitPrice || 0),
+            amount: round2((prev ? prev.amount : 0) + Number(line.amount || 0)),
+            key,
+          });
+        }
+        const nextMidLines = [...midByKey.values()]
+          .filter((l) => round2(l.amount) > 0)
+          .map((l) => buildMidStayLine(l));
+
+        writeEndOfStayDetail(
+          reservationId,
+          [...sasLines, ...nextMidLines],
+          notes.filter((n) => Number(n.id) !== Number(noteId)),
+        );
+        return note;
+      });
+      return tx();
+    },
+
     // Rewrite the mid-stay lines of the end-of-stay complement and re-total it. Frozen once that
     // complement is collected (§3.5 rule 18): an amount already in the till is never re-priced.
+    // `midStayLines` = the REMAINDER computed by the engine (what the notes have not collected).
     syncMidStayComplement(reservationId, midStayLines) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return;
       const row = database.prepare(`SELECT endOfStayComplementDetail, endOfStayComplementAmount,
@@ -1356,8 +1557,8 @@ function createReservationsModel(database) {
       const sameAmount = Math.abs(Number(row.endOfStayComplementAmount || 0) - amount) < 0.005;
       const nextDetail = detail.length ? JSON.stringify(detail) : null;
       if (sameAmount && nextDetail === (row.endOfStayComplementDetail || null)) return;
-      database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
-        .run(amount, nextDetail, reservationId);
+      // The register is left untouched: only the remainder half of the pair moves here.
+      writeEndOfStayDetail(reservationId, detail, model.getMidStaySettledNotes(reservationId));
     },
 
     commitArrivalSas(reservationId, {

@@ -33,12 +33,33 @@ function midStayQuoteInputs(reservationId) {
   const row = model.getRow(Number(reservationId));
   if (!row) return {};
   return {
-    arrivalExtrasBaseline: row.arrivalExtrasBaseline || null,
+    arrivalExtrasBaseline: model.resolveArrivalExtrasBaseline(Number(reservationId), getTodayIsoDate()),
     endOfStaySasAmount: sasDetailAmount(row.endOfStayComplementDetail),
     endOfStayComplementSettled: Number(row.endOfStayComplementPaid || 0) === 1
       || Number(row.endOfStayComplementPaidCash || 0) === 1,
     frozenMidStayLines: storedMidStayLines(row.endOfStayComplementDetail),
+    // specs/mid-stay-notes.md — already collected during the stay: out of the remainder, still out
+    // of the frozen pre-arrival buckets.
+    midStaySettledNotes: row.midStaySettledNotes || null,
   };
+}
+
+// specs/mid-stay-notes.md §4.3 — the two note actions carried by the payment PATCH. Business
+// failures (nothing left to collect on that key, complement already settled…) are 409s carrying
+// their code, so the fiche can show the reason and reload a fresh state.
+function applyMidStayNoteActions(reservationId, body) {
+  const settle = body.settleMidStayNote;
+  const cancel = body.cancelMidStayNote;
+  if (!settle && !cancel) return null;
+  try {
+    if (settle) model.settleMidStayNote(reservationId, { items: settle.items, cash: Boolean(settle.cash) });
+    if (cancel) model.cancelMidStayNote(reservationId, cancel.id);
+    return null;
+  } catch (err) {
+    if (err && err.code === 'NOTE_NOT_FOUND') return { status: 404, body: { error: err.message, code: err.code } };
+    if (err && err.code) return { status: 409, body: { error: err.message, code: err.code } };
+    throw err;
+  }
 }
 
 // specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
@@ -748,6 +769,11 @@ function updatePayment(req, res) {
   if (financeError) return res.status(400).json({ error: financeError });
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
+
+  // specs/mid-stay-notes.md — settle / cancel a « note en séjour ». Runs FIRST: both actions are
+  // transactional and self-contained, and a rejection must leave the whole PATCH without effect.
+  const noteError = applyMidStayNoteActions(Number(req.params.id), req.body);
+  if (noteError) return res.status(noteError.status).json(noteError.body);
 
   const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
     complementPaid, complementPaidDate, complementPaidCash,

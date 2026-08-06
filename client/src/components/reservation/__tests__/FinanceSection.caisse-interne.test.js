@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
+import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
 import { vi } from 'vitest';
@@ -16,9 +17,11 @@ vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn
 function renderFinance(overrides) {
   const ctx = makeMockContext(overrides);
   render(
-    <ReservationFormProvider value={ctx}>
-      <FinanceSection />
-    </ReservationFormProvider>
+    <DialogProvider>
+        <ReservationFormProvider value={ctx}>
+          <FinanceSection />
+        </ReservationFormProvider>
+      </DialogProvider>
   );
   return ctx;
 }

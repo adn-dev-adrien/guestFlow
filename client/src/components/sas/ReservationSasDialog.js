@@ -540,6 +540,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     && Number(data.arrivalComplement.paid) !== 1)
     ? data.arrivalComplement : null;
   const recalledArrivalAmount = arrivalRecall ? Math.round(Number(arrivalRecall.amount) * 100) / 100 : 0;
+  // specs/mid-stay-notes.md §3.5 rule 20 — what the « notes en séjour » already collected. Purely
+  // informational at check-out: it never enters the total to collect (it's in the till already).
+  const midStayAlreadySettled = useMemo(() => {
+    if (mode !== 'departure') return 0;
+    let notes = [];
+    try { notes = JSON.parse(r?.midStaySettledNotes || '[]') || []; } catch { notes = []; }
+    return Math.round(notes.reduce((s, n) => s + (Number(n?.total) || 0), 0) * 100) / 100;
+  }, [mode, r]);
   const departureGrandTotal = Math.round((endOfStayTotal + recalledArrivalAmount) * 100) / 100;
 
   const commit = async () => {
@@ -951,6 +959,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 when the cleaning is already sold; say so instead of leaving a silent gap. */}
             {data.cleaning?.included && (
               <Typography variant="body2" color="text.secondary">Ménage déjà réglé — aucune facturation de fin de séjour.</Typography>
+            )}
+            {/* specs/mid-stay-notes.md §3.5 rule 20 — read-only reminder: these prestations were
+                already collected during the stay, they are NOT part of the total to collect here. */}
+            {midStayAlreadySettled > 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                Déjà réglé en séjour : {formatCurrency(midStayAlreadySettled)}
+              </Typography>
             )}
             {endOfStayLines.length === 0 && recalledArrivalAmount === 0 && <Typography variant="body2" color="text.secondary">Aucun complément de fin de séjour.</Typography>}
             {endOfStayLines.map((l, i) => <Typography key={i} variant="body2">{lineText(l)}</Typography>)}

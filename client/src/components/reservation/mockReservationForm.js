@@ -74,6 +74,10 @@ export function makeMockContext(overrides = {}) {
     isDevisMode: false, reservationId: null,
     refreshToCurrentPricing: vi.fn(),
     accommodationBasePriceDisplay: '100.00', pricingQuote: null,
+    // specs/mid-stay-notes.md — the « Encaissements en séjour » block delegates the save + reload
+    // to the page; the mocks let the block be exercised in isolation.
+    saveThenRun: vi.fn((action) => (typeof action === 'function' ? action() : undefined)),
+    reloadReservationFinance: vi.fn(),
     ...rest,
   };
 }

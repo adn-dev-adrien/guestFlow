@@ -77,12 +77,21 @@ function parseBaseline(raw) {
  * @param {Array}  lines    option + resource + custom lines as produced by the pricing engine.
  * @param {object|string|null} baselineRaw `arrivalExtrasBaseline` (JSON string or object). null/absent
  *        → the stay has not started yet: nothing is mid-stay, the split is a no-op.
- * @returns {{ total:number, forced:number, unforced:number, byKey:object, lines:Array }}
- *          `lines` are ready-to-store end-of-stay detail lines (label/qty/unitPrice/amount/source/key).
+ * @param {Array|string|null} notesRaw `midStaySettledNotes` — what was already collected during the
+ *        stay (specs/mid-stay-notes.md §3.3 rule 9). Deducted from the REMAINDER only: the whole
+ *        mid-stay amount keeps being carved out of the frozen buckets, money already in the till
+ *        never flows back into the acompte/solde/complément d'arrivée.
+ * @returns {{ total:number, forced:number, unforced:number, byKey:object,
+ *             remainingTotal:number, settledTotal:number, lines:Array }}
+ *          `lines` are ready-to-store end-of-stay detail lines (the REMAINDER);
+ *          `total`/`forced`/`unforced`/`byKey` cover the whole mid-stay (remainder + settled).
  */
-function splitMidStayExtras(lines, baselineRaw) {
+function splitMidStayExtras(lines, baselineRaw, notesRaw) {
   const baseline = parseBaseline(baselineRaw);
-  const empty = { total: 0, forced: 0, unforced: 0, byKey: {}, lines: [] };
+  const settled = settledByKey(notesRaw);
+  const empty = {
+    total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
+  };
   if (!baseline) return empty;
 
   // Aggregate per key first: two custom lines sharing a label are one key on both sides.
@@ -109,7 +118,9 @@ function splitMidStayExtras(lines, baselineRaw) {
     }
   }
 
-  const result = { total: 0, forced: 0, unforced: 0, byKey: {}, lines: [] };
+  const result = {
+    total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
+  };
   for (const entry of currentByKey.values()) {
     // Removing or shrinking a line brings the mid-stay part back to 0 — never negative.
     const amount = round2(Math.max(0, entry.total - round2(baseline[entry.key])));
@@ -118,20 +129,77 @@ function splitMidStayExtras(lines, baselineRaw) {
     if (entry.forced) result.forced = round2(result.forced + amount);
     else result.unforced = round2(result.unforced + amount);
     result.byKey[entry.key] = amount;
-    // Whole units → « 2 × 12 € = 24 € »; anything else stays a flat amount.
-    const units = entry.unitPrice > 0 ? amount / entry.unitPrice : 0;
-    const wholeUnits = Number.isInteger(round2(units)) && round2(units) >= 2 ? round2(units) : 1;
-    result.lines.push({
-      label: entry.label,
-      qty: wholeUnits,
-      unitPrice: wholeUnits > 1 ? entry.unitPrice : amount,
-      amount,
-      source: MID_STAY_SOURCE,
-      key: entry.key,
-    });
+    // What is left to collect at check-out: the sale minus what notes already collected. Settling
+    // MORE than what is currently sold (a line was removed after payment) clamps here, never below 0.
+    const paid = round2(Math.min(round2(settled[entry.key]), amount));
+    result.settledTotal = round2(result.settledTotal + paid);
+    const remaining = round2(amount - paid);
+    if (remaining <= 0) continue;
+    result.remainingTotal = round2(result.remainingTotal + remaining);
+    result.lines.push(buildMidStayLine({
+      label: entry.label, unitPrice: entry.unitPrice, amount: remaining, key: entry.key,
+    }));
   }
   result.lines.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
   return result;
+}
+
+/**
+ * One ready-to-store end-of-stay detail line. Whole units → « 2 × 12 € = 24 € »; anything else
+ * (a partially settled line, a rounded price) stays a flat amount rather than showing a misleading
+ * « × ». Shared by the split and by the settle/cancel transactions so a line looks the same
+ * wherever it was built.
+ */
+function buildMidStayLine({ label, unitPrice, amount, key }) {
+  const unit = round2(unitPrice);
+  const total = round2(amount);
+  const units = unit > 0 ? total / unit : 0;
+  const wholeUnits = Number.isInteger(round2(units)) && round2(units) >= 2 ? round2(units) : 1;
+  return {
+    label,
+    qty: wholeUnits,
+    unitPrice: wholeUnits > 1 ? unit : total,
+    amount: total,
+    source: MID_STAY_SOURCE,
+    key,
+  };
+}
+
+/**
+ * « Notes en séjour » register (specs/mid-stay-notes.md §3.1) — the history of what was actually
+ * COLLECTED during the stay. A note exists only once settled; a sale left for check-out simply stays
+ * in the end-of-stay remainder.
+ */
+function parseNotes(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+// Σ collected per line key, across every note.
+function settledByKey(notesRaw) {
+  const byKey = {};
+  for (const note of parseNotes(notesRaw)) {
+    for (const line of ((note && note.lines) || [])) {
+      const key = line && (line.key || extraLineKey(line));
+      const amount = round2(line && line.amount);
+      if (!key || amount <= 0) continue;
+      byKey[key] = round2((byKey[key] || 0) + amount);
+    }
+  }
+  return byKey;
+}
+
+function notesTotal(notesRaw) {
+  return round2(parseNotes(notesRaw).reduce((s, n) => s + (Number(n && n.total) || 0), 0));
+}
+
+// Per-reservation increment, so cancelling a note is unambiguous even after several settlements.
+function nextNoteId(notesRaw) {
+  return parseNotes(notesRaw).reduce((max, n) => Math.max(max, Number(n && n.id) || 0), 0) + 1;
 }
 
 /**
@@ -139,24 +207,36 @@ function splitMidStayExtras(lines, baselineRaw) {
  * end-of-stay detail. Used once that complement is collected (§3.5 rule 18): the collected amounts
  * must keep being carved out of the other buckets, but must never be re-priced. The forced/unforced
  * routing is read from the current lines (a line's `inComplement` flag can still be flipped).
+ * The settled notes are added ON TOP of the stored remainder: both must stay out of the frozen
+ * buckets (specs/mid-stay-notes.md §3.3 rule 9).
  */
-function splitFromStoredLines(storedLines, currentLines) {
+function splitFromStoredLines(storedLines, currentLines, notesRaw) {
   const forcedKeys = new Set();
   for (const line of (currentLines || [])) {
     if (!line || Number(line.inComplement || 0) !== 1) continue;
     const key = extraLineKey(line);
     if (key) forcedKeys.add(key);
   }
-  const result = { total: 0, forced: 0, unforced: 0, byKey: {}, lines: [] };
-  for (const line of (storedLines || [])) {
-    const amount = round2(line && line.amount);
-    if (amount <= 0) continue;
-    const key = line.key || extraLineKey(line);
+  const result = {
+    total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
+  };
+  const add = (key, amount) => {
     result.total = round2(result.total + amount);
     if (key && forcedKeys.has(key)) result.forced = round2(result.forced + amount);
     else result.unforced = round2(result.unforced + amount);
     if (key) result.byKey[key] = round2((result.byKey[key] || 0) + amount);
+  };
+  for (const line of (storedLines || [])) {
+    const amount = round2(line && line.amount);
+    if (amount <= 0) continue;
+    add(line.key || extraLineKey(line), amount);
+    result.remainingTotal = round2(result.remainingTotal + amount);
     result.lines.push({ ...line });
+  }
+  for (const [key, amount] of Object.entries(settledByKey(notesRaw))) {
+    if (amount <= 0) continue;
+    add(key, amount);
+    result.settledTotal = round2(result.settledTotal + amount);
   }
   return result;
 }
@@ -166,10 +246,10 @@ function splitFromStoredLines(storedLines, currentLines) {
  * split is recomputed from the baseline; once collected it is read back from the stored lines so a
  * collected amount is carved out of the other buckets without ever being re-priced (§3.5).
  */
-function resolveMidStaySplit(lines, { baseline, settled, storedLines } = {}) {
+function resolveMidStaySplit(lines, { baseline, settled, storedLines, notes } = {}) {
   return settled
-    ? splitFromStoredLines(storedLines, lines)
-    : splitMidStayExtras(lines, baseline);
+    ? splitFromStoredLines(storedLines, lines, notes)
+    : splitMidStayExtras(lines, baseline, notes);
 }
 
 function parseDetail(raw) {
@@ -216,6 +296,11 @@ module.exports = {
   splitMidStayExtras,
   splitFromStoredLines,
   resolveMidStaySplit,
+  buildMidStayLine,
+  parseNotes,
+  settledByKey,
+  notesTotal,
+  nextNoteId,
   mergeMidStayIntoDetail,
   sasDetailAmount,
   storedMidStayLines,

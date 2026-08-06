@@ -23,7 +23,7 @@ const { isPlatformCollectingTouristTax } = require('../utils/pricing');
 const platformsModel = require('./platformsModel');
 const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
-const { resolveMidStaySplit, storedMidStayLines, extraLineKey } = require('../utils/midStayExtras');
+const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = require('../utils/midStayExtras');
 
 function createAccountingModel(database) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
@@ -36,7 +36,14 @@ function createAccountingModel(database) {
   const midStayCols = [
     hasReservationColumn('endOfStayComplementDetail') ? 'r.endOfStayComplementDetail' : "NULL AS endOfStayComplementDetail",
     hasReservationColumn('arrivalExtrasBaseline') ? 'r.arrivalExtrasBaseline' : 'NULL AS arrivalExtrasBaseline',
+    hasReservationColumn('midStaySettledNotes') ? 'r.midStaySettledNotes' : 'NULL AS midStaySettledNotes',
   ].join(', ');
+  // A stay whose ONLY collection of the month is a « note en séjour » must still be selected — its
+  // buckets may all be paid in another month, or not at all yet (specs/mid-stay-notes.md §3.4).
+  // Month prefix match on the serialised `paidDate`; `inMonth` below stays the authoritative filter.
+  const hasNotesColumn = hasReservationColumn('midStaySettledNotes');
+  const midStayNotesClause = hasNotesColumn ? 'OR (r.midStaySettledNotes LIKE ?)' : '';
+  const midStayNotesParams = (from) => (hasNotesColumn ? [`%"paidDate":"${String(from).slice(0, 8)}%`] : []);
   return {
     // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
     // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
@@ -79,9 +86,10 @@ function createAccountingModel(database) {
             (r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ? AND COALESCE(r.complementPaidCash, 0) = 0)
             OR
             (r.endOfStayComplementPaid = 1 AND r.endOfStayComplementPaidDate >= ? AND r.endOfStayComplementPaidDate < ? AND COALESCE(r.endOfStayComplementPaidCash, 0) = 0)
+            ${midStayNotesClause}
           )
         ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate, r.endOfStayComplementPaidDate), r.id
-      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth);
+      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...midStayNotesParams(from));
 
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
@@ -110,6 +118,14 @@ function createAccountingModel(database) {
         // when paid in cash.
         if (inMonth(row.endOfStayComplementPaid, row.endOfStayComplementPaidDate) && Number(row.endOfStayComplementPaidCash || 0) === 0) {
           entries.push(buildEndOfStayEntry(row, commissionContext.vatRate));
+        }
+        // « Notes en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one entry per SETTLED note, at
+        // its own payment date — the note IS the real-world collection. Same flat-TTC shape as the
+        // end-of-stay complement; caisse-interne notes stay off the books like the cash complements.
+        for (const note of parseNotes(row.midStaySettledNotes)) {
+          if (Number(note.paidCash || 0) === 1) continue;
+          if (!inMonth(1, note.paidDate)) continue;
+          entries.push(buildMidStayNoteEntry(row, note, commissionContext.vatRate));
         }
         // Pure-tax entries are dropped (see `buildEntry`).
         return entries.filter(Boolean);
@@ -456,6 +472,32 @@ function buildEndOfStayEntry(row, vatRate) {
     reservationId: row.id,
     kind: 'endOfStayComplement',
     paidDate: row.endOfStayComplementPaidDate || null,
+    client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+    propertyName: row.propertyName || '',
+    platform: row.platform || 'direct',
+    clientGrossAmount: null,
+    finalPrice: ttc,
+    encaissementTtc: ttc,
+    encaissementNetTtc: ttc,
+    commission: null,
+    taxTtc: 0,
+    fraction: 1,
+    buckets: [b].filter((x) => x.ht > 0 || x.vat > 0),
+  };
+}
+
+// « Note en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one punctual collection during the
+// stay, booked exactly like the end-of-stay complement — flat TTC split at the app general VAT rate
+// on the « prestation complémentaire » revenue account, collected on site (no platform commission,
+// no tourist tax). One entry per note, at the note's own payment date.
+function buildMidStayNoteEntry(row, note, vatRate) {
+  const ttc = round2(Number(note && note.total) || 0);
+  if (ttc <= 0) return null;
+  const b = bucketFromTtc('options', ttc, Number(vatRate || 0));
+  return {
+    reservationId: row.id,
+    kind: 'midStayComplement',
+    paidDate: note.paidDate || null,
     client: { firstName: row.firstName || '', lastName: row.lastName || '' },
     propertyName: row.propertyName || '',
     platform: row.platform || 'direct',
