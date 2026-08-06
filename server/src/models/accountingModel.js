@@ -23,8 +23,20 @@ const { isPlatformCollectingTouristTax } = require('../utils/pricing');
 const platformsModel = require('./platformsModel');
 const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
+const { resolveMidStaySplit, storedMidStayLines, extraLineKey } = require('../utils/midStayExtras');
 
 function createAccountingModel(database) {
+  // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
+  // reservationsModel ones so a minimal test schema without them degrades to the legacy attribution
+  // (nothing sold mid-stay) instead of failing the query.
+  const hasReservationColumn = (name) => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
+    catch { return false; }
+  };
+  const midStayCols = [
+    hasReservationColumn('endOfStayComplementDetail') ? 'r.endOfStayComplementDetail' : "NULL AS endOfStayComplementDetail",
+    hasReservationColumn('arrivalExtrasBaseline') ? 'r.arrivalExtrasBaseline' : 'NULL AS arrivalExtrasBaseline',
+  ].join(', ');
   return {
     // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
     // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
@@ -46,6 +58,7 @@ function createAccountingModel(database) {
                COALESCE(r.complementPaidCash, 0) AS complementPaidCash,
                r.endOfStayComplementAmount, r.endOfStayComplementPaid, r.endOfStayComplementPaidDate,
                COALESCE(r.endOfStayComplementPaidCash, 0) AS endOfStayComplementPaidCash,
+               ${midStayCols},
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
@@ -143,7 +156,7 @@ function buildPerLineData(database, row) {
     FROM reservation_options WHERE reservationId = ?
   `).all(row.id);
   const customOptionLines = database.prepare(`
-    SELECT id AS customOptionId,
+    SELECT id AS customOptionId, description AS title,
       CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END AS totalPrice,
       COALESCE(offered, 0) AS offered,
       COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
@@ -171,8 +184,21 @@ function buildPerLineData(database, row) {
   const resourcesCurrentTotal = resourceLines.reduce((s, l) => s + nz(l.totalPrice), 0);
   const accommodationTtcCurrent = Math.max(0, round2(Number(row.finalPrice || 0) - optionsCurrentTotal - resourcesCurrentTotal));
 
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16 — the part of a line sold DURING
+  // the stay is billed by the flat `endOfStayComplement` entry, so it must leave the `complement`
+  // entry: otherwise that entry credits option revenue its (frozen) debit doesn't carry.
+  const midStay = resolveMidStaySplit(
+    [...optionLines, ...customOptionLines.map((l) => ({ ...l, isCustom: true })), ...resourceLines],
+    {
+      baseline: row.arrivalExtrasBaseline,
+      settled: Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1,
+      storedLines: storedMidStayLines(row.endOfStayComplementDetail),
+    },
+  );
+
   return {
     optionLines, customOptionLines, resourceLines, hasContribs, accommodationTtcCurrent,
+    midStayByKey: midStay.byKey,
     optionsTtc: round2(optionsCurrentTotal),
     resourcesTtc: round2(resourcesCurrentTotal),
   };
@@ -506,8 +532,10 @@ function computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComple
   //   - non-forced lines: post-payment delta = `totalPrice - (acompte + solde)`, clamped ≥ 0.
   //   - accommodation: same delta + forced flag has no meaning here (accommodation never forced).
   //   - tax: excluded from the journal regardless of routing.
-  const optionsTtc = sumComplementContribution(perLineData.optionLines) + sumComplementContribution(perLineData.customOptionLines);
-  const resourcesTtc = sumComplementContribution(perLineData.resourceLines);
+  const remainingMidStay = { ...(perLineData.midStayByKey || {}) };
+  const optionsTtc = sumComplementContribution(perLineData.optionLines, remainingMidStay)
+    + sumComplementContribution(perLineData.customOptionLines, remainingMidStay, true);
+  const resourcesTtc = sumComplementContribution(perLineData.resourceLines, remainingMidStay);
   const accommodationDelta = Math.max(0, accommodationTtcCurrent - (accommodationAcompte + accommodationSolde));
   return {
     accommodation: round2(accommodationDelta),
@@ -516,9 +544,17 @@ function computeBucketTtcsFromContribs(row, perLineData, kind, taxRoutedToComple
   };
 }
 
-function sumComplementContribution(lines) {
+// `remainingMidStay` carries the share of each key sold DURING the stay: that money belongs to the
+// end-of-stay complement entry, never to this one (specs/mid-stay-extras-to-end-of-stay-complement.md).
+// It is CONSUMED as it is deducted, so two custom lines sharing a label (hence a key) split it
+// instead of each deducting the whole amount.
+function sumComplementContribution(lines, remainingMidStay = {}, isCustom = false) {
   return (lines || []).reduce((sum, line) => {
-    const total = Number(line.totalPrice || 0);
+    const key = extraLineKey(isCustom ? { ...line, isCustom: true } : line);
+    const lineTotal = Number(line.totalPrice || 0);
+    const midStay = key ? Math.min(Number(remainingMidStay[key] || 0), Math.max(0, lineTotal)) : 0;
+    if (key && midStay > 0) remainingMidStay[key] = round2(Number(remainingMidStay[key]) - midStay);
+    const total = Math.max(0, round2(lineTotal - midStay));
     if (Number(line.inComplement || 0) === 1) return sum + total;
     if (Number(line.offered || 0) === 1) return sum;
     const acompte = nz(line.acompteContribTtc);
