@@ -8,6 +8,7 @@ const {
   getMonthBounds,
   computeAccommodationAmountAfterDiscount,
 } = require('../utils/financeCalcs');
+const { isSettled, remainingToPay, platformCommission } = require('../utils/reservationSettlement');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -40,11 +41,6 @@ function nightsBetween(startDate, endDate) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-// Operator-entered platform commission (acompte + solde), ≥ 0. 0 on direct bookings (NULL columns).
-function platformCommission(r) {
-  return round2(Number(r.acompteCommissionAmount || 0) + Number(r.platformCommissionAmount || 0));
-}
-
 // specs/finance-overview-rework.md §3.1 + specs/fiche-total-sejour-net-of-commission.md — the « total de
 // séjour » shown in the Suivi financier is the « total perçu sur le séjour » = what the operator actually
 // earns = acompte + solde + complément d'arrivée + complément de fin de séjour, NET of the platform
@@ -58,34 +54,10 @@ function totalSejour(r) {
   return round2(deposit + balance + complement + endOfStay - platformCommission(r));
 }
 
-// specs/finance-overview-rework.md §3.3 — a reservation is « soldé » when every applicable component is
-// paid OR marked caisse interne. A zero-amount component is trivially settled.
-function isSettled(r) {
-  // A zero-amount component is trivially settled; otherwise it must be paid (or, for the complements,
-  // marked caisse interne). Deposit also counts as settled when disabled per-reservation.
-  const depOk = Number(r.depositAmount || 0) === 0 || Boolean(r.depositDisabled) || Boolean(r.depositPaid);
-  const balOk = Number(r.balanceAmount || 0) === 0 || Boolean(r.balancePaid);
-  const compOk = Number(r.complementAmount || 0) === 0 || Boolean(r.complementPaid) || Boolean(r.complementPaidCash);
-  const eosOk = Number(r.endOfStayComplementAmount || 0) === 0 || Boolean(r.endOfStayComplementPaid) || Boolean(r.endOfStayComplementPaidCash);
-  return depOk && balOk && compOk && eosOk;
-}
-
-// « Reste à payer » = the real outstanding amount (specs/finance-operational-remaining-to-pay.md §3):
-// the SUM of the still-owed buckets only — a bucket already paid (incl. a caisse-interne complement)
-// or a disabled deposit is NOT counted. Equals 0 exactly when isSettled(r) is true. This is the
-// counterpart of comptaCollected and is what the « Suivi opérationnel » must show (the shared
-// computePaymentStatus.remainingDue only nets deposit + balance and ignores the complements).
-function remainingToPay(r) {
-  // Net of the platform commission of each STILL-UNPAID échéance, so it stays consistent with the
-  // « total perçu » : comptaCollected(r) + remainingToPay(r) === totalSejour(r). Direct → commission 0.
-  const acompteComm = Number(r.acompteCommissionAmount || 0);
-  const soldeComm = Number(r.platformCommissionAmount || 0);
-  const deposit = (!r.depositDisabled && !r.depositPaid) ? Number(r.depositAmount || 0) - acompteComm : 0;
-  const balance = !r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0;
-  const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
-  const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
-  return round2(deposit + balance + complement + endOfStay);
-}
+// `isSettled` (specs/finance-overview-rework.md §3.3) and `remainingToPay`
+// (specs/finance-operational-remaining-to-pay.md §3) live in utils/reservationSettlement.js — the
+// day-of-operations collection status shares the very same bucket rules
+// (specs/dashboard-collection-alert.md).
 
 // « Encaissé » = what the operator has actually RECEIVED so far = every component marked paid, EXCLUDING
 // caisse interne, NET of the platform commission of each paid échéance (acompte commission on the deposit,

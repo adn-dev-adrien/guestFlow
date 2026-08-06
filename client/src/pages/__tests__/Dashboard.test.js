@@ -96,6 +96,65 @@ test('the initial load shows the shared LoadingState (aria-busy)', async () => {
   await screen.findByText('Logements');
 });
 
+// specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
+// collect at the door. A platform booking waiting for its post-stay payout used to be red daily.
+describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
+  const today = new Date().toISOString().split('T')[0];
+  const base = {
+    id: 7, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
+    firstName: 'Luc', lastName: 'Martin', propertyName: 'Gîte du Lac',
+    cautionAmount: 0, options: [], resources: [],
+    doubleBeds: 1, singleBeds: 0, babyBeds: 0,
+  };
+
+  function mountArrival(operationalCollection) {
+    api.getReservations.mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([base]);
+    api.getReservation.mockReset().mockResolvedValue({ ...base, operationalCollection });
+    return renderPage();
+  }
+
+  test('a platform booking awaiting its payout shows no red and explains why', async () => {
+    mountArrival({
+      arrival: { alert: false, settled: false, amountDue: 0, deferred: false, parts: [{ key: 'balance', label: 'Solde', state: 'pending' }] },
+      departure: { alert: false, settled: false, amountDue: 0, deferred: false, parts: [] },
+      platformSettled: true,
+      platform: 'Airbnb',
+    });
+    const detail = await screen.findByText('Solde NON');
+    expect(detail).toBeInTheDocument();
+    expect(screen.getByText('Réglé par la plateforme')).toBeInTheDocument();
+    expect(screen.queryByText(/Complément à encaisser/)).not.toBeInTheDocument();
+  });
+
+  test('an unpaid arrival complement shows the red amount to collect', async () => {
+    mountArrival({
+      arrival: {
+        alert: true, settled: false, amountDue: 45, deferred: false,
+        parts: [{ key: 'balance', label: 'Solde', state: 'pending' }, { key: 'complement', label: 'Complément', state: 'pending' }],
+      },
+      departure: { alert: true, settled: false, amountDue: 45, deferred: false, parts: [] },
+      platformSettled: true,
+      platform: 'Airbnb',
+    });
+    expect(await screen.findByText(/Complément à encaisser/)).toBeInTheDocument();
+    expect(screen.getByText('Solde NON · Complément NON')).toBeInTheDocument();
+  });
+
+  test('a fully settled reservation shows the plain green OK', async () => {
+    mountArrival({
+      arrival: { alert: false, settled: true, amountDue: 0, deferred: false, parts: [{ key: 'balance', label: 'Solde', state: 'ok' }] },
+      departure: { alert: false, settled: true, amountDue: 0, deferred: false, parts: [] },
+      platformSettled: false,
+      platform: null,
+    });
+    expect(await screen.findByText('OK')).toBeInTheDocument();
+    expect(screen.queryByText('Solde OK')).not.toBeInTheDocument();
+    expect(screen.queryByText('Réglé par la plateforme')).not.toBeInTheDocument();
+  });
+});
+
 describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () => {
   const today = new Date().toISOString().split('T')[0];
   const arrival = {
