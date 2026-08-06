@@ -371,8 +371,6 @@
       // Pinned = picked by the visitor, OR flagged `alwaysVisible` in the catalogue (rule 9bis) —
       // that's how « Petit déjeuner » keeps showing even though it now sits inside a category.
       function isPinned(o) { return o.alwaysVisible === true || (state.opt[o.id] || 0) > 0; }
-      var picked = group.options.filter(isPinned);
-      var rest = group.options.filter(function (o) { return !isPinned(o); });
       var open = Boolean(openGroups[group.category]);
 
       // The count is what's actually SELECTED — an always-visible line nobody picked must not
@@ -393,26 +391,48 @@
       );
 
       var pinnedBox = GF.el('div', { class: 'gf-lines' });
-      var body = GF.el('div', { class: 'gf-group-body' + (open ? ' is-open' : '') },
-        GF.el('div', { class: 'gf-lines' })
-      );
+      var bodyLines = GF.el('div', { class: 'gf-lines' });
+      var body = GF.el('div', { class: 'gf-group-body' + (open ? ' is-open' : '') }, bodyLines);
       var toggle = GF.el('button', { type: 'button', class: 'gf-group-toggle' }, '');
 
-      // Re-rendering the whole category on every ± would steal focus from the stepper, so the
-      // count is refreshed in place and the picked/folded split is recomputed on the next render.
-      function refreshCount() {
+      // One node per option, built once. Picking a line MOVES its node between the pinned box and
+      // the folded body instead of re-rendering the group — a re-render would rebuild the stepper
+      // the visitor is clicking and steal its focus.
+      var nodes = {};
+      group.options.forEach(function (o) { nodes[o.id] = optionLine(o, sync); });
+
+      // Re-home the lines in the category's own order, so one that becomes pinned lands in its
+      // right place rather than at the end. Only nodes actually out of position are touched —
+      // re-inserting a node that is already correct would blur whatever is focused inside it.
+      function place(container, list) {
+        list.forEach(function (o, i) {
+          var node = nodes[o.id];
+          if (container.children[i] !== node) container.insertBefore(node, container.children[i] || null);
+        });
+      }
+      function sync() {
+        // Moving a node across parents blurs whatever is focused inside it — which is exactly what
+        // happens to the « + » button on the click that takes a line from 0 to 1. Restore it, or a
+        // keyboard user loses their place mid-interaction.
+        var active = document.activeElement;
+        var refocus = active && pinnedBox.parentNode && pinnedBox.parentNode.contains(active) ? active : null;
+        place(pinnedBox, group.options.filter(isPinned));
+        place(bodyLines, group.options.filter(function (o) { return !isPinned(o); }));
+        if (refocus && document.activeElement !== refocus) refocus.focus();
         var n = selectedCount();
         countNode.textContent = n ? String(n) : '';
+        syncToggle();
       }
-      picked.forEach(function (o) { pinnedBox.appendChild(optionLine(o, refreshCount)); });
-      rest.forEach(function (o) { body.firstChild.appendChild(optionLine(o, refreshCount)); });
 
       function syncToggle() {
-        if (rest.length === 0) { toggle.style.display = 'none'; return; }
+        var pinnedCount = group.options.filter(isPinned).length;
+        var restCount = group.options.length - pinnedCount;
+        // Nothing left to reveal → no affordance, rather than a button opening an empty box.
+        if (restCount === 0) { toggle.style.display = 'none'; return; }
         toggle.style.display = '';
         toggle.textContent = openGroups[group.category]
           ? GF.t('collapse')
-          : (picked.length ? GF.t('showOthers', rest.length) : GF.t('showCategory', rest.length));
+          : (pinnedCount ? GF.t('showOthers', restCount) : GF.t('showCategory', restCount));
       }
       function flip() {
         openGroups[group.category] = !openGroups[group.category];
@@ -423,7 +443,7 @@
       }
       head.addEventListener('click', flip);
       toggle.addEventListener('click', flip);
-      syncToggle();
+      sync();
 
       return GF.el('div', { class: 'gf-group' }, head, pinnedBox, body, toggle);
     }

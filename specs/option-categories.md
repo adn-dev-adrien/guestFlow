@@ -107,6 +107,10 @@ regular catalogue options, editable afterwards like any other.
 16. Rules 9 and 9bis apply identically: a line the guest has picked (quantity > 0) — or one flagged
     `alwaysVisible` — stays visible when the section is collapsed. A collapsed section must never
     hide a charge the guest is about to pay, nor the breakfast offer.
+    **The split must stay live**: taking a line from 0 to 1 moves it into the pinned block *at that
+    moment*, not on some later re-render. The widget moves the existing DOM node between the two
+    containers (rather than re-rendering the group, which would rebuild the stepper mid-click) and
+    restores focus afterwards, since moving a node across parents blurs what is focused inside it.
 17. Resources keep their current placement — appended to the ungrouped list, before the category
     sections. Resources have no category.
 18. Every new visible string goes through `GF.t()` and is declared in
@@ -556,8 +560,12 @@ collapse behavior is the whole point of the feature and it depends on the server
 - [x] Regression: `Options personnalisées`, `Ressources`, the pricing side panel totals, the devis PDF
       option lines, and the SAS upsell flow
       ([sas-upsells-activate-catalogue-option.md](sas-upsells-activate-catalogue-option.md)) unaffected.
-- [x] WordPress widget (local `wp_app`): groups collapsed after the flat list, a picked line stays
-      visible when collapsing, the flat live summary and total are correct.
+- [x] WordPress widget — verified on the **real** WordPress (`wp_app` on the Pi, 2026-08-06, after
+      the release deploy): the three groups render collapsed after the flat list; « Petit déjeuner »
+      is pinned under a collapsed « Restauration » without a count chip; picking a drink moves it
+      into the pinned block immediately, keeps the « + » button focused, sets the chip to « 1 » and
+      the toggle to « Voir les 8 autres »; the line stays visible after collapsing. At 390 px the
+      header is exactly 44 px tall, the label truncates with an ellipsis, no horizontal scroll.
 
 ## 8. Out of scope
 
