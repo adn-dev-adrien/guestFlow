@@ -75,6 +75,9 @@ const emptyOption = {
   // Free-text grouping label (specs/option-categories.md §3 rule 1). Empty = no grouping: the
   // option stays in the flat list on the fiche and on the public widget.
   category: '',
+  // Pins the option outside its category's collapse (rule 9bis). Only meaningful when `category`
+  // is set — an ungrouped option is always visible anyway.
+  alwaysVisible: false,
 };
 
 /**
@@ -86,20 +89,44 @@ export function CategoryField({ form, setForm, items }) {
   const existing = [...new Set((items || [])
     .map((o) => String(o.category || '').trim())
     .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const grouped = Boolean(String(form.category || '').trim());
   return (
-    <Autocomplete
-      freeSolo
-      options={existing}
-      value={form.category || ''}
-      onInputChange={(_, value) => setForm({ ...form, category: value })}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Catégorie"
-          helperText="Regroupe l'option dans un menu dépliant sur la fiche réservation et le site (laisser vide pour aucun regroupement)."
+    <Box>
+      <Autocomplete
+        freeSolo
+        options={existing}
+        value={form.category || ''}
+        onInputChange={(_, value) => setForm({ ...form, category: value })}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Catégorie"
+            helperText="Regroupe l'option dans un menu dépliant sur la fiche réservation et le site (laisser vide pour aucun regroupement)."
+          />
+        )}
+      />
+      {/* Only offered once the option belongs to a category: an ungrouped option is never folded,
+          so the flag would have nothing to act on (specs/option-categories.md §3 rule 9bis). */}
+      {grouped && (
+        <FormControlLabel
+          sx={{ mt: 1 }}
+          control={(
+            <Checkbox
+              checked={Boolean(form.alwaysVisible)}
+              onChange={(e) => setForm({ ...form, alwaysVisible: e.target.checked })}
+            />
+          )}
+          label={(
+            <Box>
+              <Typography variant="body2">Toujours visible</Typography>
+              <Typography variant="caption" color="text.secondary">
+                L'option reste affichée même quand le menu est replié et qu'elle n'est pas sélectionnée.
+              </Typography>
+            </Box>
+          )}
         />
       )}
-    />
+    </Box>
   );
 }
 
@@ -644,6 +671,7 @@ export default function OptionsPage({ barCenter }) {
         // Grouping label (specs/option-categories.md §3 rule 6) — the server trims it and stores
         // a whitespace-only value as ungrouped.
         category: form.category || '',
+        alwaysVisible: Boolean(form.alwaysVisible),
       })}
       formNameKey="title"
       formDescriptionKey="description"

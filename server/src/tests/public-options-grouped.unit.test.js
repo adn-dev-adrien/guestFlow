@@ -111,3 +111,14 @@ test('a whitespace-only category is treated as ungrouped', () => {
   assert.deepEqual(data.groups, []);
   assert.deepEqual(data.ungrouped.map((o) => o.title), ['Ménage']);
 });
+
+test('alwaysVisible reaches the widget so it can pin the line without a selection', () => {
+  // specs/option-categories.md §3 rule 9bis — « Petit déjeuner » under « Restauration ».
+  const data = listOptions([
+    { id: 1, title: 'Petit déjeuner', priceType: 'per_person', price: 12, category: 'Restauration', alwaysVisible: 1 },
+    { id: 2, title: 'Planche S', priceType: 'per_stay', price: 17, category: 'Restauration' },
+  ]);
+  const byTitle = Object.fromEntries(data.groups[0].options.map((o) => [o.title, o]));
+  assert.equal(byTitle['Petit déjeuner'].alwaysVisible, true);
+  assert.equal(byTitle['Planche S'].alwaysVisible, false);
+});

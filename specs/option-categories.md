@@ -79,11 +79,18 @@ regular catalogue options, editable afterwards like any other.
    on the reservation render *first* and stay visible even while the section is collapsed.
    Collapsing hides only the not-enabled remainder. Reopening a reservation with 2 drinks ticked
    shows exactly those 2 cards under « Boissons », the other 7 folded away.
+9bis. **An option can be pinned permanently.** `alwaysVisible` on the option makes it render outside
+    the collapse whether or not it is selected — for a service the operator must be able to offer on
+    every stay without hunting for it. « Petit déjeuner » ships that way under « Restauration ».
+    The flag is opt-in (off by default) and only meaningful inside a category, since an ungrouped
+    option is never folded.
 10. The toggle states what it hides: « Voir les 7 autres » when collapsed, « Réduire » when open.
-    A section where nothing is enabled shows only its header + « Voir les 9 options » — zero cards.
+    A section with nothing pinned shows only its header + « Voir les 9 options » — zero cards.
 11. The section header shows the label and, when > 0, a soft `success` chip with the number of
-    enabled options, e.g. « Boissons ③ ». It is redundant with the pinned cards by design: it
-    survives scrolling past the section.
+    **selected** options, e.g. « Boissons ③ ». An `alwaysVisible` option the operator hasn't ticked
+    is visible but does **not** count — the chip answers « what am I billing? », not « what is on
+    screen? ». It is redundant with the pinned cards by design: it survives scrolling past the
+    section.
 12. Expand/collapse is local UI state only — not persisted, not sent to the server, reset on reload
     (rule 9 is what carries the meaningful state across reloads).
 13. The « Options personnalisées » and « Ressources » sub-sections are untouched and stay after the
@@ -97,9 +104,9 @@ regular catalogue options, editable afterwards like any other.
 15. The public options endpoint exposes `category` and a server-computed group structure; the widget
     renders ungrouped options first (current uniform `.gf-lines` list), then one collapsible section
     per category, **collapsed by default**.
-16. Rule 9 applies identically: a line the guest has picked (quantity > 0) inside a category stays
-    visible when the section is collapsed. A collapsed section must never hide a charge the guest is
-    about to pay.
+16. Rules 9 and 9bis apply identically: a line the guest has picked (quantity > 0) — or one flagged
+    `alwaysVisible` — stays visible when the section is collapsed. A collapsed section must never
+    hide a charge the guest is about to pay, nor the breakfast offer.
 17. Resources keep their current placement — appended to the ungrouped list, before the category
     sections. Resources have no category.
 18. Every new visible string goes through `GF.t()` and is declared in
@@ -153,7 +160,10 @@ regular catalogue options, editable afterwards like any other.
   → sections still expand; pinned enabled options are visible as today, controls disabled as today.
 - An archived option (`archivedAt`) → excluded upstream by `ACTIVE_AND_O`
   ([optionsModel.js:49-55](../server/src/models/optionsModel.js#L49-L55)); it never reaches grouping.
-- Every option of a category is enabled → the toggle disappears (nothing left to reveal).
+- Every option of a category is pinned (enabled and/or `alwaysVisible`) → the toggle disappears
+  (nothing left to reveal).
+- An `alwaysVisible` option on an **ungrouped** option → no visible effect; the admin only offers the
+  checkbox once a category is set.
 - Category label containing only spaces → normalized to `''` on write (rule 6), i.e. ungrouped.
 - A seeded article renamed by the operator, then a new property is created → the seed links the
   renamed row (matched by `seedKey`) to the new property; it does not re-insert the original title.
@@ -168,11 +178,11 @@ regular catalogue options, editable afterwards like any other.
 > for the fiche, and on the public options endpoint for the widget.
 >
 > **Two things are client-side, deliberately:** the open/closed boolean per section, and the
-> enabled/remaining split inside a group. The split reads the operator's *current, unsaved*
-> selection (`form.selectedOptions`), which by definition cannot come from the server — it is UI
-> state, not business data. `groupOptionsByCategory` still exposes the same split server-side
-> (`enabled` / `remaining` / `enabledCount`) so the rule has one tested definition and any future
-> server-rendered surface reuses it.
+> pinned/foldable split inside a group. The split reads the operator's *current, unsaved* selection
+> (`form.selectedOptions`), which by definition cannot come from the server — it is UI state, not
+> business data. `groupOptionsByCategory` exposes the same split server-side
+> (`pinned` / `foldable` / `enabledCount`) and `isPinnedOption` is the single tested definition of
+> the rule, mirrored by one line in `ExtrasSection` and one in the widget.
 
 ### 4.1 Server side (`server/src/`)
 
@@ -182,14 +192,14 @@ regular catalogue options, editable afterwards like any other.
 | `routes/` | `public/properties.js` | — | (none — same endpoints, richer payload) |
 | `controllers/` | `optionsController.js` | — | (none — thin pass-through already) |
 | `controllers/` | `public/publicCatalogController.js` | T | `listOptions` returns the grouped shape instead of a flat array |
-| `models/` | `optionsModel.js` | T | `category` + `seedKey` in the projections, `create`, `update`; `persistCategory` guarded write; `ORDER BY category, title` |
+| `models/` | `optionsModel.js` | T | `category` / `seedKey` / `alwaysVisible` in the projections, `create`, `update`; `persistCategory` + `persistAlwaysVisible` guarded writes; `ORDER BY category, title` |
 | `models/` | `propertiesModel.js` | T | `getByIdWithDetails` adds `property.optionGroups` (visibility-filtered, grouped) + lazy-links the catering catalogue to a property created after boot |
-| `utils/` | `optionGrouping.js` | **C** | Pure: `normalizeCategory(label)` + `groupOptionsByCategory(options, enabledIds)` → `{ ungrouped, groups: [{ category, options, enabled, remaining, enabledCount }] }` + `listCategories` (rules 2-3, 9) |
+| `utils/` | `optionGrouping.js` | **C** | Pure: `normalizeCategory` + `isPinnedOption` + `groupOptionsByCategory(options, enabledIds)` → `{ ungrouped, groups: [{ category, options, pinned, foldable, enabledCount }] }` + `listCategories` (rules 2-3, 9, 9bis) |
 | `utils/` | `cateringSeed.js` | **C** | The §5.4 definitions (Boissons + Restauration) + the structural seeder (rules 21-26), built on the `bedLinenSeed.js` skeleton |
-| `utils/` | `optionCategoriesMigration.js` | **C** | The one-shot backfill (rule 27), extracted so it is unit-testable — the house pattern of `zeroBedsWhenNoBedLinenMigration.js` |
+| `utils/` | `optionCategoriesMigration.js` | **C** | The two one-shot backfills (rule 27 + §5.3bis), extracted so they are unit-testable — the house pattern of `zeroBedsWhenNoBedLinenMigration.js` |
 | `utils/` | `publicProjections.js` | T | `toPublicOption` exposes `category` |
 | `middleware/`, `scheduledTasks.js` | — | — | (none) |
-| `database.js` | `database.js` | T | `migrateOptionsColumns()` gains `category` + `seedKey`; calls `ensureCateringOptions()` beside the other seeds; runs `option_categories_v1` behind the `migrations` flag |
+| `database.js` | `database.js` | T | `migrateOptionsColumns()` gains `category`, `seedKey`, `alwaysVisible`; calls `ensureCateringOptions()` beside the other seeds; runs `option_categories_v1` and `option_breakfast_restauration_v1` behind the `migrations` flags |
 
 `reservationsModel.js` is **not** touched: the fiche reads its catalogue from `property.options`
 (`optionsModel.listForProperty`, a `SELECT o.*`), so `category` flows through already.
@@ -201,7 +211,7 @@ admin payload, the reservation payload and the public payload.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `OptionsPage.js` | T | `category` in `emptyOption` + « Catégorie » autocomplete (`isDeleteDisabled` unchanged — rule 25) |
+| `pages/` | `OptionsPage.js` | T | `category` + `alwaysVisible` in `emptyOption`; `CategoryField` = autocomplete + « Toujours visible » checkbox (`isDeleteDisabled` unchanged — rule 25) |
 | `pages/` | `ReservationPage.js` | T | Passes the grouped option payload through `ReservationFormContext` |
 | `components/` | `reservation/ExtrasSection.js` | T | Renders ungrouped options, then one `OptionCategorySection` per category |
 | `components/` | `reservation/OptionRow.js` | **C** | The existing per-option `Card` block, extracted verbatim so pinned, folded and ungrouped options share one renderer |
@@ -246,7 +256,7 @@ and the CI syncs the plugin into `wp_app` on `release`
 | GET | `/api/reservations/:id` | — | unchanged | The fiche reads its catalogue from the property payload |
 | GET | `/public/v1/properties/:id/options` | — | `{ data: { ungrouped: [PublicOption], groups: [{ category, options: [PublicOption] }] } }` | **Breaking shape change** — `data` was an array. Sole consumer is the WP widget, updated in the same PR (CLAUDE.md §6.1). |
 
-`PublicOption` gains one field: `category` (string, `''` when ungrouped).
+`PublicOption` gains two fields: `category` (string, `''` when ungrouped) and `alwaysVisible` (bool).
 
 ---
 
@@ -255,15 +265,16 @@ and the CI syncs the plugin into `wp_app` on `release`
 ### 5.1 Schema changes
 
 ```sql
-ALTER TABLE options ADD COLUMN category TEXT NOT NULL DEFAULT '';
-ALTER TABLE options ADD COLUMN seedKey  TEXT NOT NULL DEFAULT '';
+ALTER TABLE options ADD COLUMN category      TEXT    NOT NULL DEFAULT '';
+ALTER TABLE options ADD COLUMN seedKey       TEXT    NOT NULL DEFAULT '';
+ALTER TABLE options ADD COLUMN alwaysVisible INTEGER NOT NULL DEFAULT 0;
 ```
 
 Added idempotently in `migrateOptionsColumns()`
 ([database.js:528-568](../server/src/database.js#L528-L568)), which already applies this exact
 pattern for `autoOptionType`, `countsAsBathMat`, `displayToClient`…
 
-Existing rows default to `''` → ungrouped, non-seeded → today's rendering. **No data loss.**
+Existing rows default to `''` / `0` → ungrouped, non-seeded, unpinned → today's rendering. **No data loss.**
 
 No index: the catalogue is a few dozen rows and is always read in full.
 
@@ -294,6 +305,18 @@ transaction:
   `LOWER(TRIM(title)) = 'le repas des trappeurs'` → expected: id 16.
 
 Logs a one-line summary. The flag is written whatever the counts, so it never runs twice.
+
+### 5.3bis One-shot migration `option_breakfast_restauration_v1`
+
+Files the breakfast option under `Restauration` and sets `alwaysVisible = 1` (rule 9bis), matched on
+`autoOptionType = 'breakfast'` — the canonical discriminator, already normalised by the breakfast
+seed's promotion path, so a hand-renamed « Petits déjeuners » is caught too. Skips a breakfast option
+the operator has already categorised.
+
+A **separate flag** from `option_categories_v1`, which had already run on the dev database by the
+time this rule was added. And a one-shot rather than a line in `breakfastSeed.js`: that seed
+re-asserts on every boot, which would make the category and the pin impossible to change from the
+admin.
 
 ### 5.4 Seeded articles
 
@@ -334,6 +357,8 @@ and planning-card configuration are operator-owned and must not be re-asserted.
 
 - Existing options: two new columns, default `''`. Rendering unchanged for every non-backfilled row.
 - Ids 11-15 → `Animations`, id 16 → `Restauration`. Reversible by hand in the admin.
+- The breakfast option → `Restauration` + pinned. It keeps showing on every fiche exactly as before
+  the categories existed; only its position moves.
 - 14 new rows in `options` + 28 in `property_options`. **No reservation is touched, no price is
   recomputed, no existing total moves.**
 - Rollback: ignore the columns; the seeded articles can be archived from the admin (rule 25).
@@ -362,8 +387,11 @@ and planning-card configuration are operator-owned and must not be re-asserted.
 │   └───────────────────────────────────────────────────┘     │
 │   Voir les 7 autres                                         │
 │   ─────────────────────────────────────────────────────     │
-│   Restauration                                        ⌄     │
-│   Voir les 6 options                                        │
+│   Restauration                                        ⌄     │  ← collapsed, but…
+│   ┌───────────────────────────────────────────────────┐     │
+│   │ Petit déjeuner        8,00 € /pers/jour     ( )   │     │  ← alwaysVisible: pinned, unticked
+│   └───────────────────────────────────────────────────┘     │
+│   Voir les 6 autres                                         │
 │ ───────────────────────────────────────────────────────     │
 │ Options personnalisées                              [+]     │
 │ ───────────────────────────────────────────────────────     │
@@ -412,6 +440,9 @@ page-level action.
   in the catalogue. Helper text: « Regroupe l'option dans un menu dépliant sur la fiche réservation
   et le site (laisser vide pour aucun regroupement). »
 - Placed under the title / English-title block, before the price section.
+- Below it, a « Toujours visible » checkbox — shown **only once a category is set**, since an
+  ungrouped option is never folded. Caption: « L'option reste affichée même quand le menu est replié
+  et qu'elle n'est pas sélectionnée. »
 - The catalogue table gains a sortable « Catégorie » column; empty cell renders « — ».
 - Seeded rows (`seedKey ≠ ''`) keep the normal delete button — it archives, and the archive sticks
   (rule 25). No special affordance.
@@ -427,6 +458,10 @@ Options & suppléments
   ─────────────────────────────────────────────────────────────────
   Animations                                                     ⌄
   Voir les 5 options
+  ─────────────────────────────────────────────────────────────────
+  Restauration                                                    ⌄
+  Petit déjeuner            8,00 € · par pers. et par nuit    − 0 +
+  Voir les 6 autres
   ─────────────────────────────────────────────────────────────────
   Boissons                                                   ② ⌄
   Champagne - bouteille 75cl  40,00 € · par séjour            − 1 +
@@ -447,14 +482,16 @@ Options & suppléments
 
 ## 7. Test plan
 
-### Server unit tests (`cd server && npm test`) — **2288 pass / 0 fail** (44 added)
+### Server unit tests (`cd server && npm test`) — **2299 pass / 0 fail** (55 added)
 - [x] `tests/option-grouping.unit.test.js` — `normalizeCategory` (trim, whitespace-only → `''`, case
       preserved); `groupOptionsByCategory` puts ungrouped first, groups in French collation order
-      (« Animations » < « Boissons » < « Restauration »), options by title inside a group, enabled
-      split out into `enabled` and the rest into `remaining` (rule 9), empty input →
-      `{ ungrouped: [], groups: [] }`.
-- [x] `tests/option-category-crud.unit.test.js` — create/update round-trips `category`; whitespace-only
-      stored as `''`; omitting the key on update does not wipe it.
+      (« Animations » < « Boissons » < « Restauration »), options by title inside a group, selection
+      split out into `pinned` / `foldable` (rule 9), empty input → `{ ungrouped: [], groups: [] }`;
+      an `alwaysVisible` option is pinned with **zero** selection yet does not inflate
+      `enabledCount` (rule 9bis); `isPinnedOption` covers both channels.
+- [x] `tests/option-category-crud.unit.test.js` — create/update round-trips `category` and
+      `alwaysVisible`; whitespace-only category stored as `''`; omitting either key on update does
+      not wipe it.
 - [x] `tests/public-options-grouped.unit.test.js` — the public payload has the `{ ungrouped, groups }`
       shape; `displayToClient = 0` options excluded **before** grouping; an all-hidden category
       produces no group (rule 14); price-ascending order preserved inside a group.
@@ -465,20 +502,24 @@ Options & suppléments
       linked to every property, including one created after the first seed run.
 - [x] `tests/option-categories-migration.unit.test.js` — the backfill assigns `Animations` to the 5
       `Animation…` titles and `Restauration` to « Le repas des trappeurs »; options already carrying
-      a category are skipped; the flag prevents a second run.
+      a category are skipped; the flag prevents a second run. Plus §5.3bis: the breakfast option
+      moves to `Restauration` + pinned, matched on `autoOptionType` (so a renamed one is caught),
+      nothing else is touched, and an already-categorised one is left alone.
 
-### Client tests (`cd client && npx vitest run`) — **767 pass / 0 fail** (25 added)
+### Client tests (`cd client && npx vitest run`) — **772 pass / 0 fail** (30 added)
 - [x] `CollapsibleSection` — collapsed by default, toggles on click, `defaultExpanded` honored, count
       badge hidden at 0, `aria-expanded` correct.
-- [x] `OptionCategorySection` — enabled options render outside the `Collapse` (rule 9); toggle label
-      reads « Voir les 7 autres »; the toggle disappears when every option is enabled; a section with
-      nothing enabled renders no card.
+- [x] `OptionCategorySection` — pinned options render outside the `Collapse` (rules 9 + 9bis); toggle
+      label reads « Voir les 7 autres »; the toggle disappears when every option is pinned; a section
+      with nothing pinned renders no card. An `alwaysVisible` option renders while collapsed without
+      lighting the chip, and ticking it lights the chip without moving the card.
 - [x] `ExtrasSection` — ungrouped options render outside any section; an all-hidden category renders
       nothing; existing option-toggle/quantity tests still pass through `OptionRow`.
-- [x] `OptionsPage` — the category field round-trips into the create/update payload.
+- [x] `OptionsPage` — the category field round-trips into the create/update payload; the
+      « Toujours visible » checkbox appears only once a category is set and round-trips too.
 - [x] Mocked API fixtures updated for the new payload shape.
 
-### E2E — real rendering in the GuestFlow app (`npm run test:e2e`) — **44 pass / 0 fail** (5 added)
+### E2E — real rendering in the GuestFlow app (`npm run test:e2e`) — **45 pass / 0 fail** (6 added)
 
 Unit and Vitest tests do not prove the reservation page *renders* correctly end-to-end (real API,
 real payload shape, real MUI layout). A dedicated Playwright spec is mandatory here because the
@@ -493,7 +534,9 @@ collapse behavior is the whole point of the feature and it depends on the server
     with the section still collapsed, the chip reading « 2 », and the other 7 hidden (rule 9 — the
     single most important behavior to protect from regression);
   - the reservation total reflects the 2 drinks × their quantity;
-  - a category with nothing enabled shows no card at all.
+  - a category with nothing enabled and nothing pinned shows no card at all;
+  - « Petit déjeuner » renders under a **collapsed** « Restauration », switch off, no count chip
+    (rule 9bis).
 - [x] `e2e/specs/reservations/option-categories.spec.js` (mobile project, 390×844) — the header row is
     tappable at ≥44px, the label truncates instead of wrapping, and the page has no horizontal scroll.
 - [x] Full Playwright suite green (mandatory after any client UI change).
@@ -506,6 +549,8 @@ collapse behavior is the whole point of the feature and it depends on the server
       does **not** come back.
 - [x] Edge case: rename a drink → restart → no duplicate appears.
 - [x] Edge case: clear the category on an animation → it moves back into the flat list.
+- [x] « Petit déjeuner » is visible under a collapsed « Restauration » without being ticked, and
+      « Voir les 6 autres » covers the 5 planches + Le repas des trappeurs.
 - [x] Mobile (≤600px): sections expand/collapse with a ≥44px touch target, label truncates, no
       horizontal scroll.
 - [x] Regression: `Options personnalisées`, `Ressources`, the pricing side panel totals, the devis PDF
@@ -525,6 +570,8 @@ collapse behavior is the whole point of the feature and it depends on the server
 - **No categories management screen** (no CRUD, no reorder, no color, no icon). Rule 5 keeps
   categories as labels; a real entity is a later spec if the need appears.
 - **No per-category expand/collapse preference** persisted per user or per property (rule 12).
+- **No ordering control over the pinned block** — pinned options keep the category's title order, so
+  ticking one never makes a card jump position.
 - **No migration of `FinancePage`'s inline accordion onto `CollapsibleSection`** — flagged as the
   obvious second consumer, but it belongs to the Finance sweep.
 - **No stock / inventory tracking** for drinks and boards (no quantity on hand, no consumption
@@ -545,6 +592,10 @@ collapse behavior is the whole point of the feature and it depends on the server
     into the description.**
 - **Q4 — do the drinks apply to every property?**
   - A: **Resolved 2026-08-06 — yes, both accommodations.**
+- **Q6 — should « Petit déjeuner » move into a category?**
+  - A: **Resolved 2026-08-06 — yes, into `Restauration`, but pinned (`alwaysVisible`) so it stays
+    visible on the fiche and on the site even unselected. Implemented as a generic per-option flag
+    rather than a breakfast special case, so any other option can be pinned from the admin.**
 - **Q5 — one-shot or re-asserting seed?**
   - A: **Resolved 2026-08-06 — structural re-asserting seed, same semantics as linen / breakfast
     (rules 22-25), with a `seedKey` identity so operator edits survive.**

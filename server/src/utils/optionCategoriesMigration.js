@@ -41,8 +41,34 @@ function runOptionCategoriesMigration(database) {
   return tx();
 }
 
+/**
+ * One-shot follow-up (specs/option-categories.md §5.3bis): file the breakfast option under
+ * « Restauration » and pin it (`alwaysVisible = 1`) so it keeps showing on every reservation even
+ * though it now lives inside a collapsible category.
+ *
+ * Deliberately a one-shot migration rather than a line in `breakfastSeed.js`: the seed re-asserts
+ * itself on every boot, which would make the category and the pin impossible to change from the
+ * admin. Here the operator owns both afterwards.
+ *
+ * Matched on `autoOptionType = 'breakfast'` — the canonical discriminator, already normalised by
+ * the breakfast seed's promotion path, so a hand-renamed « Petits déjeuners » is caught too.
+ */
+function runBreakfastCategoryMigration(database) {
+  const cols = database.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
+  if (!cols.includes('category') || !cols.includes('alwaysVisible')) return { moved: 0, skipped: 'schema' };
+  if (!cols.includes('autoOptionType')) return { moved: 0, skipped: 'schema' };
+
+  const moved = database.prepare(`
+    UPDATE options SET category = ?, alwaysVisible = 1
+     WHERE autoOptionType = 'breakfast'
+       AND (category IS NULL OR category = '')
+  `).run(CATERING_CATEGORY).changes;
+  return { moved };
+}
+
 module.exports = {
   runOptionCategoriesMigration,
+  runBreakfastCategoryMigration,
   ANIMATIONS_CATEGORY,
   CATERING_CATEGORY,
   MEAL_TITLES,

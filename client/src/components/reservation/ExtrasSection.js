@@ -145,6 +145,10 @@ export default function ExtrasSection() {
     const selected = form.selectedOptions.find((so) => so.optionId === opt.id);
     return Boolean(selected && Number(selected.quantity) > 0) || Boolean(bedLinenForcedOptionIds?.has(opt.id));
   };
+  // Rendered outside the collapse: what's selected, plus the options flagged `alwaysVisible`
+  // (specs/option-categories.md §3 rule 9bis) — that's how « Petit déjeuner » keeps showing on every
+  // fiche now that it lives under « Restauration ». Mirrors `isPinnedOption` server-side.
+  const isOptionPinned = (opt) => Boolean(opt.alwaysVisible) || isOptionEnabled(opt);
 
   return (
     <Card variant="outlined" sx={{ ...formSectionCardSx, ...lockedSectionSx }}>
@@ -168,18 +172,15 @@ export default function ExtrasSection() {
                   from the server. Membership and order do come from the server (`optionGroups`). */}
               {optionGroups.length > 0 && (
                 <Stack spacing={2} sx={{ mt: 2 }}>
-                  {optionGroups.map((group) => {
-                    const enabled = group.options.filter((o) => isOptionEnabled(o));
-                    const remaining = group.options.filter((o) => !isOptionEnabled(o));
-                    return (
-                      <OptionCategorySection
-                        key={group.category}
-                        category={group.category}
-                        enabled={enabled}
-                        remaining={remaining}
-                      />
-                    );
-                  })}
+                  {optionGroups.map((group) => (
+                    <OptionCategorySection
+                      key={group.category}
+                      category={group.category}
+                      pinned={group.options.filter((o) => isOptionPinned(o))}
+                      foldable={group.options.filter((o) => !isOptionPinned(o))}
+                      enabledCount={group.options.filter((o) => isOptionEnabled(o)).length}
+                    />
+                  ))}
                 </Stack>
               )}
             </Box>

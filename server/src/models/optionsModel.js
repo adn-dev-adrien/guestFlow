@@ -93,6 +93,17 @@ function createOptionsModel(database) {
     database.prepare('UPDATE options SET category = ? WHERE id = ?')
       .run(normalizeCategory(payload.category), optionId);
   }
+  // Pin outside the category collapse (specs/option-categories.md §3 rule 9bis). Same guarded
+  // write; `undefined` leaves it as-is so a caller unaware of the field can't silently unpin.
+  const HAS_OPTION_ALWAYS_VISIBLE = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'alwaysVisible'); }
+    catch { return false; }
+  })();
+  function persistAlwaysVisible(optionId, payload) {
+    if (!HAS_OPTION_ALWAYS_VISIBLE || payload.alwaysVisible === undefined) return;
+    database.prepare('UPDATE options SET alwaysVisible = ? WHERE id = ?')
+      .run(payload.alwaysVisible ? 1 : 0, optionId);
+  }
   // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
   // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
   const HAS_OPTION_PLANNING_CARD = (() => {
@@ -341,6 +352,7 @@ function createOptionsModel(database) {
         persistPropertyBathMats(id, payload);
         persistDisplayToClient(id, payload);
         persistCategory(id, payload);
+        persistAlwaysVisible(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -408,6 +420,7 @@ function createOptionsModel(database) {
         persistPropertyBathMats(id, payload);
         persistDisplayToClient(id, payload);
         persistCategory(id, payload);
+        persistAlwaysVisible(id, payload);
       })();
       return { ok: true };
     },

@@ -368,11 +368,19 @@
     // already picked render ABOVE the fold and stay visible when the section is closed — a folded
     // section must never hide a charge.
     function renderGroup(group) {
-      var picked = group.options.filter(function (o) { return (state.opt[o.id] || 0) > 0; });
-      var rest = group.options.filter(function (o) { return !((state.opt[o.id] || 0) > 0); });
+      // Pinned = picked by the visitor, OR flagged `alwaysVisible` in the catalogue (rule 9bis) —
+      // that's how « Petit déjeuner » keeps showing even though it now sits inside a category.
+      function isPinned(o) { return o.alwaysVisible === true || (state.opt[o.id] || 0) > 0; }
+      var picked = group.options.filter(isPinned);
+      var rest = group.options.filter(function (o) { return !isPinned(o); });
       var open = Boolean(openGroups[group.category]);
 
-      var countNode = GF.el('span', { class: 'gf-group-count' }, picked.length ? String(picked.length) : '');
+      // The count is what's actually SELECTED — an always-visible line nobody picked must not
+      // inflate it.
+      function selectedCount() {
+        return group.options.filter(function (o) { return (state.opt[o.id] || 0) > 0; }).length;
+      }
+      var countNode = GF.el('span', { class: 'gf-group-count' }, selectedCount() ? String(selectedCount()) : '');
       var head = GF.el('button', {
         type: 'button',
         class: 'gf-group-head',
@@ -393,7 +401,7 @@
       // Re-rendering the whole category on every ± would steal focus from the stepper, so the
       // count is refreshed in place and the picked/folded split is recomputed on the next render.
       function refreshCount() {
-        var n = group.options.filter(function (o) { return (state.opt[o.id] || 0) > 0; }).length;
+        var n = selectedCount();
         countNode.textContent = n ? String(n) : '';
       }
       picked.forEach(function (o) { pinnedBox.appendChild(optionLine(o, refreshCount)); });

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { normalizeCategory, groupOptionsByCategory, listCategories } = require('../utils/optionGrouping');
+const { normalizeCategory, groupOptionsByCategory, listCategories, isPinnedOption } = require('../utils/optionGrouping');
 
 const opt = (id, title, category = '') => ({ id, title, category });
 
@@ -66,7 +66,7 @@ test('whitespace-only and padded labels normalise into the same group', () => {
 });
 
 test('enabled options are split out of the remainder — the pinned/folded rule', () => {
-  // specs/option-categories.md §3 rule 9: the enabled slice renders outside the collapse, so a
+  // specs/option-categories.md §3 rule 9: the pinned slice renders outside the collapse, so a
   // collapsed section can never hide a charge.
   const { groups } = groupOptionsByCategory([
     opt(1, 'Champagne', 'Boissons'),
@@ -74,8 +74,8 @@ test('enabled options are split out of the remainder — the pinned/folded rule'
     opt(3, 'Mad Max', 'Boissons'),
   ], [3, 1]);
   const boissons = groups[0];
-  assert.deepEqual(boissons.enabled.map((o) => o.title), ['Champagne', 'Mad Max']);
-  assert.deepEqual(boissons.remaining.map((o) => o.title), ['Jus de pomme 1L']);
+  assert.deepEqual(boissons.pinned.map((o) => o.title), ['Champagne', 'Mad Max']);
+  assert.deepEqual(boissons.foldable.map((o) => o.title), ['Jus de pomme 1L']);
   assert.equal(boissons.enabledCount, 2);
   // `options` stays the full ordered list so a caller that doesn't care about the split can use it.
   assert.equal(boissons.options.length, 3);
@@ -84,13 +84,40 @@ test('enabled options are split out of the remainder — the pinned/folded rule'
 test('enabled ids are compared numerically — string ids from a form payload still match', () => {
   const { groups } = groupOptionsByCategory([opt(4, 'Champagne', 'Boissons')], ['4']);
   assert.equal(groups[0].enabledCount, 1);
-  assert.equal(groups[0].remaining.length, 0);
+  assert.equal(groups[0].foldable.length, 0);
 });
 
 test('no enabled ids → everything is foldable', () => {
   const { groups } = groupOptionsByCategory([opt(1, 'Champagne', 'Boissons')]);
   assert.equal(groups[0].enabledCount, 0);
-  assert.equal(groups[0].remaining.length, 1);
+  assert.equal(groups[0].foldable.length, 1);
+});
+
+test('an alwaysVisible option is pinned even when nothing is selected — rule 9bis', () => {
+  // How « Petit déjeuner » keeps showing on every fiche now that it lives under « Restauration ».
+  const pdj = { id: 9, title: 'Petit déjeuner', category: 'Restauration', alwaysVisible: 1 };
+  const { groups } = groupOptionsByCategory([pdj, opt(10, 'Planche S', 'Restauration')]);
+  assert.deepEqual(groups[0].pinned.map((o) => o.title), ['Petit déjeuner']);
+  assert.deepEqual(groups[0].foldable.map((o) => o.title), ['Planche S']);
+  // …but it does NOT count as selected: the header chip must stay at 0.
+  assert.equal(groups[0].enabledCount, 0);
+});
+
+test('an alwaysVisible option that IS selected counts once, in both slices consistently', () => {
+  const pdj = { id: 9, title: 'Petit déjeuner', category: 'Restauration', alwaysVisible: 1 };
+  const { groups } = groupOptionsByCategory([pdj], [9]);
+  assert.equal(groups[0].pinned.length, 1);
+  assert.equal(groups[0].foldable.length, 0);
+  assert.equal(groups[0].enabledCount, 1);
+});
+
+test('isPinnedOption is the single definition of the rule, reused by the fiche and the widget', () => {
+  const enabled = new Set([2]);
+  assert.equal(isPinnedOption({ id: 1, alwaysVisible: 1 }, enabled), true);
+  assert.equal(isPinnedOption({ id: 2 }, enabled), true);
+  assert.equal(isPinnedOption({ id: 3 }, enabled), false);
+  assert.equal(isPinnedOption({ id: 3, alwaysVisible: 0 }, enabled), false);
+  assert.equal(isPinnedOption({ id: 3 }, null), false);
 });
 
 test('empty and nullish inputs are safe', () => {

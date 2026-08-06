@@ -554,6 +554,9 @@ function migrateOptionsColumns() {
     // than on the title is what lets the operator rename an article without the next boot
     // inserting a duplicate beside it.
     ['seedKey',                 'TEXT NOT NULL DEFAULT \'\''],
+    // Pins an option outside its category's collapse (specs/option-categories.md §3 rule 9bis).
+    // Only meaningful inside a category — an ungrouped option is always visible anyway.
+    ['alwaysVisible',           'INTEGER NOT NULL DEFAULT 0'],
   ];
   const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
   const added = [];
@@ -1299,6 +1302,24 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     if (animations > 0 || meals > 0) {
       // eslint-disable-next-line no-console
       console.log(`[migration:option-categories] categorised ${animations} animation(s) + ${meals} meal(s)`);
+    }
+  }
+}
+
+// One-shot follow-up (specs/option-categories.md §5.3bis): the breakfast option joins
+// « Restauration » but stays pinned outside the collapse. Separate flag from
+// `option_categories_v1` because that one has already run on the dev database.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'option_breakfast_restauration_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  const optCols = db.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
+  if (!ran && optCols.includes('alwaysVisible')) {
+    const { runBreakfastCategoryMigration } = require('./utils/optionCategoriesMigration');
+    const { moved } = runBreakfastCategoryMigration(db);
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+    if (moved > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[migration:breakfast-restauration] moved ${moved} breakfast option(s) into Restauration (pinned)`);
     }
   }
 }

@@ -60,3 +60,22 @@ test('the helper text explains what the field does', () => {
   renderField();
   expect(screen.getByText(/menu dépliant/i)).toBeInTheDocument();
 });
+
+test('the « Toujours visible » checkbox only appears once a category is set', async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(<CategoryField form={{ category: '' }} setForm={vi.fn()} items={ITEMS} />);
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  unmount();
+
+  const setForm = vi.fn();
+  render(<CategoryField form={{ category: 'Restauration' }} setForm={setForm} items={ITEMS} />);
+  const box = screen.getByRole('checkbox');
+  expect(box).not.toBeChecked();
+  await user.click(box);
+  expect(setForm).toHaveBeenCalledWith(expect.objectContaining({ alwaysVisible: true }));
+});
+
+test('a pinned option shows the checkbox already ticked', () => {
+  render(<CategoryField form={{ category: 'Restauration', alwaysVisible: true }} setForm={vi.fn()} items={ITEMS} />);
+  expect(screen.getByRole('checkbox')).toBeChecked();
+});

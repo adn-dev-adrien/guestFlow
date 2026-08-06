@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { runOptionCategoriesMigration } = require('../utils/optionCategoriesMigration');
+const { runOptionCategoriesMigration, runBreakfastCategoryMigration } = require('../utils/optionCategoriesMigration');
 
 function freshDb(titles = []) {
   const db = new Database(':memory:');
@@ -93,4 +93,61 @@ test('unmigrated schema: no-op rather than a crash', () => {
   db.exec('CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT);');
   const result = runOptionCategoriesMigration(db);
   assert.equal(result.skipped, 'schema');
+});
+
+// ---- §5.3bis: the breakfast option joins Restauration but stays pinned ----
+
+function breakfastDb(rows) {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      autoOptionType TEXT,
+      category TEXT NOT NULL DEFAULT '',
+      alwaysVisible INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+  const insert = db.prepare('INSERT INTO options (title, autoOptionType, category) VALUES (?, ?, ?)');
+  for (const r of rows) insert.run(r.title, r.autoOptionType || null, r.category || '');
+  return db;
+}
+
+test('the breakfast option moves to Restauration and is pinned', () => {
+  const db = breakfastDb([
+    { title: 'Petit déjeuner', autoOptionType: 'breakfast' },
+    { title: 'Ménage', autoOptionType: 'cleaning' },
+  ]);
+  const { moved } = runBreakfastCategoryMigration(db);
+  assert.equal(moved, 1);
+  const pdj = db.prepare("SELECT * FROM options WHERE autoOptionType = 'breakfast'").get();
+  assert.equal(pdj.category, 'Restauration');
+  assert.equal(Number(pdj.alwaysVisible), 1);
+  // Nothing else is touched.
+  const menage = db.prepare("SELECT * FROM options WHERE autoOptionType = 'cleaning'").get();
+  assert.equal(menage.category, '');
+  assert.equal(Number(menage.alwaysVisible), 0);
+});
+
+test('matching is on autoOptionType, so a hand-renamed breakfast option is caught', () => {
+  const db = breakfastDb([{ title: 'Petits déjeuners maison', autoOptionType: 'breakfast' }]);
+  assert.equal(runBreakfastCategoryMigration(db).moved, 1);
+});
+
+test('a breakfast option already categorised by the operator is left alone', () => {
+  const db = breakfastDb([{ title: 'Petit déjeuner', autoOptionType: 'breakfast', category: 'Boissons' }]);
+  assert.equal(runBreakfastCategoryMigration(db).moved, 0);
+  assert.equal(db.prepare('SELECT category FROM options').get().category, 'Boissons');
+});
+
+test('a second breakfast run touches 0 rows', () => {
+  const db = breakfastDb([{ title: 'Petit déjeuner', autoOptionType: 'breakfast' }]);
+  runBreakfastCategoryMigration(db);
+  assert.equal(runBreakfastCategoryMigration(db).moved, 0);
+});
+
+test('breakfast migration on an unmigrated schema is a no-op', () => {
+  const db = new Database(':memory:');
+  db.exec('CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT);');
+  assert.equal(runBreakfastCategoryMigration(db).skipped, 'schema');
 });

@@ -31,12 +31,29 @@ function byTitle(a, b) {
 }
 
 /**
+ * An option renders OUTSIDE its category's collapse when it is selected on the reservation, or
+ * when it carries `alwaysVisible` (specs/option-categories.md §3 rules 9 + 9bis). The second case
+ * is how the breakfast option keeps showing on every fiche now that it lives under
+ * « Restauration »: a service the operator must be able to offer without hunting for it.
+ *
+ * Exported so the fiche and the widget apply the same rule to their own live selection — neither
+ * can reuse the server's split, since it depends on unsaved UI state.
+ */
+function isPinnedOption(option, enabledIds) {
+  if (Number(option?.alwaysVisible || 0) === 1) return true;
+  return Boolean(enabledIds && enabledIds.has(Number(option?.id)));
+}
+
+/**
  * @param {Array<object>} options   Catalogue options, already filtered for visibility/archival.
  * @param {Iterable<number>} [enabledIds]  Ids currently enabled on the reservation. Omit on
  *                                         surfaces with no selection (public catalogue) — every
  *                                         option then lands in `remaining`.
  * @returns {{ ungrouped: object[], groups: Array<{ category: string, options: object[],
- *             enabled: object[], remaining: object[], enabledCount: number }> }}
+ *             pinned: object[], foldable: object[], enabledCount: number }> }}
+ *   `pinned` renders outside the collapse (selected OR `alwaysVisible`), `foldable` inside it.
+ *   `enabledCount` counts only what is actually selected — it feeds the header chip, so an
+ *   always-visible option the operator hasn't ticked must not inflate it.
  */
 function groupOptionsByCategory(options, enabledIds = []) {
   const enabled = new Set(Array.from(enabledIds, Number));
@@ -59,14 +76,12 @@ function groupOptionsByCategory(options, enabledIds = []) {
     .sort((a, b) => collator.compare(a[0], b[0]))
     .map(([category, list]) => {
       const sorted = list.slice().sort(byTitle);
-      const enabledSlice = sorted.filter((o) => enabled.has(Number(o.id)));
-      const remainingSlice = sorted.filter((o) => !enabled.has(Number(o.id)));
       return {
         category,
         options: sorted,
-        enabled: enabledSlice,
-        remaining: remainingSlice,
-        enabledCount: enabledSlice.length,
+        pinned: sorted.filter((o) => isPinnedOption(o, enabled)),
+        foldable: sorted.filter((o) => !isPinnedOption(o, enabled)),
+        enabledCount: sorted.filter((o) => enabled.has(Number(o.id))).length,
       };
     });
 
@@ -83,4 +98,4 @@ function listCategories(options) {
   return Array.from(seen).sort((a, b) => collator.compare(a, b));
 }
 
-module.exports = { normalizeCategory, groupOptionsByCategory, listCategories };
+module.exports = { normalizeCategory, groupOptionsByCategory, listCategories, isPinnedOption };

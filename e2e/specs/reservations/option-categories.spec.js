@@ -6,8 +6,30 @@
 // rule that matters (an enabled option stays visible while its category is collapsed) is only
 // meaningful across a save + reload. The « Boissons » and « Restauration » catalogues come from the
 // boot seed (server/src/utils/cateringSeed.js), so nothing extra needs seeding here.
-import { test, expect } from '@playwright/test';
+import { test, expect, request as pwRequest } from '@playwright/test';
+import path from 'path';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+
+const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
+
+/**
+ * Attach the breakfast option to a property. The catering seed links its own articles to every
+ * property, but « Petit déjeuner » predates it and carries no link — on a property created by this
+ * spec it would simply be absent, and rule 9bis would have nothing to prove.
+ */
+async function linkBreakfastOption(propertyId) {
+  const ctx = await pwRequest.newContext({ baseURL: 'http://localhost:3000', storageState: STORAGE_STATE });
+  try {
+    const list = await (await ctx.get('/api/options')).json();
+    const ids = list.filter((o) => (o.propertyIds || []).includes(propertyId)).map((o) => o.id);
+    const breakfast = list.find((o) => o.autoOptionType === 'breakfast');
+    if (breakfast && !ids.includes(breakfast.id)) ids.push(breakfast.id);
+    const res = await ctx.put(`/api/properties/${propertyId}/options`, { data: { optionIds: ids } });
+    if (!res.ok()) throw new Error(`linkBreakfastOption failed: ${res.status()} ${await res.text()}`);
+  } finally {
+    await ctx.dispose();
+  }
+}
 
 const BOISSONS = /Catégorie Boissons/;
 const RESTAURATION = /Catégorie Restauration/;
@@ -18,8 +40,9 @@ const extras = (page) => page.locator('.MuiCard-root').filter({ hasText: 'Option
 // `.last()` = the innermost matching card (ancestors come first in document order).
 const optionCard = (page, title) => extras(page).locator('.MuiCard-root').filter({ hasText: title }).last();
 
-async function openFiche(page) {
+async function openFiche(page, { withBreakfast = false } = {}) {
   const property = await createProperty({ name: 'E2E option-categories villa' });
+  if (withBreakfast) await linkBreakfastOption(property.id);
   const client = await createClient({ firstName: 'Test', lastName: 'OptionCategories' });
   const reservation = await createReservation({
     propertyId: property.id,
@@ -113,13 +136,26 @@ test('enabled articles stay pinned and visible after a save + reload, section st
   await expect(extras(page).getByText(/Voir les \d+ autres/)).toBeVisible();
 });
 
-test('a category with nothing enabled shows no article card at all', async ({ page }) => {
+test('a category with nothing enabled and nothing pinned shows no article card at all', async ({ page }) => {
   await openFiche(page);
-  const restauration = page.getByRole('button', { name: RESTAURATION });
-  await expect(restauration).toBeVisible();
-  // No count chip, no card — just the header and the reveal affordance.
+  await expect(page.getByRole('button', { name: RESTAURATION })).toBeVisible();
   await expect(extras(page).getByText('Planche XXL — 10-12 pers. (Apéro Gîte)')).toHaveCount(0);
   await expect(extras(page).getByText(/Voir les \d+ options/).first()).toBeVisible();
+});
+
+test('« Petit déjeuner » stays visible under Restauration without being selected', async ({ page }) => {
+  // specs/option-categories.md §3 rule 9bis: the breakfast option is pinned, so a service offered
+  // on every stay never hides behind a fold.
+  await openFiche(page, { withBreakfast: true });
+
+  const restauration = page.getByRole('button', { name: RESTAURATION });
+  await expect(restauration).toHaveAttribute('aria-expanded', 'false');
+  // Visible although the category is collapsed and nothing is ticked…
+  await expect(extras(page).getByText('Petit déjeuner')).toBeVisible();
+  // …and it does not count as a selection: no chip on the header.
+  await expect(page.getByRole('button', { name: /Catégorie Restauration, \d+ option/ })).toHaveCount(0);
+  // Its own switch is off.
+  await expect(optionCard(page, 'Petit déjeuner').getByRole('switch').first()).not.toBeChecked();
 });
 
 test('mobile: the header is a ≥44px tap target and the page never scrolls sideways', async ({ page }) => {

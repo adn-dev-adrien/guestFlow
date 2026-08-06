@@ -146,3 +146,39 @@ test('an internal-only category yields no section (server filtered it out)', () 
   expect(screen.queryByRole('button', { name: /Catégorie Blanchisserie/ })).not.toBeInTheDocument();
   expect(screen.queryByText('Tapis de bain')).not.toBeInTheDocument();
 });
+
+// ---- rule 9bis: an alwaysVisible option is pinned even when nothing is selected ----
+
+const PDJ = { id: 30, title: 'Petit déjeuner', price: 12, priceType: 'per_person', category: 'Restauration', alwaysVisible: 1 };
+
+const GROUPS_WITH_PDJ = {
+  ungrouped: [MENAGE],
+  groups: [{ category: 'Restauration', options: [PDJ, PLANCHE] }],
+};
+
+test('an alwaysVisible option renders while its category is collapsed', () => {
+  renderExtras({ groups: GROUPS_WITH_PDJ, options: [MENAGE, PDJ, PLANCHE] });
+  expect(screen.getByText('Petit déjeuner')).toBeInTheDocument();
+  // …while its unpinned sibling stays folded.
+  expect(screen.queryByText('Planche S')).not.toBeInTheDocument();
+  expect(screen.getByText('Voir les 1 autre')).toBeInTheDocument();
+});
+
+test('an alwaysVisible option that is NOT selected does not inflate the count chip', () => {
+  renderExtras({ groups: GROUPS_WITH_PDJ, options: [MENAGE, PDJ, PLANCHE] });
+  const restauration = screen.getByRole('button', { name: /Catégorie Restauration/ });
+  expect(within(restauration).queryByText('1')).not.toBeInTheDocument();
+  // The accessible name confirms zero selection.
+  expect(screen.getByRole('button', { name: 'Catégorie Restauration' })).toBeInTheDocument();
+});
+
+test('selecting the alwaysVisible option lights the chip without moving the card', () => {
+  renderExtras({
+    groups: GROUPS_WITH_PDJ,
+    options: [MENAGE, PDJ, PLANCHE],
+    selectedOptions: [{ optionId: 30, quantity: 2, totalPrice: 24 }],
+  });
+  const restauration = screen.getByRole('button', { name: /Catégorie Restauration, 1 option sélectionnée/ });
+  expect(within(restauration).getByText('1')).toBeInTheDocument();
+  expect(screen.getByText('Petit déjeuner')).toBeInTheDocument();
+});

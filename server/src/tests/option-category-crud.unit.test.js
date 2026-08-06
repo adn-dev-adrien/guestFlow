@@ -21,7 +21,8 @@ const DDL = `
     towelSmallPerPerson INTEGER NOT NULL DEFAULT 1,
     archivedAt TEXT,
     category TEXT NOT NULL DEFAULT '',
-    seedKey TEXT NOT NULL DEFAULT ''
+    seedKey TEXT NOT NULL DEFAULT '',
+    alwaysVisible INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
   CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (propertyId, optionId));
@@ -94,4 +95,24 @@ test('listForProperty exposes the category for the public/fiche payloads', () =>
   const rows = model.listForProperty(1);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].category, 'Boissons');
+});
+
+test('alwaysVisible round-trips and defaults to off', () => {
+  const { model } = freshModel();
+  const plain = model.create({ title: 'Champagne', priceType: 'per_stay', price: 40, category: 'Boissons' });
+  assert.equal(Number(model.get(plain.id).alwaysVisible), 0);
+
+  const pinned = model.create({ title: 'Petit déjeuner', priceType: 'per_person', price: 12, category: 'Restauration', alwaysVisible: true });
+  assert.equal(Number(model.get(pinned.id).alwaysVisible), 1);
+
+  model.update(pinned.id, { title: 'Petit déjeuner', priceType: 'per_person', price: 12, alwaysVisible: false });
+  assert.equal(Number(model.get(pinned.id).alwaysVisible), 0);
+});
+
+test('an update that omits alwaysVisible PRESERVES it', () => {
+  // Same guard as `category`: a caller unaware of the field must not silently unpin an option.
+  const { model } = freshModel();
+  const { id } = model.create({ title: 'Petit déjeuner', priceType: 'per_person', price: 12, category: 'Restauration', alwaysVisible: true });
+  model.update(id, { title: 'Petit déjeuner', priceType: 'per_person', price: 14 });
+  assert.equal(Number(model.get(id).alwaysVisible), 1);
 });
