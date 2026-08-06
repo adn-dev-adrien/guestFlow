@@ -51,7 +51,7 @@
 
     Promise.all([
       GF.api('GET', '/properties/' + propertyId),
-      showOptions ? GF.api('GET', '/properties/' + propertyId + '/options') : Promise.resolve({ status: 200, body: { data: [] } }),
+      showOptions ? GF.api('GET', '/properties/' + propertyId + '/options') : Promise.resolve({ status: 200, body: { data: { ungrouped: [], groups: [] } } }),
       showOptions ? GF.api('GET', '/properties/' + propertyId + '/resources') : Promise.resolve({ status: 200, body: { data: [] } }),
     ]).then(function (r) {
       if (r[0].status < 200 || r[0].status >= 300 || !r[0].body || !r[0].body.data) {
@@ -59,7 +59,7 @@
         container.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(r[0])));
         return;
       }
-      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || [], (r[2].body && r[2].body.data) || [], payOnline);
+      build(container, propertyId, r[0].body.data, (r[1].body && r[1].body.data) || {}, (r[2].body && r[2].body.data) || [], payOnline);
     });
   }
 
@@ -143,7 +143,18 @@
     // fields, not a quantity). Paid add-ons (bed/bathroom linen, breakfast, …) stay selectable.
     // See specs/wordpress-plugin.md.
     var HIDDEN_AUTO = { early_check_in: 1, late_check_out: 1 };
-    var pickable = (options || []).filter(function (o) { return !HIDDEN_AUTO[o.autoOptionType]; });
+    function selectable(list) {
+      return (list || []).filter(function (o) { return !HIDDEN_AUTO[o.autoOptionType]; });
+    }
+    // The options payload is grouped server-side (specs/option-categories.md §4.4):
+    // `{ ungrouped, groups: [{ category, options }] }`. Tolerate a bare array so a stale proxy
+    // cache from before the change still renders (everything then lands in the flat list).
+    var pickable = selectable(Array.isArray(options) ? options : (options && options.ungrouped));
+    var optionGroups = (!Array.isArray(options) && options && options.groups ? options.groups : [])
+      .map(function (g) { return { category: g.category, options: selectable(g.options) }; })
+      .filter(function (g) { return g.options.length > 0; });
+    // Which categories the visitor has unfolded. Collapsed by default (rule 15).
+    var openGroups = {};
 
     function persons() { return (state.adults || 0) + (state.teens || 0) + (state.children || 0); }
 
@@ -311,8 +322,9 @@
 
     // ---- Options & suppléments — ONE uniform list (spec §3.7-14) ----
     var supplementsList = GF.el('div', { class: 'gf-lines' });
-    var supplementsBox = (pickable.length || supplements.length)
-      ? GF.el('div', { class: 'gf-section' }, GF.el('div', { class: 'gf-section-title' }, GF.t('supplements')), supplementsList)
+    var groupsHolder = GF.el('div', {});
+    var supplementsBox = (pickable.length || supplements.length || optionGroups.length)
+      ? GF.el('div', { class: 'gf-section' }, GF.el('div', { class: 'gf-section-title' }, GF.t('supplements')), supplementsList, groupsHolder)
       : null;
 
     function priceText(item) {
@@ -320,32 +332,97 @@
       return GF.euro(item.price) + (item.priceUnitLabel ? ' · ' + item.priceUnitLabel : '');
     }
 
+    // One selectable option row. `onChange` lets a category refresh its picked count without
+    // re-rendering the whole list (which would steal focus mid-click).
+    function optionLine(o, onChange) {
+      if (!(o.id in state.opt)) state.opt[o.id] = 0;
+      var progressive = o.priceType === 'per_participant_progressive';
+      if (progressive && state.opt[o.id] > Math.max(1, persons())) state.opt[o.id] = Math.max(1, persons());
+      var titleGroup = [o.title || ''];
+      var extras = [];
+      if (o.description) {
+        var descBox = GF.el('div', { class: 'gf-line-desc', style: 'display:none' }, o.description);
+        extras.push(descBox);
+        titleGroup.push(GF.el('button', {
+          type: 'button', class: 'gf-info-btn', title: o.description, 'aria-label': GF.t('moreInfo'),
+          onClick: (function (box) { return function () { box.style.display = box.style.display === 'none' ? 'block' : 'none'; }; })(descBox),
+        }, 'ⓘ'));
+      }
+      // No « à planifier » note on options — it belongs to host-scheduled resources only (spec §3.9).
+      var max = progressive ? function () { return Math.max(1, persons()); } : null;
+      return line(
+        GF.el('span', {}, titleGroup),
+        o.quantityLabel || null,
+        priceText(o),
+        stepper(
+          function () { return state.opt[o.id]; },
+          function (v) { state.opt[o.id] = v; if (onChange) onChange(); },
+          0,
+          max
+        ),
+        extras
+      );
+    }
+
+    // A collapsible category (specs/option-categories.md §3 rules 15-16). Options the visitor has
+    // already picked render ABOVE the fold and stay visible when the section is closed — a folded
+    // section must never hide a charge.
+    function renderGroup(group) {
+      var picked = group.options.filter(function (o) { return (state.opt[o.id] || 0) > 0; });
+      var rest = group.options.filter(function (o) { return !((state.opt[o.id] || 0) > 0); });
+      var open = Boolean(openGroups[group.category]);
+
+      var countNode = GF.el('span', { class: 'gf-group-count' }, picked.length ? String(picked.length) : '');
+      var head = GF.el('button', {
+        type: 'button',
+        class: 'gf-group-head',
+        'aria-expanded': open ? 'true' : 'false',
+        'aria-label': GF.t('categoryAria', group.category),
+      },
+        GF.el('span', { class: 'gf-group-title' }, group.category),
+        countNode,
+        GF.el('span', { class: 'gf-group-chevron' })
+      );
+
+      var pinnedBox = GF.el('div', { class: 'gf-lines' });
+      var body = GF.el('div', { class: 'gf-group-body' + (open ? ' is-open' : '') },
+        GF.el('div', { class: 'gf-lines' })
+      );
+      var toggle = GF.el('button', { type: 'button', class: 'gf-group-toggle' }, '');
+
+      // Re-rendering the whole category on every ± would steal focus from the stepper, so the
+      // count is refreshed in place and the picked/folded split is recomputed on the next render.
+      function refreshCount() {
+        var n = group.options.filter(function (o) { return (state.opt[o.id] || 0) > 0; }).length;
+        countNode.textContent = n ? String(n) : '';
+      }
+      picked.forEach(function (o) { pinnedBox.appendChild(optionLine(o, refreshCount)); });
+      rest.forEach(function (o) { body.firstChild.appendChild(optionLine(o, refreshCount)); });
+
+      function syncToggle() {
+        if (rest.length === 0) { toggle.style.display = 'none'; return; }
+        toggle.style.display = '';
+        toggle.textContent = openGroups[group.category]
+          ? GF.t('collapse')
+          : (picked.length ? GF.t('showOthers', rest.length) : GF.t('showCategory', rest.length));
+      }
+      function flip() {
+        openGroups[group.category] = !openGroups[group.category];
+        var nowOpen = Boolean(openGroups[group.category]);
+        head.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+        body.className = 'gf-group-body' + (nowOpen ? ' is-open' : '');
+        syncToggle();
+      }
+      head.addEventListener('click', flip);
+      toggle.addEventListener('click', flip);
+      syncToggle();
+
+      return GF.el('div', { class: 'gf-group' }, head, pinnedBox, body, toggle);
+    }
+
     function renderSupplements() {
       supplementsList.innerHTML = '';
-      pickable.forEach(function (o) {
-        if (!(o.id in state.opt)) state.opt[o.id] = 0;
-        var progressive = o.priceType === 'per_participant_progressive';
-        if (progressive && state.opt[o.id] > Math.max(1, persons())) state.opt[o.id] = Math.max(1, persons());
-        var titleGroup = [o.title || ''];
-        var extras = [];
-        if (o.description) {
-          var descBox = GF.el('div', { class: 'gf-line-desc', style: 'display:none' }, o.description);
-          extras.push(descBox);
-          titleGroup.push(GF.el('button', {
-            type: 'button', class: 'gf-info-btn', title: o.description, 'aria-label': GF.t('moreInfo'),
-            onClick: (function (box) { return function () { box.style.display = box.style.display === 'none' ? 'block' : 'none'; }; })(descBox),
-          }, 'ⓘ'));
-        }
-        // No « à planifier » note on options — it belongs to host-scheduled resources only (spec §3.9).
-        var max = progressive ? function () { return Math.max(1, persons()); } : null;
-        supplementsList.appendChild(line(
-          GF.el('span', {}, titleGroup),
-          o.quantityLabel || null,
-          priceText(o),
-          stepper(function () { return state.opt[o.id]; }, function (v) { state.opt[o.id] = v; }, 0, max),
-          extras
-        ));
-      });
+      pickable.forEach(function (o) { supplementsList.appendChild(optionLine(o)); });
       supplements.forEach(function (r) {
         if (!(r.id in state.res)) state.res[r.id] = 0;
         var extras = [];
@@ -358,6 +435,8 @@
           extras
         ));
       });
+      groupsHolder.innerHTML = '';
+      optionGroups.forEach(function (g) { groupsHolder.appendChild(renderGroup(g)); });
     }
 
     var summary = GF.el('div', { class: 'gf-summary' });

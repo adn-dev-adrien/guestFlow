@@ -17,6 +17,7 @@ const {
 } = require('../../utils/publicProjections');
 const { ok, fail } = require('./publicHttp');
 const { isClientVisibleOption } = require('../../utils/optionVisibility');
+const { groupOptionsByCategory } = require('../../utils/optionGrouping');
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -87,11 +88,20 @@ function listOptions(req, res) {
   const propertyId = Number(req.params.id);
   if (!propertyExists(propertyId)) return fail(res, 404, 'PROPERTY_NOT_FOUND', 'Logement introuvable.');
   const excluded = offeredDefaultOptionIds(propertyId);
-  return ok(res, optionsModel.listForProperty(propertyId)
+  const visible = optionsModel.listForProperty(propertyId)
     .filter((opt) => !excluded.has(Number(opt.id)))
     // Internal-only options (specs/laundry-bath-mat.md §3 rule 11) never reach the public catalog.
+    // Filtered BEFORE grouping so a category whose options are all internal yields no group at all
+    // (specs/option-categories.md §3 rule 14).
     .filter(isClientVisibleOption)
-    .map(toPublicOption).sort(byPriceAsc));
+    .map(toPublicOption);
+  // Grouped, render-ready payload (specs/option-categories.md §4.4). Cheapest-first ordering is
+  // preserved inside each bucket — the widget renders what it receives, in order.
+  const { ungrouped, groups } = groupOptionsByCategory(visible);
+  return ok(res, {
+    ungrouped: ungrouped.slice().sort(byPriceAsc),
+    groups: groups.map((g) => ({ category: g.category, options: g.options.slice().sort(byPriceAsc) })),
+  });
 }
 
 function listResources(req, res) {

@@ -544,6 +544,16 @@ function migrateOptionsColumns() {
     // Breakfast push notice (specs/sas-breakfast-bread-and-push.md rule 7): the push fires
     // `breakfastNotifyLeadMinutes` before the serving time. Configurable on the breakfast option.
     ['breakfastNotifyLeadMinutes', 'INTEGER NOT NULL DEFAULT 30'],
+    // Free-text grouping label (specs/option-categories.md §5.1). '' = ungrouped = the historical
+    // flat rendering; a non-empty label folds the option into a collapsible section on the fiche
+    // and on the public widget.
+    ['category',                'TEXT NOT NULL DEFAULT \'\''],
+    // Stable identity of a seeded catalogue article (specs/option-categories.md §3 rule 23).
+    // `autoOptionType` can't serve here: it's a single-valued behaviour discriminator, while the
+    // catering seed owns 14 distinct rows with no engine behaviour. Keying on `seedKey` rather
+    // than on the title is what lets the operator rename an article without the next boot
+    // inserting a duplicate beside it.
+    ['seedKey',                 'TEXT NOT NULL DEFAULT \'\''],
   ];
   const existing = new Set(db.prepare('PRAGMA table_info(options)').all().map((c) => c.name));
   const added = [];
@@ -1266,6 +1276,32 @@ db.ensureDefaultBreakfastOption = ensureDefaultBreakfastOption;
 const { ensureCleaningOptionTagged } = require('./utils/cleaningOptionSeed');
 ensureCleaningOptionTagged(db);
 db.ensureCleaningOptionTagged = ensureCleaningOptionTagged;
+
+// specs/option-categories.md §5.2 — the « Boissons » + « Restauration » catalogue. Same structural
+// contract as the linen/breakfast seeds above, keyed by `options.seedKey` because the family is 14
+// rows rather than a singleton.
+const { ensureCateringOptions } = require('./utils/cateringSeed');
+ensureCateringOptions(db);
+db.ensureCateringOptions = ensureCateringOptions;
+
+// One-shot migration (specs/option-categories.md §5.3): file the options that pre-date the category
+// column into their group. The 5 « Animation… » rows and « Le repas des trappeurs » were created by
+// hand, so they carry no seedKey and the catering seed above will never touch them — this backfill
+// is the only thing that categorises them. Untouched afterwards: the operator owns the label.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'option_categories_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  const optCols = db.prepare('PRAGMA table_info(options)').all().map((c) => c.name);
+  if (!ran && optCols.includes('category')) {
+    const { runOptionCategoriesMigration } = require('./utils/optionCategoriesMigration');
+    const { animations, meals } = runOptionCategoriesMigration(db);
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+    if (animations > 0 || meals > 0) {
+      // eslint-disable-next-line no-console
+      console.log(`[migration:option-categories] categorised ${animations} animation(s) + ${meals} meal(s)`);
+    }
+  }
+}
 
 // ---------- EMAIL AUTOMATION — specs/email-automation.md ----------
 // Two tables: `email_templates` (CRUD-able library) + `email_log` (every send attempt,

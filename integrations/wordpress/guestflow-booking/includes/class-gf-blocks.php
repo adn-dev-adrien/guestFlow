@@ -144,6 +144,11 @@ final class GF_Blocks
                 'checkInTime'     => __('Heure d’arrivée', 'guestflow-booking'),
                 'checkOutTime'    => __('Heure de départ', 'guestflow-booking'),
                 'participantsMax' => __('Nombre de participants', 'guestflow-booking'),
+                // Collapsible option categories (specs/option-categories.md §6.3)
+                'showCategory'    => __('Voir les %d options', 'guestflow-booking'),
+                'showOthers'      => __('Voir les %d autres', 'guestflow-booking'),
+                'collapse'        => __('Réduire', 'guestflow-booking'),
+                'categoryAria'    => __('Catégorie %s', 'guestflow-booking'),
             ],
         ];
     }

@@ -160,6 +160,10 @@ export default function ReservationPage() {
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
+  // Server-computed option grouping for the fiche (specs/option-categories.md §4.2) — `{ ungrouped,
+  // groups }`, already visibility-filtered and ordered. null until a property is loaded, and on
+  // payloads that predate the feature: ExtrasSection then falls back to the flat list.
+  const [propertyOptionGroups, setPropertyOptionGroups] = useState(null);
   const [availableResources, setAvailableResources] = useState([]);
   const [nightlyBreakdown, setNightlyBreakdown] = useState([]);
   const [pricingQuote, setPricingQuote] = useState(null);
@@ -596,6 +600,7 @@ export default function ReservationPage() {
             setSelectedProp(prefillPropertyId);
             setSelectedProperty(propDetails || props.find((p) => p.id === prefillPropertyId) || null);
             setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
+            setPropertyOptionGroups(propDetails?.optionGroups || null);
             if (Array.isArray(propDetails?.resources)) {
               setAvailableResources(propDetails.resources.map((r) => ({
                 ...r,
@@ -628,6 +633,7 @@ export default function ReservationPage() {
           if (prop) {
             setSelectedProperty(prop);
             setPropertyOptions([]);
+            setPropertyOptionGroups(null);
           }
         }
 
@@ -654,6 +660,7 @@ export default function ReservationPage() {
           const opts = await api.getOptions();
           const availableOpts = opts.filter(o => (o.propertyIds || []).includes(res.propertyId));
           setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
+          setPropertyOptionGroups(propDetails?.optionGroups || null);
           if (Array.isArray(propDetails?.resources)) {
             setAvailableResources(propDetails.resources.map((r) => ({
               ...r,
@@ -827,6 +834,7 @@ export default function ReservationPage() {
           const opts = await api.getOptions();
           const availableOpts = opts.filter(o => (o.propertyIds || []).includes(devis.propertyId));
           setPropertyOptions(Array.isArray(propDetails?.options) ? propDetails.options : availableOpts);
+          setPropertyOptionGroups(propDetails?.optionGroups || null);
           if (Array.isArray(propDetails?.resources)) {
             setAvailableResources(propDetails.resources.map((r) => ({
               ...r,
@@ -923,6 +931,7 @@ export default function ReservationPage() {
           const propIdNum = parseInt(initialPropId, 10);
           const availableOpts = opts.filter(o => (o.propertyIds || []).includes(propIdNum));
           setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
+          setPropertyOptionGroups(prop?.optionGroups || null);
           if (Array.isArray(prop?.resources)) {
             setAvailableResources(prop.resources.map((r) => ({
               ...r,
@@ -1681,6 +1690,7 @@ export default function ReservationPage() {
     setSelectedProperty(prop);
     setReservations(allRes || []);
     setPropertyOptions(Array.isArray(prop?.options) ? prop.options : availableOpts);
+    setPropertyOptionGroups(prop?.optionGroups || null);
     if (Array.isArray(prop?.resources)) {
       setAvailableResources(prop.resources.map((r) => ({
         ...r,
@@ -2605,7 +2615,7 @@ export default function ReservationPage() {
     // core
     form, updateForm,
     // catalogs
-    properties, propertyOptions, displayableResources,
+    properties, propertyOptions, propertyOptionGroups, displayableResources,
     // stay
     selectedProp, handleReservationPropertyChange,
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
