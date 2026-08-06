@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
+import DialogProvider from '../../DialogProvider';
 import FinanceSection from '../FinanceSection';
 import { makeMockContext } from '../mockReservationForm';
 
@@ -16,9 +17,11 @@ vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn
 function renderFinance(overrides) {
   const ctx = makeMockContext(overrides);
   render(
-    <ReservationFormProvider value={ctx}>
-      <FinanceSection />
-    </ReservationFormProvider>
+    <DialogProvider>
+        <ReservationFormProvider value={ctx}>
+          <FinanceSection />
+        </ReservationFormProvider>
+      </DialogProvider>
   );
   return ctx;
 }
@@ -78,9 +81,11 @@ test("case-insensitive Direct enum: 'Direct' / 'DIRECT' keep the regular Acompte
   // casing variant of 'direct' should NOT trigger the platform caption.
   for (const directVariant of ['direct', 'Direct', 'DIRECT']) {
     const { unmount } = render(
-      <ReservationFormProvider value={makeMockContext({ form: { platform: directVariant } })}>
-        <FinanceSection />
-      </ReservationFormProvider>
+      <DialogProvider>
+        <ReservationFormProvider value={makeMockContext({ form: { platform: directVariant } })}>
+          <FinanceSection />
+        </ReservationFormProvider>
+      </DialogProvider>
     );
     expect(screen.queryByText(/Pas d'acompte/i)).not.toBeInTheDocument();
     unmount();

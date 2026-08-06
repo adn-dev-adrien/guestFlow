@@ -770,6 +770,8 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
             endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
             endOfStayComplementDetail: res.endOfStayComplementDetail || null,
+            // specs/mid-stay-notes.md §3.1 — history of what was collected DURING the stay.
+            midStaySettledNotes: res.midStaySettledNotes || null,
             // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
             // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
             complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
@@ -904,6 +906,7 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: '',
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
+            midStaySettledNotes: null,
             complementDeferredToCheckout: false,
             checkoutComplement: null,
             platformCommissionAmount: '',
@@ -1008,6 +1011,7 @@ export default function ReservationPage() {
             endOfStayComplementPaidDate: '',
             endOfStayComplementPaidCash: false,
             endOfStayComplementDetail: null,
+            midStaySettledNotes: null,
             complementDeferredToCheckout: false,
             checkoutComplement: null,
             platformCommissionAmount: '',
@@ -2233,6 +2237,29 @@ export default function ReservationPage() {
     }
   };
 
+  // specs/mid-stay-notes.md §4.2 — a note validated with a catalogue addition must go through the
+  // STANDARD save (pricing engine, planning cards, laundry counts…) before it can be settled: the
+  // note never bypasses the normal pipeline. `handleSaveReservation(action)` runs the action instead
+  // of navigating away, so the operator stays on the fiche.
+  const saveThenRun = useCallback((action) => handleSaveReservation(action), [handleSaveReservation]);
+
+  // Re-read the money the server owns after a note was settled / cancelled. Only the finance fields
+  // are patched: the rest of the form is the operator's (possibly dirty) draft and must not move.
+  const reloadReservationFinance = useCallback(async () => {
+    if (!editingReservationId) return;
+    const res = await api.getReservation(editingReservationId);
+    setForm((prev) => ({
+      ...prev,
+      endOfStayComplementAmount: Number(res.endOfStayComplementAmount || 0),
+      endOfStayComplementPaid: Boolean(res.endOfStayComplementPaid),
+      endOfStayComplementPaidDate: res.endOfStayComplementPaidDate || '',
+      endOfStayComplementPaidCash: Boolean(res.endOfStayComplementPaidCash),
+      endOfStayComplementDetail: res.endOfStayComplementDetail || null,
+      midStaySettledNotes: res.midStaySettledNotes || null,
+      checkoutComplement: res.checkoutComplement || null,
+    }));
+  }, [editingReservationId]);
+
   const buildBackUrlWithReservationFocus = useCallback(() => {
     if (!from) return from;
     if (!from.startsWith('/calendar')) return from;
@@ -2648,6 +2675,9 @@ export default function ReservationPage() {
     // finance
     isDevisMode, reservationId, refreshToCurrentPricing,
     accommodationBasePriceDisplay, pricingQuote,
+    // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
+    // through the page (it owns the pipeline); the block itself holds no reservation logic.
+    saveThenRun, reloadReservationFinance,
   };
 
   return (

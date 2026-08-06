@@ -1,16 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
 import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
+import MidStayNoteDialog from './MidStayNoteDialog';
+import { useAppDialogs } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, displayDate } from '../../utils/formatters';
 
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// « 06/08 » — the note history is dense, the year adds nothing (a stay never spans one).
+function displayNoteDate(iso) {
+  const full = displayDate(iso);
+  return full ? full.slice(0, 5) : '';
 }
 
 // The end-of-stay complement breakdown is stored as a JSON array string ([{ label, amount }]) by the
@@ -115,7 +123,12 @@ export default function FinanceSection() {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
     form, updateForm, pricingQuote, accommodationBasePriceDisplay,
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
+    // specs/mid-stay-notes.md — the page owns the save pipeline + the reload; the block only calls them.
+    saveThenRun, reloadReservationFinance,
   } = useReservationForm();
+  const { confirm } = useAppDialogs();
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » chosen on the check-in
   // recap: there is only ONE collection left, at the door. The server ships the merged block
@@ -132,6 +145,29 @@ export default function FinanceSection() {
   // The flag is echoed by the engine in the live quote (true only for non-direct platforms).
   const platformTakesDeposit = Boolean(pricingQuote?.platformTakesDeposit);
   const showNoDepositMessage = isPlatform && !platformTakesDeposit;
+
+  // specs/mid-stay-notes.md §3.5 — « Encaissements en séjour ». The block appears as soon as the stay
+  // has started (there is something to sell) or a note already exists (history must stay reachable).
+  const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
+  const midStayNotesTotal = midStayNotes.reduce((s, n) => s + (Number(n.total) || 0), 0);
+  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
+  const stayStarted = Boolean(form.startDate) && form.startDate <= todayStr();
+  const showMidStayNotes = Boolean(editingReservationId) && !isDevisMode
+    && (stayStarted || midStayNotes.length > 0);
+  // Mid-stay lines still to collect: what a new note can settle (the SAS-billed lines of the
+  // end-of-stay complement are collected at the door, never on a note).
+  const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
+    .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
+
+  const onCancelNote = async (note) => {
+    const ok = await confirm({
+      title: 'Annuler cet encaissement ?',
+      message: 'Les prestations redeviennent à percevoir en fin de séjour.',
+    });
+    if (!ok) return;
+    await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    await reloadReservationFinance();
+  };
 
   return (
     <Card variant="outlined" sx={formSectionCardSx}>
@@ -645,6 +681,90 @@ export default function FinanceSection() {
                     : { complementPaidCash: false });
                 }}
               />
+            )}
+
+            {/* Encaissements en séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
+                settled notes + the « Nouvelle note » entry point + a browsable history. Placed
+                between the two complements, in collection order. */}
+            {showMidStayNotes && (
+              <>
+                <Divider />
+                <Box>
+                  <Grid container spacing={2} sx={sectionGridSx}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
+                        Encaissements en séjour
+                        {midStayNotesTotal > 0 && (
+                          <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
+                            ({formatCurrency(midStayNotesTotal)})
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Tooltip title={endOfStaySettled ? 'Complément de fin de séjour déjà encaissé — décochez-le pour créer une note.' : ''}>
+                        <span>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            disabled={endOfStaySettled || !editingReservationId}
+                            onClick={() => setNoteDialogOpen(true)}
+                            sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                          >
+                            + Nouvelle note
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      {midStayNotes.length > 0 && (
+                        <>
+                          <Button
+                            size="small"
+                            onClick={() => setHistoryOpen((v) => !v)}
+                            sx={{ textTransform: 'none', mt: 1 }}
+                          >
+                            {historyOpen ? 'Masquer l\'historique' : `Voir l'historique (${midStayNotes.length} note${midStayNotes.length > 1 ? 's' : ''})`}
+                          </Button>
+                          {historyOpen && midStayNotes.map((note) => (
+                            <Box key={note.id} sx={{ mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  {displayNoteDate(note.paidDate)} — {formatCurrency(note.total)} — {note.paidCash ? 'Caisse interne' : 'CB'}
+                                </Typography>
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  disabled={endOfStaySettled}
+                                  onClick={() => onCancelNote(note)}
+                                  sx={{ textTransform: 'none', minWidth: 0 }}
+                                >
+                                  ✕
+                                </Button>
+                              </Box>
+                              {(note.lines || []).map((line, i) => (
+                                <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
+                                  {line.label} : {formatCurrency(line.amount || 0)}
+                                </Typography>
+                              ))}
+                            </Box>
+                          ))}
+                        </>
+                      )}
+                    </Grid>
+                  </Grid>
+                </Box>
+                <MidStayNoteDialog
+                  open={noteDialogOpen}
+                  onClose={() => setNoteDialogOpen(false)}
+                  pendingLines={pendingMidStayLines}
+                  // A catalogue addition is a normal sale: it rides the STANDARD save pipeline, then
+                  // the note is settled against the freshly stored remainder.
+                  onSettle={(items, cash) => saveThenRun(async () => {
+                    await api.markPayment(editingReservationId, {
+                      settleMidStayNote: { items: items.map(({ key, amount }) => ({ key, amount })), cash },
+                    });
+                    await reloadReservationFinance();
+                  })}
+                  onSellOnly={() => saveThenRun(reloadReservationFinance)}
+                />
+              </>
             )}
 
             {!complementDeferred && Number(form.endOfStayComplementAmount || 0) > 0 && (

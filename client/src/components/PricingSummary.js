@@ -659,7 +659,11 @@ export default function PricingSummary({
             // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — the end-of-stay
             // complement is collected on site like the arrival one: same treatment in the cascade.
             const endOfStay = Number(quote?.endOfStayComplementTotal ?? form.endOfStayComplementAmount ?? 0);
-            const endOfStaySas = Math.max(0, endOfStay - Number(quote?.midStayExtrasTotal || 0));
+            // specs/mid-stay-notes.md §3.5 rule 19 — prestations already collected through a note.
+            const midStayNotes = Number(quote?.midStaySettledTotal || 0);
+            // The SAS half of the end-of-stay complement (ménage/linge/extincteur) lives OUTSIDE
+            // finalPrice; the mid-stay half (sold + collected or still due) is already inside it.
+            const endOfStaySas = Math.max(0, endOfStay - Number(quote?.midStayRemainingTotal ?? quote?.midStayExtrasTotal ?? 0));
             const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour)
               + touristTaxOriginalTotal + endOfStaySas;
             // Deductions to the commission base: the tax the platform collects + remits to the commune
@@ -667,7 +671,7 @@ export default function PricingSummary({
             // pre-arrival amount the platform commissions on.
             const offeredTax = isTouristTaxOffered ? touristTaxOriginalTotal : 0;
             const complement = Number(quote?.complementAmount || 0);
-            const onSiteTotal = complement + endOfStay;
+            const onSiteTotal = complement + endOfStay + midStayNotes;
             const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - onSiteTotal));
             const versement = netReceived != null ? Number(netReceived) : montantSoumis;
             const totalPercu = Number(quote?.sejourNetTotal ?? (versement + onSiteTotal));
@@ -692,6 +696,7 @@ export default function PricingSummary({
                     {hasCommission && soldeComm > 0 && row('Commission solde', soldeComm, { sign: '− ', color: 'warning.main' })}
                     {(hasCommission || onSiteTotal > 0) && row('Versement plateforme', versement, { strong: true })}
                     {complement > 0 && row("Complément d'arrivée (perçu sur place)", complement, { sign: '+ ', color: 'success.main' })}
+                    {midStayNotes > 0 && row('Encaissements en séjour', midStayNotes, { sign: '+ ', color: 'success.main' })}
                     {endOfStay > 0 && row('Complément de fin de séjour', endOfStay, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
                     {form.complementPaid && complement > 0 && (
@@ -724,6 +729,12 @@ export default function PricingSummary({
                           dont complément de fin de séjour
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(endOfStay)}</Typography>
+                      </Box>
+                    )}
+                    {midStayNotes > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">dont encaissements en séjour</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(midStayNotes)}</Typography>
                       </Box>
                     )}
                   </>

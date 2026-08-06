@@ -21,6 +21,7 @@ const DDL = `
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
     endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
+    midStaySettledNotes TEXT,
     platformCommissionAmount REAL, acompteCommissionAmount REAL
   );
 `;

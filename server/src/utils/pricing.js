@@ -1034,6 +1034,10 @@ function calculateReservationQuote({
   // still carved out of the other buckets but never re-priced (§3.5).
   endOfStayComplementSettled,
   frozenMidStayLines,
+  // specs/mid-stay-notes.md §3.3 — the « notes en séjour » register: prestations already COLLECTED
+  // during the stay. Deducted from the end-of-stay remainder, but still carved out of the frozen
+  // pre-arrival buckets — money in the till never flows back into the acompte/solde/complément.
+  midStaySettledNotes,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1515,10 +1519,15 @@ function calculateReservationQuote({
     baseline: arrivalExtrasBaseline,
     settled: endOfStayComplementSettled,
     storedLines: frozenMidStayLines,
+    notes: midStaySettledNotes,
   });
+  // `midStayTotal` = everything sold during the stay → what leaves the frozen buckets. It splits in
+  // two: what the notes already collected, and the remainder still due at check-out.
   const midStayTotal = roundMoney(midStayExtras.total);
   const midStayForced = roundMoney(midStayExtras.forced);
   const midStayUnforced = roundMoney(midStayExtras.unforced);
+  const midStaySettledTotal = roundMoney(midStayExtras.settledTotal);
+  const midStayRemainingTotal = roundMoney(midStayExtras.remainingTotal);
   const accommodationBaseTotal = roundMoney(Number(totalPrice || 0));
   const subtotal = roundMoney(accommodationBaseTotal + extraGuestSurcharge + optionsTotal + resourcesTotal);
   const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
@@ -1834,9 +1843,10 @@ function calculateReservationQuote({
   } else {
     resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
-  // The end-of-stay complement as it will be stored: what the departure SAS bills + what was sold
-  // during the stay. Exposed so the fiche shows the mid-stay sale live, before the save persists it.
-  const endOfStayComplementTotal = roundMoney(Number(endOfStaySasAmount || 0) + midStayTotal);
+  // The end-of-stay complement as it will be stored: what the departure SAS bills + what is STILL
+  // due of the mid-stay sales (specs/mid-stay-notes.md §3.3 rule 10 — the notes already collected
+  // are out). Exposed so the fiche shows the sale live, before the save persists it.
+  const endOfStayComplementTotal = roundMoney(Number(endOfStaySasAmount || 0) + midStayRemainingTotal);
 
   // specs/fiche-total-sejour-net-of-commission.md — the displayed « total du séjour » = what the
   // operator actually realises = net perçu + compléments. Net perçu = the platform's settlement
@@ -1849,7 +1859,9 @@ function calculateReservationQuote({
   // realised money too (financeModel.totalSejour already counts it); the fiche used to ignore it, so
   // the two screens disagreed. It now rides the same total.
   const netReceivedForTotal = platformNetReceivedAmount != null ? platformNetReceivedAmount : preArrivalAmount;
-  const sejourNetTotal = roundMoney(netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal);
+  const sejourNetTotal = roundMoney(
+    netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledTotal,
+  );
 
   return {
     property,
@@ -1897,6 +1909,9 @@ function calculateReservationQuote({
     // the engine carved out of the other buckets, and the ready-to-store end-of-stay detail lines.
     midStayExtrasTotal: midStayTotal,
     midStayExtrasLines: midStayExtras.lines,
+    // specs/mid-stay-notes.md — already collected through a note vs still due at check-out.
+    midStaySettledTotal,
+    midStayRemainingTotal,
     endOfStayComplementTotal,
     preArrivalAmount,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
