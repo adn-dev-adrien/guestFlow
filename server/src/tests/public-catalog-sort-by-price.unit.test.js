@@ -50,7 +50,9 @@ test('listOptions returns options sorted by price ascending', () => {
   const res = fakeRes();
   controller.listOptions({ params: { id: '1' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.data.map((o) => o.price), [6, 30, 65, 80]);
+  // Uncategorised options land in `ungrouped` (specs/option-categories.md §4.4) — price order intact.
+  assert.deepEqual(res.body.data.ungrouped.map((o) => o.price), [6, 30, 65, 80]);
+  assert.deepEqual(res.body.data.groups, []);
 });
 
 test('listOptions excludes options that are OFFERED defaults for the property (included, not selectable)', () => {
@@ -66,8 +68,8 @@ test('listOptions excludes options that are OFFERED defaults for the property (i
   const res = fakeRes();
   controller.listOptions({ params: { id: '1' } }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.data.length, 1);
-  assert.deepEqual(res.body.data.map((o) => o.price), [80]); // the offered linen (7) is gone
+  assert.equal(res.body.data.ungrouped.length, 1);
+  assert.deepEqual(res.body.data.ungrouped.map((o) => o.price), [80]); // the offered linen (7) is gone
 });
 
 test('listResources returns resources sorted by price ascending', () => {

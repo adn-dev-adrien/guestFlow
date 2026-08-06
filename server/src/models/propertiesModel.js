@@ -4,6 +4,8 @@
 const db = require('../database');
 const optionsModel = require('./optionsModel');
 const { sentenceCase } = require('../utils/textFormatters');
+const { groupOptionsByCategory } = require('../utils/optionGrouping');
+const { isClientVisibleOption } = require('../utils/optionVisibility');
 const {
   normalizeDateRanges,
   getBoundsFromDateRanges,
@@ -212,6 +214,12 @@ function createPropertiesModel(database) {
       if (typeof database.ensureDefaultTimedOptionsForProperty === 'function') {
         database.ensureDefaultTimedOptionsForProperty(Number(id));
       }
+      // Same lazy-seed hook for the catering catalogue (specs/option-categories.md §5.2): the boot
+      // seed links the articles to the properties that existed AT BOOT, so a property created since
+      // would otherwise show no « Boissons » until the next restart. The call is idempotent.
+      if (typeof database.ensureCateringOptions === 'function') {
+        database.ensureCateringOptions(database);
+      }
 
       property.pricingRules = database.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(id)
         .map((rule) => {
@@ -241,6 +249,11 @@ function createPropertiesModel(database) {
       } catch (_) {
         property.options = [];
       }
+      // Render-ready grouping for the reservation fiche (specs/option-categories.md §3 rules 3-4,
+      // 14): ungrouped options first, then the categories in display order. Internal-only options
+      // are dropped BEFORE grouping so an all-internal category yields no section at all. The flat
+      // `property.options` above stays untouched — the pricing engine and the SAS consume it.
+      property.optionGroups = groupOptionsByCategory(property.options.filter(isClientVisibleOption));
       property.icalSources = database.prepare(`
         SELECT id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
           collectsTouristTax, touristTaxRemittedByPlatform,

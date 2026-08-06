@@ -45,14 +45,20 @@ export default function PricedItemsPage({
   // Used by the Options page to surface the per-property price overrides next to the base price.
   renderPriceCell,
   // Optional: fully replace the dialog form body (Nom/Description/Type/Prix/Logements + extras) with
-  // a bespoke layout. Receives ({ form, setForm, properties, priceTypes }). When provided,
-  // renderExtraFormFields is ignored (the custom form renders everything).
+  // a bespoke layout. Receives ({ form, setForm, properties, priceTypes, items }). `items` is the
+  // loaded collection, so a field can suggest values already in use (e.g. existing categories).
+  // When provided, renderExtraFormFields is ignored (the custom form renders everything).
   renderForm,
   // specs/option-property-scope.md: options use an EXPLICIT scope (« Tous » = all ids, empty = none).
   // Resources keep the legacy « empty = all ». Drives the « Logements » column label below.
   explicitPropertyScope = false,
   // Tab-wrapper mode (specs/ds-sweep-settings.md §3.2): the wrapper's Tabs render centered in the bar.
   barCenter,
+  // Optional extra columns, inserted after « Description ». Each entry:
+  //   { key, label, align?, render(item), sortValue?(item) }
+  // Sortable like the built-in columns; on xs they become an extra caption line on the card.
+  // Used by the Options page for « Catégorie » (specs/option-categories.md §6.2).
+  extraColumns = [],
 }) {
     const resolvedPriceTypes = priceTypes || PRICE_TYPES;
 
@@ -161,12 +167,18 @@ export default function PricedItemsPage({
           : item.propertyIds.map((pid) => properties.find((p) => p.id === pid)?.name || '').sort().join(',').toLowerCase();
         aVal = resolve(a); bVal = resolve(b);
       }
+      else if (sortCol.startsWith('extra:')) {
+        const col = extraColumns.find((c) => `extra:${c.key}` === sortCol);
+        if (!col) return 0;
+        const resolve = (item) => String((col.sortValue ? col.sortValue(item) : col.render(item)) ?? '').toLowerCase();
+        aVal = resolve(a); bVal = resolve(b);
+      }
       else { return 0; }
       if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [items, sortCol, sortDir, formNameKey, formDescriptionKey]);
+  }, [items, sortCol, sortDir, formNameKey, formDescriptionKey, extraColumns, properties]);
 
   // Shared by the table row and the xs card (specs/ds-sweep-settings.md §3.5).
   const propertiesLabel = (item) => {
@@ -210,6 +222,9 @@ export default function PricedItemsPage({
           <TableRow>
             <SortableCell col="name">Nom</SortableCell>
             <SortableCell col="description">Description</SortableCell>
+            {extraColumns.map((col) => (
+              <SortableCell key={col.key} col={`extra:${col.key}`} align={col.align}>{col.label}</SortableCell>
+            ))}
             <SortableCell col="properties">Logements</SortableCell>
             <SortableCell col="price" align="right">Prix</SortableCell>
             {showQuantity && <SortableCell col="quantity" align="right">Quantite</SortableCell>}
@@ -228,6 +243,9 @@ export default function PricedItemsPage({
             <TableRow key={item.id} hover sx={{ cursor: 'pointer', ...(getRowSx ? getRowSx(item) : {}) }} onClick={() => openDialog(item)}>
               <TableCell>{name}</TableCell>
               <TableCell>{description || '—'}</TableCell>
+              {extraColumns.map((col) => (
+                <TableCell key={col.key} align={col.align}>{col.render(item) || '—'}</TableCell>
+              ))}
               <TableCell>{propertiesLabel(item)}</TableCell>
               {/* Amounts right-aligned in tabular figures via formatCurrency (design-system-reference.md §5). */}
               <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -272,6 +290,12 @@ export default function PricedItemsPage({
               <Typography variant="caption" color="text.secondary">
                 {propertiesLabel(item)} · {resolvedPriceTypes.find((t) => t.value === item.priceType)?.label || item.priceType || '—'}
               </Typography>
+              {extraColumns
+                .map((col) => ({ key: col.key, value: col.render(item) }))
+                .filter((c) => Boolean(c.value))
+                .map((c) => (
+                  <Typography key={c.key} variant="caption" color="text.secondary">{c.value}</Typography>
+                ))}
               <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
                 <Tooltip title="Modifier">
                   <IconButton size="small" aria-label="Modifier" onClick={(e) => { e.stopPropagation(); openDialog(item); }}><EditIcon fontSize="small" /></IconButton>
@@ -296,7 +320,7 @@ export default function PricedItemsPage({
         submitDisabled={!form[formNameKey]}
         submitLabel="Enregistrer"
       >
-          {renderForm ? renderForm({ form, setForm, properties, priceTypes: resolvedPriceTypes }) : (
+          {renderForm ? renderForm({ form, setForm, properties, priceTypes: resolvedPriceTypes, items }) : (
           <>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField

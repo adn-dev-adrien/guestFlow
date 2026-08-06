@@ -4,6 +4,7 @@
 const db = require('../database');
 const { sentenceCase } = require('../utils/textFormatters');
 const { formatTimeShort } = require('../utils/dateFr');
+const { normalizeCategory } = require('../utils/optionGrouping');
 
 function normalizeProgressiveOptionTiers(raw) {
   let parsed = [];
@@ -79,6 +80,29 @@ function createOptionsModel(database) {
   function persistDisplayToClient(optionId, payload) {
     if (!HAS_OPTION_DISPLAY_TO_CLIENT || payload.displayToClient === undefined) return;
     database.prepare('UPDATE options SET displayToClient = ? WHERE id = ?').run(payload.displayToClient ? 1 : 0, optionId);
+  }
+  // Grouping label (specs/option-categories.md §3 rules 1, 6). Same guarded-write pattern.
+  // `undefined` payload → leave as-is, so a caller that doesn't know about categories (the SAS
+  // upsell path, an older client) can't silently un-group an option.
+  const HAS_OPTION_CATEGORY = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'category'); }
+    catch { return false; }
+  })();
+  function persistCategory(optionId, payload) {
+    if (!HAS_OPTION_CATEGORY || payload.category === undefined) return;
+    database.prepare('UPDATE options SET category = ? WHERE id = ?')
+      .run(normalizeCategory(payload.category), optionId);
+  }
+  // Pin outside the category collapse (specs/option-categories.md §3 rule 9bis). Same guarded
+  // write; `undefined` leaves it as-is so a caller unaware of the field can't silently unpin.
+  const HAS_OPTION_ALWAYS_VISIBLE = (() => {
+    try { return database.prepare("PRAGMA table_info(options)").all().some((c) => c.name === 'alwaysVisible'); }
+    catch { return false; }
+  })();
+  function persistAlwaysVisible(optionId, payload) {
+    if (!HAS_OPTION_ALWAYS_VISIBLE || payload.alwaysVisible === undefined) return;
+    database.prepare('UPDATE options SET alwaysVisible = ? WHERE id = ?')
+      .run(payload.alwaysVisible ? 1 : 0, optionId);
   }
   // Option-driven planning cards (specs/option-planning-card.md §3.1). Persisted via a dedicated
   // guarded write so the big INSERT/UPDATE stays untouched; absent in minimal test schemas → no-op.
@@ -210,7 +234,10 @@ function createOptionsModel(database) {
 
   const model = {
     list() {
-      return database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}ORDER BY title`).all().map((o) => decoratePlanningCard({
+      // Ungrouped options ('') come first, then the categories alphabetically — the same reading
+      // order the fiche and the public widget render (specs/option-categories.md §3 rule 3).
+      const order = HAS_OPTION_CATEGORY ? 'ORDER BY category, title' : 'ORDER BY title';
+      return database.prepare(`SELECT * FROM options ${ACTIVE_WHERE}${order}`).all().map((o) => decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
@@ -251,7 +278,7 @@ function createOptionsModel(database) {
         ${priceJoin}
         WHERE EXISTS (SELECT 1 FROM property_options po WHERE po.optionId = o.id AND po.propertyId = ?)
         ${ACTIVE_AND_O}
-        ORDER BY o.title
+        ORDER BY ${HAS_OPTION_CATEGORY ? 'o.category, ' : ''}o.title
       `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
       return rows.map((o) => {
         const { __propertyPrice, ...rest } = o;
@@ -324,6 +351,8 @@ function createOptionsModel(database) {
         persistPropertyDefaults(id, payload);
         persistPropertyBathMats(id, payload);
         persistDisplayToClient(id, payload);
+        persistCategory(id, payload);
+        persistAlwaysVisible(id, payload);
         return id;
       })();
       return { id: optionId };
@@ -390,6 +419,8 @@ function createOptionsModel(database) {
         persistPropertyDefaults(id, payload);
         persistPropertyBathMats(id, payload);
         persistDisplayToClient(id, payload);
+        persistCategory(id, payload);
+        persistAlwaysVisible(id, payload);
       })();
       return { ok: true };
     },

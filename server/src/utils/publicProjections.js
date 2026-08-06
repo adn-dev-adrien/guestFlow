@@ -84,6 +84,11 @@ function toPublicOption(row) {
     // Backend-owned display labels (source of truth) — the site renders them as-is.
     priceUnitLabel: labels.priceUnitLabel,
     quantityLabel: labels.quantityLabel,
+    // Grouping label (specs/option-categories.md §3 rule 15). '' = ungrouped = rendered in the
+    // widget's flat list; a non-empty label folds it into a collapsible section.
+    category: String(row.category || '').trim(),
+    // Pinned outside its category's collapse even when the visitor hasn't picked it (rule 9bis).
+    alwaysVisible: Number(row.alwaysVisible || 0) === 1,
   };
   if (row.autoOptionType) out.autoOptionType = row.autoOptionType;
   if (row.priceType === 'per_participant_progressive' && Array.isArray(row.optionProgressiveTiers) && row.optionProgressiveTiers.length) {

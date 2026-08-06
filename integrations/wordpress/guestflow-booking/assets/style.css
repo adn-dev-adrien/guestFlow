@@ -53,6 +53,21 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
 .gf-line-desc { font-size: .85rem; color: #475569; margin-top: .3rem; }
 .gf-info-btn { border: none; background: none; cursor: pointer; color: var(--gf-accent); font-size: 1rem; line-height: 1; min-width: 32px; min-height: 32px; padding: 0; }
 
+/* Collapsible option categories (specs/option-categories.md §6.3). Collapsed by default; the
+   options the visitor already picked render above the fold and stay visible when closed. */
+.gf-group { border-top: 1px solid var(--gf-border); margin-top: .5rem; }
+.gf-group-head { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 44px; padding: .55rem .25rem; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; color: inherit; border-radius: 8px; }
+.gf-group-head:hover { background: #f7f8f4; background: color-mix(in srgb, var(--gf-accent) 6%, #fff); }
+.gf-group-title { flex: 1; min-width: 0; font-weight: 700; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gf-group-count:not(:empty) { flex: 0 0 auto; min-width: 22px; height: 22px; padding: 0 .4rem; border-radius: 11px; background: #e6efe7; color: #3e7d54; font-size: .8rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.gf-group-chevron { flex: 0 0 auto; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--gf-muted); transition: transform .2s ease; }
+.gf-group-head[aria-expanded="true"] .gf-group-chevron { transform: rotate(180deg); }
+/* Folded body: max-height keeps the transition cheap; 4000px is far above any realistic category. */
+.gf-group-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
+.gf-group-body.is-open { max-height: 4000px; }
+.gf-group-toggle { border: 0; background: none; cursor: pointer; padding: .35rem .25rem; font: inherit; font-size: .9rem; color: var(--gf-accent); }
+.gf-group-toggle:hover { text-decoration: underline; }
+
 /* Stepper (− n +) — the single quantity control */
 .gf-step { display: inline-flex; align-items: center; border: 1px solid var(--gf-border); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
 .gf-step-btn { width: 44px; height: 44px; border: 0; background: #f3f5ef; cursor: pointer; font-size: 1.2rem; line-height: 1; color: inherit; }
@@ -87,4 +102,7 @@ button.gf-cal-day.gf-edge { background: var(--gf-accent); color: #fff; font-weig
   .gf-line-price { font-size: .85rem; white-space: normal; text-align: left; margin-right: auto; }
   .gf-step-btn { width: 40px; height: 40px; }
   .gf-step-val { min-width: 32px; }
+  /* The category header stays a single ≥44px tappable row; the label truncates rather than wrapping. */
+  .gf-group-head { padding: .55rem .35rem; }
+  .gf-group-title { font-size: .95rem; }
 }

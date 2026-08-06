@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  Box, Button, Checkbox, FormControl, FormControlLabel, FormHelperText, IconButton, InputLabel,
-  MenuItem, Select, Stack, Switch, TextField, Typography,
+  Autocomplete, Box, Button, Checkbox, FormControl, FormControlLabel, FormHelperText, IconButton,
+  InputLabel, MenuItem, Select, Stack, Switch, TextField, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -72,7 +72,63 @@ const emptyOption = {
   cardRepeat: 'once_per_day',
   planningCardDate: '',
   planningCardTimes: ['09:00'],
+  // Free-text grouping label (specs/option-categories.md §3 rule 1). Empty = no grouping: the
+  // option stays in the flat list on the fiche and on the public widget.
+  category: '',
+  // Pins the option outside its category's collapse (rule 9bis). Only meaningful when `category`
+  // is set — an ungrouped option is always visible anyway.
+  alwaysVisible: false,
 };
+
+/**
+ * « Catégorie » — free-solo autocomplete over the labels already in use, so « Boissons » and
+ * « Boisson » don't diverge by a typo (specs/option-categories.md §3 rule 6). Typing a brand-new
+ * label is how a category is created; there is no category CRUD anywhere.
+ */
+export function CategoryField({ form, setForm, items }) {
+  const existing = [...new Set((items || [])
+    .map((o) => String(o.category || '').trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const grouped = Boolean(String(form.category || '').trim());
+  return (
+    <Box>
+      <Autocomplete
+        freeSolo
+        options={existing}
+        value={form.category || ''}
+        onInputChange={(_, value) => setForm({ ...form, category: value })}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Catégorie"
+            helperText="Regroupe l'option dans un menu dépliant sur la fiche réservation et le site (laisser vide pour aucun regroupement)."
+          />
+        )}
+      />
+      {/* Only offered once the option belongs to a category: an ungrouped option is never folded,
+          so the flag would have nothing to act on (specs/option-categories.md §3 rule 9bis). */}
+      {grouped && (
+        <FormControlLabel
+          sx={{ mt: 1 }}
+          control={(
+            <Checkbox
+              checked={Boolean(form.alwaysVisible)}
+              onChange={(e) => setForm({ ...form, alwaysVisible: e.target.checked })}
+            />
+          )}
+          label={(
+            <Box>
+              <Typography variant="body2">Toujours visible</Typography>
+              <Typography variant="caption" color="text.secondary">
+                L'option reste affichée même quand le menu est replié et qu'elle n'est pas sélectionnée.
+              </Typography>
+            </Box>
+          )}
+        />
+      )}
+    </Box>
+  );
+}
 
 function normalizeProgressiveTiers(raw) {
   const source = Array.isArray(raw) ? raw : [];
@@ -612,15 +668,23 @@ export default function OptionsPage({ barCenter }) {
         showsPlanningCard: Boolean(form.showsPlanningCard),
         cardRepeat: form.cardRepeat === 'multiple_per_day' ? 'multiple_per_day' : 'once_per_day',
         planningCardTimes: Array.isArray(form.planningCardTimes) ? form.planningCardTimes.filter(Boolean) : [],
+        // Grouping label (specs/option-categories.md §3 rule 6) — the server trims it and stores
+        // a whitespace-only value as ungrouped.
+        category: form.category || '',
+        alwaysVisible: Boolean(form.alwaysVisible),
       })}
       formNameKey="title"
       formDescriptionKey="description"
       showQuantity={false}
       isDeleteDisabled={(item) => Boolean(item.autoOptionType)}
+      // specs/option-categories.md §6.2. Seeded catering articles stay deletable on purpose:
+      // « supprimer » is a soft-delete here, and archiving is the only way to retire an article
+      // (the boot seed honours `archivedAt` and never resurrects it) — see §3 rule 25.
+      extraColumns={[{ key: 'category', label: 'Catégorie', render: (item) => item.category || '' }]}
       // Bespoke form layout (specs/per-property-option-prices.md §6): explicit field order —
       // Nom, Titre (anglais), Description, Logements, Type de prix, prix (unique OU par logement
       // via le Switch), puis les options spécifiques (petit-déjeuner, linge, défauts).
-      renderForm={({ form, setForm, properties, priceTypes }) => (
+      renderForm={({ form, setForm, properties, priceTypes, items }) => (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField
             label="Nom"
@@ -638,6 +702,7 @@ export default function OptionsPage({ barCenter }) {
             multiline
             rows={2}
           />
+          <CategoryField form={form} setForm={setForm} items={items} />
           <PropertiesMultiSelect
             properties={properties}
             value={form.propertyIds}
