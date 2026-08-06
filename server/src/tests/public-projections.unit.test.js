@@ -52,7 +52,9 @@ test('toPublicOption strips linen/towel internals; tiers only for progressive', 
     countsAsBedLinen: 1, linenIncludesSingle: 1, towelLargePerPerson: 2, autoOptionType: null,
     optionProgressiveTiers: [{ participantNumber: 1, unitPrice: 10 }],
   });
-  assert.deepEqual(Object.keys(o).sort(), ['description', 'id', 'price', 'priceType', 'priceUnitLabel', 'quantityLabel', 'showsPlanningCard', 'title', 'titleEn']);
+  assert.deepEqual(Object.keys(o).sort(), ['alwaysVisible', 'category', 'description', 'id', 'price', 'priceType', 'priceUnitLabel', 'quantityLabel', 'showsPlanningCard', 'title', 'titleEn']);
+  assert.equal(o.alwaysVisible, false); // opt-in pin, off unless the operator sets it
+  assert.equal(o.category, ''); // ungrouped when the column is absent/empty (specs/option-categories.md)
   assert.equal(o.showsPlanningCard, false); // not set on this option
   // Backend-owned labels (source of truth) — non-planning per_person_per_night.
   assert.equal(o.priceUnitLabel, 'par personne et par nuit');
