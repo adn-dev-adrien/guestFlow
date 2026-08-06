@@ -44,8 +44,11 @@ test('full cascade: offered tax + complement + commission', () => {
   expect(screen.getByText('274,60 €')).toBeInTheDocument();           // gross
   expect(screen.getByText('Taxe de séjour (plateforme)')).toBeInTheDocument();
   expect(screen.getByText('− 9,60 €')).toBeInTheDocument();           // tax → commune
-  expect(screen.getAllByText('Compléments (perçus sur place)').length).toBe(2); // − then +
+  // Deducted as one « perçu sur place » block, added back per complement (arrival / end-of-stay)
+  // — specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15.
+  expect(screen.getByText('Compléments (perçus sur place)')).toBeInTheDocument();
   expect(screen.getByText('− 15,00 €')).toBeInTheDocument();
+  expect(screen.getByText("Complément d'arrivée (perçu sur place)")).toBeInTheDocument();
   expect(screen.getByText('+ 15,00 €')).toBeInTheDocument();
   expect(screen.getByText('Montant soumis à commission')).toBeInTheDocument();
   expect(screen.getByText('250,00 €')).toBeInTheDocument();
@@ -72,6 +75,34 @@ test('offered tax, no complement → « − Taxe de séjour (plateforme) » then
   expect(screen.getByText('Montant soumis à commission')).toBeInTheDocument();
   expect(screen.getByText('195,20 €')).toBeInTheDocument();
   expect(screen.queryByText('Compléments (perçus sur place)')).toBeNull(); // no complement
+});
+
+// specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — le complément de fin de séjour
+// (ménage/linge du SAS + prestations vendues en cours de séjour) est perçu sur place comme celui
+// d'arrivée : il se déduit du montant soumis à commission et revient dans le total perçu.
+test('complément de fin de séjour : sa propre ligne, déduite puis rajoutée au total perçu', () => {
+  // 250 finalPrice (dont 12 vendus en cours de séjour) + 60 de ménage facturé au départ = 310 brut.
+  renderSummary({
+    ...QUOTE, finalPrice: 250, complementAmount: 15, endOfStayComplementTotal: 72, midStayExtrasTotal: 12,
+    preArrivalAmount: 223, platformCommissionAmount: 30, totalPlatformCommission: 30,
+    platformNetReceivedAmount: 193, sejourNetTotal: 280,
+  });
+  expect(screen.getByText('310,00 €')).toBeInTheDocument();            // 250 + 60 (part SAS)
+  expect(screen.getByText('− 87,00 €')).toBeInTheDocument();           // 15 + 72 perçus sur place
+  expect(screen.getByText("Complément d'arrivée (perçu sur place)")).toBeInTheDocument();
+  expect(screen.getByText('+ 15,00 €')).toBeInTheDocument();
+  expect(screen.getByText('Complément de fin de séjour')).toBeInTheDocument();
+  expect(screen.getByText('+ 72,00 €')).toBeInTheDocument();
+  expect(screen.getByText('280,00 €')).toBeInTheDocument();            // total perçu
+});
+
+test('direct : le complément de fin de séjour apparaît sous le total du séjour', () => {
+  renderSummary(
+    { ...QUOTE, finalPrice: 200, complementAmount: 0, endOfStayComplementTotal: 12, midStayExtrasTotal: 12, sejourNetTotal: 212 },
+    { ...FORM, platform: 'direct' },
+  );
+  expect(screen.getByText('dont complément de fin de séjour')).toBeInTheDocument();
+  expect(screen.getByText('12,00 €')).toBeInTheDocument();
 });
 
 test('platform with commission, no tax/complement → no deduction sub-lines, just Versement + Total perçu', () => {

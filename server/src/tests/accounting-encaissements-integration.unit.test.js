@@ -52,6 +52,7 @@ function createDb() {
       complementPaidCash INTEGER DEFAULT 0,
       endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
+      endOfStayComplementDetail TEXT, arrivalExtrasBaseline TEXT,
       finalPrice REAL DEFAULT 0, clientGrossAmount REAL, platformCommissionAmount REAL, acompteCommissionAmount REAL,
       totalPrice REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, touristTaxRate REAL DEFAULT 0,
       touristTaxInComplement INTEGER DEFAULT 0, extraGuestSurchargeOffered INTEGER DEFAULT 0,
@@ -399,6 +400,59 @@ test('cash end-of-stay complement is excluded from accounting', () => {
   });
   const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
   assert.equal(entries.length, 0);
+});
+
+// ── Prestations vendues en cours de séjour ───────────────────────────────────
+// specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 16. Before the fix the option sold
+// mid-stay was credited to the `complement` entry while its debit stayed frozen at the collected
+// amount: the journal entry credited more revenue than it debited.
+
+// Arrival complement = a « Ménage » line of 30 €, collected at check-in. During the stay the guest
+// takes a 12 € breakfast, billed in the end-of-stay complement.
+function insertMidStaySale(db) {
+  const id = insertReservation(db, {
+    finalPrice: 212, totalPrice: 212,
+    depositAmount: 60, depositPaid: 1, depositPaidDate: '2026-08-15',
+    balanceAmount: 140, balancePaid: 1, balancePaidDate: '2026-08-15',
+    complementAmount: 30, complementPaid: 1, complementPaidDate: '2026-08-15',
+    endOfStayComplementAmount: 12, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-08-20',
+    endOfStayComplementDetail: JSON.stringify([{ label: 'Petit-déjeuner', qty: 1, unitPrice: 12, amount: 12, source: 'midStayExtra', key: 'opt:9' }]),
+    arrivalExtrasBaseline: JSON.stringify({ 'custom:ménage': 30 }),
+    // Non-null contribs → the per-line (contrib-driven) attribution path.
+    accommodationAcompteContribTtc: 60, accommodationSoldeContribTtc: 140,
+  });
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, billedUnits, unitPrice, priceType, totalPrice, inComplement) VALUES (?, 9, 1, 1, 12, ?, 12, 1)')
+    .run(id, 'per_stay');
+  db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, inComplement) VALUES (?, 'Ménage', 30, 1)").run(id);
+  return id;
+}
+
+test('mid-stay sale: the complement entry credits only what it collected (Σ crédits = débit)', () => {
+  const db = createDb();
+  insertMidStaySale(db);
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+
+  const complement = entries.find((e) => e.kind === 'complement');
+  assert.ok(complement, 'complement entry present');
+  assert.equal(complement.encaissementTtc, 30);
+  const creditsTtc = round2(complement.buckets.reduce((s, b) => s + b.ht + b.vat, 0) + complement.taxTtc);
+  assert.equal(creditsTtc, 30, 'the breakfast sold mid-stay is NOT credited here');
+
+  const eos = entries.find((e) => e.kind === 'endOfStayComplement');
+  assert.equal(eos.encaissementTtc, 12, 'it is carried by the end-of-stay entry instead');
+  assert.equal(round2(eos.buckets.reduce((s, b) => s + b.ht + b.vat, 0)), 12);
+});
+
+test('regression: a forced option NOT sold mid-stay is still fully credited to the complement', () => {
+  const db = createDb();
+  const id = insertMidStaySale(db);
+  // Same shape, but the breakfast was already sold before arrival (it is in the baseline).
+  db.prepare('UPDATE reservations SET arrivalExtrasBaseline = ?, complementAmount = 42, endOfStayComplementAmount = 0, endOfStayComplementDetail = NULL WHERE id = ?')
+    .run(JSON.stringify({ 'custom:ménage': 30, 'opt:9': 12 }), id);
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  const complement = entries.find((e) => e.kind === 'complement');
+  assert.equal(complement.encaissementTtc, 42);
+  assert.equal(round2(complement.buckets.reduce((s, b) => s + b.ht + b.vat, 0)), 42);
 });
 
 test('end-of-stay complement paid date drives the export month (not the stay date)', () => {

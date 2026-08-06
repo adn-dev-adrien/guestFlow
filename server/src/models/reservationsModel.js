@@ -19,6 +19,7 @@ const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
+const { buildExtrasBaseline, mergeMidStayIntoDetail, parseBaseline, extraLineKey } = require('../utils/midStayExtras');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
@@ -164,6 +165,13 @@ function createReservationsModel(database) {
   // §3.2 rule 5). Guarded so minimal test schemas without the column simply behave as legacy.
   const HAS_RO_SAS_ARRIVAL_ORIGIN = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'sasArrivalOrigin'); }
+    catch { return false; }
+  })();
+  // Extras baseline captured when the stay starts (specs/mid-stay-extras-to-end-of-stay-complement.md
+  // §3.1). Guarded so minimal test schemas without the column simply never route anything to the
+  // end-of-stay complement (legacy behaviour).
+  const HAS_ARRIVAL_EXTRAS_BASELINE = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'arrivalExtrasBaseline'); }
     catch { return false; }
   })();
   // Hourly-scheduled resource sessions (specs/resource-hourly-scheduling.md), stored on
@@ -1272,6 +1280,86 @@ function createReservationsModel(database) {
       return arrivalComplementDetailFromReservation(r);
     },
 
+    // ── Prestations vendues en cours de séjour ────────────────────────────────
+    // specs/mid-stay-extras-to-end-of-stay-complement.md. The baseline is the extras as they stood
+    // when the stay started; everything above it is sold mid-stay and billed in the end-of-stay
+    // complement. Read straight from the child tables so it reflects the state BEFORE the save that
+    // triggers the capture.
+
+    // Extra lines in the shape `midStayExtras` keys them by (custom lines carry their label).
+    readExtraLines(reservationId) {
+      const options = database.prepare('SELECT optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(reservationId);
+      const resources = database.prepare('SELECT resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(reservationId);
+      const customs = database.prepare('SELECT description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      return [
+        ...options.map((o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0) })),
+        ...resources.map((r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0) })),
+        // A custom line stores its ORIGINAL amount; an offered one is worth 0 like in the engine.
+        ...customs.map((c) => ({
+          isCustom: true,
+          title: c.description,
+          totalPrice: Number(c.offered || 0) === 1 ? 0 : Number(c.amount || 0),
+          offered: Number(c.offered || 0),
+        })),
+      ];
+    },
+
+    getArrivalExtrasBaseline(reservationId) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
+      const row = database.prepare('SELECT arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      return (row && row.arrivalExtrasBaseline) || null;
+    },
+
+    // Capture the baseline once, from the CURRENT lines, when the stay has started. Idempotent: an
+    // already-captured baseline is never overwritten (that would swallow the mid-stay sales).
+    captureArrivalExtrasBaselineIfDue(reservationId, todayIso) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return null;
+      const row = database.prepare('SELECT startDate, arrivalExtrasBaseline FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return null;
+      if (row.arrivalExtrasBaseline) return row.arrivalExtrasBaseline;
+      if (!row.startDate || String(row.startDate) > String(todayIso)) return null;
+      const baseline = JSON.stringify(buildExtrasBaseline(model.readExtraLines(reservationId)));
+      database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(baseline, reservationId);
+      return baseline;
+    },
+
+    // Fold specific keys into the baseline at their CURRENT amount — used by the arrival SAS for the
+    // lines it writes itself (§3.1 rule 4): they belong to the arrival complement by construction and
+    // must never drift into the end-of-stay one, even when the SAS is re-run days later.
+    addKeysToArrivalExtrasBaseline(reservationId, keys) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE || !keys || keys.length === 0) return;
+      const stored = model.getArrivalExtrasBaseline(reservationId);
+      if (!stored) return; // no baseline yet → the capture will include these lines anyway.
+      const baseline = parseBaseline(stored) || {};
+      const current = buildExtrasBaseline(model.readExtraLines(reservationId));
+      let changed = false;
+      for (const key of new Set(keys)) {
+        const amount = Number(current[key] || 0);
+        if (amount > 0 && Number(baseline[key] || 0) !== amount) { baseline[key] = amount; changed = true; }
+      }
+      if (!changed) return;
+      database.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(JSON.stringify(baseline), reservationId);
+    },
+
+    // Rewrite the mid-stay lines of the end-of-stay complement and re-total it. Frozen once that
+    // complement is collected (§3.5 rule 18): an amount already in the till is never re-priced.
+    syncMidStayComplement(reservationId, midStayLines) {
+      if (!HAS_ARRIVAL_EXTRAS_BASELINE) return;
+      const row = database.prepare(`SELECT endOfStayComplementDetail, endOfStayComplementAmount,
+                                           endOfStayComplementPaid, endOfStayComplementPaidCash
+                                      FROM reservations WHERE id = ?`).get(reservationId);
+      if (!row) return;
+      if (Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1) return;
+      const { detail, amount } = mergeMidStayIntoDetail(row.endOfStayComplementDetail, midStayLines);
+      const sameAmount = Math.abs(Number(row.endOfStayComplementAmount || 0) - amount) < 0.005;
+      const nextDetail = detail.length ? JSON.stringify(detail) : null;
+      if (sameAmount && nextDetail === (row.endOfStayComplementDetail || null)) return;
+      database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(amount, nextDetail, reservationId);
+    },
+
     commitArrivalSas(reservationId, {
       cautionReceived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
@@ -1460,6 +1548,22 @@ function createReservationsModel(database) {
         // convenience: completing the SAS means the guest is in; re-committing re-affirms it, and it's
         // never auto-unticked here (the operator can always uncheck it on the planning/dashboard).
         database.prepare("UPDATE reservations SET checkInReady = 1, checkInDone = 1, updatedAt = datetime('now') WHERE id = ?").run(reservationId);
+
+        // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 4 — the SAS runs after the
+        // stay started, so its own lines would look like mid-stay sales at the next fiche save. They
+        // belong to the ARRIVAL complement (they are already in `complementAmount`), so fold them
+        // into the baseline at their current amount. Re-running the SAS re-folds the new amounts.
+        const sasKeys = [
+          ...database.prepare('SELECT description FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1')
+            .all(reservationId)
+            .map((r) => extraLineKey({ isCustom: true, title: r.description })),
+          ...(HAS_RO_SAS_ARRIVAL_ORIGIN
+            ? database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+              .all(reservationId)
+              .map((r) => extraLineKey({ optionId: r.optionId }))
+            : []),
+        ].filter(Boolean);
+        model.addKeysToArrivalExtrasBaseline(reservationId, sasKeys);
 
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });

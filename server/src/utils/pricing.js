@@ -1,4 +1,5 @@
 const { priceSessions } = require('./resourceHourlyPricing');
+const { resolveMidStaySplit } = require('./midStayExtras');
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -1019,6 +1020,20 @@ function calculateReservationQuote({
   // requiring `cardOccurrences`; the line stays unscheduled (operator fixes the slots later). Admin
   // flows leave this falsy → the existing occurrence-based behaviour is unchanged.
   planningCardAsQuantity,
+  // specs/mid-stay-extras-to-end-of-stay-complement.md — the extras as they stood when the STAY
+  // STARTED (`reservations.arrivalExtrasBaseline`, JSON `{ key → TTC }`). Whatever exceeds it was
+  // sold while the guest was in the property: it leaves the pre-arrival + arrival-complement
+  // pipeline and is billed in the END-OF-STAY complement instead. NULL / absent (stay not started,
+  // devis, public quote) → the split is a no-op and every formula below reduces to its former self.
+  arrivalExtrasBaseline,
+  // Σ of the end-of-stay detail lines the departure SAS owns (ménage, linge manquant, extincteur…),
+  // i.e. the stored complement MINUS the mid-stay lines. Added back to expose the end-of-stay total.
+  endOfStaySasAmount,
+  // Once the end-of-stay complement is collected its amount is frozen: the mid-stay split stops
+  // moving and the STORED lines are used instead of a fresh computation, so what was collected is
+  // still carved out of the other buckets but never re-priced (§3.5).
+  endOfStayComplementSettled,
+  frozenMidStayLines,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1490,6 +1505,20 @@ function calculateReservationQuote({
 
   const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
   const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
+
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2-§3.3 — what exceeds the arrival baseline
+  // was sold DURING the stay: it belongs to the end-of-stay complement, so it is pulled out of the
+  // pre-arrival split (`midStayUnforced`) and out of the arrival complement (`midStayForced`) below.
+  // Once that complement is collected the split is frozen on the STORED lines: the collected money
+  // still has to be carved out of the other buckets, but it is never re-priced.
+  const midStayExtras = resolveMidStaySplit([...finalOptionLines, ...resourceLines], {
+    baseline: arrivalExtrasBaseline,
+    settled: endOfStayComplementSettled,
+    storedLines: frozenMidStayLines,
+  });
+  const midStayTotal = roundMoney(midStayExtras.total);
+  const midStayForced = roundMoney(midStayExtras.forced);
+  const midStayUnforced = roundMoney(midStayExtras.unforced);
   const accommodationBaseTotal = roundMoney(Number(totalPrice || 0));
   const subtotal = roundMoney(accommodationBaseTotal + extraGuestSurcharge + optionsTotal + resourcesTotal);
   const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
@@ -1511,7 +1540,12 @@ function calculateReservationQuote({
     finalOptionLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0)
     + resourceLines.reduce((s, l) => s + (Number(l.inComplement || 0) ? Number(l.totalPrice || 0) : 0), 0),
   );
-  const preArrivalOptionsResources = roundMoney(optionsTotal + resourcesTotal - complementOptionsResourcesTotal);
+  // Extras sold mid-stay are collected by US at check-out, never by the platform: like the complement
+  // items, they are excluded from the brut back-solve (`midStayForced` is already out via
+  // `complementOptionsResourcesTotal`).
+  const preArrivalOptionsResources = roundMoney(
+    optionsTotal + resourcesTotal - complementOptionsResourcesTotal - midStayUnforced,
+  );
   // Accommodation implied by the brut BEFORE removing any reversed tax. This is the base the tourist
   // tax has always been computed on, so resolving the tax here (rather than further down) keeps every
   // existing tax AMOUNT byte-identical.
@@ -1664,17 +1698,21 @@ function calculateReservationQuote({
       0,
     )
   );
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.3 — the mid-stay part leaves BOTH the
+  // pre-arrival split (its unforced share) and the arrival complement (its forced share). Everything
+  // below reduces to the former formulas when nothing was sold mid-stay (`midStay* = 0`).
+  const complementForcedItemsTotal = roundMoney(Math.max(0, forcedItemsTotal - midStayForced));
   const isTouristTaxForcedToComplement = Boolean(touristTaxInComplement);
   const taxInPreArrival = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? 0 : touristTaxTotal;
   const taxInComplement = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement) ? touristTaxTotal : 0;
-  const preArrivalAmount = roundMoney(Math.max(0, finalPrice - forcedItemsTotal + taxInPreArrival));
+  const preArrivalAmount = roundMoney(Math.max(0, finalPrice - forcedItemsTotal - midStayUnforced + taxInPreArrival));
   // specs/tourist-tax-on-solde.md — when there's an acompte, the tourist tax rides entirely on the SOLDE.
   // The acompte is therefore a % of the ACCOMMODATION pre-arrival only (no tax); the balance is the rest of
   // the accommodation PLUS the full pre-arrival tax. Because `balance = preArrivalAmount − deposit` (and
   // `preArrivalAmount = accommodationPreArrival + taxInPreArrival`), simply computing the deposit on
   // `accommodationPreArrival` puts the whole tax on the solde automatically. No acompte → balance =
   // preArrivalAmount (tax included), unchanged.
-  const accommodationPreArrival = roundMoney(Math.max(0, finalPrice - forcedItemsTotal));
+  const accommodationPreArrival = roundMoney(Math.max(0, finalPrice - forcedItemsTotal - midStayUnforced));
 
   const autoDepositAmount = roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
   const autoBalanceAmount = roundMoney(preArrivalAmount - autoDepositAmount);
@@ -1775,23 +1813,30 @@ function calculateReservationQuote({
   // specs/platform-per-echeance-commission.md — the acompte/solde now store the GROSS amounts (the
   // commission is tracked + booked separately), so the auto-gap reconciles against the gross stay total
   // for direct AND platform alike.
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.3 — the mid-stay total is deducted from the
+  // auto-gap too: that share of the stay total is already billed in the end-of-stay complement, so
+  // leaving it here would charge it twice.
   const ownerStayTotal = roundMoney(totalStayPrice);
   const autoGapBetweenDepositAndBalance = roundMoney(Math.max(
     0,
-    ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount - forcedItemsTotal - taxInComplement,
+    ownerStayTotal - resolvedDepositAmount - resolvedBalanceAmount
+      - complementForcedItemsTotal - taxInComplement - midStayTotal,
   ));
-  const rawComplement = roundMoney(forcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
+  const rawComplement = roundMoney(complementForcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   let resolvedComplementAmount;
   if (complementPaid) {
     resolvedComplementAmount = roundMoney(complementAmount);
-  } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || forcedItemsTotal > 0) {
+  } else if (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement || complementForcedItemsTotal > 0) {
     // Forced contributions are visible from save 1, regardless of payment state.
     resolvedComplementAmount = depositPaid && balancePaid
       ? rawComplement
-      : roundMoney(forcedItemsTotal + taxInComplement);
+      : roundMoney(complementForcedItemsTotal + taxInComplement);
   } else {
     resolvedComplementAmount = depositPaid && balancePaid ? autoGapBetweenDepositAndBalance : 0;
   }
+  // The end-of-stay complement as it will be stored: what the departure SAS bills + what was sold
+  // during the stay. Exposed so the fiche shows the mid-stay sale live, before the save persists it.
+  const endOfStayComplementTotal = roundMoney(Number(endOfStaySasAmount || 0) + midStayTotal);
 
   // specs/fiche-total-sejour-net-of-commission.md — the displayed « total du séjour » = what the
   // operator actually realises = net perçu + compléments. Net perçu = the platform's settlement
@@ -1800,8 +1845,11 @@ function calculateReservationQuote({
   // exactly today's `totalStayPrice`; for a platform with a commission it is `totalStayPrice −
   // commission`. `totalStayPrice` (gross) is kept for the brut « Montant soumis à commission » line.
   // (Caisse-interne complements are carved out at the finance layer, not here.)
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — the end-of-stay complement is
+  // realised money too (financeModel.totalSejour already counts it); the fiche used to ignore it, so
+  // the two screens disagreed. It now rides the same total.
   const netReceivedForTotal = platformNetReceivedAmount != null ? platformNetReceivedAmount : preArrivalAmount;
-  const sejourNetTotal = roundMoney(netReceivedForTotal + resolvedComplementAmount);
+  const sejourNetTotal = roundMoney(netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal);
 
   return {
     property,
@@ -1845,6 +1893,11 @@ function calculateReservationQuote({
     touristTaxReversedByPlatform,
     touristTaxInComplement: isTouristTaxForcedToComplement,
     forcedItemsTotal,
+    // specs/mid-stay-extras-to-end-of-stay-complement.md — what was sold during the stay: the total
+    // the engine carved out of the other buckets, and the ready-to-store end-of-stay detail lines.
+    midStayExtrasTotal: midStayTotal,
+    midStayExtrasLines: midStayExtras.lines,
+    endOfStayComplementTotal,
     preArrivalAmount,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
