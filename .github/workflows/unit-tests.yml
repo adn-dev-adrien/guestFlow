@@ -9,6 +9,13 @@ name: Unit tests
 #     Plain pull_request (not pull_request_target) keeps secrets safe even for fork PRs.
 #   - push to master → post-merge guard so a squash-merge can't slip a regression past PR checks.
 #
+# Manually runnable too (`workflow_dispatch`, optional `ref` input): on 2026-08-06 the
+# `client (vitest)` job never got a GitHub-hosted runner on three consecutive attempts (empty
+# `runner_name`, zero steps, killed by the 15-min job timeout) while its sibling job and the E2E
+# workflow ran fine. Re-running the job kept landing in the same starved queue, and without a manual
+# trigger the only way to get a fresh run was an empty commit. `gh workflow run "Unit tests"
+# --ref <branch>` now does it.
+#
 # Runs on ubuntu-latest (GitHub-hosted) — free for public repos, no Pi runner queue. Mirrors the
 # conventions of e2e.yml (checkout@v6, setup-node@v6, Node 24, better-sqlite3 rebuilt from source).
 
@@ -17,6 +24,12 @@ on:
     branches: [master]
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branche ou SHA à tester (défaut : la branche choisie ci-dessus)'
+        required: false
+        type: string
 
 # Cancel in-progress runs on the same ref when a newer commit lands.
 concurrency:
@@ -32,6 +45,9 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
+        with:
+          # Manual runs may target an explicit ref; otherwise the default (the triggering ref).
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v6
@@ -59,6 +75,9 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
+        with:
+          # Manual runs may target an explicit ref; otherwise the default (the triggering ref).
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v6

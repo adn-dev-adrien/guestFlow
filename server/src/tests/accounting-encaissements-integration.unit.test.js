@@ -52,7 +52,7 @@ function createDb() {
       complementPaidCash INTEGER DEFAULT 0,
       endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
-      endOfStayComplementDetail TEXT, arrivalExtrasBaseline TEXT,
+      endOfStayComplementDetail TEXT, arrivalExtrasBaseline TEXT, midStaySettledNotes TEXT,
       finalPrice REAL DEFAULT 0, clientGrossAmount REAL, platformCommissionAmount REAL, acompteCommissionAmount REAL,
       totalPrice REAL DEFAULT 0, touristTaxTotal REAL DEFAULT 0, touristTaxRate REAL DEFAULT 0,
       touristTaxInComplement INTEGER DEFAULT 0, extraGuestSurchargeOffered INTEGER DEFAULT 0,
@@ -453,6 +453,58 @@ test('regression: a forced option NOT sold mid-stay is still fully credited to t
   const complement = entries.find((e) => e.kind === 'complement');
   assert.equal(complement.encaissementTtc, 42);
   assert.equal(round2(complement.buckets.reduce((s, b) => s + b.ht + b.vat, 0)), 42);
+});
+
+// ── Notes en séjour (specs/mid-stay-notes.md §3.4 rule 14) ───────────────────
+// One journal entry per SETTLED note, at its own payment date — the note IS the collection.
+
+test('each settled note emits its own encaissement, at its own date, HT+VAT on the options bucket', () => {
+  const db = createDb();
+  insertReservation(db, {
+    midStaySettledNotes: JSON.stringify([
+      { id: 1, paidDate: '2026-08-06', paidCash: 0, total: 30, lines: [{ label: 'Petit-déjeuner', amount: 24, key: 'opt:9' }, { label: 'Coca', amount: 6, key: 'opt:14' }] },
+      { id: 2, paidDate: '2026-08-20', paidCash: 0, total: 22, lines: [{ label: 'Location vélo', amount: 22, key: 'res:3' }] },
+    ]),
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  const notes = entries.filter((e) => e.kind === 'midStayComplement');
+  assert.equal(notes.length, 2, 'one entry per collection, never grouped');
+  assert.deepEqual(notes.map((e) => [e.paidDate, e.encaissementTtc]), [['2026-08-06', 30], ['2026-08-20', 22]]);
+  // 30 TTC @ 10 % → VAT 2,73 / HT 27,27, single « options » bucket like the end-of-stay complement.
+  assert.equal(notes[0].buckets.length, 1);
+  assert.equal(notes[0].buckets[0].name, 'options');
+  assert.equal(notes[0].buckets[0].vat, 2.73);
+  assert.equal(notes[0].commission, null);
+  assert.equal(notes[0].taxTtc, 0);
+});
+
+test('a caisse-interne note stays off the books; a note outside the month is not emitted', () => {
+  const db = createDb();
+  insertReservation(db, {
+    midStaySettledNotes: JSON.stringify([
+      { id: 1, paidDate: '2026-08-06', paidCash: 1, total: 30, lines: [{ label: 'Coca', amount: 30, key: 'opt:14' }] },
+      { id: 2, paidDate: '2026-07-30', paidCash: 0, total: 12, lines: [{ label: 'Coca', amount: 12, key: 'opt:14' }] },
+    ]),
+  });
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  assert.equal(entries.filter((e) => e.kind === 'midStayComplement').length, 0);
+});
+
+test('a note settling a mid-stay sale keeps the complement entry balanced', () => {
+  // Same shape as the mid-stay sale above, but the breakfast was collected through a note instead
+  // of staying in the end-of-stay complement: the `complement` entry must be untouched either way.
+  const db = createDb();
+  const id = insertMidStaySale(db);
+  db.prepare(`UPDATE reservations SET endOfStayComplementAmount = 0, endOfStayComplementDetail = NULL,
+                     endOfStayComplementPaid = 0, endOfStayComplementPaidDate = NULL,
+                     midStaySettledNotes = ? WHERE id = ?`)
+    .run(JSON.stringify([{ id: 1, paidDate: '2026-08-18', paidCash: 0, total: 12, lines: [{ label: 'Petit-déjeuner', amount: 12, key: 'opt:9' }] }]), id);
+
+  const entries = createAccountingModel(db).encaissementsByMonth({ month: 8, year: 2026 });
+  const complement = entries.find((e) => e.kind === 'complement');
+  assert.equal(complement.encaissementTtc, 30);
+  assert.equal(round2(complement.buckets.reduce((s, b) => s + b.ht + b.vat, 0)), 30, 'the sold-and-collected breakfast is not credited here');
+  assert.equal(entries.find((e) => e.kind === 'midStayComplement').encaissementTtc, 12);
 });
 
 test('end-of-stay complement paid date drives the export month (not the stay date)', () => {

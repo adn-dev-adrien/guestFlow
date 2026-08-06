@@ -9,6 +9,7 @@ const {
   computeAccommodationAmountAfterDiscount,
 } = require('../utils/financeCalcs');
 const { isSettled, remainingToPay, platformCommission } = require('../utils/reservationSettlement');
+const { parseNotes } = require('../utils/midStayExtras');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -46,12 +47,22 @@ function nightsBetween(startDate, endDate) {
 // earns = acompte + solde + complément d'arrivée + complément de fin de séjour, NET of the platform
 // commission, with BOTH complements EXCLUDED when settled via caisse interne (off-books). Direct →
 // commission 0 → unchanged.
+// specs/mid-stay-notes.md §3.4 rule 15 — the « notes en séjour » (prestations collected during the
+// stay) join the same aggregates as the complements, with the same caisse-interne convention: a cash
+// note is real money in the tracking but stays off the books, so it is excluded here like a cash
+// complement is. `withCash` keeps the two readings explicit at the call sites.
+function midStayNotesTotal(r, { withCash = false } = {}) {
+  return round2(parseNotes(r.midStaySettledNotes)
+    .filter((n) => withCash || Number(n.paidCash || 0) === 0)
+    .reduce((s, n) => s + (Number(n.total) || 0), 0));
+}
+
 function totalSejour(r) {
   const deposit = Number(r.depositAmount || 0);
   const balance = Number(r.balanceAmount || 0);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
-  return round2(deposit + balance + complement + endOfStay - platformCommission(r));
+  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - platformCommission(r));
 }
 
 // `isSettled` (specs/finance-overview-rework.md §3.3) and `remainingToPay`
@@ -69,7 +80,9 @@ function comptaCollected(r) {
     (r.depositPaid ? Number(r.depositAmount || 0) - acompteComm : 0)
     + (r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0)
     + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
-    + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0),
+    + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
+    // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
+    + midStayNotesTotal(r),
   );
 }
 
@@ -208,7 +221,7 @@ function createFinanceModel(database) {
       // Year cards (by endDate), independent of the selected period.
       const yearRows = database.prepare(`
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
-               endOfStayComplementAmount, endOfStayComplementPaidCash, endDate,
+               endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes, endDate,
                finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
                r.propertyId, p.name AS propertyName
         FROM reservations r JOIN properties p ON r.propertyId = p.id

@@ -21,6 +21,7 @@ const DDL = `
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT, complementPaidCash INTEGER DEFAULT 0,
     endOfStayComplementAmount REAL DEFAULT 0, endOfStayComplementPaid INTEGER DEFAULT 0,
     endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER DEFAULT 0,
+    midStaySettledNotes TEXT,
     platformCommissionAmount REAL, acompteCommissionAmount REAL
   );
 `;
@@ -47,6 +48,7 @@ const COLS = [
   'balanceAmount', 'balancePaid', 'balanceDueDate',
   'complementAmount', 'complementPaid', 'complementPaidCash',
   'endOfStayComplementAmount', 'endOfStayComplementPaid', 'endOfStayComplementPaidCash',
+  'midStaySettledNotes',
   'platformCommissionAmount', 'acompteCommissionAmount',
 ];
 const insertRes = (db, r) => db.prepare(
@@ -57,6 +59,7 @@ const insertRes = (db, r) => db.prepare(
   balanceAmount: 0, balancePaid: 0, balanceDueDate: null,
   complementAmount: 0, complementPaid: 0, complementPaidCash: 0,
   endOfStayComplementAmount: 0, endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0,
+  midStaySettledNotes: null,
   platformCommissionAmount: null, acompteCommissionAmount: null,
   ...r,
 });
@@ -469,3 +472,26 @@ test('getTouristTaxExtraction rejects a future or malformed month (current-month
   const future = `${now.getFullYear() + 1}-01`;
   assert.equal(model.getTouristTaxExtraction({ month: future }).status, 400);
 });
+
+// ── Notes en séjour (specs/mid-stay-notes.md §3.4 rules 15-16) ───────────────
+// Collected money by definition: they raise the total AND the collected figure, never the pending one.
+
+const oneNote = (total, cash = 0) => JSON.stringify([
+  { id: 1, paidDate: TODAY, paidCash: cash, total, lines: [{ label: 'Coca', amount: total, key: 'opt:14' }] },
+]);
+
+matrixCase('note réglée en séjour — comptée dans le total ET dans l\'encaissé, jamais en attente', {
+  platform: 'direct', depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 1,
+  midStaySettledNotes: oneNote(30),
+}, { total: 330, collected: 330, reste: 0 });
+
+matrixCase('note en caisse interne — hors compta des deux côtés (comme un complément caisse)', {
+  platform: 'direct', depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 1,
+  midStaySettledNotes: oneNote(30, 1),
+}, { total: 300, collected: 300, reste: 0 });
+
+matrixCase('note + reste à percevoir au départ — seul le reste est « en attente »', {
+  platform: 'direct', depositAmount: 100, depositPaid: 1, balanceAmount: 200, balancePaid: 1,
+  endOfStayComplementAmount: 18, endOfStayComplementPaid: 0,
+  midStaySettledNotes: oneNote(30),
+}, { total: 348, collected: 330, reste: 18 });
