@@ -652,15 +652,25 @@ export default function PricingSummary({
             const hasCommission = totalComm > 0;
             // « Total du séjour » = the GROSS the client pays: finalPrice (accommodation + all
             // options/resources) + the REAL tourist tax (original, even when offered — the guest paid it).
-            const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour) + touristTaxOriginalTotal;
+            // The end-of-stay complement has two halves: what the departure SAS bills (ménage, linge
+            // manquant, extincteur — flat amounts OUTSIDE finalPrice) and the prestations sold during
+            // the stay (real option/resource lines, already inside finalPrice). Only the first half is
+            // added here, else the mid-stay part would be counted twice in the gross.
+            // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — the end-of-stay
+            // complement is collected on site like the arrival one: same treatment in the cascade.
+            const endOfStay = Number(quote?.endOfStayComplementTotal ?? form.endOfStayComplementAmount ?? 0);
+            const endOfStaySas = Math.max(0, endOfStay - Number(quote?.midStayExtrasTotal || 0));
+            const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour)
+              + touristTaxOriginalTotal + endOfStaySas;
             // Deductions to the commission base: the tax the platform collects + remits to the commune
             // itself (offered), and the extras collected on-site (the complément). What's left is the
             // pre-arrival amount the platform commissions on.
             const offeredTax = isTouristTaxOffered ? touristTaxOriginalTotal : 0;
             const complement = Number(quote?.complementAmount || 0);
-            const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - complement));
+            const onSiteTotal = complement + endOfStay;
+            const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - onSiteTotal));
             const versement = netReceived != null ? Number(netReceived) : montantSoumis;
-            const totalPercu = Number(quote?.sejourNetTotal ?? (versement + complement));
+            const totalPercu = Number(quote?.sejourNetTotal ?? (versement + onSiteTotal));
             // The cascade flow (deductions → versement → +complément) only makes sense for a platform
             // reservation. Direct keeps a single « Total du séjour » + a complément line if any.
             const row = (label, value, opts = {}) => (
@@ -676,36 +686,47 @@ export default function PricingSummary({
                 {isPlatformReservation ? (
                   <>
                     {offeredTax > 0 && row('Taxe de séjour (plateforme)', offeredTax, { sign: '− ', color: 'warning.main' })}
-                    {complement > 0 && row('Compléments (perçus sur place)', complement, { sign: '− ', color: 'warning.main' })}
-                    {(offeredTax > 0 || complement > 0) && row('Montant soumis à commission', montantSoumis, { strong: true })}
+                    {onSiteTotal > 0 && row('Compléments (perçus sur place)', onSiteTotal, { sign: '− ', color: 'warning.main' })}
+                    {(offeredTax > 0 || onSiteTotal > 0) && row('Montant soumis à commission', montantSoumis, { strong: true })}
                     {hasCommission && acompteComm > 0 && row('Commission acompte', acompteComm, { sign: '− ', color: 'warning.main' })}
                     {hasCommission && soldeComm > 0 && row('Commission solde', soldeComm, { sign: '− ', color: 'warning.main' })}
-                    {(hasCommission || complement > 0) && row('Versement plateforme', versement, { strong: true })}
-                    {complement > 0 && row('Compléments (perçus sur place)', complement, { sign: '+ ', color: 'success.main' })}
+                    {(hasCommission || onSiteTotal > 0) && row('Versement plateforme', versement, { strong: true })}
+                    {complement > 0 && row("Complément d'arrivée (perçu sur place)", complement, { sign: '+ ', color: 'success.main' })}
+                    {endOfStay > 0 && row('Complément de fin de séjour', endOfStay, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
                     {form.complementPaid && complement > 0 && (
                       <StatusBadge status="success" label="Complément payé" />
                     )}
                   </>
                 ) : (
-                  complement > 0 && (
-                    <>
+                  <>
+                    {complement > 0 && (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {/* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — when the
+                              complement was deferred at check-in it is collected at the door with the
+                              end-of-stay complement; say so (the amount is unchanged). */}
+                          <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
+                            {form.complementDeferredToCheckout && !form.complementPaid
+                              ? 'dont complément perçu en fin de séjour'
+                              : 'dont complément à percevoir sur place'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(complement)}</Typography>
+                        </Box>
+                        {form.complementPaid && (
+                          <StatusBadge status="success" label="Complément payé" />
+                        )}
+                      </>
+                    )}
+                    {endOfStay > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {/* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — when the
-                            complement was deferred at check-in it is collected at the door with the
-                            end-of-stay complement; say so (the amount is unchanged). */}
-                        <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
-                          {form.complementDeferredToCheckout && !form.complementPaid
-                            ? 'dont complément perçu en fin de séjour'
-                            : 'dont complément à percevoir sur place'}
+                        <Typography variant="body2" sx={{ color: form.endOfStayComplementPaid ? 'text.secondary' : 'error.main', fontWeight: form.endOfStayComplementPaid ? 400 : 600 }}>
+                          dont complément de fin de séjour
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(complement)}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(endOfStay)}</Typography>
                       </Box>
-                      {form.complementPaid && (
-                        <StatusBadge status="success" label="Complément payé" />
-                      )}
-                    </>
-                  )
+                    )}
+                  </>
                 )}
               </>
             );

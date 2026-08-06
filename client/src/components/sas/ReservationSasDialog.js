@@ -515,9 +515,16 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (mode !== 'departure') return [];
     let detail = [];
     try { detail = JSON.parse(r?.endOfStayComplementDetail || '[]') || []; } catch { detail = []; }
+    // `key` identifies the extra a mid-stay line came from (specs/mid-stay-extras-to-end-of-stay-
+    // complement.md) — carried like `source` so the server keeps routing that money out of the
+    // acompte/solde/complément d'arrivée after a check-out commit rewrote the detail.
     return detail
       .filter((l) => l && l.source)
-      .map((l) => ({ label: l.label, unitPrice: Number(l.unitPrice) || 0, amount: Math.round(Number(l.amount || 0) * 100) / 100, qty: Number(l.qty) || 1, source: l.source }));
+      .map((l) => ({
+        label: l.label, unitPrice: Number(l.unitPrice) || 0,
+        amount: Math.round(Number(l.amount || 0) * 100) / 100,
+        qty: Number(l.qty) || 1, source: l.source, ...(l.key ? { key: l.key } : {}),
+      }));
   }, [mode, r]);
   // Lines billed by the laundry/cleaning flow (sent to the server verbatim). The extinguisher lines are
   // sent as quantities (extinguisherCharges) — the server prices them — so they're excluded here.

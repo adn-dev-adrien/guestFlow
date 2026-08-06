@@ -13,6 +13,7 @@ const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { captureContribsOnFlip, clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { resolveComplementPayment } = require('../utils/complementPayment');
+const { sasDetailAmount, storedMidStayLines } = require('../utils/midStayExtras');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const reservationsModel = require('../models/reservationsModel');
@@ -22,6 +23,23 @@ const platformsModel = require('../models/platformsModel');
 const { isReceptionOnly } = require('../constants/roles');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
+
+// specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
+// prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
+// baseline, the part of the end-of-stay complement the departure SAS owns, and (once that complement
+// is collected) the frozen mid-stay lines. All zeroed for a reservation-less quote (devis, public).
+function midStayQuoteInputs(reservationId) {
+  if (!reservationId || reservationId <= 0) return {};
+  const row = model.getRow(Number(reservationId));
+  if (!row) return {};
+  return {
+    arrivalExtrasBaseline: row.arrivalExtrasBaseline || null,
+    endOfStaySasAmount: sasDetailAmount(row.endOfStayComplementDetail),
+    endOfStayComplementSettled: Number(row.endOfStayComplementPaid || 0) === 1
+      || Number(row.endOfStayComplementPaidCash || 0) === 1,
+    frozenMidStayLines: storedMidStayLines(row.endOfStayComplementDetail),
+  };
+}
 
 // specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the
 // platform name, to feed the pricing engine. Direct / unknown → 0 (no acompte).
@@ -283,6 +301,8 @@ function calculatePrice(req, res) {
     freezeTouristTax: Boolean(frozenTouristTax),
     frozenTouristTaxTotal: frozenTouristTax ? frozenTouristTax.touristTaxTotal : 0,
     frozenTouristTaxRate: frozenTouristTax ? frozenTouristTax.touristTaxRate : 0,
+    // Read-only preview: the baseline is only CAPTURED on save, never here.
+    ...midStayQuoteInputs(reservationId),
     // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
     // returns the « total séjour − commission = net perçu » figures for the summary block.
     platformCommissionAmount: req.body.platformCommissionAmount,
@@ -443,6 +463,11 @@ function create(req, res) {
     if (resourceError) return res.status(resourceError.status).json(resourceError.body);
   }
 
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — a reservation created while the
+  // stay is already running (walk-in, saisie a posteriori, import iCal) takes its own extras as the
+  // baseline: nothing it was created with counts as sold mid-stay.
+  model.captureArrivalExtrasBaselineIfDue(reservationId, getTodayIsoDate());
+
   res.json({ id: reservationId, reservationNumber: model.getReservationNumber(reservationId) });
   // Fire-and-forget Google push — never awaited, never fails the request (spec rule 19).
   googleCalendarSync.schedulePush(reservationId);
@@ -525,6 +550,11 @@ function update(req, res) {
   const effectiveDepositPaid = depositDisabledFlag ? false : req.body.depositPaid;
   const effectiveDepositPaidDate = depositDisabledFlag ? null : req.body.depositPaidDate;
 
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
+  // lines are replaced: the state the reservation had entering this save is exactly « what was sold
+  // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
+  model.captureArrivalExtrasBaselineIfDue(id, getTodayIsoDate());
+
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(propertyId),
@@ -557,6 +587,7 @@ function update(req, res) {
     platformGrossAmount: req.body.platformGrossAmount,
     // specs/platform-deposit-toggle.md — whether this platform takes an acompte (global per platform).
     platformTakesDeposit: resolvePlatformTakesDeposit(req.body.platform),
+    ...midStayQuoteInputs(id),
   });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
 
@@ -664,6 +695,11 @@ function update(req, res) {
     const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
     if (resourceError) return res.status(resourceError.status).json(resourceError.body);
   }
+
+  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 11 — the engine has computed what was
+  // sold during the stay; store it as the mid-stay lines of the end-of-stay complement (the SAS-owned
+  // lines are preserved, the amount is re-totalled). Frozen once that complement is collected.
+  model.syncMidStayComplement(id, quote.midStayExtrasLines);
 
   const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);
   if (existingReservation && String(existingReservation.sourceType || '') === 'ical' && Number(existingReservation.icalSyncLocked || 0) !== 1 && nextIcalSyncLocked === 1) {

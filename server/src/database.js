@@ -1676,6 +1676,11 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
                AND COALESCE(complementAmount, 0) > 0
                AND COALESCE(complementPaid, 0) = 0`);
   }
+  // Extras as they stood when the STAY STARTED (specs/mid-stay-extras-to-end-of-stay-complement.md
+  // §3.1): JSON `{ "opt:9": 24, "res:3": 30, "custom:linge manquant": 18 }`. Whatever exceeds this
+  // baseline was sold during the stay and is billed in the end-of-stay complement instead of the
+  // (frozen) arrival buckets. NULL until the stay starts — existing rows are never requalified.
+  if (!rcols.includes('arrivalExtrasBaseline')) db.exec("ALTER TABLE reservations ADD COLUMN arrivalExtrasBaseline TEXT DEFAULT NULL");
   // Tourist-tax declaration marker (specs/tourist-tax-declared-checkbox.md): set to the server time-stamp
   // when the operator ticks « Déclarée » on the extraction page, NULL = not yet declared.
   if (!rcols.includes('touristTaxDeclaredAt')) db.exec("ALTER TABLE reservations ADD COLUMN touristTaxDeclaredAt TEXT");
