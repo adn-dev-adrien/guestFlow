@@ -41,7 +41,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import LockIcon from '@mui/icons-material/Lock';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import api from '../../api';
 import { getPlatformColor, formatPlatformLabel } from '../../constants/platforms';
 import ConfirmDialog from '../ConfirmDialog';

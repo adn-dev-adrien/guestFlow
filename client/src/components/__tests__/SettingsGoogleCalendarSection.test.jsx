@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 import SettingsGoogleCalendarSection from '../SettingsGoogleCalendarSection';
 import DialogProvider from '../DialogProvider';

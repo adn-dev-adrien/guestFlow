@@ -1,7 +1,7 @@
 import React, { useState, act } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { createRoot } from 'react-dom/client';
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 

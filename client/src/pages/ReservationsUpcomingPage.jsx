@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Box, Typography, Chip } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import TodayIcon from '@mui/icons-material/Today';

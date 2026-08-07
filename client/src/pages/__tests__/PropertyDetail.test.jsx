@@ -7,10 +7,10 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
-// Mutable router state shared with the hoisted react-router-dom mock.
+// Mutable router state shared with the hoisted react-router mock.
 const routerState = vi.hoisted(() => ({ id: 'new', navigate: () => {} }));
 
-vi.mock('react-router-dom', async (importOriginal) => {
+vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,

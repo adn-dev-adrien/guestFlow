@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import {
   Box, Typography, Button, IconButton, Select, MenuItem,
   FormControl, InputLabel, Tooltip, Chip,

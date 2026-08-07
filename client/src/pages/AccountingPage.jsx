@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
   TableCell, TableBody, Stack, Chip, Link, Tooltip,

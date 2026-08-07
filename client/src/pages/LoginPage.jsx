@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Card, CardContent, TextField, Button, Typography, Alert, Stack, CircularProgress } from '@mui/material';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import PasswordField from '../components/PasswordField';
 import { useAuth } from '../hooks/useAuth';
 

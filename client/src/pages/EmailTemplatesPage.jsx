@@ -12,7 +12,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HistoryIcon from '@mui/icons-material/History';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import FormDialog from '../components/FormDialog';
 import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';

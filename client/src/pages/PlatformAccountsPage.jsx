@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
   TableCell, TableBody, TableContainer, Stack, Switch, TextField, Link as MuiLink,

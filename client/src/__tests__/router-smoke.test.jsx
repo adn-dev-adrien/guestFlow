@@ -8,10 +8,10 @@ import {
   Link as RouterLink,
   useNavigate,
   useLocation,
-} from 'react-router-dom';
+} from 'react-router';
 import { Button } from '@mui/material';
 
-// Smoke coverage for the classic react-router-dom API surface GuestFlow relies on
+// Smoke coverage for the classic react-router API surface GuestFlow relies on
 // (spec/react-router-7-migration.md §7.2). Three cases pin the contracts that any
 // future v8 (or a hidden v7.x patch) regression would touch:
 //   1. <BrowserRouter> mounts the route tree.
@@ -23,7 +23,7 @@ import { Button } from '@mui/material';
 // These cases are deliberately minimal — the E2E suite (Playwright) covers the
 // integrated UX; this file is the unit-level tripwire.
 
-describe('react-router-dom classic API smoke', () => {
+describe('react-router classic API smoke', () => {
   test('Case 1: <BrowserRouter> mounts and renders a matching <Route element>', () => {
     render(
       <BrowserRouter>

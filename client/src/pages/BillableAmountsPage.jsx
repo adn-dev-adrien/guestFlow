@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
 import ConfirmDialog from '../components/ConfirmDialog';

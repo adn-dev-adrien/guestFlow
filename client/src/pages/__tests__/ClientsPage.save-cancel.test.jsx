@@ -17,7 +17,7 @@ import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 

@@ -13,7 +13,7 @@ import {
   Alert, AlertTitle, Box, Typography, Divider, Stack,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import api from '../api';
 import { displayDateShort } from '../utils/formatters';
 

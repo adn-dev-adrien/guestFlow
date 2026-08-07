@@ -7,7 +7,7 @@ import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 vi.mock('../../api', () => ({
   __esModule: true,
@@ -39,7 +39,7 @@ vi.mock('../../components/DialogProvider', () => {
 });
 
 const navigate = vi.fn();
-vi.mock('react-router-dom', async (importOriginal) => {
+vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, useNavigate: () => navigate };
 });
