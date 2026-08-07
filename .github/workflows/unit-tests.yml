@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Manual runs may target an explicit ref; otherwise the default (the triggering ref).
           ref: ${{ inputs.ref || github.ref }}
@@ -84,7 +84,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Manual runs may target an explicit ref; otherwise the default (the triggering ref).
           ref: ${{ inputs.ref || github.ref }}
