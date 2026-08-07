@@ -26,6 +26,7 @@ import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
 import FinanceSection from '../components/reservation/FinanceSection';
+import ReservationHistoryPanel from '../components/reservation/ReservationHistoryPanel';
 import usePlatforms from '../hooks/usePlatforms';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
@@ -42,9 +43,8 @@ import {
   toWireOccurrences as toWireCardOccurrences,
   isDailyCard,
 } from '../utils/cardOccurrences';
-import { formatCurrency, displayDateTime } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import LoadingState from '../components/LoadingState';
-import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 
 const DEVIS_STATUS_OPTIONS = [
@@ -52,15 +52,6 @@ const DEVIS_STATUS_OPTIONS = [
   { value: 'sent', label: 'Envoyé' },
   { value: 'accepted', label: 'Accepté' },
 ];
-
-// Title of a « Historique des modifications » entry, per event type. Anything unknown reads
-// « Modification » (the historical default). specs/arrival-departure-sas.md §3.7 adds the two SAS ones.
-const HISTORY_EVENT_TITLES = {
-  create: 'Création',
-  update: 'Modification',
-  sas_arrival: 'SAS arrivée',
-  sas_departure: 'SAS départ',
-};
 
 function formatDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -2301,22 +2292,6 @@ export default function ReservationPage() {
     setHistoryOpen((prev) => !prev);
   };
 
-  const formatHistoryDate = (value) => {
-    if (!value) return '';
-    const raw = String(value);
-    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
-    const utcIso = /Z$|[+-]\d{2}:?\d{2}$/.test(normalized) ? normalized : `${normalized}Z`;
-    const date = new Date(utcIso);
-    if (Number.isNaN(date.getTime())) return String(value);
-    return displayDateTime(utcIso);
-  };
-
-  const formatHistoryValue = (value) => {
-    if (value === null || value === undefined || value === '') return 'vide';
-    if (typeof value === 'number') return Number(value).toFixed(2).replace(/\.00$/, '');
-    return String(value);
-  };
-
   if (initError) {
     return (
       <Box>
@@ -2921,71 +2896,12 @@ export default function ReservationPage() {
 
         {editingReservationId && (
           <Box sx={{ gridColumn: { xs: '1 / -1', md: '1 / 2' } }}>
-            <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
-              <CardContent sx={{ py: 1.25 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="sectionHeader">Historique des modifications</Typography>
-                  <Button size="small" variant="outlined" onClick={toggleHistory}>
-                    {historyOpen ? 'Masquer historique' : 'Voir historique'}
-                  </Button>
-                </Box>
-
-                {historyOpen && (
-                  <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                    {historyLoading && <LoadingState py={2} />}
-
-                    {!historyLoading && historyEntries.length === 0 && (
-                      <EmptyState message="Aucun historique disponible." py={2} />
-                    )}
-
-                    {!historyLoading && historyEntries.map((entry) => {
-                      const changes = Array.isArray(entry.changedFields) ? entry.changedFields : [];
-                      const emptyText = entry.eventType === 'create' ? 'Réservation créée' : 'Mise à jour sans changement détecté';
-                      // specs/arrival-departure-sas.md §3.7 — the SAS commits write their own entries.
-                      const eventTitle = HISTORY_EVENT_TITLES[entry.eventType] || 'Modification';
-                      return (
-                        <Box
-                          key={entry.id}
-                          sx={{
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 1,
-                            px: 1,
-                            py: 0.75,
-                            bgcolor: 'grey.50',
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                              {eventTitle}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatHistoryDate(entry.createdAt)}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                            {changes.length === 0 ? (
-                              <Typography variant="caption" color="text.secondary">{emptyText}</Typography>
-                            ) : changes.map((change, i) => {
-                              const from = change.fromText != null ? change.fromText : formatHistoryValue(change.from);
-                              const to = change.toText != null ? change.toText : formatHistoryValue(change.to);
-                              return (
-                                <Typography key={`${change.field || i}`} variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.5 }}>
-                                  <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{change.label}</Box>
-                                  {' : '}{from}
-                                  <Box component="span" sx={{ mx: 0.5, color: 'text.disabled' }}>→</Box>
-                                  {to}
-                                </Typography>
-                              );
-                            })}
-                          </Box>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
+            <ReservationHistoryPanel
+              entries={historyEntries}
+              loading={historyLoading}
+              open={historyOpen}
+              onToggle={toggleHistory}
+            />
           </Box>
         )}
       </Box>

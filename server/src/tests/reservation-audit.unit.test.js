@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   normalizeHistoryValue, getOptionsSignature, getResourcesSignature, computeAuditChanges,
-  formatHistoryMoney, describeSignatureValue, enrichHistoryChanges,
+  formatHistoryMoney,
 } = require('../utils/reservationAudit');
 
 test('normalizeHistoryValue: empty-ish → null, numbers rounded to cents', () => {
@@ -47,43 +47,11 @@ test('computeAuditChanges treats empty-string and null as equal (no spurious cha
 });
 
 // ---- human-readable history (names + money) ----
+// The row-building read side lives in reservation-history-rows.unit.test.js.
 
 test('formatHistoryMoney: integers drop decimals, fractions use a FR comma', () => {
   assert.equal(formatHistoryMoney(0), '0 €');
   assert.equal(formatHistoryMoney(8), '8 €');
   assert.equal(formatHistoryMoney(12.5), '12,50 €');
   assert.equal(formatHistoryMoney(null), '0 €');
-});
-
-test('describeSignatureValue: options resolve ids to names with money + compl. tag', () => {
-  const names = { optionNames: { 6: 'Petit-déjeuner', 8: 'Linge de lit' } };
-  const text = describeSignatureValue('optionsSignature', '6:1:0.00:c1|8:1:14.00:c1', names);
-  assert.equal(text, 'Petit-déjeuner : 0 € (compl.) • Linge de lit : 14 € (compl.)');
-});
-
-test('describeSignatureValue: quantity > 1 is shown; unknown id falls back to a numbered label', () => {
-  const text = describeSignatureValue('optionsSignature', '6:3:24.00:c0|99:1:5.00:c0', { optionNames: { 6: 'Petit-déjeuner' } });
-  assert.equal(text, 'Petit-déjeuner ×3 : 24 € • Option #99 : 5 €');
-});
-
-test('describeSignatureValue: resources expose the offered flag and resolve names', () => {
-  const names = { resourceNames: { 3: 'Lit parapluie' } };
-  assert.equal(describeSignatureValue('resourcesSignature', '3:1:20.00:1:c0', names), 'Lit parapluie : 20 € (offert)');
-  assert.equal(describeSignatureValue('resourcesSignature', '3:1:20.00:0:c1', names), 'Lit parapluie : 20 € (compl.)');
-});
-
-test('describeSignatureValue: custom options (synthetic id) and empty signature', () => {
-  assert.equal(describeSignatureValue('optionsSignature', '1000000:1:30.00:c0', {}), 'Option personnalisée : 30 €');
-  assert.equal(describeSignatureValue('optionsSignature', '', {}), 'aucune');
-});
-
-test('enrichHistoryChanges: adds fromText/toText only to option/resource changes', () => {
-  const changes = [
-    { field: 'finalPrice', label: 'Prix final', from: 100, to: 120 },
-    { field: 'optionsSignature', label: 'Options', from: '', to: '6:1:8.00:c0' },
-  ];
-  const enriched = enrichHistoryChanges(changes, { optionNames: { 6: 'Petit-déjeuner' } });
-  assert.equal(enriched[0].fromText, undefined); // non-signature field untouched
-  assert.equal(enriched[1].fromText, 'aucune');
-  assert.equal(enriched[1].toText, 'Petit-déjeuner : 8 €');
 });
