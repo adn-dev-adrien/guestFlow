@@ -4,6 +4,11 @@
  * Snapshots are field maps compared by `computeAuditChanges` to produce a human-labeled diff stored in
  * `reservation_history`. The DB-side snapshot (current row) is built by the model using the signature
  * helpers exported here.
+ *
+ * Read side: `buildHistoryRows` turns that stored diff into ready-to-print rows for the fiche's
+ * « Historique des modifications » — ids resolved to names, values in French (€, JJ/MM/AAAA, Oui/Non),
+ * options/resources expanded line by line, engine recalculations split apart.
+ * See specs/reservation-history-granular-diff.md.
  */
 
 const { sentenceCase } = require('./textFormatters');
@@ -145,51 +150,182 @@ function resourceDisplayName(resourceId, resourceNames = {}) {
   return resourceNames[id] || `Ressource #${id}`;
 }
 
-/**
- * Turns a compact options/resources signature into a human-readable, name-resolved string for the
- * history UI. The `field` decides the segment layout:
- *   optionsSignature   → `id:qty:total:cN`
- *   resourcesSignature → `id:qty:total:offered:cN`
- * Empty signature → "aucune". Money is FR-formatted; the complément/offert flags become suffix tags.
- */
-function describeSignatureValue(field, rawSignature, { optionNames = {}, resourceNames = {} } = {}) {
-  const raw = rawSignature == null ? '' : String(rawSignature);
-  if (raw === '') return 'aucune';
-  const isResource = field === 'resourcesSignature';
-  return raw
-    .split('|')
-    .map((part) => {
-      const seg = part.split(':');
-      const id = Number(seg[0]);
-      const quantity = Number(seg[1] || 0);
-      const total = Number(seg[2] || 0);
-      const offered = isResource ? String(seg[3] || '') === '1' : false;
-      const inComplement = String((isResource ? seg[4] : seg[3]) || '') === 'c1';
-      const name = isResource ? resourceDisplayName(id, resourceNames) : optionDisplayName(id, optionNames);
-      const qtyText = quantity > 1 ? ` ×${quantity}` : '';
-      const tags = [offered ? 'offert' : null, inComplement ? 'compl.' : null].filter(Boolean);
-      const tagText = tags.length ? ` (${tags.join(', ')})` : '';
-      return `${name}${qtyText} : ${formatHistoryMoney(total)}${tagText}`;
-    })
-    .join(' • ');
+// How a stored primitive value is turned into French display text. Anything unlisted prints raw.
+const HISTORY_FIELD_FORMATS = {
+  propertyId: 'property',
+  clientId: 'client',
+  startDate: 'date',
+  endDate: 'date',
+  depositDueDate: 'date',
+  balanceDueDate: 'date',
+  cautionReceivedDate: 'date',
+  cautionReturnedDate: 'date',
+  totalPrice: 'money',
+  customPrice: 'money',
+  touristTaxRate: 'money',
+  touristTaxTotal: 'money',
+  finalPrice: 'money',
+  depositAmount: 'money',
+  balanceAmount: 'money',
+  cautionAmount: 'money',
+  discountPercent: 'percent',
+  cautionReceived: 'boolean',
+  cautionReturned: 'boolean',
+  extraGuestSurchargeOffered: 'boolean',
+  depositDisabled: 'boolean',
+  touristTaxInComplement: 'boolean',
+};
+
+// Fields the pricing engine recomputes on its own: they move on almost every edit and would bury the
+// change the user actually made, so the UI renders them in a separate « Recalculs » block.
+const DERIVED_HISTORY_FIELDS = new Set([
+  'totalPrice', 'touristTaxRate', 'touristTaxTotal', 'finalPrice', 'depositAmount', 'balanceAmount',
+]);
+
+const SIGNATURE_GROUPS = {
+  optionsSignature: 'Options',
+  resourcesSignature: 'Ressources',
+};
+
+function formatHistoryNumber(value) {
+  const rounded = Math.round(Number(value || 0) * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace('.', ',');
+}
+
+function formatHistoryDateFr(value) {
+  const raw = String(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : raw;
+}
+
+function clientDisplayName(clientId, clientNames = {}) {
+  return clientNames[Number(clientId)] || `#${clientId}`;
+}
+
+function propertyDisplayName(propertyId, propertyNames = {}) {
+  return propertyNames[Number(propertyId)] || `#${propertyId}`;
 }
 
 /**
- * Adds ready-to-render `fromText`/`toText` to option/resource history changes (ids resolved to
- * names + money formatted), so the client renders the diff without parsing the compact signature.
- * Other fields are returned untouched (the client formats their primitive value itself).
+ * French display text for one stored value. `null` reads « vide », except on boolean fields where the
+ * absence of a flag genuinely means « Non ».
  */
-function enrichHistoryChanges(changes, names = {}) {
-  return (Array.isArray(changes) ? changes : []).map((change) => {
-    if (change && (change.field === 'optionsSignature' || change.field === 'resourcesSignature')) {
-      return {
-        ...change,
-        fromText: describeSignatureValue(change.field, change.from, names),
-        toText: describeSignatureValue(change.field, change.to, names),
-      };
-    }
-    return change;
+function formatHistoryFieldValue(field, value, context = {}) {
+  const format = HISTORY_FIELD_FORMATS[field];
+  if (format === 'boolean') return Number(value) === 1 || value === true ? 'Oui' : 'Non';
+  if (value === null || value === undefined || value === '') return 'vide';
+  switch (format) {
+    case 'money': return formatHistoryMoney(value);
+    case 'percent': return `${formatHistoryNumber(value)} %`;
+    case 'date': return formatHistoryDateFr(value);
+    case 'property': return propertyDisplayName(value, context.propertyNames);
+    case 'client': return clientDisplayName(value, context.clientNames);
+    default: return String(value);
+  }
+}
+
+/**
+ * Explodes a compact signature into a map keyed by option/resource id. Segment layout:
+ *   optionsSignature   → `id:qty:total:cN`
+ *   resourcesSignature → `id:qty:total:offered:cN`
+ */
+function parseSignature(field, rawSignature) {
+  const raw = rawSignature == null ? '' : String(rawSignature);
+  if (raw === '') return new Map();
+  const isResource = field === 'resourcesSignature';
+  return new Map(raw.split('|').map((part) => {
+    const seg = part.split(':');
+    const id = Number(seg[0]);
+    return [id, {
+      id,
+      quantity: Number(seg[1] || 0),
+      total: Number(seg[2] || 0),
+      offered: isResource ? String(seg[3] || '') === '1' : false,
+      inComplement: String((isResource ? seg[4] : seg[3]) || '') === 'c1',
+    }];
+  }));
+}
+
+// « ×3 : 22,50 € (offert, compl.) » — the name lives in the row label, not here.
+function formatSignatureLine(line) {
+  const qtyText = line.quantity > 1 ? `×${line.quantity} : ` : '';
+  const tags = [line.offered ? 'offert' : null, line.inComplement ? 'compl.' : null].filter(Boolean);
+  const tagText = tags.length ? ` (${tags.join(', ')})` : '';
+  return `${qtyText}${formatHistoryMoney(line.total)}${tagText}`;
+}
+
+function sameSignatureLine(a, b) {
+  return a.quantity === b.quantity && a.total === b.total
+    && a.offered === b.offered && a.inComplement === b.inComplement;
+}
+
+/**
+ * One row per option/resource that was added, removed or altered — lines identical on both sides are
+ * dropped, so the reader never has to diff two full lists by eye.
+ */
+function diffSignatureChange(change, context = {}) {
+  const { field } = change;
+  const before = parseSignature(field, change.from);
+  const after = parseSignature(field, change.to);
+  const isResource = field === 'resourcesSignature';
+  const ids = [...new Set([...before.keys(), ...after.keys()])].sort((a, b) => a - b);
+  const rows = [];
+  ids.forEach((id) => {
+    const from = before.get(id);
+    const to = after.get(id);
+    if (from && to && sameSignatureLine(from, to)) return;
+    rows.push({
+      field,
+      group: SIGNATURE_GROUPS[field] || change.label,
+      label: isResource
+        ? resourceDisplayName(id, context.resourceNames)
+        : optionDisplayName(id, context.optionNames),
+      kind: !from ? 'added' : (!to ? 'removed' : 'changed'),
+      fromText: from ? formatSignatureLine(from) : null,
+      toText: to ? formatSignatureLine(to) : null,
+    });
   });
+  return rows;
+}
+
+function expandHistoryChange(change, context) {
+  // The SAS commits and the iCal lock line already ship rendered French text — never re-format them.
+  if (change.fromText !== undefined || change.toText !== undefined) {
+    return [{
+      field: change.field,
+      group: null,
+      label: change.label,
+      kind: 'changed',
+      fromText: change.fromText ?? null,
+      toText: change.toText ?? null,
+    }];
+  }
+  if (SIGNATURE_GROUPS[change.field]) return diffSignatureChange(change, context);
+  return [{
+    field: change.field,
+    group: null,
+    label: change.label,
+    kind: 'changed',
+    fromText: formatHistoryFieldValue(change.field, change.from, context),
+    toText: formatHistoryFieldValue(change.field, change.to, context),
+  }];
+}
+
+/**
+ * Stored diff → `{ changes, derived }`, both arrays of ready-to-print rows
+ * `{ field, group, label, kind, fromText, toText }`. An entry made only of engine recalculations
+ * keeps them in `changes` so it never renders as an empty « Recalculs » block.
+ */
+function buildHistoryRows(changes, context = {}) {
+  const main = [];
+  const derived = [];
+  (Array.isArray(changes) ? changes : []).forEach((change) => {
+    if (!change || !change.field) return;
+    expandHistoryChange(change, context).forEach((row) => {
+      (DERIVED_HISTORY_FIELDS.has(row.field) ? derived : main).push(row);
+    });
+  });
+  return main.length === 0 ? { changes: derived, derived: [] } : { changes: main, derived };
 }
 
 function computeAuditChanges(beforeSnapshot, afterSnapshot) {
@@ -212,12 +348,13 @@ function computeAuditChanges(beforeSnapshot, afterSnapshot) {
 
 module.exports = {
   HISTORY_FIELD_LABELS,
+  DERIVED_HISTORY_FIELDS,
   normalizeHistoryValue,
   getOptionsSignature,
   getResourcesSignature,
   buildAuditSnapshotFromPayload,
   computeAuditChanges,
   formatHistoryMoney,
-  describeSignatureValue,
-  enrichHistoryChanges,
+  formatHistoryFieldValue,
+  buildHistoryRows,
 };

@@ -15,7 +15,8 @@ const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { sentenceCase } = require('../utils/textFormatters');
 const { roundMoney, addDaysToIsoDate } = require('../utils/devisHelpers');
-const { enrichHistoryChanges } = require('../utils/reservationAudit');
+const { buildHistoryRows } = require('../utils/reservationAudit');
+const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 
@@ -331,15 +332,13 @@ function createModel(database) {
   function getHistory(id) {
     const devis = database.prepare("SELECT id FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!devis) return null;
-    const names = {
-      optionNames: Object.fromEntries(database.prepare('SELECT id, title FROM options').all().map((o) => [Number(o.id), o.title])),
-      resourceNames: Object.fromEntries(database.prepare('SELECT id, name FROM resources').all().map((r) => [Number(r.id), r.name])),
-    };
+    const names = buildHistoryNameContext(database);
     return database.prepare('SELECT id, eventType, changedFields, createdAt FROM reservation_history WHERE reservationId = ? ORDER BY createdAt DESC').all(Number(id))
       .map((row) => {
-        let changes = [];
-        try { changes = JSON.parse(row.changedFields || '[]'); } catch { changes = []; }
-        return { id: row.id, eventType: row.eventType, createdAt: row.createdAt, changes: enrichHistoryChanges(changes, names) };
+        let stored = [];
+        try { stored = JSON.parse(row.changedFields || '[]'); } catch { stored = []; }
+        const { changes, derived } = buildHistoryRows(stored, names);
+        return { id: row.id, eventType: row.eventType, createdAt: row.createdAt, changes, derived };
       });
   }
 
