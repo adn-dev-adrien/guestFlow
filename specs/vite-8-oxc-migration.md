@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `chore/vite-8-oxc-migration` _(user-managed)_ |
 | **Created** | 2026-08-07 |
 | **Author** | Adrien |
@@ -49,8 +49,10 @@ C'est donc une migration, pas une montée de version. Elle a sa propre spec pour
 Le client tourne sur Vite 8 (+ `@vitejs/plugin-react` 6), sans perdre la capacité de compiler le code
 existant, et sans que la suite de tests ni le build de production ne changent de comportement.
 
-Bénéfice attendu, au-delà de la mise à jour : la faille `esbuild` (gravité *low* — lecture de fichier
-arbitraire par le serveur de dev sous Windows) disparaît avec le transformeur.
+> **Correction 2026-08-07 :** on attendait de cette migration qu'elle lève la faille `esbuild`
+> (gravité *low* — lecture de fichier arbitraire par le serveur de dev sous Windows). **C'est faux.**
+> Vite 8 dépend toujours d'`esbuild@0.27.7` pour le pré-bundling des dépendances (`npm ls esbuild` →
+> `vite@8.2.1 └── esbuild@0.27.7`). L'avis reste ouvert. C'était une hypothèse, pas une vérification.
 
 ## 3. Functional rules
 
@@ -103,18 +105,19 @@ Aucun.
 
 Aucun changement visible attendu — c'est précisément ce que la vérification doit confirmer.
 
-## 7. Test plan
+## 7. Test plan — exécuté le 2026-08-07
 
-- [ ] `cd client && npx vitest run` — **788 tests verts, aucun fichier modifié**. C'est le juge de
-      paix : la panne actuelle est justement une panne de transformation des tests.
-- [ ] `cd client && npm run build` — build de production réussi ; comparer la taille du bundle
-      avant/après et signaler tout écart notable.
-- [ ] `npm run test:e2e` — la suite tourne sur le **vrai** serveur de dev Vite : elle valide le proxy,
-      le port et le rendu réel.
-- [ ] `npm ci` dans `client/` — garde-fou verrou multi-plateformes (linux + darwin + win présents).
-- [ ] Manuel : `npm run dev`, puis quelques écrans denses (planning, fiche de réservation, suivi
-      financier) — rendu et console propres.
-- [ ] `npm audit` — confirmer la disparition de l'avis `esbuild`.
+- [x] `cd client && npx vitest run` — **788 tests verts, aucun test modifié**. C'est le juge de paix :
+      la panne était justement une panne de transformation des tests.
+- [x] `cd client && npm run build` — **build réussi en 320 ms contre 2,74 s** sous Vite 7 (rolldown),
+      pour un bundle de **taille identique (3,2 Mo)**. 1971 modules transformés.
+- [x] `npm run test:e2e` — **45 passés / 1 ignoré**, sur le vrai serveur de dev Vite 8 : proxy, port
+      et rendu réel validés.
+- [x] `npm ci` dans `client/` — verrou multi-plateformes intact.
+- [x] Manuel : `npm run dev` (« VITE v8.2.1 ready in 259 ms »), puis planning, fiche de réservation,
+      suivi financier et paramètres — rendu identique, **zéro erreur console**.
+- [x] `npm audit` — l'avis `esbuild` **subsiste** (voir la correction en §1), les deux avis
+      `react-router` aussi. Aucune régression : mêmes 3 avis qu'avant la migration.
 
 ## 8. Out of scope
 
@@ -122,12 +125,32 @@ Aucun changement visible attendu — c'est précisément ce que la vérification
 - Toucher au serveur ou à la base.
 - Le reste des majeures en attente : `express` 4 → 5 (sa propre spec), `react-router` 8.
 
-## 9. Open questions
+## 9. Open questions — tranchées le 2026-08-07, par l'expérience
 
-- Q : quelle voie — renommage massif, `oxc: false`, ou transform dédié ?
-  - A : à trancher en mesurant. Commencer par **B** (une ligne, réversible) : si le build et les
-    tests passent avec une performance acceptable, c'est la réponse. **A** est la voie « propre à
-    long terme » mais elle touche des centaines de fichiers et entrerait en conflit avec toute
-    branche ouverte — à faire seule, sur un dépôt calme.
-- Q : `@vitejs/plugin-react` 6 change-t-il le Fast Refresh ou le traitement du JSX runtime ?
-  - A : à lire dans ses notes de version avant de conclure que la migration est neutre.
+- **Q : quelle voie — renommage, `oxc: false`, ou transform dédié ?** → **A, le renommage**, parce
+  que les deux autres sont impossibles, pas parce qu'elle est préférable :
+  - **B (`oxc: false`) essayée et écartée.** Elle retire bien le plugin (`config.oxc !== false ?
+    oxcPlugin(config) : null` dans les sources de Vite 8), mais le build échoue quand même — et
+    l'erreur vient alors de **rolldown** : `[builtin:vite-transform] Unexpected JSX expression`.
+    Vite 8 n'a pas seulement changé de transformeur, il a changé de **bundler**, et rolldown parse
+    lui-même les `.js` comme du JS pur. Au passage, `optimizeDeps.esbuildOptions` est déprécié
+    (→ `rolldownOptions`).
+  - **C (transform dédié)** aurait dû se battre contre le même parseur natif, pour du code
+    d'outillage maison à maintenir.
+  - Aucun réglage n'existe : `lang` est retiré des `OxcOptions`, rolldown n'expose rien d'équivalent,
+    et le code de Vite tranche par l'extension — `const isJSX = filepath.endsWith("x")`.
+- **Q : `@vitejs/plugin-react` 6 change-t-il le Fast Refresh ou le JSX runtime ?** → Aucun effet
+  observable : 788 tests, 45 E2E et quatre écrans rendus à l'identique, sans erreur console.
+
+**Deux pièges rencontrés, à connaître si l'exercice se répète :**
+
+1. **La détection du JSX par expression régulière rate les balises en fin de ligne.** Le premier
+   passage a renommé 206 fichiers ; 13 manquaient, tous de la forme `<Chip` suivi d'un retour à la
+   ligne — mon motif exigeait un caractère après le nom de balise. Il faut ancrer la fin de ligne.
+2. **…et elle produit des faux positifs sur les commentaires.** 7 fichiers ont été renommés à tort
+   parce qu'un commentaire mentionnait `<Select>`. C'est le test d'architecture
+   `calendar-platform-colors` — qui autorise `constants/platforms.js` **par son nom** — qui les a
+   signalés en échouant. Ils sont revenus en `.js`. Bilan : **212 `.jsx`, 53 `.js`**.
+3. **L'entrée HTML ne résout pas les extensions.** `index.html` référençait `/src/index.js` en dur :
+   c'est le seul import du dépôt qui devait être corrigé à la main (tous les autres sont
+   extensionless, donc résolus par `resolve.extensions`).
