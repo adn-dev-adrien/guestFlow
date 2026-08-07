@@ -1787,6 +1787,35 @@ db.exec(`
   );
 `);
 
+// Data repair (specs/sas-bath-linen-ghost-line.md §3 rule 3): erase the billing lines the removed
+// « linge de toilette réglé en fin de séjour » flow left in the end-of-stay complement. Naturally
+// idempotent (a filter — once dropped, nothing matches), so it needs no `migrations` guard and keeps
+// covering any row restored from an old backup.
+{
+  const { repairBathLinenGhosts } = require('./utils/complementDataRepairs');
+  const repaired = repairBathLinenGhosts(db);
+  if (repaired.length > 0) {
+    console.log(`[migration:bath-linen-ghost] dropped the ghost line on reservation(s) ${repaired.join(', ')}`);
+  }
+}
+
+// Data repair (specs/frozen-complement-trusts-client.md §3 rule 3): a collected arrival complement
+// that absorbed a later mid-stay sale is reduced by the part the end-of-stay complement already bills.
+// ONE-SHOT — guarded by the `migrations` table: the correction subtracts, so re-running it would keep
+// eating into the amount. The write-path fix (reservationsController.update) is what prevents new ones.
+{
+  const migrationName = 'frozen_complement_midstay_repair_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { repairFrozenComplements } = require('./utils/complementDataRepairs');
+    const repaired = repairFrozenComplements(db);
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+    if (repaired.length > 0) {
+      console.log(`[migration:frozen-complement] corrected the collected complement on reservation(s) ${repaired.join(', ')}`);
+    }
+  }
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);
