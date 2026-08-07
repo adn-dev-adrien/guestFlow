@@ -1,0 +1,78 @@
+# Veille de mises à jour automatisée (demandée le 2026-08-07).
+#
+# Pourquoi : le 2026-08-06, `master` est passé au rouge parce que Node 24.19.0 faisait crasher
+# `better-sqlite3` — resté en `^11` alors que la 13.x était publiée depuis longtemps — au teardown
+# des processus de test (214 fichiers en échec, toutes les assertions passant pourtant). Le même
+# audit a révélé 8 failles « high » dormantes. Le retard accumulé coûte plus cher que la mise à jour
+# continue : ce fichier fait remonter les nouvelles versions au fil de l'eau, sans attendre l'incident.
+#
+# Trois manifestes distincts — la racine porte Playwright + concurrently, `server/` l'API, `client/`
+# la SPA. Un `package-lock.json` par dossier, donc un écosystème npm par dossier.
+#
+# Stratégie de regroupement : les patchs/mineures arrivent EN LOT (une PR par dossier et par semaine,
+# facile à relire et à merger d'un bloc), tandis que chaque MAJEURE arrive SEULE — une majeure se
+# valide au cas par cas (breaking changes, module natif recompilé sur le Pi, outillage de test), elle
+# ne doit jamais être noyée dans un lot.
+
+version: 2
+updates:
+  # ── Racine : outillage de dev (Playwright, concurrently, better-sqlite3 des scripts) ──
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies]
+    groups:
+      racine-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Serveur : API Express + better-sqlite3 (module NATIF, recompilé sur le Pi au déploiement) ──
+  - package-ecosystem: npm
+    directory: /server
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies, server]
+    groups:
+      serveur-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Client : SPA React + outillage Vite/Vitest ──
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies, client]
+    groups:
+      client-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Actions GitHub : les workflows épinglent des actions (checkout@v6, setup-node@v6…) ──
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(ci)
+    labels: [dependencies, ci]
