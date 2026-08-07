@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { midStayNoteAccess, countMidStayNotes } from '../../utils/midStayNoteAccess';
 /**
  * Test-only helper: builds a complete mock value for ReservationFormContext so the section
  * components can be rendered in isolation. Not imported by production code.
@@ -78,6 +79,19 @@ export function makeMockContext(overrides = {}) {
     // to the page; the mocks let the block be exercised in isolation.
     saveThenRun: vi.fn((action) => (typeof action === 'function' ? action() : undefined)),
     reloadReservationFinance: vi.fn(),
+    midStayNoteOpen: false,
+    setMidStayNoteOpen: vi.fn(),
+    // DERIVED, not hardcoded: the access rule is owned by the page and shared with the sticky action
+    // bar. Computing it here from the mocked form keeps the block's tests exercising the real rule
+    // (stay started / future / already settled) instead of a stub that could drift from it.
+    midStayNote: midStayNoteAccess({
+      editingReservationId: rest.editingReservationId ?? null,
+      isDevisMode: rest.isDevisMode ?? false,
+      startDate: (formOverrides && formOverrides.startDate) || '2026-06-01',
+      notesCount: countMidStayNotes(formOverrides && formOverrides.midStaySettledNotes),
+      endOfStaySettled: Boolean(formOverrides && (formOverrides.endOfStayComplementPaid || formOverrides.endOfStayComplementPaidCash)),
+      today: new Date().toISOString().slice(0, 10),
+    }),
     ...rest,
   };
 }

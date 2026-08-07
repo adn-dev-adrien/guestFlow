@@ -141,12 +141,24 @@ becomes **the remainder** — collected at check-out exactly as today.
 
 ### 3.5 Fiche & SAS
 
-17. **New fiche block « Encaissements en séjour »** (FinanceSection, between the arrival complement
-    and the end-of-stay complement — chronological order): running total of all settled notes, a
-    **« Nouvelle note »** button, and a collapsible **history** listing each note (date, mode CB /
-    Caisse interne, total, expandable lines, ✕ cancel with confirmation). Block visible when the
-    stay has started (`startDate ≤ today`) **or** the register is non-empty; the button is disabled
-    with an explanatory tooltip while the end-of-stay complement is globally collected (rule 3 / 11).
+17. **Deux points d'entrée, une seule règle.** L'action est disponible :
+    - depuis la **barre d'actions collante** de la fiche — bouton « Nouvelle note » (icône
+      `PointOfSale`, vert), **en tête de `actionsBefore`** ;
+    - depuis le **bloc « Encaissements en séjour »** (FinanceSection, entre le complément d'arrivée
+      et celui de fin de séjour) : total courant des notes encaissées, bouton « + Nouvelle note » et
+      **historique** dépliable (date, mode CB / Caisse interne, total, lignes, ✕ annuler avec
+      confirmation).
+
+    La règle d'affichage est **partagée** par les deux via `utils/midStayNoteAccess.js` (pure, testée)
+    et l'état d'ouverture de la fenêtre vit dans `ReservationPage` : visible quand le séjour a commencé
+    (`startDate ≤ today`) **ou** que le registre n'est pas vide ; désactivée avec une infobulle
+    explicative tant que le complément de fin de séjour est encaissé (rule 3 / 11) ; jamais sur un
+    devis ni sur une réservation non enregistrée.
+
+    > **Pourquoi la barre d'actions (2026-08-07).** Le bloc seul ne suffisait pas : sur une fiche de
+    > 4500 px, il se trouve à **81 % du défilement**, entre les champs de commission et le bloc
+    > caution. Or c'est l'action la plus fréquente d'un séjour en cours — le client prend une
+    > consommation au comptoir. Rangé par logique comptable, il était introuvable à l'usage.
 18. **The end-of-stay complement block is unchanged** — no per-line buttons (2026-08-06 decision:
     avoid clutter). It keeps showing the remainder lines + the global « Marquer payé » / « Caisse
     interne » controls.
@@ -214,7 +226,9 @@ transaction) — the next quote/save reconverges by construction (`remaining = m
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/reservation/` | `MidStayNoteDialog.js` | **C** | The « Nouvelle note » dialog: checkable pending lines + catalogue picker bound to the same form state as the Options section (snapshot/rollback on cancel), live note total from the server quote, three closing actions. Feature-specific by design (wired to the reservation form contract) — not a generic component. |
-| `components/reservation/` | `FinanceSection.js` | T | New « Encaissements en séjour » block (rule 17): running total, « Nouvelle note » button, collapsible note history with ✕ cancel; end-of-stay block untouched (rule 18). |
+| `components/reservation/` | `FinanceSection.js` | T | New « Encaissements en séjour » block (rule 17): running total, « Nouvelle note » button, collapsible note history with ✕ cancel; end-of-stay block untouched (rule 18). Consomme l'état + la règle d'accès de la page — n'en tient plus de copie locale. |
+| `utils/` | `midStayNoteAccess.js` | **C** | La règle « quand peut-on ouvrir une note ? » en un seul endroit, partagée par la barre d'actions et le bloc, plus `countMidStayNotes`. Pure, 9 tests. |
+| `pages/` | `ReservationPage.js` | T | Détient l'état d'ouverture de la fenêtre (deux surfaces l'ouvrent) et calcule la règle une fois ; ajoute l'entrée « Nouvelle note » en tête de `actionsBefore`. |
 | `components/` | `PricingSummary.js` | T | Cascade per rule 19 (notes deducted + re-added on their own line; direct variant). |
 | `components/sas/` | `ReservationSasDialog.js` | T | « Déjà réglé en séjour : X € » info line in the departure recap (from the reservation row). |
 | `pages/` | `ReservationPage.js` | T | Load `midStaySettledNotes` into the form (+ `EMPTY_FORM`); host the dialog (open state, post-settle refresh). |

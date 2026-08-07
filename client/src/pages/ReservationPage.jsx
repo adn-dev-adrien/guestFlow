@@ -10,6 +10,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -33,6 +34,7 @@ import { getRangeOccupancyConflictInfo } from '../utils/reservationConflicts';
 import { isValidEmail, isValidPhone } from '../utils/validation';
 import { getFromParam, navigateBackWithFrom } from '../utils/navigation';
 import { applyQuoteToForm as applyQuoteToFormPure } from '../utils/applyQuoteToForm';
+import { midStayNoteAccess, countMidStayNotes } from '../utils/midStayNoteAccess';
 import {
   buildInitialGrid as buildInitialCardGrid,
   buildGridFromStored as buildCardGridFromStored,
@@ -157,6 +159,10 @@ export default function ReservationPage() {
   const [clientDialogMode, setClientDialogMode] = useState('create');
   // specs/email-automation.md §6.6 — opens EmailManualSendDialog from the action bar.
   const [emailSendOpen, setEmailSendOpen] = useState(false);
+  // specs/mid-stay-notes.md §3.5 rule 17 — l'état vit ICI et non dans FinanceSection : la fenêtre
+  // s'ouvre depuis deux endroits, la barre d'actions collante (point d'entrée principal) et le bloc
+  // « Encaissements en séjour » plus bas dans la carte Finance.
+  const [midStayNoteOpen, setMidStayNoteOpen] = useState(false);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
@@ -2569,10 +2575,32 @@ export default function ReservationPage() {
     ? (editingDevisId ? 'Modifier le devis' : 'Nouveau devis')
     : (reservationId ? 'Modifier la réservation' : 'Nouvelle réservation');
 
+  // specs/mid-stay-notes.md §3.5 rule 17 — « Nouvelle note » en TÊTE de barre : c'est l'action la
+  // plus fréquente d'un séjour en cours (le client prend une consommation au comptoir), et le bloc
+  // qui la portait se trouvait à 81 % du défilement d'une fiche de 4500 px. Même règle d'affichage
+  // que le bloc, partagée via `midStayNoteAccess` pour que les deux ne divergent jamais.
+  const midStayNote = midStayNoteAccess({
+    editingReservationId,
+    isDevisMode,
+    startDate: form.startDate,
+    notesCount: countMidStayNotes(form.midStaySettledNotes),
+    endOfStaySettled: Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash),
+    today: todayStr,
+  });
+
   const actionBarBefore = [
+    ...(midStayNote.visible ? [{
+      icon: <PointOfSaleIcon />,
+      tooltip: midStayNote.disabled ? midStayNote.reason : 'Nouvelle note (encaissement en séjour)',
+      onClick: () => setMidStayNoteOpen(true),
+      color: 'success',
+      disabled: midStayNote.disabled,
+    }] : []),
     ...(!isDevisMode && !reservationId
       ? [{ icon: <DescriptionIcon />, tooltip: 'Créer un devis', onClick: handleCreateDevisFromForm, color: 'info' }] : []),
-    ...(!isDevisMode && reservationId
+    // Réservation PLATEFORME → pas de devis : le tarif a été fixé par la plateforme, nous ne
+    // devisons pas ce séjour. Le bouton n'a de sens que sur une réservation directe.
+    ...(!isDevisMode && reservationId && !isPlatformReservation
       ? [{ icon: <DescriptionIcon />, tooltip: 'Transformer en devis', onClick: handleConvertToDevis, color: 'info' }] : []),
     // specs/email-automation.md §6.6 — manual email send on an existing reservation. Disabled
     // when the client has no email; the dialog otherwise surfaces SMTP / template errors clearly.
@@ -2622,7 +2650,10 @@ export default function ReservationPage() {
       ? [{ icon: <PaymentsIcon />, tooltip: 'Envoyer la demande d\'acompte', onClick: handleSendDepositRequest, color: 'success' }] : []),
     // specs/public-online-deposit.md §3 rule 8 — send/re-send the balance link when the deposit was
     // collected online but the solde is still due (reservation, positive balance, not yet paid).
-    ...(!isDevisMode && editingReservationId && !form.balancePaid && Number(pricingQuote?.balanceAmount || 0) > 0
+    // Réservation PLATEFORME exclue : le solde est encaissé par la plateforme et nous est reversé,
+    // on ne le réclame jamais au client — envoyer ce lien serait une double demande de paiement.
+    ...(!isDevisMode && editingReservationId && !isPlatformReservation
+      && !form.balancePaid && Number(pricingQuote?.balanceAmount || 0) > 0
       ? [{ icon: <RequestQuoteIcon />, tooltip: 'Envoyer la demande de solde', onClick: handleSendBalanceRequest, color: 'info' }] : []),
   ];
 
@@ -2678,6 +2709,9 @@ export default function ReservationPage() {
     // specs/mid-stay-notes.md — the « Encaissements en séjour » block drives the save + reload
     // through the page (it owns the pipeline); the block itself holds no reservation logic.
     saveThenRun, reloadReservationFinance,
+    // La fenêtre « Nouvelle note » s'ouvre depuis la barre d'actions ET depuis le bloc Finance :
+    // l'état et la règle d'accès sont donc calculés ici, une seule fois.
+    midStayNoteOpen, setMidStayNoteOpen, midStayNote,
   };
 
   return (
