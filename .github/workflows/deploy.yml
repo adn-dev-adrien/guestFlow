@@ -31,7 +31,10 @@ jobs:
           # better-sqlite3) compiled against a different `NODE_MODULE_VERSION` will refuse to
           # load at runtime (`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION N ... M`). If you bump
           # the Pi's Node via apt, bump this pin in the same PR.
-          node-version: '24'
+          # Pinned to a patch since 2026-08-06 (Node 24.19.0 crashes better-sqlite3 at teardown —
+          # see unit-tests.yml). The ABI is per-MAJOR, so 24.18.0 stays compatible with whatever
+          # 24.x the Pi runs; only the build toolchain is frozen.
+          node-version: '24.18.0'
           cache: 'npm'
 
       # ─── DISABLED 2026-06-02 ──────────────────────────────────────────────
