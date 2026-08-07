@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Implemented |
 | **Branch** | `chore/better-sqlite3-upgrade` _(user-managed)_ |
 | **Created** | 2026-08-07 |
 | **Author** | Adrien |
@@ -122,21 +122,30 @@ fix, not a UX decision.
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `cd server && npm test` — the full suite green, **unchanged**, on Node 24 latest (not 24.18.0).
+- [x] `cd server && npm test` — **2359 green, unchanged**, no test edited. Locally on Node 22; the
+      Node 24-latest run is the CI job, which is the whole point of the unpin (rule 5).
 
 ### Client
-- [ ] `cd client && npx vitest run` — unaffected, run as a regression guard.
+- [x] `cd client && npx vitest run` — 788 green (regression guard; the driver is server-side).
 
 ### E2E
-- [ ] `npm run test:e2e` — exercises the real server + a real SQLite file, so it is the meaningful
+- [x] `npm run test:e2e` — 45 passed / 1 skipped. Real server + real SQLite file: the meaningful
       integration check for a driver swap.
 
 ### Manual
-- [ ] Boot the dev server on a **fresh** DB (`rm server/guestflow.db`) → every migration applies.
-- [ ] Boot on the **existing** dev DB → no migration re-runs, no corruption.
-- [ ] Exercise a write-heavy path (create a reservation, run an arrival SAS, settle a note) and a
-      read-heavy one (Finance + Comptabilité pages).
-- [ ] After deploy: `pm2 logs guestflow` clean on restart (this is where the teardown assert showed).
+- [x] Boot on a **fresh** DB (`DB_PATH=…/fresh.db`, the dev DB left untouched) → 46 tables, 102
+      columns on `reservations`, every recent migration applied (`arrivalExtrasBaseline`,
+      `midStaySettledNotes`, `endOfStayComplementDetail`).
+- [x] Boot on a **copy of the real dev DB** → `PRAGMA integrity_check: ok`, 43 reservations and 46
+      clients readable, sample row intact. Worked on a copy on purpose: a driver swap is exactly the
+      case where you don't experiment on the only DB.
+- [x] **On the Pi** (the deploy-blocking unknown, §9 Q2): Node **v24.15.0**, aarch64 — satisfies
+      `>=22` and matches the CI major, so the ABI lines up. `npm_config_build_from_source=true npm
+      install better-sqlite3@13.0.3` — the deploy's own command — succeeds in a throwaway `/tmp`
+      dir (3 s), and the resulting module opens a DB, creates a table, writes and reads back. Temp
+      dir removed; the running app was never touched.
+- [ ] After deploy: `pm2 logs guestflow` clean on restart — **to check at the next release push**
+      (that is where the teardown assert would show).
 
 ## 8. Out of scope
 
@@ -145,9 +154,16 @@ fix, not a UX decision.
 - Bumping the Pi's Node major.
 - Any schema or query rewrite.
 
-## 9. Open questions
+## 9. Open questions — résolues le 2026-08-07
 
-- Q: 12.x or 13.x — which is the smallest hop that fixes the teardown assert on current Node 24?
-  - A: to determine by running the suite against each on a CI branch.
-- Q: does the Pi's OS toolchain build 13.x from source?
-  - A: to verify on the Pi before merging (that is the deploy-blocking unknown).
+- **Q1 — 12.x or 13.x, which is the smallest hop?** → **Went straight to 13.0.3**, the current
+  release. Its `engines` (`node: >=22`) is *looser* than 12.x's enumerated list
+  (`20.x || 22.x || 23.x || 24.x`), so 13 is the more future-proof target for a Node line that keeps
+  moving — which is the very thing that broke us. Taking the smaller hop would have meant landing on
+  a line that already enumerates majors and will need the same exercise again.
+- **Q2 — does the Pi build 13.x?** → **Yes, verified on the machine** (not inferred): Node v24.15.0,
+  aarch64; the deploy's own install command succeeds and the module runs. See §7.
+- **Q3 (new) — does the bump actually fix the teardown crash on Node 24.19?** → The local Node is
+  22, where the bug never reproduced, so **only CI can answer**. That is why this PR unpins the
+  workflows in the same change: the green CI run on Node 24-latest *is* the proof. Had it stayed
+  red, the fallback was 12.x, then re-pinning.

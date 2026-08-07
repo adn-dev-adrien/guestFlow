@@ -35,9 +35,7 @@ jobs:
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v6
         with:
-          # Pinned to the same patch as unit-tests.yml — Node 24.19.0 crashes better-sqlite3 at
-          # process teardown (see the comment there). Unpin with the better-sqlite3 bump.
-          node-version: '24.18.0'
+          node-version: '24'
 
       - name: 📚 Install root + client + server deps
         run: |

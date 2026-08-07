@@ -52,14 +52,11 @@ jobs:
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v6
         with:
-          # PINNED to a patch, not the floating '24' — 2026-08-06: the day 24.19.0 landed on the
-          # runners, every test process started crashing at EXIT inside better-sqlite3's native
-          # teardown (`RemoveEnvironmentCleanupHook … Assertion failed: (env) != nullptr`, from
-          # `Statement::~Statement()` / `Database::~Database()`). The assertions all PASSED; the
-          # processes died on the way out, so `node --test` reported 214 failed files. Same commit
-          # range was green on 24.18.0 hours earlier. Unpin once better-sqlite3 is bumped (it is
-          # still on ^11 while 13.x is out) — see specs/better-sqlite3-upgrade.md.
-          node-version: '24.18.0'
+          # Back to the floating major since better-sqlite3 13 (2026-08-07). It had been pinned to
+          # 24.18.0 for a day: on 24.19.0 every test process crashed at EXIT inside better-sqlite3
+          # ^11's native teardown. The driver bump is the actual fix — see
+          # specs/better-sqlite3-upgrade.md. Keep the major in sync with the Pi's Node (deploy.yml).
+          node-version: '24'
 
       - name: 📚 Install server deps
         run: cd server && npm ci
@@ -89,14 +86,11 @@ jobs:
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v6
         with:
-          # PINNED to a patch, not the floating '24' — 2026-08-06: the day 24.19.0 landed on the
-          # runners, every test process started crashing at EXIT inside better-sqlite3's native
-          # teardown (`RemoveEnvironmentCleanupHook … Assertion failed: (env) != nullptr`, from
-          # `Statement::~Statement()` / `Database::~Database()`). The assertions all PASSED; the
-          # processes died on the way out, so `node --test` reported 214 failed files. Same commit
-          # range was green on 24.18.0 hours earlier. Unpin once better-sqlite3 is bumped (it is
-          # still on ^11 while 13.x is out) — see specs/better-sqlite3-upgrade.md.
-          node-version: '24.18.0'
+          # Back to the floating major since better-sqlite3 13 (2026-08-07). It had been pinned to
+          # 24.18.0 for a day: on 24.19.0 every test process crashed at EXIT inside better-sqlite3
+          # ^11's native teardown. The driver bump is the actual fix — see
+          # specs/better-sqlite3-upgrade.md. Keep the major in sync with the Pi's Node (deploy.yml).
+          node-version: '24'
 
       - name: 📚 Install client deps
         run: cd client && npm ci
