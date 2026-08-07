@@ -3,6 +3,7 @@ import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Toolti
 import RefreshIcon from '@mui/icons-material/Refresh';
 import StatusBadge from './StatusBadge';
 import { formatCurrency, displayDate } from '../utils/formatters';
+import { COMPLEMENT_LABELS, COMPLEMENT_BREAKDOWN_LABELS } from '../constants/complements';
 
 // Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
 // (spec force-item-to-complement.md §6.2). When `onClick` is provided, the chip becomes a
@@ -672,6 +673,10 @@ export default function PricingSummary({
             const offeredTax = isTouristTaxOffered ? touristTaxOriginalTotal : 0;
             const complement = Number(quote?.complementAmount || 0);
             const onSiteTotal = complement + endOfStay + midStayNotes;
+            // specs/complement-buckets-by-moment.md §3 rule 1 — the server files each amount under the
+            // moment it is collected; the panel only prints. Fallback for a quote from an older payload
+            // (or a devis preview): everything under arrival, which is what the engine returns anyway.
+            const split = quote?.complementSplit || { arrival: complement, duringStay: midStayNotes, endOfStay };
             const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - onSiteTotal));
             const versement = netReceived != null ? Number(netReceived) : montantSoumis;
             const totalPercu = Number(quote?.sejourNetTotal ?? (versement + onSiteTotal));
@@ -695,46 +700,45 @@ export default function PricingSummary({
                     {hasCommission && acompteComm > 0 && row('Commission acompte', acompteComm, { sign: '− ', color: 'warning.main' })}
                     {hasCommission && soldeComm > 0 && row('Commission solde', soldeComm, { sign: '− ', color: 'warning.main' })}
                     {(hasCommission || onSiteTotal > 0) && row('Versement plateforme', versement, { strong: true })}
-                    {complement > 0 && row("Complément d'arrivée (perçu sur place)", complement, { sign: '+ ', color: 'success.main' })}
-                    {midStayNotes > 0 && row('Encaissements en séjour', midStayNotes, { sign: '+ ', color: 'success.main' })}
-                    {endOfStay > 0 && row('Complément de fin de séjour', endOfStay, { sign: '+ ', color: 'success.main' })}
+                    {split.arrival > 0 && row(`${COMPLEMENT_LABELS.arrival} (perçu sur place)`, split.arrival, { sign: '+ ', color: 'success.main' })}
+                    {split.duringStay > 0 && row(COMPLEMENT_LABELS.duringStay, split.duringStay, { sign: '+ ', color: 'success.main' })}
+                    {split.endOfStay > 0 && row(COMPLEMENT_LABELS.endOfStay, split.endOfStay, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
-                    {form.complementPaid && complement > 0 && (
+                    {form.complementPaid && split.arrival > 0 && (
                       <StatusBadge status="success" label="Complément payé" />
                     )}
                   </>
                 ) : (
                   <>
-                    {complement > 0 && (
+                    {/* specs/complement-buckets-by-moment.md — one line per MOMENT of collection. The
+                        server has already moved an unsettled arrival complement into `endOfStay`, so
+                        there is no « deferred » wording to apply here: the amount is simply on the
+                        line that says when it is taken. */}
+                    {split.arrival > 0 && (
                       <>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          {/* specs/defer-arrival-complement-to-checkout.md §3.2 rule 10 — when the
-                              complement was deferred at check-in it is collected at the door with the
-                              end-of-stay complement; say so (the amount is unchanged). */}
                           <Typography variant="body2" sx={{ color: form.complementPaid ? 'text.secondary' : 'error.main', fontWeight: form.complementPaid ? 400 : 600 }}>
-                            {form.complementDeferredToCheckout && !form.complementPaid
-                              ? 'dont complément perçu en fin de séjour'
-                              : 'dont complément à percevoir sur place'}
+                            {COMPLEMENT_BREAKDOWN_LABELS.arrival}
                           </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(complement)}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(split.arrival)}</Typography>
                         </Box>
                         {form.complementPaid && (
                           <StatusBadge status="success" label="Complément payé" />
                         )}
                       </>
                     )}
-                    {endOfStay > 0 && (
+                    {split.duringStay > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="body2" sx={{ color: form.endOfStayComplementPaid ? 'text.secondary' : 'error.main', fontWeight: form.endOfStayComplementPaid ? 400 : 600 }}>
-                          dont complément de fin de séjour
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(endOfStay)}</Typography>
+                        <Typography variant="body2" color="text.secondary">{COMPLEMENT_BREAKDOWN_LABELS.duringStay}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(split.duringStay)}</Typography>
                       </Box>
                     )}
-                    {midStayNotes > 0 && (
+                    {split.endOfStay > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="body2" color="text.secondary">dont encaissements en séjour</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(midStayNotes)}</Typography>
+                        <Typography variant="body2" sx={{ color: form.endOfStayComplementPaid ? 'text.secondary' : 'error.main', fontWeight: form.endOfStayComplementPaid ? 400 : 600 }}>
+                          {COMPLEMENT_BREAKDOWN_LABELS.endOfStay}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(split.endOfStay)}</Typography>
                       </Box>
                     )}
                   </>

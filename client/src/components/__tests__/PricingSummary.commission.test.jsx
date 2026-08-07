@@ -201,7 +201,7 @@ test('direct reservation → a single « Total du séjour », no platform cascad
 
 // specs/mid-stay-notes.md §3.5 rule 19 — les encaissements en séjour se déduisent du montant soumis
 // à commission comme les compléments, et reviennent sur leur propre ligne dans le total perçu.
-test('encaissements en séjour : ligne dédiée dans la cascade', () => {
+test('complément durant le séjour : ligne dédiée dans la cascade', () => {
   renderSummary({
     ...QUOTE, finalPrice: 250, complementAmount: 15,
     endOfStayComplementTotal: 12, midStayRemainingTotal: 12, midStaySettledTotal: 30,
@@ -209,12 +209,12 @@ test('encaissements en séjour : ligne dédiée dans la cascade', () => {
     platformNetReceivedAmount: 175, sejourNetTotal: 232,
   });
   expect(screen.getByText('− 57,00 €')).toBeInTheDocument();          // 15 + 12 + 30 perçus sur place
-  expect(screen.getByText('Encaissements en séjour')).toBeInTheDocument();
+  expect(screen.getByText('Complément durant le séjour')).toBeInTheDocument();
   expect(screen.getByText('+ 30,00 €')).toBeInTheDocument();
   expect(screen.getByText('232,00 €')).toBeInTheDocument();
 });
 
-test('direct : « dont encaissements en séjour » sous le total du séjour', () => {
+test('direct : « dont complément durant le séjour » sous le total du séjour', () => {
   renderSummary(
     {
       ...QUOTE, finalPrice: 200, complementAmount: 0, endOfStayComplementTotal: 0,
@@ -222,6 +222,6 @@ test('direct : « dont encaissements en séjour » sous le total du séjour', ()
     },
     { ...FORM, platform: 'direct' },
   );
-  expect(screen.getByText('dont encaissements en séjour')).toBeInTheDocument();
+  expect(screen.getByText('dont complément durant le séjour')).toBeInTheDocument();
   expect(screen.getByText('18,00 €')).toBeInTheDocument();
 });

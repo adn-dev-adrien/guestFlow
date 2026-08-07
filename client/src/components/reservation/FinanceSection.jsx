@@ -9,6 +9,7 @@ import MidStayNoteDialog from './MidStayNoteDialog';
 import { useAppDialogs } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
 import { formatCurrency, displayDate } from '../../utils/formatters';
+import { COMPLEMENT_LABELS } from '../../constants/complements';
 
 function todayStr() {
   const d = new Date();
@@ -137,7 +138,13 @@ export default function FinanceSection() {
   // (`checkoutComplement`: total + arrival & end-of-stay lines + paid state); the fiche just renders
   // it in place of the two separate cards.
   const checkoutComplement = form.checkoutComplement || null;
-  const complementDeferred = Boolean(checkoutComplement?.deferred) && Number(checkoutComplement?.amount || 0) > 0;
+  // specs/complement-buckets-by-moment.md §3 rule 4 — the merged card is now driven by the SPLIT, not
+  // by the deferral flag alone: an arrival complement left unsettled once the guest is in is collected
+  // at the door too, whether or not the operator answered « En fin de séjour » at check-in. The server
+  // has already moved it, so `split.arrival === 0` is exactly the « one collection left » case.
+  const complementSplit = pricingQuote?.complementSplit || null;
+  const complementDeferred = Boolean(checkoutComplement?.deferred || (complementSplit && complementSplit.arrival === 0))
+    && Number(checkoutComplement?.amount || 0) > 0;
 
   // specs/platform-payment-entry.md — on a platform reservation the brut is the single price lever, so
   // « Prix hébergement ajusté » / « Réduction » are hidden (they'd conflict with the brut pin).
@@ -148,7 +155,7 @@ export default function FinanceSection() {
   const platformTakesDeposit = Boolean(pricingQuote?.platformTakesDeposit);
   const showNoDepositMessage = isPlatform && !platformTakesDeposit;
 
-  // specs/mid-stay-notes.md §3.5 — « Encaissements en séjour ». La règle d'affichage vient du même
+  // specs/mid-stay-notes.md §3.5 — « Complément durant le séjour ». La règle d'affichage vient du même
   // `midStayNoteAccess` que le bouton de la barre d'actions (utils/midStayNoteAccess.js) : les deux
   // surfaces ne peuvent pas diverger.
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
@@ -612,7 +619,7 @@ export default function FinanceSection() {
                 one total, one « payé » action (the server settles both buckets). */}
             {complementDeferred && (
               <ComplementCard
-                title="Complément de fin de séjour"
+                title={COMPLEMENT_LABELS.endOfStay}
                 amount={checkoutComplement.amount}
                 lines={checkoutComplement.lines || []}
                 paid={form.complementPaid}
@@ -653,7 +660,7 @@ export default function FinanceSection() {
 
             {!complementDeferred && Number(pricingQuote?.complementAmount || 0) > 0 && (
               <ComplementCard
-                title="Complément à percevoir"
+                title={COMPLEMENT_LABELS.arrival}
                 amount={pricingQuote.complementAmount}
                 paid={form.complementPaid}
                 paidCash={form.complementPaidCash}
@@ -684,7 +691,7 @@ export default function FinanceSection() {
               />
             )}
 
-            {/* Encaissements en séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
+            {/* Complément durant le séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
                 settled notes + the « Nouvelle note » entry point + a browsable history. Placed
                 between the two complements, in collection order. */}
             {showMidStayNotes && (
@@ -694,7 +701,7 @@ export default function FinanceSection() {
                   <Grid container spacing={2} sx={sectionGridSx}>
                     <Grid size={{ xs: 12, md: 6 }}>
                       <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
-                        Encaissements en séjour
+                        {COMPLEMENT_LABELS.duringStay}
                         {midStayNotesTotal > 0 && (
                           <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
                             ({formatCurrency(midStayNotesTotal)})
@@ -770,7 +777,7 @@ export default function FinanceSection() {
 
             {!complementDeferred && Number(form.endOfStayComplementAmount || 0) > 0 && (
               <ComplementCard
-                title="Complément de fin de séjour"
+                title={COMPLEMENT_LABELS.endOfStay}
                 amount={form.endOfStayComplementAmount}
                 lines={parseEndOfStayDetail(form.endOfStayComplementDetail)}
                 paid={form.endOfStayComplementPaid}

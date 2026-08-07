@@ -9,7 +9,7 @@ import { vi } from 'vitest';
 
 import api from '../../../api';
 
-// specs/mid-stay-notes.md §3.5 — le bloc « Encaissements en séjour » : total courant, entrée
+// specs/mid-stay-notes.md §3.5 — le bloc « Complément durant le séjour » : total courant, entrée
 // « Nouvelle note », historique dépliable et annulation. Le bloc complément de fin de séjour, lui,
 // ne gagne AUCUN bouton par ligne (décision 2026-08-06 : ne pas charger la fiche).
 
@@ -46,13 +46,13 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 test('le bloc apparaît dès que le séjour a commencé, avec le bouton « Nouvelle note »', () => {
   renderFinance();
-  expect(screen.getByText('Encaissements en séjour')).toBeInTheDocument();
+  expect(screen.getByText('Complément durant le séjour')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Nouvelle note/i })).toBeEnabled();
 });
 
 test('séjour à venir et aucun encaissement → pas de bloc', () => {
   renderFinance({ form: { startDate: '2099-01-01', endDate: '2099-01-05' } });
-  expect(screen.queryByText('Encaissements en séjour')).not.toBeInTheDocument();
+  expect(screen.queryByText('Complément durant le séjour')).not.toBeInTheDocument();
 });
 
 test('le total cumulé des notes est affiché, l\'historique se déplie avec date, mode et lignes', async () => {

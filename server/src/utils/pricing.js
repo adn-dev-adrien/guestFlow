@@ -1,5 +1,6 @@
 const { priceSessions } = require('./resourceHourlyPricing');
 const { resolveMidStaySplit } = require('./midStayExtras');
+const { splitComplementBuckets } = require('./complementBuckets');
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -1038,6 +1039,15 @@ function calculateReservationQuote({
   // during the stay. Deducted from the end-of-stay remainder, but still carved out of the frozen
   // pre-arrival buckets — money in the till never flows back into the acompte/solde/complément.
   midStaySettledNotes,
+  // specs/complement-buckets-by-moment.md §3 rule 5 — `startDate <= today`, resolved by the caller
+  // (the engine has no clock). Absent → not started: a devis or a public quote files everything under
+  // the arrival complement, as before.
+  stayStarted = false,
+  // Whether the arrival complement is collected, FOR THE SPLIT ONLY. `complementPaid` cannot serve
+  // here: the live-preview handler deliberately omits it (passing it would freeze the amount), so the
+  // preview would file a collected complement under « fin de séjour ». The save passes the operator's
+  // intent via `complementPaid`, which wins; the preview falls back to this stored value.
+  complementCollected,
 }) {
   const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
   if (!property) {
@@ -1848,6 +1858,18 @@ function calculateReservationQuote({
   // are out). Exposed so the fiche shows the sale live, before the save persists it.
   const endOfStayComplementTotal = roundMoney(Number(endOfStaySasAmount || 0) + midStayRemainingTotal);
 
+  // specs/complement-buckets-by-moment.md — the same three amounts, filed under the MOMENT they are
+  // collected rather than the column that stores them: an arrival complement left unsettled once the
+  // guest is in is taken at the door, so it reads under « fin de séjour ». Presentation-only: the
+  // three buckets always sum to the same total.
+  const complementSplit = splitComplementBuckets({
+    complementAmount: resolvedComplementAmount,
+    complementPaid: complementPaid !== undefined ? complementPaid : complementCollected,
+    midStaySettledTotal,
+    endOfStayComplementTotal,
+    stayStarted,
+  });
+
   // specs/fiche-total-sejour-net-of-commission.md — the displayed « total du séjour » = what the
   // operator actually realises = net perçu + compléments. Net perçu = the platform's settlement
   // (pre-arrival − commission) when a commission applies, else the full pre-arrival amount (no
@@ -1913,6 +1935,7 @@ function calculateReservationQuote({
     midStaySettledTotal,
     midStayRemainingTotal,
     endOfStayComplementTotal,
+    complementSplit,
     preArrivalAmount,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
