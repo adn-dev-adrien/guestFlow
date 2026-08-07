@@ -224,6 +224,22 @@ app.use('/api', (req, res) => {
   res.status(404).json({ error: 'API route not found' });
 });
 
+// Global error handler — LAST, and four arguments (that signature is what makes it an error
+// middleware). Added with express 5 (specs/express-5-upgrade.md §3 rule 4): v5 forwards a REJECTED
+// promise from an async handler here, where v4 let it escape as an `unhandledRejection` and left the
+// request hanging with no response at all. Without this, such an error would now get express's
+// default HTML handler on a JSON API.
+//
+// The message is deliberately NOT sent to the client: an unexpected error can carry a file path, a
+// SQL fragment or a token. It is logged server-side and the caller gets a stable, opaque shape.
+// eslint-disable-next-line no-unused-vars -- `next` is required for express to see this as an error handler
+app.use((err, req, res, next) => {
+  console.error(`[unhandled] ${req.method} ${req.originalUrl}`, err);
+  if (res.headersSent) return;
+  res.status(err && Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500)
+    .json({ error: 'Erreur interne du serveur' });
+});
+
 const PORT = process.env.PORT || 4000;
 // Picks plain HTTP or HTTPS based on HTTPS_ENABLED. When HTTPS is on but the cert/key are
 // missing, `buildServer` throws — better to refuse to boot than to silently downgrade and leak
