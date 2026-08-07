@@ -125,9 +125,11 @@ export default function FinanceSection() {
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
     // specs/mid-stay-notes.md — the page owns the save pipeline + the reload; the block only calls them.
     saveThenRun, reloadReservationFinance,
+    // …and it owns the dialog state + the access rule, because the sticky action bar opens the same
+    // dialog. Two entry points, one source of truth.
+    midStayNoteOpen, setMidStayNoteOpen, midStayNote,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » chosen on the check-in
@@ -146,14 +148,13 @@ export default function FinanceSection() {
   const platformTakesDeposit = Boolean(pricingQuote?.platformTakesDeposit);
   const showNoDepositMessage = isPlatform && !platformTakesDeposit;
 
-  // specs/mid-stay-notes.md §3.5 — « Encaissements en séjour ». The block appears as soon as the stay
-  // has started (there is something to sell) or a note already exists (history must stay reachable).
+  // specs/mid-stay-notes.md §3.5 — « Encaissements en séjour ». La règle d'affichage vient du même
+  // `midStayNoteAccess` que le bouton de la barre d'actions (utils/midStayNoteAccess.js) : les deux
+  // surfaces ne peuvent pas diverger.
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
   const midStayNotesTotal = midStayNotes.reduce((s, n) => s + (Number(n.total) || 0), 0);
   const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
-  const stayStarted = Boolean(form.startDate) && form.startDate <= todayStr();
-  const showMidStayNotes = Boolean(editingReservationId) && !isDevisMode
-    && (stayStarted || midStayNotes.length > 0);
+  const showMidStayNotes = Boolean(midStayNote?.visible);
   // Mid-stay lines still to collect: what a new note can settle (the SAS-billed lines of the
   // end-of-stay complement are collected at the door, never on a note).
   const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
@@ -700,13 +701,13 @@ export default function FinanceSection() {
                           </Typography>
                         )}
                       </Typography>
-                      <Tooltip title={endOfStaySettled ? 'Complément de fin de séjour déjà encaissé — décochez-le pour créer une note.' : ''}>
+                      <Tooltip title={midStayNote?.reason || ''}>
                         <span>
                           <Button
                             fullWidth
                             variant="outlined"
-                            disabled={endOfStaySettled || !editingReservationId}
-                            onClick={() => setNoteDialogOpen(true)}
+                            disabled={Boolean(midStayNote?.disabled)}
+                            onClick={() => setMidStayNoteOpen(true)}
                             sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
                           >
                             + Nouvelle note
@@ -751,8 +752,8 @@ export default function FinanceSection() {
                   </Grid>
                 </Box>
                 <MidStayNoteDialog
-                  open={noteDialogOpen}
-                  onClose={() => setNoteDialogOpen(false)}
+                  open={Boolean(midStayNoteOpen)}
+                  onClose={() => setMidStayNoteOpen(false)}
                   pendingLines={pendingMidStayLines}
                   // A catalogue addition is a normal sale: it rides the STANDARD save pipeline, then
                   // the note is settled against the freshly stored remainder.
