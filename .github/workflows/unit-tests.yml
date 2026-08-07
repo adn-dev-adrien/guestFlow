@@ -57,6 +57,12 @@ jobs:
           # ^11's native teardown. The driver bump is the actual fix — see
           # specs/better-sqlite3-upgrade.md. Keep the major in sync with the Pi's Node (deploy.yml).
           node-version: '24'
+          # `check-latest` because the runner image ships a CACHED 24.x and setup-node prefers it:
+          # without this, '24' quietly resolved back to 24.18.0 — the very version that was already
+          # green — so CI would NOT have retested the patch that broke us. Always resolving the true
+          # latest is what turns this job into the early warning we lacked on 2026-08-06.
+          # NOT enabled on deploy.yml on purpose: a release build wants stability, not freshness.
+          check-latest: true
 
       - name: 📚 Install server deps
         run: cd server && npm ci
@@ -91,6 +97,12 @@ jobs:
           # ^11's native teardown. The driver bump is the actual fix — see
           # specs/better-sqlite3-upgrade.md. Keep the major in sync with the Pi's Node (deploy.yml).
           node-version: '24'
+          # `check-latest` because the runner image ships a CACHED 24.x and setup-node prefers it:
+          # without this, '24' quietly resolved back to 24.18.0 — the very version that was already
+          # green — so CI would NOT have retested the patch that broke us. Always resolving the true
+          # latest is what turns this job into the early warning we lacked on 2026-08-06.
+          # NOT enabled on deploy.yml on purpose: a release build wants stability, not freshness.
+          check-latest: true
 
       - name: 📚 Install client deps
         run: cd client && npm ci
