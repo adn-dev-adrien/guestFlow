@@ -15,20 +15,12 @@ export default defineConfig({
     react({ include: /\.(jsx?|tsx?)$/ }),
   ],
 
-  // Vite's default JS transformer treats `.js` as plain ES (no JSX). The two blocks below
-  // tell esbuild — Vite's prod + dep-optimizer transformer — to parse `.js` as JSX. Without
-  // them every component file fails to transform with "JSX syntax is disabled". CRA hid this
-  // behind babel-loader defaults; Vite is explicit.
-  esbuild: {
-    loader: 'jsx',
-    include: /src\/.*\.jsx?$/,
-    exclude: [],
-  },
-  optimizeDeps: {
-    esbuildOptions: {
-      loader: { '.js': 'jsx' },
-    },
-  },
+  // No JSX-in-`.js` shim any more (specs/vite-8-oxc-migration.md): every file containing JSX is
+  // named `.jsx` since Vite 8. Vite 8 replaced esbuild with oxc AND rollup with rolldown, and both
+  // decide JSX purely by extension (`isJSX = filepath.endsWith("x")`). There is no configuration
+  // escape hatch: `lang` is omitted from `OxcOptions`, and rolldown exposes none either — the old
+  // `esbuild: { loader: 'jsx' }` block is silently ignored, and `oxc: false` doesn't help because
+  // rolldown still parses the entry itself. Renaming was the only supported route.
 
   server: {
     // Match the previous CRA dev port so the E2E config + the dev workflow stay

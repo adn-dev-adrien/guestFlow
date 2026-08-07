@@ -11,18 +11,10 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  // Same JSX-in-.js extension as vite.config.js — Vitest reuses the Vite transform pipeline.
+  // Vitest reuses the Vite transform pipeline, so this config MUST stay in step with vite.config.js
+  // — including the absence of any JSX-in-`.js` shim: since Vite 8 every JSX-bearing file is named
+  // `.jsx` (specs/vite-8-oxc-migration.md).
   plugins: [react({ include: /\.(jsx?|tsx?)$/ })],
-  esbuild: {
-    loader: 'jsx',
-    include: /src\/.*\.jsx?$/,
-    exclude: [],
-  },
-  optimizeDeps: {
-    esbuildOptions: {
-      loader: { '.js': 'jsx' },
-    },
-  },
   test: {
     environment: 'jsdom',
     globals: true,
