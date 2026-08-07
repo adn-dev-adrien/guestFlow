@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import DialogProvider from '../../components/DialogProvider';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';

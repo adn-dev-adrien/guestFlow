@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Box, Typography } from '@mui/material';
 import api from '../api';
 import { setFavicon } from '../utils/setFavicon';

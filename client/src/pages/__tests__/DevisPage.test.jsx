@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from '@mui/material/styles';
 import { vi } from 'vitest';
 import theme from '../../theme';
@@ -15,9 +15,9 @@ import theme from '../../theme';
 // `mockNavigate` needs to be inside vi.hoisted() to be visible at mock-eval time. And
 // `vi.importActual` is the async equivalent of Jest's `jest.requireActual`.
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
-vi.mock('react-router-dom', async () => ({
+vi.mock('react-router', async () => ({
   __esModule: true,
-  ...(await vi.importActual('react-router-dom')),
+  ...(await vi.importActual('react-router')),
   useNavigate: () => mockNavigate,
 }));
 

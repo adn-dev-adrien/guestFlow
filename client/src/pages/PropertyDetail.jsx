@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import {
   Box, Typography, Card, CardContent, TextField, Button,
   TableBody, TableCell, TableHead, TableRow,

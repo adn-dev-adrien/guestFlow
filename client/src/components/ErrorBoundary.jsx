@@ -6,7 +6,7 @@
  * Usage: wrap the routed shell with <RouteErrorBoundary> (inside the Router).
  */
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import EmptyState from './EmptyState';
 
