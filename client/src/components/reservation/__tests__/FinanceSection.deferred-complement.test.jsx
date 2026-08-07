@@ -60,7 +60,7 @@ test('deferred: a single « Complément de fin de séjour » card with every lin
   expect(screen.getByText(/Taxe de séjour : 6,00 €/)).toBeInTheDocument();
   expect(screen.getByText(/Ménage de fin de séjour : 40,00 €/)).toBeInTheDocument();
   // The separate arrival card is gone — one collection, one card.
-  expect(screen.queryByText('Complément à percevoir')).not.toBeInTheDocument();
+  expect(screen.queryByText("Complément d'arrivée")).not.toBeInTheDocument();
 });
 
 test('deferred: « Marquer complément payé » settles both buckets in the form (the server mirrors the DB)', async () => {
@@ -101,6 +101,6 @@ test('not deferred: the two separate cards are unchanged', () => {
       endOfStayComplementDetail: JSON.stringify([{ label: 'Ménage de fin de séjour', amount: 40 }]),
     },
   });
-  expect(screen.getByText('Complément à percevoir')).toBeInTheDocument();
+  expect(screen.getByText("Complément d'arrivée")).toBeInTheDocument();
   expect(screen.getByText('Complément de fin de séjour')).toBeInTheDocument();
 });
