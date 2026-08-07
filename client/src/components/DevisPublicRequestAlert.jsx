@@ -11,7 +11,7 @@ import {
   Card, CardActionArea, CardContent, Stack, Typography, Chip, Box,
 } from '@mui/material';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import api from '../api';
 
 export default function DevisPublicRequestAlert() {

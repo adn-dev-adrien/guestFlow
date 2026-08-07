@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, TableFooter, Chip, Divider, Tabs, Tab,

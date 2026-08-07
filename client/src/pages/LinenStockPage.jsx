@@ -11,7 +11,7 @@
  * unsaved changes prompts a confirmation.
  */
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Box, Card, CardContent, Stack, Typography, TextField, FormHelperText } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import BathtubIcon from '@mui/icons-material/Bathtub';

@@ -24,7 +24,7 @@ import {
   IconButton, Tooltip, Button, Alert, CircularProgress, useMediaQuery, Chip,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import EditIcon from '@mui/icons-material/Edit';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';

@@ -19,7 +19,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, AlertTitle, Box, Button } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
 

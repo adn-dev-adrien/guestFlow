@@ -19,7 +19,7 @@ vi.mock('../../api', () => ({
 }));
 
 import api from '../../api';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import DialogProvider from '../../components/DialogProvider';
 import EmailHistoryPage from '../EmailHistoryPage';
 
