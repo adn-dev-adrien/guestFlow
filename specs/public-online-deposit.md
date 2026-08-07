@@ -86,8 +86,15 @@ When the mode is « paiement unique », the site no longer displays Acompte/Sold
      next day.
    - **Manual button** « Envoyer la demande de solde » on the reservation fiche (`PageActionBar`,
      mirror of « Envoyer la demande d'acompte ») — visible when `kind='reservation'`,
-     `balanceAmount > 0`, `balancePaid=0`. Uses the same service path (`sendPaymentRequest(type
-     'balance')`), which also allows re-sending after the automatic email.
+     `balanceAmount > 0`, `balancePaid=0`, **et la réservation est DIRECTE**. Uses the same service
+     path (`sendPaymentRequest(type 'balance')`), which also allows re-sending after the automatic
+     email.
+     > **Réservations plateforme exclues (2026-08-07).** Le solde d'un séjour Airbnb / Lodgify est
+     > encaissé par la plateforme puis reversé : le réclamer au client serait une **double demande de
+     > paiement**. Le bouton est donc masqué dès que `platform ≠ direct`. À noter pour la suite : la
+     > passe automatique quotidienne (`balanceRequestRunner`) sélectionne sur un **lien d'acompte
+     > payé**, qu'une réservation plateforme n'a pas — elle est donc déjà hors périmètre de fait,
+     > mais la condition n'y est pas explicite.
 9. **Paid balance effect**: existing (`balancePaid=1`, no email). The reservation's payment chips
    (balance overdue…) already derive from `balancePaid`/`balanceDueDate` — no change.
 10. **Security**: unchanged — per-devis `publicToken` required on `pay`/`status`, `paymentStatusLimiter`,

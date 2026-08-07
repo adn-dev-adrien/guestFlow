@@ -58,8 +58,12 @@ backward-compatible capabilities so it can host this (and future) richer bars.
    - **Back / Cancel** → `onBack`/`onCancel` = `goBackToOrigin`.
    - **Title** = current `computedTitle`. **Subtitle** = the "Tarifs actuels appliqués (non sauvegardé)"
      chip, shown only when `useCurrentPricing`.
-   - **actionsBefore** (in order, conditional as today): "Créer un devis" (info) when `!isDevisMode && !reservationId`;
-     "Transformer en devis" (info) when `!isDevisMode && reservationId`; the **devis-status Select**
+   - **actionsBefore** (in order, conditional as today): **« Nouvelle note » (success, `PointOfSale`)**
+     when `midStayNoteAccess(...).visible` — see [mid-stay-notes.md](mid-stay-notes.md) §3.5 rule 17;
+     "Créer un devis" (info) when `!isDevisMode && !reservationId`;
+     "Transformer en devis" (info) when `!isDevisMode && reservationId` **&& la réservation est
+     DIRECTE** (2026-08-07 : une réservation plateforme n'est pas devisée par nous — son tarif vient
+     de la plateforme, le bouton n'avait aucun sens là) ; the **devis-status Select**
      (node) when `isDevisMode`; "Télécharger PDF" (info, disabled when `!editingDevisId`) when
      `isDevisMode`; "Passer en réservation" (warning) when `isDevisMode && editingDevisId`.
    - **Save** → `onSave` = `handleSaveReservation`; `saveTooltip` = "Enregistrer le devis" in devis mode
@@ -125,7 +129,11 @@ left/`actionsBefore` controls. Content no longer needs the manual top margin.
 ### Manual UI verification
 - [ ] Reservation (new): bar shows Back, title "Nouvelle réservation", "Créer un devis", Save, Cancel.
       Save creates; Cancel/Back returns to origin.
-- [ ] Reservation (existing): "Transformer en devis", Save, Cancel, Delete (disabled when locked).
+- [x] Reservation (existing, **directe**): "Nouvelle note" (si le séjour a commencé), "Transformer en
+      devis", "Envoyer la demande de solde" (si solde dû), Save, Cancel, Delete (disabled when locked).
+- [x] Reservation (existing, **plateforme**) — vérifié le 2026-08-07 : **ni** "Transformer en devis"
+      **ni** "Envoyer la demande de solde" ; "Nouvelle note" reste (on vend bien des consommations à
+      un client venu par une plateforme).
 - [ ] Devis mode (`?mode=devis`): status Select, "Télécharger PDF" (disabled until saved), Save
       ("Enregistrer le devis"); after save: PDF enabled, "Passer en réservation", "Supprimer le devis".
 - [ ] "Tarifs actuels" chip appears as subtitle after using "Actualiser les tarifs".
