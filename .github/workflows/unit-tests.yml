@@ -50,7 +50,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: 📦 Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           # Back to the floating major since better-sqlite3 13 (2026-08-07). It had been pinned to
           # 24.18.0 for a day: on 24.19.0 every test process crashed at EXIT inside better-sqlite3
@@ -90,7 +90,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: 📦 Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           # Back to the floating major since better-sqlite3 13 (2026-08-07). It had been pinned to
           # 24.18.0 for a day: on 24.19.0 every test process crashed at EXIT inside better-sqlite3
