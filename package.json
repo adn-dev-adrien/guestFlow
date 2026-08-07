@@ -19,7 +19,7 @@
     "test:e2e:report": "playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.62.1",
     "better-sqlite3": "^13.0.3",
     "concurrently": "^8.2.0"
   }
