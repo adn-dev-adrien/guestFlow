@@ -224,83 +224,53 @@ function seedBathLinen(db, { price = 4, priceType = 'per_person' } = {}) {
   return 60;
 }
 
-test('commitArrivalSas endOfStayBathLinen=true: writes the per-person line into the end-of-stay complement, leaves the arrival complement untouched', () => {
+// specs/sas-bath-linen-ghost-line.md §1.1 — everything the arrival SAS sells is a line ON THE FICHE.
+// The « réglé en fin de séjour » path that wrote a parallel billing line is gone, and every commit
+// erases what it left behind.
+
+test('commitArrivalSas: never writes a bath-linen line into the end-of-stay complement', () => {
   const db = makeDb();
   seedBathLinen(db);
   const model = createReservationsModel(db);
-  const arrivalComplement = model.commitArrivalSas(1, { endOfStayBathLinen: true });
-  assert.equal(arrivalComplement, 30, 'arrival complement unchanged');
-  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail, complementAmount FROM reservations WHERE id = 1').get();
-  assert.equal(r.complementAmount, 30);
-  assert.equal(r.endOfStayComplementAmount, 12); // 3 persons × 4
-  const detail = JSON.parse(r.endOfStayComplementDetail);
-  assert.equal(detail.length, 1);
-  assert.deepEqual(detail[0], { label: 'Linge de toilette', amount: 12, qty: 3, unitPrice: 4, source: 'arrivalBathLinen' });
-});
-
-test('commitArrivalSas endOfStayBathLinen: per-property price override wins', () => {
-  const db = makeDb();
-  const optId = seedBathLinen(db, { price: 4 });
-  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (7, ?, 5)').run(optId);
-  const model = createReservationsModel(db);
-  model.commitArrivalSas(1, { endOfStayBathLinen: true });
-  assert.equal(db.prepare('SELECT endOfStayComplementAmount FROM reservations WHERE id = 1').get().endOfStayComplementAmount, 15); // 3 × 5
-});
-
-test('commitArrivalSas endOfStayBathLinen re-commit: REPLACES the line (no double-charge)', () => {
-  const db = makeDb();
-  seedBathLinen(db);
-  const model = createReservationsModel(db);
-  model.commitArrivalSas(1, { endOfStayBathLinen: true });
-  model.commitArrivalSas(1, { endOfStayBathLinen: true });
-  const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
-  assert.equal(r.endOfStayComplementAmount, 12);
-  assert.equal(JSON.parse(r.endOfStayComplementDetail).length, 1);
-});
-
-test('commitArrivalSas endOfStayBathLinen=false: drops any prior bath-linen line (switch to « réglé maintenant » / « Non merci »)', () => {
-  const db = makeDb();
-  seedBathLinen(db);
-  const model = createReservationsModel(db);
-  model.commitArrivalSas(1, { endOfStayBathLinen: true });
-  model.commitArrivalSas(1, { endOfStayBathLinen: false });
+  const arrivalComplement = model.commitArrivalSas(1, { bathLinenAdded: true });
+  assert.equal(arrivalComplement, 42, 'the upsell rides the arrival complement (30 + 3 × 4)');
   const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
   assert.equal(r.endOfStayComplementAmount, 0);
   assert.equal(r.endOfStayComplementDetail, null);
+  // …and the service exists once, as a catalogue option on the fiche.
+  const opts = db.prepare('SELECT optionId, totalPrice, inComplement, sasArrivalOrigin FROM reservation_options WHERE reservationId = 1').all();
+  assert.deepEqual(opts, [{ optionId: 60, totalPrice: 12, inComplement: 1, sasArrivalOrigin: 1 }]);
 });
 
-test('commitArrivalSas endOfStayBathLinen: preserves other end-of-stay lines, recomputes the sum', () => {
+test('commitArrivalSas: drops a legacy ghost line even when the bath-linen step is not part of the run', () => {
   const db = makeDb();
   seedBathLinen(db);
-  db.prepare("UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementDetail = ? WHERE id = 1")
-    .run(JSON.stringify([{ label: 'Ménage de fin de séjour', amount: 40 }]));
-  const model = createReservationsModel(db);
-  model.commitArrivalSas(1, { endOfStayBathLinen: true });
+  // The stuck production shape: the option is on the fiche AND the old deferred line is still stored,
+  // so the dialog hides the step — the commit must clean up regardless.
+  db.prepare('INSERT INTO reservation_options (reservationId, optionId, totalPrice, inComplement) VALUES (1, 60, 12, 1)').run();
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 52, endOfStayComplementDetail = ? WHERE id = 1')
+    .run(JSON.stringify([
+      { label: 'Ménage de fin de séjour', amount: 40 },
+      { label: 'Linge de toilette', amount: 12, qty: 3, unitPrice: 4, source: 'arrivalBathLinen' },
+    ]));
+
+  createReservationsModel(db).commitArrivalSas(1, {});
   const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
-  assert.equal(r.endOfStayComplementAmount, 52); // 40 + 12
-  const labels = JSON.parse(r.endOfStayComplementDetail).map((l) => l.label);
-  assert.deepEqual(labels, ['Ménage de fin de séjour', 'Linge de toilette']);
+  assert.equal(r.endOfStayComplementAmount, 40, 'only the departure line remains');
+  assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((l) => l.label), ['Ménage de fin de séjour']);
 });
 
-test('commitArrivalSas endOfStayBathLinen omitted (step not shown): leaves the end-of-stay complement untouched', () => {
+test('commitArrivalSas: leaves a ghost-free end-of-stay complement untouched, and is idempotent', () => {
   const db = makeDb();
   seedBathLinen(db);
-  db.prepare("UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementDetail = ? WHERE id = 1")
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 40, endOfStayComplementDetail = ? WHERE id = 1')
     .run(JSON.stringify([{ label: 'Ménage de fin de séjour', amount: 40 }]));
   const model = createReservationsModel(db);
+  model.commitArrivalSas(1, {});
   model.commitArrivalSas(1, {});
   const r = db.prepare('SELECT endOfStayComplementAmount, endOfStayComplementDetail FROM reservations WHERE id = 1').get();
   assert.equal(r.endOfStayComplementAmount, 40);
   assert.deepEqual(JSON.parse(r.endOfStayComplementDetail).map((l) => l.label), ['Ménage de fin de séjour']);
-});
-
-test('commitArrivalSas endOfStayBathLinen: no bath-linen line when the option is already on the reservation', () => {
-  const db = makeDb();
-  const optId = seedBathLinen(db);
-  db.prepare('INSERT INTO reservation_options (reservationId, optionId) VALUES (1, ?)').run(optId);
-  const model = createReservationsModel(db);
-  model.commitArrivalSas(1, { endOfStayBathLinen: true });
-  assert.equal(db.prepare('SELECT endOfStayComplementAmount FROM reservations WHERE id = 1').get().endOfStayComplementAmount, 0);
 });
 
 test('commitDepartureSas: preserves an arrival-added bath-linen line (source tag) sent back in the detail', () => {

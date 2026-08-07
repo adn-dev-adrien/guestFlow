@@ -580,16 +580,16 @@ test('arrival SAS: bath-linen page — « Ajouter le linge de toilette » adds t
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  // The line rides the arrival complement; endOfStayBathLinen is always false when the step is shown
-  // (drops any legacy « en fin de séjour » line from an old commit).
-  expect(arg.endOfStayBathLinen).toBe(false);
+  // specs/sas-bath-linen-ghost-line.md §1.1 — the SAS sells onto the fiche only: no end-of-stay
+  // billing line, hence no `endOfStayBathLinen` in the payload at all.
+  expect(arg).not.toHaveProperty('endOfStayBathLinen');
   // specs/sas-upsells-activate-catalogue-option.md §3.1 — the upsell is sent as INTENT; the server
   // activates the catalogue option and prices it. `complementItems` keeps only the linen elements.
   expect(arg.bathLinenAdded).toBe(true);
   expect(arg.complementItems).toEqual([]);
 });
 
-test('arrival SAS: bath-linen page — « Non merci » adds nothing, endOfStayBathLinen false', async () => {
+test('arrival SAS: bath-linen page — « Non merci » adds nothing at all', async () => {
   api.getReservationSas.mockResolvedValue(sasPayload({
     reservation: { cautionReceived: 1, adults: 2, children: 1 },
     cleaning: { included: true, price: null },
@@ -607,7 +607,7 @@ test('arrival SAS: bath-linen page — « Non merci » adds nothing, endOfStayBa
 
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   const arg = api.commitArrivalSas.mock.calls[0][1];
-  expect(arg.endOfStayBathLinen).toBe(false);
+  expect(arg).not.toHaveProperty('endOfStayBathLinen');
   expect(arg.bathLinenAdded).toBe(false);
   expect(arg.complementItems).toEqual([]);
 });

@@ -129,7 +129,6 @@ function commitArrival(req, res) {
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
     complementSettled, complementPaidCash,
-    endOfStayBathLinen,
     cleaningAdded, bathLinenAdded,
   } = req.body || {};
   const beforeSas = snapshotSas(Number(req.params.id));
@@ -152,9 +151,6 @@ function commitArrival(req, res) {
     // specs/recall-unpaid-arrival-complement-at-checkout.md — explicit « Complément encaissé » confirmation.
     complementSettled: complementSettled === undefined ? undefined : Boolean(complementSettled),
     complementPaidCash: Boolean(complementPaidCash),
-    // specs/sas-bath-linen-upsell.md §3.2 — tri-state: undefined (step not shown) leaves the end-of-stay
-    // complement untouched; the model recomputes the offer server-side when true.
-    endOfStayBathLinen: endOfStayBathLinen === undefined ? undefined : Boolean(endOfStayBathLinen),
     // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — intent only; the model resolves the
     // catalogue option and its price. Tri-state: undefined = step not shown → leave the option alone.
     cleaningAdded: cleaningAdded === undefined ? undefined : Boolean(cleaningAdded),

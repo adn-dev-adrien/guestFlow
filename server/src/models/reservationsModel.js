@@ -28,11 +28,9 @@ const { buildOperationalCollection } = require('../utils/operationalCollection')
 // Label of the bath-linen line the arrival SAS may add (shared by the commit + the re-open
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
 const BATH_LINEN_LABEL = 'Linge de toilette';
-// Marker on the end-of-stay complement detail line written by the arrival SAS when the guest
-// defers the bath-linen payment to check-out (specs/sas-bath-linen-upsell.md §3.2 rule 6).
-const BATH_LINEN_EOS_SOURCE = 'arrivalBathLinen';
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 const { buildHistoryNameContext } = require('./historyNamesModel');
+const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -1282,6 +1280,18 @@ function createReservationsModel(database) {
       return Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
     },
 
+    // specs/sas-bath-linen-ghost-line.md — erase a `arrivalBathLinen` billing line wherever it is still
+    // stored, recomputing the end-of-stay amount from the lines that remain. Returns true when it wrote.
+    dropBathLinenGhostLine(reservationId) {
+      const row = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
+      if (!row) return false;
+      const cleaned = dropBathLinenGhost(row.endOfStayComplementDetail);
+      if (!cleaned) return false;
+      database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(cleaned.amount, cleaned.detail.length ? JSON.stringify(cleaned.detail) : null, reservationId);
+      return true;
+    },
+
     // Bath-linen upsell offer for the arrival SAS (specs/sas-bath-linen-upsell.md §3.1). Resolves the
     // « Linge de toilette » option, applies the per-property price override, and prices it PER PERSON
     // exactly as the reservation engine (getTypeMultiplier on the option's own priceType — `per_person`
@@ -1564,7 +1574,6 @@ function createReservationsModel(database) {
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
       complementSettled, complementPaidCash,
-      endOfStayBathLinen,
       // specs/sas-upsells-activate-catalogue-option.md §3.1 rule 4 — the two upsells are sent as
       // INTENT (booleans); the server resolves the option + its price. Tri-state, like the caution.
       cleaningAdded, bathLinenAdded,
@@ -1705,41 +1714,12 @@ function createReservationsModel(database) {
           }
           persistComplementDeferred(reservationId, !complementSettled);
         }
-        // specs/sas-bath-linen-upsell.md §3.2 rule 6 — bath linen the guest takes but settles AT
-        // CHECK-OUT lands in the end-of-stay complement (a detail line tagged `source`). Tri-state:
-        //   - undefined → the bath-linen step wasn't shown (already taken / unavailable) → leave the
-        //     end-of-stay complement untouched;
-        //   - false → « réglé maintenant » or « Non merci » → drop any prior arrival bath-linen line;
-        //   - true → recompute the per-person offer server-side and (re)insert the line.
-        // On every re-commit the line is removed then re-added, so re-opening never double-charges. The
-        // amount is recomputed as Σ of all detail lines (departure-added lines are preserved untouched).
-        if (endOfStayBathLinen !== undefined) {
-          const eosRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
-          let detail = [];
-          try { detail = JSON.parse((eosRow && eosRow.endOfStayComplementDetail) || '[]') || []; } catch { detail = []; }
-          detail = detail.filter((l) => !(l && l.source === BATH_LINEN_EOS_SOURCE));
-          if (endOfStayBathLinen) {
-            // Light-weight reservation shape for the per-person price (avoids a full getByIdWithDetails
-            // inside the transaction): propertyId + party + nights count + whether bath linen is already
-            // taken. getBathLinenOfferForReservation resolves the option + per-property override + engine
-            // multiplier from these.
-            const base = database.prepare('SELECT propertyId, adults, teens, children FROM reservations WHERE id = ?').get(reservationId) || {};
-            const alreadyTaken = database.prepare("SELECT 1 FROM reservation_options ro JOIN options o ON ro.optionId = o.id WHERE ro.reservationId = ? AND o.autoOptionType = 'bathroom_linen' LIMIT 1").get(reservationId);
-            const nightsCount = database.prepare('SELECT COUNT(*) AS n FROM reservation_nights WHERE reservationId = ?').get(reservationId).n;
-            const offer = model.getBathLinenOfferForReservation({
-              propertyId: base.propertyId,
-              adults: base.adults, teens: base.teens, children: base.children,
-              options: alreadyTaken ? [{ autoOptionType: 'bathroom_linen' }] : [],
-              nights: new Array(Number(nightsCount) || 0).fill(0),
-            });
-            if (offer.available && offer.amount > 0) {
-              detail.push({ label: offer.label, amount: offer.amount, qty: offer.persons, unitPrice: offer.unitPrice, source: BATH_LINEN_EOS_SOURCE });
-            }
-          }
-          const eosAmount = Math.max(0, Math.round(detail.reduce((s, l) => s + (Number(l.amount) || 0), 0) * 100) / 100);
-          database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
-            .run(eosAmount, detail.length ? JSON.stringify(detail) : null, reservationId);
-        }
+        // specs/sas-bath-linen-ghost-line.md §3 rules 1-2 — the arrival SAS never writes a billing line
+        // into the end-of-stay complement: what the guest takes is the catalogue option activated on the
+        // fiche just above. Any line left by the removed « réglé en fin de séjour » flow is dropped here,
+        // unconditionally (NOT gated on the bath-linen step being shown — that gate is exactly why a
+        // reservation carrying both the option and the ghost line could never repair itself).
+        model.dropBathLinenGhostLine(reservationId);
 
         // specs/arrival-departure-sas.md §3.6 — going all the way through the arrival SAS validates the
         // planning coche AND the dashboard « Prêt » + « Arrivé » (checkInReady is both). Forward-only

@@ -576,6 +576,14 @@ function update(req, res) {
   // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
   model.captureArrivalExtrasBaselineIfDue(id, getTodayIsoDate());
 
+  // specs/frozen-complement-trusts-client.md §3 rules 1-2 — a collected complement is frozen at what
+  // was COLLECTED, so the engine must be fed the stored amount, never the one the browser computed:
+  // a client-side quote built without the mid-stay baseline puts a sale made during the stay back
+  // into the arrival complement, and the accounting then credits it twice.
+  const frozenComplementAmount = req.body.complementPaid
+    ? (model.getRow(id) || {}).complementAmount
+    : req.body.complementAmount;
+
   const quote = calculateReservationQuote({
     db,
     propertyId: Number(propertyId),
@@ -593,7 +601,7 @@ function update(req, res) {
     depositAmount: req.body.depositAmount,
     depositAmountOverride: req.body.depositAmountOverride,
     balanceAmount: req.body.balanceAmount,
-    complementAmount: req.body.complementAmount,
+    complementAmount: frozenComplementAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
     lockedOptionLines: lockedPricing.lockedOptionLines,

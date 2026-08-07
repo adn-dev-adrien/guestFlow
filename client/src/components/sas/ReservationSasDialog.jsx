@@ -288,14 +288,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
             if (item && Number(item.price) > 0) nextBed[item.id] = Math.max(1, Math.round(amount / Number(item.price)));
             else keep.push({ label, amount });
           });
-          // A bath-linen line deferred by an OLD commit still lives in the end-of-stay complement detail
-          // (legacy « réglé en fin de séjour »). Re-opening now treats it as « added » too: the re-commit
-          // moves it into the arrival complement and drops the legacy end-of-stay line (endOfStayBathLinen=false).
-          if (!nextBathLinen) {
-            let eos = [];
-            try { eos = JSON.parse(res.endOfStayComplementDetail || '[]') || []; } catch { eos = []; }
-            if (eos.some((l) => l && l.source === 'arrivalBathLinen')) nextBathLinen = true;
-          }
           setMissingBed(nextBed); setCleaningAdded(nextCleaning); setBathLinenAdded(nextBathLinen); setPreservedArrival(keep);
           if (res.bedLinenAlert) setLinenOk(Object.keys(nextBed).length === 0);
         } else {
@@ -571,11 +563,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // check-out (specs/recall-unpaid-arrival-complement-at-checkout.md).
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
-          // specs/sas-bath-linen-upsell.md §3.2 — the bath linen (when added) rides `complementItems` into
-          // the arrival complement; settlement is chosen on the recap. So this is always `false` when the
-          // step is shown, which drops any legacy « réglé en fin de séjour » line from an old commit
-          // (undefined when the step isn't shown → leave the end-of-stay complement untouched).
-          endOfStayBathLinen: activeKeys.includes('bathLinen') ? false : undefined,
         };
         if (data.breakfast?.applicable) {
           payload.breakfastTime = breakfastTime;
