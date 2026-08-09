@@ -880,6 +880,48 @@ cwd
 pm_out_log_path
 pm_err_log_path
 
+## Backup & restore
+
+Production lives on a single Raspberry Pi with a single SD card. The rolling `backup-*.db` files in
+`~/guestflow/data/` sit on that same card, so they do not survive a card failure. The two scripts
+below pull a complete off-device snapshot onto a workstation and push it back onto a Pi.
+Full rationale and the disaster-recovery runbook: [`specs/backup-restore.md`](specs/backup-restore.md).
+
+**What is saved** (everything not reproducible from git): the SQLite database, `data/.env.local`
+(the `GUESTFLOW_ENCRYPTION_KEY` — without it the encrypted settings columns are unreadable, so a
+DB-only backup is a partial data loss), `certs/` and `server/uploads/`.
+
+### Take a backup
+
+```bash
+scripts/backup-from-pi.sh --host pi@<pi-host>
+# or: export GUESTFLOW_SSH_HOST=pi@<pi-host>  (and GUESTFLOW_BACKUP_DIR to change the destination)
+```
+
+Writes `~/GuestFlowBackups/guestflow-YYYYMMDD-HHMMSS/` (mode `0700` — it contains production
+secrets in clear) plus a `latest` symlink, and keeps the 30 most recent backups (`--keep N`).
+The database is snapshotted with `sqlite3 .backup`, so the WAL is folded in and the copy is
+consistent even while PM2 is serving; the script aborts if `PRAGMA integrity_check` is not `ok`.
+Each backup carries a `manifest.txt` (date, source, deployed commit, node/app version) and a
+`checksums.sha256`.
+
+### Restore onto a Pi
+
+Deploy the code **first** (push `release`, let the workflow rebuild `~/guestflow/current/`), then:
+
+```bash
+scripts/restore-to-pi.sh --host pi@<pi-host> --from ~/GuestFlowBackups/latest
+# --skip-certs if the Pi changed IP → regenerate with server/scripts/generate-self-signed-cert.sh
+```
+
+It stops PM2, archives the current DB/`.env.local` as `*.pre-restore-<stamp>` (never deleted),
+drops the backup in place, re-creates the `current/server/*` symlinks and restarts PM2. Verify with
+`pm2 logs guestflow` and by checking that Paramètres still shows Google / SMTP / Qonto connected —
+that proves the database and the encryption key came back as a coherent pair.
+
+> ⚠️ A backup directory is a pile of production secrets in clear. Keep it out of any cloud-synced
+> folder (iCloud Drive, Dropbox) and off shared disks.
+
 ## Install wordpress
 
 ### Step 1: Prepare Raspberry PI
