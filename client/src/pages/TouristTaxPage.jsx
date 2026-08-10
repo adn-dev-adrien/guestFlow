@@ -48,6 +48,16 @@ function formatDeclaredDate(declaredAt) {
   return displayDate(String(declaredAt).slice(0, 10));
 }
 
+// specs/reservation-refunds.md §3.5 — les chiffres de la ligne sont NETS des nuits dont la taxe a été
+// rendue au client. La mention dit ce qui a été retiré, sinon l'écart avec la fiche est inexplicable.
+function refundedTaxCaption(row) {
+  const nights = Number(row.refundedTaxNights || 0);
+  const amount = Number(row.refundedTaxAmount || 0);
+  if (nights <= 0 && amount <= 0) return '';
+  const nightsPart = nights > 0 ? `${nights} nuit${nights > 1 ? 's' : ''} remboursée${nights > 1 ? 's' : ''}` : 'taxe remboursée';
+  return `dont ${nightsPart} (− ${formatCurrency(amount)})`;
+}
+
 export default function TouristTaxPage() {
   const navigate = useNavigate();
   const { showError } = useToast();
@@ -195,7 +205,14 @@ export default function TouristTaxPage() {
                           <TableCell padding="checkbox" align="center" onClick={(e) => e.stopPropagation()} sx={{ cursor: 'default' }}>
                             {declaredCheckbox(row)}
                           </TableCell>
-                          <TableCell>{row.reservationName || 'Réservation'}</TableCell>
+                          <TableCell>
+                            {row.reservationName || 'Réservation'}
+                            {refundedTaxCaption(row) && (
+                              <Typography variant="caption" sx={{ display: 'block', color: 'warning.main' }}>
+                                {`↳ ${refundedTaxCaption(row)}`}
+                              </Typography>
+                            )}
+                          </TableCell>
                           <TableCell>{formatReservationDates(row.startDate, row.endDate)}</TableCell>
                           <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>
                           <TableCell align="right" sx={TABULAR}>{row.adults}</TableCell>
@@ -213,6 +230,11 @@ export default function TouristTaxPage() {
                           <Typography variant="caption" color="text.secondary">
                             {formatReservationDates(row.startDate, row.endDate)} · {row.nightsCount} nuit{row.nightsCount > 1 ? 's' : ''} · {row.adults} ad. · {row.children ?? 0} enf.
                           </Typography>
+                          {refundedTaxCaption(row) && (
+                            <Typography variant="caption" sx={{ color: 'warning.main' }}>
+                              {refundedTaxCaption(row)}
+                            </Typography>
+                          )}
                           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
                             <Typography variant="caption" color="text.secondary">Taxe séjour (client)</Typography>
                             <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(row.taxAmount)}</Typography>

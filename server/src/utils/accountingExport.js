@@ -40,6 +40,10 @@
  *
  * Turnover basis = NET (the owner-received `finalPrice`). For platform sales, gross +
  * commission ride only in the trailing info columns. See specs/accountant-accounting-export.md §9.
+ *
+ * Refunds (specs/reservation-refunds.md) travel through the same pipe with `direction: 'refund'`:
+ * one « avoir » = the mirror image of an encaissement (credit client / debit revenue + VAT), so the
+ * CSV and the visual journal stay a single code path.
  */
 
 const {
@@ -108,6 +112,8 @@ function zerofyMoneyColumns(row) {
 //   - CREDITS unchanged in shape — revenue 70xxx + VAT 44571xxx (scaled to GROSS by the
 //     model upstream) + tax pass-through 46710000. Σ credits = encaissement GROSS TTC.
 function entryToRows(entry) {
+  // Remboursements (specs/reservation-refunds.md §3.4): the very same money shape, sides swapped.
+  if (entry && entry.direction === 'refund') return refundEntryToRows(entry);
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
   const clientAccount = buildClientAccount(entry.client.lastName);
@@ -246,6 +252,72 @@ function entryToRows(entry) {
   return rows;
 }
 
+// Un « avoir » : the exact mirror of an encaissement (specs/reservation-refunds.md §3.4 rule 22).
+//   - 1 CREDIT on the client auxiliary account for the full refunded TTC (the money leaves to them);
+//   - N DEBIT lines on the revenue accounts (70xxx), one per bucket, at their frozen HT;
+//   - M DEBIT lines on the VAT accounts (44571xxx), one per rate;
+//   - 1 DEBIT on 46710000 when part of the refund gives back tourist tax.
+// No commission line ever: the owner refunds the guest from their own bank account, whatever the
+// platform of the original sale. Σ debits == credit, the rounding residue absorbed on the last debit
+// (the sale path absorbs it on the last credit).
+function refundEntryToRows(entry) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const libelle = libelleFor(entry);
+  const clientAccount = buildClientAccount(entry.client.lastName);
+  const piece = '';
+  const creditTtc = round2(entry.encaissementTtc);
+  const taxTtc = round2(entry.taxTtc || 0);
+
+  const revenueLines = [];
+  const vatByRate = new Map();
+  for (const bucket of entry.buckets || []) {
+    const account = BUCKET_TO_ACCOUNT[bucket.name];
+    if (!account) continue;
+    const ht = round2(bucket.ht || 0);
+    const vat = round2(bucket.vat || 0);
+    if (ht > 0) revenueLines.push({ account, amount: ht });
+    if (vat > 0) {
+      const rate = Number(bucket.ratePercent) || 0;
+      vatByRate.set(rate, (vatByRate.get(rate) || 0) + vat);
+    }
+  }
+  const vatLines = [...vatByRate.entries()].map(([rate, amount]) => ({
+    account: vatAccountForRate(rate),
+    amount: round2(amount),
+  }));
+  const taxLines = taxTtc > 0
+    ? [{ account: PASS_THROUGH_ACCOUNTS.TOURIST_TAX, amount: taxTtc }]
+    : [];
+
+  const allDebits = [...revenueLines, ...vatLines, ...taxLines];
+  if (allDebits.length > 0) {
+    const sum = round2(allDebits.reduce((a, l) => a + l.amount, 0));
+    const residue = round2(creditTtc - sum);
+    if (residue !== 0) {
+      allDebits[allDebits.length - 1].amount = round2(allDebits[allDebits.length - 1].amount + residue);
+    }
+  }
+
+  const rows = [];
+  // 1) Credit on the client auxiliary account — anchor row. A refund has no platform money to
+  // report (no commission, no guest-paid gross), so the three extension columns stay empty.
+  rows.push(zerofyMoneyColumns([
+    day, month, year,
+    SALES_JOURNAL_CODE, piece,
+    libelle,
+    clientAccount,
+    '', creditTtc,
+    '', '', '',
+  ]));
+  // 2..N) Debit lines: revenue, then VAT, then the tourist-tax pass-through.
+  for (const line of allDebits) {
+    rows.push(zerofyMoneyColumns([
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
+    ]));
+  }
+  return rows;
+}
+
 function buildRows(entries) {
   const rows = [];
   for (const entry of entries || []) {
@@ -263,7 +335,8 @@ function entryToStructured(entry) {
   if (rows.length === 0) return null;
   const [day, month, year] = rows[0];
 
-  const platformInfo = (entry.platform && entry.platform !== 'direct')
+  const isRefund = entry.direction === 'refund';
+  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund)
     ? {
         platform: entry.platform,
         gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
@@ -305,13 +378,19 @@ function entryToStructured(entry) {
   // « N % du séjour » caption. Distinct from `fraction`, which is the export-side bucket
   // multiplier (1 on the contrib path where buckets are absolute).
   const finalPrice = round2(entry.finalPrice);
-  const stayShare = finalPrice > 0
+  // A refund covers no « share of the séjour » — it gives part of it back (the caption is hidden).
+  const stayShare = (!isRefund && finalPrice > 0)
     ? Math.max(0, (round2(entry.encaissementTtc) - round2(entry.taxTtc || 0)) / finalPrice)
     : null;
 
   return {
     reservationId: entry.reservationId,
     kind: entry.kind,
+    // specs/reservation-refunds.md §3.4 rule 25 — the card renders as an « avoir » when set.
+    direction: isRefund ? 'refund' : 'sale',
+    refundId: entry.refundId != null ? entry.refundId : null,
+    refundReason: isRefund ? (entry.reason || '') : null,
+    refundMethod: isRefund ? (entry.method || null) : null,
     day, month, year,
     paidDate: entry.paidDate,
     client: entry.client,
@@ -356,5 +435,5 @@ module.exports = {
   buildRows,
   entryToStructured,
   buildStructuredEntries,
-  __test: { splitIsoDate, round2, classifyLine, libelleFor, zerofyMoneyColumns },
+  __test: { splitIsoDate, round2, classifyLine, libelleFor, zerofyMoneyColumns, refundEntryToRows },
 };

@@ -367,6 +367,37 @@ CREATE TABLE IF NOT EXISTS reservation_options (
     FOREIGN KEY (optionId) REFERENCES options(id) ON DELETE CASCADE
   );
 
+-- Remboursements (specs/reservation-refunds.md §5). An « avoir »: money returned to the guest AFTER
+-- the sale, at its own date, WITHOUT touching the sale (finalPrice, échéances, paid flags stay
+-- verbatim). One header + N lines; `vatRate` is frozen per line at creation so a later settings
+-- change never re-prices an avoir already sent to the accountant.
+CREATE TABLE IF NOT EXISTS reservation_refunds (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL,
+    refundDate    TEXT NOT NULL,                    -- YYYY-MM-DD, real money-out date
+    method        TEXT NOT NULL DEFAULT 'transfer', -- 'transfer' | 'cash' | 'internal'
+    totalTtc      REAL NOT NULL DEFAULT 0,          -- server-computed sum of the lines
+    reason        TEXT DEFAULT '',
+    createdAt     TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
+  );
+
+CREATE TABLE IF NOT EXISTS reservation_refund_lines (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    refundId  INTEGER NOT NULL,
+    lineKey   TEXT,                                 -- 'accommodation' | 'opt:<id>' | 'res:<id>' | 'custom:<label>' | 'touristTax' | NULL (free line)
+    label     TEXT NOT NULL,
+    bucket    TEXT NOT NULL,                        -- 'accommodation' | 'options' | 'resources' | 'touristTax'
+    quantity  REAL,
+    unitPrice REAL,
+    amountTtc REAL NOT NULL,
+    vatRate   REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY (refundId) REFERENCES reservation_refunds(id) ON DELETE CASCADE
+  );
+
+CREATE INDEX IF NOT EXISTS idx_refunds_reservation ON reservation_refunds(reservationId);
+CREATE INDEX IF NOT EXISTS idx_refunds_date ON reservation_refunds(refundDate);
+
 CREATE TABLE IF NOT EXISTS reservation_resources (
     reservationId INTEGER NOT NULL,
     resourceId INTEGER NOT NULL,

@@ -16,12 +16,20 @@ function parseMonthYear(query) {
   return { month, year };
 }
 
+// Sales + refunds of the month, in one chronological stream. A refund is not an encaissement, but
+// it belongs to the same journal at its own date (specs/reservation-refunds.md §3.4 rule 21).
+function monthEntries(accountingModel, params) {
+  const sales = accountingModel.encaissementsByMonth(params);
+  const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
+  return [...sales, ...refunds].sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
+}
+
 function createAccountingController(accountingModel) {
   return {
     salesCsv(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = accountingModel.encaissementsByMonth(params);
+      const entries = monthEntries(accountingModel, params);
       const rows = buildRows(entries);
       // ISO-8859-1 (latin1) without BOM — matches the accountant's `Exemple export ventes
       // SOLIO.csv` byte-for-byte. French accounting software (Sage/EBP/Cegid) defaults to
@@ -43,7 +51,7 @@ function createAccountingController(accountingModel) {
     salesJson(req, res) {
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
-      const entries = accountingModel.encaissementsByMonth(params);
+      const entries = monthEntries(accountingModel, params);
       const structured = buildStructuredEntries(entries);
       const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
       const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
@@ -98,4 +106,4 @@ const defaultController = createAccountingController(defaultAccountingModel);
 
 module.exports = defaultController;
 module.exports.create = createAccountingController;
-module.exports.__test = { parseMonthYear };
+module.exports.__test = { parseMonthYear, monthEntries };

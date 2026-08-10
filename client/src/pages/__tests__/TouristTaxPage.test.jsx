@@ -46,6 +46,7 @@ const DATA = {
       reservationId: 8, propertyId: 1, propertyName: 'Gîte', reservationName: 'Marie Martin',
       startDate: '2026-06-10', endDate: '2026-06-12', lastNightDate: '2026-06-11',
       touristTaxDeclaredAt: '2026-06-30 09:00:00', adults: 2, children: 0, nightsCount: 2, taxRate: 1, taxAmount: 8, accommodationAmount: 400,
+      refundedTaxNights: 0, refundedTaxAmount: 0,
     },
   ],
   totals: { reservationsCount: 2, rentedNights: 3, adultNights: 6, taxAmount: 12, accommodationAmount: 600 },
@@ -85,4 +86,28 @@ test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCH
   await waitFor(() => expect(api.setTouristTaxDeclared).toHaveBeenCalledWith(7, true));
   expect(navigateSpy).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.getByLabelText('Déclarée — Jean Dupont')).toBeChecked());
+});
+
+// specs/reservation-refunds.md §3.5 — les chiffres affichés sont NETS des nuits dont la taxe a été
+// rendue ; la mention dit ce qui a été retiré, sinon l'écart avec la fiche serait inexplicable.
+test('une nuit dont la taxe est remboursée est annotée sur la ligne', async () => {
+  api.getTouristTaxExtraction.mockResolvedValue({
+    ...DATA,
+    reservations: [{
+      ...DATA.reservations[0],
+      reservationName: 'Camille Durand',
+      nightsCount: 2, adults: 2, taxAmount: 8.8,
+      refundedTaxNights: 1, refundedTaxAmount: 4.4,
+    }],
+  });
+  renderPage();
+  expect(await screen.findByText(/dont 1 nuit remboursée \(− 4,40 €\)/)).toBeInTheDocument();
+  // Le montant affiché est déjà le net à déclarer.
+  expect(screen.getAllByText('8,80 €').length).toBeGreaterThan(0);
+});
+
+test('sans remboursement de taxe, aucune mention ne s’affiche', async () => {
+  renderPage();
+  expect(await screen.findByText('Jean Dupont')).toBeInTheDocument();
+  expect(screen.queryByText(/remboursée/)).not.toBeInTheDocument();
 });

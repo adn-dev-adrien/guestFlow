@@ -8,8 +8,9 @@ const {
   getMonthBounds,
   computeAccommodationAmountAfterDiscount,
 } = require('../utils/financeCalcs');
-const { isSettled, remainingToPay, platformCommission } = require('../utils/reservationSettlement');
-const { parseNotes } = require('../utils/midStayExtras');
+const {
+  isSettled, remainingToPay, platformCommission, midStayNotesTotal, refundsBook, comptaCollected,
+} = require('../utils/reservationSettlement');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -47,44 +48,19 @@ function nightsBetween(startDate, endDate) {
 // earns = acompte + solde + complément d'arrivée + complément de fin de séjour, NET of the platform
 // commission, with BOTH complements EXCLUDED when settled via caisse interne (off-books). Direct →
 // commission 0 → unchanged.
-// specs/mid-stay-notes.md §3.4 rule 15 — the « notes en séjour » (prestations collected during the
-// stay) join the same aggregates as the complements, with the same caisse-interne convention: a cash
-// note is real money in the tracking but stays off the books, so it is excluded here like a cash
-// complement is. `withCash` keeps the two readings explicit at the call sites.
-function midStayNotesTotal(r, { withCash = false } = {}) {
-  return round2(parseNotes(r.midStaySettledNotes)
-    .filter((n) => withCash || Number(n.paidCash || 0) === 0)
-    .reduce((s, n) => s + (Number(n.total) || 0), 0));
-}
-
 function totalSejour(r) {
   const deposit = Number(r.depositAmount || 0);
   const balance = Number(r.balanceAmount || 0);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
-  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - platformCommission(r));
+  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r)
+    - platformCommission(r) - refundsBook(r));
 }
 
-// `isSettled` (specs/finance-overview-rework.md §3.3) and `remainingToPay`
-// (specs/finance-operational-remaining-to-pay.md §3) live in utils/reservationSettlement.js — the
-// day-of-operations collection status shares the very same bucket rules
-// (specs/dashboard-collection-alert.md).
-
-// « Encaissé » = what the operator has actually RECEIVED so far = every component marked paid, EXCLUDING
-// caisse interne, NET of the platform commission of each paid échéance (acompte commission on the deposit,
-// solde commission on the balance; the complements carry none). Direct → commission 0 → the plain paid sum.
-function comptaCollected(r) {
-  const acompteComm = Number(r.acompteCommissionAmount || 0);
-  const soldeComm = Number(r.platformCommissionAmount || 0);
-  return round2(
-    (r.depositPaid ? Number(r.depositAmount || 0) - acompteComm : 0)
-    + (r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0)
-    + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
-    + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
-    // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
-    + midStayNotesTotal(r),
-  );
-}
+// `isSettled` (specs/finance-overview-rework.md §3.3), `remainingToPay`
+// (specs/finance-operational-remaining-to-pay.md §3) and `comptaCollected` (« encaissé ») live in
+// utils/reservationSettlement.js — the day-of-operations collection status and the refund dialog
+// share the very same bucket rules (specs/dashboard-collection-alert.md).
 
 function getVatRate(database) {
   const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
@@ -120,6 +96,32 @@ const BREAKDOWN_METRICS = {
 };
 
 function createFinanceModel(database) {
+  // specs/reservation-refunds.md §3.3 — per-reservation refund totals, injected into every query that
+  // feeds totalSejour/comptaCollected. Guarded like the mid-stay columns: a minimal test schema without
+  // the refund tables degrades to 0 (no refund) instead of failing the query.
+  const hasRefundTables = (() => {
+    try {
+      return database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'reservation_refunds'").get() != null;
+    } catch { return false; }
+  })();
+  const REFUND_COLS = hasRefundTables
+    ? `COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
+                 WHERE rf.reservationId = r.id AND rf.method <> 'internal'), 0) AS refundsBookTtc,
+       COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
+                 WHERE rf.reservationId = r.id), 0) AS refundsWithCashTtc`
+    : '0 AS refundsBookTtc, 0 AS refundsWithCashTtc';
+  // specs/reservation-refunds.md §3.5 — the tourist tax given back to the guest, in euros and in
+  // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
+  // from the turnover, never from what is owed to the commune.
+  const REFUNDED_TAX_COLS = hasRefundTables
+    ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
+                 JOIN reservation_refunds rf ON rf.id = rl.refundId
+                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxAmount,
+       COALESCE((SELECT SUM(COALESCE(rl.quantity, 0)) FROM reservation_refund_lines rl
+                 JOIN reservation_refunds rf ON rf.id = rl.refundId
+                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxNights`
+    : '0 AS refundedTaxAmount, 0 AS refundedTaxNights';
+
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
     //
@@ -151,7 +153,8 @@ function createFinanceModel(database) {
       const yearEnd = `${year}-12-31`;
 
       const reservations = database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName
+        SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName,
+               ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
@@ -223,7 +226,8 @@ function createFinanceModel(database) {
         SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
                endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes, endDate,
                finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
-               r.propertyId, p.name AS propertyName
+               r.propertyId, p.name AS propertyName,
+               ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation' AND r.endDate >= ? AND r.endDate <= ?
       `).all(yearStart, yearEnd);
@@ -277,7 +281,8 @@ function createFinanceModel(database) {
       const vatRate = getVatRate(database);
 
       const selectRows = (start, end) => database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, p.name as propertyName
+        SELECT r.*, c.lastName, c.firstName, p.name as propertyName,
+               ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
@@ -361,7 +366,8 @@ function createFinanceModel(database) {
       const targetDate = date || todayIso();
 
       const reservations = database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName
+        SELECT r.*, c.lastName, c.firstName, c.email, p.name as propertyName,
+               ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
@@ -405,7 +411,8 @@ function createFinanceModel(database) {
       const today = todayIso();
 
       const allRows = database.prepare(`
-        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName
+        SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
+               ${REFUND_COLS}
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
@@ -562,6 +569,7 @@ function createFinanceModel(database) {
           COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal,
           COALESCE(r.finalPrice, 0) as finalPrice,
           r.touristTaxDeclaredAt as touristTaxDeclaredAt,
+          ${REFUNDED_TAX_COLS},
           DATE(r.endDate, '-1 day') as lastNightDate
         FROM reservations r
         JOIN properties p ON p.id = r.propertyId
@@ -648,6 +656,32 @@ function createFinanceModel(database) {
             accommodationVatRate: row.accommodationVatRate,
           });
 
+          // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
+          // did not spend: that night leaves the declaration, and with it its taxable person-nights and
+          // its share of the tax.
+          //
+          // What is deducted is the NIGHT, and the amount follows from it — never the refunded euros
+          // themselves. Two reasons: the page recomputes the tax from the property's current rate (it
+          // may differ by cents from what was billed), so subtracting a foreign amount would break its
+          // own `taxe = nuitées × tarif` arithmetic; and what is owed to the commune depends on nights
+          // occupied, not on what the operator kept. A goodwill refund too small to free a whole night
+          // therefore changes nothing here.
+          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
+          const declaredAdultNights = Math.max(
+            0,
+            touristTaxBreakdown.touristTaxAdultsCount * Math.max(0, touristTaxBreakdown.touristTaxNights - refundedTaxNights),
+          );
+          const grossTaxAmount = round2(touristTaxBreakdown.touristTaxTotal);
+          // Pro-rated on the nights: exact for the per-night modes, the natural share for the
+          // percentage ones (where the tax isn't night-linear).
+          const declaredTaxAmount = nightsCount > 0
+            ? round2(grossTaxAmount * (declaredNights / nightsCount))
+            : grossTaxAmount;
+          // The annotation reports the declaration's own deduction, so the row always reads
+          // « net + retiré = brut » to the cent.
+          const refundedTaxAmount = round2(grossTaxAmount - declaredTaxAmount);
+
           const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
           return {
             reservationId: row.reservationId,
@@ -660,15 +694,22 @@ function createFinanceModel(database) {
             touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
             adults,
             children: children + teens,
-            nightsCount,
-            adultNights: touristTaxBreakdown.touristTaxAdultsCount * touristTaxBreakdown.touristTaxNights,
+            // Net of the refunded nights — these are the figures to declare.
+            nightsCount: declaredNights,
+            adultNights: declaredAdultNights,
             taxRate: touristTaxBreakdown.touristTaxUnitAmount,
-            taxAmount: touristTaxBreakdown.touristTaxTotal,
+            taxAmount: declaredTaxAmount,
+            // …and what was taken out, so the row can say why (spec §6, « ligne annotée »).
+            refundedTaxNights,
+            refundedTaxAmount,
             accommodationRawAmount: accommodationMeta.accommodationRawAmount,
             reductionAmount: accommodationMeta.reductionAmount,
             accommodationAmount: accommodationMeta.accommodationAmount,
           };
         })
+        // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
+        // until nothing is left simply leaves the declaration — there is nothing to remit for it
+        // (specs/reservation-refunds.md §3.5 rule 31).
         .filter((row) => row.nightsCount > 0);
 
       const byPropertyMap = new Map();
