@@ -164,6 +164,10 @@ export default function RefundDialog({ open, onClose, refundableLines = [], coll
                           <Typography variant="body2">{line.label}</Typography>
                           <Typography variant="caption" color="text.secondary">
                             Facturé {formatCurrency(line.billedTtc)}
+                            {/* La taxe de séjour se rembourse À LA NUIT : le libellé annonce l'unité
+                                que le sélecteur manipule (specs/reservation-refunds.md §3.5). */}
+                            {line.unitLabel && line.quantity > 0 && line.unitPrice > 0
+                              && ` · ${line.quantity} ${line.unitLabel}${line.quantity > 1 ? 's' : ''} à ${formatCurrency(line.unitPrice)}`}
                             {line.refundedTtc > 0 && ` · déjà remboursé ${formatCurrency(line.refundedTtc)}`}
                           </Typography>
                         </Box>

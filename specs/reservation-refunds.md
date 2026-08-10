@@ -180,6 +180,35 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 - **Reservation deleted**: refunds cascade away (`ON DELETE CASCADE`).
 - **Devis (`kind='devis'`)**: no refunds — the endpoints reject with 400, like every other money flow.
 
+### 3.5 Taxe de séjour — remboursement et déclaration
+
+27. The tourist tax is refunded **by night, never as a loose amount**: its refundable line carries
+    `quantity` = the nights of the stay, `unitPrice` = the whole party's tax for one night
+    (`touristTaxTotal ÷ nights`) and `unitLabel = 'nuit'`, so the dialog offers a night stepper and the
+    caption reads « Facturé 13,20 € · 3 nuits à 4,40 € ».
+28. The stored `quantity` is **derived server-side** from the amount (`amountTtc ÷ unitPrice`) for
+    every keyed line — a client-sent quantity is never trusted, so nights and euros can never disagree.
+29. **Every means counts towards the commune**, caisse interne included: « hors comptabilité » only
+    ever meant « out of the turnover ». What matters here is that the tax physically went back to the
+    guest, so it is not owed — whatever envelope it left in. (This is the one place the caisse-interne
+    convention of rule 19 does **not** apply, and deliberately so.)
+30. The « Taxe de séjour » extraction declares the **net**: a refunded night leaves the row's
+    **« Nuits »**, its **« Adultes-nuits »** and its **tax amount**, and the same deduction flows into
+    the per-property recap and the month totals. What is deducted is the **night**, and the amount
+    follows from it — never the refunded euros themselves. Two reasons: the page recomputes the tax
+    from the property's current rate (it may differ by cents from what was billed), so subtracting a
+    foreign amount would break its own `taxe = nuitées × tarif` arithmetic; and what is owed to the
+    commune depends on the nights occupied, not on what the operator kept. Consequence: a goodwill
+    refund too small to free a whole night changes nothing in the declaration.
+31. Nights are deducted as **whole nights** (the declaration counts nights, not fractions), clamped to
+    the stay. A reservation whose tourist tax is **entirely** refunded **leaves the declaration** — 0
+    night, nothing to remit.
+32. The row **says why**: « ↳ dont 1 nuit remboursée (− 4,40 €) », so the net figure is never an
+    unexplained gap against the fiche. The amount shown is the declaration's own deduction, hence
+    `net + retiré = brut` to the cent.
+33. Refunding anything else (petit-déjeuner, hébergement, ligne libre) leaves the declaration
+    **untouched** — only the `touristTax` key feeds it.
+
 ---
 
 ## 4. Architecture
@@ -192,11 +221,11 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `refundsController.js` | C | Orchestrates: load reservation, build refundable lines, validate the payload (rules 10–15), persist, return the fresh register + lines |
 | `models/` | `refundsModel.js` | C | DB access: `listByReservation`, `create` (header + lines in one transaction), `remove`, `totalsByReservation` (book / with-cash split), `refundedByKey`, `refundsByMonth` |
 | `models/` | `accountingModel.js` | T | New `refundsByMonth({month, year})` → `refund` entries (bucket HT/VAT already split, `direction: 'refund'`); `encaissementsByMonth` untouched |
-| `models/` | `financeModel.js` | T | `totalSejour` / `comptaCollected` subtract the book refunds; `midStayNotesTotal`-style `refundsTotal(r, {withCash})` helper; the breakdown rows expose a « Remboursements » column entry |
+| `models/` | `financeModel.js` | T | `totalSejour` / `comptaCollected` subtract the book refunds; `getTouristTaxExtraction` deducts the refunded nights from the declaration (row, per-property recap, month totals) and exposes `refundedTaxNights` / `refundedTaxAmount` |
 | `models/` | `reservationsModel.js` | T | `getById` joins the refund register + totals into the payload consumed by the fiche |
 | `controllers/` | `accountingController.js` | T | Merges encaissement + refund entries, sorted by date, for both `sales.csv` and `sales` |
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
-| `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(storedLines, refunds, {finalPrice, touristTaxTotal, vatRate})`, `validateRefundPayload(...)`, `splitLineHtVat(...)`, `refundBucketAccount(bucket)` |
+| `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
 | `utils/` | `accountingExport.js` | T | `refundEntryToRows()` (credit client / debit revenue+VAT+pass-through, residue on the last debit) routed from `entryToRows` on `entry.direction === 'refund'`; `entryToStructured` inherits it for free |
 | `utils/` | `pricing.js` | T | New input `refundsTotal`; new output `refundsTotal` + `sejourNetTotal` net of refunds (single subtraction, no other engine change) |
 | `constants/` | `accounting.js` | T | `REFUND_BUCKET_TO_ACCOUNT` (adds `touristTax → 46710000` on top of the existing `BUCKET_TO_ACCOUNT`) |
@@ -215,6 +244,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 |---|---|---|---|
 | `pages/` | `ReservationPage.jsx` | T | Refund dialog open/close state, create/delete handlers, refetch after mutation |
 | `pages/` | `AccountingPage.jsx` | T | Renders `refund` entries as avoir cards (chip « Remboursement », inverted debit/credit reading) |
+| `pages/` | `TouristTaxPage.jsx` | T | Annotates a row whose tax was partly refunded (« ↳ dont 1 nuit remboursée (− 4,40 €) »), desktop table + mobile card |
 | `components/reservation/` | `FinanceSection.jsx` | T | New « Remboursements » block: total, « Nouveau remboursement » button, collapsible history with per-refund delete |
 | `components/reservation/` | `RefundDialog.jsx` | C | Feature-local dialog: refundable-line picker + free lines + date + means + reason + live total |
 | `components/` | `PricingSummary.jsx` | T | « Remboursements − X € » line + « Total de séjour » net of refunds |
@@ -368,6 +398,10 @@ like « Nouvelle note », not a page-level one).
       (rules 16–19).
 - [x] `tests/finance-refunds.unit.test.js` (moteur) — `sejourNetTotal` net of refunds, every other quote figure
       byte-identical to the no-refund run (rule 17).
+- [x] `tests/tourist-tax-refund-declaration.unit.test.js` — per-night refundable line, server-derived
+      quantity, `refundedTouristTax` across means, night + adult-nights + amount deducted from the row,
+      the per-property recap and the totals, caisse interne included, a fully-refunded stay leaving the
+      declaration, a sub-night refund changing nothing, `net + retiré = brut` (rules 27–33).
 - [x] `tests/reception-role-allowlist.unit.test.js` (existing drift test) — still red-flags the new
       refund paths as admin-only (rule 15).
 
@@ -375,11 +409,15 @@ like « Nouvelle note », not a page-level one).
 - [x] `RefundDialog.test.jsx` — line selection drives the total, free line adds up, future date
       refused, server error rendered inline.
 - [x] `FinanceSection.refunds.test.jsx` — block hidden-when-empty, total, history, delete flow.
+- [x] `RefundDialog.test.jsx` — the tourist-tax line announces its unit and refunds by night.
+- [x] `TouristTaxPage.test.jsx` — the refunded-night annotation, absent when nothing was refunded.
 
 ### Manual UI verification
 - [x] Happy path: the trigger case end-to-end — full payment collected, refund 2 breakfasts by
       transfer, check the fiche total, the Suivi financier card, the journal preview and the CSV.
 - [x] Edge case: caisse-interne refund → visible on the fiche, absent from `/comptabilite`.
+- [x] Taxe de séjour: refund one night on a 2-night stay → « Taxe de séjour » page shows 1 night,
+      2 adultes-nuits, the halved amount and the annotation; totals and per-property recap follow.
 - [x] Edge case: over-cap refund → 409 surfaced in the dialog, nothing persisted.
 - [x] Regression: a reservation with mid-stay notes + end-of-stay complement keeps its exact previous
       figures with no refund recorded.
@@ -396,6 +434,9 @@ like « Nouvelle note », not a page-level one).
 - **Refunds initiated from the SAS de départ** (decision 2026-08-10: fiche only for now).
 - **A month-close lock** preventing the deletion of a refund already exported.
 - **Refund of a platform commission** or any platform-side money flow.
+- **Refunding accommodation does not change the declared « Montant hébergement HT »** (the tax base of
+  the percentage modes). Only the tourist-tax line drives the declaration — a separate rule, deliberately
+  not bundled here.
 
 ## 9. Open questions
 

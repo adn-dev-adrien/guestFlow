@@ -110,6 +110,17 @@ function createFinanceModel(database) {
        COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
                  WHERE rf.reservationId = r.id), 0) AS refundsWithCashTtc`
     : '0 AS refundsBookTtc, 0 AS refundsWithCashTtc';
+  // specs/reservation-refunds.md §3.5 — the tourist tax given back to the guest, in euros and in
+  // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
+  // from the turnover, never from what is owed to the commune.
+  const REFUNDED_TAX_COLS = hasRefundTables
+    ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
+                 JOIN reservation_refunds rf ON rf.id = rl.refundId
+                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxAmount,
+       COALESCE((SELECT SUM(COALESCE(rl.quantity, 0)) FROM reservation_refund_lines rl
+                 JOIN reservation_refunds rf ON rf.id = rl.refundId
+                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax'), 0) AS refundedTaxNights`
+    : '0 AS refundedTaxAmount, 0 AS refundedTaxNights';
 
   const model = {
     // Financial summary for a date range; each reservation carries its payment status.
@@ -558,6 +569,7 @@ function createFinanceModel(database) {
           COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal,
           COALESCE(r.finalPrice, 0) as finalPrice,
           r.touristTaxDeclaredAt as touristTaxDeclaredAt,
+          ${REFUNDED_TAX_COLS},
           DATE(r.endDate, '-1 day') as lastNightDate
         FROM reservations r
         JOIN properties p ON p.id = r.propertyId
@@ -644,6 +656,32 @@ function createFinanceModel(database) {
             accommodationVatRate: row.accommodationVatRate,
           });
 
+          // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
+          // did not spend: that night leaves the declaration, and with it its taxable person-nights and
+          // its share of the tax.
+          //
+          // What is deducted is the NIGHT, and the amount follows from it — never the refunded euros
+          // themselves. Two reasons: the page recomputes the tax from the property's current rate (it
+          // may differ by cents from what was billed), so subtracting a foreign amount would break its
+          // own `taxe = nuitées × tarif` arithmetic; and what is owed to the commune depends on nights
+          // occupied, not on what the operator kept. A goodwill refund too small to free a whole night
+          // therefore changes nothing here.
+          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
+          const declaredAdultNights = Math.max(
+            0,
+            touristTaxBreakdown.touristTaxAdultsCount * Math.max(0, touristTaxBreakdown.touristTaxNights - refundedTaxNights),
+          );
+          const grossTaxAmount = round2(touristTaxBreakdown.touristTaxTotal);
+          // Pro-rated on the nights: exact for the per-night modes, the natural share for the
+          // percentage ones (where the tax isn't night-linear).
+          const declaredTaxAmount = nightsCount > 0
+            ? round2(grossTaxAmount * (declaredNights / nightsCount))
+            : grossTaxAmount;
+          // The annotation reports the declaration's own deduction, so the row always reads
+          // « net + retiré = brut » to the cent.
+          const refundedTaxAmount = round2(grossTaxAmount - declaredTaxAmount);
+
           const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
           return {
             reservationId: row.reservationId,
@@ -656,15 +694,22 @@ function createFinanceModel(database) {
             touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
             adults,
             children: children + teens,
-            nightsCount,
-            adultNights: touristTaxBreakdown.touristTaxAdultsCount * touristTaxBreakdown.touristTaxNights,
+            // Net of the refunded nights — these are the figures to declare.
+            nightsCount: declaredNights,
+            adultNights: declaredAdultNights,
             taxRate: touristTaxBreakdown.touristTaxUnitAmount,
-            taxAmount: touristTaxBreakdown.touristTaxTotal,
+            taxAmount: declaredTaxAmount,
+            // …and what was taken out, so the row can say why (spec §6, « ligne annotée »).
+            refundedTaxNights,
+            refundedTaxAmount,
             accommodationRawAmount: accommodationMeta.accommodationRawAmount,
             reductionAmount: accommodationMeta.reductionAmount,
             accommodationAmount: accommodationMeta.accommodationAmount,
           };
         })
+        // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
+        // until nothing is left simply leaves the declaration — there is nothing to remit for it
+        // (specs/reservation-refunds.md §3.5 rule 31).
         .filter((row) => row.nightsCount > 0);
 
       const byPropertyMap = new Map();
