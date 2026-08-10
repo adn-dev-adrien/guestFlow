@@ -24,6 +24,7 @@ const platformsModel = require('./platformsModel');
 const settingsModel = require('./settingsModel');
 const { DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT } = require('../constants/accounting');
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey, parseNotes } = require('../utils/midStayExtras');
+const { createModel: createRefundsModel } = require('./refundsModel');
 
 function createAccountingModel(database) {
   // Mid-stay columns (specs/mid-stay-extras-to-end-of-stay-complement.md). Guarded like the
@@ -44,6 +45,9 @@ function createAccountingModel(database) {
   const hasNotesColumn = hasReservationColumn('midStaySettledNotes');
   const midStayNotesClause = hasNotesColumn ? 'OR (r.midStaySettledNotes LIKE ?)' : '';
   const midStayNotesParams = (from) => (hasNotesColumn ? [`%"paidDate":"${String(from).slice(0, 8)}%`] : []);
+  // Refunds live in their own tables, so the month filter is a plain range predicate (no LIKE scan
+  // like the notes register needs). Bound to the same database so the test factory covers both.
+  const refunds = createRefundsModel(database);
   return {
     // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
     // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
@@ -131,6 +135,64 @@ function createAccountingModel(database) {
         return entries.filter(Boolean);
       });
     },
+
+    // Remboursements of the month (specs/reservation-refunds.md §3.4): one REVERSED entry per
+    // non-`internal` refund whose `refundDate` falls in the month. Same entry shape as an
+    // encaissement — `direction: 'refund'` is what flips the debit/credit sides at export time.
+    refundsByMonth({ month, year }) {
+      const mm = String(month).padStart(2, '0');
+      const yyyy = String(year);
+      const from = `${yyyy}-${mm}-01`;
+      const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
+      return refunds.listByMonth({ from, nextMonth }).map(buildRefundEntry).filter(Boolean);
+    },
+  };
+}
+
+// One refund → one avoir entry. Revenue lines are grouped per (bucket, frozen VAT rate) and split
+// HT/VAT at that rate; tourist-tax lines ride the 46710000 pass-through with no VAT, exactly like the
+// tax portion of an encaissement. No commission, ever (rule 23): the owner refunds the guest directly.
+function buildRefundEntry(refund) {
+  const lines = refund.lines || [];
+  const ttc = round2(refund.totalTtc);
+  if (ttc <= 0) return null;
+
+  const byBucket = new Map(); // `${bucket}|${rate}` → { name, ttc, ratePercent }
+  let taxTtc = 0;
+  for (const line of lines) {
+    const amount = round2(line.amountTtc);
+    if (amount <= 0) continue;
+    if (line.bucket === 'touristTax') { taxTtc = round2(taxTtc + amount); continue; }
+    const rate = Number(line.vatRate || 0);
+    const mapKey = `${line.bucket}|${rate}`;
+    const current = byBucket.get(mapKey) || { name: line.bucket, ttc: 0, ratePercent: rate };
+    current.ttc = round2(current.ttc + amount);
+    byBucket.set(mapKey, current);
+  }
+
+  const buckets = [...byBucket.values()]
+    .map((b) => bucketFromTtc(b.name, b.ttc, b.ratePercent))
+    .filter((b) => b.ht > 0 || b.vat > 0);
+
+  return {
+    reservationId: refund.reservationId,
+    refundId: refund.id,
+    kind: 'refund',
+    direction: 'refund',
+    paidDate: refund.refundDate,
+    client: { firstName: refund.firstName || '', lastName: refund.lastName || '' },
+    propertyName: refund.propertyName || '',
+    platform: refund.platform || 'direct',
+    clientGrossAmount: null,
+    finalPrice: ttc,
+    encaissementTtc: ttc,
+    encaissementNetTtc: ttc,
+    commission: null,
+    taxTtc,
+    fraction: 1,
+    buckets,
+    reason: refund.reason || '',
+    method: refund.method,
   };
 }
 

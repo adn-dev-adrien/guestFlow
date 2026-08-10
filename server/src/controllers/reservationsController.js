@@ -18,6 +18,8 @@ const establishmentClosuresModel = require('../models/establishmentClosuresModel
 const googleCalendarSync = require('../utils/googleCalendarSync');
 const reservationsModel = require('../models/reservationsModel');
 const settingsModel = require('../models/settingsModel');
+const refundsModel = require('../models/refundsModel');
+const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const platformsModel = require('../models/platformsModel');
 const { isReceptionOnly } = require('../constants/roles');
@@ -45,6 +47,9 @@ function midStayQuoteInputs(reservationId) {
     // clock) so the live preview and the save file a complement under the same heading.
     stayStarted: Boolean(row.startDate) && String(row.startDate) <= getTodayIsoDate(),
     complementCollected: Number(row.complementPaid || 0) === 1,
+    // specs/reservation-refunds.md §3.3 — book-money refunds only: a caisse-interne refund is off the
+    // books, exactly like the cash complements it mirrors.
+    refundsTotal: refundsModel.totalsByReservation(Number(reservationId)).book,
   };
 }
 
@@ -247,7 +252,12 @@ function occupiedDates(req, res) {
 function getById(req, res) {
   const reservation = model.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'Réservation non trouvée' });
-  res.json(isReceptionOnly(req.user) ? toReceptionReservationView(reservation) : reservation);
+  if (isReceptionOnly(req.user)) return res.json(toReceptionReservationView(reservation));
+  // specs/reservation-refunds.md §4.3 — the register + the still-refundable lines ride the fiche
+  // payload, so opening the reservation needs no extra round-trip (and the reception view, which is
+  // finance-stripped by construction, never sees them).
+  const register = refundsController.buildRegister(Number(req.params.id), reservation);
+  res.json({ ...reservation, ...(register ? register.payload : {}) });
 }
 
 function getHistory(req, res) {

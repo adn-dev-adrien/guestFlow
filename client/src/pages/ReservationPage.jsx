@@ -97,6 +97,15 @@ function parseCustomPrice(value) {
   return Number(value);
 }
 
+// specs/reservation-refunds.md — an empty refund register: what a devis, a creation form or a
+// reservation without any refund reads.
+const EMPTY_REFUND_REGISTER = {
+  refunds: [],
+  refundableLines: [],
+  refundTotals: { book: 0, withCash: 0 },
+  collectedTtc: 0,
+};
+
 const EMPTY_CLIENT = {
   lastName: '',
   firstName: '',
@@ -154,6 +163,13 @@ export default function ReservationPage() {
   // s'ouvre depuis deux endroits, la barre d'actions collante (point d'entrée principal) et le bloc
   // « Encaissements en séjour » plus bas dans la carte Finance.
   const [midStayNoteOpen, setMidStayNoteOpen] = useState(false);
+  // specs/reservation-refunds.md — the refund register is SERVER-OWNED: it never joins `form` (which is
+  // the operator's editable draft), it is replaced wholesale by whatever the API returns.
+  const [refundRegister, setRefundRegister] = useState(EMPTY_REFUND_REGISTER);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  // Bumped after a refund mutation so the live-quote effect re-runs and the « total de séjour »
+  // (net of refunds, computed server-side) refreshes.
+  const [refundsVersion, setRefundsVersion] = useState(0);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
   const [newClientCityOptions, setNewClientCityOptions] = useState([]);
   const [propertyOptions, setPropertyOptions] = useState([]);
@@ -787,6 +803,13 @@ export default function ReservationPage() {
               .filter((o) => !o.isCustom && Number(o.autoEnabled || 0) === 1 && Number(o.inComplement || 0) === 1)
               .map((o) => Number(o.optionId)),
           });
+          // specs/reservation-refunds.md §4.3 — the register rides the fiche payload.
+          setRefundRegister({
+            refunds: res.refunds || [],
+            refundableLines: res.refundableLines || [],
+            refundTotals: res.refundTotals || { book: 0, withCash: 0 },
+            collectedTtc: Number(res.collectedTtc || 0),
+          });
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(importedBlankPrice);
           setIsIcalSource(res.sourceType === 'ical');
@@ -917,6 +940,8 @@ export default function ReservationPage() {
             .map(o => o.optionId)
           );
           setOfferedOptionIds(offeredOpts);
+          // A devis carries no money movement, so it can carry no refund either.
+          setRefundRegister(EMPTY_REFUND_REGISTER);
           setPricingQuote(null);
           setIsIcalImportedBlankPrice(false);
           setIsIcalSource(false);
@@ -1169,7 +1194,7 @@ export default function ReservationPage() {
     };
 
     refreshBasePrice();
-  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds]);
+  }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion]);
 
   useEffect(() => {
     const cp = (newClient.postalCode || '').trim();
@@ -2257,6 +2282,33 @@ export default function ReservationPage() {
     }));
   }, [editingReservationId]);
 
+  // specs/reservation-refunds.md §4.3 — the two mutations. Both replace the whole register with the
+  // server's answer and bump `refundsVersion` so the quote (and thus the fiche's « total de séjour »)
+  // is recomputed. `createRefund` lets the API error bubble up: the dialog renders it inline.
+  const applyRefundPayload = useCallback((payload) => {
+    if (!payload) return;
+    setRefundRegister({
+      refunds: payload.refunds || [],
+      refundableLines: payload.refundableLines || [],
+      refundTotals: payload.refundTotals || { book: 0, withCash: 0 },
+      collectedTtc: Number(payload.collectedTtc || 0),
+    });
+    setRefundsVersion((v) => v + 1);
+  }, []);
+
+  const createRefund = useCallback(async (payload) => {
+    const res = await api.createReservationRefund(editingReservationId, payload);
+    applyRefundPayload(res);
+  }, [editingReservationId, applyRefundPayload]);
+
+  const deleteRefund = useCallback(async (refundId) => {
+    try {
+      applyRefundPayload(await api.deleteReservationRefund(editingReservationId, refundId));
+    } catch (err) {
+      await alert({ title: 'Erreur', message: err.message || 'Impossible de supprimer ce remboursement.' });
+    }
+  }, [editingReservationId, applyRefundPayload, alert]);
+
   const buildBackUrlWithReservationFocus = useCallback(() => {
     if (!from) return from;
     if (!from.startsWith('/calendar')) return from;
@@ -2687,6 +2739,13 @@ export default function ReservationPage() {
     // La fenêtre « Nouvelle note » s'ouvre depuis la barre d'actions ET depuis le bloc Finance :
     // l'état et la règle d'accès sont donc calculés ici, une seule fois.
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
+    // specs/reservation-refunds.md — server-owned register + the two mutations, consumed by the
+    // « Remboursements » block of the Finance card.
+    refunds: refundRegister.refunds,
+    refundableLines: refundRegister.refundableLines,
+    refundTotals: refundRegister.refundTotals,
+    refundCollectedTtc: refundRegister.collectedTtc,
+    refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
   };
 
   return (

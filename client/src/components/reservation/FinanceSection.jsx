@@ -6,10 +6,18 @@ import ArithmeticTextField from '../ArithmeticTextField';
 import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
+import RefundDialog from './RefundDialog';
 import { useAppDialogs } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
 import { formatCurrency, displayDate } from '../../utils/formatters';
 import { COMPLEMENT_LABELS } from '../../constants/complements';
+
+// Means of refund, French labels for the history rows (specs/reservation-refunds.md §3.1 rule 4).
+const REFUND_METHOD_LABELS = {
+  transfer: 'Virement',
+  cash: 'Espèces',
+  internal: 'Caisse interne',
+};
 
 function todayStr() {
   const d = new Date();
@@ -129,9 +137,14 @@ export default function FinanceSection() {
     // …and it owns the dialog state + the access rule, because the sticky action bar opens the same
     // dialog. Two entry points, one source of truth.
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
+    // specs/reservation-refunds.md — the register is server-owned (never part of the editable form);
+    // the page holds it and exposes the two mutations.
+    refunds = [], refundableLines = [], refundTotals = { book: 0, withCash: 0 }, refundCollectedTtc = 0,
+    refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
   } = useReservationForm();
   const { confirm } = useAppDialogs();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [refundHistoryOpen, setRefundHistoryOpen] = useState(false);
 
   // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » chosen on the check-in
   // recap: there is only ONE collection left, at the door. The server ships the merged block
@@ -166,6 +179,16 @@ export default function FinanceSection() {
   // end-of-stay complement are collected at the door, never on a note).
   const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
     .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
+
+  const onDeleteRefund = async (refund) => {
+    const ok = await confirm({
+      title: 'Supprimer ce remboursement ?',
+      message: 'L\'écriture d\'avoir correspondante disparaîtra de l\'export comptable.',
+      confirmColor: 'error',
+    });
+    if (!ok) return;
+    await deleteRefund(refund.id);
+  };
 
   const onCancelNote = async (note) => {
     const ok = await confirm({
@@ -807,6 +830,85 @@ export default function FinanceSection() {
                     : { endOfStayComplementPaidCash: false });
                 }}
               />
+            )}
+
+            {/* Remboursements (specs/reservation-refunds.md §6): what was given back to the guest
+                AFTER the sale. Placed after the collection blocks — the money flows out once
+                everything above has flowed in. Hidden entirely on a devis. */}
+            {!isDevisMode && editingReservationId && (
+              <>
+                <Divider />
+                <Box>
+                  <Grid container spacing={2} sx={sectionGridSx}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
+                        Remboursements
+                        {refundTotals.withCash > 0 && (
+                          <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
+                            (− {formatCurrency(refundTotals.withCash)})
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={() => setRefundDialogOpen(true)}
+                        sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                      >
+                        + Nouveau remboursement
+                      </Button>
+                      {refunds.length > 0 && (
+                        <>
+                          <Button
+                            size="small"
+                            onClick={() => setRefundHistoryOpen((v) => !v)}
+                            sx={{ textTransform: 'none', mt: 1 }}
+                          >
+                            {refundHistoryOpen
+                              ? 'Masquer l\'historique'
+                              : `Voir l'historique (${refunds.length} remboursement${refunds.length > 1 ? 's' : ''})`}
+                          </Button>
+                          {refundHistoryOpen && refunds.map((refund) => (
+                            <Box key={refund.id} sx={{ mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  {displayDate(refund.refundDate)} — {formatCurrency(refund.totalTtc)} — {REFUND_METHOD_LABELS[refund.method] || refund.method}
+                                </Typography>
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  onClick={() => onDeleteRefund(refund)}
+                                  sx={{ textTransform: 'none', minWidth: 44, minHeight: 44 }}
+                                  aria-label="Supprimer ce remboursement"
+                                >
+                                  ✕
+                                </Button>
+                              </Box>
+                              {(refund.lines || []).map((line) => (
+                                <Typography key={line.id} variant="body2" sx={{ color: 'text.secondary' }}>
+                                  {line.label} : − {formatCurrency(line.amountTtc)}
+                                </Typography>
+                              ))}
+                              {refund.reason && (
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                  « {refund.reason} »
+                                </Typography>
+                              )}
+                            </Box>
+                          ))}
+                        </>
+                      )}
+                    </Grid>
+                  </Grid>
+                </Box>
+                <RefundDialog
+                  open={Boolean(refundDialogOpen)}
+                  onClose={() => setRefundDialogOpen(false)}
+                  refundableLines={refundableLines}
+                  collectedTtc={refundCollectedTtc}
+                  onSubmit={createRefund}
+                />
+              </>
             )}
 
             <Divider />

@@ -92,6 +92,16 @@ export function makeMockContext(overrides = {}) {
       endOfStaySettled: Boolean(formOverrides && (formOverrides.endOfStayComplementPaid || formOverrides.endOfStayComplementPaidCash)),
       today: new Date().toISOString().slice(0, 10),
     }),
+    // specs/reservation-refunds.md — server-owned register; empty by default, overridden by the
+    // tests that exercise the « Remboursements » block.
+    refunds: [],
+    refundableLines: [],
+    refundTotals: { book: 0, withCash: 0 },
+    refundCollectedTtc: 0,
+    refundDialogOpen: false,
+    setRefundDialogOpen: vi.fn(),
+    createRefund: vi.fn(),
+    deleteRefund: vi.fn(),
     ...rest,
   };
 }
