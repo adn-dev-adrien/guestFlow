@@ -88,6 +88,14 @@ const BUCKET_TO_ACCOUNT = {
   resources:     REVENUE_ACCOUNTS.ACTIVITIES,
 };
 
+// Refund (« avoir ») buckets → account. Same three revenue accounts as a sale, plus the tourist-tax
+// pass-through: giving back a tax the guest paid us reverses the 46710000 line, never a 70xxx one
+// (specs/reservation-refunds.md §3.4 rule 22).
+const REFUND_BUCKET_TO_ACCOUNT = {
+  ...BUCKET_TO_ACCOUNT,
+  touristTax: PASS_THROUGH_ACCOUNTS.TOURIST_TAX,
+};
+
 // Resolve the VAT account from a rate (10 % → reduced ; everything else → standard).
 function vatAccountForRate(ratePercent) {
   return Number(ratePercent) === 10 ? VAT_ACCOUNTS.REDUCED_10 : VAT_ACCOUNTS.STANDARD_20;
@@ -124,6 +132,7 @@ module.exports = {
   DEFAULT_COMMISSION_ACCOUNT,
   VAT_DEDUCTIBLE_COMMISSION_ACCOUNT,
   BUCKET_TO_ACCOUNT,
+  REFUND_BUCKET_TO_ACCOUNT,
   vatAccountForRate,
   accountLabel,
   commissionAccountLabel,

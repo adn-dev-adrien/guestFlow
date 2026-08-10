@@ -161,12 +161,14 @@ export default function AccountingPage() {
               <Box>
                 <Typography variant="sectionHeader">Détail des écritures du mois</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Aperçu exact du contenu du CSV : une carte par encaissement, partie double balancée.
+                  Aperçu exact du contenu du CSV : une carte par écriture (encaissement ou remboursement), partie double balancée.
                 </Typography>
               </Box>
               {sales && sales.totals.entriesCount > 0 && (
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Chip size="small" label={`${sales.totals.entriesCount} encaissement${sales.totals.entriesCount > 1 ? 's' : ''}`} />
+                  {/* « écritures » plutôt qu'« encaissements » : le journal mêle désormais les
+                      encaissements et les avoirs (specs/reservation-refunds.md §3.4). */}
+                  <Chip size="small" label={`${sales.totals.entriesCount} écriture${sales.totals.entriesCount > 1 ? 's' : ''}`} />
                   <StatusBadge
                     status={sales.totals.allBalanced ? 'success' : 'error'}
                     icon={sales.totals.allBalanced ? <CheckCircleIcon /> : <WarningAmberIcon />}
@@ -187,7 +189,7 @@ export default function AccountingPage() {
               <Stack spacing={2}>
                 {sales.entries.map((entry) => (
                   <JournalEntryCard
-                    key={`${entry.reservationId}-${entry.kind}`}
+                    key={`${entry.reservationId}-${entry.kind}-${entry.refundId ?? entry.paidDate}`}
                     entry={entry}
                     canOpenReservation={canOpenReservation}
                   />
@@ -293,7 +295,12 @@ export default function AccountingPage() {
 // One card per encaissement. Header shows the date, kind (acompte / solde), client, encaissement TTC,
 // and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
 
-const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde', complement: 'Complément' };
+const KIND_LABELS = {
+  deposit: 'Acompte', balance: 'Solde', complement: 'Complément',
+  endOfStayComplement: 'Complément fin de séjour', midStayComplement: 'Prestations en séjour',
+  // specs/reservation-refunds.md §3.4 rule 25 — an avoir: same journal, sides mirrored.
+  refund: 'Remboursement',
+};
 
 // Tight single-letter badge so the encaissements table can show the kind without eating a
 // full column. Same colour palette as the journal cards' kind chip (amber / blue / purple).
@@ -332,6 +339,9 @@ function KindBadge({ kind }) {
 
 function JournalEntryCard({ entry, canOpenReservation = false }) {
   const isPlatform = Boolean(entry.platform.platform);
+  // An avoir reads « argent rendu » : warning-toned chip, an explicit minus on the amount, and no
+  // « % du séjour » caption (a refund covers no share of it — the server sends `stayShare: null`).
+  const isRefund = entry.direction === 'refund';
   const clientNode = canOpenReservation ? (
     <Link
       component={RouterLink}
@@ -361,7 +371,11 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
             variant="outlined"
             label={`${String(entry.day).padStart(2, '0')}/${String(entry.month).padStart(2, '0')}/${entry.year}`}
           />
-          <Chip size="small" label={KIND_LABELS[entry.kind] || entry.kind} />
+          <Chip
+            size="small"
+            color={isRefund ? 'warning' : 'default'}
+            label={KIND_LABELS[entry.kind] || entry.kind}
+          />
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
             {clientNode}
@@ -380,12 +394,14 @@ function JournalEntryCard({ entry, canOpenReservation = false }) {
           <Stack sx={{ alignItems: 'flex-end' }}>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <EuroIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                {formatCurrency(entry.encaissementTtc)}
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: isRefund ? 'warning.dark' : 'inherit' }}>
+                {isRefund ? '− ' : ''}{formatCurrency(entry.encaissementTtc)}
               </Typography>
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour ({formatCurrency(entry.finalPrice)})
+              {isRefund
+                ? (entry.refundReason || 'Remboursement au client')
+                : `${Math.round(((entry.stayShare ?? entry.fraction) || 0) * 100)} % du séjour (${formatCurrency(entry.finalPrice)})`}
             </Typography>
           </Stack>
           <StatusBadge

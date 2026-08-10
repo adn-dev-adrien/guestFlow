@@ -1039,6 +1039,10 @@ function calculateReservationQuote({
   // during the stay. Deducted from the end-of-stay remainder, but still carved out of the frozen
   // pre-arrival buckets — money in the till never flows back into the acompte/solde/complément.
   midStaySettledNotes,
+  // specs/reservation-refunds.md §3.3 rule 17 — book-money already given back to the guest. The engine
+  // only subtracts it from the displayed « total de séjour »: the sale, the échéances and the buckets
+  // are deliberately untouched by a refund.
+  refundsTotal = 0,
   // specs/complement-buckets-by-moment.md §3 rule 5 — `startDate <= today`, resolved by the caller
   // (the engine has no clock). Absent → not started: a devis or a public quote files everything under
   // the arrival complement, as before.
@@ -1881,8 +1885,12 @@ function calculateReservationQuote({
   // realised money too (financeModel.totalSejour already counts it); the fiche used to ignore it, so
   // the two screens disagreed. It now rides the same total.
   const netReceivedForTotal = platformNetReceivedAmount != null ? platformNetReceivedAmount : preArrivalAmount;
+  // specs/reservation-refunds.md §3.3 rule 17 — refunds are the only deduction on this total, and they
+  // are the LAST one: the buckets above still show what was sold and collected.
+  const resolvedRefundsTotal = roundMoney(Math.max(0, Number(refundsTotal) || 0));
   const sejourNetTotal = roundMoney(
-    netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledTotal,
+    netReceivedForTotal + resolvedComplementAmount + endOfStayComplementTotal + midStaySettledTotal
+    - resolvedRefundsTotal,
   );
 
   return {
@@ -1935,6 +1943,8 @@ function calculateReservationQuote({
     midStaySettledTotal,
     midStayRemainingTotal,
     endOfStayComplementTotal,
+    // specs/reservation-refunds.md — surfaced so the fiche can show the « Remboursements » line.
+    refundsTotal: resolvedRefundsTotal,
     complementSplit,
     preArrivalAmount,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
