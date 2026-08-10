@@ -283,6 +283,11 @@ export default function MiniPlanningStrip({
                       ? 'primary.main'
                       : (isArrival || isDeparture ? 'primary.main' : 'divider'),
                     background: finalDayStyle.background,
+                    // Clip the fill to the padding box so the colored gradient never bleeds under
+                    // the translucent divider border and shows through it as a colored rim — same
+                    // fix as CalendarDayCell (#358). Without it the departure color reappears along
+                    // the bottom/right edges and the arrival color along the top/left ones.
+                    backgroundClip: 'padding-box',
                     minHeight: 56,
                     px: 0.5,
                     py: 1,
