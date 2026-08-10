@@ -12,6 +12,8 @@
  * Pure functions — unit-tested in tests/reservation-settlement.unit.test.js.
  */
 
+const { parseNotes } = require('./midStayExtras');
+
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 // Operator-entered platform commission (acompte + solde), ≥ 0. 0 on direct bookings (NULL columns).
@@ -81,4 +83,39 @@ function remainingToPay(r) {
   return round2(deposit + balance + complement + endOfStay);
 }
 
-module.exports = { bucketStates, isSettled, remainingToPay, platformCommission, round2 };
+// « Notes en séjour » already collected (specs/mid-stay-notes.md §3.4 rule 15): book money by
+// default, caisse-interne ones only when explicitly asked for.
+function midStayNotesTotal(r, { withCash = false } = {}) {
+  return round2(parseNotes(r.midStaySettledNotes)
+    .filter((n) => withCash || Number(n.paidCash || 0) === 0)
+    .reduce((s, n) => s + (Number(n.total) || 0), 0));
+}
+
+// specs/reservation-refunds.md §3.3 rule 19 — book-money refunds (virement / espèces) already given
+// back. Rows read without the refund columns (minimal test schemas) degrade to 0.
+function refundsBook(r) {
+  return round2(Number(r.refundsBookTtc || 0));
+}
+
+// « Encaissé » = what the operator has actually RECEIVED so far = every component marked paid,
+// EXCLUDING caisse interne, NET of the platform commission of each paid échéance and NET of the
+// refunds already sent back. Direct → commission 0 → the plain paid sum.
+function comptaCollected(r) {
+  const acompteComm = Number(r.acompteCommissionAmount || 0);
+  const soldeComm = Number(r.platformCommissionAmount || 0);
+  return round2(
+    (r.depositPaid ? Number(r.depositAmount || 0) - acompteComm : 0)
+    + (r.balancePaid ? Number(r.balanceAmount || 0) - soldeComm : 0)
+    + (r.complementPaid && !r.complementPaidCash ? Number(r.complementAmount || 0) : 0)
+    + (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash ? Number(r.endOfStayComplementAmount || 0) : 0)
+    // A note only exists once collected — it is never « pending » (specs/mid-stay-notes.md rule 16).
+    + midStayNotesTotal(r)
+    // …and a refund is money already given back (specs/reservation-refunds.md rule 18).
+    - refundsBook(r),
+  );
+}
+
+module.exports = {
+  bucketStates, isSettled, remainingToPay, platformCommission,
+  midStayNotesTotal, refundsBook, comptaCollected, round2,
+};
