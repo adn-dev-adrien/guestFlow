@@ -20,6 +20,14 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Nights of the stay — the unit the tourist tax is refunded in (spec §3.5 rule 27). Same UTC-midnight
+// arithmetic as the other call sites (financeModel, notificationService): no timezone drift.
+function nightsBetween(startDate, endDate) {
+  const ms = new Date(`${endDate}T00:00:00Z`) - new Date(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(ms)) return 0;
+  return Math.max(0, Math.round(ms / 86400000));
+}
+
 function createRefundsController(deps = {}) {
   const refundsModel = deps.refundsModel || defaultRefundsModel;
   const reservationsModel = deps.reservationsModel || defaultReservationsModel;
@@ -40,6 +48,8 @@ function createRefundsController(deps = {}) {
       options: reservation.options || [],
       resources: reservation.resources || [],
       refunds,
+      // Drives the per-night tourist-tax line (spec §3.5 rule 27).
+      nights: nightsBetween(reservation.startDate, reservation.endDate),
     });
     return {
       reservation,

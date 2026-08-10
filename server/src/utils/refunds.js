@@ -79,8 +79,10 @@ function refundsTotal(refunds, { withCash = false } = {}) {
  * @param {Array}  input.options        option + custom-option lines (getByIdWithDetails shape)
  * @param {Array}  input.resources      resource lines
  * @param {Array}  input.refunds        the refund register (header + lines)
+ * @param {number} input.nights         nights of the stay — makes the tourist-tax line refundable
+ *                                      PER NIGHT (specs/reservation-refunds.md §3.5 rule 27)
  */
-function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [] }) {
+function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0 }) {
   const refunded = refundedByKey(refunds);
   const rate = Number(vatRate || 0);
 
@@ -122,12 +124,17 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
   all.push(...extras);
   const taxTtc = round2(touristTaxTotal);
   if (taxTtc > 0) {
+    // The tax is refunded BY NIGHT, never as a loose amount: the commune declaration removes whole
+    // nights, so the unit the operator picks has to be the night itself (spec §3.5 rule 27). The unit
+    // price is the whole party's tax for one night.
+    const taxNights = Math.max(0, Math.round(Number(nights) || 0));
     all.push({
       key: TOURIST_TAX_KEY,
       label: TOURIST_TAX_LABEL,
       bucket: 'touristTax',
-      quantity: null,
-      unitPrice: null,
+      quantity: taxNights || null,
+      unitPrice: taxNights > 0 ? round2(taxTtc / taxNights) : null,
+      unitLabel: taxNights > 0 ? 'nuit' : null,
       billedTtc: taxTtc,
       vatRate: 0, // a pass-through bears no VAT
     });
@@ -141,6 +148,29 @@ function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = 
       return { ...line, refundedTtc, refundableTtc: Math.max(0, round2(line.billedTtc - refundedTtc)) };
     })
     .filter((line) => line.refundableTtc > 0);
+}
+
+/**
+ * What a reservation gave back on its TOURIST TAX (specs/reservation-refunds.md §3.5).
+ *
+ * Counts EVERY means, caisse interne included: « hors comptabilité » only ever meant « out of the
+ * turnover ». Towards the commune what matters is that the tax physically went back to the guest, so
+ * it is not owed — whatever envelope it left in.
+ *
+ * `nights` is rounded to a whole night: the declaration counts nights, not fractions. A token refund
+ * smaller than half a night therefore removes 0 night and only shrinks the amount.
+ */
+function refundedTouristTax(refunds) {
+  let amount = 0;
+  let nights = 0;
+  for (const refund of refunds || []) {
+    for (const line of refund.lines || []) {
+      if (line.lineKey !== TOURIST_TAX_KEY) continue;
+      amount = round2(amount + Number(line.amountTtc || 0));
+      nights += Number(line.quantity || 0);
+    }
+  }
+  return { amount, nights: Math.max(0, Math.round(nights)) };
 }
 
 /** Split a TTC amount into HT + VAT at the line's frozen rate. A 0-rate line is entirely HT. */
@@ -216,13 +246,16 @@ function validateRefundPayload(payload, context) {
           409,
         );
       }
-      const quantity = Number(raw.quantity) > 0 ? Number(raw.quantity) : null;
+      // Quantity is DERIVED from the amount, never trusted from the client: it is what the tourist-tax
+      // declaration deducts in nights (spec §3.5 rule 28), so amount and quantity can never disagree.
+      const unitPrice = Number(billed.unitPrice) > 0 ? Number(billed.unitPrice) : null;
+      const quantity = unitPrice ? Math.round((amountTtc / unitPrice) * 10000) / 10000 : null;
       lines.push({
         lineKey: key,
         label: billed.label,
         bucket: billed.bucket,
         quantity,
-        unitPrice: quantity ? billed.unitPrice : null,
+        unitPrice,
         amountTtc,
         vatRate: billed.vatRate,
       });
@@ -283,6 +316,7 @@ module.exports = {
   isOffBooks,
   billedLineKey,
   refundedByKey,
+  refundedTouristTax,
   refundsTotal,
   buildRefundableLines,
   splitHtVat,

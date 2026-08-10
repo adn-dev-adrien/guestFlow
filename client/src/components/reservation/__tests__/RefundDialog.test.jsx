@@ -10,6 +10,8 @@ import { vi } from 'vitest';
 const LINES = [
   { key: 'accommodation', label: 'Hébergement', bucket: 'accommodation', quantity: null, unitPrice: null, billedTtc: 380, refundedTtc: 0, refundableTtc: 380, vatRate: 10 },
   { key: 'opt:7', label: 'Petit-déjeuner', bucket: 'options', quantity: 6, unitPrice: 12, billedTtc: 72, refundedTtc: 12, refundableTtc: 60, vatRate: 10 },
+  // specs/reservation-refunds.md §3.5 — la taxe de séjour se rembourse à la nuit.
+  { key: 'touristTax', label: 'Taxe de séjour', bucket: 'touristTax', quantity: 3, unitPrice: 4.4, unitLabel: 'nuit', billedTtc: 13.2, refundedTtc: 0, refundableTtc: 13.2, vatRate: 0 },
 ];
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -119,4 +121,22 @@ test('une erreur serveur s’affiche dans la fenêtre, qui reste ouverte', async
 test('la date ne peut pas être choisie dans le futur', () => {
   renderDialog();
   expect(screen.getByLabelText('Date du remboursement')).toHaveAttribute('max', todayIso());
+});
+
+test('la taxe de séjour annonce son unité et se rembourse par nuit', async () => {
+  const user = userEvent.setup();
+  const onSubmit = renderDialog();
+
+  expect(screen.getByText(/Facturé 13,20 € · 3 nuits à 4,40 €/)).toBeInTheDocument();
+
+  await user.click(screen.getAllByRole('checkbox')[2]); // Taxe de séjour → 3 nuits pré-remplies
+  const stepper = screen.getByRole('button', { name: /Diminuer/ });
+  await user.click(stepper); // 3 → 2 nuits
+  await user.click(stepper); // 2 → 1 nuit
+  await user.click(screen.getByRole('button', { name: 'Enregistrer le remboursement' }));
+
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  const [line] = onSubmit.mock.calls[0][0].lines;
+  expect(line.key).toBe('touristTax');
+  expect(line.amountTtc).toBe(4.4);
 });
