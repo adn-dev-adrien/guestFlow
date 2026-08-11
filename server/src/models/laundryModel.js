@@ -19,6 +19,18 @@
  */
 
 function buildModel(database) {
+  // specs/laundry-counts-explicit-option-only.md §3.1 rules 3-5 — a VISIBLE option only counts when
+  // it is actually ticked on the reservation; the property default no longer creates a contract for
+  // it. INTERNAL options (`displayToClient = 0`) are the exception: `reservationsModel.insertOptions`
+  // and the iCal import both refuse to persist them (specs/laundry-bath-mat.md §3 rule 11), so the
+  // property default is their only possible source. The predicate below is spliced into source 2 of
+  // each UNION; on a schema without the column every option reads as visible → explicit-row-only.
+  const HAS_DISPLAY_TO_CLIENT = (() => {
+    try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'displayToClient'); }
+    catch { return false; }
+  })();
+  const INTERNAL_ONLY = HAS_DISPLAY_TO_CLIENT ? 'AND o.displayToClient = 0' : 'AND 1 = 0';
+
   // Sum singleBeds / doubleBeds / babyBeds across reservations that:
   //   - have kind = 'reservation' (devis excluded — matches every other aggregation in the app)
   //   - have endDate in the half-open window (start, end]   (rule 8)
@@ -30,14 +42,13 @@ function buildModel(database) {
   // this bed type"). COALESCE on the bed counts because the reservations table allows NULL on
   // those columns (legacy rows imported from iCal). NULL → 0 → no contribution, no crash.
   //
-  // §3.7 follow-up (2026-06-03): a reservation ALSO contributes when its property has the
-  // linen option declared as a default — even when the option is NOT in the reservation's
-  // `reservation_options` (the operator unticked it, or the reservation pre-dates the feature,
-  // or the property contract is "linen is always included regardless of the booking form").
-  // The sub-source is added via UNION ALL; `NOT EXISTS` on source 2 makes the property default
-  // a strict FALLBACK — the operator's explicit row, if any, wins (its `linenIncludes*` flags
-  // are honoured even when they differ from the option's globals, which is the realistic case
-  // since the option is shared across all properties).
+  // §3.7 follow-up (2026-06-03), NARROWED 2026-08-11
+  // (specs/laundry-counts-explicit-option-only.md §3.1): the property-default sub-source now only
+  // applies to INTERNAL options. A visible option the operator did not tick means "this stay has no
+  // linen" — bed linen only became mandatory on the lodge in June 2026, so the default cannot be
+  // read as a retroactive contract. `NOT EXISTS` still makes source 2 a strict FALLBACK: an explicit
+  // row, if any, wins (its `linenIncludes*` flags are honoured even when they differ from the
+  // option's globals, which is the realistic case since the option is shared across all properties).
   const sumStmt = database.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN sub.includesSingle = 1 THEN COALESCE(r.singleBeds, 0) ELSE 0 END), 0) AS singleBeds,
@@ -61,15 +72,16 @@ function buildModel(database) {
 
         UNION ALL
 
-        -- Source 2 (§3.7): property-level default — applies to every reservation of that
-        -- property, including past ones and ones where the option isn't ticked. Fallback
-        -- ONLY: skipped when the reservation already has an explicit row (source 1 wins).
+        -- Source 2: property-level default, INTERNAL options only — those can never appear in
+        -- reservation_options, so the default is their sole source. Fallback ONLY: skipped when
+        -- the reservation already has an explicit row (source 1 wins).
         SELECT res.id AS reservationId,
           o.linenIncludesSingle, o.linenIncludesDouble, o.linenIncludesBaby
         FROM reservations res
         JOIN property_option_defaults pod ON pod.propertyId = res.propertyId
         JOIN options o ON o.id = pod.optionId
         WHERE o.countsAsBedLinen = 1
+          ${INTERNAL_ONLY}
           AND NOT EXISTS (
             SELECT 1 FROM reservation_options ro2
             JOIN options o2 ON o2.id = ro2.optionId
@@ -94,11 +106,12 @@ function buildModel(database) {
   // subquery aggregates per reservation BEFORE joining, preventing row multiplication when a
   // reservation carries multiple bathroom-flagged options.
   //
-  // §3.7 follow-up (2026-06-03): same UNION ALL pattern as the bed-linen path. Source 2 (the
-  // property-default fallback) applies a qtySum of 1.0 ("the whole party gets towels") when no
-  // explicit reservation_options row exists. When the operator explicitly entered a quantity
-  // (typically 0.6667 = "2 of 3 want towels" — Adrien's sub-occupation factor) the explicit row
-  // wins and the property default is suppressed by `NOT EXISTS`.
+  // §3.7 follow-up (2026-06-03), NARROWED 2026-08-11: same UNION ALL pattern as the bed-linen path,
+  // and the same narrowing — source 2 (the property-default fallback, qtySum 1.0 = "the whole party
+  // gets towels") is restricted to INTERNAL options. Bath linen is an extra sold at arrival: not
+  // ticked means not provided, so a visible default must not conjure towels. When the operator
+  // explicitly entered a quantity (typically 0.6667 = "2 of 3 want towels" — Adrien's sub-occupation
+  // factor) the explicit row wins and the default is suppressed by `NOT EXISTS`.
   const sumBathroomStmt = database.prepare(`
     SELECT
       COALESCE(SUM(ROUND(
@@ -133,7 +146,7 @@ function buildModel(database) {
 
         UNION ALL
 
-        -- Source 2 (§3.7): property-level default fallback. qty = 1.0 for the whole party.
+        -- Source 2: property-level default fallback, INTERNAL options only. qty = 1.0 (whole party).
         SELECT res.id AS reservationId,
           1.0 AS qtySum,
           o.towelLargePerPerson, o.towelMediumPerPerson, o.towelSmallPerPerson
@@ -141,6 +154,7 @@ function buildModel(database) {
         JOIN property_option_defaults pod ON pod.propertyId = res.propertyId
         JOIN options o ON o.id = pod.optionId
         WHERE o.countsAsBathroomLinen = 1
+          ${INTERNAL_ONLY}
           AND NOT EXISTS (
             SELECT 1 FROM reservation_options ro2
             JOIN options o2 ON o2.id = ro2.optionId
@@ -207,7 +221,53 @@ function buildModel(database) {
       AND r.endDate <= ?
   `) : null;
 
+  // specs/laundry-counts-explicit-option-only.md §3.2 rule 7 — now that the ticked option is the
+  // only signal, a stay that carries it but has no quantity yet would contribute a silent zero.
+  // List those so the card can admit its figure is short instead of under-reporting quietly. Only
+  // the EXPLICIT source matters here: an internal option counted through the property default has
+  // no operator-facing quantity to fill in. The `properties` / `clients` joins are pure label
+  // enrichment, so a minimal schema missing either table drops that join instead of the feature.
+  const hasTable = (name) => {
+    try { database.prepare(`SELECT 1 FROM ${name} LIMIT 1`).get(); return true; }
+    catch { return false; }
+  };
+  const HAS_PROPERTIES = hasTable('properties');
+  const HAS_CLIENTS = hasTable('clients');
+  const incompleteBedConfigStmt = database.prepare(`
+    SELECT r.id, r.endDate,
+      ${HAS_PROPERTIES ? 'p.name AS propertyName' : "'' AS propertyName"},
+      ${HAS_CLIENTS ? 'c.firstName, c.lastName' : "'' AS firstName, '' AS lastName"}
+    FROM reservations r
+    ${HAS_PROPERTIES ? 'LEFT JOIN properties p ON p.id = r.propertyId' : ''}
+    ${HAS_CLIENTS ? 'LEFT JOIN clients c ON c.id = r.clientId' : ''}
+    WHERE r.kind = 'reservation'
+      AND r.endDate > ?
+      AND r.endDate <= ?
+      AND COALESCE(r.singleBeds, 0) + COALESCE(r.doubleBeds, 0) + COALESCE(r.babyBeds, 0) = 0
+      AND EXISTS (
+        SELECT 1 FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        WHERE ro.reservationId = r.id AND o.countsAsBedLinen = 1
+      )
+    ORDER BY r.endDate, r.id
+  `);
+
   return {
+    /**
+     * Reservations of the window that declare bed linen but carry no bed quantity yet
+     * (specs/laundry-counts-explicit-option-only.md §3.2). Returns
+     * `[{ id, clientName, propertyName, endDate }]`, empty when the week is complete.
+     * `clientName` falls back to `#<id>` when the client row is gone.
+     */
+    incompleteBedConfigForWindow(startExclusiveIso, endInclusiveIso) {
+      return incompleteBedConfigStmt.all(String(startExclusiveIso), String(endInclusiveIso)).map((row) => ({
+        id: Number(row.id),
+        clientName: `${row.firstName || ''} ${row.lastName || ''}`.trim() || `#${row.id}`,
+        propertyName: row.propertyName || '',
+        endDate: row.endDate || '',
+      }));
+    },
+
     /**
      * Sum bed counts for reservations whose endDate is in `(startExclusiveIso, endInclusiveIso]`
      * and that have the linen option. Returns `{ singleBeds, doubleBeds, babyBeds }` (always

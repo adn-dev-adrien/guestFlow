@@ -62,6 +62,11 @@ function buildController({
      *
      * The client filters out silent laundry days (both sides zero) — the server emits them
      * uniformly so the contract stays predictable.
+     *
+     * Each drop-off also carries `incomplete: [{ id, clientName, propertyName, endDate }]` — the
+     * stays of the window that declare bed linen but have no quantity saved yet
+     * (specs/laundry-counts-explicit-option-only.md §3.2), so the card can flag a figure it knows
+     * is short instead of under-reporting in silence.
      */
     laundrySummary(req, res) {
       const from = (req.query && req.query.from) || '';
@@ -123,18 +128,26 @@ function buildController({
         for (const k of Object.keys(manual)) block[k] = (Number(block[k]) || 0) + Number(manual[k] || 0);
         return block;
       };
+      // specs/laundry-counts-explicit-option-only.md §3.2 rule 8 — only the drop-off side carries the
+      // "declared linen, no quantity yet" list: the pick-up is a past batch, nothing left to fill in.
+      // Guarded so an older injected model (tests) without the method degrades to an empty list.
+      const incompleteFor = (startExclusive, endInclusive) => (
+        typeof injectedLaundryModel.incompleteBedConfigForWindow === 'function'
+          ? injectedLaundryModel.incompleteBedConfigForWindow(startExclusive, endInclusive)
+          : []
+      );
       const laundryDays = laundryDates.map((date) => {
         // A skipped trip's counts are masked on the client by the "Voyage non réalisé"
         // caption (LaundryDayCard §3.3). We emit zeros for a uniform contract — the next
         // non-skipped trip's widened window will absorb this batch.
         if (skippedDates.has(date)) {
-          return { date, dropOff: { ...EMPTY_LAUNDRY_BLOCK }, pickUp: { ...EMPTY_LAUNDRY_BLOCK } };
+          return { date, dropOff: { ...EMPTY_LAUNDRY_BLOCK, incomplete: [] }, pickUp: { ...EMPTY_LAUNDRY_BLOCK } };
         }
         const prev = widestPrev(date);
         const prevPrev = widestPrev(prev);
         return {
           date,
-          dropOff: buildBlock(prev, date),
+          dropOff: { ...buildBlock(prev, date), incomplete: incompleteFor(prev, date) },
           // Pick-up(L) = Drop-off(prev). Same half-open semantics shifted by one non-skipped
           // step, so the previous batch coming back from the laundry reflects what was
           // actually deposited there.

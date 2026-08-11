@@ -110,6 +110,15 @@ the new invariant.
    property-defaults merge described below) contains **no** option
    flagged `countsAsBedLinen = 1`. This protects the DB from a
    misbehaving client (or a future spec change that bypasses the UI).
+
+   **Coherence note (2026-08-11).** This invariant reads the EXPLICIT option list only, while the
+   laundry aggregation used to also count a reservation through its property default — so a
+   reservation could be counted while having its bed counts wiped on every save, contributing 0
+   sheets forever with the form's bed inputs hidden. Observed on prod (Aventura lodge, #22194 /
+   #22208 / #22212). Fixed at the *other* end by
+   [laundry-counts-explicit-option-only.md](laundry-counts-explicit-option-only.md): the
+   aggregation now uses the same explicit-row rule as this invariant, so the two agree —
+   no option ⇒ no linen counted **and** no bed counts stored.
    **`babyBeds` is exempt (follow-up #6, 2026-06-08):** it is kept
    regardless of the bed-linen option (independent resource). Safe for
    laundry — `laundryModel` gates its baby-bed aggregation on the linen
