@@ -167,12 +167,16 @@ function buildContractsByReservationId({ reservations, options, reservationOptio
       .find((o) => o && Number(o.countsAsBathMat) === 1);
 
     const propertyDefaultOptionIds = defaultsByProperty.get(Number(r.propertyId)) || [];
+    // specs/laundry-counts-explicit-option-only.md §3.1 rules 3-5 — mirrors `laundryModel`: for a
+    // VISIBLE option only the ticked row creates a contract, so the projection and the laundry card
+    // never disagree. INTERNAL options (never persisted onto a reservation) keep the default source.
+    const isInternal = (o) => o && Number(o.displayToClient === undefined ? 1 : o.displayToClient) === 0;
     const propertyDefaultBedOption = propertyDefaultOptionIds
       .map((oid) => optionsById.get(Number(oid)))
-      .find((o) => o && Number(o.countsAsBedLinen) === 1) || null;
+      .find((o) => o && Number(o.countsAsBedLinen) === 1 && isInternal(o)) || null;
     const propertyDefaultBathOption = propertyDefaultOptionIds
       .map((oid) => optionsById.get(Number(oid)))
-      .find((o) => o && Number(o.countsAsBathroomLinen) === 1) || null;
+      .find((o) => o && Number(o.countsAsBathroomLinen) === 1 && isInternal(o)) || null;
     const propertyDefaultBathMatOption = propertyDefaultOptionIds
       .map((oid) => optionsById.get(Number(oid)))
       .find((o) => o && Number(o.countsAsBathMat) === 1) || null;

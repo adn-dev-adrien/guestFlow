@@ -781,7 +781,10 @@ export default function PlanningPage() {
             §3.7 / 2026-06-03 fix: a Tuesday that has only a laundry card (no arrivals, no
             departures, no resource bookings) must STILL render. We add `laundryByDate` keys to
             the date set, filtered to days where the LaundryDayCard would render something
-            (mirrors its rule-13 silence test — beds + towels > 0 on at least one side). */}
+            (mirrors its rule-13 silence test — beds + towels > 0 on at least one side, OR at
+            least one stay flagged as "declares linen, no quantity yet" —
+            specs/laundry-counts-explicit-option-only.md §3.2, whose whole point is a week that
+            would otherwise total zero on both sides). */}
         {[...new Set([
           ...planningDays.map((d) => d.date),
           ...Object.keys(resourceBookingsMap),
@@ -794,7 +797,8 @@ export default function PlanningPage() {
               return Number(side.singleBeds || 0) + Number(side.doubleBeds || 0) + Number(side.babyBeds || 0)
                    + Number(side.largeTowels || 0) + Number(side.mediumTowels || 0) + Number(side.smallTowels || 0);
             };
-            return sum(data.dropOff) + sum(data.pickUp) > 0;
+            return sum(data.dropOff) + sum(data.pickUp) > 0
+              || (data.dropOff?.incomplete?.length || 0) > 0;
           }),
           // specs/skip-laundry-trip.md §3.3 rule 11 — a skipped card is ALWAYS shown so the
           // operator can revert it. Add every skipped date to the date set; the LaundryDayCard
@@ -914,6 +918,7 @@ export default function PlanningPage() {
                   onToggleSkip={handleToggleLaundrySkip}
                   manualAddition={manualAdditionsByDate[date]}
                   onEditManual={setEditManualDate}
+                  onOpenReservation={(id) => navigate(`/reservations/${id}`)}
                 />
               ),
             });
