@@ -104,14 +104,19 @@ towel sets, global across all properties) in a dedicated Settings sub-menu. The 
 
 ### 3.3 Linen contract per reservation per type
 
-7. Reuses the rules already pinned by `weekly-bed-linen-tracking.md`:
+7. Reuses the rules already pinned by `weekly-bed-linen-tracking.md`. **Narrowed 2026-08-11 by
+   [laundry-counts-explicit-option-only.md](laundry-counts-explicit-option-only.md) §3.1** — the
+   projection must apply the exact same contract rule as the laundry card, or the two disagree on
+   which stays consume linen:
    - Bed-linen: count `singleBeds × linenIncludesSingle + doubleBeds × linenIncludesDouble
-     + babyBeds × linenIncludesBaby` if any linen-flagged option is on the reservation OR
-     the property has the option as a default (the §3.7 union).
+     + babyBeds × linenIncludesBaby` if a linen-flagged option is **on the reservation**. The
+     property default is a source **only for internal options** (`displayToClient = 0`), which can
+     never be on a reservation — this is what keeps « Tapis de bain » projected. A *visible*
+     option that was not ticked contributes nothing (the former §3.7 union is reversed).
    - Bathroom-linen: per type = `ROUND(persons × Σ quantity × towel<Size>PerPerson)` where
      persons = `adults + teens + children` (babies excluded) and `Σ quantity` is the sum of
-     `reservation_options.quantity` over bathroom-flagged options on the reservation, or
-     `1.0` when only the property default applies.
+     `reservation_options.quantity` over bathroom-flagged options on the reservation. The `1.0`
+     property-default quantity now applies to internal options only, same rule as above.
    - Devis (`kind = 'devis'`) excluded.
 
 ### 3.4 Horizon & detection

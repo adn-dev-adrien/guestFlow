@@ -120,11 +120,13 @@ test('one reservation with explicit bed-linen option: clean drops on check-in, r
   assertConservation(r, stock);
 });
 
-// --- Property-default fallback ---
+// --- Property-default fallback (specs/laundry-counts-explicit-option-only.md §3.1) ---
 
-test('property default fires when no explicit option row: counts the reservation as if option was ticked', () => {
+test('property default of a VISIBLE option does NOT create a contract without an explicit row', () => {
+  // Mirrors laundryModel: the ticked option is the only signal, so the projection and the
+  // laundry card can never disagree on which stays consume linen.
   const stock = makeStock({ single: 10, double: 10 });
-  const opt = makeBedLinenOption(100);
+  const opt = makeBedLinenOption(100); // displayToClient defaults to visible
   const reservations = [{
     id: 1, kind: 'reservation', propertyId: 42,
     startDate: '2026-06-03', endDate: '2026-06-05',
@@ -132,6 +134,28 @@ test('property default fires when no explicit option row: counts the reservation
     adults: 2,
   }];
   // No reservation_options row → only the property default applies.
+  const propertyDefaults = [{ propertyId: 42, optionId: 100 }];
+
+  const r = simulateInventory({
+    stock, reservations, options: [opt], reservationOptions: [], propertyDefaults,
+    laundryWeekday: TUESDAY, from: '2026-06-01', to: '2026-06-20',
+  });
+
+  const d0603 = r.days.find((d) => d.date === '2026-06-03');
+  assert.equal(d0603.inCirculation.single, 0);
+  assert.equal(d0603.inCirculation.double, 0);
+  assertConservation(r, stock);
+});
+
+test('property default of an INTERNAL option still creates a contract (its only possible source)', () => {
+  const stock = makeStock({ single: 10, double: 10 });
+  const opt = makeBedLinenOption(100, { displayToClient: 0 });
+  const reservations = [{
+    id: 1, kind: 'reservation', propertyId: 42,
+    startDate: '2026-06-03', endDate: '2026-06-05',
+    singleBeds: 1, doubleBeds: 1, babyBeds: 0,
+    adults: 2,
+  }];
   const propertyDefaults = [{ propertyId: 42, optionId: 100 }];
 
   const r = simulateInventory({

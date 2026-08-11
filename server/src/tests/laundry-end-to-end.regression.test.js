@@ -170,7 +170,7 @@ test('END-TO-END: Adrien\'s prod scenario produces the exact expected dropOff fo
     // Towels: 12×1 + 3×0.6667 + 8×0.625 = 12 + 2 + 5 = 19 ; medium=0 (default), small mirrors large.
     dropOff: {
       singleBeds: 9, doubleBeds: 8, babyBeds: 1,
-      largeTowels: 19, mediumTowels: 0, smallTowels: 19, bathMats: 0,
+      largeTowels: 19, mediumTowels: 0, smallTowels: 19, bathMats: 0, incomplete: [],
     },
     // No prior week of data → pickUp is all zero.
     pickUp: {
@@ -198,7 +198,7 @@ test('END-TO-END: linenIncludesBaby = 0 on the option hides baby beds in the pay
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // 5 baby beds NOT counted
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
   });
 });
 
@@ -216,7 +216,7 @@ test('END-TO-END: towelMediumPerPerson = 2 ADDS a medium counter all the way to 
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-    largeTowels: 4, mediumTowels: 8, smallTowels: 4, bathMats: 0,
+    largeTowels: 4, mediumTowels: 8, smallTowels: 4, bathMats: 0, incomplete: [],
   });
 });
 
@@ -266,7 +266,7 @@ test('END-TO-END: kind=devis reservations are excluded from both bed and bathroo
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0,
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
   });
 });
 
@@ -290,16 +290,16 @@ test('END-TO-END: checkout on the START of the window goes to the PREVIOUS batch
   assert.equal(res.body.laundryDays[0].dropOff.singleBeds, 0);
 });
 
-// --- §3.7 — property-default fallback drives the controller payload ---
+// --- specs/laundry-counts-explicit-option-only.md §3.1 — the ticked option is the only signal ---
 
-test('END-TO-END: property default ⇒ a reservation WITHOUT the linen option STILL contributes', () => {
-  // Adrien's exact ask 2026-06-03: activate the linen default on a property → every reservation
-  // of that property counts toward the laundry, regardless of what's in reservation_options.
-  // Pinned at the controller level so future SQL refactors that drop the UNION source 2 surface
-  // here as a payload diff.
+test('END-TO-END: property default of a VISIBLE option does NOT lift an unticked reservation', () => {
+  // Reverses the 2026-06-03 §3.7 behaviour (Adrien's call, 2026-08-11): bed linen only became
+  // mandatory on the lodge in June 2026, so a property default must not retro-fit a contract onto
+  // stays booked before that — and removing linen from a booking has to stay possible.
+  // Pinned at the controller level so a future SQL refactor that re-widens source 2 surfaces here.
   const { db, controller } = makeStack();
   const { bedId } = seedSeeds(db);
-  // Reservation NOT linked to the option. Without §3.7 this would contribute zero.
+  // Reservation NOT linked to the option → contributes zero, default or not.
   makeReservation(db, {
     startDate: '2026-06-02', endDate: '2026-06-04',
     singleBeds: 4, doubleBeds: 4, babyBeds: 1,
@@ -315,8 +315,8 @@ test('END-TO-END: property default ⇒ a reservation WITHOUT the linen option ST
   const res = makeRes();
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
-    singleBeds: 4, doubleBeds: 4, babyBeds: 1,
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
   });
 });
 
@@ -350,7 +350,7 @@ test('END-TO-END: explicit reservation_options row STILL wins over the property 
   controller.laundrySummary({ query: { from: '2026-06-09', to: '2026-06-09' } }, res);
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 2, doubleBeds: 1, babyBeds: 0, // baby suppressed by the explicit row
-    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [],
   });
 });
 
@@ -394,6 +394,7 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
   // The skipped card emits zeros — the client masks it with the "Voyage non réalisé" caption.
   assert.deepEqual(byDate['2026-06-02'].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    incomplete: [],
   });
   assert.deepEqual(byDate['2026-06-02'].pickUp, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
@@ -411,5 +412,6 @@ test('END-TO-END: skipping a laundry day defers BOTH drop-off and pick-up to the
     mediumTowels: 0,
     smallTowels: 3 + 2,
     bathMats: 0,
+    incomplete: [],
   });
 });

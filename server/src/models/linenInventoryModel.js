@@ -36,6 +36,13 @@ function buildModel(database, deps = {}) {
     catch { return false; }
   })();
   const BATH_MAT_OR = HAS_BATH_MAT_COL ? 'OR o.countsAsBathMat = 1 ' : '';
+  // specs/laundry-counts-explicit-option-only.md §3.1 rule 5 — the engine needs `displayToClient` to
+  // tell an internal option (property-default source) from a visible one (ticked-row source only).
+  // A schema without the column reports every option as visible, i.e. explicit-row-only.
+  const HAS_DISPLAY_TO_CLIENT = (() => {
+    try { return database.prepare('PRAGMA table_info(options)').all().some((c) => c.name === 'displayToClient'); }
+    catch { return false; }
+  })();
 
   const fetchReservationsStmt = database.prepare(`
     SELECT id, kind, propertyId, startDate, endDate,
@@ -47,6 +54,7 @@ function buildModel(database, deps = {}) {
   `);
   const fetchOptionsStmt = database.prepare(`
     SELECT id, countsAsBedLinen, countsAsBathroomLinen, ${HAS_BATH_MAT_COL ? 'countsAsBathMat' : '0 AS countsAsBathMat'},
+           ${HAS_DISPLAY_TO_CLIENT ? 'displayToClient' : '1 AS displayToClient'},
            linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
            towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson
       FROM options

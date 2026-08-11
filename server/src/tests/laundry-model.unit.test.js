@@ -28,6 +28,7 @@ function makeDb() {
       title TEXT,
       countsAsBedLinen INTEGER NOT NULL DEFAULT 0,
       countsAsBathroomLinen INTEGER NOT NULL DEFAULT 0,
+      displayToClient INTEGER NOT NULL DEFAULT 1,
       linenIncludesSingle INTEGER NOT NULL DEFAULT 1,
       linenIncludesDouble INTEGER NOT NULL DEFAULT 1,
       linenIncludesBaby INTEGER NOT NULL DEFAULT 1,
@@ -63,6 +64,7 @@ function makeOption(db, {
   title = 'Linge de lit',
   countsAsBedLinen = 1,
   countsAsBathroomLinen = 0,
+  displayToClient = 1,
   linenIncludesSingle = 1,
   linenIncludesDouble = 1,
   linenIncludesBaby = 1,
@@ -72,12 +74,12 @@ function makeOption(db, {
 } = {}) {
   const result = db.prepare(`
     INSERT INTO options (
-      title, countsAsBedLinen, countsAsBathroomLinen,
+      title, countsAsBedLinen, countsAsBathroomLinen, displayToClient,
       linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
       towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson
-    ) VALUES (?, ?, ?,  ?, ?, ?,  ?, ?, ?)
+    ) VALUES (?, ?, ?, ?,  ?, ?, ?,  ?, ?, ?)
   `).run(
-    title, countsAsBedLinen, countsAsBathroomLinen,
+    title, countsAsBedLinen, countsAsBathroomLinen, displayToClient,
     linenIncludesSingle, linenIncludesDouble, linenIncludesBaby,
     towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson,
   );
@@ -461,17 +463,36 @@ test('dropOffBathroomForWindow: towel*PerPerson = 0 silences that size (client f
 // counts towards the laundry — past and future — even when the option is not in
 // `reservation_options`. The explicit row (when present) still wins as a strict override.
 
-test('dropOffForWindow: property default counts a reservation even WITHOUT an explicit linen row', () => {
-  // Gite has Linge de lit as default → all its reservations contribute regardless of the
-  // reservation_options content. The reservation below has zero option links → previously it
-  // wouldn't count; now it does via the property-default fallback source.
+test('dropOffForWindow: property default of a VISIBLE option does NOT count an unticked reservation', () => {
+  // specs/laundry-counts-explicit-option-only.md §3.1 rule 3. Bed linen only became mandatory on
+  // the lodge in June 2026, so a property default cannot be read as a retroactive contract on a
+  // stay where the operator did not tick the option. The ticked row is the only signal.
   const db = makeDb();
-  const opt = makeOption(db);
-  const r = makeReservation(db, {
+  const opt = makeOption(db); // displayToClient = 1 → visible
+  makeReservation(db, {
     propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
     singleBeds: 2, doubleBeds: 1, babyBeds: 1,
   });
   // No linkOption(...) call — the reservation has no explicit linen row.
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffForWindow('2026-05-26', '2026-06-02'),
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0 }
+  );
+});
+
+test('dropOffForWindow: property default of an INTERNAL option still counts (its only possible source)', () => {
+  // specs/laundry-counts-explicit-option-only.md §3.1 rule 4. An internal option is never written
+  // to reservation_options (reservationsModel.insertOptions + the iCal import both skip it), so
+  // dropping its property-default source would silently zero it forever.
+  const db = makeDb();
+  const opt = makeOption(db, { title: 'Linge interne', displayToClient: 0 });
+  makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 2, doubleBeds: 1, babyBeds: 1,
+  });
   makePropertyOptionDefault(db, 10, opt);
 
   const model = laundryModel.buildModel(db);
@@ -515,21 +536,39 @@ test('dropOffForWindow: explicit row WINS over the property default (operator in
   assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 2, doubleBeds: 1, babyBeds: 0 });
 });
 
-test('dropOffForWindow: property default counts a PAST reservation that pre-dates the feature', () => {
-  // Adrien's prod scenario: an old reservation created before the linen-tracking feature ever
-  // existed has no option in reservation_options. Activating the property default makes it
-  // count retroactively in the next visible laundry window.
+test('dropOffForWindow: a PAST reservation that pre-dates the property default stays out', () => {
+  // Adrien's prod case (2026-08-11): stays booked before bed linen became mandatory on the lodge
+  // legitimately carry no linen. Turning the option into a property default must not retro-fit a
+  // contract onto them — otherwise removing linen from a booking becomes impossible.
   const db = makeDb();
   const opt = makeOption(db);
   // Past-style reservation: no option ticked.
-  const r = makeReservation(db, {
+  makeReservation(db, {
     propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-01',
     singleBeds: 3, doubleBeds: 2,
   });
   makePropertyOptionDefault(db, 10, opt);
 
   const model = laundryModel.buildModel(db);
-  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 3, doubleBeds: 2, babyBeds: 0 });
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+});
+
+test('dropOffForWindow: schema without displayToClient falls back to explicit-row-only', () => {
+  // specs/laundry-counts-explicit-option-only.md §3.1 rule 5 — a partially-migrated DB reads every
+  // option as visible, so the property default never conjures a contract. No crash either.
+  const db = makeDb();
+  db.exec('ALTER TABLE options DROP COLUMN displayToClient');
+  const opt = db.prepare('INSERT INTO options (title, countsAsBedLinen) VALUES (?, 1)').run('Linge de lit').lastInsertRowid;
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02', singleBeds: 3, doubleBeds: 2,
+  });
+  makePropertyOptionDefault(db, 10, Number(opt));
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 0, doubleBeds: 0, babyBeds: 0 });
+  linkOption(db, r, Number(opt));
+  const model2 = laundryModel.buildModel(db);
+  assert.deepEqual(model2.dropOffForWindow('2026-05-26', '2026-06-02'), { singleBeds: 3, doubleBeds: 2, babyBeds: 0 });
 });
 
 test('dropOffForWindow: devis-stage reservation excluded even when the property has a default', () => {
@@ -548,14 +587,35 @@ test('dropOffForWindow: devis-stage reservation excluded even when the property 
 
 // --- Bathroom-linen mirror ---
 
-test('dropOffBathroomForWindow: property default counts towels for a reservation WITHOUT an explicit row', () => {
-  // Default contributes qty = 1.0 ("the whole party"), multiplied by persons × perPerson.
+test('dropOffBathroomForWindow: property default of a VISIBLE option conjures no towel', () => {
+  // specs/laundry-counts-explicit-option-only.md §3.1 rule 3 — bath linen is an extra sold at
+  // arrival: not ticked means not provided.
   const db = makeDb();
   const opt = makeOption(db, {
     countsAsBedLinen: 0, countsAsBathroomLinen: 1,
     towelLargePerPerson: 1, towelMediumPerPerson: 0, towelSmallPerPerson: 1,
   });
-  const r = makeReservation(db, {
+  makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    adults: 3, children: 1, babies: 1,
+  });
+  makePropertyOptionDefault(db, 10, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
+    { largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
+  );
+});
+
+test('dropOffBathroomForWindow: property default of an INTERNAL option still counts, qty 1.0', () => {
+  // Rule 4 mirror on the bathroom path: qty = 1.0 ("the whole party") × persons × perPerson.
+  const db = makeDb();
+  const opt = makeOption(db, {
+    countsAsBedLinen: 0, countsAsBathroomLinen: 1, displayToClient: 0,
+    towelLargePerPerson: 1, towelMediumPerPerson: 0, towelSmallPerPerson: 1,
+  });
+  makeReservation(db, {
     propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
     adults: 3, children: 1, babies: 1, // babies excluded → 4 persons
   });
@@ -601,5 +661,68 @@ test('dropOffBathroomForWindow: property default DOES NOT cross properties', () 
   assert.deepEqual(
     model.dropOffBathroomForWindow('2026-05-26', '2026-06-02'),
     { largeTowels: 0, mediumTowels: 0, smallTowels: 0 }
+  );
+});
+
+// --- incompleteBedConfigForWindow (specs/laundry-counts-explicit-option-only.md §3.2) ---
+//
+// Now that the ticked option is the only signal, a stay that declares bed linen with no quantity
+// saved yet contributes a silent zero. These pin the list the Planning card uses to say so.
+
+test('incompleteBedConfigForWindow: flags a ticked-option stay whose bed counts are all zero', () => {
+  const db = makeDb();
+  const opt = makeOption(db);
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 0, doubleBeds: 0, babyBeds: 0,
+  });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.incompleteBedConfigForWindow('2026-05-26', '2026-06-02'),
+    [{ id: r, clientName: `#${r}`, propertyName: '', endDate: '2026-06-02' }],
+  );
+});
+
+test('incompleteBedConfigForWindow: a stay WITH bed counts is not flagged', () => {
+  const db = makeDb();
+  const opt = makeOption(db);
+  const r = makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02', doubleBeds: 1,
+  });
+  linkOption(db, r, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.incompleteBedConfigForWindow('2026-05-26', '2026-06-02'), []);
+});
+
+test('incompleteBedConfigForWindow: a stay WITHOUT the option is not flagged (it declares no linen)', () => {
+  const db = makeDb();
+  const opt = makeOption(db);
+  makePropertyOptionDefault(db, 10, opt); // property default is NOT a declaration (rule 3)
+  makeReservation(db, {
+    propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02',
+    singleBeds: 0, doubleBeds: 0,
+  });
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(model.incompleteBedConfigForWindow('2026-05-26', '2026-06-02'), []);
+});
+
+test('incompleteBedConfigForWindow: devis excluded, and the window stays half-open', () => {
+  const db = makeDb();
+  const opt = makeOption(db);
+  const devis = makeReservation(db, { kind: 'devis', propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02' });
+  linkOption(db, devis, opt);
+  const onLeftBound = makeReservation(db, { propertyId: 10, startDate: '2026-05-20', endDate: '2026-05-26' });
+  linkOption(db, onLeftBound, opt);
+  const onRightBound = makeReservation(db, { propertyId: 10, startDate: '2026-05-30', endDate: '2026-06-02' });
+  linkOption(db, onRightBound, opt);
+
+  const model = laundryModel.buildModel(db);
+  assert.deepEqual(
+    model.incompleteBedConfigForWindow('2026-05-26', '2026-06-02').map((x) => x.id),
+    [onRightBound],
   );
 });
