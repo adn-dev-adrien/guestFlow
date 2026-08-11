@@ -328,22 +328,31 @@ neither.
     is populated even though `applyPropertyDefaultsAsync` is NOT called there per rule 30).
     The mirror is applied by `setOptionQuantity` on the absent → present transition.
 
-36. **Property default drives the laundry count for ALL reservations of that property — past
-    and future** (2026-06-03 follow-up). Activating a linen default on a property
-    (`property_option_defaults` row exists with the option flagged `countsAsBedLinen=1` or
-    `countsAsBathroomLinen=1`) makes every reservation of that property contribute to the
-    laundry counter, **regardless of whether the linen option is in the reservation's
-    `reservation_options`**. This covers:
-    - Reservations that pre-date the linen-tracking feature (no option ticked).
-    - Reservations where the operator unticked the option (the property contract overrides).
-    - Future reservations created from any path (the auto-add still works; this is a backstop).
+36. **~~Property default drives the laundry count for ALL reservations of that property — past
+    and future~~ (2026-06-03) — REVERSED 2026-08-11 for VISIBLE options.**
+    See [laundry-counts-explicit-option-only.md](laundry-counts-explicit-option-only.md), which
+    supersedes this rule. Short version: bed linen only became chargeable-and-mandatory on the
+    lodge in June 2026, so a property default cannot be read as a retroactive contract on stays
+    booked before that — and removing linen from a booking has to stay possible. **The ticked
+    option is now the only signal.** The property-default source survives *only* for INTERNAL
+    options (`displayToClient = 0`), which are never written to `reservation_options` at all and
+    would otherwise be silently zeroed (that is what keeps « Tapis de bain » counted).
 
-    SQL: each aggregation (`dropOffForWindow`, `dropOffBathroomForWindow`) UNION ALLs two
-    sources inside its `sub` JOIN — source 1 is the explicit `reservation_options` row, source
-    2 is the property-default fallback (`reservations` JOIN `property_option_defaults` JOIN
-    `options WHERE countsAsBedLinen=1`). Source 2 carries `NOT EXISTS (… reservation_options
-    … countsAsBedLinen=1)` so the explicit row wins as a strict override — operator intent
-    (linenIncludes* flags, bathroom qtySum sub-occupation factor) is never overwritten.
+    The rule as it stood 2026-06-03 → 2026-08-11 covered:
+    - Reservations that pre-date the linen-tracking feature (no option ticked).
+    - Reservations where the operator unticked the option (the property contract overrode it).
+    - Future reservations created from any path (the auto-add still works; this was a backstop).
+
+    Its failure mode, found on prod 2026-08-11: a reservation counted through the default while
+    `reservationsController.hasBedLinenOption` (explicit-row-only) zeroed its bed counts on every
+    save and the form hid the inputs — it contributed 0 sheets forever, unfixable.
+
+    SQL as it stands today: each aggregation (`dropOffForWindow`, `dropOffBathroomForWindow`)
+    UNION ALLs two sources inside its `sub` JOIN — source 1 is the explicit `reservation_options`
+    row, source 2 is the property-default fallback **restricted to internal options**. Source 2
+    still carries `NOT EXISTS (… reservation_options … countsAsBedLinen=1)` so the explicit row
+    wins as a strict override — operator intent (linenIncludes* flags, bathroom qtySum
+    sub-occupation factor) is never overwritten.
 
     Strict-override examples pinned by tests:
     - Reservation has explicit row with `linenIncludesBaby = 0` → baby beds suppressed in the
@@ -364,9 +373,11 @@ neither.
 - **Two laundry days in the window.** With `DAYS_AHEAD = 14`, the planning shows
   up to ~2 laundry days. Both render their own card independently.
 - **A reservation flagged as bed-linen with `singleBeds = doubleBeds = babyBeds = 0`.**
-  Contributes zero — visible nowhere. The card stays accurate; the booking just
-  doesn't move the needle. We do **not** treat this as an error or warning (the
-  reservation may be a one-night studio with no formal bed count entered).
+  Contributes zero. **Updated 2026-08-11** — it is now surfaced as a warning on the laundry card
+  (« N séjour(s) sans quantité de linge saisie »,
+  [laundry-counts-explicit-option-only.md](laundry-counts-explicit-option-only.md) §3.2): once the
+  ticked option is the only signal, "declares linen but says nothing about how much" is exactly
+  the case where a silent zero misleads. It is a warning, not an error — the counts are untouched.
 - **The operator un-flags an option after past reservations used it.** Future
   laundry days no longer count those reservations. Past windows are not
   recomputed (and the planning is forward-only, so this is invisible anyway).

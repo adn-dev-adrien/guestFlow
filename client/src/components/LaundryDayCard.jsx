@@ -11,7 +11,9 @@
  *
  * Props:
  *   data — { dropOff: { singleBeds, doubleBeds, babyBeds }, pickUp: same } from the server.
- *     Pass `undefined` / `null` → renders nothing.
+ *     Pass `undefined` / `null` → renders nothing. `dropOff.incomplete` (optional) lists the stays
+ *     that declare bed linen with no quantity saved yet — rendered as a warning + clickable chips
+ *     (specs/laundry-counts-explicit-option-only.md §3.2).
  *   inventoryAfter — per-type `clean` snapshot at end-of-day on this laundry day. Optional.
  *   date — ISO `YYYY-MM-DD` of this laundry day. Required when `onToggleSkip` is provided
  *     (the handler is called with this date).
@@ -22,11 +24,15 @@
  *     Spec: specs/skip-laundry-trip.md §3.3 + §6.
  *   onToggleSkip — `(date, nextValue) => Promise<void>`. When provided, the header shows an
  *     IconButton to flip the skip flag. Omit (or pass null) on read-only surfaces.
+ *   onOpenReservation — `(reservationId) => void`. Called when an incompleteness chip is clicked.
+ *     Omit → the chips render as plain, non-clickable labels. Kept as a callback (rather than a
+ *     `useNavigate` inside) so the card stays a pure renderer, mountable without a Router.
  */
 import React from 'react';
-import { Card, CardContent, Box, Typography, Stack, IconButton, Tooltip } from '@mui/material';
+import { Card, CardContent, Box, Typography, Stack, IconButton, Tooltip, Chip } from '@mui/material';
 import { cyan } from '@mui/material/colors';
 import LocalLaundryServiceIcon from '@mui/icons-material/LocalLaundryService';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AddIcon from '@mui/icons-material/Add';
@@ -165,8 +171,12 @@ function InventoryLine({ label, parts }) {
   );
 }
 
-export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped = false, onToggleSkip, manualAddition, onEditManual }) {
+export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped = false, onToggleSkip, manualAddition, onEditManual, onOpenReservation }) {
   if (!data) return null;
+  // specs/laundry-counts-explicit-option-only.md §3.2 rule 9 — stays of this window that declare
+  // bed linen but carry no quantity yet. They contribute 0 to the counts above, so the card says so
+  // rather than letting the operator read a number it knows is short.
+  const incomplete = Array.isArray(data.dropOff?.incomplete) ? data.dropOff.incomplete : [];
   // Manual additions (specs/manual-laundry-additions.md) are already folded into `data` by the server;
   // here we only surface the « dont ajout manuel » caption + the edit affordance.
   const manualSheets = formatSheets(manualAddition);
@@ -176,10 +186,13 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
   // Hide the card when everything is zero on BOTH sides (no sheets and no towels at all). Per
   // spec rule 13 — keeps a quiet week silent. EXCEPTION (specs/skip-laundry-trip.md §3.3
   // rule 11): a skipped card is ALWAYS shown so the operator can see (and undo) their own
-  // decision, even if the pre-skip counts would have been 0.
+  // decision, even if the pre-skip counts would have been 0. SECOND EXCEPTION
+  // (specs/laundry-counts-explicit-option-only.md §3.2): a week whose only departures still lack
+  // their quantities totals zero on both sides — the very case the warning exists for, so the card
+  // must survive the silence rule.
   const dropTotal = totalSheets(data.dropOff) + totalTowels(data.dropOff);
   const pickTotal = totalSheets(data.pickUp) + totalTowels(data.pickUp);
-  if (dropTotal === 0 && pickTotal === 0 && !isSkipped) return null;
+  if (dropTotal === 0 && pickTotal === 0 && !isSkipped && incomplete.length === 0) return null;
 
   // §3.5 — third block: post-drop available stock. Hidden when no inventory data is provided
   // (e.g. stock untracked = nothing to display).
@@ -258,6 +271,28 @@ export default function LaundryDayCard({ data, inventoryAfter, date, isSkipped =
               <Typography variant="caption" sx={{ display: 'block', mt: 0.75, fontStyle: 'italic', color: 'text.secondary' }}>
                 dont ajout manuel : {[manualSheets, manualTowels].filter(Boolean).join(' · ')}
               </Typography>
+            )}
+            {incomplete.length > 0 && (
+              <Box sx={{ mt: 1.25, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+                  <WarningAmberIcon fontSize="small" sx={{ color: 'warning.main', mt: '2px' }} />
+                  <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 700 }}>
+                    {incomplete.length} séjour{incomplete.length > 1 ? 's' : ''} sans quantité de linge saisie — chiffre incomplet
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.75 }}>
+                  {incomplete.map((r) => (
+                    <Chip
+                      key={r.id}
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      label={[r.clientName, r.propertyName].filter(Boolean).join(' · ')}
+                      onClick={typeof onOpenReservation === 'function' ? () => onOpenReservation(r.id) : undefined}
+                    />
+                  ))}
+                </Stack>
+              </Box>
             )}
             {hasInventoryLine && (
               <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>

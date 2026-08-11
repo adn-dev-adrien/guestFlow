@@ -85,6 +85,11 @@ added on the Blanchisserie page.
       in the laundry cards + stock projection only. They are **not materialised** into
       `reservation_options` (the laundry/stock property-default fallback counts them), so they also
       stay off the planning/dashboard prep chips and the totals.
+      **Load-bearing since 2026-08-11** ([laundry-counts-explicit-option-only.md](laundry-counts-explicit-option-only.md)
+      §3.1 rule 4): `displayToClient = 0` is now what *selects* the property-default counting path.
+      Visible linen options are counted from their ticked row only; internal ones keep the default
+      as their sole source. Flipping this switch on for a linen option therefore moves it from
+      "counted via the property default" to "counted only when ticked on the reservation".
     - **Other options** (breakfast, « repas », …): still materialised, so they keep their
       **planning preparation card** and the operator prep chips — only the client display is
       suppressed. The laundry/stock framing does **not** apply to them.

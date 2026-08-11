@@ -11,6 +11,7 @@ function makeFake({
   windowFn = () => ({ singleBeds: 0, doubleBeds: 0, babyBeds: 0 }),
   bathroomFn = () => ({ largeTowels: 0, mediumTowels: 0, smallTowels: 0 }),
   bathMatFn = () => ({ bathMats: 0 }),
+  incompleteFn = null,
   skippedDates = [],
   inventoryHorizon = null,
 } = {}) {
@@ -30,6 +31,14 @@ function makeFake({
       return bathMatFn(start, end);
     },
   };
+  // specs/laundry-counts-explicit-option-only.md §3.2 — omitted by default so the legacy tests
+  // exercise the controller's "older model without the method" guard.
+  if (incompleteFn) {
+    laundryModel.incompleteBedConfigForWindow = (start, end) => {
+      calls.push({ fn: 'incomplete', start, end });
+      return incompleteFn(start, end);
+    };
+  }
   // Default to no skips so the legacy tests stay byte-identical in payload shape.
   const laundryTripSkipsModel = { listAll: () => [...skippedDates] };
   // Used by the implicit-`to`-from-horizon path. Tests that pass an explicit `to` query
@@ -124,7 +133,7 @@ test('laundrySummary: payload carries dropOff + pickUp per laundry day (bed + ba
   // sub-lines under the same "À apporter / À récupérer" header.
   assert.deepEqual(res.body.laundryDays, [{
     date: '2026-06-02',
-    dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7, bathMats: 0 },
+    dropOff: { singleBeds: 1, doubleBeds: 2, babyBeds: 3, largeTowels: 7, mediumTowels: 0, smallTowels: 7, bathMats: 0, incomplete: [] },
     pickUp: { singleBeds: 4, doubleBeds: 5, babyBeds: 6, largeTowels: 9, mediumTowels: 0, smallTowels: 9, bathMats: 0 },
   }]);
 });
@@ -172,10 +181,11 @@ test('laundrySummary: zero-everywhere laundry day is STILL emitted (server contr
   const res = fakeRes();
   c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
   assert.equal(res.body.laundryDays.length, 1);
-  // Bed AND bathroom AND bath-mat blocks merged into one zero block per side (7 keys total).
+  // Bed AND bathroom AND bath-mat blocks merged into one zero block per side, plus the
+  // incompleteness list (specs/laundry-counts-explicit-option-only.md §3.2) on the drop-off.
   assert.deepEqual(
     res.body.laundryDays[0].dropOff,
-    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0 }
+    { singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0, incomplete: [] }
   );
   assert.deepEqual(
     res.body.laundryDays[0].pickUp,
@@ -208,6 +218,7 @@ test('laundrySummary: skipped laundry day returns zero blocks (client renders "V
   assert.equal(res.body.laundryDays[0].date, '2026-06-02');
   assert.deepEqual(res.body.laundryDays[0].dropOff, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
+    incomplete: [],
   });
   assert.deepEqual(res.body.laundryDays[0].pickUp, {
     singleBeds: 0, doubleBeds: 0, babyBeds: 0, largeTowels: 0, mediumTowels: 0, smallTowels: 0, bathMats: 0,
@@ -344,4 +355,47 @@ test('laundrySummary: `from` malformed → still 400 even when `to` is omitted',
   const res = fakeRes();
   c.laundrySummary({ query: { from: '06/01/2026' } }, res);
   assert.equal(res.statusCode, 400);
+});
+
+// --- specs/laundry-counts-explicit-option-only.md §3.2 — incompleteness list on the drop-off ---
+
+test('laundrySummary: the drop-off carries the stays that declare linen with no quantity yet', () => {
+  const stay = { id: 22212, clientName: 'Jean Dupont', propertyName: 'Aventura lodge', endDate: '2026-06-01' };
+  const { settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel, calls } = makeFake({
+    laundryWeekday: 2,
+    incompleteFn: (start, end) => ((start === '2026-05-26' && end === '2026-06-02') ? [stay] : []),
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
+
+  assert.deepEqual(res.body.laundryDays[0].dropOff.incomplete, [stay]);
+  // Pick-up is a past batch — nothing left to fill in, so it carries no list at all.
+  assert.equal(res.body.laundryDays[0].pickUp.incomplete, undefined);
+  // Queried on the DROP-OFF window only, exactly once.
+  const incompleteCalls = calls.filter((cc) => cc.fn === 'incomplete').map(({ fn, ...rest }) => rest);
+  assert.deepEqual(incompleteCalls, [{ start: '2026-05-26', end: '2026-06-02' }]);
+});
+
+test('laundrySummary: a skipped trip emits an empty incompleteness list and queries nothing', () => {
+  const { settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel, calls } = makeFake({
+    laundryWeekday: 2,
+    skippedDates: ['2026-06-02'],
+    incompleteFn: () => [{ id: 1, clientName: 'X', propertyName: 'Y', endDate: '2026-06-01' }],
+  });
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
+
+  assert.deepEqual(res.body.laundryDays[0].dropOff.incomplete, []);
+  assert.equal(calls.length, 0);
+});
+
+test('laundrySummary: a model without incompleteBedConfigForWindow degrades to an empty list', () => {
+  const { settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel } = makeFake({ laundryWeekday: 2 });
+  assert.equal(typeof laundryModel.incompleteBedConfigForWindow, 'undefined');
+  const c = buildController({ settingsModel, laundryModel, laundryTripSkipsModel, linenInventoryModel });
+  const res = fakeRes();
+  c.laundrySummary({ query: { from: '2026-06-02', to: '2026-06-02' } }, res);
+  assert.deepEqual(res.body.laundryDays[0].dropOff.incomplete, []);
 });
