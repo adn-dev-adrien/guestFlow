@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS pricing_rules (
     endDate TEXT,
     minNights INTEGER DEFAULT 1,
     seasonKey TEXT DEFAULT NULL, seasonRank INTEGER DEFAULT NULL, netTargetPerNight REAL DEFAULT NULL,
-    extraGuestPrice REAL DEFAULT NULL, extraGuestNetTarget REAL DEFAULT NULL,
+    extraGuestPrice REAL DEFAULT NULL, extraGuestNetTarget REAL DEFAULT NULL, maxNights INTEGER DEFAULT NULL,
     changeoverArrival INTEGER DEFAULT NULL, changeoverDeparture INTEGER DEFAULT NULL,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
   );

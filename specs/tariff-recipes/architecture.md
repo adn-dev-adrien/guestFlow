@@ -300,6 +300,7 @@ ALTER TABLE pricing_rules ADD COLUMN seasonRank           INTEGER DEFAULT NULL;
 ALTER TABLE pricing_rules ADD COLUMN netTargetPerNight    REAL    DEFAULT NULL;
 ALTER TABLE pricing_rules ADD COLUMN extraGuestPrice      REAL    DEFAULT NULL;
 ALTER TABLE pricing_rules ADD COLUMN extraGuestNetTarget  REAL    DEFAULT NULL;
+ALTER TABLE pricing_rules ADD COLUMN maxNights            INTEGER DEFAULT NULL;
 ALTER TABLE pricing_rules ADD COLUMN changeoverArrival    INTEGER DEFAULT NULL;
 ALTER TABLE pricing_rules ADD COLUMN changeoverDeparture  INTEGER DEFAULT NULL;
 
@@ -356,15 +357,15 @@ Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside
     { "key": "low",  "label": "Basse saison",   "rank": 1, "color": "#5B8C6E",
       "pricePerNight": 179, "netTargetPerNight": 160, "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
-      "minNights": 1, "changeover": null },
+      "minNights": 1, "maxNights": 7, "changeover": null },
     { "key": "mid",  "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195, "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
-      "minNights": 1, "changeover": null },
+      "minNights": 1, "maxNights": 7, "changeover": null },
     { "key": "high", "label": "Haute saison",   "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225, "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
-      "minNights": 1, "changeover": null }
+      "minNights": 1, "maxNights": 7, "changeover": null }
   ],
 
   "calendar": {

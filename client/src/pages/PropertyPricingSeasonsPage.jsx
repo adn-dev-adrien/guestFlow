@@ -79,6 +79,12 @@ function getSortedDateRanges(ranges) {
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
+// Closure lookup for a day — the ranges come computed from the server, this is a plain containment
+// test (specs/tariff-recipes/spec.md §3.4 rule 25bis).
+function findClosureForDate(closureRanges, dateStr) {
+  return (closureRanges || []).find((c) => dateStr >= c.startDate && dateStr <= c.endDate) || null;
+}
+
 // Changeover weekdays (specs/tariff-recipes/spec.md §3.4) — JS convention 0 = dimanche … 6 = samedi,
 // listed Monday-first for the French eye. '' = « Aucun » = unrestricted.
 const WEEKDAYS_FR = [
@@ -164,6 +170,7 @@ export default function PropertyPricingSeasonsPage() {
     pricePerNight: 100,
     pricingMode: 'fixed',
     minNights: 1,
+    maxNights: '',
     progressiveTiers: [],
     changeoverArrival: '',
     changeoverDeparture: '',
@@ -176,6 +183,7 @@ export default function PropertyPricingSeasonsPage() {
     pricePerNight: 100,
     pricingMode: 'fixed',
     minNights: 1,
+    maxNights: '',
     progressiveTiers: [],
     changeoverArrival: '',
     changeoverDeparture: '',
@@ -196,15 +204,16 @@ export default function PropertyPricingSeasonsPage() {
     }
     setProperty({
       ...p,
-      pricingRules: (p.pricingRules || [])
-        .map((r) => ({
-          ...r,
-          pricingMode: r.pricingMode || 'fixed',
-          color: r.color || DEFAULT_COLORS[0],
-          dateRanges: parseDateRanges(r.dateRanges, r.startDate, r.endDate),
-          progressiveTiers: parseTiers(r.progressiveTiers),
-        }))
-        .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))),
+      // The server already returns the seasons ordered by the earliest date they cover, and each
+      // one's closure-aware display ranges — no re-sorting, no date maths here.
+      pricingRules: (p.pricingRules || []).map((r) => ({
+        ...r,
+        pricingMode: r.pricingMode || 'fixed',
+        color: r.color || DEFAULT_COLORS[0],
+        dateRanges: parseDateRanges(r.dateRanges, r.startDate, r.endDate),
+        dateRangesVisible: Array.isArray(r.dateRangesVisible) ? r.dateRangesVisible : null,
+        progressiveTiers: parseTiers(r.progressiveTiers),
+      })),
     });
     setSchoolHolidays(holidays?.periods || []);
     setAllProperties(props || []);
@@ -395,6 +404,7 @@ export default function PropertyPricingSeasonsPage() {
       pricePerNight: 100,
       pricingMode: 'fixed',
       minNights: 1,
+      maxNights: '',
       progressiveTiers: [],
       changeoverArrival: '',
       changeoverDeparture: '',
@@ -416,6 +426,7 @@ export default function PropertyPricingSeasonsPage() {
       pricePerNight: Number(season.pricePerNight || 0),
       pricingMode: season.pricingMode || 'fixed',
       minNights: Number(season.minNights || 1),
+      maxNights: season.maxNights ?? '',
       progressiveTiers: parseTiers(season.progressiveTiers),
       changeoverArrival: season.changeoverArrival ?? '',
       changeoverDeparture: season.changeoverDeparture ?? '',
@@ -579,6 +590,7 @@ export default function PropertyPricingSeasonsPage() {
       pricePerNight: Number(seasonForm.pricePerNight || 0),
       pricingMode: seasonForm.pricingMode || 'fixed',
       minNights: Number(seasonForm.minNights || 1),
+      maxNights: seasonForm.maxNights === '' ? null : Number(seasonForm.maxNights),
       progressiveTiers: seasonForm.pricingMode === 'progressive' ? seasonForm.progressiveTiers : [],
       changeoverArrival: seasonForm.changeoverArrival === '' ? null : Number(seasonForm.changeoverArrival),
       changeoverDeparture: seasonForm.changeoverDeparture === '' ? null : Number(seasonForm.changeoverDeparture),
@@ -719,7 +731,7 @@ export default function PropertyPricingSeasonsPage() {
                   <TableCell>Dates</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Tarif base 1 nuit</TableCell>
-                  <TableCell>Min nuits</TableCell>
+                  <TableCell>Min – max nuits</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableHead>
@@ -742,7 +754,10 @@ export default function PropertyPricingSeasonsPage() {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                        {getSortedDateRanges(s.dateRanges).map((range, index) => (
+                        {/* Closed dates are hidden from the display only — the stored ranges keep
+                            their full span, so moving a closure re-reveals them
+                            (specs/tariff-recipes/spec.md §3.4 rule 25ter). */}
+                        {getSortedDateRanges(s.dateRangesVisible || s.dateRanges).map((range, index) => (
                           <Box key={`${s.id}-range-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                             <Typography variant="body2" sx={{ lineHeight: 1.25 }}>
                               {displayDate(range.startDate)} → {displayDate(range.endDate)}
@@ -752,11 +767,16 @@ export default function PropertyPricingSeasonsPage() {
                             )}
                           </Box>
                         ))}
+                        {getSortedDateRanges(s.dateRangesVisible || s.dateRanges).length === 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            {getSortedDateRanges(s.dateRanges).length > 0 ? 'entièrement en fermeture' : 'aucune plage'}
+                          </Typography>
+                        )}
                       </Box>
                     </TableCell>
                     <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
                     <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
-                    <TableCell>{s.minNights}</TableCell>
+                    <TableCell>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
                     <TableCell>
                       <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
                       <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
@@ -849,7 +869,8 @@ export default function PropertyPricingSeasonsPage() {
                       const weekday = d.getDay();
                       const isArrivalDay = arrivalDay != null && arrivalDay !== '' && Number(arrivalDay) === weekday;
                       const isDepartureDay = departureDay != null && departureDay !== '' && Number(departureDay) === weekday;
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay });
+                      const closure = findClosureForDate(property.closureRanges, dateStr);
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure });
                     }
 
                     return (
@@ -877,13 +898,16 @@ export default function PropertyPricingSeasonsPage() {
                                   height: 20,
                                   borderRadius: 0.8,
                                   userSelect: 'none',
-                                  borderTop: (t) => (c.inMonth && c.season ? `3px solid ${c.season.color || t.palette.primary.main}` : '3px solid transparent'),
+                                  // A closed day is greyed out and loses its season colour: it is not
+                                  // sellable, so showing a tariff there is noise (spec rule 25bis).
+                                  borderTop: (t) => (c.inMonth && c.season && !c.closure ? `3px solid ${c.season.color || t.palette.primary.main}` : '3px solid transparent'),
                                   bgcolor: (t) => {
                                     if (!c.inMonth) return 'transparent';
                                     if (isInSelection(c.dateStr)) return alpha(t.palette.primary.main, 0.28);
+                                    if (c.closure) return t.palette.action.disabledBackground;
                                     return c.season ? `${c.season.color || t.palette.primary.main}22` : t.palette.background.paper;
                                   },
-                                  color: c.inMonth ? 'text.primary' : 'transparent',
+                                  color: c.inMonth ? (c.closure ? 'text.disabled' : 'text.primary') : 'transparent',
                                   fontSize: 10,
                                   display: 'flex',
                                   alignItems: 'center',
@@ -896,24 +920,26 @@ export default function PropertyPricingSeasonsPage() {
                                     outline: (t) => `1px solid ${c.season ? (c.season.color || t.palette.primary.main) : t.palette.divider}`,
                                   } : undefined,
                                 }}
-                                title={[
-                                  c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : '',
-                                  c.inMonth && c.dayMin > 1 ? `min ${c.dayMin} nuits` : '',
-                                ].filter(Boolean).join(' · ')}
+                                title={c.closure
+                                  ? `Fermé — ${c.closure.label || 'fermeture'} (${displayDate(c.closure.startDate)} → ${displayDate(c.closure.endDate)})`
+                                  : [
+                                    c.season ? `${c.season.label} (${getSortedDateRanges(c.season.dateRangesVisible || c.season.dateRanges).map((range) => `${displayDate(range.startDate)} → ${displayDate(range.endDate)}`).join(' | ')})` : '',
+                                    c.inMonth && c.dayMin > 1 ? `min ${c.dayMin} nuits` : '',
+                                  ].filter(Boolean).join(' · ')}
                               >
                                 {c.inMonth ? c.day : ''}
                                 {/* Effective minimum shown whenever it exceeds 1 — a season-wide
                                     minimum is a constraint too, not only a range override
                                     (specs/tariff-recipes/spec.md §3.4 rule 25). */}
-                                {c.inMonth && c.dayMin > 1 && (
+                                {!c.closure && c.inMonth && c.dayMin > 1 && (
                                   <Box sx={{ position: 'absolute', top: -1, right: 1, fontSize: 8, fontWeight: 700, color: 'warning.dark', lineHeight: 1 }}>
                                     {c.dayMin}
                                   </Box>
                                 )}
-                                {c.inMonth && c.isArrivalDay && (
+                                {!c.closure && c.inMonth && c.isArrivalDay && (
                                   <Box sx={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '3px solid transparent', borderBottom: '3px solid transparent', borderLeft: '4px solid', borderLeftColor: 'success.main' }} />
                                 )}
-                                {c.inMonth && c.isDepartureDay && (
+                                {!c.closure && c.inMonth && c.isDepartureDay && (
                                   <Box sx={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '3px solid transparent', borderBottom: '3px solid transparent', borderRight: '4px solid', borderRightColor: 'secondary.main' }} />
                                 )}
                                 {c.inMonth && c.isPublicHoliday && (
@@ -933,6 +959,10 @@ export default function PropertyPricingSeasonsPage() {
                 {/* Legend (specs/tariff-recipes/spec.md §3.4 rule 25) — the calendar now carries five
                     distinct signals; every marker is named here. */}
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2.5 }, mt: 1.5, alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: 'action.disabledBackground', border: '1px solid', borderColor: 'divider' }} />
+                    <Typography variant="caption" color="text.secondary">fermeture</Typography>
+                  </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />
                     <Typography variant="caption" color="text.secondary">jour férié</Typography>
@@ -1062,6 +1092,16 @@ export default function PropertyPricingSeasonsPage() {
               <TextField label="Min nuits" type="number" value={seasonForm.minNights} onChange={(e) => handleSeasonFormField('minNights', Number(e.target.value || 1))} fullWidth slotProps={{
                 htmlInput: { min: 1 }
               }} />
+              <TextField
+                label="Max nuits"
+                type="number"
+                value={seasonForm.maxNights}
+                onChange={(e) => handleSeasonFormField('maxNights', e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="illimité"
+                fullWidth
+                helperText="Laisser vide = illimité"
+                slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }}
+              />
             </Box>
 
             {/* Changeover day (specs/tariff-recipes/spec.md §3.4): restrict the arrival and/or

@@ -1861,7 +1861,7 @@ export default function ReservationPage() {
     }
   };
 
-  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false) => {
+  const handleSaveReservation = async (afterSaveAction = null, forceMinNights = false, forceCapacity = false, forceChangeover = false, forceMaxNights = false) => {
     const safeAfterSaveAction = typeof afterSaveAction === 'function' ? afterSaveAction : null;
     
     if (!selectedProp) {
@@ -1928,7 +1928,7 @@ export default function ReservationPage() {
         confirmColor: 'warning',
       });
       if (proceed) {
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, true, forceChangeover, forceMaxNights);
       }
       return false;
     }
@@ -1993,7 +1993,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover);
+        return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights);
       }
 
       // specs/tariff-recipes/spec.md §3.4 rule 23 — changeover breach: same confirm + force-override
@@ -2010,7 +2010,20 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (!proceed) return false;
-        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true);
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights);
+      }
+
+      // specs/tariff-recipes/spec.md §3.4 rule 20bis — maximum stay, mirror of the minimum guard.
+      if (quote.maxNightsBreached && !forceMaxNights) {
+        const proceed = await confirm({
+          title: 'Durée maximale dépassée',
+          message: `Cette réservation contient ${quote.nights} nuit(s), au-delà du maximum autorisé de ${quote.requiredMaxNights} nuit(s). Voulez-vous forcer l'enregistrement ?`,
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (!proceed) return false;
+        return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true);
       }
 
       if (isDevisMode) {
@@ -2132,6 +2145,7 @@ export default function ReservationPage() {
           forceMinNights,
           forceCapacity,
           forceChangeover,
+          forceMaxNights,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2186,6 +2200,7 @@ export default function ReservationPage() {
           forceMinNights,
           forceCapacity,
           forceChangeover,
+          forceMaxNights,
           offeredOptionIds: Array.from(offeredOptionIds),
           options: buildSelectedOptionsPayload(),
           customOptions: buildCustomOptionsPayload(),
@@ -2209,7 +2224,7 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover);
+          return await handleSaveReservation(safeAfterSaveAction, true, forceCapacity, forceChangeover, forceMaxNights);
         }
         return false;
       }
@@ -2222,7 +2237,20 @@ export default function ReservationPage() {
           confirmColor: 'warning',
         });
         if (proceed) {
-          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true);
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, true, forceMaxNights);
+        }
+        return false;
+      }
+      if (err?.code === 'MAX_NIGHTS' && !forceMaxNights) {
+        const proceed = await confirm({
+          title: 'Durée maximale dépassée',
+          message: err.message || 'La durée maximale configurée pour cette saison est dépassée. Voulez-vous forcer l\'enregistrement ?',
+          confirmLabel: 'Forcer l\'enregistrement',
+          cancelLabel: 'Annuler',
+          confirmColor: 'warning',
+        });
+        if (proceed) {
+          return await handleSaveReservation(safeAfterSaveAction, forceMinNights, forceCapacity, forceChangeover, true);
         }
         return false;
       }
