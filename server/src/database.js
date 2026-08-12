@@ -420,6 +420,15 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   tryAddRule('changeoverArrival', 'ALTER TABLE pricing_rules ADD COLUMN changeoverArrival INTEGER DEFAULT NULL');
   tryAddRule('changeoverDeparture', 'ALTER TABLE pricing_rules ADD COLUMN changeoverDeparture INTEGER DEFAULT NULL');
 
+  // specs/tariff-recipes/spec.md §3.9 rule 52bis — the first N units of an option can be included in
+  // the rate (the direct welcome pack's two breakfasts). 0 = nothing free, today's behaviour.
+  {
+    const priceCols = db.prepare("PRAGMA table_info(property_option_prices)").all().map((c) => c.name);
+    if (priceCols.length && !priceCols.includes('freeUnits')) {
+      db.exec('ALTER TABLE property_option_prices ADD COLUMN freeUnits REAL NOT NULL DEFAULT 0');
+    }
+  }
+
   // Journal of the scheduled horizon-extension runs → Dashboard alerts (spec §5). UI applies do
   // not write here — only the background task, so a silently generated year is always surfaced.
   db.exec(`

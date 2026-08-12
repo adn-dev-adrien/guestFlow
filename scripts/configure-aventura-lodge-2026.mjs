@@ -34,6 +34,8 @@ const require = createRequire(pathToFileURL(path.join(ROOT, 'server', 'src', 'in
 
 const APPLY = process.argv.includes('--apply');
 const PROPERTY_NAME = 'Aventura lodge';
+// specs/tariff-recipes/spec.md §3.9 — the direct welcome pack: breakfast for 2 on the first morning.
+const WELCOME_PACK_FREE_BREAKFASTS = 2;
 const RECIPE_ID = 'aventura-lodge-2026';
 
 // Property fields the recipe does not own (spec §3.1 rule 6, §3.6 rule 35, §3.7 rule 41).
@@ -124,13 +126,32 @@ function main() {
   // ── 3. Options included in the rate ───────────────────────────────────────
   log('');
   log('Options comprises dans le tarif :');
+  // Archived options are out of the catalogue and internal ones (« Tapis de bain ») are laundry
+  // counters a reservation never carries — marking either « included » would put a phantom line on
+  // every fiche. A stale default on one is also cleared below.
   const linkedOptions = db.prepare(`
     SELECT o.id, o.title, COALESCE(d.offered, -1) AS offered
     FROM options o
     JOIN property_options po ON po.optionId = o.id AND po.propertyId = ?
     LEFT JOIN property_option_defaults d ON d.optionId = o.id AND d.propertyId = ?
+    WHERE o.archivedAt IS NULL AND COALESCE(o.displayToClient, 1) != 0
     ORDER BY o.title
   `).all(property.id, property.id);
+
+  const staleDefaults = db.prepare(`
+    SELECT o.id, o.title, o.archivedAt, o.displayToClient
+    FROM property_option_defaults d
+    JOIN options o ON o.id = d.optionId
+    WHERE d.propertyId = ? AND (o.archivedAt IS NOT NULL OR COALESCE(o.displayToClient, 1) = 0)
+  `).all(property.id);
+  for (const stale of staleDefaults) {
+    const why = stale.archivedAt ? 'archivée' : 'interne (compteur blanchisserie)';
+    log(`    ${stale.title} : défaut retiré — option ${why}`);
+    if (APPLY) {
+      db.prepare('DELETE FROM property_option_defaults WHERE propertyId = ? AND optionId = ?')
+        .run(property.id, stale.id);
+    }
+  }
   for (const option of linkedOptions) {
     const shouldInclude = INCLUDED_OPTION_TITLES.some((needle) => option.title.toLowerCase().includes(needle));
     if (!shouldInclude) continue;
@@ -148,6 +169,35 @@ function main() {
   if (notFound.length) {
     log(`    ⚠️  Options non trouvées sur ce logement : ${notFound.join(', ')}`);
     log('        (à créer/rattacher à la main — le script ne crée jamais d\'option)');
+  }
+
+  // ── 3bis. Welcome pack: the first 2 breakfasts included on direct bookings ─
+  log('');
+  log('Pack accueil (réservations directes) :');
+  const breakfast = linkedOptions.find((o) => o.title.toLowerCase().includes('petit'));
+  if (!breakfast) {
+    log('    ⚠️  Option « Petit déjeuner » introuvable sur ce logement — à rattacher à la main.');
+  } else {
+    const current = db.prepare('SELECT price, freeUnits FROM property_option_prices WHERE propertyId = ? AND optionId = ?')
+      .get(property.id, breakfast.id);
+    const currentFree = Number(current?.freeUnits || 0);
+    if (currentFree === WELCOME_PACK_FREE_BREAKFASTS) {
+      log(`    ${breakfast.title} : ${currentFree} premiers offerts (déjà)`);
+    } else {
+      log(`    ${breakfast.title} : ${currentFree} → ${WELCOME_PACK_FREE_BREAKFASTS} premiers offerts`);
+      if (APPLY) {
+        // A per-property price row means « this property charges THIS », so creating one just to
+        // carry the free units must copy the catalogue price — writing 0 would make the option free.
+        const catalogPrice = db.prepare('SELECT price FROM options WHERE id = ?').get(breakfast.id)?.price ?? 0;
+        db.prepare(`
+          INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(propertyId, optionId) DO UPDATE SET freeUnits = excluded.freeUnits
+        `).run(property.id, breakfast.id, current?.price != null ? current.price : catalogPrice, WELCOME_PACK_FREE_BREAKFASTS);
+      }
+    }
+    log('        Le client peut commander tous ses petits déjeuners : seuls ceux au-delà des');
+    log('        2 offerts sont facturés, et le SAS en prépare toujours la totalité.');
   }
 
   // ── 4. The recipe: seasons, ranges, closures ──────────────────────────────
