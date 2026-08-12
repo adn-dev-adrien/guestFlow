@@ -149,6 +149,13 @@ business behavior, figure, or calendar geometry**.
     SHAPES (wide/narrow icon, BÉBÉ label) carry the distinction. **Platform badge keeps routing
     through `getPlatformColor`** (guard test).
 17. Dense-cell `fontSize` raw numbers stay (umbrella edge case) — colors only.
+17bis. **Any day cell that paints a reservation gradient behind a translucent border must set
+    `backgroundClip: 'padding-box'`** (`CalendarDayCell` since #358, `MiniPlanningStrip` since
+    2026-08-10). With the CSS default (`border-box` clip + `padding-box` origin) the gradient tile
+    is *repeated* into the 1px `divider` border ring, so the wrapped opposite edge shows as a
+    colored rim — on a departure+arrival day the departure color reappears along the bottom/right
+    edges and the arrival color along the top/left ones. Geometry (135° time-proportional split)
+    is unchanged.
 
 ### 3.6 Typography
 
