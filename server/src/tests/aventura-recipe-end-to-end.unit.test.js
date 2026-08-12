@@ -25,18 +25,31 @@ test('the shipped recipe validates and derives the spec rule 44 table for 2026',
   const recipe = loadShippedRecipe();
   assert.equal(recipe.id, 'aventura-lodge-2026');
   const plan = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
-  const r = (startDate, endDate) => ({ startDate, endDate });
+  const r = (startDate, endDate, minNights) => (
+    minNights ? { startDate, endDate, minNights } : { startDate, endDate }
+  );
   assert.deepEqual(plan.low, [
     r('2026-01-01', '2026-04-03'), r('2026-04-06', '2026-04-30'), r('2026-05-03', '2026-05-07'),
     r('2026-05-10', '2026-05-13'), r('2026-05-17', '2026-05-22'), r('2026-05-25', '2026-07-03'),
     r('2026-08-29', '2026-12-31'),
   ]);
   assert.deepEqual(plan.mid, [
-    r('2026-04-04', '2026-04-05'), r('2026-05-01', '2026-05-02'), r('2026-05-08', '2026-05-09'),
-    r('2026-05-14', '2026-05-16'), r('2026-05-23', '2026-05-24'),
+    r('2026-04-04', '2026-04-05', 2), r('2026-05-01', '2026-05-02', 2), r('2026-05-08', '2026-05-09', 2),
+    r('2026-05-14', '2026-05-16', 3), r('2026-05-23', '2026-05-24', 2),
     r('2026-07-04', '2026-07-10'), r('2026-08-22', '2026-08-28'),
   ]);
-  assert.deepEqual(plan.high, [r('2026-07-11', '2026-08-21')]);
+  assert.deepEqual(plan.high, [r('2026-07-11', '2026-07-13', 3), r('2026-07-14', '2026-08-21')]);
+});
+
+test('the shipped recipe refuses a single night on a holiday block, allows the full pont', () => {
+  const recipe = loadShippedRecipe();
+  const plan = buildYearPlan(recipe, 2026, materializeClosures(recipe, 2025, 2026));
+  // 1er mai 2026 is a Friday: the Friday + Saturday nights are mandatory together.
+  const mayDay = plan.mid.find((range) => range.startDate === '2026-05-01');
+  assert.equal(mayDay.minNights, 2);
+  // Ascension (jeudi 14 mai) + pont: 3 nights.
+  const ascension = plan.mid.find((range) => range.startDate === '2026-05-14');
+  assert.equal(ascension.minNights, 3);
 });
 
 test('applied to a property, the shipped recipe quotes the six D-cases to the cent', () => {
@@ -97,11 +110,11 @@ test('applied to a property, the shipped recipe quotes the six D-cases to the ce
   };
   const CASES = [
     ['D1', 2, '2026-04-07', '2026-04-08', 179.00],
-    ['D2', 2, '2026-04-07', '2026-04-09', 304.30],
-    ['D3', 2, '2026-07-04', '2026-07-07', 518.40],
-    ['D4', 4, '2026-07-13', '2026-07-16', 722.40],
-    ['D5', 5, '2026-07-13', '2026-07-20', 1705.60],
-    ['D6', 3, '2026-07-04', '2026-07-06', 413.10],
+    ['D2', 2, '2026-04-07', '2026-04-09', 264.03],
+    ['D3', 2, '2026-07-04', '2026-07-07', 421.20],
+    ['D4', 4, '2026-07-13', '2026-07-16', 586.94],
+    ['D5', 5, '2026-07-13', '2026-07-20', 1262.76],
+    ['D6', 3, '2026-07-04', '2026-07-06', 358.43],
   ];
   for (const [label, adults, startDate, endDate, expected] of CASES) {
     const q = calculateReservationQuote({ ...BASE, adults, startDate, endDate });

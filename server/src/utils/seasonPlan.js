@@ -110,14 +110,24 @@ const HOLIDAY_NIGHT_OFFSETS = {
   5: [0, 1],         // Friday   → Fri, Sat
 };
 
-function holidayNights(year) {
-  const nights = [];
+// One entry per holiday that actually forms a block, with its nights. The block LENGTH is the
+// commercial length of the « pont » and drives the minimum-nights constraint (spec rule 16bis).
+function holidayBlocks(year) {
+  const blocks = [];
   for (const holiday of getFrenchPublicHolidays(year)) {
     const date = parseIso(holiday.date);
     const offsets = HOLIDAY_NIGHT_OFFSETS[date.getUTCDay()] || [];
-    for (const offset of offsets) nights.push(addDays(date, offset));
+    if (!offsets.length) continue;
+    blocks.push({ label: holiday.label, nights: offsets.map((offset) => addDays(date, offset)) });
   }
-  return nights;
+  return blocks;
+}
+
+// `minNights: "block"` → the block's own length (2 nights for a Friday/Monday holiday, 3 for a
+// Tuesday/Thursday bridge); an integer → that value; absent → no minimum imposed.
+function resolveModifierMinNights(modifier, blockLength) {
+  if (modifier.minNights === 'block') return blockLength;
+  return Number.isInteger(modifier.minNights) && modifier.minNights >= 1 ? modifier.minNights : 0;
 }
 
 // ── Closures ─────────────────────────────────────────────────────────────────
@@ -193,17 +203,35 @@ function buildYearPlan(recipe, year, closureRows = []) {
     }
   }
 
-  // 3. Holiday raise (rules 15-17). Raised nights take the target season's own defaults (no override).
+  // 3. Holiday raise (rules 15-17 + 16bis). A holiday block goes up one rank AND carries the block's
+  //    minimum nights, so a « pont » can never be sold as a single isolated night.
   for (const modifier of recipe.calendar.modifiers) {
     if (modifier.type !== 'public_holiday_bridge') continue;
     const amount = modifier.amount === undefined ? 1 : modifier.amount;
-    for (const night of holidayNights(year)) {
-      const t = indexOf(night);
-      if (t < 0 || t >= dayCount) continue; // a block straddling 31 Dec belongs to each year's own run
-      if (modifier.skipClosedDays && isClosed(iso(night), closureRows)) continue;
-      const currentRank = rankByKey.get(days[t].season) || 1;
-      const raisedKey = keyByRank.get(Math.min(maxRank, currentRank + amount));
-      if (raisedKey && raisedKey !== days[t].season) days[t] = { season: raisedKey, override: null };
+    const touched = new Set();
+    for (const block of holidayBlocks(year)) {
+      const blockMinNights = resolveModifierMinNights(modifier, block.nights.length);
+      for (const night of block.nights) {
+        const t = indexOf(night);
+        if (t < 0 || t >= dayCount) continue; // a block straddling 31 Dec belongs to each year's own run
+        if (modifier.skipClosedDays && isClosed(iso(night), closureRows)) continue;
+        const current = days[t];
+        const currentRank = rankByKey.get(current.season) || 1;
+        // Two overlapping blocks must not raise the same night twice.
+        const raisedKey = touched.has(t)
+          ? current.season
+          : (keyByRank.get(Math.min(maxRank, currentRank + amount)) || current.season);
+        touched.add(t);
+        // A raised night leaves its period, so it drops that period's overrides; a night already at
+        // the top rank keeps them. The holiday minimum wins whenever it is the stronger constraint,
+        // which also resolves two overlapping blocks to the longer « pont ».
+        const kept = raisedKey === current.season ? (current.override || {}) : {};
+        const minNights = Math.max(blockMinNights, Number(kept.minNights || 0));
+        const override = minNights > 0
+          ? { ...kept, minNights }
+          : (Object.keys(kept).length ? kept : null);
+        days[t] = { season: raisedKey, override };
+      }
     }
   }
 

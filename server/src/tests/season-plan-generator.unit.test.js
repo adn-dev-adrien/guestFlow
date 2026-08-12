@@ -23,7 +23,7 @@ const AVENTURA = validateRecipe({
       { id: 'summer-core', season: 'high', anchor: { type: 'between', after: 'july-shoulder', before: 'august-shoulder' } },
     ],
     modifiers: [
-      { type: 'public_holiday_bridge', effect: 'raise_rank', amount: 1, skipClosedDays: true },
+      { type: 'public_holiday_bridge', effect: 'raise_rank', amount: 1, skipClosedDays: true, minNights: 'block' },
     ],
   },
   closures: [{ label: 'Fermeture hivernale', from: '10-15', to: '03-31' }],
@@ -32,9 +32,11 @@ const AVENTURA = validateRecipe({
 // The previous winter's tail matters for January-March holidays → materialize from year − 1.
 const closuresFor = (year) => materializeClosures(AVENTURA, year - 1, year);
 
-const r = (startDate, endDate) => ({ startDate, endDate });
+const r = (startDate, endDate, minNights) => (
+  minNights ? { startDate, endDate, minNights } : { startDate, endDate }
+);
 
-test('2026 produces exactly the spec rule 44 table', () => {
+test('2026 produces exactly the spec rule 44 table, holiday minimums included', () => {
   const plan = buildYearPlan(AVENTURA, 2026, closuresFor(2026));
   assert.deepEqual(plan.low, [
     r('2026-01-01', '2026-04-03'), r('2026-04-06', '2026-04-30'), r('2026-05-03', '2026-05-07'),
@@ -42,24 +44,55 @@ test('2026 produces exactly the spec rule 44 table', () => {
     r('2026-08-29', '2026-12-31'),
   ]);
   assert.deepEqual(plan.mid, [
-    r('2026-04-04', '2026-04-05'), r('2026-05-01', '2026-05-02'), r('2026-05-08', '2026-05-09'),
-    r('2026-05-14', '2026-05-16'), r('2026-05-23', '2026-05-24'),
-    r('2026-07-04', '2026-07-10'), r('2026-08-22', '2026-08-28'),
+    r('2026-04-04', '2026-04-05', 2), // Pâques (lun 6) — 2-night block
+    r('2026-05-01', '2026-05-02', 2), // Fête du Travail (ven 1)
+    r('2026-05-08', '2026-05-09', 2), // Victoire (ven 8)
+    r('2026-05-14', '2026-05-16', 3), // Ascension (jeu 14) + pont — 3-night block
+    r('2026-05-23', '2026-05-24', 2), // Pentecôte (lun 25)
+    r('2026-07-04', '2026-07-10'),    // July shoulder — no holiday, no minimum
+    r('2026-08-22', '2026-08-28'),    // August shoulder
   ]);
-  assert.deepEqual(plan.high, [r('2026-07-11', '2026-08-21')]);
+  // 14 juillet (mardi) is ALREADY high season: no rank change, but its 3-night block still splits
+  // the high range and carries the minimum (spec rule 16bis).
+  assert.deepEqual(plan.high, [
+    r('2026-07-11', '2026-07-13', 3),
+    r('2026-07-14', '2026-08-21'),
+  ]);
 });
 
 test('2027: Ascension absorbs Victoire (6-8 May), Pentecôte 15-16 May, Easter Monday skipped (closed)', () => {
   const plan = buildYearPlan(AVENTURA, 2027, closuresFor(2027));
   assert.deepEqual(plan.mid, [
-    r('2027-05-06', '2027-05-08'), // Ascension (jeu 6) + Victoire (sam 8) merged into ONE range
-    r('2027-05-15', '2027-05-16'), // Pentecôte (lun 17)
-    r('2027-07-03', '2027-07-09'), // July shoulder
-    r('2027-08-21', '2027-08-27'), // August shoulder
+    r('2027-05-06', '2027-05-08', 3), // Ascension (jeu 6) + Victoire (sam 8) merged into ONE range
+    r('2027-05-15', '2027-05-16', 2), // Pentecôte (lun 17)
+    r('2027-07-03', '2027-07-09'),    // July shoulder
+    r('2027-08-21', '2027-08-27'),    // August shoulder
   ]);
   assert.deepEqual(plan.high, [r('2027-07-10', '2027-08-20')]);
   // Easter Monday 2027 = 29 March → nights 27-28 March are inside the closure → NOT raised.
   assert.ok(!plan.mid.some((range) => range.startDate.startsWith('2027-03')));
+});
+
+test('the holiday minimum is the block length, and no minimum without the setting (rule 16bis)', () => {
+  // Every raised 2026 block carries its own length as a minimum.
+  const withMin = buildYearPlan(AVENTURA, 2026, closuresFor(2026));
+  const holidayRanges = withMin.mid.filter((range) => range.minNights);
+  assert.deepEqual(holidayRanges.map((range) => range.minNights), [2, 2, 2, 3, 2]);
+
+  // Drop `minNights` from the modifier → the ranges are identical but carry no minimum, which is
+  // the pre-existing behaviour a recipe without the setting keeps.
+  const withoutMin = buildYearPlan(
+    { ...AVENTURA, calendar: { ...AVENTURA.calendar, modifiers: [{ type: 'public_holiday_bridge', effect: 'raise_rank', amount: 1, skipClosedDays: true }] } },
+    2026,
+    closuresFor(2026),
+  );
+  assert.ok(withoutMin.mid.every((range) => range.minNights === undefined));
+  assert.deepEqual(
+    withoutMin.mid.map((range) => [range.startDate, range.endDate]),
+    withMin.mid.map((range) => [range.startDate, range.endDate]),
+  );
+  // Without the minimum, nothing splits the high season around 14 juillet.
+  assert.deepEqual(withoutMin.high, [{ startDate: '2026-07-11', endDate: '2026-08-21' }]);
 });
 
 test('shoulders land on the anchor weekday (Saturday) for ten consecutive years', () => {

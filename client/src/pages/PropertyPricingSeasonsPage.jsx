@@ -645,6 +645,17 @@ export default function PropertyPricingSeasonsPage() {
             ...prev,
             progressiveTiers: preview.progressiveTiers || [],
           }));
+          // Tiers are STORED normalized over 365 nights but previewed over 14, so opening a
+          // progressive season always rewrites them here — which used to mark a merely-consulted
+          // form as modified and pop the « quitter sans enregistrer ? » confirm on Annuler.
+          // When the rewrite is a pure normalization (the user hasn't edited a tier yet, i.e. the
+          // form still carries the pristine list), move the pristine snapshot with it so the form
+          // stays clean. A real tier edit leaves the snapshot behind and still counts as dirty.
+          setInitialSeasonForm((pristine) => (
+            JSON.stringify(pristine.progressiveTiers || []) === currentSerialized
+              ? { ...pristine, progressiveTiers: preview.progressiveTiers || [] }
+              : pristine
+          ));
         }
       })
       .catch(() => {
