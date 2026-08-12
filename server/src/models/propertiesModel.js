@@ -33,6 +33,27 @@ function normalizeNameArticle(value) {
   return VALID_NAME_ARTICLES.includes(v) ? v : 'au';
 }
 
+// specs/tariff-recipes/spec.md §3.6 — the extra-guest supplement is billed per stay (legacy, every
+// existing property) or per night with the season's discount curve (recipe-driven properties).
+const VALID_EXTRA_GUEST_UNITS = ['per_stay', 'per_night'];
+function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
+  return VALID_EXTRA_GUEST_UNITS.includes(value) ? value : fallback;
+}
+
+// Changeover weekday: JS convention (0 = dimanche … 6 = samedi); NULL/blank = unrestricted.
+function normalizeChangeoverDay(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n >= 0 && n <= 6 ? n : null;
+}
+
+// Optional non-negative REAL columns (net targets, per-season extra-guest price): blank = NULL = inherit.
+function normalizeOptionalMoney(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 // A per-range `minNights` is only stored when it OVERRIDES the season default; a value equal to the
 // season-level `minNights` is dropped so the range simply inherits (specs/pricing-min-nights-per-range.md).
 function stripRangeMinEqualToDefault(ranges, seasonMinNights) {
@@ -283,8 +304,8 @@ function createPropertiesModel(database) {
     async create(body = {}, photoFile = null) {
       const photo = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const result = database.prepare(`
-        INSERT INTO properties (name, nameArticle, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, publicDepositEnabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO properties (name, nameArticle, photo, maxAdults, maxChildren, maxBabies, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit, welcomePackCost, singleBeds, doubleBeds, depositPercent, depositDaysBefore, balanceDaysBefore, defaultCheckIn, defaultCheckOut, cleaningHours, defaultCautionAmount, touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage, touristTaxDepartmentPercentage, touristTaxFixedAmount, publicDepositEnabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         sentenceCase(body.name),
         normalizeNameArticle(body.nameArticle),
@@ -294,6 +315,8 @@ function createPropertiesModel(database) {
         body.maxBabies || 0,
         Number(body.basePriceIncludedGuests ?? 0),
         Number(body.extraGuestPrice ?? 0),
+        normalizeExtraGuestUnit(body.extraGuestPriceUnit),
+        Math.max(0, Number(body.welcomePackCost ?? 0) || 0),
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
@@ -337,12 +360,12 @@ function createPropertiesModel(database) {
     },
 
     async update(id, body = {}, photoFile = null) {
-      const existing = database.prepare('SELECT photo FROM properties WHERE id = ?').get(id);
+      const existing = database.prepare('SELECT photo, extraGuestPriceUnit, welcomePackCost FROM properties WHERE id = ?').get(id);
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
 
       database.prepare(`
-        UPDATE properties SET name=?, nameArticle=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, publicDepositEnabled=?, updatedAt=datetime('now')
+        UPDATE properties SET name=?, nameArticle=?, photo=?, maxAdults=?, maxChildren=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDaysBefore=?, balanceDaysBefore=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, publicDepositEnabled=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
         sentenceCase(body.name),
@@ -353,6 +376,13 @@ function createPropertiesModel(database) {
         body.maxBabies || 0,
         Number(body.basePriceIncludedGuests ?? 0),
         Number(body.extraGuestPrice ?? 0),
+        // An older client form that doesn't send the field keeps the stored value (never resets).
+        body.extraGuestPriceUnit === undefined
+          ? normalizeExtraGuestUnit(existing?.extraGuestPriceUnit)
+          : normalizeExtraGuestUnit(body.extraGuestPriceUnit),
+        body.welcomePackCost === undefined
+          ? Math.max(0, Number(existing?.welcomePackCost ?? 0) || 0)
+          : Math.max(0, Number(body.welcomePackCost ?? 0) || 0),
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
@@ -406,24 +436,59 @@ function createPropertiesModel(database) {
       return { ok: true };
     },
 
-    // « Prix plateformes » grid for the property tarif page (specs/platform-price-from-commission.md).
-    // Returns the non-direct platforms (with their global commission %) + each tariff season's net
-    // base /nuit and the grossed-up price per platform (`gross = net / (1 − c/100)`; null when c ≥ 100).
+    // « Prix plateformes » grid for the property tarif page (specs/platform-price-from-commission.md,
+    // widened by specs/tariff-recipes/spec.md §3.6 rules 31-34). Returns EVERY channel — the direct
+    // row first (its displayed price covers the welcome pack after the Lodgify fee), then the
+    // commissioned platforms — with, per tariff season, the whole-euro price to configure on that
+    // channel plus the per-night extra-guest price. Net pivots per rule 34bis:
+    // COALESCE(netTargetPerNight, pricePerNight) and
+    // COALESCE(extraGuestNetTarget, rule.extraGuestPrice, property.extraGuestPrice) — legacy rows have
+    // every net column NULL, so the grid keeps meaning "gross up the season price".
     platformPrices(propertyId) {
-      const platforms = database.prepare(`
+      const property = database.prepare(
+        'SELECT welcomePackCost, extraGuestPrice, extraGuestPriceUnit FROM properties WHERE id = ?'
+      ).get(Number(propertyId)) || {};
+      const welcomePackCost = Math.max(0, Number(property.welcomePackCost || 0));
+
+      const rows = database.prepare(`
         SELECT id, name, COALESCE(commissionPercent, 0) AS commissionPercent
         FROM platforms
-        WHERE LOWER(name) != 'direct'
         ORDER BY name COLLATE NOCASE ASC
-      `).all().map((p) => ({ id: p.id, name: p.name, commissionPercent: Number(p.commissionPercent) || 0 }));
+      `).all().map((p) => ({
+        id: p.id,
+        name: p.name,
+        commissionPercent: Number(p.commissionPercent) || 0,
+        isDirect: String(p.name || '').toLowerCase() === 'direct',
+      }));
+      // Direct row first (synthesized at 0 % when no `Direct` platform row exists yet).
+      const directRow = rows.find((p) => p.isDirect)
+        || { id: 'direct', name: 'Direct', commissionPercent: 0, isDirect: true };
+      const platforms = [directRow, ...rows.filter((p) => !p.isDirect)];
 
       const seasons = database.prepare(
-        'SELECT id, label, pricePerNight FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
+        'SELECT id, label, pricePerNight, netTargetPerNight, extraGuestPrice, extraGuestNetTarget FROM pricing_rules WHERE propertyId = ? ORDER BY startDate, id',
       ).all(Number(propertyId)).map((s) => {
-        const netPerNight = Number(s.pricePerNight) || 0;
+        const netPerNight = s.netTargetPerNight != null ? Number(s.netTargetPerNight) : (Number(s.pricePerNight) || 0);
+        const extraGuestNet = s.extraGuestNetTarget != null
+          ? Number(s.extraGuestNetTarget)
+          : (s.extraGuestPrice != null ? Number(s.extraGuestPrice) : Number(property.extraGuestPrice || 0));
         const byPlatform = {};
-        for (const p of platforms) byPlatform[p.id] = grossFromNet(netPerNight, p.commissionPercent);
-        return { ruleId: s.id, label: s.label, netPerNight, byPlatform };
+        const extraGuestByPlatform = {};
+        for (const p of platforms) {
+          // The welcome pack is per stay, not per guest: it loads the nightly price of the direct
+          // channel only, never the extra-guest column.
+          byPlatform[p.id] = grossFromNet(netPerNight, p.commissionPercent, { fixedCost: p.isDirect ? welcomePackCost : 0 });
+          extraGuestByPlatform[p.id] = grossFromNet(extraGuestNet, p.commissionPercent);
+        }
+        return {
+          ruleId: s.id,
+          label: s.label,
+          netPerNight,
+          extraGuestNet,
+          extraGuestPriceUnit: property.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
+          byPlatform,
+          extraGuestByPlatform,
+        };
       });
 
       return { platforms, seasons };
@@ -445,8 +510,9 @@ function createPropertiesModel(database) {
       }
       const bounds = getBoundsFromDateRanges(normalizedDateRanges);
       const result = database.prepare(`
-        INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO pricing_rules (propertyId, label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights,
+          seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, changeoverArrival, changeoverDeparture)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyId,
         sentenceCase(label || 'Standard'),
@@ -458,6 +524,15 @@ function createPropertiesModel(database) {
         bounds.startDate,
         bounds.endDate,
         minNights || 1,
+        // Recipe columns (specs/tariff-recipes/spec.md §5) — all NULL by default: an untagged season is
+        // manual, never touched by a recipe apply; NULL net targets keep the platform grid on pricePerNight.
+        body.seasonKey ? String(body.seasonKey) : null,
+        Number.isFinite(Number(body.seasonRank)) && body.seasonRank != null && body.seasonRank !== '' ? Math.floor(Number(body.seasonRank)) : null,
+        normalizeOptionalMoney(body.netTargetPerNight),
+        normalizeOptionalMoney(body.extraGuestPrice),
+        normalizeOptionalMoney(body.extraGuestNetTarget),
+        normalizeChangeoverDay(body.changeoverArrival),
+        normalizeChangeoverDay(body.changeoverDeparture),
       );
       return { data: { id: result.lastInsertRowid } };
     },
@@ -476,9 +551,14 @@ function createPropertiesModel(database) {
           conflictingRule,
         };
       }
+      // The recipe columns keep their stored value when the caller doesn't send them (the season
+      // dialog edits a subset; a recipe apply always sends the full set).
+      const existing = database.prepare('SELECT seasonKey, seasonRank, netTargetPerNight, extraGuestPrice, extraGuestNetTarget, changeoverArrival, changeoverDeparture FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || {};
+      const keepOr = (key, normalizer) => (body[key] === undefined ? (existing[key] ?? null) : normalizer(body[key]));
       const bounds = getBoundsFromDateRanges(normalizedDateRanges);
       database.prepare(`
-        UPDATE pricing_rules SET label=?, pricePerNight=?, pricingMode=?, progressiveTiers=?, dateRanges=?, color=?, startDate=?, endDate=?, minNights=?
+        UPDATE pricing_rules SET label=?, pricePerNight=?, pricingMode=?, progressiveTiers=?, dateRanges=?, color=?, startDate=?, endDate=?, minNights=?,
+          seasonKey=?, seasonRank=?, netTargetPerNight=?, extraGuestPrice=?, extraGuestNetTarget=?, changeoverArrival=?, changeoverDeparture=?
         WHERE id=? AND propertyId=?
       `).run(
         sentenceCase(label || 'Standard'),
@@ -490,9 +570,25 @@ function createPropertiesModel(database) {
         bounds.startDate,
         bounds.endDate,
         minNights || 1,
+        keepOr('seasonKey', (v) => (v ? String(v) : null)),
+        keepOr('seasonRank', (v) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Math.floor(Number(v)) : null)),
+        keepOr('netTargetPerNight', normalizeOptionalMoney),
+        keepOr('extraGuestPrice', normalizeOptionalMoney),
+        keepOr('extraGuestNetTarget', normalizeOptionalMoney),
+        keepOr('changeoverArrival', normalizeChangeoverDay),
+        keepOr('changeoverDeparture', normalizeChangeoverDay),
         ruleId,
         propertyId,
       );
+      return { data: { ok: true } };
+    },
+
+    // specs/tariff-recipes/spec.md §3.2 — the property's active recipe pointer. Written by the recipe
+    // apply (and cleared by a detach); deliberately NOT part of the generic update() so a property
+    // form save can never wipe it.
+    setTariffRecipe(propertyId, recipeId, recipeVersion) {
+      database.prepare("UPDATE properties SET tariffRecipeId = ?, tariffRecipeVersion = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(String(recipeId || ''), String(recipeVersion || ''), Number(propertyId));
       return { data: { ok: true } };
     },
 

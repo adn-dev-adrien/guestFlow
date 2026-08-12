@@ -236,6 +236,9 @@ CREATE TABLE IF NOT EXISTS pricing_rules (
     startDate TEXT,
     endDate TEXT,
     minNights INTEGER DEFAULT 1,
+    seasonKey TEXT DEFAULT NULL, seasonRank INTEGER DEFAULT NULL, netTargetPerNight REAL DEFAULT NULL,
+    extraGuestPrice REAL DEFAULT NULL, extraGuestNetTarget REAL DEFAULT NULL,
+    changeoverArrival INTEGER DEFAULT NULL, changeoverDeparture INTEGER DEFAULT NULL,
     FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
   );
 
@@ -258,7 +261,7 @@ CREATE TABLE IF NOT EXISTS properties (
     touristTaxPerDayPerPerson REAL DEFAULT 0,
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
-  , touristTaxMode TEXT DEFAULT 'per_day_per_person', touristTaxPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0, nameArticle TEXT DEFAULT 'au', publicDepositEnabled INTEGER NOT NULL DEFAULT 0);
+  , touristTaxMode TEXT DEFAULT 'per_day_per_person', touristTaxPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0, nameArticle TEXT DEFAULT 'au', publicDepositEnabled INTEGER NOT NULL DEFAULT 0, tariffRecipeId TEXT DEFAULT '', tariffRecipeVersion TEXT DEFAULT '', extraGuestPriceUnit TEXT DEFAULT 'per_stay', welcomePackCost REAL DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS property_option_defaults (
     propertyId INTEGER NOT NULL,
@@ -515,6 +518,19 @@ CREATE TABLE IF NOT EXISTS sessions
     expire TEXT NOT NULL
   );
 
+CREATE TABLE IF NOT EXISTS tariff_recipe_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    propertyId INTEGER NOT NULL,
+    recipeId TEXT NOT NULL,
+    recipeVersion TEXT NOT NULL DEFAULT '',
+    generatedYear INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    blocking INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    dismissedAt TEXT,
+    FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+  );
+
 CREATE TABLE IF NOT EXISTS user_push_prefs (
     userId INTEGER PRIMARY KEY,
     newReservation INTEGER NOT NULL DEFAULT 1,
@@ -640,6 +656,8 @@ CREATE INDEX IF NOT EXISTS idx_resource_bookings_resourceId ON resource_bookings
 CREATE INDEX IF NOT EXISTS idx_resource_properties_resourceId ON resource_properties(resourceId);
 
 CREATE INDEX IF NOT EXISTS idx_school_holidays_externalRef ON school_holidays(externalRef);
+
+CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_ical_sources_property_platform ON ical_sources(propertyId, platformKey);
 

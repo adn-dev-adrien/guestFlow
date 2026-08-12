@@ -112,6 +112,23 @@ function reservationNumberOverrideError(value, exceptId) {
 // contribute to the laundry aggregation anyway — the SQL in `laundryModel.js` requires a
 // flagged option). The query is tiny (option list ≤ ~10) so a single `IN` round-trip
 // is fine.
+// specs/tariff-recipes/spec.md §3.4 rule 23 — a changeover breach is refused with the same
+// 409-with-code + force-override contract as MIN_NIGHTS. iCal imports never go through these
+// handlers, so a platform booking that violates the constraint still imports (rule 24).
+function changeoverErrorPayload(quote) {
+  const parts = [];
+  if (quote.changeoverArrivalBreached) parts.push(`une arrivée le ${quote.requiredArrivalDayLabel}`);
+  if (quote.changeoverDepartureBreached) parts.push(`un départ le ${quote.requiredDepartureDayLabel}`);
+  return {
+    error: `Ces dates imposent ${parts.join(' et ')}.`,
+    code: 'CHANGEOVER',
+    requiredArrivalWeekday: quote.requiredArrivalWeekday,
+    requiredDepartureWeekday: quote.requiredDepartureWeekday,
+    requiredArrivalDayLabel: quote.requiredArrivalDayLabel,
+    requiredDepartureDayLabel: quote.requiredDepartureDayLabel,
+  };
+}
+
 function hasBedLinenOption(reservationOptions) {
   if (!Array.isArray(reservationOptions) || reservationOptions.length === 0) return false;
   const ids = reservationOptions
@@ -378,7 +395,7 @@ function create(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceCapacity,
+    forceMinNights, forceCapacity, forceChangeover,
     options: rawReservationOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -464,6 +481,9 @@ function create(req, res) {
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
   }
+  if (quote.changeoverBreached && !forceChangeover) {
+    return res.status(409).json(changeoverErrorPayload(quote));
+  }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);
   // The model rejects `startDate < today` by default. When the admin escape hatch is ON
@@ -536,7 +556,7 @@ function update(req, res) {
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
     singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime,
-    forceMinNights, forceCapacity, refreshPricingToCurrent,
+    forceMinNights, forceCapacity, forceChangeover, refreshPricingToCurrent,
     options: rawUpdateOptions, customOptions: reservationCustomOptions, resources: reservationResources,
   } = req.body;
 
@@ -665,6 +685,9 @@ function update(req, res) {
       error: `Cette réservation comporte ${quote.nights} nuit(s), inférieur au minimum requis (${quote.requiredMinNights}).`,
       code: 'MIN_NIGHTS', requiredMinNights: quote.requiredMinNights, nights: quote.nights, minNightsRules: quote.minNightsRules,
     });
+  }
+  if (quote.changeoverBreached && !forceChangeover && !pastReservationLocked) {
+    return res.status(409).json(changeoverErrorPayload(quote));
   }
 
   const nightBlocks = getNightBlocksFromTimes(checkInTime, checkOutTime);

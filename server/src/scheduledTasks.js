@@ -281,6 +281,62 @@ async function runGoogleSyncPass(reason = 'cron') {
   }
 }
 
+// Tariff-recipe horizon extension (specs/tariff-recipes/spec.md §3.2 rule 12). For every property
+// with an active recipe: when the horizon (current year + recipe.horizonYears − 1) is no longer
+// fully covered by its recipe-owned seasons, re-apply the recipe (idempotent — a covered horizon
+// produces an empty diff and writes nothing) and journal the run so the Dashboard surfaces it.
+// A blocking condition journals instead of writing — the operator is told, never silently left
+// with a half-configured year. One pending journal row per property max (no daily spam).
+function runTariffRecipeHorizonPass(reason = 'cron', deps = {}) {
+  let model; let store; let database;
+  try {
+    model = deps.model || require('./models/tariffRecipeModel').getDefaultModel();
+    store = deps.store || require('./utils/tariffRecipe').getDefaultStore();
+    database = deps.database || db;
+  } catch (err) {
+    console.error('[tariff-recipes] init error:', err && err.message ? err.message : err);
+    return;
+  }
+  const properties = database.prepare("SELECT id, name, tariffRecipeId FROM properties WHERE tariffRecipeId != ''").all();
+  if (!properties.length) return;
+  const pendingByProperty = new Set(model.listPendingRuns().map((run) => run.propertyId));
+  const currentYear = new Date().getFullYear();
+
+  for (const property of properties) {
+    try {
+      if (pendingByProperty.has(property.id)) continue; // an undismissed alert is already waiting
+      const recipe = store.getRecipe(property.tariffRecipeId);
+      if (!recipe) {
+        model.recordRun({
+          propertyId: property.id, recipeId: property.tariffRecipeId, recipeVersion: '',
+          note: 'Recette introuvable — le calendrier ne sera plus étendu.', blocking: 1,
+        });
+        continue;
+      }
+      const targetYear = currentYear + recipe.horizonYears - 1;
+      const covered = model.coveredUntilYear(property.id);
+      if (covered !== null && covered >= targetYear) continue; // horizon fully covered → no-op
+
+      const result = model.apply(property.id, property.tariffRecipeId);
+      if (result.applied) {
+        model.recordRun({
+          propertyId: property.id, recipeId: recipe.id, recipeVersion: recipe.version,
+          generatedYear: targetYear, note: `Saisons générées jusqu'à fin ${targetYear} — à relire.`,
+        });
+        console.log(`[tariff-recipes] ${reason}: horizon étendu jusqu'à ${targetYear} pour « ${property.name} »`);
+      } else if (result.blocking) {
+        model.recordRun({
+          propertyId: property.id, recipeId: recipe.id, recipeVersion: recipe.version,
+          note: `Extension impossible : ${result.warnings.join(' ') || 'conflit'}`, blocking: 1,
+        });
+        console.warn(`[tariff-recipes] ${reason}: extension bloquée pour « ${property.name} »`);
+      }
+    } catch (err) {
+      console.error(`[tariff-recipes] pass error (« ${property.name} »):`, err && err.message ? err.message : err);
+    }
+  }
+}
+
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
   const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -338,6 +394,13 @@ function startScheduledTasks() {
   const GOOGLE_SYNC_TICK = 15 * 60 * 1000;
   setInterval(() => runGoogleSyncPass('cron').catch((err) => console.error('[google-sync] unhandled:', err)), GOOGLE_SYNC_TICK);
   setTimeout(() => runGoogleSyncPass('boot').catch((err) => console.error('[google-sync] unhandled:', err)), 130 * 1000);
+
+  // Tariff-recipe horizon: a daily check that acts at most once per missing year (idempotent no-op
+  // the rest of the time). Boot pass 140 s after start so a restart never leaves an expiring
+  // horizon waiting a full day.
+  const TARIFF_RECIPE_TICK = 24 * 60 * 60 * 1000;
+  setInterval(() => { try { runTariffRecipeHorizonPass('cron'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, TARIFF_RECIPE_TICK);
+  setTimeout(() => { try { runTariffRecipeHorizonPass('boot'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, 140 * 1000);
 }
 
 module.exports = {
@@ -345,6 +408,8 @@ module.exports = {
   performAutoSync,
   performSchoolHolidaysSync,
   shouldSyncSchoolHolidays,
+  // Tariff-recipe horizon — exposed for tests + ops trigger.
+  runTariffRecipeHorizonPass,
   // Email automation — exposed for tests + ops trigger.
   runEmailAutoSendPass,
   tickEmailAutoSend,

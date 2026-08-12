@@ -179,6 +179,7 @@ app.use('/api/push', require('./routes/push'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/devis', require('./routes/devis'));
 app.use('/api/establishment-closures', require('./routes/establishmentClosures'));
+app.use('/api/tariff-recipes', require('./routes/tariffRecipes'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/accounting', require('./routes/accounting'));
 app.use('/api/planning', require('./routes/planning'));

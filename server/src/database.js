@@ -397,6 +397,47 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   }
 }
 
+// ---------- TARIFF RECIPES (specs/tariff-recipes/) ----------
+// Every default reproduces the pre-recipe behaviour byte-for-byte: no recipe, per-stay extra guest,
+// no welcome-pack add-on, untagged seasons (never touched by an apply), unrestricted changeover,
+// net = pricePerNight for the platform grid.
+{
+  const propCols = db.prepare("PRAGMA table_info(properties)").all().map((c) => c.name);
+  const tryAddProp = (col, sql) => { if (!propCols.includes(col)) db.exec(sql); };
+  tryAddProp('tariffRecipeId', "ALTER TABLE properties ADD COLUMN tariffRecipeId TEXT DEFAULT ''");
+  tryAddProp('tariffRecipeVersion', "ALTER TABLE properties ADD COLUMN tariffRecipeVersion TEXT DEFAULT ''");
+  tryAddProp('extraGuestPriceUnit', "ALTER TABLE properties ADD COLUMN extraGuestPriceUnit TEXT DEFAULT 'per_stay'");
+  tryAddProp('welcomePackCost', 'ALTER TABLE properties ADD COLUMN welcomePackCost REAL DEFAULT 0');
+
+  const ruleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map((c) => c.name);
+  const tryAddRule = (col, sql) => { if (!ruleCols.includes(col)) db.exec(sql); };
+  tryAddRule('seasonKey', 'ALTER TABLE pricing_rules ADD COLUMN seasonKey TEXT DEFAULT NULL');
+  tryAddRule('seasonRank', 'ALTER TABLE pricing_rules ADD COLUMN seasonRank INTEGER DEFAULT NULL');
+  tryAddRule('netTargetPerNight', 'ALTER TABLE pricing_rules ADD COLUMN netTargetPerNight REAL DEFAULT NULL');
+  tryAddRule('extraGuestPrice', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestPrice REAL DEFAULT NULL');
+  tryAddRule('extraGuestNetTarget', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestNetTarget REAL DEFAULT NULL');
+  tryAddRule('changeoverArrival', 'ALTER TABLE pricing_rules ADD COLUMN changeoverArrival INTEGER DEFAULT NULL');
+  tryAddRule('changeoverDeparture', 'ALTER TABLE pricing_rules ADD COLUMN changeoverDeparture INTEGER DEFAULT NULL');
+
+  // Journal of the scheduled horizon-extension runs → Dashboard alerts (spec §5). UI applies do
+  // not write here — only the background task, so a silently generated year is always surfaced.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tariff_recipe_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      propertyId INTEGER NOT NULL,
+      recipeId TEXT NOT NULL,
+      recipeVersion TEXT NOT NULL DEFAULT '',
+      generatedYear INTEGER,
+      note TEXT NOT NULL DEFAULT '',
+      blocking INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT DEFAULT (datetime('now')),
+      dismissedAt TEXT,
+      FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId)');
+}
+
 // Single-rate VAT migration (specs/single-vat-rate.md §5). Seeds `vatRate` from the legacy
 // accommodation column ONCE (prod has 10 % there → no behavioural surprise), then DROPS the
 // two legacy columns. Idempotent: re-runs are no-ops because the legacy columns are absent

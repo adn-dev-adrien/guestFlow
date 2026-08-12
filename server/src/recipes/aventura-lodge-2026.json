@@ -1,0 +1,60 @@
+{
+  "id": "aventura-lodge-2026",
+  "version": "1.0.0",
+  "label": "Aventura Lodge — tarification tout compris 2026",
+  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus) ; dégressivité plafonnée à 30 % ; week-ends fériés montés d'un cran ; fermeture hivernale du 15 octobre au 31 mars.",
+  "horizonYears": 2,
+
+  "extraGuest": { "appliesAbove": 2, "unit": "per_night", "followsDiscount": true },
+
+  "seasons": [
+    {
+      "key": "low", "label": "Basse saison", "rank": 1, "color": "#5B8C6E",
+      "pricePerNight": 179, "netTargetPerNight": 160,
+      "pricingMode": "progressive", "extraNightRatio": 0.70,
+      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "minNights": 1, "changeover": null
+    },
+    {
+      "key": "mid", "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
+      "pricePerNight": 216, "netTargetPerNight": 195,
+      "pricingMode": "progressive", "extraNightRatio": 0.70,
+      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "minNights": 1, "changeover": null
+    },
+    {
+      "key": "high", "label": "Haute saison", "rank": 3, "color": "#C25B4E",
+      "pricePerNight": 247, "netTargetPerNight": 225,
+      "pricingMode": "progressive", "extraNightRatio": 0.70,
+      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
+      "minNights": 1, "changeover": null
+    }
+  ],
+
+  "calendar": {
+    "baseSeason": "low",
+    "periods": [
+      {
+        "id": "july-shoulder", "season": "mid",
+        "anchor": { "type": "nth_weekday_of_month", "month": 7, "weekday": 6, "occurrence": 1 },
+        "nights": 7
+      },
+      {
+        "id": "august-shoulder", "season": "mid",
+        "anchor": { "type": "last_full_week_of_month", "month": 8, "weekday": 6 },
+        "nights": 7
+      },
+      {
+        "id": "summer-core", "season": "high",
+        "anchor": { "type": "between", "after": "july-shoulder", "before": "august-shoulder" }
+      }
+    ],
+    "modifiers": [
+      { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1, "skipClosedDays": true }
+    ]
+  },
+
+  "closures": [
+    { "label": "Fermeture hivernale", "from": "10-15", "to": "03-31" }
+  ]
+}
