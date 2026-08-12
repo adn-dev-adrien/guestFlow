@@ -322,6 +322,16 @@ function validateRecipe(json) {
     if (!MONTH_DAY_RE.test(String(c.to || ''))) return fail(`${where}.to`, 'format MM-DD requis');
   }
 
+  // ── welcomePack (recipe-internal cost) ─────────────────────────────────────
+  // The cost price of what the direct channel gives away. It loads the direct displayed price so it
+  // survives the booking-engine fee, and it is never shown to a guest — hence recipe-internal
+  // rather than a property setting an operator could nudge by hand.
+  if (json.welcomePack !== undefined && json.welcomePack !== null) {
+    const wp = json.welcomePack;
+    if (typeof wp !== 'object' || Array.isArray(wp)) return fail('welcomePack', 'doit être un objet { cost }');
+    if (wp.cost !== undefined && !isFiniteNonNegative(wp.cost)) return fail('welcomePack.cost', 'nombre ≥ 0 requis');
+  }
+
   // ── extraGuest (informational + property config) ───────────────────────────
   if (json.extraGuest !== undefined && json.extraGuest !== null) {
     const eg = json.extraGuest;

@@ -45,7 +45,8 @@ Read `specs/tariff-recipes/spec.md` before a substantial change; it is the sourc
 | Seasons: key, label, rank, colour, price, net target, degressivity, min/max nights, changeover | Capacity, beds, check-in/out, deposit |
 | Calendar: base season, periods, modifiers | Options included in the rate (`property_option_defaults.offered`) |
 | Recurring closures | Free units on an option (`property_option_prices.freeUnits`) |
-| Extra-guest unit and threshold | Extra-guest price on the property, welcome-pack cost |
+| Welcome-pack COST price (`welcomePack.cost`) — a margin input, never guest-facing | Which options make up the pack |
+| Extra-guest unit and threshold | Extra-guest price on the property |
 | Horizon | Platform commissions (global, shared between properties) |
 
 A recipe never names a property. Platform commissions are global — putting them in a recipe would

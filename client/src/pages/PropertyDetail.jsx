@@ -57,7 +57,6 @@ const NEW_DEFAULTS = {
   basePriceIncludedGuests: 0,
   extraGuestPrice: 0,
   extraGuestPriceUnit: 'per_stay',
-  welcomePackCost: 0,
   singleBeds: 0, doubleBeds: 0,
   depositPercent: 30, depositDaysBefore: 30, balanceDaysBefore: 7,
   publicDepositEnabled: false,
@@ -183,7 +182,6 @@ export default function PropertyDetail() {
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
       extraGuestPrice: p.extraGuestPrice ?? 0,
       extraGuestPriceUnit: p.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
-      welcomePackCost: p.welcomePackCost ?? 0,
       singleBeds: p.singleBeds ?? 0, doubleBeds: p.doubleBeds ?? 0,
       depositPercent: p.depositPercent, depositDaysBefore: p.depositDaysBefore, balanceDaysBefore: p.balanceDaysBefore,
       publicDepositEnabled: Boolean(p.publicDepositEnabled),
@@ -893,21 +891,6 @@ export default function PropertyDetail() {
                     </Select>
                     <FormHelperText>« par nuit » suit la dégressivité de la saison</FormHelperText>
                   </FormControl>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                  <TextField
-                    label="Coût du pack accueil (direct)"
-                    type="number"
-                    value={form.welcomePackCost ?? 0}
-                    onChange={(e) => updateField('welcomePackCost', e.target.value)}
-                    onFocus={handleZeroFocus}
-                    fullWidth
-                    size="small"
-                    helperText="Couvert par le prix direct affiché (grille plateformes)"
-                    slotProps={{
-                      htmlInput: { min: 0, step: 0.01 }
-                    }}
-                  />
                 </Box>
               </Box>
             </CardContent>

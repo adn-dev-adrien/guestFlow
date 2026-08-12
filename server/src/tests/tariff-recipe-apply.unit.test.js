@@ -217,3 +217,30 @@ test('coveredUntilYear reads the recipe-owned horizon', () => {
   assert.equal(model.coveredUntilYear(1), new Date().getFullYear() + 1);
   db.close();
 });
+
+test('the welcome-pack cost is written by the recipe, not by the property form', () => {
+  // It is a MARGIN input for the channel grid — the direct displayed price must still cover the pack
+  // after the booking-engine fee — and never a guest-facing amount. Keeping it in the property
+  // settings invited an operator to nudge a number whose only consumer is the recipe's own grid.
+  const db = createDb();
+  const recipe = { ...RECIPE, welcomePack: { cost: 9.32 } };
+  const model = createTariffRecipeModel(db, { getRecipe: (id) => (id === recipe.id ? recipe : null) });
+
+  assert.equal(db.prepare('SELECT welcomePackCost FROM properties WHERE id = 1').get().welcomePackCost, 0);
+  model.apply(1, recipe.id);
+  assert.equal(db.prepare('SELECT welcomePackCost FROM properties WHERE id = 1').get().welcomePackCost, 9.32);
+  db.close();
+});
+
+test('a recipe declaring no welcome pack clears the cost — it never lingers from a previous recipe', () => {
+  const db = createDb();
+  const withPack = { ...RECIPE, welcomePack: { cost: 9.32 } };
+  createTariffRecipeModel(db, { getRecipe: () => withPack }).apply(1, withPack.id);
+  assert.equal(db.prepare('SELECT welcomePackCost FROM properties WHERE id = 1').get().welcomePackCost, 9.32);
+
+  const withoutPack = { ...RECIPE };
+  delete withoutPack.welcomePack;
+  createTariffRecipeModel(db, { getRecipe: () => withoutPack }).apply(1, withoutPack.id);
+  assert.equal(db.prepare('SELECT welcomePackCost FROM properties WHERE id = 1').get().welcomePackCost, 0);
+  db.close();
+});

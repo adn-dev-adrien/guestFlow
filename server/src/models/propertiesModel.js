@@ -708,6 +708,15 @@ function createPropertiesModel(database) {
       return { data: { ok: true } };
     },
 
+    // specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 — the welcome-pack cost price is owned
+    // by the RECIPE, not by the property form: it is a margin input for the channel grid, never a
+    // guest-facing amount. Written only by the recipe apply, exactly like the recipe pointer.
+    setWelcomePackCost(propertyId, cost) {
+      database.prepare("UPDATE properties SET welcomePackCost = ?, updatedAt = datetime('now') WHERE id = ?")
+        .run(Math.max(0, Number(cost) || 0), Number(propertyId));
+      return { data: { ok: true } };
+    },
+
     deletePricingRule(propertyId, ruleId) {
       database.prepare('DELETE FROM pricing_rules WHERE id = ? AND propertyId = ?').run(ruleId, propertyId);
       return { data: { ok: true } };
