@@ -1,11 +1,23 @@
 {
   "id": "aventura-lodge-2026",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "label": "Aventura Lodge — tarification tout compris 2026",
   "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus, hors taxe de séjour) ; dégressivité du §6 du document (24/33/38/41/43/45 %) ; week-ends fériés montés d'un cran avec minimum de séjour ; fermeture hivernale du 15 octobre au 31 mars.",
   "horizonYears": 2,
 
-  "extraGuest": { "appliesAbove": 2, "unit": "per_night", "followsDiscount": true },
+  "_comment_extraGuest": "15 € la 1re nuit puis 8 €/nuit, par personne au-delà de 2. Les paliers SONT la dégressivité : followsDiscount est donc interdit avec eux (la 2e nuit serait facturée 8 × 0,52 = 4,16 €). Tarif plat sur les trois saisons, comme l'ancien 27 € qu'il remplace. netTiers = la cible nette pour la grille plateformes.",
+  "extraGuest": {
+    "appliesAbove": 2,
+    "unit": "per_night",
+    "perNightTiers": [
+      { "fromNight": 1, "price": 15 },
+      { "fromNight": 2, "price": 8 }
+    ],
+    "netTiers": [
+      { "fromNight": 1, "price": 14 },
+      { "fromNight": 2, "price": 7 }
+    ]
+  },
 
   "_comment_lengthOfStayDiscounts": "Tableau §6 du document tarifaire, repris tel quel. Un seul jeu de pourcentages pour les trois saisons. Au-delà de 7 nuits le prix de la 7e nuit se prolonge : le « 45 % et plus » littéral rendrait la 8e nuit plus chère que la 7e.",
   "lengthOfStayDiscounts": [
@@ -22,21 +34,18 @@
       "key": "low", "label": "Basse saison", "rank": 1, "color": "#5B8C6E",
       "pricePerNight": 179, "netTargetPerNight": 160,
       "pricingMode": "progressive",
-      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "maxNights": 7, "changeover": null
     },
     {
       "key": "mid", "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195,
       "pricingMode": "progressive",
-      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "maxNights": 7, "changeover": null
     },
     {
       "key": "high", "label": "Haute saison", "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225,
       "pricingMode": "progressive",
-      "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "maxNights": 7, "changeover": null
     }
   ],
@@ -61,6 +70,21 @@
     ],
     "modifiers": [
       { "type": "public_holiday_bridge", "effect": "raise_rank", "amount": 1, "skipClosedDays": true, "minNights": "block" }
+    ],
+
+    "_comment_events": "Dates NON dérivables : l'Ardéchoise finissait le 4e samedi de juin, puis le 3e, puis le 2e — trois éditions récentes ne font pas une règle, et l'organisateur n'annonce l'édition suivante qu'à l'ouverture des inscriptions, en décembre. Elles sont donc déclarées année par année ; une année absente est signalée (fiche logement + Dashboard) et surveillée, jamais devinée. Nuits = veille du 1er jour de course → dernier soir.",
+    "events": [
+      {
+        "key": "ardechoise",
+        "label": "L'Ardéchoise",
+        "season": "high",
+        "minNights": 1,
+        "sourceUrl": "https://www.ardechoise.com/",
+        "dates": {
+          "2026": { "from": "2026-06-08", "to": "2026-06-13" },
+          "2027": { "from": "2027-06-07", "to": "2027-06-12" }
+        }
+      }
     ]
   },
 

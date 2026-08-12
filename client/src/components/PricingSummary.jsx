@@ -124,8 +124,14 @@ export default function PricingSummary({
   const extraGuestUnitPrice = Number(quote?.extraGuestUnitPrice || 0);
   const extraGuestSurchargeOriginal = Number(quote?.extraGuestSurchargeOriginal || 0);
   const extraGuestSurchargeOffered = Boolean(quote?.extraGuestSurchargeOffered ?? form.extraGuestSurchargeOffered);
-  const hasExtraGuestSurcharge = extraGuestCount > 0 && extraGuestUnitPrice > 0 && extraGuestSurchargeOriginal > 0;
+  // A tiered supplement can be billed while the property's single `extraGuestPrice` is 0 — the
+  // amount, not the unit price, is what proves there is something to show.
+  const hasExtraGuestSurcharge = extraGuestCount > 0 && extraGuestSurchargeOriginal > 0
+    && (extraGuestUnitPrice > 0 || Boolean(quote?.extraGuestTiersLabel));
   const extraGuestPerNight = quote?.extraGuestPriceUnit === 'per_night';
+  // Tiered supplement: the server phrases the rule (« 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit »)
+  // because no single unit price describes it (specs/tariff-events-and-extra-guest-tiers §3.1).
+  const extraGuestTiersLabel = quote?.extraGuestTiersLabel || null;
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
@@ -261,10 +267,16 @@ export default function PricingSummary({
                     Surcoût voyageurs
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
-                    {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
-                        nights count (Σ of the discount ratios is applied to the amount, not shown). */}
-                    {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
+                    {extraGuestTiersLabel ? (
+                      `${extraGuestCount} pers. au-delà de ${includedGuests} incluses — ${extraGuestTiersLabel}`
+                    ) : (
+                      <>
+                        {extraGuestCount} pers. au-delà de {includedGuests} incluses × {formatCurrency(extraGuestUnitPrice)}
+                        {/* specs/tariff-recipes/spec.md §3.6 — per-night unit: the server sends the
+                            nights count (Σ of the discount ratios is applied to the amount, not shown). */}
+                        {extraGuestPerNight ? `/nuit × ${nights} nuit${nights > 1 ? 's' : ''}` : ''}
+                      </>
+                    )}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

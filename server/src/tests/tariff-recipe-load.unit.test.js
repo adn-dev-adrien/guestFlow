@@ -176,3 +176,106 @@ test('validateRecipe expands extraNightRatio into the single night-2 tier', () =
   assert.equal(out.valid, true);
   assert.deepEqual(out.recipe.seasons[0].progressiveTiers, [{ nightNumber: 2, extraNightPrice: 125.30 }]);
 });
+
+// ── Extra-guest tiers + events (specs/tariff-events-and-extra-guest-tiers §3.1, §3.2) ──
+
+const withExtraGuest = (extraGuest) => validateRecipe({ ...MINIMAL, extraGuest });
+const withEvents = (events) => validateRecipe({
+  ...MINIMAL, calendar: { ...MINIMAL.calendar, events },
+});
+const ARDECHOISE = {
+  key: 'ardechoise', label: "L'Ardéchoise", season: 'high', minNights: 1,
+  dates: { 2026: { from: '2026-06-08', to: '2026-06-13' } },
+};
+
+test('a valid tier table is accepted and surfaced', () => {
+  const out = withExtraGuest({
+    appliesAbove: 2, unit: 'per_night',
+    perNightTiers: [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }],
+    netTiers: [{ fromNight: 1, price: 14 }, { fromNight: 2, price: 7 }],
+  });
+  assert.equal(out.valid, true);
+  assert.equal(out.recipe.extraGuest.perNightTiers.length, 2);
+});
+
+test('tiers + followsDiscount is REFUSED — it would halve the second night', () => {
+  const out = withExtraGuest({
+    unit: 'per_night', followsDiscount: true,
+    perNightTiers: [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }],
+  });
+  assert.equal(out.valid, false);
+  assert.ok(out.error.includes('4,16'), 'the error states the amount that would have been billed');
+});
+
+test('a tier table must start at night 1', () => {
+  const out = withExtraGuest({ perNightTiers: [{ fromNight: 2, price: 8 }] });
+  assert.equal(out.valid, false);
+  assert.ok(out.error.includes('nuit 1'));
+});
+
+test('tier nights must strictly increase', () => {
+  const out = withExtraGuest({ perNightTiers: [{ fromNight: 1, price: 15 }, { fromNight: 1, price: 8 }] });
+  assert.equal(out.valid, false);
+});
+
+test('a negative tier price is refused', () => {
+  const out = withExtraGuest({ perNightTiers: [{ fromNight: 1, price: -1 }] });
+  assert.equal(out.valid, false);
+});
+
+test('an empty tier table is refused rather than treated as "no tiers"', () => {
+  assert.equal(withExtraGuest({ perNightTiers: [] }).valid, false);
+});
+
+test('netTiers alone is refused — it would gross up a price nobody is billed', () => {
+  const out = withExtraGuest({ netTiers: [{ fromNight: 1, price: 14 }] });
+  assert.equal(out.valid, false);
+});
+
+test('a recipe with no extraGuest at all stays valid', () => {
+  assert.equal(validateRecipe(MINIMAL).valid, true);
+});
+
+test('a valid event is accepted', () => {
+  const out = withEvents([ARDECHOISE]);
+  assert.equal(out.valid, true);
+  assert.equal(out.recipe.calendar.events[0].key, 'ardechoise');
+});
+
+test('an event on an undeclared season is refused', () => {
+  const out = withEvents([{ ...ARDECHOISE, season: 'nope' }]);
+  assert.equal(out.valid, false);
+  assert.ok(out.error.includes('saison'));
+});
+
+test('a duplicate event key is refused', () => {
+  assert.equal(withEvents([ARDECHOISE, ARDECHOISE]).valid, false);
+});
+
+test('a date outside its own year key is refused — the typo that mis-prices a week', () => {
+  const out = withEvents([{ ...ARDECHOISE, dates: { 2027: { from: '2026-06-08', to: '2026-06-13' } } }]);
+  assert.equal(out.valid, false);
+  assert.ok(out.error.includes('2027'));
+});
+
+test('an inverted window is refused', () => {
+  const out = withEvents([{ ...ARDECHOISE, dates: { 2026: { from: '2026-06-13', to: '2026-06-08' } } }]);
+  assert.equal(out.valid, false);
+});
+
+test('a malformed date is refused', () => {
+  assert.equal(withEvents([{ ...ARDECHOISE, dates: { 2026: { from: '08/06/2026', to: '2026-06-13' } } }]).valid, false);
+});
+
+test('a non-year key is refused', () => {
+  assert.equal(withEvents([{ ...ARDECHOISE, dates: { juin: { from: '2026-06-08', to: '2026-06-13' } } }]).valid, false);
+});
+
+test('an event with no dates yet is valid — the gap is reported, not rejected', () => {
+  const { dates, ...noDates } = ARDECHOISE;
+  assert.equal(withEvents([noDates]).valid, true);
+});
+
+test('an event maxNights below its minNights is refused', () => {
+  assert.equal(withEvents([{ ...ARDECHOISE, minNights: 3, maxNights: 2 }]).valid, false);
+});

@@ -137,3 +137,58 @@ test('a vanished recipe offers a detach', async () => {
   await waitFor(() => expect(api.detachTariffRecipe).toHaveBeenCalledWith(1));
   await waitFor(() => expect(onApplied).toHaveBeenCalled());
 });
+
+// specs/tariff-events-and-extra-guest-tiers/spec.md §3.1 + §3.3 — the tiered supplement and the
+// recurring events, both stated in the particularities panel.
+
+const TIERED_RECIPE = {
+  id: 'aventura-lodge-2026', horizonYears: 2,
+  lengthOfStayDiscounts: [{ nights: 2, discountPct: 24 }],
+  extraGuest: {
+    appliesAbove: 2,
+    unit: 'per_night',
+    perNightTiers: [{ fromNight: 1, price: 15 }, { fromNight: 2, price: 8 }],
+  },
+  seasons: [
+    { key: 'low', label: 'Basse saison', pricePerNight: 179, minNights: 1, maxNights: 7, changeover: null },
+    { key: 'high', label: 'Haute saison', pricePerNight: 247, minNights: 1, maxNights: 7, changeover: null },
+  ],
+  calendar: {
+    modifiers: [],
+    events: [{
+      key: 'ardechoise', label: "L'Ardéchoise", season: 'high', minNights: 1,
+      sourceUrl: 'https://www.ardechoise.com/',
+      dates: { 2026: { from: '2026-06-08', to: '2026-06-13' } },
+    }],
+  },
+  closures: [],
+};
+
+test('the tier table is stated instead of a single price, and the discount curve is not claimed', async () => {
+  api.getTariffRecipes.mockResolvedValue(RECIPES);
+  api.getTariffRecipe.mockResolvedValue({ recipe: TIERED_RECIPE, missingEvents: [] });
+  render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.1.0" />);
+  expect(await screen.findByText(/15 € la 1ʳᵉ nuit, puis 8 €\/nuit/)).toBeInTheDocument();
+  // The tiers ARE the degressivity — claiming the night curve on top would describe a halving.
+  expect(screen.queryByText(/soumise à la même dégressivité/)).not.toBeInTheDocument();
+});
+
+test('the event lists its known dates with a link to the source', async () => {
+  api.getTariffRecipes.mockResolvedValue(RECIPES);
+  api.getTariffRecipe.mockResolvedValue({ recipe: TIERED_RECIPE, missingEvents: [] });
+  render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.1.0" />);
+  expect(await screen.findByText(/8 juin 2026→13 juin 2026/)).toBeInTheDocument();
+  expect(screen.getByText(/haute saison, 1 nuit minimum/)).toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: '(voir le site)' })[0])
+    .toHaveAttribute('href', 'https://www.ardechoise.com/');
+});
+
+test('a year with unknown dates is flagged, not hidden', async () => {
+  api.getTariffRecipes.mockResolvedValue(RECIPES);
+  api.getTariffRecipe.mockResolvedValue({
+    recipe: TIERED_RECIPE,
+    missingEvents: [{ key: 'ardechoise', label: "L'Ardéchoise", year: 2027, sourceUrl: 'https://www.ardechoise.com/' }],
+  });
+  render(<TariffRecipeCard propertyId={1} activeRecipeId="aventura-lodge-2026" appliedVersion="1.1.0" />);
+  expect(await screen.findByText(/dates 2027 pas encore connues/)).toBeInTheDocument();
+});

@@ -5,6 +5,7 @@
 const db = require('../database');
 const { getDefaultStore } = require('../utils/tariffRecipe');
 const { getDefaultModel } = require('../models/tariffRecipeModel');
+const { missingEventYears } = require('../utils/seasonPlan');
 
 function list(req, res) {
   const store = getDefaultStore();
@@ -23,7 +24,12 @@ function list(req, res) {
 function getOne(req, res) {
   const recipe = getDefaultStore().getRecipe(req.params.id);
   if (!recipe) return res.status(404).json({ error: 'Recette introuvable' });
-  return res.json({ recipe, meta: getDefaultStore().getRecipeMeta(req.params.id) });
+  // The years of the horizon whose event dates are still unknown
+  // (specs/tariff-events-and-extra-guest-tiers/spec.md §3.3 rules 16-17). Computed here rather than
+  // in the client so the property card and the Dashboard alert cannot disagree about what is missing.
+  const fromYear = new Date().getFullYear();
+  const missingEvents = missingEventYears(recipe, fromYear, fromYear + (recipe.horizonYears || 2) - 1);
+  return res.json({ recipe, meta: getDefaultStore().getRecipeMeta(req.params.id), missingEvents });
 }
 
 function previewForProperty(req, res) {

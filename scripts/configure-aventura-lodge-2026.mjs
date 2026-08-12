@@ -53,7 +53,10 @@ const PROPERTY_FIELDS = {
   singleBeds: 3,
   doubleBeds: 1,
   basePriceIncludedGuests: 2,
-  extraGuestPrice: 27,
+  // Fallback only: the recipe writes the 15/8 tier table onto every season, and the tiers win.
+  // 15 € — the first-night price — is what a night not covered by any season would charge, which is
+  // the conservative direction for a state that already means « the calendar has a hole ».
+  extraGuestPrice: 15,
   extraGuestPriceUnit: 'per_night',
   welcomePackCost: 9.32,
   defaultCheckIn: '16:00',
@@ -225,7 +228,13 @@ function main() {
   for (const season of diff.seasons) {
     if (season.action === 'unchanged') { log(`    ${season.label} : inchangée`); continue; }
     log(`    ${season.label} : ${season.action}${season.adopted ? ' (saison manuelle adoptée)' : ''}`);
-    season.fieldChanges.forEach((c) => log(`        ${c.field} : ${c.from ?? '—'} → ${c.to ?? '—'}`));
+    // Some fields hold arrays (the extra-guest tier table); `${[]}` renders them as
+    // « [object Object] », which tells the operator nothing about what is being written.
+    const show = (v) => {
+      if (v === null || v === undefined || v === '') return '—';
+      return Array.isArray(v) ? JSON.stringify(v) : String(v);
+    };
+    season.fieldChanges.forEach((c) => log(`        ${c.field} : ${show(c.from)} → ${show(c.to)}`));
     season.rangesAdded.forEach((r) => log(`        + ${r.startDate} → ${r.endDate}`));
     season.rangesRemoved.forEach((r) => log(`        − ${r.startDate} → ${r.endDate}`));
   }

@@ -159,7 +159,10 @@ function isClosed(dateIso, closureRows) {
 
 // ── The plan ─────────────────────────────────────────────────────────────────
 
-const OVERRIDE_KEYS = ['minNights', 'changeoverArrival', 'changeoverDeparture'];
+// `eventKey` rides along so an event's nights form their OWN range instead of merging into the
+// neighbouring high-season one — that separation is what lets the seasons table name the event
+// (spec §3.3 rule 15bis). `eventLabel` follows it for display and never affects the signature.
+const OVERRIDE_KEYS = ['minNights', 'changeoverArrival', 'changeoverDeparture', 'eventKey'];
 
 function overrideOfPeriod(period) {
   const override = {};
@@ -235,6 +238,27 @@ function buildYearPlan(recipe, year, closureRows = []) {
     }
   }
 
+  // 3bis. Events (spec/tariff-events-and-extra-guest-tiers §3.2 rules 8-13). Declared per year, not
+  //    derived — L'Ardéchoise has no calendar rule to derive from. Applied AFTER the holiday raise
+  //    ON PURPOSE: it is the only place in the model where a minimum stay goes DOWN, so « 1 night
+  //    allowed » holds even on a week a public-holiday bridge would otherwise lock to 3 nights.
+  for (const event of recipe.calendar.events || []) {
+    const window = event.dates ? event.dates[String(year)] : null;
+    // Rule 12: a year with no declared dates is not invented. Those nights keep what the base
+    // season and the periods gave them, and the gap is reported by `missingEventYears`.
+    if (!window || !window.from || !window.to) continue;
+    const override = { eventKey: event.key, eventLabel: event.label };
+    if (Number.isInteger(event.minNights) && event.minNights >= 1) override.minNights = event.minNights;
+    if (Number.isInteger(event.maxNights) && event.maxNights >= 1) override.maxNights = event.maxNights;
+    const fromIndex = indexOf(parseIso(window.from));
+    const toIndex = indexOf(parseIso(window.to));
+    for (let t = Math.max(0, fromIndex); t <= Math.min(dayCount - 1, toIndex); t += 1) {
+      // Rule 13: an event never reopens a closure.
+      if (isClosed(iso(addDays(start, t)), closureRows)) continue;
+      days[t] = { season: event.season, override };
+    }
+  }
+
   // 4. Runs → ranges (rule 19).
   const plan = Object.fromEntries(recipe.seasons.map((s) => [s.key, []]));
   let runStart = 0;
@@ -267,4 +291,29 @@ function buildHorizonPlan(recipe, fromYear, closureRows = []) {
   return plan;
 }
 
-module.exports = { buildYearPlan, buildHorizonPlan, materializeClosures };
+/**
+ * Every (event, year) pair in [fromYear, toYear] with no declared dates — spec §3.3 rules 16-17.
+ * Pure derivation over the recipe, so the property card, the recipe endpoint and the Dashboard
+ * alert all read the same answer and cannot disagree about what is missing.
+ *
+ * This is the safety net behind the scheduled watch (rule 17bis): the schedule finds the dates
+ * early, this catches the year it did not.
+ */
+function missingEventYears(recipe, fromYear, toYear) {
+  const events = (recipe && recipe.calendar && recipe.calendar.events) || [];
+  const out = [];
+  for (const event of events) {
+    for (let year = fromYear; year <= toYear; year += 1) {
+      const window = event.dates ? event.dates[String(year)] : null;
+      if (window && window.from && window.to) continue;
+      out.push({
+        key: event.key, label: event.label, year, sourceUrl: event.sourceUrl || null,
+      });
+    }
+  }
+  return out;
+}
+
+module.exports = {
+  buildYearPlan, buildHorizonPlan, materializeClosures, missingEventYears,
+};

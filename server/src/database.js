@@ -419,6 +419,10 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
   tryAddRule('maxNights', 'ALTER TABLE pricing_rules ADD COLUMN maxNights INTEGER DEFAULT NULL');
   tryAddRule('changeoverArrival', 'ALTER TABLE pricing_rules ADD COLUMN changeoverArrival INTEGER DEFAULT NULL');
   tryAddRule('changeoverDeparture', 'ALTER TABLE pricing_rules ADD COLUMN changeoverDeparture INTEGER DEFAULT NULL');
+  // specs/tariff-events-and-extra-guest-tiers/spec.md §5 — the extra-guest supplement as a per-night
+  // tier table, JSON, mirroring `progressiveTiers`. NULL = the single `extraGuestPrice` applies,
+  // which is what every existing row has: the migration cannot move a price.
+  tryAddRule('extraGuestTiers', 'ALTER TABLE pricing_rules ADD COLUMN extraGuestTiers TEXT DEFAULT NULL');
 
   // specs/tariff-recipes/spec.md §3.9 rule 52bis — the first N units of an option can be included in
   // the rate (the direct welcome pack's two breakfasts). 0 = nothing free, today's behaviour.

@@ -71,6 +71,14 @@ export default function PlatformPriceCard({ propertyId, refreshKey, onError }) {
   // The extra-guest price is per channel; when the seasons disagree (distinct per-season net
   // targets), every distinct value is shown — purely presentational, the values come computed.
   const extraGuestCell = (platformId) => {
+    // A tiered supplement (« 17 € puis 9 € ») wins over the single price: showing one number no
+    // night actually costs would be worse than showing none
+    // (specs/tariff-events-and-extra-guest-tiers §3.1 rule 6).
+    const tiered = [...new Set(seasons
+      .map((s) => s.extraGuestTiersByPlatform?.[platformId])
+      .filter(Boolean)
+      .map((tiers) => tiers.map((t, i) => (i === 0 ? `${t.price} €` : `puis ${t.price} €`)).join(' ')))];
+    if (tiered.length) return tiered.join(' / ');
     const values = [...new Set(seasons.map((s) => s.extraGuestByPlatform?.[platformId]).filter((v) => v != null))];
     if (values.length === 0) return '—';
     return values.map((v) => `${v} €`).join(' / ');
