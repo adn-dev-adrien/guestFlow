@@ -42,6 +42,9 @@ const api = {
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
   getOrphanClientsPreview: () => request('/clients/cleanup-orphans/preview'),
   cleanupOrphanClientsByIds: (ids) => request('/clients/cleanup-orphans/delete', { method: 'POST', body: { ids } }),
+  // Server-side cleanup of a dropped/typed raw string → clean field values
+  // (specs/client-contact-smart-input.md). Send any of { address, email, phone }.
+  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload }),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
   deleteClient: (id, options = {}) => {

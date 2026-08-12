@@ -7,6 +7,15 @@
  */
 
 const { validateClientPayload } = require('../utils/clientValidation');
+const { parseAddressBlock, extractEmail, extractPhone } = require('../utils/contactParsing');
+
+// When a drop holds nothing recognizable, the raw text is echoed back rather than swallowed: the user
+// sees what they dropped and the field's format validation flags it (spec §3 rules 8 and 11).
+const CONTACT_PARSERS = {
+  address: parseAddressBlock,
+  email: (raw) => extractEmail(raw) || String(raw || '').trim(),
+  phone: (raw) => extractPhone(raw) || String(raw || '').trim(),
+};
 
 function createController(model) {
   function list(req, res) {
@@ -61,6 +70,18 @@ function createController(model) {
     return res.json({ ok: true });
   }
 
+  // POST /clients/parse-contact — stateless: turns a dropped/typed raw string into clean field values
+  // (specs/client-contact-smart-input.md). Only the requested keys come back.
+  function parseContact(req, res) {
+    const body = req.body || {};
+    const requested = Object.keys(CONTACT_PARSERS).filter((key) => typeof body[key] === 'string');
+    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+
+    const parsed = {};
+    for (const key of requested) parsed[key] = CONTACT_PARSERS[key](body[key]);
+    return res.json(parsed);
+  }
+
   function cleanupOrphans(req, res) {
     return res.json({ ok: true, ...model.cleanupOrphans() });
   }
@@ -81,7 +102,7 @@ function createController(model) {
   }
 
   return {
-    list, getOne, getDeleteImpact, create, update, remove,
+    list, getOne, getDeleteImpact, create, update, remove, parseContact,
     cleanupOrphans, cleanupOrphansPreview, cleanupOrphansDelete,
   };
 }

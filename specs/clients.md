@@ -178,6 +178,10 @@ drop is irreversible.
 
 - **Client form (`ClientFormFields`):** a single **Téléphone** field replaces the multi-number list
   (no "+ ajouter un numéro" / remove buttons). Same email/address/notes fields. French copy unchanged.
+  _(2026-08-12, `specs/client-contact-smart-input.md`: the `readOnly` **Adresse complète** field is
+  replaced by an editable **Adresse (saisie libre)** block placed under Nom / Prénom — the server splits
+  it into the four address columns — and Email / Téléphone accept a dragged `mailto:` / `tel:` link,
+  cleaned server-side.)_
 - **Clients list:** shows the single phone (already the case for the main number).
 - **Delete confirmation dialog:** now lists impacted **reservations** _and_ **devis** (counts + rows),
   server-sorted, reservations showing `nights`; force-delete copy reflects that both are removed.
