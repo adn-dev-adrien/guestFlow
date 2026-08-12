@@ -2,30 +2,40 @@
   "id": "aventura-lodge-2026",
   "version": "1.0.0",
   "label": "Aventura Lodge — tarification tout compris 2026",
-  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus) ; dégressivité atteignant 45 % à 7 nuits ; week-ends fériés montés d'un cran ; fermeture hivernale du 15 octobre au 31 mars.",
+  "description": "Cible nette remontée par la commission du canal ; prix tout compris (linge + ménage inclus) ; dégressivité du §6 du document (24/33/38/41/43/45 %) ; week-ends fériés montés d'un cran avec minimum de séjour ; fermeture hivernale du 15 octobre au 31 mars.",
   "horizonYears": 2,
 
   "extraGuest": { "appliesAbove": 2, "unit": "per_night", "followsDiscount": true },
+
+  "_comment_lengthOfStayDiscounts": "Tableau §6 du document tarifaire, repris tel quel. Un seul jeu de pourcentages pour les trois saisons. Au-delà de 7 nuits le prix de la 7e nuit se prolonge : le « 45 % et plus » littéral rendrait la 8e nuit plus chère que la 7e.",
+  "lengthOfStayDiscounts": [
+    { "nights": 2, "discountPct": 24 },
+    { "nights": 3, "discountPct": 33 },
+    { "nights": 4, "discountPct": 38 },
+    { "nights": 5, "discountPct": 41 },
+    { "nights": 6, "discountPct": 43 },
+    { "nights": 7, "discountPct": 45 }
+  ],
 
   "seasons": [
     {
       "key": "low", "label": "Basse saison", "rank": 1, "color": "#5B8C6E",
       "pricePerNight": 179, "netTargetPerNight": 160,
-      "pricingMode": "progressive", "extraNightRatio": 0.475,
+      "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null
     },
     {
       "key": "mid", "label": "Moyenne saison", "rank": 2, "color": "#D9A441",
       "pricePerNight": 216, "netTargetPerNight": 195,
-      "pricingMode": "progressive", "extraNightRatio": 0.475,
+      "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null
     },
     {
       "key": "high", "label": "Haute saison", "rank": 3, "color": "#C25B4E",
       "pricePerNight": 247, "netTargetPerNight": 225,
-      "pricingMode": "progressive", "extraNightRatio": 0.475,
+      "pricingMode": "progressive",
       "extraGuestPrice": 27, "extraGuestNetTarget": 25,
       "minNights": 1, "changeover": null
     }

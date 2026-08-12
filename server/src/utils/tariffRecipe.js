@@ -38,6 +38,58 @@ function isWeekday(v) {
   return Number.isInteger(v) && v >= 0 && v <= 6;
 }
 
+/**
+ * The source document expresses degressivity as a CUMULATIVE discount table ("3 nuits → −33 %"),
+ * while the engine bills marginal night prices. This converts one into the other: each night's
+ * marginal price is the difference between two cumulative totals, both rounded to the cent, so the
+ * totals the operator reads in the document are reproduced exactly.
+ *
+ * Nights past the last declared one are left to the engine's carry-forward (the last tier repeats),
+ * which keeps a further night from ever costing more than the one before it — the literal reading of
+ * a flat "7 nights and beyond" would make night 8 dearer than night 7.
+ */
+function tiersFromDiscountTable(pricePerNight, table) {
+  const base = Number(pricePerNight);
+  const round2 = (v) => Math.round(v * 100) / 100;
+  const totalAt = (nights, discountPct) => round2(base * nights * (1 - Number(discountPct) / 100));
+  const sorted = [...table].sort((a, b) => a.nights - b.nights);
+  const byNight = new Map(sorted.map((row) => [Number(row.nights), Number(row.discountPct)]));
+  const maxNight = sorted[sorted.length - 1].nights;
+
+  const tiers = [];
+  let previousTotal = base; // night 1 is always the full rate
+  for (let night = 2; night <= maxNight; night += 1) {
+    // A night absent from the table keeps the previous night's cumulative discount.
+    const discountPct = byNight.has(night)
+      ? byNight.get(night)
+      : [...byNight.entries()].filter(([n]) => n < night).map(([, d]) => d).pop() || 0;
+    const total = totalAt(night, discountPct);
+    tiers.push({ nightNumber: night, extraNightPrice: round2(total - previousTotal) });
+    previousTotal = total;
+  }
+  return tiers;
+}
+
+function validateDiscountTable(table, where) {
+  if (!Array.isArray(table) || table.length === 0) return fail(where, 'doit être un tableau non vide');
+  let previousNights = 1;
+  let previousDiscount = 0;
+  for (let i = 0; i < table.length; i += 1) {
+    const row = table[i];
+    const rowWhere = `${where}[${i}]`;
+    if (!row || typeof row !== 'object') return fail(rowWhere, 'doit être un objet { nights, discountPct }');
+    if (!Number.isInteger(row.nights) || row.nights < 2) return fail(`${rowWhere}.nights`, 'entier ≥ 2');
+    if (row.nights <= previousNights) return fail(`${rowWhere}.nights`, 'les nuits doivent être strictement croissantes');
+    const pct = Number(row.discountPct);
+    if (!Number.isFinite(pct) || pct < 0 || pct >= 100) return fail(`${rowWhere}.discountPct`, 'nombre dans [0, 100[');
+    // A longer stay is never LESS discounted — that would make a further night cost more.
+    if (pct < previousDiscount) return fail(`${rowWhere}.discountPct`, `ne peut pas être inférieur à ${previousDiscount} % (séjour plus long)`);
+    previousNights = row.nights;
+    previousDiscount = pct;
+  }
+  return null;
+}
+
 function validateChangeover(value, where) {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'object' || Array.isArray(value)) return fail(where, 'doit être null ou un objet { arrival, departure }');
@@ -62,6 +114,13 @@ function validateRecipe(json) {
   if (!json.label || typeof json.label !== 'string') return fail('label', 'requis');
   const horizonYears = json.horizonYears === undefined ? 2 : json.horizonYears;
   if (!Number.isInteger(horizonYears) || horizonYears < 1 || horizonYears > 5) return fail('horizonYears', 'entier 1-5');
+
+  // Recipe-level degressivity table, shared by every progressive season (the source document states
+  // one set of percentages for all three seasons). A season may declare its own.
+  if (json.lengthOfStayDiscounts !== undefined) {
+    const err = validateDiscountTable(json.lengthOfStayDiscounts, 'lengthOfStayDiscounts');
+    if (err) return err;
+  }
 
   // ── seasons ────────────────────────────────────────────────────────────────
   if (!Array.isArray(json.seasons) || json.seasons.length === 0) return fail('seasons', 'au moins une saison');
@@ -93,24 +152,35 @@ function validateRecipe(json) {
     const chErr = validateChangeover(s.changeover, `${where}.changeover`);
     if (chErr) return chErr;
 
+    // Three mutually exclusive ways to declare the curve, all resolved here into the marginal tiers
+    // the engine bills: a cumulative discount TABLE (the source-document form), a flat RATIO for
+    // every night after the first, or explicit tiers.
+    const seasonTable = s.lengthOfStayDiscounts !== undefined ? s.lengthOfStayDiscounts : json.lengthOfStayDiscounts;
+    if (s.lengthOfStayDiscounts !== undefined) {
+      const err = validateDiscountTable(s.lengthOfStayDiscounts, `${where}.lengthOfStayDiscounts`);
+      if (err) return err;
+    }
+    const hasTable = seasonTable !== undefined;
     const hasRatio = s.extraNightRatio !== undefined && s.extraNightRatio !== null;
     const hasTiers = Array.isArray(s.progressiveTiers) && s.progressiveTiers.length > 0;
-    if (hasRatio && hasTiers) return fail(`${where}`, 'extraNightRatio et progressiveTiers sont mutuellement exclusifs');
+    if ([hasTable && s.lengthOfStayDiscounts !== undefined, hasRatio, hasTiers].filter(Boolean).length > 1) {
+      return fail(`${where}`, 'lengthOfStayDiscounts, extraNightRatio et progressiveTiers sont mutuellement exclusifs');
+    }
     if (hasRatio && mode !== 'progressive') return fail(`${where}.extraNightRatio`, 'réservé au mode progressive');
     if (hasRatio && !(Number(s.extraNightRatio) > 0 && Number(s.extraNightRatio) <= 1)) {
       return fail(`${where}.extraNightRatio`, 'doit être dans (0, 1]');
     }
     let progressiveTiers = [];
     if (mode === 'progressive') {
-      progressiveTiers = hasRatio
-        // The single night-2 tier the engine's carry-forward extends to every later night.
-        ? [{ nightNumber: 2, extraNightPrice: Math.round(Number(s.pricePerNight) * Number(s.extraNightRatio) * 100) / 100 }]
-        : (Array.isArray(s.progressiveTiers) ? s.progressiveTiers : []);
+      if (hasTiers) progressiveTiers = s.progressiveTiers;
+      // The single night-2 tier the engine's carry-forward extends to every later night.
+      else if (hasRatio) progressiveTiers = [{ nightNumber: 2, extraNightPrice: Math.round(Number(s.pricePerNight) * Number(s.extraNightRatio) * 100) / 100 }];
+      else if (hasTable) progressiveTiers = tiersFromDiscountTable(s.pricePerNight, seasonTable);
     }
-    // The ratio sugar is consumed here — dropped from the resolved season so a resolved recipe
+    // The sugar is consumed here — dropped from the resolved season so a resolved recipe
     // re-validates cleanly (validation is idempotent).
-    const { extraNightRatio, ...rest } = s;
-    void extraNightRatio;
+    const { extraNightRatio, lengthOfStayDiscounts, ...rest } = s;
+    void extraNightRatio; void lengthOfStayDiscounts;
     resolvedSeasons.push({ ...rest, pricingMode: mode, minNights, changeover: s.changeover ?? null, progressiveTiers });
   }
   const sortedRanks = [...ranks].sort((a, b) => a - b);

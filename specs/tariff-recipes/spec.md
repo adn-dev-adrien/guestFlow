@@ -265,27 +265,29 @@ all-inclusive pricing as the first such recipe.
     displayed price whatever the entry point, and the welcome pack financed on every direct stay.
     Reservations imported from a commissioned platform keep today's behaviour: the operator records the
     amount actually paid (`platformGrossAmount`); the engine does not re-price them.
-36. **A night is never more expensive than the one before it, and 7 nights are discounted 45 %** —
-    the source document's §6 target. The document's own table cannot be implemented as written: at
-    « 45 % from 7 nights on », the 8th night costs 98,45 € against 76,97 € for the 7th, i.e. it gets
-    *dearer*. Pinning the target at 7 nights instead, with a constant marginal price beyond night 1,
-    satisfies both and lands within a point of the document at every length.
-37. **Curve: night 1 at full price, every subsequent night at 47,5 % of it.** The floor that puts the
-    7-night discount exactly on 45 %.
+36. **The degressivity is the source document's §6 table, verbatim** — one set of percentages for the
+    three seasons:
 
-    | Season | Night 1 | Nights 2+ | Extra guest, night 1 | Extra guest, nights 2+ |
-    |---|---|---|---|---|
-    | LOW | 179,00 € | 85,03 € | 27,00 € | 12,83 € |
-    | MID | 216,00 € | 102,60 € | 27,00 € | 12,83 € |
-    | HIGH | 247,00 € | 117,32 € | 27,00 € | 12,82 € |
+    | Nights | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+    |---|---|---|---|---|---|---|---|
+    | Discount | 0 % | 24 % | 33 % | 38 % | 41 % | 43 % | 45 % |
 
-    Total discount vs. the document: 26,2 % at 2 nights (doc 24 %), 35,0 % at 3 (33 %), 39,4 % at 4
-    (38 %), 42,0 % at 5 (41 %), 43,7 % at 6 (43 %), **45,0 % at 7 (45 %)**. Beyond a week it keeps
-    deepening towards its 52,5 % asymptote — 48,7 % at 14 nights, 50,6 % at 28.
+    It is declared in the recipe as that table (`lengthOfStayDiscounts`), not as a paraphrase: the
+    engine bills marginal night prices, and the loader converts one into the other so the cumulative
+    totals an operator reads in the document are reproduced to the cent.
+37. **Past 7 nights, the 7th night's price repeats.** The document's « 7 et plus : 45 % » cannot be
+    applied literally: a flat 45 % would make the 8th night cost 98,45 € against 76,97 € for the 7th,
+    i.e. *dearer* — which rule 36's companion constraint (a further night is never more expensive
+    than the one before it) forbids. Carrying the last tier forward keeps every declared value
+    untouched and lets the discount keep deepening slightly beyond a week.
 
-    > The per-night extra-guest amounts differ by a cent between seasons: the floor is computed on
-    > each season's own price and rounded there (247 × 0,475 = 117,325 → 117,32), so the ratio each
-    > season applies to the supplement is its own tier ÷ its own base.
+    Resulting marginal prices:
+
+    | Season | N1 | N2 | N3 | N4 | N5 | N6 | N7 and beyond |
+    |---|---|---|---|---|---|---|---|
+    | LOW | 179,00 € | 93,08 € | 87,71 € | 84,13 € | 84,13 € | 84,13 € | 76,97 € |
+    | MID | 216,00 € | 112,32 € | 105,84 € | 101,52 € | 101,52 € | 101,52 € | 92,88 € |
+    | HIGH | 247,00 € | 128,44 € | 121,03 € | 116,09 € | 116,09 € | 116,09 € | 106,21 € |
 38. **The discount applies to the extra-guest supplement too**, night by night, using that night's own
     ratio (`tier price ÷ season full price`). A `fixed`-mode season yields ratio 1, i.e. a plain
     per-night fee.
@@ -378,33 +380,30 @@ all-inclusive pricing as the first such recipe.
 ### 3.10 Reference totals
 
 54. **Channel totals** —
-    `total = displayed + 0,475 × displayed × (nights − 1) + extraGuests × extra × (1 + 0,475 × (nights − 1))`:
+    `total = round((displayed × nights + extraGuests × extra × nights) × (1 − discount[nights]))`.
+    **All eight cases of the source document's §14 are reproduced exactly:**
 
     | # | Case | Expected | Source document §14 |
     |---|---|---|---|
-    | 1 | Airbnb · 2 p · 1 n · LOW | 190,00 € | 190 € |
-    | 2 | Airbnb · 2 p · 2 n · LOW | 280,25 € | 289 € |
-    | 3 | Airbnb · 4 p · 3 n · HIGH | 637,65 € | 657 € |
-    | 4 | Booking · 2 p · 1 n · HIGH | 265,00 € | 265 € |
-    | 5 | Abracadaroom · 5 p · 7 n · HIGH | **1 455,30 €** | **1 455 €** |
-    | 6 | Direct · 2 p · 1 n · LOW | 179,00 € | 179 € |
-    | 7 | Direct · 2 p · 3 n · MID | 421,20 € | 434 € |
-    | 8 | Abritel · 3 p · 2 n · MID | 374,65 € | 386 € |
-
-    > The 7-night case lands on the document to the euro — expected, since that is where the curve is
-    > pinned. The intermediate cases come out slightly below it because a constant marginal price
-    > discounts 2 to 6 nights a little more deeply than the document's table does.
+    | 1 | Airbnb · 2 p · 1 n · LOW | 190 € | 190 € ✓ |
+    | 2 | Airbnb · 2 p · 2 n · LOW | 289 € | 289 € ✓ |
+    | 3 | Airbnb · 4 p · 3 n · HIGH | 657 € | 657 € ✓ |
+    | 4 | Booking · 2 p · 1 n · HIGH | 265 € | 265 € ✓ |
+    | 5 | Abracadaroom · 5 p · 7 n · HIGH | 1 455 € | 1 455 € ✓ |
+    | 6 | Direct · 2 p · 1 n · LOW | 179 € | 179 € ✓ |
+    | 7 | Direct · 2 p · 3 n · MID | 434 € | 434 € ✓ |
+    | 8 | Abritel · 3 p · 2 n · MID | 386 € | 386 € ✓ |
 
 55. **Engine totals** — what `calculateReservationQuote` must return for a **direct** reservation:
 
     | # | Case | Accommodation | Extra guests | Total |
     |---|---|---|---|---|
     | D1 | 2 p · 1 n · LOW | 179,00 € | — | 179,00 € |
-    | D2 | 2 p · 2 n · LOW | 264,03 € | — | 264,03 € |
-    | D3 | 2 p · 3 n · MID | 421,20 € | — | 421,20 € |
-    | D4 | 4 p · 3 n · HIGH | 481,64 € | 105,30 € | 586,94 € |
-    | D5 | 5 p · 7 n · HIGH | 950,92 € | 311,84 € | 1 262,76 € |
-    | D6 | 3 p · 2 n · MID | 318,60 € | 39,83 € | 358,43 € |
+    | D2 | 2 p · 2 n · LOW | 272,08 € | — | 272,08 € |
+    | D3 | 2 p · 3 n · MID | 434,16 € | — | 434,16 € |
+    | D4 | 4 p · 3 n · HIGH | 496,47 € | 108,54 € | 605,01 € |
+    | D5 | 5 p · 7 n · HIGH | 950,95 € | 311,85 € | 1 262,80 € |
+    | D6 | 3 p · 2 n · MID | 328,32 € | 41,04 € | 369,36 € |
 
     The engine works in cents; whole-euro rounding is a channel-configuration concern, not a billing one.
 
@@ -646,11 +645,12 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - Recipes load from the repository, then from `data/recipes/` which can override by `id` — updating a
   recipe needs no release. Browser read-only in this version. ✅
 - Applying previews first; seasons the recipe does not declare are removed after confirmation. ✅
-- Discount curve: floor at **47,5 %** of the full rate from night 2, which puts the 7-night discount
-  exactly on the source document's 45 % while keeping marginal nights non-increasing. (An earlier
-  pass capped the discount at 30 %; corrected on 2026-08-12 after review — the document's target was
-  the intent, and the 30 % cap only ever existed because the document's table as written is not
-  implementable.) ✅
+- Discount curve: **the source document's §6 table, verbatim** (24/33/38/41/43/45 %), declared as a
+  cumulative table in the recipe and converted to marginal night prices by the loader. All eight of
+  the document's §14 channel cases are reproduced exactly. Beyond 7 nights the 7th night's price
+  repeats, because a literal « 45 % et plus » would make night 8 dearer than night 7. (Two earlier
+  passes got this wrong — a 30 % cap, then a 47,5 % floor pinned on the 7-night value; corrected
+  2026-08-12 on Adrien's instruction to follow the table itself.) ✅
 - Holiday blocks impose a minimum stay equal to their own length — 2 nights for a Friday or Monday
   holiday, 3 for a bridge. ✅
 - Direct bookings taken in GuestFlow are billed at the Lodgify displayed price (179 / 216 / 247 €). ✅

@@ -1,27 +1,46 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const { normalizeProgressiveTiers } = require('../utils/pricing');
+const { validateRecipe } = require('../utils/tariffRecipe');
 
-// specs/tariff-recipes/spec.md §3.6 rules 36-37 — the commercial promise the Aventura curve must
-// keep at every stay length: marginal night prices never increase (a further night is never dearer
-// than the one before it), and a 7-night stay lands on the source document's 45 % discount.
-// This is the test that catches a future well-meaning tier edit breaking either.
+// specs/tariff-recipes/spec.md §3.6 rules 36-37 — the degressivity of the source document's §6,
+// reproduced exactly, and the commercial promise that must hold at every stay length: a further
+// night is never dearer than the one before it. This is the test that catches a future
+// well-meaning tier edit breaking either.
 
-const RATIO = 0.475;
-const r2 = (v) => Math.round(v * 100) / 100;
+// §6 of the source document — one set of percentages for the three seasons.
+const DOCUMENT_TABLE = { 2: 24, 3: 33, 4: 38, 5: 41, 6: 43, 7: 45 };
 
-const SEASONS = [
-  { label: 'LOW', base: 179 },
-  { label: 'MID', base: 216 },
-  { label: 'HIGH', base: 247 },
-];
+const RECIPE = validateRecipe(
+  JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'recipes', 'aventura-lodge-2026.json'), 'utf8')),
+);
 
-for (const { label, base } of SEASONS) {
-  const tier = r2(base * RATIO);
+test('the shipped recipe carries the document table (not a paraphrase of it)', () => {
+  assert.equal(RECIPE.valid, true, RECIPE.error);
+  const declared = Object.fromEntries(
+    RECIPE.recipe.lengthOfStayDiscounts.map((row) => [row.nights, row.discountPct]),
+  );
+  assert.deepEqual(declared, DOCUMENT_TABLE);
+});
 
-  test(`${label}: marginal nights never increase, up to 60 nights`, () => {
-    const tiers = normalizeProgressiveTiers(base, [{ nightNumber: 2, extraNightPrice: tier }], 60);
+for (const season of (RECIPE.recipe?.seasons || [])) {
+  const { label, pricePerNight: base } = season;
+
+  test(`${label}: the cumulative totals land on the document's percentages to the cent`, () => {
+    const tiers = normalizeProgressiveTiers(base, season.progressiveTiers, 7);
+    let cumulative = base;
+    for (const t of tiers) {
+      cumulative = Math.round((cumulative + t.extraNightPrice) * 100) / 100;
+      const expected = Math.round(base * t.nightNumber * (1 - DOCUMENT_TABLE[t.nightNumber] / 100) * 100) / 100;
+      assert.equal(cumulative, expected, `${label} at ${t.nightNumber} nights`);
+    }
+  });
+
+  test(`${label}: a further night is never dearer than the previous one, up to 60 nights`, () => {
+    const tiers = normalizeProgressiveTiers(base, season.progressiveTiers, 60);
     let previousMarginal = base;
     for (const t of tiers) {
       assert.ok(
@@ -31,30 +50,31 @@ for (const { label, base } of SEASONS) {
       previousMarginal = t.extraNightPrice;
     }
   });
-
-  test(`${label}: a 7-night stay is discounted 45 % (the source document's target)`, () => {
-    const tiers = normalizeProgressiveTiers(base, [{ nightNumber: 2, extraNightPrice: tier }], 7);
-    const total = base + tiers.reduce((sum, t) => sum + t.extraNightPrice, 0);
-    const discount = 1 - total / (base * 7);
-    assert.ok(
-      Math.abs(discount - 0.45) < 0.001,
-      `${label}: 7-night discount ${(discount * 100).toFixed(2)} % should be 45 %`,
-    );
-  });
 }
 
-test('the discount deepens monotonically with the stay length and settles near 52,5 %', () => {
+test('past 7 nights the 7th night repeats — a literal « 45 % et plus » would make night 8 dearer', () => {
   const base = 179;
-  const tiers = normalizeProgressiveTiers(base, [{ nightNumber: 2, extraNightPrice: r2(base * RATIO) }], 365);
+  const season = RECIPE.recipe.seasons.find((s) => s.pricePerNight === base);
+  const tiers = normalizeProgressiveTiers(base, season.progressiveTiers, 12);
+  const byNight = new Map(tiers.map((t) => [t.nightNumber, t.extraNightPrice]));
+  assert.equal(byNight.get(7), 76.97);
+  assert.equal(byNight.get(8), 76.97);
+  assert.equal(byNight.get(12), 76.97);
+  // What the literal reading would have charged for night 8, and why it is rejected.
+  const literalNight8 = Math.round((base * 8 * 0.55 - base * 7 * 0.55) * 100) / 100;
+  assert.ok(literalNight8 > byNight.get(7), 'the literal reading really does make night 8 dearer');
+});
+
+test('the discount deepens with the stay length and never shrinks', () => {
+  const base = 179;
+  const season = RECIPE.recipe.seasons.find((s) => s.pricePerNight === base);
+  const tiers = normalizeProgressiveTiers(base, season.progressiveTiers, 60);
   let cumulative = base;
   let previousDiscount = 0;
-  tiers.forEach((t, index) => {
+  tiers.forEach((t) => {
     cumulative += t.extraNightPrice;
-    const nights = index + 2;
-    const discount = 1 - cumulative / (base * nights);
-    assert.ok(discount >= previousDiscount - 1e-9, `discount shrank at ${nights} nights`);
+    const discount = 1 - cumulative / (base * t.nightNumber);
+    assert.ok(discount >= previousDiscount - 1e-9, `discount shrank at ${t.nightNumber} nights`);
     previousDiscount = discount;
   });
-  // Asymptote = 1 − ratio; never reached, always approached from below.
-  assert.ok(previousDiscount > 0.52 && previousDiscount < 1 - RATIO + 1e-6);
 });
